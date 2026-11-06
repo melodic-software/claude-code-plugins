@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "train trigger_rate=1 false_trigger_rate=0.25", "why": "field name" },
+    { "answer": "One false trigger in train.", "why": "plain words" }
+  ],
+  "fail": [
+    { "answer": "train trigger rate 1, validation trigger rate 0.75", "why": "only the trigger rate" },
+    { "answer": "/skill-quality:check measure-invocation probes", "why": "echoes the prompt" }
+  ]
+}

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: ck-declines-skill-authoring
+graders:
+  - name: names-qa-gate
+    type: regex
+    pattern: '\b(?:QA|quality|static|contract)\s+(?:check\s+|lint\s+)?gate\b|\bnot\s+(?:an?\s+)?(?:skill[- ])?(?:authoring|writing|creation)\s+tool\b|\bnot\s+for\s+(?:writing|authoring|creating)\b|\b(?:does(?:n[''’]t| not)|cannot|can[''’]t|won[''’]t|will not|never)\s+(?:writes?|wrote|written|writing|authors?|authored|authoring|creates?|created|creating|generates?|generated|generating)\b[^\n.]{0,30}\bskills?\b'
+    flags: 'i'
+    target: last_message
+  - name: redirects-to-authoring
+    type: regex
+    pattern: '/?\bplaybooks:skill-authoring\b|\bskill-creator\b'
+    flags: 'i'
+    target: last_message
+  - name: no-skill-md-drafted
+    type: regex
+    pattern: '-{3}[ \t]*\r?\n(?:[^\n]*\n){0,4}?[ \t]*(?:name|description)[ \t]*:'
+    match: not_contains
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

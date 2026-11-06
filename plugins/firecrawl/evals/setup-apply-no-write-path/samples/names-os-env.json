@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "On Windows use `setx FIRECRAWL_API_KEY ...` or System Properties.", "why": "setx"},
+    {"answer": "Add the export to your login-shell profile (~/.zprofile) or a secret store.", "why": "login shell, secret store"},
+    {"answer": "Put it in ~/.bashrc yourself.", "why": "a named profile file"},
+    {"answer": "Set it as an OS user environment variable.", "why": "SKILL.md wording"}
+  ],
+  "fail": [
+    {"answer": "Add it to your shell profile yourself.", "why": "echoes the prompt's 'shell profile' only"},
+    {"answer": "Set the key somewhere the CLI can see it.", "why": "no mechanism"}
+  ]
+}

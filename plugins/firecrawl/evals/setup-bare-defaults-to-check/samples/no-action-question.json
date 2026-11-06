@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "| Probe | Verdict |\n|---|---|\n| firecrawl-cli binary | PASS |\n\nRun `/firecrawl:setup apply` for the remediation.", "why": "names apply as a follow-up, no question"},
+    {"answer": "Ran check (the default action). Want me to explain any row?", "why": "a question that is not about the action"}
+  ],
+  "fail": [
+    {"answer": "Which action do you want: check or apply?", "why": "asks for the action"},
+    {"answer": "Should I run check or apply?", "why": "should-I form"},
+    {"answer": "Do you want check or apply? Check is read-only.", "why": "check or apply question"},
+    {"answer": "What action should I take?", "why": "what action"}
+  ]
+}

@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: setup-missing-cli-is-info
+graders:
+  - name: cli-info
+    type: 'regex'
+    pattern: '^[^\n]*\b(?:CLI|binary|firecrawl-cli)\b[^\n]*\b(?:INFO|Info)\b|^[^\n]*\b(?:INFO|Info)\b[^\n]*\b(?:CLI|binary|firecrawl-cli)\b|^(?:#{1,4}[ \t]+|\*\*)[^\n]*\b(?:CLI|binary|firecrawl-cli)\b[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:INFO|Info)\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: auth-info
+    type: 'regex'
+    pattern: '^[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)[^\n]*\b(?:INFO|Info)\b|^[^\n]*\b(?:INFO|Info)\b[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)|^(?:#{1,4}[ \t]+|\*\*)[^\n]*(?:\b[Aa]uth\w*|\bFIRECRAWL_API_KEY\b|\b(?:API|[Aa]pi) [Kk]ey\b)[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:INFO|Info)\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: no-fail-verdict
+    type: 'regex'
+    pattern: '\|\s*(?:\*\*)?\s*(?:FAIL|Fail)\b[^|\n]*\||\*\*(?:FAIL|Fail)\*\*|^\s*(?:[-*]|\d+\.)\s+(?:\*\*)?(?:FAIL|Fail)\b|^\s*(?:#{1,4}\s+)?(?:FAIL|Fail)\b'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: names-lazy-install
+    type: 'regex'
+    pattern: '\blazy[- ]install\w*|\binstall(?:s|ed)?\b[^\n.]{0,40}?\b(?:on|at|when) first (?:need(?:ed)?|use)\b|\bwhen first needed\b|\bon first (?:use|need)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-status-line
+    type: 'regex'
+    pattern: '\bstatus line\b|\bself-flag\w*|\bflags? (?:its own|the CLI[''’]?s?|a missing CLI|the missing CLI)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: lazy-install-reasoning
+    type: 'llm'
+    criteria: "firecrawl setup SKILL.md: the plugin is 'lazy-install by design, the main skill treats firecrawl-cli as an escalation option installed when first needed and flags its own absence in its status line, so a missing CLI is an INFO here, not a failure'; check step 2: 'CLI absent AND key unset -> INFO: both arrive at first use, nothing is broken yet'; apply's CLI-absent remediation defers to the main skill's documented flow (npm install -g firecrawl-cli, which the user runs) without duplicating its update or rollback mechanics. The user's facts: firecrawl is not on PATH and FIRECRAWL_API_KEY is unset. PASS only if the reply reports the absent CLI as INFO for the lazy-install reason, says the main skill flags the missing CLI in its own status line, reports auth as INFO too because both arrive at first use, says nothing is broken, and points the remediation at the main skill's install flow. FAIL if it reports the CLI or auth as FAIL, says the setup is broken, restates update or rollback steps as its own remediation, or says it installed anything."
+  - name: no-npm-install
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:p?npm|yarn)\s+(?:(?:global\s+)?(?:install|i|add)|update|up|upgrade)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

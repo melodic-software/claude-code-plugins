@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| Authentication | INFO | key unset, CLI absent: both arrive at first use |", "why": "table row"},
+    {"answer": "- FIRECRAWL_API_KEY: unset -> INFO", "why": "bullet with the key"},
+    {"answer": "**Auth**\n\nINFO. Nothing is broken yet.", "why": "bold title, verdict below"}
+  ],
+  "fail": [
+    {"answer": "| Authentication | FAIL | key unset |", "why": "FAIL"},
+    {"answer": "Auth is not configured.", "why": "no verdict"},
+    {"answer": "| firecrawl-cli binary | INFO | absent |", "why": "INFO only on the CLI row"},
+    {"answer": "| Authentication | FAIL | see the auth info in configuration.md |", "why": "lowercase 'info' is not the verdict (claude-review)"}
+  ]
+}

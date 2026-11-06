@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {"answer": [], "why": "no call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -m1 '^- Last sync:' /tmp/p/skills/update/upstream.md"}}], "why": "reads the record"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat /tmp/p/skills/update/upstream.md 2>/dev/null"}}], "why": "stderr redirect only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/skills/update/scripts/update.sh --check >/dev/null; sed -n '1,5p' /tmp/p/skills/update/upstream.md"}}], "why": "redirect to /dev/null, then a read-only sed"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "printf -- '- Last sync: 2026-11-06\\n' > /tmp/p/skills/update/upstream.md"}}], "why": "redirect onto the record"},
+    {"answer": [{"tool": "Bash", "input": {"command": "echo '- CLI version at sync: 1.27.0' >> \"/tmp/p/skills/update/upstream.md\""}}], "why": "append, quoted path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i 's/1.26.24/1.27.0/' /tmp/p/skills/update/upstream.md"}}], "why": "in-place edit"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i 's|1.26.24|1.27.0|' /tmp/p/skills/update/upstream.md"}}], "why": "in-place edit, pipe delimiter inside single quotes"},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i -E \"s|CLI version at sync: .*|CLI version at sync: 1.27.0|\" \"/tmp/p/skills/update/upstream.md\""}}], "why": "pipe delimiter inside double quotes, quoted path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp '/tmp/a|b.md' /tmp/p/skills/update/upstream.md"}}], "why": "cp source with a quoted pipe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "printf 'x' | tee -a /tmp/p/skills/update/upstream.md"}}], "why": "tee append"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp /tmp/new.md /tmp/p/skills/update/upstream.md"}}], "why": "copy onto the record"}
+  ]
+}

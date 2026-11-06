@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Adding the env key on top would create a second source of truth.", "why": "second source"},
+    {"answer": "That leaves two sources for auth.", "why": "two sources"},
+    {"answer": "Env-var auth is the preferred single source of truth.", "why": "source of truth"}
+  ],
+  "fail": [
+    {"answer": "Adding the key isn't needed.", "why": "no reason"},
+    {"answer": "That matches the documented preference.", "why": "echoes the prompt"}
+  ]
+}

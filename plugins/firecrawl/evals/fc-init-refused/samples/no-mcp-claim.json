@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "init installs upstream's CLI skills for every detected agent. Set FIRECRAWL_API_KEY instead.", "why": "no MCP mention"},
+    {"answer": "init does not install an MCP server; it installs upstream's skills globally.", "why": "negated MCP claim"},
+    {"answer": "init installs upstream's skills. If you also have the Firecrawl MCP registered, pick one surface.", "why": "MCP in a later sentence"},
+    {"answer": "firecrawl init won't set up the MCP server either.", "why": "contracted negation"}
+  ],
+  "fail": [
+    {"answer": "`firecrawl init --all --browser` installs the Firecrawl MCP server and its skills for every agent.", "why": "the claim"},
+    {"answer": "Running init would register an MCP server alongside this plugin.", "why": "register"},
+    {"answer": "init sets up the firecrawl-mcp MCP server, which overlaps this CLI.", "why": "sets up"},
+    {"answer": "init configures MCP for Claude Code and Cursor.", "why": "configures"}
+  ]
+}

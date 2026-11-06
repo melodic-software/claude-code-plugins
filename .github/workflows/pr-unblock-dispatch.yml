@@ -225,14 +225,22 @@ jobs:
       # dispatch reads for a pull request whose pr-verify FAILs are at the cap
       # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
       # A failed install warns; the reader then fails and the round runs.
+      # Both steps take the dispatch step's gate, so a paced tick installs
+      # nothing it would not use.
       - name: Set up Python
-        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        if: >-
+          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .base/.python-version
 
       - name: Install the pinned YAML reader
-        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+        if: >-
+          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
         continue-on-error: true
         run: |
           awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "Failures:\n- FAIL: broken skill-internal ref: reference/style-guide.md (...)\n\nWarnings (advisory):\n- WARN: no Gotchas surface\n- WARN: frontmatter has no explicit disable-model-invocation key", "why": "warnings section after the failure" },
+    { "answer": "- FAIL: broken skill-internal ref: reference/style-guide.md\n\n**Advisory** — no `## Gotchas` section.", "why": "advisory label then the gotchas warning" },
+    { "answer": "**FAIL**\n- `broken skill-internal ref: reference/style-guide.md (no such file under the skill dir; cited at SKILL.md:8)`\n\n**WARN**\n- `markdownlint-cli2 unavailable (not installed / not resolvable) — markdownlint check skipped`\n- `no Gotchas surface (inline '## Gotchas' or context/gotchas.md)`", "why": "smoke 2 reply: WARN heading after the FAIL section" }
+  ],
+  "fail": [
+    { "answer": "WARN: no Gotchas surface\n\nFAIL: broken skill-internal ref: reference/style-guide.md", "why": "warnings before failures" },
+    { "answer": "FAIL: broken skill-internal ref: reference/style-guide.md (no such file under the skill dir)", "why": "warnings left out" },
+    { "answer": "FAIL: broken skill-internal ref: reference/style-guide.md. Also add a Gotchas section.", "why": "gotchas mentioned as a fix, not reported as a WARN" },
+    { "answer": "**WARN**\n- no Gotchas surface\n\n**FAIL**\n- `broken skill-internal ref: reference/style-guide.md (no such file under the skill dir)`", "why": "near miss: WARN section before the FAIL section" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "| Authentication | PASS | firecrawl --status: authenticated (persisted login) |", "why": "table row"},
+    {"answer": "- Auth: PASS (INFO: source is CLI config, not the env var)", "why": "bullet"},
+    {"answer": "### 2. Authentication\n\nPASS. The status line is authoritative.", "why": "heading, verdict below"},
+    {"answer": "PASS: firecrawl --status says authenticated.", "why": "verdict first"}
+  ],
+  "fail": [
+    {"answer": "| Authentication | INFO | persisted login |", "why": "INFO only"},
+    {"answer": "| firecrawl-cli binary | PASS | 1.26.24 |\n| Authentication | FAIL | no env key |", "why": "PASS on the CLI row, FAIL on auth"},
+    {"answer": "You're authenticated.", "why": "no verdict"},
+    {"answer": "- Auth: INFO; it would pass once FIRECRAWL_API_KEY is set.", "why": "lowercase 'pass' is not the verdict (claude-review)"}
+  ]
+}

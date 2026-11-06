@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Status error (verbatim): `Error: request to https://api.firecrawl.dev/v2/team/credit-usage failed, reason: connect ETIMEDOUT 104.18.20.191:443`", "why": "full error"},
+    {"answer": "The probe failed with `connect ETIMEDOUT 104.18.20.191:443`.", "why": "the distinctive part"}
+  ],
+  "fail": [
+    {"answer": "The status probe timed out.", "why": "paraphrase"},
+    {"answer": "It failed with ETIMEDOUT.", "why": "code only"}
+  ]
+}

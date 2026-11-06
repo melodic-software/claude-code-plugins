@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/check-evals-quality.sh\" .claude/skills/my-skill/evals/evals.json" } }], "why": "the evals lint, not the gate" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/check-skill.sh\" my-skill" } }], "why": "runs the static contract gate" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "CHECK_SKILL_SKILLS_ROOT=\"$PWD/.claude/skills\" \\\n  bash /p/scripts/check-skill.sh my-skill" } }], "why": "gate with a root override" }
+  ]
+}

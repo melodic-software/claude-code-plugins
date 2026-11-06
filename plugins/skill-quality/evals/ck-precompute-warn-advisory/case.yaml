@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: ck-precompute-warn-advisory
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+  - name: names-check-18
+    type: regex
+    pattern: '\bcheck\s*#?\s*18\b'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: not-blocking
+    type: regex
+    pattern: '(?<!not )(?<!n[''’]t )(?<!never )\badvisory\b|\bnot\s+(?:a\s+)?FAIL\b|\b(?:does(?:n[''’]t| not)|won[''’]t|will not|never)\s+(?:fail|block)\w*\b|\bnon-?blocking\b'
+    flags: 'i'
+    target: last_message
+  - name: per-invocation
+    type: regex
+    pattern: '\b(?:per|each|every)[- ](?:invocation|run|call)\b|\btool[- ]calls?\b'
+    flags: 'i'
+    target: last_message
+  - name: candidate-to-judge
+    type: llm
+    focus: last_message
+    criteria: "PASS only if the reply calls the line an advisory WARN (check 18) that does not fail the skill or block shipping; explains that the fenced read-only shell block could move into a `!` load-time injection instead of a tool call on each invocation; and treats it as a candidate to judge: check the block, convert it only if it runs on every invocation to gather context, and leave it if it is an illustrative example. FAIL if it treats the WARN as a defect that must be fixed, says the skill failed, or tells the user to convert the block without checking it first."

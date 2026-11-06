@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: ck-outside-git-degrades
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+  - name: names-git-backed-checks
+    type: regex
+    pattern: '\btrigger[- ](?:keyword[- ])?preservation\b|\bvendor\b|\bstale[- ](?:tracking[- ])?metadata\b|\bcommitted[- ]artifacts?\b'
+    flags: 'i'
+    target: last_message
+  - name: skips-not-aborts
+    type: regex
+    pattern: '(?<!not )(?<!n[''’]t )(?<!never )(?<!nothing is )(?<!nothing gets )(?<!none are )\bskip(?:s|ped|ping)?\b'
+    flags: 'i'
+    target: last_message
+  - name: degrades-not-aborts
+    type: llm
+    focus: last_message
+    criteria: "PASS if the reply says the static gate still runs its non-git checks against the plugin-cache tree because CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) gives it a skills root, says the git-backed checks skip with a note instead of aborting the whole gate, and does not claim the checker exits 2 or aborts because the working directory is outside a git repository. Saying it exits 2 only when no skills root override, no CLAUDE_PROJECT_DIR and no git toplevel is available is correct. FAIL if it says the run aborts, exits 2 or refuses because cwd is not in a git repo, or that no checks run."
