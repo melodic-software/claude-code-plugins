@@ -1355,7 +1355,7 @@
             "proxy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
+              "required": ["claude-code-version", "driven-model", "driven-small-model", "models", "token-cap", "driver-token-cap", "max-tokens-ceiling", "max-body-bytes", "max-in-flight", "max-count-tokens-requests", "max-preflight-requests", "upstream-timeout-ms", "betas", "body-keys", "block-types"],
               "description": "The key proxy the capture's driven Claude Code reaches the API through, and the driven session's models (README.md, Verifier verdict).",
               "properties": {
                 "claude-code-version": {
@@ -1383,7 +1383,12 @@
                 "token-cap": {
                   "type": "integer",
                   "minimum": 1,
-                  "description": "Tokens one capture job may spend through the proxy, input, cache and output counted in full; past it the proxy refuses (README.md, Verifier verdict)."
+                  "description": "Tokens the driven session of one capture job may spend through the proxy, input, cache and output counted in full; past it the proxy refuses (README.md, Verifier verdict)."
+                },
+                "driver-token-cap": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The same budget for the capture job's driver legs, which reach the proxy on its loopback port (README.md, Verifier verdict)."
                 },
                 "max-tokens-ceiling": {
                   "type": "integer",

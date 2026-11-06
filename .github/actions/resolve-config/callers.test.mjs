@@ -3245,9 +3245,12 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-rate-merge-risk.yml rate-merge-risk-fallback: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk-subscription: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
+    "pr-refine.yml fix-docs-head: Check the human-gated hold",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-refine.yml plan: List the PR's changed files",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
+    "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
@@ -3314,7 +3317,10 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   // files it also marks, and fix-docs-head), holds no grant, and logs signal
   // 13's notice.
   const { jobs } = workflow("pr-refine.yml");
-  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread }}");
+  // lane-hold.mjs's fault hold sets unread too, and hold-unread names it.
+  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread || steps.hold.outputs.unread }}");
+  assert.equal(jobs["fix-docs-head"].outputs["hold-unread"], "${{ steps.hold.outputs.unread }}");
+  assert.equal(jobs["fix-docs-head"].steps.find((s) => s.id === "hold").env.API_BUDGET_HOLD, "1");
   for (const id of ["setup-node", "hold"]) {
     const later = jobs["fix-docs-head"].steps.find((s) => s.id === id || (id === "setup-node" && s.name === "Set up Node"));
     assert.equal(later.if, "steps.head.outputs.sha != ''", id);
@@ -3327,8 +3333,11 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.equal(holds("", "true"), true);
   assert.equal(holds("", "false"), false);
   assert.equal(holds("", ""), false);
-  assert.match(held.steps[0].run, /echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
+  assert.match(held.steps[0].run, /^what="head"\n\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"\nif \[\[ \$PLAN_HELD != true \]\]; then\n  echo "::notice title=PR head hold::the \$what of #\$PR_NUMBER could not be read/);
+  assert.match(held.steps[0].run, /\nelse\n  echo "::notice title=PR head hold::the changed files of #\$PR_NUMBER could not be read/);
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
+  assert.equal(held.steps[0].env.HOLD_UNREAD, "${{ needs.fix-docs-head.outputs.hold-unread }}");
+  assert.equal(held.steps[0].env.PLAN_HELD, "${{ needs.plan.outputs.held }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
   // fix-docs-head ends green on an unread head, so its dependents are not
@@ -3339,7 +3348,12 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   const needsOf = (job) => [job.needs ?? []].flat();
   const downstream = new Set(["fix-docs-head"]);
   const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
-  const heads = { unread: { unread: "true" }, read: { "head-sha": "a".repeat(40), unread: "", held: "false" } };
+  const heads = {
+    unread: { unread: "true" },
+    // A head that was read, and a hold read that met a fault: no held output.
+    holdUnread: { "head-sha": "a".repeat(40), unread: "true", "hold-unread": "true" },
+    read: { "head-sha": "a".repeat(40), unread: "", held: "false" },
+  };
   const ifContext = (expression, head) => {
     // A real fix-docs dispatch from a person: a PR number and this activity.
     const context = { "inputs.pr-number": "7", "inputs.activity": "fix-docs" };
@@ -3356,6 +3370,7 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
     // The sender check passes, so only the head's outputs can stop the job.
     const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
     assert.equal(evaluate(expression, ifContext(expression, heads.unread)), false, `${id} runs on an unread head: ${expression}`);
+    assert.equal(evaluate(expression, ifContext(expression, heads.holdUnread)), false, `${id} runs on an unread hold: ${expression}`);
     if (id === "fix-docs") assert.equal(evaluate(expression, ifContext(expression, heads.read)), true, `fix-docs does not run on a read head: ${expression}`);
     results[id] = "skipped";
   }
@@ -6863,9 +6878,14 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(proceed("", ""), "");
   assert.equal(proceed("true", ""), "", "a merge step that failed");
   // The human-gated hold (lane-hold.mjs) runs after the slot and before any
-  // merge: held skips awaiting-human; a failed read stops it.
+  // merge: held skips awaiting-human; a read that failed, or one that held
+  // on a GitHub fault (no held output), decides nothing, so no check posts
+  // and the next dispatcher tick sends the head again.
   assert.equal(proceed("true", "", "true"), "false");
-  assert.equal(proceed("true", "", ""), "", "a hold read that failed");
+  assert.equal(proceed("true", "", ""), "", "a hold read that failed or held on a fault");
+  const faultSkip = evaluate(select.outputs["skip-reason"], { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "" });
+  assert.equal(faultSkip, "", "a fault hold names no skip");
+  assert.equal(step("hold").env.API_BUDGET_HOLD, "1");
   const skip = evaluate(select.outputs["skip-reason"], { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true", "steps.behind.outputs.behind": "" });
   assert.equal(skip, "awaiting-human");
   assert.equal(step("hold").if, "steps.slot.outputs.applies == 'true'");
@@ -8767,6 +8787,9 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.deepEqual(decide({ ...gated, "steps.slot.outputs.applies": "false", "steps.slot.outputs.skip-reason": "not-applicable" }), ["false", "not-applicable"]);
   assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
   assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
+  // lane-hold.mjs held on a GitHub fault: no held or lane-escalated output.
+  assert.deepEqual(decide({ ...gated, "steps.hold.outputs.held": "", "steps.hold.outputs.lane-escalated": "" }), ["", ""], "a fault hold decides nothing");
+  assert.equal(jobs["sync-shared-copies-select"].steps.find((step) => step.id === "hold").env.API_BUDGET_HOLD, "1");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
 });
 
@@ -8824,7 +8847,7 @@ test("pr-unblock.yml: sync-shared-copies-not-run posts every decided outcome neu
   assert.deepEqual(posted({ reason: "shared-copy-merge-conflicted" }), ["skipped", "lane-stopped"]);
   assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "" })), true, "a failed select posts");
   assert.deepEqual(posted({ result: "failure", proceed: "" }), ["failure", ""]);
-  assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop posts nothing");
+  assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop or a fault hold posts nothing");
   assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "", sha: "" })), false, "no head read, nothing to post on");
 });
 
@@ -9845,6 +9868,106 @@ test("the leg check fails a lane that lacks a leg and passes one that has all th
     [...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY"]), lane("other-subscription", ["R_CLAUDE_CODE_OAUTH_TOKEN"]), lane("other-fallback", [FALLBACK_SECRET])]))].map(([key]) => key),
     ["w.yml r run", "w.yml r other"],
   );
+});
+
+// --- the key's credit window and gate: one setting for every model lane ---
+
+// The hours a key's credit stop keeps later runs off the key: the org
+// variable KEY_CREDIT_WINDOW_HOURS, else KEY_CREDIT_DEFAULT_HOURS. Every
+// check-key-credit step takes it as window-hours with that default written
+// out, since the pinned action (gate.cjs, b8bdd7f) fails an empty value, and a
+// step whose default differs fails here. Every call of a ci-workflows reusable
+// that gates its own key passes the variable as is: that string input reads
+// empty as its own 1-hour default (ci-workflows#1003).
+const KEY_CREDIT_DEFAULT_HOURS = "1";
+const KEY_CREDIT_WINDOW = `\${{ vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}' }}`;
+const KEY_CREDIT_WINDOW_REUSABLE = "${{ vars.KEY_CREDIT_WINDOW_HOURS }}";
+// The ci-workflows reusables whose own key job reads check-key-credit.
+const GATED_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@/;
+const isCreditGate = (step) => String(step?.uses ?? "").includes("/check-key-credit@");
+function creditWindowProblems(files, load, readText) {
+  const problems = [];
+  for (const file of files) {
+    for (const [id, job] of Object.entries(load(file).jobs ?? {})) {
+      const passed = job?.with?.["key-credit-window-hours"];
+      if (GATED_REUSABLE.test(String(job?.uses ?? "")) && passed !== KEY_CREDIT_WINDOW_REUSABLE) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
+      for (const step of (job?.steps ?? []).filter(isCreditGate)) {
+        if (step.with?.["window-hours"] !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} ${step.name}: window-hours ${step.with?.["window-hours"]}`);
+      }
+    }
+    // Any other read of the variable, such as a notice naming the window, uses the same text.
+    for (const [read] of readText(file).matchAll(/\$\{\{[^}]*vars\.KEY_CREDIT_WINDOW_HOURS[^}]*\}\}/g)) {
+      if (read !== KEY_CREDIT_WINDOW && read !== KEY_CREDIT_WINDOW_REUSABLE) problems.push(`${file} reads ${read}`);
+    }
+  }
+  return problems;
+}
+// A lane's key leg is gated when its job runs check-key-credit, reads the
+// skip-key of a needed job that runs it, is the read runner's first call
+// (broker-check gates the key-credit-job it names), or calls a reusable that
+// gates its own key: a ci-workflows one or the eval pass.
+function keyLegGate(doc, id, job) {
+  if (GATED_REUSABLE.test(String(job.uses ?? "")) || job.uses === EVAL_PASS_REUSABLE) return "reusable";
+  if (job.uses === READ_RUNNER) return job.with?.["key-credit-job"] === id ? "read-runner" : null;
+  if ((job.steps ?? []).some(isCreditGate)) return "in-job";
+  const text = JSON.stringify(job);
+  const gated = [job.needs ?? []].flat().some((need) => {
+    const gateJob = doc.jobs?.[need] ?? {};
+    const gateIds = (gateJob.steps ?? []).filter(isCreditGate).map((step) => step.id);
+    // The needed job's outputs that carry a gate step's skip-key.
+    const skips = Object.entries(gateJob.outputs ?? {}).filter(([, value]) => gateIds.some((gateId) => String(value).includes(`steps.${gateId}.outputs.skip-key`)));
+    return skips.some(([name]) => text.includes(`needs.${need}.outputs.${name}`));
+  });
+  return gated ? "needs" : null;
+}
+
+test("every check-key-credit step and gated reusable call reads the one credit window", () => {
+  const files = workflowFiles();
+  assert.deepEqual(creditWindowProblems(files, workflow, (file) => read(`../../workflows/${file}`)), []);
+  const gates = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter(isCreditGate)));
+  assert.ok(gates.length >= 15, `found ${gates.length} check-key-credit steps`);
+  const calls = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).filter((job) => GATED_REUSABLE.test(String(job?.uses ?? ""))));
+  assert.equal(calls.length, 3, "the code review, security review and intake triage calls");
+});
+
+test("the credit window check names a drifted default, a missing input and a stray read", () => {
+  const gate = (hours) => ({ name: "Read the key's credit history", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": "j", "window-hours": hours } });
+  const call = (hours) => ({ uses: "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main", with: hours === undefined ? {} : { "key-credit-window-hours": hours } });
+  const check = (jobs, text = "") => creditWindowProblems(["f.yml"], () => ({ jobs }), () => text);
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW)] }, r: call(KEY_CREDIT_WINDOW_REUSABLE) }, `${KEY_CREDIT_WINDOW}\n${KEY_CREDIT_WINDOW_REUSABLE}`), []);
+  assert.deepEqual(check({ g: { steps: [gate("${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}")] } }), ["f.yml g Read the key's credit history: window-hours ${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}"]);
+  assert.deepEqual(check({ g: { steps: [gate("6")] } }), ["f.yml g Read the key's credit history: window-hours 6"], "a literal ignores the variable");
+  assert.deepEqual(check({ r: call(undefined) }), ["f.yml r passes key-credit-window-hours undefined"], "the reusable's own default ignores the variable");
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW_REUSABLE)] } }), [`f.yml g Read the key's credit history: window-hours ${KEY_CREDIT_WINDOW_REUSABLE}`], "an empty window fails the pinned gate");
+  assert.deepEqual(check({ r: call(KEY_CREDIT_WINDOW) }), [`f.yml r passes key-credit-window-hours ${KEY_CREDIT_WINDOW}`], "a written-out default overrides the reusable's own");
+  assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS || '24' }}"]);
+});
+
+test("every catalog lane's key leg runs behind the key's credit gate", () => {
+  const jobs = claudeSecretJobs();
+  const ungated = [];
+  for (const { role, lane, key } of catalogLanes()) {
+    if (!lane.currentSecrets.includes(role.keySecret)) continue;
+    const { doc, job } = jobs.get(key);
+    if (keyLegGate(doc, lane.id, job) === null) ungated.push(key);
+  }
+  assert.deepEqual(ungated, []);
+});
+
+test("the key-leg gate check accepts each gate shape and names a lane with none", () => {
+  const credit = (keyJob) => ({ id: "credit", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": keyJob } });
+  const gate = { outputs: { "skip-key": "${{ steps.credit.outputs.skip-key }}", marker: "${{ steps.credit.outputs.marker }}" }, steps: [credit("model")] };
+  const doc = { jobs: { gate, plain: { outputs: { "skip-key": "${{ steps.x.outputs.skip-key }}" }, steps: [{ id: "x", run: "true" }] } } };
+  assert.equal(keyLegGate(doc, "model", { needs: ["gate"], if: "needs.gate.outputs.marker != ''", steps: [] }), null, "an output other than the skip");
+  const reads = (need) => ({ needs: [need], if: `needs.${need}.outputs.skip-key != 'true'`, steps: [] });
+  assert.equal(keyLegGate(doc, "model", reads("gate")), "needs");
+  assert.equal(keyLegGate(doc, "model", { needs: ["gate"], steps: [] }), null, "a gate whose skip the key leg never reads");
+  assert.equal(keyLegGate(doc, "model", reads("plain")), null, "a needed job that runs no gate");
+  assert.equal(keyLegGate(doc, "model", { steps: [] }), null, "no gate at all");
+  assert.equal(keyLegGate(doc, "model", { steps: [credit("model")] }), "in-job");
+  assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: { "key-credit-job": "fix-ci" } }), "read-runner");
+  assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: {} }), null, "a first call that names no key job");
+  assert.equal(keyLegGate(doc, "x", { uses: "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main" }), "reusable");
 });
 
 test("a credential passed outside the launcher step is caught", () => {

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.0] - 2026-11-06
+
+### Changed
+
+- **Breaking:** recurring items link to their schedule row by a `<!-- recurring-schedule id=<id> -->` body line plus the `recurring-maintenance` label, never by title. `track add --recurring` writes the line and gives the item a Conventional Commits title (`chore(<scope>): <summary>`) in place of the `[Maintenance]` prefix; `due`, `recheck`, `done`, `audit`, `setup` and `work` candidate discovery match by the line, and a repository's recurring-issues automation must write it too. An open recurring item with no line matches no row: `due` and `audit` report it as unlinked, and `work` creates no recurring item while one exists. Migrate by adding the line, naming the row's `id`, to each open `[Maintenance]` item.
+
+## [11.10.2] - 2026-11-06
+
+### Fixed
+
+- `/work-items:setup` gives the right reason for leaving the legacy `.work-item-tracker.json` files in place after it copies them into `<home>/work-items.yaml`: older installed plugin versions and the repository's own tooling may still read only them. It no longer names babysit-prs and the autonomy resolver, which now read the YAML binding first.
+
 ## [11.10.1] - 2026-11-06
 
 ### Changed

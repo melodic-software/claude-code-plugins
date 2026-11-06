@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Brandolini's book is the canonical source, so his order stands.", "why": "canonical"},
+    {"answer": "When sources conflict, Brandolini wins.", "why": "wins"},
+    {"answer": "The authoritative ordering is Brandolini's: chaos first.", "why": "authoritative before the name"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Brandolini and Bourgau describe different orders.", "why": "no authority stated"},
+    {"answer": "The blog's ordering is canonical for remote sessions.", "why": "canonical, but not Brandolini"}
+  ]
+}

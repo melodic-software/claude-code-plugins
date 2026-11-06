@@ -18,15 +18,12 @@ Close a work item with a completion comment.
 
 1. **Resolve the item.** Every item read and write below targets the item's own repository (the qualified ID's `<owner>/<repo>`, else the current one). If a qualified ID (`<provider>:<owner>/<repo>#<n>`) or a number is given, use it directly. If text, search open items (adapter: "Search items").
 
-1. **Check if recurring.** Read `.github/recurring-schedule.json` and check if the item's title matches any recurring item. Items created by the recurring-issues automation have a `[Maintenance]` prefix, so strip it before comparing. Skip gracefully when the repo has no recurring schedule:
+1. **Check if recurring.** Read the item's body and labels (adapter: "View item"). When it carries the resolved `recurring-maintenance` label (`config.role_labels["recurring-maintenance"]` from the binding, default `recurring`) and its body has a `<!-- recurring-schedule id=<id> -->` line ([`reference/issue-conventions.md`](../../../reference/issue-conventions.md) "Recurring marker"), check that `<id>` against `.github/recurring-schedule.json`; the title plays no part. Skip gracefully when the repo has no recurring schedule:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
-  jq --arg title "<item title>" '
-    ($title | ltrimstr("[Maintenance] ")) as $stripped |
-    [.items[] | select(.title == $stripped or .title == $title or .id == "<kebab-id>")] | length
-  ' "$SCHEDULE"
+  jq --arg id "<id from the marker>" '[.items[] | select(.id == $id)] | length' "$SCHEDULE"
 else
   echo 0  # no recurring schedule configured
 fi
