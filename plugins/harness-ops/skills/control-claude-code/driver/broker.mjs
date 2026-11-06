@@ -7,22 +7,33 @@
 // Each connection sends one JSON line `{verb, args}`; the broker answers with
 // JSON lines `{stdout}` and `{stderr}` as the driver writes them, then `{exit}`.
 // It takes only the verbs in VERBS, each with the options its validator allows:
-// a session name of 1-32 letters, digits, _ or -, and --plugin-dir and --out
-// paths that resolve inside a --root. It runs the --driver it was started with,
-// by absolute path, with --unattended, and hands that one child the key read
-// from stdin as ANTHROPIC_API_KEY; the broker's own environment never holds it.
+// a session name of 1-32 letters, digits, _ or -, not starting with -, and
+// --plugin-dir and --out paths that resolve inside a --root, each passed on as
+// one `--opt=value` argument. It runs the --driver it was started with, by
+// absolute path, with --unattended, and hands that one child the key read from
+// stdin as ANTHROPIC_API_KEY; the broker's own environment never holds it.
+//
+// It starts only on a dummy key (KEY_PREFIX), and only when it cannot write the
+// driver's directory, the driver's config directory or --deps-dir: the workflow
+// mounts all three read-only, so the PR code beside the broker cannot change
+// what the broker runs.
 //
 // Exit: 0 stopped by a signal, 2 usage.
 import { spawn } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { accessSync, constants, existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import net from 'node:net';
-import { basename, dirname, isAbsolute, normalize, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
+import { SESSION } from './driver.mjs';
 
 const REQUEST_MAX = 64 * 1024;
 const CREDENTIALS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
+// Our rule: the broker hands the driven side a dummy key only. A key must carry this prefix, and one
+// shaped like a real Anthropic key is refused outright, so a misconfigured job cannot pass the real one.
+export const KEY_PREFIX = 'ccd-dummy-';
+const REAL_KEY = 'sk-ant-';
 
 export class Refused extends Error {}
 
@@ -38,7 +49,7 @@ const absolute = (name, value) => {
 /** Validators by option kind; each returns the value to pass on or throws Refused. */
 const KINDS = {
   session: (name, value) => {
-    if (!/^[\w-]{1,32}$/.test(value)) throw new Refused(`--${name} takes 1-32 letters, digits, _ or -`);
+    if (!SESSION.test(value)) throw new Refused(`--${name} takes 1-32 letters, digits, _ or -, not starting with -`);
     return value;
   },
   count: (name, value) => {
@@ -91,6 +102,7 @@ export function driverArgs(request, roots, depsDir) {
   const { verb: name, args } = request;
   if (typeof name !== 'string' || !Object.hasOwn(VERBS, name)) throw new Refused(`the broker runs only ${Object.keys(VERBS).join(', ')}`);
   if (!Array.isArray(args) || !args.every((a) => typeof a === 'string')) throw new Refused('args must be a list of strings');
+  if (args.some((a) => a.includes('\0'))) throw new Refused('an argument may not hold a NUL character');
   const spec = VERBS[name];
   const options = Object.fromEntries(
     Object.entries(spec.options).map(([opt, kind]) => [opt, { type: kind === 'flag' ? 'boolean' : 'string' }]),
@@ -106,10 +118,10 @@ export function driverArgs(request, roots, depsDir) {
   for (const opt of spec.required) if (parsed.values[opt] === undefined) throw new Refused(`${name} needs --${opt}`);
   for (const [opt, value] of Object.entries(parsed.values)) {
     const passed = KINDS[spec.options[opt]](opt, value, roots);
-    if (passed !== undefined) out.push(`--${opt}`, passed);
+    if (passed !== undefined) out.push(`--${opt}=${passed}`);
   }
   out.push('--unattended');
-  if (depsDir && name !== 'log') out.push('--deps-dir', depsDir);
+  if (depsDir && name !== 'log') out.push(`--deps-dir=${depsDir}`);
   if (spec.prompt) {
     const [prompt] = parsed.positionals;
     if (!prompt || prompt.startsWith('-')) throw new Refused('the prompt must be non-empty and may not start with -');
@@ -161,7 +173,13 @@ function answer(conn, { driver, roots, depsDir, key }) {
       send({ stderr: `launch broker: refused: ${err.message}\n` });
       return finish(2);
     }
-    const child = spawn(process.execPath, [driver, ...args], { env: childEnv(process.env, key), stdio: ['ignore', 'pipe', 'pipe'] });
+    let child;
+    try {
+      child = spawn(process.execPath, [driver, ...args], { env: childEnv(process.env, key), stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      send({ stderr: `launch broker: the driver did not start (${err.message})\n` });
+      return finish(1);
+    }
     for (const stream of ['stdout', 'stderr']) {
       const decoder = new StringDecoder('utf8');
       const relay = (text) => text && send({ [stream]: text });
@@ -189,6 +207,15 @@ const listening = (sock) =>
 
 class Usage extends Error {}
 
+const writable = (dir) => {
+  try {
+    accessSync(dir, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Checks the start options and returns what the server needs. */
 export function startConfig(values, key) {
   const { socket, driver, root = [], 'deps-dir': depsDir } = values;
@@ -197,6 +224,8 @@ export function startConfig(values, key) {
   if (!root.length) throw new Usage('--root takes at least one directory');
   if (depsDir && !isAbsolute(depsDir)) throw new Usage('--deps-dir takes an absolute path');
   if (!key) throw new Usage('the key for the driver child is read from stdin, which was empty');
+  if (key.startsWith(REAL_KEY)) throw new Usage(`the key on stdin looks like a real Anthropic key (${REAL_KEY}); the broker takes only a dummy`);
+  if (!key.startsWith(KEY_PREFIX) || key.length === KEY_PREFIX.length) throw new Usage(`the key on stdin must be a dummy starting with ${KEY_PREFIX}`);
   const roots = root.map((r) => {
     if (!isAbsolute(r)) throw new Usage(`--root ${r} is not an absolute path`);
     try {
@@ -207,6 +236,12 @@ export function startConfig(values, key) {
   });
   const realDriver = realpathSync(driver);
   if (inside(roots, realDriver)) throw new Usage('--driver may not sit inside a --root: the broker runs only a driver the roots cannot change');
+  if (depsDir && !existsSync(depsDir)) throw new Usage(`--deps-dir ${depsDir} does not exist; pre-fill it before the broker starts`);
+  const realDeps = depsDir && realpathSync(depsDir);
+  if (realDeps && inside(roots, realDeps)) throw new Usage('--deps-dir may not sit inside a --root');
+  for (const dir of [dirname(realDriver), join(dirname(realDriver), '..', 'config'), realDeps].filter(Boolean)) {
+    if (writable(dir)) throw new Usage(`${dir} is writable by the broker; mount it read-only so nothing beside the broker can change what it runs`);
+  }
   const dir = lstatSync(dirname(socket));
   if (!dir.isDirectory() || dir.uid !== process.getuid() || (dir.mode & 0o077) !== 0) {
     throw new Usage(`${dirname(socket)} is not a private directory owned by you (mode 0700)`);

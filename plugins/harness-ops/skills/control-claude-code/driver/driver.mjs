@@ -51,6 +51,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
   closeSync,
+  constants,
   copyFileSync,
   existsSync,
   lstatSync,
@@ -368,12 +369,15 @@ export function ensureInstalled(explicit) {
 function runtimeDir(platform) {
   const env = process.env;
   if (platform === 'win32') return join(env.LOCALAPPDATA || join(os.homedir(), 'AppData', 'Local'), 'ccd');
+  if (env.CCD_RUNTIME_DIR && !isAbsolute(env.CCD_RUNTIME_DIR)) throw new UsageError('CCD_RUNTIME_DIR must be an absolute path');
   const base = env.CCD_RUNTIME_DIR || env.XDG_RUNTIME_DIR;
   return base ? join(base, 'ccd') : join(os.homedir(), '.cache', 'ccd');
 }
 
+/** A session name: 1-32 letters, digits, _ or -, not starting with -, so it never reads as a flag. */
+export const SESSION = /^[A-Za-z0-9_][\w-]{0,31}$/;
 const checkSession = (session) => {
-  if (!/^[\w-]{1,32}$/.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -');
+  if (!SESSION.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -, not starting with -');
 };
 
 /**
@@ -451,16 +455,30 @@ const listening = (sock) =>
     conn.on('error', () => done(false));
   });
 
-function request(session, verb, args = {}) {
+// A reply line past this is refused, from the session holder and from the launch broker alike.
+const REPLY_LINE_MAX = 1 << 20;
+// Time a holder or broker gets beyond the verb's own timeout before the client gives up.
+const REPLY_GRACE_MS = 120_000;
+
+/** Sends one verb to the session holder; fails past `deadlineMs` or a reply over REPLY_LINE_MAX. */
+export function request(session, verb, args = {}, deadlineMs = (args.timeout ?? 0) + REPLY_GRACE_MS) {
   const { sock } = endpoint(session);
-  return new Promise((done, fail) => {
+  return new Promise((resolveReply, rejectReply) => {
     const conn = net.createConnection(sock);
     let buf = '';
+    const timer = setTimeout(() => fail(new Error(`the session holder did not reply within ${deadlineMs} ms`)), deadlineMs);
+    const done = (v) => (clearTimeout(timer), resolveReply(v));
+    const fail = (err) => {
+      clearTimeout(timer);
+      conn.destroy();
+      rejectReply(err);
+    };
     // Write without ending: a Windows named pipe does not stay half-open, so ending here closes
     // the pipe before a slow reply arrives. The holder ends the connection after replying.
     conn.on('connect', () => conn.write(`${JSON.stringify({ verb, args })}\n`));
     conn.on('data', (d) => {
       buf += d;
+      if (buf.length > REPLY_LINE_MAX) fail(new Error('the session holder sent a reply over 1 MiB'));
     });
     conn.on('end', () => {
       try {
@@ -1001,7 +1019,14 @@ function doctor(opts) {
  */
 function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
   const { argv, env } = buildPrint(config, process.env, prompt);
-  const fd = openSync(out, 'w', 0o600);
+  // No symlink is followed, so one swapped in after a broker's path check fails the open.
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
+  let fd;
+  try {
+    fd = openSync(out, flags, 0o600);
+  } catch (err) {
+    throw new Error(`cannot open ${out} (${err.code ?? err.message})`);
+  }
   let open = true;
   const closeOut = () => {
     if (open) closeSync(fd);
@@ -1157,7 +1182,43 @@ async function log(opts, prompt) {
 
 export const BROKERED = ['launch', 'ready', 'log'];
 const PATH_OPTIONS = ['plugin-dir', 'out', 'deps-dir'];
-const REPLY_LINE_MAX = 1 << 20;
+export const RELAY_PREFIX = 'broker| ';
+// Launch's own wait plus one engine install, which a broker's pre-filled deps dir skips.
+const LAUNCH_MS = 30_000 + NPM_TIMEOUT_MS;
+
+/** How long a brokered verb waits for the broker's exit: the verb's own timeout plus the reply grace. */
+export function brokerDeadline(verb, values) {
+  const own = /^[1-9]\d*$/.test(values.timeout ?? '') ? Number(values.timeout) : undefined;
+  const base = { launch: LAUNCH_MS, ready: own ?? READY_TIMEOUT_MS, log: own ?? LOG_TIMEOUT_MS }[verb];
+  return Math.min(base, MAX_TTL_S * 1000) + REPLY_GRACE_MS;
+}
+
+// ESC sequences (CSI, OSC, two-byte), then every other C0 and C1 control but \n and \t.
+const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-_])/g;
+const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+
+/** A writer that strips control characters from relayed text and starts each line with RELAY_PREFIX. */
+export function relayLines(stream) {
+  let atStart = true;
+  return (text) => {
+    let out = '';
+    for (const ch of text.replace(ESCAPES, '').replace(CONTROLS, '')) {
+      if (atStart) out += RELAY_PREFIX;
+      out += ch;
+      atStart = ch === '\n';
+    }
+    if (out) stream.write(out);
+  };
+}
+
+/** Refuses a broker socket that is not a socket you own in a directory closed to others. */
+function checkBrokerSocket(sock) {
+  if (!isAbsolute(sock)) throw new UsageError('CCD_BROKER_SOCK must be an absolute path');
+  privateDir(dirname(sock), { create: false });
+  const st = lstatSync(sock, { throwIfNoEntry: false });
+  if (!st) throw new Error(`the launch broker at ${sock} did not answer (ENOENT)`);
+  if (!st.isSocket() || st.uid !== process.getuid()) throw new Unsafe(`${sock} is not a socket owned by you; drive nothing`);
+}
 
 /** The one-line request a brokered verb sends: the options as typed, paths made absolute here, then `--` and the positionals. */
 export function brokerRequest(verb, tokens, positionals, cwd = process.cwd()) {
@@ -1173,14 +1234,20 @@ export function brokerRequest(verb, tokens, positionals, cwd = process.cwd()) {
 /**
  * Sends one request to the broker at `sock` and relays its streamed stdout and stderr until the
  * final exit status, which it resolves with. The replies are untrusted data: anything that is not a
- * string chunk or a whole exit status from 0 to 255 fails the verb.
+ * string chunk or a whole exit status from 0 to 255 fails the verb, so does no exit by `timeoutMs`,
+ * and relayed text loses its control characters and carries RELAY_PREFIX on every line.
  */
-export function viaBroker(sock, req, { stdout = process.stdout, stderr = process.stderr } = {}) {
-  return new Promise((done, fail) => {
+export function viaBroker(sock, req, { stdout = process.stdout, stderr = process.stderr, timeoutMs = REPLY_GRACE_MS } = {}) {
+  const toOut = relayLines(stdout);
+  const toErr = relayLines(stderr);
+  return new Promise((resolveExit, rejectExit) => {
     const conn = net.createConnection(sock);
     conn.setEncoding('utf8');
     let buf = '';
     let exit;
+    const timer = setTimeout(() => stopWith(new Error(`the launch broker sent no exit status within ${timeoutMs} ms`)), timeoutMs);
+    const done = (code) => (clearTimeout(timer), resolveExit(code));
+    const fail = (err) => (clearTimeout(timer), rejectExit(err));
     const stopWith = (err) => {
       conn.destroy();
       fail(err);
@@ -1192,8 +1259,8 @@ export function viaBroker(sock, req, { stdout = process.stdout, stderr = process
       } catch {
         reply = undefined;
       }
-      if (typeof reply?.stdout === 'string') stdout.write(reply.stdout);
-      else if (typeof reply?.stderr === 'string') stderr.write(reply.stderr);
+      if (typeof reply?.stdout === 'string') toOut(reply.stdout);
+      else if (typeof reply?.stderr === 'string') toErr(reply.stderr);
       else if (Number.isInteger(reply?.exit) && reply.exit >= 0 && reply.exit <= 255) exit = reply.exit;
       else return false;
       return true;
@@ -1234,6 +1301,12 @@ const OPTIONS = {
   unattended: { type: 'boolean' },
 };
 
+/** A capture reply must be exactly what the holder answers for the requested path; any other path is never printed. */
+const expectReply = (got, want) => {
+  if (got !== want) throw new Error('the session holder answered with something other than the requested capture path; use nothing it wrote');
+  return got;
+};
+
 const VERBS = {
   launch: (o) => launch(o),
   'wait-for': (o, [text]) => {
@@ -1245,12 +1318,16 @@ const VERBS = {
     if (!text && !o.key) throw new UsageError('type needs <text> or --key <Name>');
     return request(o.session, 'type', { text, keys: o.key });
   },
-  screenshot: (o, [path]) => {
+  screenshot: async (o, [path]) => {
     if (!path) throw new UsageError('screenshot needs <path>');
-    return request(o.session, 'screenshot', { path: resolve(path) });
+    const want = resolve(path);
+    return expectReply(await request(o.session, 'screenshot', { path: want }), want);
   },
-  record: (o, [action, path]) => {
-    if (action === 'start' && path) return request(o.session, 'record-start', { path: resolve(path) });
+  record: async (o, [action, path]) => {
+    if (action === 'start' && path) {
+      const want = resolve(path);
+      return expectReply(await request(o.session, 'record-start', { path: want }), `recording: ${want}`);
+    }
     if (action === 'stop') return request(o.session, 'record-stop');
     throw new UsageError('record takes start <path> or stop');
   },
@@ -1276,7 +1353,10 @@ async function main(argv) {
   if (!run) throw new UsageError(`verbs: ${Object.keys(VERBS).filter((v) => v !== 'serve').join(', ')}`);
   if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
   const broker = process.env.CCD_BROKER_SOCK;
-  if (broker && BROKERED.includes(verb)) return viaBroker(broker, brokerRequest(verb, parsed.tokens, rest));
+  if (broker && BROKERED.includes(verb)) {
+    checkBrokerSocket(broker);
+    return viaBroker(broker, brokerRequest(verb, parsed.tokens, rest), { timeoutMs: brokerDeadline(verb, parsed.values) });
+  }
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {
     if (out.text) console.log(out.text);
