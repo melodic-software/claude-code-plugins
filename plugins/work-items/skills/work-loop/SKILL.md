@@ -395,7 +395,7 @@ Hard gates:
   Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
   absence counts only when someone allowed to grant admission removed it. For each candidate, and
-  for each of `provenance: untrusted`, its legacy name (the value of `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)), and
+  for each of `provenance: untrusted`, its legacy name (an `untrusted-provenance` label: read its exact value from `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh) and pass that value verbatim), and
   `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
   adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
   reads that actor's permission with the labeler precondition's permission mapping. A candidate whose latest removal of
