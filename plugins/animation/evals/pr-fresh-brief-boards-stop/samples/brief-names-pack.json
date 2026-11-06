@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Brief\n\nSubject: a harbor at dusk\nLength: 10 s\nAudience: general\nPacks: woodcut-ink\nDelivery: mp4\n"
+    },
+    {
+      "answer": "Subject: harbor\nPacks: other, woodcut-ink\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Brief\n\nSubject:\nLength:\nAudience:\nPacks:\nDelivery:\n",
+      "why": "init skeleton"
+    },
+    {
+      "answer": "Subject: harbor at dusk\nPacks: woodcut\n",
+      "why": "pack misnamed"
+    },
+    {
+      "answer": "Packs: woodcut-ink\n",
+      "why": "no subject"
+    }
+  ]
+}

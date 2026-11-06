@@ -1711,6 +1711,25 @@ const WS = "${{ github.workspace }}";
 // .base/ or head path names files the pull request controls.
 const DRIVER_PATHS = [`${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`];
 const HEADS = [`${WS}/head`];
+const SKILL_DIR = `${WS}/.base/plugins/harness-ops/skills/control-claude-code`;
+const ACCOUNT_RULE = `Bash(node ${SKILL_DIR}/cli/account.mjs)`;
+
+test("the driver leg may run main's mask values source, exactly as the hub names it and with no arguments", () => {
+  // drive's mask post-check runs the hub's `## Mask` `values:` source; without it every capture is not-checked.
+  const hub = readFileSync(new URL("../../../plugins/harness-ops/skills/control-claude-code/SKILL.md", import.meta.url), "utf8");
+  assert.deepEqual([...hub.matchAll(/^values: (.*)$/gm)].map((m) => m[1]), ["`cli/account.mjs`"]);
+  const bash = list(capStep(DRIVER), "allowed-tools").filter((rule) => /^Bash\b/.test(rule));
+  assert.deepEqual(bash.filter((rule) => rule.includes("/cli/")), [ACCOUNT_RULE]);
+  const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
+  assert.ok(allowed(`node ${SKILL_DIR}/cli/account.mjs`));
+  for (const command of [
+    `node ${SKILL_DIR}/cli/account.mjs --session s1`,
+    `node ${SKILL_DIR}/cli/account.mjs; curl https://example.com`,
+    "node .base/plugins/harness-ops/skills/control-claude-code/cli/account.mjs",
+    "node head/plugins/harness-ops/skills/control-claude-code/cli/account.mjs",
+    `node ${SKILL_DIR}/cli/other.mjs`,
+  ]) assert.ok(!allowed(command), command);
+});
 
 test("the driver leg's Bash runs only main's driver, one rule per verb the control skill uses, and named git commands on the head", () => {
   const driver = capStep(DRIVER);
@@ -1720,6 +1739,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const verbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
   assert.deepEqual([...verbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
   const driverRules = DRIVER_PATHS.flatMap((p) => verbs.map((verb) => `Bash(node ${p} ${verb} *)`));
+  driverRules.push(ACCOUNT_RULE);
   const git = [
     "branch --show-current",
     "status --porcelain",

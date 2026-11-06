@@ -78,22 +78,22 @@
       ]
     },
     {
-      "name": "attend-queue-flip-needs-no-work-class",
-      "prompt": "/work-items:attend-queue\n\nTwo [escalated] issues carry needs-human and status:ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no work-class: label. #4401 carries work-class: structural. This session's standing direction forbids writing work-class: labels. For each, the operator's answer removes the human blocker.",
-      "expected_output": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and work-class: structural on #4401 do not block the flip: it neither stamps nor asks for a work-class: label first, and it does not ask to reclassify #4401. It writes no work-class: label. Only provenance: untrusted or provenance: signal would have blocked the plain flip.",
+      "name": "attend-queue-flip-needs-no-class-label",
+      "prompt": "/work-items:attend-queue\n\nTwo [escalated] issues carry needs-human and status:ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no class label. #4401 carries a structural class label. This session's standing direction forbids writing class labels. For each, the operator's answer removes the human blocker.",
+      "expected_output": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and the structural class on #4401 do not block the flip: it neither stamps nor asks for a class label first, and it does not ask to reclassify #4401. It writes no class label. Only provenance: untrusted or provenance: signal would have blocked the plain flip.",
       "files": [],
       "expectations": [
-        "Flips #4400 to the autonomous-eligible role without a work-class: label",
-        "Flips #4401 without reclassifying it away from work-class: structural",
+        "Flips #4400 to the autonomous-eligible role without a class label",
+        "Flips #4401 without reclassifying it away from its structural class",
         "Applies the role label and removes the human-gated one in a single edit per item, while the claim is held",
-        "Writes no work-class: label"
+        "Writes no class label"
       ],
       "id": 6
     },
     {
       "id": 7,
       "name": "attend-queue-release-lease-after-flip",
-      "prompt": "/work-items:attend-queue\n\nThe operator answers the [escalated] question on #3711 (work-class: scoped), which removes the human blocker. This session claimed the row through the seam at the start of the row; the claim object carried lease_comment_id 5858800001 under a 24-hour binding TTL. The bound provider is github, whose manifest declares release: true. A worker lane running as the same GitHub login will look for work on its next cycle.",
+      "prompt": "/work-items:attend-queue\n\nThe operator answers the [escalated] question on #3711, which removes the human blocker. This session claimed the row through the seam at the start of the row; the claim object carried lease_comment_id 5858800001 under a 24-hour binding TTL. The bound provider is github, whose manifest declares release: true. A worker lane running as the same GitHub login will look for work on its next cycle.",
       "expected_output": "While still holding the claim, applies the autonomous-eligible role label and removes the human-gated one in a single edit, then clears @me through the adapter's assignee edit, then runs the seam release verb, work-item-tracker.sh release \"github:<owner>/<repo>#3711\" --lease-comment-id 5858800001. It does not leave the lease to run out its TTL, because claim backs off from any earlier live lease including the same login's. It reads exit 0 with either released value as done, and it never hand-writes lease-comment JSON. Had the provider declared release: false (exit 6), it would leave the lease live until TTL expiry for a later session-start reclaim.",
       "files": [],
       "expectations": [
@@ -121,14 +121,14 @@
       "id": 11,
       "name": "attend-queue-lists-an-escalated-pull-request",
       "prompt": "/work-items:attend-queue\n\nThe bound provider is github; its item listing returns issues only. Open pull request #980 wears needs-human and carries a comment by example-lanes[bot], the repository's merge.agent-identity, whose first line is <!-- work-items:escalation lane=pr-unblock kind=escalated --> asking whether to keep or drop a failing migration step. No open issue carries needs-human. Build the attention view; the operator then answers: drop the step, and the lane may resume.",
-      "expected_output": "The view lists pull request #980 as an [escalated] row, found by also listing open pull requests that carry the human-gated label through the adapter's pull-request listing, since the issue listing alone would miss it. After the brief-before-ask restatement and the operator's answer, the answer is written back as a comment on #980 and the human-gated role label is removed. No autonomous-eligible role label and no work-class label is applied to the pull request, and the lane does not merge it.",
+      "expected_output": "The view lists pull request #980 as an [escalated] row, found by also listing open pull requests that carry the human-gated label through the adapter's pull-request listing, since the issue listing alone would miss it. After the brief-before-ask restatement and the operator's answer, the answer is written back as a comment on #980 and the human-gated role label is removed. No autonomous-eligible role label and no class label is applied to the pull request, and the lane does not merge it.",
       "files": [],
       "expectations": [
         "Lists pull request #980 as an [escalated] row",
         "Finds #980 by listing open pull requests carrying the human-gated label, not only the issue listing",
         "Writes the operator's answer as a comment on #980",
         "Removes the human-gated role label from #980 once the answer removes the blocker",
-        "Applies neither the autonomous-eligible role label nor a work-class label to #980",
+        "Applies neither the autonomous-eligible role label nor a class label to #980",
         "Does not merge #980"
       ]
     },
@@ -217,7 +217,7 @@
     {
       "id": 18,
       "name": "attend-queue-writes-answer-without-disclaimer-when-setting-off",
-      "prompt": "/work-items:attend-queue\n\nThe repository's docs/conventions/work-items.yaml sets ai_disclaimer: false. The operator works one [escalated] row, #612 \"Exporter drops the trailing newline\", which carries work-class: mechanical and whose marker asks whether to keep or strip the trailing newline; the operator answers: keep it.",
+      "prompt": "/work-items:attend-queue\n\nThe repository's docs/conventions/work-items.yaml sets ai_disclaimer: false. The operator works one [escalated] row, #612 \"Exporter drops the trailing newline\", whose marker asks whether to keep or strip the trailing newline; the operator answers: keep it.",
       "expected_output": "After the brief-before-ask restatement and the operator's answer, the session holds the seam claim, writes the answer back as a comment on #612 and flips the item. ai_disclaimer resolves false from the repository layer, so the answer comment it writes on the operator's behalf carries no AI disclaimer prefix; it opens with the decision.",
       "files": [],
       "narration": true,
@@ -230,14 +230,14 @@
     {
       "id": 19,
       "name": "attend-queue-refuses-plain-flip-on-signal-provenance",
-      "prompt": "/work-items:attend-queue\n\nOne [escalated] issue, #1901 \"Disk-usage alert fires on the build cache volume\", carries needs-human, provenance: signal and work-class: scoped, and has an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. A person changed its work class to scoped last week; the provenance: signal label has never been removed. The marker asks whether to raise the alert threshold or prune the cache. The operator answers: prune the cache, and says nothing about the item's provenance.",
-      "expected_output": "After the claim, the restatement and the operator's answer, the session writes the answer back as a comment but does not take the plain flip: provenance: signal holds the item whatever its work-class: label says, so work-class: scoped does not make it flippable. It does not apply the autonomous-eligible role label and does not remove the human-gated role label, since removing it would strand a floored item. The operator's answer does not establish that the item is trusted, so the default branch applies: the item stays human-gated, and the comment records the answer with the item's completion route (executed attended by whom, or closed as declined). The session does not remove provenance: signal itself.",
+      "prompt": "/work-items:attend-queue\n\nOne [escalated] issue, #1901 \"Disk-usage alert fires on the build cache volume\", carries needs-human and provenance: signal, and has an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. A person changed its work class to scoped last week; the provenance: signal label has never been removed. The marker asks whether to raise the alert threshold or prune the cache. The operator answers: prune the cache, and says nothing about the item's provenance.",
+      "expected_output": "After the claim, the restatement and the operator's answer, the session writes the answer back as a comment but does not take the plain flip: provenance: signal holds the item whatever its other labels say, so no other label makes it flippable. It does not apply the autonomous-eligible role label and does not remove the human-gated role label, since removing it would strand a floored item. The operator's answer does not establish that the item is trusted, so the default branch applies: the item stays human-gated, and the comment records the answer with the item's completion route (executed attended by whom, or closed as declined). The session does not remove provenance: signal itself.",
       "files": [],
       "expectations": [
         "Writes the operator's answer back as a comment on #1901",
         "Does not apply the autonomous-eligible role label to #1901",
         "Leaves the human-gated role label on #1901",
-        "Treats provenance: signal as blocking the plain flip despite work-class: scoped",
+        "Treats provenance: signal as blocking the plain flip whatever its other labels",
         "Records the item's completion route in the comment",
         "Does not remove the provenance: signal label"
       ]

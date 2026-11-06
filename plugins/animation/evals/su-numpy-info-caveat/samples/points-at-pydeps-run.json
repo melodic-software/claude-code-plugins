@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Run the scripts through `pydeps.py run`, which uses the hash-locked packages."
+    },
+    {
+      "answer": "Use pydeps.py `run`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run them with python3 directly.",
+      "why": "bare python"
+    },
+    {
+      "answer": "Use pydeps.py install.",
+      "why": "install, not run"
+    }
+  ]
+}

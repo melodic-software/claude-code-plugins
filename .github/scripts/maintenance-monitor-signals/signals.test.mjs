@@ -632,6 +632,23 @@ test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed
   assert.equal(parseHold("PR head hold", "no PR head SHA read for #7; fix-docs does not run"), null);
   assert.equal(parseHold("Handoff evidence hold", annotation(step)[1]), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
+  // A hold notice is read at notice level only.
+  assert.equal(parseHold(...annotation(step), "warning"), null);
+  // The same job's notice for a plan that could not read the changed files.
+  const files = [...workflow.matchAll(/echo "(::notice title=PR head hold::[^"]*)"/g)].map((m) => m[1]).find((line) => line.includes("changed files"));
+  assert.deepEqual(parseHold(...annotation(files.replace("$PR_NUMBER", "9"))), { item: "#9", reason: "PR files unread" });
+});
+
+test("signal 13: pr-refine's refine-failed warning parses to the pass and its closed reason, read from record-passes on red runs too", () => {
+  assert.deepEqual(parseHold("refine-failed", "pass=fix-docs reason=apply-docs-patch-failure", "warning"), { item: null, reason: "fix-docs failed: apply-docs-patch-failure" });
+  assert.equal(parseHold("refine-failed", "pass=fix-docs reason=apply-docs-patch-failure"), null, "notice level");
+  assert.equal(parseHold("refine-failed", "pass=fix-docs reason=the run said: x", "warning"), null, "free text");
+  const lane = HOLD_LANES.find((l) => l.lane === "pr-refine");
+  assert.ok(lane.jobs.includes("record-passes"));
+  assert.deepEqual(lane.statuses, ["success", "failure"]);
+  // record-passes, in the workflow, runs the script that prints the warning.
+  const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
+  assert.match(workflow, /\n {2}record-passes:\n[\s\S]*?run: node \.base\/\.github\/scripts\/pr-refine\/log-pass-records\.mjs\n/);
 });
 
 test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reasons with no item", () => {

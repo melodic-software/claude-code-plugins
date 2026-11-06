@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| ffmpeg | PASS | /usr/bin/ffmpeg | - |\n| node | PASS | /usr/bin/node | - |\n| chromium | FAIL | playwright-core or Chromium not found | set the playwright_core option |"
+    },
+    {
+      "answer": "pydeps.py run exited 2 (packages not installed). Tool rows: ffmpeg PASS, Node PASS, Chromium PASS; numpy FAIL, opencv FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All prerequisites look fine.",
+      "why": "no rows"
+    },
+    {
+      "answer": "| ffmpeg | PASS |\n| node | PASS |",
+      "why": "no Chromium row"
+    }
+  ]
+}

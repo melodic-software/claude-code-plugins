@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": "Don't pip install numpy==2.5.4 yourself; run the scripts through pydeps.py run."
+    },
+    {
+      "answer": "Scripts run as they are."
+    },
+    {
+      "answer": "The SessionStart hook installs the hash-locked packages with pip install --require-hashes; run the scripts through pydeps.py run.",
+      "why": "describes the hook's install, recommends none"
+    },
+    {
+      "answer": "At session start the hook ran pip install --require-hashes against requirements.txt, so the render box got 2.4.0 from somewhere else.",
+      "why": "past-tense description after a comma clause"
+    },
+    {
+      "answer": "Avoid running pip install by hand; the hook owns the packages.",
+      "why": "rejecting phrase"
+    },
+    {
+      "answer": "The SessionStart hook pins numpy, and pip install --require-hashes refuses any other version.",
+      "why": "bare command after a comma connector, describing"
+    },
+    {
+      "answer": "Scripts still run, so pip install isn't needed on that box.",
+      "why": "argues against installing"
+    },
+    {
+      "answer": "The hook runs one command: pip install --require-hashes -r requirements.txt.",
+      "why": "bare command after a colon, describing"
+    },
+    {
+      "answer": "The hook uses pip install --require-hashes, so 2.4.0 came from somewhere else.",
+      "why": "mid-sentence uses is a description; mid-sentence try and use stay base-form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fix it with pip install numpy==2.5.4.",
+      "why": "pip fix"
+    },
+    {
+      "answer": "Run `uv add numpy==2.5.4` on that box.",
+      "why": "uv add fix"
+    },
+    {
+      "answer": "pip install numpy==2.5.4 brings it back to the pin.",
+      "why": "sentence-initial command"
+    },
+    {
+      "answer": "On that box:\n```bash\npip3 install numpy==2.5.4\n```",
+      "why": "fenced command block"
+    },
+    {
+      "answer": "You can pip install numpy==2.5.4 there.",
+      "why": "you can"
+    },
+    {
+      "answer": "You should run python3 -m pip install numpy==2.5.4 on the render box.",
+      "why": "you should run"
+    },
+    {
+      "answer": "I'd recommend running pip install numpy==2.5.4 on that box.",
+      "why": "recommends"
+    },
+    {
+      "answer": "The hook installs the pinned set; to match it, try pip install numpy==2.5.4.",
+      "why": "try after a describing clause"
+    },
+    {
+      "answer": "The hook pins numpy. Then use uv add numpy==2.5.4 on the render box.",
+      "why": "use in the next sentence"
+    },
+    {
+      "answer": "Running pip install numpy==2.5.4 on that box brings it back to the pin.",
+      "why": "sentence-initial verb, inflected"
+    },
+    {
+      "answer": "On the render box, upgrading with uv add numpy==2.5.4 matches the pin.",
+      "why": "verb after a comma, inflected"
+    },
+    {
+      "answer": "On that box run it as `$ pip install numpy==2.5.4` to match.",
+      "why": "shell prompt marker"
+    }
+  ]
+}

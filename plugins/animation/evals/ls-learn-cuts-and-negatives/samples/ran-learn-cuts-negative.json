@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --cuts 0,4.2,9.8 --credit \"Ink Short, Jo Park\" --negative out/calibration/*.json",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/skills/learn-style/scripts/learn.py\" work packs/ink-short --negative out/calibration/near+blur.json out/calibration/flat.json --cuts \"0,4.2,9.8\"",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --cuts 0,4.2,9.8",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --negative"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --negative out/calibration/*.json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --cuts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --cuts 0,4,10 --negative out/calibration/*.json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "wrong shot starts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --cuts 0,4.2,9.8 --negative out/evaluation/*.json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "evaluation half as negatives"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/learn-style/scripts/learn.py work packs/ink-short --cuts 0,4.2,9.8; echo --negative out/calibration/x.json",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "negatives outside the call"
+    }
+  ]
+}

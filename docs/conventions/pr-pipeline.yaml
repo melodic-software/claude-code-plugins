@@ -5,6 +5,11 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
+    # A Refine pass: pr-refine.yml's plan job runs it before review on a PR
+    # whose changed files match applies-when's paths and paths-ignore.
+    stage: refine
+    order: 10
+    group: docs
     # Runs the skill's detect script on head files, so no write token: the
     # read runner turns its uncommitted fixes into a patch that apply-patch
     # pushes under patch-rules.json's markdown-only docs row (pr-refine.yml
@@ -20,6 +25,8 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
+      # A changelog fragment alone is no reason to tidy.
+      paths-ignore: [".changes/**"]
       # The human-gated label holds it in pr-refine.yml's fix-docs-head job
       # unless a lane escalation put it on (lane-hold.mjs), so one lane's
       # escalation does not stop this fixer.
@@ -522,7 +529,9 @@ activities:
     # merge queue at the head it checked. No model. .github/workflows/pr-merge.yml
     # runs it for each candidate PR. On its schedule the same token also takes
     # off a needs-human the lanes App set for a pr-unblock escalation whose
-    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs).
+    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs),
+    # and a do-not-merge held only for eval evidence once a listed human's
+    # no-loss record names the head (.github/scripts/pr-merge/release-eval-hold.mjs).
     script: plugins/source-control/scripts/source-control-babysit-merge
     args: --unattended --authority pr-merge --merge
     effect: merge
@@ -930,6 +939,15 @@ models:
       # One rung up, for fix-ci's retry after it escalated only unfixed or
       # not-reproducible checks.
       escalate-to: code-xhigh
+    # code-fix's worker for a release's plugin edits, with the turns one
+    # release takes: run 42275404281 spent 76 turns on 2.1.319 (134 core
+    # items) before the plan; 150 runs about 45 minutes at its pace, inside
+    # the leg's 70.
+    apply-changelog:
+      role: worker
+      workload: code
+      effort-role: verifier
+      max-turns: 150
     # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
     # issue and fix-ci's one retry. The rung above it is Fable, which no
     # profile names: it stays off, owner-gated pending a per-week Fable
@@ -975,8 +993,8 @@ models:
     summarize-reuse: summary
     # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
-    # A release's plugin edits, on run-claude-cli, as resolve-issue's.
-    apply-changelog: code-fix
+    # A release's plugin edits, on run-claude-cli.
+    apply-changelog: apply-changelog
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
@@ -1114,9 +1132,12 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts. 0 turns CI fix-docs off,
-  # the owner's decision in #7576 (D100, Q158); set 1 or more to turn it on.
-  fix-docs-per-run: 0
+  # fix-docs runs one pr-unblock-dispatch run starts; 0 turns CI fix-docs off.
+  # On for every PR not tidied in its own run (work-resolve-issue's within
+  # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
+  # D100 to those PRs.
+  # 2 matches fix-ci-per-run.
+  fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
@@ -1298,7 +1319,10 @@ branch-cleanup:
 # The monitoring lane (maintenance-monitor-signals.yml). Its signal 13 counts
 # the held runs of work-resolve-issue (a fault stop whose retries were all
 # faults, or a WIP cap pause it could not read), work-unblock (a listing the sweep could not read), pr-refine (a
-# fix-docs read that failed) and intake-triage (a verdict a GitHub fault held):
+# fix-docs read or a changed-files read that failed, or a Refine pass that
+# failed, whose refine-failed warning is read on red runs too: pr-refine's
+# failed runs are listed and read as well, and its cap of 6 unread runs covers
+# green and red together) and intake-triage (a verdict a GitHub fault held):
 # each ends green with only a notice, so a fault
 # that keeps holding shows nowhere else. A lane with `threshold` held runs or
 # more in the last `window-hours` raises the signal's issue, which only
@@ -1600,6 +1624,8 @@ merge:
       - glob: ".github/scripts/pr-merge/superseded.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/release-eval-hold.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/carry-run-cache.mjs"
         class: gate

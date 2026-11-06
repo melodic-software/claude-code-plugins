@@ -123,7 +123,8 @@ When invoked with `--evaluate`, run the iteration workflow against existing boar
 
 Every rubric score above comes from a fresh-context subagent, never the context that ran the
 simulation. Before scoring, resolve the level with
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin event-storming --skill simulation`;
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin event-storming --skill simulation`,
+run alone as its own Bash call: no `cd`, and no other command chained to it;
 what each level does is in `simulation-evaluation.md` "How to Run an Evaluation", step 3.
 
 ## Bounded Context Discovery Protocol (`--discover-bcs`)
@@ -193,7 +194,9 @@ Load these based on the mode being run:
 Persist all generated state, session archives, board URLs, version metrics, run findings, under
 `${CLAUDE_PLUGIN_DATA}/`. Session archives go to
 `${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`; comparison baselines (prior-version metrics) to a
-JSON/JSONL file such as `${CLAUDE_PLUGIN_DATA}/history.jsonl`. Never write generated state inside
+JSON/JSONL file such as `${CLAUDE_PLUGIN_DATA}/history.jsonl`. Read the store and this skill's
+reference files with the Read tool by absolute path (a missing `history.jsonl` means no prior run),
+never with `cd`, `ls`, `cat` or `sed` in a shell. Never write generated state inside
 the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree.
 For what each directory guarantees, fetch
 [Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#reference-plugin-paths-and-store-data)

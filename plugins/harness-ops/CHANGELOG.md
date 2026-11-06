@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.2] - 2026-11-06
+
+### Fixed
+
+- `/harness-ops:changelog apply --ci` writes `ci-plan.json` once its rows are decided and rewrites it after native drift and after each committed branch, so a run stopped at its turn cap or timeout still publishes the branches it finished and files every other row, instead of leaving no plan ([#7407](https://github.com/melodic-software/claude-code-plugins/issues/7407)).
+
+## [8.8.1] - 2026-11-06
+
+### Changed
+
+- `/harness-ops:changelog apply`'s native-drift filing reads work-items' `filing_posture` on an
+  unattended run: `manual-only`, the default, files nothing and lists the items as unfiled; only
+  `allowed` files without asking. Interactive runs keep the one batch confirmation.
+
+## [8.8.0] - 2026-11-06
+
+### Added
+
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `<home>/harness-ops.yaml`, read from the default branch by `lib/read-verification.sh` and validated by the new `schemas/harness-ops.schema.json`. `/harness-ops:audit-install-state` follows it for its fresh-context cross-review (`strict` dispatches it for a single-agent run too), and `/harness-ops:changelog` for its local verifier, in `diff` and in `apply`'s re-check of saved rows. Under `light` and `off` neither dispatches; each records `verification: skipped (<level>)` and marks what it would have checked `unverified`.
+
+### Changed
+
+- `control-claude-code`'s `cli/account.mjs` prints `none: API-key auth has no signed-in account` and exits 0 when `claude auth status` reports API-key auth with no email and no organization, so drive's mask post-check can resolve the `values:` source to no values. Any other auth with no account still exits 1.
+
 ## [8.7.0] - 2026-11-06
 
 ### Added

@@ -415,7 +415,15 @@ export const HOLD_LANES = [
   // hour over the default cap of 6, and a peak of 51; 20 covers every hour
   // but that one, whose rest later runs read, at 2 calls a run.
   { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
-  { lane: "pr-refine", workflow: "pr-refine.yml", jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff"], area: "PR refine lane (pr-refine fix-docs)" },
+  // A failed Refine pass reds its run, so this lane's red runs are read too,
+  // for record-passes's refine-failed warning.
+  {
+    lane: "pr-refine",
+    workflow: "pr-refine.yml",
+    jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"],
+    area: "PR refine lane (pr-refine fix-docs)",
+    statuses: ["success", "failure"],
+  },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it, at 2 calls a run (one jobs read, one annotations read).
@@ -450,6 +458,9 @@ const HOLD_NOTICES = [
   // (lane-hold.mjs), could not be read.
   { title: "PR head hold", pattern: /^the head of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR head unread" }) },
   { title: "PR head hold", pattern: /^the human-gated hold of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR hold unread" }) },
+  // pr-refine.yml fix-docs-head-held after a plan hold: the PR's changed
+  // files could not be read.
+  { title: "PR head hold", pattern: /^the changed files of #(\d+) could not be read/, hold: (m) => ({ item: `#${m[1]}`, reason: "PR files unread" }) },
   // check-wip-cap.mjs, or pick-slot's step when the check did not finish: the
   // pause could not be read, so the run started no work. A fixed reason per
   // cause, and no item, since the hold is the lane's, not one issue's.
@@ -470,12 +481,16 @@ const HOLD_NOTICES = [
   // a closed set, never the fault's own text, so the finding's fingerprint
   // stays put; the issue a path names may be a blocker, so no item.
   { title: "apply-verdict", pattern: /^held: (admission failed: )?(?:.*\bstatus (\d{3})\b)?/, hold: (m) => ({ item: null, reason: `${m[1] ? "admission " : ""}fault${m[2] ? ` HTTP ${m[2]}` : ""}` }) },
+  // log-pass-records.mjs: a Refine pass that failed. A warning, since the
+  // pass did not hold but failed; its reason is already a closed set.
+  { title: "refine-failed", level: "warning", pattern: new RegExp(`^pass=(${NAME}) reason=(${NAME})$`), hold: (m) => ({ item: null, reason: `${m[1]} failed: ${m[2]}` }) },
 ];
 
-// One notice annotation's hold, {item, reason}, or null.
-export function parseHold(title, message) {
-  for (const { title: t, pattern, hold } of HOLD_NOTICES) {
-    const m = t === title ? pattern.exec(String(message)) : null;
+// One annotation's hold, {item, reason}, or null. Each entry matches one
+// level, notice unless it names another.
+export function parseHold(title, message, level = "notice") {
+  for (const { title: t, level: l = "notice", pattern, hold } of HOLD_NOTICES) {
+    const m = t === title && l === level ? pattern.exec(String(message)) : null;
     if (m) return hold(m);
   }
   return null;

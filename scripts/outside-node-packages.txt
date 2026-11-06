@@ -33,6 +33,7 @@
 .github/scripts/post-merge-test-mutation
 .github/scripts/pr-merge
 .github/scripts/pr-merge-risk
+.github/scripts/pr-refine
 .github/scripts/pr-review-main
 .github/scripts/pr-unblock
 .github/scripts/pr-verify

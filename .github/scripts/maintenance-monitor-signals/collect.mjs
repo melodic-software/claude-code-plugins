@@ -504,9 +504,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (unread) gaps.push(`lane stops: over ${LIMITS.commentPages * 100} comments in the window; the oldest were not read`);
   });
 
-  // Held runs of the HOLD_LANES: green runs of this repository's head on the
-  // default branch's code that completed in the window, whose hold job
-  // succeeded with a hold notice (signals.mjs parseHold), one entry per run,
+  // Held runs of the HOLD_LANES: green runs (and red ones, for a lane whose
+  // statuses list failure) of this repository's head on the default branch's
+  // code that completed in the window, whose hold job succeeded with a hold
+  // notice or warning (signals.mjs parseHold), one entry per run,
   // added to the carried ones still inside the rule's window. A run already
   // carried is not read again, nor counted against LIMITS.holdRuns. The carry
   // also records the span it was read over, which ends at the last run read
@@ -537,14 +538,20 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep } of HOLD_LANES) {
+      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
-        for (let page = 1; ; page += 1) {
-          const listing = await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=success&created=${created}&per_page=100${page > 1 ? `&page=${page}` : ""}`);
-          for (const r of listing.workflow_runs) runs.set(r.id, r);
-          if (listing.workflow_runs.length < 100 || runs.size >= (listing.total_count ?? 0)) break;
-          if (page >= listPages) throw new Error(`over ${listPages * 100} green runs of ${lane} listed; the oldest were not read`);
+        for (const status of statuses) {
+          const listed = new Set();
+          for (let page = 1; ; page += 1) {
+            const listing = await get(`/repos/${repo}/actions/workflows/${workflow}/runs?status=${status}&created=${created}&per_page=100${page > 1 ? `&page=${page}` : ""}`);
+            for (const r of listing.workflow_runs) {
+              runs.set(r.id, r);
+              listed.add(r.id);
+            }
+            if (listing.workflow_runs.length < 100 || listed.size >= (listing.total_count ?? 0)) break;
+            if (page >= listPages) throw new Error(`over ${listPages * 100} ${status === "success" ? "green" : "red"} runs of ${lane} listed; the oldest were not read`);
+          }
         }
         const unread = [...runs.values()]
           .filter((r) => defaultBranchCode(r) && ownHead(r) && completedSince(r) && !heldRuns.has(`${lane}:${r.id}`))
@@ -563,7 +570,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
             holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
           for (const job of (await jobsOf(run)).filter((j) => j.conclusion === "success" && jobs.includes(j.name) && printed(j))) {
             for (const a of await annotationsOf(job.id)) {
-              const hold = a.annotation_level === "notice" ? parseHold(a.title, a.message) : null;
+              const hold = parseHold(a.title, a.message, a.annotation_level);
               if (hold) found.push(hold);
             }
           }

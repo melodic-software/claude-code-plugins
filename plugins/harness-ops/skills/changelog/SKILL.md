@@ -98,7 +98,8 @@ replaces every question in Phases 3 to 5 with the evidence rule in
 [context/ci-mode.md](context/ci-mode.md): only a verified, cited `correct` row confined to one owner
 plugin and not security-relevant is committed, on a local branch per owner plugin; every other row
 becomes a handoff. It asks nothing, pushes nothing, opens no PR, files nothing and never moves the
-read marker. It writes `ci-plan.json` for the calling workflow and ends with `ci-plan: <path>` and
+read marker. It writes `ci-plan.json` for the calling workflow, rewriting it as each step finishes so a
+stopped run still publishes what it finished, and ends with `ci-plan: <path>` and
 `status: <stopped|planned>`. Where the phases below say to ask, confirm or file, `--ci` follows that
 file instead.
 

@@ -1068,7 +1068,8 @@ jobs:
       # (https://code.claude.com/docs/en/permissions#read-only-commands, as
       # of 2026-11-06; recheck when that list changes). The rules name only
       # main's driver, by its absolute path, one rule per verb the control
-      # skill uses, the git commands run-e2e and drive run on the head, and
+      # skill uses, its `## Mask` values source exactly as drive's mask
+      # post-check runs it, the git commands run-e2e and drive run on the head, and
       # the other commands those skills name: main's testing config and
       # browser-driver scripts, `claude plugin list --json`, cmp (it only
       # reads), and the default branch's ls-remote and fetch, each exact,
@@ -1131,6 +1132,7 @@ jobs:
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs record *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs log *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/cli/account.mjs)
             Bash(git -C ${{ github.workspace }}/head branch --show-current)
             Bash(git -C ${{ github.workspace }}/head status --porcelain)
             Bash(git -C ${{ github.workspace }}/head status --porcelain --untracked-files=all --ignored)

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Not yet. review.py has to run and every crop has to be read first."
+    },
+    {
+      "answer": "Yes, once review.py runs and the crops are clean."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. The table passes, so the replica is done.",
+      "why": "done on the number"
+    },
+    {
+      "answer": "The replica is done.",
+      "why": "done claim"
+    }
+  ]
+}

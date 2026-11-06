@@ -408,6 +408,20 @@ export function ownedBranchesFromBase(env) {
   return loadConfig(filesUnderBase(basePath, configPath), { configPath }).merge?.["refire-skip-branches"] ?? [];
 }
 
+// The base config as resolve() loads it, after the same file checks, for
+// pr-refine's plan job.
+export function configFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath });
+}
+
+// resolve-issue's `tidy.cutoffs` as set, or null when it does not tidy, for the
+// fix-docs dispatcher, which skips a lane PR tidied in its own run.
+export function tidyCutoffsFromBase(env) {
+  return configFromBase(env).activities["resolve-issue"]?.tidy?.cutoffs ?? null;
+}
+
 // The base config's `models.issue-dimensions` leaf as set, or null, after the
 // same file checks as resolve(), for intake triage's verdict writer.
 export function issueDimensionsFromBase(env) {
