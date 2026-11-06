@@ -407,13 +407,14 @@ jobs:
 
       # The driver's screenshot rasterizer needs Noto Sans Symbols 2 for
       # glyphs such as U+23F8, and refuses the capture without them; the
-      # sandbox has no network, so the font goes in now.
+      # sandbox has no network, so the font goes in now. The skip matches
+      # Symbols 2's file, since an emoji font also has U+23F8.
       - name: Install the screenshot font
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           fonts=$(fc-list ':charset=23f8' family file)
-          if [[ -z $fonts ]]; then
+          if ! grep -q NotoSansSymbols2 <<<"$fonts"; then
             # Bounded network waits, so a stalled mirror retries instead of
             # outlasting the step timeout.
             sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20
@@ -1078,15 +1079,17 @@ jobs:
       # main's driver, by its absolute path, one rule per verb the control
       # skill uses, the git commands run-e2e and drive run on the head, and
       # the other commands those skills name: main's testing config and
-      # browser-driver scripts, drive's affected_features.py under
-      # `python3 -I`, `claude plugin list --json`, cmp (it only
+      # browser-driver scripts, `claude plugin list --json`, cmp (it only
       # reads), and the default branch's ls-remote and fetch, each exact,
       # since `fetch *` or `ls-remote *` would admit --upload-pack, which
       # runs a program. Every path is absolute: the leg runs from the head
       # checkout, where a relative .base/ or head path names files the pull
       # request controls. The plugin skills name absolute paths, since
       # run-claude-cli resolves each plugin-dirs entry to one, and the
-      # control skill makes <skill-dir> absolute. A head copy
+      # control skill makes <skill-dir> absolute. drive's affected_features.py
+      # stays refused: its --out write follows a symlink the head or the
+      # sandbox can plant, into a .base script these rules run. Affected is
+      # then blocked and run-e2e drives what the scenario names. A head copy
       # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
@@ -1159,7 +1162,6 @@ jobs:
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
-            Bash(python3 -I ${{ github.workspace }}/.base/plugins/app-control/scripts/affected_features.py *)
             Bash(claude plugin list --json)
             Bash(cmp *)
             Skill(testing:run-e2e *)
