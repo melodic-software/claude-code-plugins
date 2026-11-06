@@ -117,6 +117,32 @@ WIP="$(sha HEAD)"
 g checkout -q main
 change 1020 1020 s.txt "feat: s" -m "* Revert \"wip\"" -m "This reverts commit $WIP."
 
+# 2026-03-16 to 2026-03-24, one day per case: landings (squash subjects end in
+# their own PR number; X carries none, so only its quoted subject can name it),
+# each reverted two hours later by a `revert:` or
+# `revert(<scope>):` squash naming its target one way. A resolved day reads 2
+# deployments, 1 failed, 1 rework, 0 unresolved, recovery 2; the unresolved day
+# reads 0 failed, 1 rework, 1 unresolved, recovery null.
+change 1680 1680 p.txt "feat: p (#101)"
+change 1682 1682 rp.txt "revert(p): undo p (#102)" -m "- Reverts #101."
+change 1704 1704 q.txt "feat: q (#103)"
+change 1706 1706 rq.txt "revert(q): drop q (#103 broke it) (#104)"
+change 1728 1728 u.txt "feat: u (#105)"
+change 1730 1730 ru.txt "revert(u): drop u (#106)" -m "Reverts example-org/example-repo#105"
+change 1752 1752 v.txt "feat: v (#107)"
+change 1754 1754 rv.txt "revert: feat: v (#108)"
+change 1776 1776 x.txt "feat: x"
+change 1778 1778 rx.txt "revert(x): undo \"feat: x\" (#110)"
+change 1800 1800 y.txt "feat: y (#111)"
+Y="$(sha HEAD)"
+change 1802 1802 ry.txt "revert(y): drop y (#112)" -m "This reverts commit $Y."
+change 1824 1824 w.txt "feat: w (#113)"
+change 1826 1826 rw.txt "revert(w): restore the old w text (#114)" -m "#113: the cut this reverts, named in prose only."
+# Z lands on 2026-03-23 and its revert on 2026-03-24: a one-day window on the
+# revert still resolves a target that landed before --since.
+change 1848 1848 z.txt "feat: z (#115)"
+change 1872 1872 rz.txt "revert(z): drop z (#116)" -m "Reverts #115."
+
 run() { bash "$S" --repo "$R" --branch main --since 2026-01-05 --until 2026-01-18 "$@"; }
 
 if OUT="$(run)"; then
@@ -171,6 +197,25 @@ OUT="$(bash "$S" --repo "$R" --branch main --since 2026-02-16 --until 2026-02-22
 expect "subject-only revert landed through a merge; squash naming a branch-only commit" \
   '.totals | [.deployments, .change_lead_time_hours_median, .failed_deployments, .failed_deployment_recovery_time_hours_median, .rework_deployments]' \
   '[3,0,1,4,1]'
+
+REVERT_FIELDS='.totals | [.deployments, .failed_deployments, .rework_deployments, .unresolved_reverts, .failed_deployment_recovery_time_hours_median]'
+revert_case() { # <name> <day> <expected>
+  OUT="$(bash "$S" --repo "$R" --branch main --since "$2" --until "$2")" || fail "$1: report exited non-zero"
+  expect "$1" "$REVERT_FIELDS" "$3"
+}
+revert_case "revert squash resolved by a 'Reverts #n' body line" 2026-03-16 '[2,1,1,0,2]'
+revert_case "revert squash resolved by a (#n) in its subject" 2026-03-17 '[2,1,1,0,2]'
+revert_case "revert squash resolved by 'Reverts owner/repo#n'" 2026-03-18 '[2,1,1,0,2]'
+revert_case "revert squash resolved by a matching subject" 2026-03-19 '[2,1,1,0,2]'
+revert_case "revert squash resolved by a quoted subject" 2026-03-20 '[2,1,1,0,2]'
+revert_case "revert squash resolved by a 'This reverts commit' line" 2026-03-21 '[2,1,1,0,2]'
+revert_case "revert squash with no resolvable target is counted unresolved" 2026-03-22 '[2,0,1,1,null]'
+revert_case "revert squash resolves a target landed before --since" 2026-03-24 '[1,0,1,0,null]'
+OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-16 --until 2026-03-22)" || fail "revert week exited non-zero"
+expect "revert week: unresolved count in the trend row" '[.trend[] | .unresolved_reverts]' '[1]'
+
+OUT="$(run)" || OUT='{}'
+expect "git-form reverts all resolve" '.totals.unresolved_reverts' '0'
 
 OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-02 --until 2026-03-08)" || fail "empty window exited non-zero"
 expect "empty window: nothing to measure is null" \

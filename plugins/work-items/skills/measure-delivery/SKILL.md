@@ -47,14 +47,25 @@ Its one value, and the default, is `merge-to-default-branch`:
 - Each commit on the default branch's first-parent history is one deployment, at its committer
   date. A merge commit or a squash landing is one deployment; a rebase landing puts each of its
   commits on that history, so each one counts as its own deployment.
-- A deployment a later first-parent commit reverts is a failed deployment. A commit reverts a
-  deployment when its message has `This reverts commit <sha>` naming the deployment or a commit
-  it merged, or, with no such line, when its subject is `Revert "<subject>"` for an earlier
-  deployment's subject. A merge counts the messages of the commits it merges, so a revert that
-  lands through a merge commit is seen, by either form. A `This reverts commit` line counts only
-  when it names a commit already on the default branch, so a squash body listing a revert of a
-  commit that only existed on its branch is not a revert. A revert landing after `--until` still marks a
-  deployment in the window as failed.
+- A deployment a later first-parent commit reverts is a failed deployment. A revert subject is
+  `Revert "<subject>"` or, in Conventional Commits form, `revert:` or `revert(<scope>):`. A
+  commit reverts a deployment by the first of these that names one:
+  1. a `This reverts commit <sha>` line in its message, naming the deployment or a commit it
+     merged, on any commit;
+  2. with a revert subject, a pull request reference: `Reverts #<n>` or
+     `Reverts <owner>/<repo>#<n>` in the body, or a `(#<n>` group in the subject other than its
+     own trailing `(#<n>)`, matched to the deployment whose subject ends in `(#<n>)`;
+  3. with a revert subject, a quoted subject (`Revert "<s>"`, or `"<s>"` inside a
+     `revert(<scope>):` subject), or the text after the `revert(<scope>):` prefix, matched to an earlier
+     deployment's subject with or without its trailing `(#<n>)`.
+
+  A revert subject that names no deployment by any of these is an unresolved revert: it counts as
+  a rework deployment and in `unresolved_reverts`, and marks nothing as failed. A merge counts the
+  messages of the commits it merges, so a revert that lands through a merge commit is seen by
+  forms 1 and 3. A `This reverts commit` line counts only when it names a commit already on the
+  default branch, so a squash body listing a revert of a commit that only existed on its branch is
+  not a revert. A revert landing after `--until` still marks a deployment in the window as failed,
+  and a target that landed before `--since` still resolves.
 
 The signal reads only git history, so no tracker or forge call is made and any host works.
 
@@ -87,7 +98,9 @@ The signal reads only git history, so no tracker or forge call is made and any h
 3. Render the JSON as one markdown table, a row per `trend` period then a `Window` row from
    `totals`, a column per metric. Show a null value as `n/a` (nothing to measure, such as a
    period with no deployments), and show rates as percentages. Mark the first or last period
-   as partial when the window starts or ends inside it.
+   as partial when the window starts or ends inside it. Add an `Unresolved reverts` column from
+   `unresolved_reverts`; when it is above 0, say that the change fail rate leaves those reverts'
+   targets out.
 
 4. Add two or three lines that read the trend: which metrics moved between the first and last
    full periods with deployments, and in which direction. Describe the team's delivery only.
@@ -110,7 +123,8 @@ they cover.
 - **A rebase landing counts each of its commits as a deployment.** A team that rebase-merges
   sees deployment frequency raised by its changes' commit counts, and a reverted change marks
   only the commits its revert names as failed, so the change fail rate reads low.
-- **A revert under another subject goes uncounted.** A hand-written undo with neither the
-  `This reverts commit` line nor the `Revert "<subject>"` subject is invisible to the signal.
+- **A revert under another subject goes uncounted.** A hand-written undo with neither a
+  `This reverts commit` line nor a revert subject is invisible to the signal. A revert subject
+  that names its target only in prose (`#<n>: the cut this reverts`) is counted as unresolved.
 - **Per-item stage times are out of scope.** Time an item spent in each tracker stage is a
   separate report, not one of these five metrics.
