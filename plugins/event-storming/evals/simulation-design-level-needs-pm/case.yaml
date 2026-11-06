@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: simulation-design-level-needs-pm
-description: "Legacy simulation design-level-missing-prerequisite. --design-level with a bounded-context name and no prior run. simulation SKILL.md lines 109-110: read the run-state store (${CLAUDE_PLUGIN_DATA}/history.jsonl) for the Process Modeling board; 'If no prior Process Modeling board exists for the BC, surface the missing prerequisite and offer to run --process-model first. Never fabricate a process model or aggregates from scratch'; lines 69-72: that lookup needs no Miro and comes before any Miro gating; lines 197-199: read the store with the Read tool, a missing history.jsonl meaning no prior run. Slash-invoked, so no Skill grader. reads-history (with-only indicator: the without-plugin arm cannot know the store) needs a Read of history.jsonl; surfaces-missing-prereq needs --process-model offered with the board named missing; names-design-level needs Design-Level or Blank Aggregates in prose (the prompt's --design-level flag cannot pass it); no-fabricated-model (llm) holds expectations 2 and 3; no-agent-dispatch fails any Agent call."
+description: "Legacy simulation design-level-missing-prerequisite. --design-level with a bounded-context name and no prior run. simulation SKILL.md lines 109-110: read the run-state store (${CLAUDE_PLUGIN_DATA}/history.jsonl) for the Process Modeling board; 'If no prior Process Modeling board exists for the BC, surface the missing prerequisite and offer to run --process-model first. Never fabricate a process model or aggregates from scratch'; lines 69-72: that lookup needs no Miro and comes before any Miro gating; lines 197-199: read the store with the Read tool, a missing history.jsonl meaning no prior run. Slash-invoked, so no Skill grader. reads-history (with-only indicator: the without-plugin arm cannot know the store) needs a Read of history.jsonl; surfaces-missing-prereq (expectation 2's positive half) is held on #8635: the sandbox denies every Read of the plugin-data directory, so the run cannot learn that no board exists; names-design-level needs Design-Level or Blank Aggregates in prose (the prompt's --design-level flag cannot pass it); no-fabricated-model (llm) holds expectations 2 and 3; no-agent-dispatch fails any Agent call."
 tags: [event-storming, simulation, outcome, prerequisite, no-network]
-expected_outcome: "The model looks up history.jsonl, finds no Process Modeling board for Enrollment, says so and offers --process-model first, and drafts no process model or aggregates."
+expected_outcome: "The model looks up history.jsonl, is denied the plugin-data read, and drafts no process model or aggregates."
 execution:
   prompt: "/event-storming:simulation --design-level Enrollment"
   allowed_tools: [Read, Glob, Grep, Skill]
@@ -14,11 +14,6 @@ graders:
     tool: Read
     input_match: '"file_path"\s*:\s*"[^"]*history\.jsonl"'
     arm: with-only
-  - name: surfaces-missing-prereq
-    type: regex
-    pattern: '^(?=[\s\S]*--process-model\b)(?=[\s\S]*(?:\bno\b[^\n.]{0,40}\bprocess[- ]model|\bprocess[- ]model\w*\b[^\n.]{0,60}\b(?:missing|not found|doesn''t exist|does not exist|required first|prerequisite)\b|\bmissing prerequisite\b|\bno prior\b))'
-    flags: 'i'
-    target: 'last_message'
   - name: names-design-level
     type: regex
     pattern: '(?<!--)\bdesign[- ]level\b|\bblank aggregates?\b'

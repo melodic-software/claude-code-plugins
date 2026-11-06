@@ -21,7 +21,7 @@ graders:
     target: 'last_message'
   - name: starts-broad
     type: regex
-    pattern: '\b(?:start|starts|started|starting|begin|begins|began|begun|beginning|kick off|kicks off|kicked off|kicking off|open|opens|opened|opening)\s+(?:with|at|from|by)\s+(?:an?\s+|the\s+)?(?:\w+\s+){0,2}?big[- ]picture\b|\btransition funnel\b|\balmost always\b[^\n.]{0,40}\bbig[- ]picture\b|\bbig[- ]picture\b[^\n.]{0,40}\b(?:first|broadest|widest)\b'
+    pattern: '\b(?:start|starts|started|starting|begin|begins|began|begun|beginning|kick off|kicks off|kicked off|kicking off|open|opens|opened|opening)\s+(?:with|at|from|by)\s+[*_]{0,2}(?:an?\s+|the\s+)?(?:\w+\s+){0,2}?[*_]{0,2}big[- ]picture\b|\btransition funnel\b|\balmost always\b[^\n.]{0,40}\bbig[- ]picture\b|\bbig[- ]picture\b[^\n.]{0,40}\b(?:first|broadest|widest)\b'
     flags: 'i'
     target: 'last_message'
   - name: no-narrow-start

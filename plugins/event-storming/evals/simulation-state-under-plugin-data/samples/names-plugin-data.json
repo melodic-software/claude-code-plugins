@@ -1,11 +1,13 @@
 {
   "pass": [
     {"answer": "Under `${CLAUDE_PLUGIN_DATA}/sessions/<session-id>/`.", "why": "braced"},
-    {"answer": "Write it to $CLAUDE_PLUGIN_DATA/history.jsonl.", "why": "unbraced"}
+    {"answer": "Write it to $CLAUDE_PLUGIN_DATA/history.jsonl.", "why": "unbraced"},
+    {"answer": "A `--simulate` run writes everything under the plugin's data directory:\n\n`/opt/eval/config/plugins/data/event-storming-inline/`\n\n| What | Where |\n|---|---|\n| **Session archive** | `.../event-storming-inline/sessions/<session-id>/` |", "why": "the smoke run es1n: the resolved data path the loaded skill text showed"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "Write it to ./sessions in your repo.", "why": "project tree"},
-    {"answer": "Use the plugin data directory.", "why": "no variable named"}
+    {"answer": "Use the plugin data directory.", "why": "no variable or resolved path named"},
+    {"answer": "Write it to `/opt/eval/project/.event-storming/sessions/`.", "why": "a project-tree path, not a plugins/data path"}
   ]
 }

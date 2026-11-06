@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: methodology-run-request-routes
-description: "Legacy methodology agentic-request-routes-to-simulation. The methodology skill is asked to run an agentic multi-persona simulation on a Miro board; methodology SKILL.md line 31 says to run an agentic workshop 'invoke /event-storming:simulation via the Skill tool' rather than read facilitation guidance. Slash-invoked, so no Skill grader. routes-to-simulation needs the reply to name event-storming:simulation, --simulate or the simulation skill; no-placed-claim fails a reply claiming it placed stickies or created a board; no-agent-dispatch fails any Agent call (no persona fan-out); reference-vs-agentic (llm) needs the facilitation-reference versus agentic-driver distinction."
+description: "Legacy methodology agentic-request-routes-to-simulation. The methodology skill is asked to run an agentic multi-persona simulation on a Miro board; methodology SKILL.md line 31 says to run an agentic workshop 'invoke /event-storming:simulation via the Skill tool' rather than read facilitation guidance. Slash-invoked, so no tool_used Skill grader. routes-to-simulation reads the trace: an assistant Skill call to event-storming:simulation (line 31's route), or assistant text naming event-storming:simulation, --simulate or the simulation skill; loaded skill text does not count; no-placed-claim fails a reply claiming it placed stickies or created a board; no-agent-dispatch fails any Agent call (no persona fan-out); reference-vs-agentic (llm) needs the facilitation-reference versus agentic-driver distinction."
 tags: [event-storming, methodology, outcome, routing, no-network]
 expected_outcome: "The reply routes the user to /event-storming:simulation for the agentic run, runs no simulation and places no stickies, and makes clear the methodology skill is facilitation reference while simulation is the agentic driver."
 execution:
@@ -11,9 +11,10 @@ execution:
 graders:
   - name: routes-to-simulation
     type: regex
-    pattern: '\bevent-storming:simulation\b|(?<![\w-])--simulate\b|\bsimulation skill\b'
-    flags: 'i'
-    target: 'last_message'
+    pattern: '^(?=[^\n]*"type":"assistant")[^\n]*?(?:"name":"Skill","input":\{(?=[^}]*"skill"\s*:\s*"(?:event-storming:)?simulation")|"type":"text","text":"(?:[^"\\]|\\.)*?(?:\bevent-storming:simulation\b|(?<![\w-])--simulate\b|\bsimulation skill\b))'
+    flags: 'mi'
+    target: 'trace'
+    arm: both
   - name: no-placed-claim
     type: regex
     pattern: '\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:placed|added|put|posted)\b[^\n.]{0,60}\bstick(?:y|ies)\b|\bI(?:''ve|’ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:created|set up|opened)\s+(?:a|the|your)\s+(?:new\s+)?(?:miro\s+)?board\b|\bstick(?:y|ies)\b[^\n.]{0,40}\b(?:have been|are now)\s+(?:placed|added|posted)\b'

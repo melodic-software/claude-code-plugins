@@ -1,12 +1,34 @@
 {
   "pass": [
-    {"answer": "To run it, use `/event-storming:simulation --simulate developer-conference`.", "why": "names the command"},
-    {"answer": "That is the simulation skill's job; this one is facilitation reference.", "why": "names the simulation skill"},
-    {"answer": "Run it with --simulate developer-conference.", "why": "names the mode"}
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"event-storming:simulation\",\"args\":\"--simulate developer-conference\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The Miro plugin isn't enabled in this session. How would you like to proceed?\\n\\n1. **Structured-markdown mode (recommended).**\"}]},\"parent_tool_use_id\":null}",
+      "why": "the smoke run es1n: a Skill call to the simulation skill, then that skill's Miro-absent offer"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"This skill is the facilitation reference. To run it, use `/event-storming:simulation --simulate developer-conference`.\"}]},\"parent_tool_use_id\":null}",
+      "why": "assistant text names the simulation command"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"args\":\"--simulate developer-conference\",\"skill\":\"simulation\"}}]}}",
+      "why": "unqualified skill name, args key first"
+    }
   ],
   "fail": [
-    {"answer": "", "why": "empty"},
-    {"answer": "Here is how to facilitate a Big Picture workshop for a developer conference.", "why": "no route"},
-    {"answer": "Running the simulation now with five personas.", "why": "runs it instead of routing"}
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here is how to facilitate a Big Picture workshop for a developer conference.\"}]},\"parent_tool_use_id\":null}",
+      "why": "only the loaded skill text names the route; the reply gives guidance instead"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"event-storming:methodology\",\"args\":\"--big-picture\"}}]},\"parent_tool_use_id\":null}",
+      "why": "a Skill call to the methodology skill, not the simulation skill"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"model\":\"claude-sonnet-5-5\",\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Running the simulation now with five personas.\"}]},\"parent_tool_use_id\":null}",
+      "why": "runs it instead of routing"
+    }
   ]
 }
