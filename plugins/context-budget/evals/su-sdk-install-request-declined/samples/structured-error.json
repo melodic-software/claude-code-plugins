@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "If neither mode works, it returns a structured error rather than a wrong number.",
+      "why": "structured error"
+    },
+    {
+      "answer": "The engine returns never a wrong number: a context-budget.error record instead.",
+      "why": "never a wrong number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If neither works, the engine fails.",
+      "why": "no structured error"
+    },
+    {
+      "answer": "It returns a structured error.",
+      "why": "no wrong-number clause"
+    }
+  ]
+}

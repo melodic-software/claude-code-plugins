@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: dv-light-keeps-secrets-check
+context:
+  scaffold_script: scaffold.sh

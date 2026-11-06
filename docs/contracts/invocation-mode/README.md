@@ -171,8 +171,8 @@ commands (`openai/codex-plugin-cc`, `plugins/codex/commands/review.md`, itself c
 `user-invocable: false` helpers), and `/code-review:code-review` is a command
 (`anthropics/claude-plugins-official`, `plugins/code-review/commands/code-review.md`; that
 plugin ships no `skills/` directory at all). Both are correct keeps wherever a skill body names
-them. By contrast `/caveman:compress` **is** a skill, which `docs-hygiene:compress` reaches as
-`Skill(caveman:compress, …)`, so it takes the explicit phrasing. Check the target's surface
+them. By contrast `/caveman:caveman-compress` **is** a skill, which `docs-hygiene:compress` reaches as
+`Skill(caveman:caveman-compress, …)`, so it takes the explicit phrasing. Check the target's surface
 before rewriting a token that names a plugin this repo does not own.
 
 **Enforcement is author-side, and deliberately so.** No `skill-quality:check` criterion enforces

@@ -147,12 +147,12 @@
       "id": 11,
       "name": "articles-default-keep-uses-edit-backend",
       "prompt": "Compress evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory. [The caveman plugin is installed, so detect-caveman.sh would print available. The repository has no docs/conventions/docs-hygiene.yaml, and the docs-hygiene userConfig option compress_articles is not set, so SKILL.md's userConfig line substitutes to its declared default, keep.]",
-      "expected_output": "compress_articles resolves to keep at the default level. The run does not invoke /caveman:compress even though caveman is installed: it uses the in-session Edit backend. Filler and hedging ('Basically', 'really', 'just', 'Honestly', 'perhaps') are cut, but every article stays: 'the required toolchain', 'the build', 'the root cause', 'the dev server' and 'the gateway' keep their 'the'. The summary's last line reads compress_articles: keep (default).",
+      "expected_output": "compress_articles resolves to keep at the default level. The run does not invoke /caveman:caveman-compress even though caveman is installed: it uses the in-session Edit backend. Filler and hedging ('Basically', 'really', 'just', 'Honestly', 'perhaps') are cut, but every article stays: 'the required toolchain', 'the build', 'the root cause', 'the dev server' and 'the gateway' keep their 'the'. The summary's last line reads compress_articles: keep (default).",
       "files": [
         "evals/fixtures/verbose-onboarding-snippet.md"
       ],
       "expectations": [
-        "Does not invoke /caveman:compress; the backend is the in-session Edit fallback",
+        "Does not invoke /caveman:caveman-compress; the backend is the in-session Edit fallback",
         "Every a, an and the in the fixture is still present in the compressed text",
         "Filler or hedging words such as 'Basically', 'Honestly' or 'perhaps' are removed",
         "The last summary line names compress_articles as keep from the default level"
@@ -163,10 +163,10 @@
       "name": "articles-userconfig-cut-keeps-caveman",
       "narration": true,
       "prompt": "/docs-hygiene:compress docs/onboarding.md [The caveman plugin is installed. No docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
-      "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdownlint still run. The summary's last line reads compress_articles: cut (userConfig).",
+      "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:caveman-compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdownlint still run. The summary's last line reads compress_articles: cut (userConfig).",
       "files": [],
       "expectations": [
-        "Runs caveman detection and uses /caveman:compress as the backend because caveman is installed",
+        "Runs caveman detection and uses /caveman:caveman-compress as the backend because caveman is installed",
         "Treats articles as flavor that may be cut",
         "Still runs the separate semantic-diff pass and markdownlint",
         "The last summary line names compress_articles as cut from userConfig"
@@ -176,13 +176,13 @@
       "id": 13,
       "name": "articles-repo-file-wins-over-userconfig",
       "prompt": "/docs-hygiene:compress docs/onboarding.md [The repository's docs/conventions/docs-hygiene.yaml is captured in evals/fixtures/docs-hygiene-articles-keep.yaml relative to the skill directory. The docs-hygiene userConfig option compress_articles is set to cut. The caveman plugin is installed.]",
-      "expected_output": "Both levels set the key and the repository file wins: the value is keep from docs/conventions/docs-hygiene.yaml, not cut from userConfig. The run uses the in-session Edit backend, not /caveman:compress, keeps every article, and the summary's last line names keep and the repository file.",
+      "expected_output": "Both levels set the key and the repository file wins: the value is keep from docs/conventions/docs-hygiene.yaml, not cut from userConfig. The run uses the in-session Edit backend, not /caveman:caveman-compress, keeps every article, and the summary's last line names keep and the repository file.",
       "files": [
         "evals/fixtures/docs-hygiene-articles-keep.yaml"
       ],
       "expectations": [
         "compress_articles resolves to keep from docs/conventions/docs-hygiene.yaml, not cut from userConfig",
-        "Does not invoke /caveman:compress",
+        "Does not invoke /caveman:caveman-compress",
         "The reported level is the repository file"
       ]
     },

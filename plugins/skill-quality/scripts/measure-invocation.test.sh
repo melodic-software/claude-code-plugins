@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Black-box contract test for measure-invocation.sh.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/measure-invocation.sh"
@@ -464,6 +465,47 @@ if [[ $rc -eq 2 ]] && grep -q -- '--runs needs a positive integer' <<<"$out"; th
   pass "emit-plugin-eval --runs 0 is a usage error"
 else
   fail "emit-plugin-eval --runs 0 should exit 2 (rc=$rc): $out"
+fi
+
+# The plugin_eval_runs setting: the team file sets the default, .local beats
+# the team file, --runs beats both, and an invalid layer warns and is dropped.
+cfg="$TMP/cfg-repo"
+mkdir -p "$cfg/docs/conventions"
+cp -R "$TMP/probes" "$TMP/skills" "$cfg/"
+GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git init -q "$cfg"
+emit_runs() { # <out-name> [args...]: prints the runs line of the first case
+  local name="$1"
+  shift
+  MEASURE_INVOCATION_REPO_ROOT="$cfg" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    run emit-plugin-eval "$@" "$cfg/probes" "$TMP/$name" >/dev/null 2>"$TMP/$name.err"
+  grep -x 'runs: [0-9]*' "$TMP/$name/fixture-target-pos-train-01/prompt.md" 2>/dev/null
+}
+printf 'plugin_eval_runs: 7\n' >"$cfg/docs/conventions/skill-quality.yaml"
+got="$(emit_runs runs-team)"
+if [[ "$got" == 'runs: 7' ]] && grep -q 'INFO: runs per case: 7 (docs/conventions/skill-quality.yaml)' "$TMP/runs-team.err"; then
+  pass "emit-plugin-eval reads plugin_eval_runs from the team file"
+else
+  fail "team plugin_eval_runs 7 should write runs: 7 (got '$got'): $(cat "$TMP/runs-team.err")"
+fi
+printf 'plugin_eval_runs: 9\n' >"$cfg/docs/conventions/skill-quality.local.yaml"
+got="$(emit_runs runs-local)"
+if [[ "$got" == 'runs: 9' ]]; then
+  pass "plugin_eval_runs in skill-quality.local.yaml beats the team file"
+else
+  fail ".local plugin_eval_runs 9 should win (got '$got')"
+fi
+got="$(emit_runs runs-flag --runs 2)"
+if [[ "$got" == 'runs: 2' ]] && grep -q 'INFO: runs per case: 2 (--runs)' "$TMP/runs-flag.err"; then
+  pass "--runs beats the plugin_eval_runs setting"
+else
+  fail "--runs 2 should beat the setting (got '$got')"
+fi
+printf 'plugin_eval_runs: zero\n' >"$cfg/docs/conventions/skill-quality.local.yaml"
+got="$(emit_runs runs-bad)"
+if [[ "$got" == 'runs: 3' ]] && grep -q "WARN: docs/conventions/skill-quality.local.yaml: plugin_eval_runs is 'zero'" "$TMP/runs-bad.err"; then
+  pass "an invalid plugin_eval_runs layer warns and falls back to 3"
+else
+  fail "invalid .local plugin_eval_runs should warn and write runs: 3 (got '$got'): $(cat "$TMP/runs-bad.err")"
 fi
 
 # compare carries a paired normal-approximation interval on each trigger-rate

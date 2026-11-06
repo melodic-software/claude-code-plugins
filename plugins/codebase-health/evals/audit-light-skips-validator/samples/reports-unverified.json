@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | warning | doc-drift | `README.md:3` | No Makefile | unverified |",
+      "why": "a finding labeled unverified"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 1 | warning | doc-drift | `README.md:3` | No Makefile | verified |",
+      "why": "a finding labeled verified"
+    }
+  ]
+}

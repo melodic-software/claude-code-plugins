@@ -38,9 +38,9 @@ describe('scripts/measure-read-safety.mjs', () => {
     assert.doesNotMatch(block, /open transactions after timeout: [1-9]/);
   });
 
-  it('the committed doc records a passing bounded-blocking check over the attributed topology runs', () => {
+  it('the committed doc records a passing topology check over the attributed topology runs', () => {
     const block = doc.slice(doc.indexOf('<!-- measure-read-safety:results:start -->'), doc.indexOf('<!-- measure-read-safety:results:end -->'));
     assert.match(block, /### Waiting tasks in the topology runs, by waiter and blocker/);
-    assert.match(block, /Bounded-blocking check: PASS\./);
+    assert.match(block, /Topology check: PASS\./);
   });
 });
