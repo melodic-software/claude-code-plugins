@@ -393,42 +393,42 @@ else
   mkdir -p "$moved/marketplaces" || exit 2
 fi
 
-backup_parts() {
-  local p
-  for p in cache data; do [[ -e "$moved/$p" ]] && echo "$p"; done
-  for p in "$moved"/marketplaces/*; do [[ -e "$p" ]] && echo "marketplaces/${p##*/}"; done
-  return 0
-}
+# Every target reset so far, whether moved aside or absent before the run.
+TARGETS=()
 # The rebuilt copies go to the run directory first, so a backup part never
-# nests inside its rebuilt namesake; then the emptied backup is removed.
+# nests inside its rebuilt namesake, and a target absent before is absent
+# again; then the emptied backup is removed.
 move_back() {
   local rebuilt="$RUN_DIR/rebuilt" rel ok=1
   mkdir -p "$rebuilt/marketplaces" "$PLUGINS_DIR/marketplaces" || return 1
-  while IFS= read -r rel; do
+  for rel in ${TARGETS[@]+"${TARGETS[@]}"}; do
     if [[ -e "$PLUGINS_DIR/$rel" ]] && ! mv "$PLUGINS_DIR/$rel" "$rebuilt/$rel"; then
       ok=0
-      echo "  could not move the rebuilt $rel aside; $moved/$rel stays in the backup"
+      echo "  could not move the rebuilt $rel aside"
       continue
     fi
+    [[ -e "$moved/$rel" ]] || continue
     mv "$moved/$rel" "$PLUGINS_DIR/$rel" || {
       ok=0
       echo "  could not move $moved/$rel back"
     }
-  done < <(backup_parts)
+  done
   rmdir "$moved/marketplaces" "$moved" || ok=0
   ((ok))
 }
-move_aside() {
-  mv "$PLUGINS_DIR/$1" "$moved/$1" && return 0
-  echo "ERROR: could not move $PLUGINS_DIR/$1 aside; nothing was fetched" >&2
-  [[ "$MODE" == "clean" ]] && move_back >&2
-  exit 2
+reset_target() {
+  if [[ -d "$PLUGINS_DIR/$1" ]] && ! mv "$PLUGINS_DIR/$1" "$moved/$1"; then
+    echo "ERROR: could not move $PLUGINS_DIR/$1 aside; nothing was fetched" >&2
+    [[ "$MODE" == "clean" ]] && move_back >&2
+    exit 2
+  fi
+  TARGETS+=("$1")
 }
 
-[[ -d "$PLUGINS_DIR/cache" ]] && move_aside cache
-[[ "$MODE" == "clean" && -d "$PLUGINS_DIR/data" ]] && move_aside data
+reset_target cache
+[[ "$MODE" == "clean" ]] && reset_target data
 for mp in ${MPS[@]+"${MPS[@]}"}; do
-  [[ -d "$PLUGINS_DIR/marketplaces/$mp" ]] && move_aside "marketplaces/$mp"
+  reset_target "marketplaces/$mp"
 done
 echo "Moved aside: $moved"
 

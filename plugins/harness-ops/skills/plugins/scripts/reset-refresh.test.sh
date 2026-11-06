@@ -329,6 +329,24 @@ else
   assert_eq "move-back: the rebuilt copies are kept in the run directory" "yes" "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0")"
   assert_eq "move-back: the snapshots stay for the operator" "yes" "$(has "$run_dir/after.marketplaces.json")"
 
+  # Case: the move-back leaves a target absent before the run absent after it
+  CASE_NUM=$((CASE_NUM + 1))
+  dir=$(new_case)
+  plugins="$dir/home/.claude/plugins"
+  rm -rf "${plugins:?}/cache" "${plugins:?}/marketplaces/market1"
+  EXTRA_ENV=(STUB_DROP_AUTOUPDATE=1)
+  out=$(run_tty "$dir" "" clean --journal-root "$dir/journal")
+  assert_eq "absent before: exit 1" "1" "$?"
+  assert_contains "absent before: says it moved the backup back" "$out" "Moved back:"
+  assert_eq "absent before: the rebuilt cache is not left live" "no" "$(has "$plugins/cache")"
+  assert_eq "absent before: the recreated clone is not left live" "no" "$(has "$plugins/marketplaces/market1")"
+  assert_eq "absent before: the original data/ is back" "keep" "$(cat "$plugins/data/alpha-market1/state.txt" 2>/dev/null)"
+  assert_eq "absent before: the clone that existed is back" "yes" "$(has "$plugins/marketplaces/market2")"
+  assert_eq "absent before: the emptied backup is gone" "0" "$(bak_count "$dir")"
+  run_dir=$(find "$dir/journal" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+  assert_eq "absent before: the rebuilt cache and clone are in the run directory" "yes yes" \
+    "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0") $(has "$run_dir/rebuilt/marketplaces/market1")"
+
   # Case: a settings file that differs only in byte order fails the cmp check
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
