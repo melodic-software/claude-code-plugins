@@ -2428,8 +2428,13 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   pr-require-checks. It reads the pull request with pr-verify's base-side steps
   (`resolve-pr.mjs` with `RATED_WORKFLOW_PATH` and `RATED_ARTIFACT_PREFIX`, the trigger gate,
   `select-trusted-text`), writes `/review:merge-risk`'s `--dir` files (`pr-merge-risk/input.mjs`),
-  and runs the skill and its blind checker on `run-claude-cli` under `dontAsk`, as the `pr-verify` role on
-  `PR_VERIFY_CLAUDE_API_KEY`, key leg only. `pr-merge-risk/write-rating.mjs` checks the result's
+  and runs the skill and its blind checker on `run-claude-cli` under `dontAsk`, as the `pr-verify` role
+  on the three legs every model lane runs, one credential per job: `rate-merge-risk` on
+  `PR_VERIFY_CLAUDE_API_KEY` (skipped while its credit stop is recent, `check-key-credit`), then
+  `rate-merge-risk-subscription` on `PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN`, then
+  `rate-merge-risk-fallback` on `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`, each after the one before
+  handed off or found its credential empty. Each later job repeats every step from a fresh
+  checkout. `pr-merge-risk/write-rating.mjs` checks the result's
   shape, recomputes `max` (the highest `level` or `checker_level`) and `demote` (`max` HIGH or
   CRITICAL), takes `rater` and `checker` from the execution file's main-thread and subagent
   models, and uploads `pr-merge-risk-<pr>-<head>` for 7 days. A head already rated by a run of
