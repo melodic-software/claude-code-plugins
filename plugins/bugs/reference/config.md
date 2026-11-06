@@ -89,6 +89,7 @@ skill via an issue to this marketplace; see
 |---|---|---|---|
 | `lanes` | list of lane entries (sub-keys below) | bundled generic default lanes | The rotation set `/bugs:scan` walks on a bare invocation, in declaration order. Concatenating merge with an empty-list opt-out (above). |
 | `filing_posture` | `manual-only` \| `allowed` | `manual-only` | Team policy for the explicit filing argument. `manual-only` means `--track` files nothing and prints why. A standing autonomous lane must not file into this tracker. `allowed` permits `--track` to file. Neither value ever makes a bare invocation file: filing always needs the explicit argument as well. Nearest-wins scalar merge. |
+| `verification`, `verification_skills.<skill>` | `off` \| `light` \| `standard` \| `strict` | `standard` | How much independent checking `/bugs:scan` runs: `light` and `off` skip the Step 4 gate and report candidates as `unverified`. Read from `docs/conventions/bugs.yaml` on the default branch only, through `lib/read-verification.sh`; no other layer sets it, and a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)). |
 
 ### `lanes[]` sub-keys
 

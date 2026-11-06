@@ -150,6 +150,14 @@ that a `PRESENT` citation does not carry the posture." Each reversal becomes a r
 corrected verdict and the verifier's argument; a reversal to `MISSING` carries its proposed addition
 like any other finding. A clean audit is reported clean only after this check.
 
+**Verification level.** Before Phase D, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-config --skill audit-prompting-postures`
+and copy its line into the report header ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` and `strict` are the two paragraphs above. Under `light`, and `off`, which acts as
+`light` here, dispatch no Phase D verifier, on proposals or on verdicts, and never refute inline
+in its place: follow "When dispatch is unavailable" below with the reason
+`verification: skipped (<level>)`, and a run with no proposed addition is reported unverified,
+never clean.
+
 ### When dispatch is unavailable
 
 Phase D **requires** fresh-context, non-fork verifier dispatch. When the Agent tool is blocked,

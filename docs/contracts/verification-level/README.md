@@ -35,6 +35,9 @@ emits the results labeled unverified instead of skipping them.
 `verification: light (docs/conventions/implementation.yaml verification at origin/main, commit <sha>)`.
 
 - `verification_skills.<skill>` wins; otherwise `verification`; otherwise `standard`.
+- A plugin whose team file sits at a fixed path whatever the convention home passes it with
+  `--file <path>`, and the convention home is not read: `bugs`, `testing` and `mutation-testing`
+  pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
@@ -75,6 +78,14 @@ A skill that is itself the independent check when invoked does not read the leve
 |---|---|
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
+| `/harness-config:audit-automation-gaps` | the fresh-context refusal gate (2.3), whose verdicts `light` lists as `unverified`, and the Phase 4 step 6 reviewer |
+| `/harness-config:audit-instructions` | the Phase C verifiers (per lane, B2 and I33) |
+| `/harness-config:audit-pass` | the Phase 5 apply-verify dispatch and the Phase 6 main-session verification |
+| `/harness-config:audit-prompting-postures` | the Phase D verifier, on proposals and on verdicts |
+| `/bugs:scan` | the Step 4 gate, the product: `light` reports candidates as `unverified` |
+| `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
+| `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
+| `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
 | `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
 | `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
 | `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
