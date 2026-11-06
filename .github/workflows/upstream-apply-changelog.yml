@@ -572,7 +572,10 @@ jobs:
           if [ -f "$plan" ] && [ ! -L "$plan" ]; then
             cp "$plan" "$OUT/plan.json"
           fi
-          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
+          # Only branches with a commit past the base: one a stopped leg
+          # created but never committed would make the bundle empty, which
+          # git refuses, and the plan would go unsealed with it.
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --no-merged "$BASE_SHA" --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
           if ((${#refs[@]})); then
             git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
           fi
@@ -909,7 +912,10 @@ jobs:
           if [ -f "$plan" ] && [ ! -L "$plan" ]; then
             cp "$plan" "$OUT/plan.json"
           fi
-          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
+          # Only branches with a commit past the base: one a stopped leg
+          # created but never committed would make the bundle empty, which
+          # git refuses, and the plan would go unsealed with it.
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --no-merged "$BASE_SHA" --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
           if ((${#refs[@]})); then
             git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
           fi
@@ -1223,7 +1229,10 @@ jobs:
           if [ -f "$plan" ] && [ ! -L "$plan" ]; then
             cp "$plan" "$OUT/plan.json"
           fi
-          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
+          # Only branches with a commit past the base: one a stopped leg
+          # created but never committed would make the bundle empty, which
+          # git refuses, and the plan would go unsealed with it.
+          mapfile -t refs < <(git -c core.fsmonitor=false for-each-ref --no-merged "$BASE_SHA" --format='%(refname)' "refs/heads/changelog/*/v$RELEASE")
           if ((${#refs[@]})); then
             git -c core.fsmonitor=false bundle create "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}"
           fi
