@@ -116,7 +116,7 @@ sibling divergences it owns.
    sample, and subagent verdicts would need re-reading anyway. Above that, fan out a small number
    of concurrent subagents with one fresh-context verification pass over the merged verdicts.
    The verification level changes that pass: resolve it once with
-   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin docs-hygiene --skill audit-noise`
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin docs-hygiene --skill audit-noise --file docs/conventions/docs-hygiene.yaml`
    and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
    `strict` runs the pass at every corpus size, over the inline verdicts too. Under `light`, and
    `off`, which acts as `light` here, dispatch no verification pass and never re-grade the
