@@ -35,13 +35,11 @@ It binds every step below, hardest at step 1.
 
 ## Scope: raw intake only
 
-**Classification vocabulary.** Triage records an item's class on the `work-class:` label axis (`read-only`,
-`mechanical`, `scoped`, `structural`), and C5 as `provenance: untrusted`. Human-readable aliases
-of the autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
-[`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
-read it before step 5 stamps a member. No class gates the autonomous-eligible role label; only
-`provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) and
-`provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
+**Classification vocabulary.** Triage stamps no work class. It marks C5 (the autonomy plugin's
+untrusted class) as `provenance: untrusted`
+([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)).
+No other label an item carries gates the autonomous-eligible role label; only
+`provenance: untrusted` and `provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report
 simple/medium/complex counts as lane-local telemetry only). The separate frontier
 capability-tier stamp (`capability-tier: frontier`) has its own canonical member and migration
@@ -76,7 +74,7 @@ posts the brief, replaces `status: confirmed`, and `status:needs-info` replaces 
 
 **A briefed item takes one of three exits**, distinguished by the decision its brief carries:
 
-- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`), with or without a `work-class:` label ([`context/apply-outcome.md`](context/apply-outcome.md), "Work class does not gate the role label"). The work-loop's intake sweep escalates this exit and the decision-defaulted one with a proposed class instead, unless its launch prompt opts in ("Work-loop intake sweep: propose, never admit" in the same file).
+- **delegable**. Fully specified with no open decision → autonomous-eligible role (default `agent-ready`) ([`context/apply-outcome.md`](context/apply-outcome.md), "Work class does not gate the role label"). The work-loop's intake sweep escalates this exit and the decision-defaulted one with a proposed role-label swap instead, unless its launch prompt opts in ("Work-loop intake sweep: propose, never admit" in the same file).
 - **decision-defaulted**, a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment. The default rides in; a maintainer vetoes before merge if it is wrong. **Well-grounded** means the recommendation-basis grounding bar ([`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar)): the affected code and its consumers read, and, for a consequential item (cross-repo, shared infrastructure, irreversible, or security), external research reading official docs first. The `Decision defaulted` comment carries the answer's `Basis:` on the line after its prefix line, `verified, <file:line, tool output, or URL fetched this session>` or `judgment` (the comment rather than the brief, which carries no file paths or line numbers); a `judgment` basis on a consequential item is not well-grounded. A consequential answer research cannot settle is withheld: no RECOMMENDED answer and no `Decision defaulted` comment; the item routes to human-gated with the open question and the evidence that would settle it in its brief.
 - **human-gated**. Only when the item meets the label test below → human-gated role (default `needs-human`).
 
@@ -95,7 +93,7 @@ A reversible change with a well-grounded recommendation (the decision-defaulted 
 none of them: it takes the decision-defaulted exit, never this label. The rules in
 [`context/apply-outcome.md`](context/apply-outcome.md) that apply the label for an
 untrusted-provenance or signal-marked item, a decomposition or probe a person must start, or the
-work-loop intake sweep's proposed class awaiting a person's admission, are instances of part 2.
+work-loop intake sweep's proposed role-label swap awaiting a person's admission, are instances of part 2.
 
 ```text
 raw → verified → briefed
@@ -239,8 +237,7 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
-     `provenance: signal`;
+   - `provenance: untrusted` or `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
    - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);
@@ -375,10 +372,9 @@ Instead, route it to `/planning:interview`. Once the direction gate is met, run 
 [`context/apply-outcome.md`](context/apply-outcome.md) defines. Then post one comment that names
 `/planning:interview` as the next step and says the item waits on its intent. If the comment
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
-marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
+marker. Apply no `status:`, priority or role label, except that a signal-marked idea
 issue also gets `provenance: signal` and `provenance: untrusted` (`provenance: signal`
-alone in a lane that may not write `work-class:` labels, which applies no `provenance: untrusted`
-either), and never the human-gated role label. In an
+alone in a lane that may not write `provenance: untrusted`), and never the human-gated role label. In an
 interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
 Once an interview records the item's intent, return it to raw in one label edit that removes
 `needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is

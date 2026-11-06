@@ -1,16 +1,16 @@
 # Work-class labels
 
-Canonical `work-class:` axis members, which triage stamps as a record of an item's risk class; C5
-is marked on the provenance axis, with `provenance: untrusted`.
-Admission, the merge step and the issue lane's stop routing decide nothing by `read-only`,
-`mechanical`, `scoped` or `structural`, or by a missing class. Of the class and provenance labels,
-only `provenance: untrusted` and `provenance: signal` hold an item for a person, as a
-provenance hold.
+The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
+reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and
+an item may carry one or none. The CI intake lane may still propose one, choosing by the
+Description column below (`.github/workflows/intake-triage.yml`, the triage rubric's work-class
+line). C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and
+provenance labels, only `provenance: untrusted` and `provenance: signal` hold an item for a
+person, as a provenance hold.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
-plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md);
-this leaf owns the **label strings** triage stamps and setup migrates.
+plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md).
 
-## Canonical members
+## Members
 
 | Label | Class | Description |
 |-------|-------|-------------|
@@ -20,22 +20,28 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `work-class: structural` | C4 | Refactors, migrations, contract changes; cross-cutting and hard to reverse. |
 | `provenance: untrusted` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
 
-Transition: readers hold both `provenance: untrusted` and its legacy name `work-class: untrusted-provenance` until the label source drops the legacy one, and writers apply only `provenance: untrusted`.
+`provenance: untrusted` is the one canonical member: triage applies it and `/work-items:setup`
+provisions it.
 
-The legacy name, which is not a canonical member:
+## The legacy name
 
 | Label | Class | Description |
 |-------|-------|-------------|
 | `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. |
 
-Discover live members through the bound adapter's label listing (GitHub:
-`gh label list --limit 200 | grep -iE 'work-class|provenance:'`). An item carries **at most one**
-`work-class:` label; the frontier floor reads the label only, never a
-`Work-class: C<n>` body trailer.
+Writers apply only `provenance: untrusted`. The work-items skills no longer read the legacy name,
+except the provenance-removal hold, which still asks who last removed it
+([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate", and the
+attended queue's matching rule in [`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md)). These readers
+still hold an item that carries it: the autonomous frontier's human floor
+(`WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
+[`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)) and the
+CI admission and merge holds (`UNTRUSTED_LABELS` in `.github/scripts/pr-merge/merge-holds.mjs`).
+The frontier floor reads labels only, never a `Work-class: C<n>` body trailer.
 
 ## Who applied the role label
 
-Admission checks who applied the autonomous-eligible role label, not the `work-class:` label: the
+Admission checks who applied the autonomous-eligible role label: the
 role label counts only when its latest application came from an actor with
 `write`, `maintain` or `admin` on the repository. GitHub's triage role can apply labels while
 holding only `read` (pointer:
@@ -49,8 +55,8 @@ escalated once instead. A provider adapter without that operation refuses every 
 triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
 
 The precondition cannot tell the lane's own identity from a person with `write`, so the
-work-loop's intake sweep writes neither the role label nor a `work-class:` label by default: it
-escalates with a proposed class instead
+work-loop's intake sweep writes neither the role label nor `provenance: untrusted` by default: it
+escalates with a proposed role-label swap instead
 ([`../skills/triage/context/apply-outcome.md`](../skills/triage/context/apply-outcome.md),
 "Work-loop intake sweep: propose, never admit"). A label the lane applied itself admits an item
 only when the lane's launch prompt explicitly opts the sweep into writing it.
@@ -72,7 +78,7 @@ Enforcement, so the rule is not merely written down:
   the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` and
   `WIT_HUMAN_FLOOR_PROVENANCE_LABELS` in
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
-  `provenance: untrusted` or `provenance: signal` item is dropped whatever its `work-class:` label).
+  `provenance: untrusted` or `provenance: signal` item is dropped whatever its other labels).
   Without that exclusion the contradictory item stays frontier-available, so each lane
   instance in turn claims it, hits the admission gate's provenance hold, and escalates, burning a
   worker every pass while the item never moves.
@@ -90,7 +96,7 @@ Enforcement, so the rule is not merely written down:
   ([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md), "Untrusted provenance:
   reclassify or stay gated").
 
-Remediation when the pair is found on an existing item: keep the work class, remove the
+Remediation when the pair is found on an existing item: remove the
 autonomous-eligible role label, and apply the human-gated role label (default `needs-human`)
 so the item routes to the attended lane. Resolving the escalation that follows does **not**
 lift the floor: the attended lane either removes the provenance labels in the same edit as the
@@ -100,17 +106,15 @@ attended lane carrying the autonomous-eligible role label alone.
 
 ## Migration
 
-Triage applies `agent-ready` with or without a `work-class:` label, so a missing member does not
-stop an autonomous-eligible outcome. Triage needs `provenance: untrusted` before it
-labels a signal-marked item, and a member before it stamps that member.
+Triage needs `provenance: untrusted` before it labels an untrusted or signal-marked item.
 
 1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`
    validates presence only and never writes labels ad hoc.
-2. **No label-as-code owner.** `/work-items:setup apply` is the migration path: it discovers
-   missing members and, with an interactive user present, creates them via the GitHub adapter's
-   label-creation mechanics using the descriptions above. An unattended `apply` stops with an
-   explicit remediation instead of guessing.
+2. **No label-as-code owner.** `/work-items:setup apply` is the migration path: it discovers a
+   missing `provenance: untrusted` and, with an interactive user present, creates it via the
+   GitHub adapter's label-creation mechanics using the description above. An unattended `apply`
+   stops with an explicit remediation instead of guessing.
 
-Setup fails closed when any canonical member is absent, in `check` and at the start of `apply`'s
-migration pass. Triage stops before mutating an item only when the label its edit would apply is
-absent.
+Setup fails closed when `provenance: untrusted` is absent, in `check` and at the start of
+`apply`'s migration pass. It neither checks nor creates the four `work-class:` labels. Triage
+stops before mutating an item only when the label its edit would apply is absent.
