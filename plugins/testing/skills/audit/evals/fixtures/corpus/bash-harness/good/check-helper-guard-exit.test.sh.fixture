@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# A local check() counts failures, and a guard on the counter exits 1.
+# Shape from settings.test.sh.
+set -uo pipefail
+
+fails=0
+check() { # check <label> <expected> <actual>
+  if [[ "$3" == "$2" ]]; then
+    printf 'ok   - %s\n' "$1"
+  else
+    printf 'not ok - %s\n' "$1" >&2
+    fails=$((fails + 1))
+  fi
+}
+
+check 'sort puts a first' a "$(printf 'b\na\n' | sort | head -1)"
+if ((fails > 0)); then
+  printf '%d check(s) failed\n' "$fails" >&2
+  exit 1
+fi
+echo "all checks passed"
