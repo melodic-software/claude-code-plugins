@@ -9,11 +9,10 @@
 // records (CLI 2.1.302).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { erroredTraces, handoffReason, judgeLegStreams } from "./eval-handoff.mjs";
+import { CLASSIFIER_FILES, erroredTraces, handoffReason, judgeLegStreams, loadLauncher } from "./eval-handoff.mjs";
 
 test("a key leg hands off on a credit stop or a 401 or 402, never a 403 or a limit stop", () => {
   assert.equal(handoffReason("api-key", "credit-stop", 400), "credit-stop");
@@ -66,7 +65,6 @@ test("the first stream that hands off decides, else the first stop class is kept
 // a pin bump that reshapes judgeLeg's return (failureClass, resets, the last
 // message's api_error_status) or isCreditStop fails here. The three paths are
 // the legs' sparse checkout.
-const CLASSIFIER_FILES = [".github/actions/run-claude-cli/lane.cjs", ".github/actions/report-lane-outcome/classify.cjs", ".github/scripts/resolve-npm-tool-version.cjs"];
 const workflowPins = ["eval-hill-climb-pass.yml", "eval-browser-dispatch.yml"].flatMap((name) => [
   ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
 ].map((m) => m[1]));
@@ -79,12 +77,50 @@ for (const path of CLASSIFIER_FILES) {
   mkdirSync(join(ROOT, path, ".."), { recursive: true });
   writeFileSync(join(ROOT, path), await response.text());
 }
-const real = (() => {
-  const require = createRequire(join(ROOT, ".github/actions/run-claude-cli/lane.cjs"));
-  const { judgeLeg, linesToMessages } = require("./lane.cjs");
-  const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
-  return { judgeLeg, linesToMessages, isCreditStop };
-})();
+const real = loadLauncher(ROOT);
+
+test("the files eval-handoff loads are the eval legs' sparse checkout", () => {
+  for (const name of ["eval-hill-climb-pass.yml", "eval-browser-dispatch.yml"]) {
+    const sparse = [...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/sparse-checkout: \|\n((?: {12}\S+\n)+)/g)]
+      .filter(([block]) => block.includes("run-claude-cli/lane.cjs"))
+      .map(([, block]) => block.trim().split(/\s+/));
+    assert.equal(sparse.length, 3, name);
+    for (const paths of sparse) assert.deepEqual(paths, CLASSIFIER_FILES, name);
+  }
+});
+
+// Run 42138674762: the classifier required in place climbed to the workspace
+// root's package.json, which did not parse, and the leg failed before judging.
+test("the classifier loads under a workspace whose root package.json does not parse", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const ws = tempDir("eval-handoff-ws-");
+  writeFileSync(join(ws, "package.json"), "not json {");
+  for (const path of CLASSIFIER_FILES) {
+    mkdirSync(join(ws, ".ci-workflows", path, ".."), { recursive: true });
+    writeFileSync(join(ws, ".ci-workflows", path), readFileSync(join(ROOT, path)));
+  }
+  writeFileSync(join(ws, "probe.jsonl"), jsonl(SPEND_LIMIT));
+  const r = spawnSync(process.execPath, [new URL("./eval-handoff.mjs", import.meta.url).pathname], {
+    cwd: ws,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH, LEG: "key", CI_WORKFLOWS: join(ws, ".ci-workflows"), PROBE: join(ws, "probe.jsonl"), PROBE_EXIT: "1", RESULTS: "" },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, "handoff=true\nhandoff-reason=credit-stop\nlane-class=credit-stop\noutcome=failure\n");
+});
+
+// A classifier that cannot load fails the run with exit 2 and no verdict, so
+// the workflow step stops the leg red rather than guessing a handoff.
+test("a classifier that cannot load prints no verdict and exits 2", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync(process.execPath, [new URL("./eval-handoff.mjs", import.meta.url).pathname], {
+    encoding: "utf8",
+    env: { PATH: process.env.PATH, LEG: "key", CI_WORKFLOWS: tempDir("eval-handoff-empty-"), RESULTS: "" },
+  });
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, "");
+  assert.match(r.stderr, /^eval-handoff: /);
+});
 
 test("every eval leg checks out the classifier at one pin", () => {
   assert.equal(workflowPins.length, 6, "three legs in each eval workflow");

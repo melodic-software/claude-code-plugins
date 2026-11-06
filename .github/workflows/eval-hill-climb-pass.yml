@@ -347,7 +347,8 @@ jobs:
             echo "::error::the probe's result holds the credential, so no case runs"
             exit 1
           fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           if grep -qx 'handoff=true' <<<"$verdict"; then
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
@@ -411,7 +412,8 @@ jobs:
           PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
           PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
         run: |
-          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           if [ "$PROBE_HANDOFF" = true ]; then
             verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
           fi
@@ -738,7 +740,8 @@ jobs:
             echo "::error::the probe's result holds the credential, so no case runs"
             exit 1
           fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           if grep -qx 'handoff=true' <<<"$verdict"; then
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
@@ -802,7 +805,8 @@ jobs:
           PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
           PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
         run: |
-          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           if [ "$PROBE_HANDOFF" = true ]; then
             verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
           fi
@@ -1084,7 +1088,8 @@ jobs:
             echo "::error::the probe's result holds the credential, so no case runs"
             exit 1
           fi
-          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" PROBE_EXIT="$status" node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
           if grep -qx 'handoff=true' <<<"$verdict"; then
             echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
@@ -1148,7 +1153,8 @@ jobs:
           PROBE_REASON: ${{ steps.probe.outputs.handoff-reason }}
           PROBE_CLASS: ${{ steps.probe.outputs.lane-class }}
         run: |
-          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs)
+          verdict=$(node .base/.github/scripts/plugin-eval/eval-handoff.mjs) ||
+            { echo "::error::the handoff classifier failed, so this leg cannot tell its credential's stop from a case failure and stops"; exit 1; }
           if [ "$PROBE_HANDOFF" = true ]; then
             verdict=$(printf 'handoff=true\nhandoff-reason=%s\nlane-class=%s\noutcome=failure' "$PROBE_REASON" "$PROBE_CLASS")
           fi
