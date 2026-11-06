@@ -1,5 +1,5 @@
 ---
-bump: none
+bump: patch
 ---
 
 ### Changed
