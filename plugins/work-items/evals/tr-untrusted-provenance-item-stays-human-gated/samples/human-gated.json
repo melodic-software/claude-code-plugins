@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#410 keeps provenance: untrusted, so it gets needs-human and status: ready, never agent-ready.",
+      "why": "states the hold or outcome"
+    },
+    {
+      "answer": "Routed to the human-gated role: provenance: untrusted keeps it off agent-ready.",
+      "why": "states the hold or outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#410 is delegable, so it gets agent-ready and status: ready.",
+      "why": "contradicts the outcome"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
