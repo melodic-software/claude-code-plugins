@@ -38,6 +38,18 @@
 //   --marker-root DIR            the root for --skip-unless-marker, passed
 //                                explicitly. Empty or a literal
 //                                ${CLAUDE_PLUGIN_DATA} means none.
+//   --bps-seed LIB               on Windows only (elsewhere the flag is inert
+//                                and stdin stays inherited): buffer stdin and,
+//                                for a Bash or PowerShell payload, run
+//                                shfmt and jq on the command the way LIB's
+//                                hook::_bps_shfmt_to does (bpsSeed), passing
+//                                the list in HOOK_BPS_SEED_KEY/VAL. Never skips
+//                                the script; a stall or any failure passes no
+//                                list. An inherited pair is always dropped. The
+//                                script uses the pair only when its own row
+//                                says so (run-guards.sh --bps-seeded). Two
+//                                spawns here replace the Git Bash forks of a
+//                                parse in bash (#6634).
 //
 // Option flags are decided first, before stdin is touched. A stdin flag reads
 // stdin to EOF with an idle bound (2 s, or the stdin_read_timeout option read
@@ -45,7 +57,8 @@
 // exits 0 without running the script. That fails OPEN, so that flag is for
 // advisory rows only: the shared library treats a stalled payload as
 // fail-closed for a blocking guard, which must not use the flag as written.
-// On a stall --skip-unless-marker runs the script with the bytes that arrived.
+// On a stall --skip-unless-marker and --bps-seed run the script with the bytes
+// that arrived.
 // A row without a stdin flag keeps stdin inherited.
 //
 // Bare `bash` is not a legal exec-form command: on Windows it resolves to the
@@ -95,7 +108,7 @@
 //                                no variable (an inherited one is dropped) and
 //                                behaves as before.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -212,6 +225,14 @@ const FLAGS = {
     phase: "config",
     parse: directory,
     problem: "needs a directory (empty means none)",
+  },
+  // Never closes: it only buffers stdin so bpsSeed can parse the command.
+  "--bps-seed": {
+    phase: "stdin",
+    parse: literal,
+    problem: "needs the path of the hook-utils.sh the script sources",
+    onStall: true,
+    open: () => true,
   },
 };
 
@@ -561,6 +582,52 @@ function childFailure(parsed, ctx, kind, detail) {
   fail(failureLine(kind, { ...ctx, detail }));
 }
 
+// --bps-seed: the env pair that carries one shfmt parse to the script. The
+// launcher always drops an inherited pair, so only its own parse reaches bash.
+export const BPS_SEED_ENV = ["HOOK_BPS_SEED_KEY", "HOOK_BPS_SEED_VAL"];
+// Bounds on what is seeded: a Windows environment variable holds at most
+// 32,767 characters, and a longer command is rare enough to parse in bash.
+const BPS_SEED_MAX_CMD = 8192;
+const BPS_SEED_MAX_LIST = 24576;
+const BPS_SEED_TIMEOUT_MS = 5000;
+export const bpsSeedPlatform = (platform) => platform === "win32";
+
+// The jq list hook::_bps_shfmt_to would keep for the payload's command (a
+// Bash or PowerShell call: guardrails reads both through shfmt), as
+// { key, value }, or null. It runs the same shfmt and jq with the library's
+// own HOOK_BPS_JQ, so the list is the one bash would compute; on anything
+// else (another tool, non-ASCII or long text, a missing tool, a failure, a
+// timeout, a list too long) it returns null and bash parses as before, with
+// its own refusals. ASCII only, because the environment is re-encoded on its
+// way into Git Bash and the key must reach bash byte for byte.
+export function bpsSeed(input, libPath, run = spawnSync) {
+  let command;
+  try {
+    const payload = JSON.parse(input.toString("utf8"));
+    if (payload?.tool_name !== "Bash" && payload?.tool_name !== "PowerShell") return null;
+    command = payload.tool_input?.command;
+  } catch {
+    return null;
+  }
+  if (typeof command !== "string" || command.length > BPS_SEED_MAX_CMD || /[^\x01-\x7f]/.test(command)) return null;
+  let program;
+  try {
+    program = readFileSync(libPath, "utf8").match(/^HOOK_BPS_JQ='([^']*)'/m)?.[1];
+  } catch {
+    return null;
+  }
+  if (!program) return null;
+  const opts = { timeout: BPS_SEED_TIMEOUT_MS, windowsHide: true, maxBuffer: 64 << 20 };
+  const json = run("shfmt", ["-ln", "bash", "--to-json"], { ...opts, input: command });
+  if (json.error || json.status !== 0) return null;
+  const list = run("jq", ["-j", program], { ...opts, input: json.stdout });
+  if (list.error || list.status !== 0) return null;
+  // As `$( )` and `${out%$'\r'}` leave it in hook::_bps_shfmt_to.
+  const value = list.stdout.toString("utf8").replace(/\n+$/, "").replace(/\r$/, "");
+  if (value.length > BPS_SEED_MAX_LIST || value.includes("\0")) return null;
+  return { key: command, value };
+}
+
 // The POSIX kill numbers that are fixed on every platform, plus SIGSEGV.
 const MSYS_SIGNALS = { 1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 6: "SIGABRT", 9: "SIGKILL", 11: "SIGSEGV", 14: "SIGALRM", 15: "SIGTERM" };
 
@@ -578,13 +645,25 @@ async function main() {
   const parsed = parseLaunchArgs(process.argv.slice(2));
   if (parsed.error) fail(failureLine("usage", { detail: parsed.error }));
   const gateCtx = { script: parsed.script };
+  // --bps-seed acts on Windows only, where a parse in Git Bash costs several
+  // Win32 process creations; on Linux and macOS a fork is cheap, and the
+  // seed (two spawns and a buffered stdin) measured slower than bash's parse.
+  const gates = bpsSeedPlatform(process.platform) ? parsed.gates : parsed.gates.filter((gate) => gate.flag !== "--bps-seed");
   if (!optionGateOpen(parsed.gates, process.env, gateCtx)) process.exit(0);
   let input = null;
-  if (needsStdin(parsed.gates)) {
+  let seed = null;
+  // Under --bps-seed a stalled stdin stays open to the script, which then
+  // stalls too and refuses the call as it would have with stdin inherited; an
+  // ended pipe would read as a cut-short payload instead.
+  let holdOpen = false;
+  if (needsStdin(gates)) {
     const read = await readStdin(stdinIdleMs(process.env));
     input = read.input;
-    const open = read.stalled ? stdinStallOpen(parsed.gates) : stdinGateOpen(parsed.gates, input, gateCtx);
+    const open = read.stalled ? stdinStallOpen(gates) : stdinGateOpen(gates, input, gateCtx);
     if (!open) process.exit(0);
+    const seedGate = gates.find((gate) => gate.flag === "--bps-seed");
+    if (seedGate && !read.stalled) seed = bpsSeed(input, seedGate.value);
+    holdOpen = Boolean(seedGate) && read.stalled;
   }
   const { platform } = process;
   const bash = resolveBash(process.env, platform, isFile);
@@ -596,7 +675,9 @@ async function main() {
   // nested script never answers for it.
   let marker = null;
   let env = process.env;
-  if (Object.hasOwn(env, VERDICT_ENV)) env = Object.fromEntries(Object.entries(env).filter(([k]) => k !== VERDICT_ENV));
+  const dropped = [VERDICT_ENV, ...BPS_SEED_ENV];
+  if (Object.keys(env).some((k) => dropped.includes(k.toUpperCase()))) env = Object.fromEntries(Object.entries(env).filter(([k]) => !dropped.includes(k.toUpperCase())));
+  if (seed) env = { ...env, [BPS_SEED_ENV[0]]: seed.key, [BPS_SEED_ENV[1]]: seed.value };
   if (parsed.requireVerdict) {
     let dir;
     try {
@@ -621,7 +702,8 @@ async function main() {
   if (input !== null) {
     // A script that exits without reading closes the pipe; that is not a failure.
     child.stdin.on("error", () => {});
-    child.stdin.end(input);
+    if (holdOpen) child.stdin.write(input);
+    else child.stdin.end(input);
   }
   const forward = (signal) => {
     if (!child.killed) child.kill(signal);

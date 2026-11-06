@@ -230,6 +230,7 @@ RUN_GUARDS_OPTS=()
 RUN_GUARDS_MAX_SUBST=0
 RUN_GUARDS_MAX_CMD=0
 RUN_GUARDS_REPORT=0
+RUN_GUARDS_SEEDED=0
 while (($#)); do
   case "$1" in
   --max-substitutions)
@@ -252,6 +253,15 @@ while (($#)); do
     _GUARD_SAID="${2-}"
     shift 2
     ;;
+  --bps-seeded)
+    # This row's exec-bash.mjs runs --bps-seed: the command's shfmt parse may
+    # arrive in HOOK_BPS_SEED_KEY/VAL. Only a row that says so trusts the
+    # pair; the launcher drops an inherited one, and every other launch of
+    # this script (a git hook) ignores it.
+    RUN_GUARDS_SEEDED=1
+    RUN_GUARDS_OPTS+=("$1")
+    shift
+    ;;
   --lib)
     # A library several guards source (the PowerShell classifier). Collect
     # the path now; the parse itself waits until tool_name is known. On a
@@ -269,6 +279,11 @@ while (($#)); do
     ;;
   esac
 done
+if ((RUN_GUARDS_SEEDED)) && [[ -n "${HOOK_BPS_SEED_KEY+x}" && -n "${HOOK_BPS_SEED_VAL+x}" ]]; then
+  HOOK_BPS_MEMO_KEY+=("$HOOK_BPS_SEED_KEY")
+  HOOK_BPS_MEMO_VAL+=("$HOOK_BPS_SEED_VAL")
+fi
+unset HOOK_BPS_SEED_KEY HOOK_BPS_SEED_VAL
 
 # The verdict marker (#7681). Every hooks.json row passes exec-bash.mjs
 # --require-verdict, which names a file in EXEC_BASH_VERDICT_FILE and denies a
