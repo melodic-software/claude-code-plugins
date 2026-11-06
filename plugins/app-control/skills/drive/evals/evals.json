@@ -463,6 +463,77 @@
         "Records cart-basket-01-screenshot.png with mask none-declared and publishable true, and lists it in publishable",
         "Does NOT list report.md or report.json in publishable"
       ]
+    },
+    {
+      "id": 33,
+      "name": "mask-hand-off-target-masks-applied",
+      "prompt": "/app-control:drive cart --unattended --out ./evidence. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has the line Driving tool: `shop-driver`, its hub at `tools/shop-driver/SKILL.md`. Its `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds only the line The driving tool's `## Mask`. tools/shop-driver/SKILL.md exists, and its `## Mask` holds `- account email | [^@ ]+@[^@ ]+` and values: `cli/whoami`; that skill's read-only `tools/shop-driver/cli/whoami` prints dana.ito@example.test and exits 0. The cart feature has one Drive step: open /cart and take a screenshot. The screenshot command writes ./evidence/cart-basket-01-screenshot.png and its sidecar ./evidence/cart-basket-01-screenshot.png.txt, whose text is `Cart (2 items) Checkout`. Nobody is available to answer questions.",
+      "expected_output": "Follows the hand-off to tools/shop-driver/SKILL.md, takes its ## Mask as the one in effect, runs tools/shop-driver/cli/whoami to resolve the value, scans the clean sidecar, and records the screenshot with mask applied and publishable true, listing it in report.json's publishable list without writing the value to any file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the ## Mask of tools/shop-driver/SKILL.md, the hub the Driving tool line names",
+        "Runs the target's cli/whoami, not a cli/ command of control-shop, to resolve the value",
+        "Records cart-basket-01-screenshot.png in artifacts with mask applied and publishable true, and lists it in publishable",
+        "Does NOT write dana.ito@example.test into any file",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "mask-hand-off-unreadable-target-not-checked",
+      "prompt": "/app-control:drive cart --unattended --out ./evidence. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has the line Driving tool: `shop-driver`, its hub at `tools/shop-driver/SKILL.md`. Its `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds only the line The driving tool's `## Mask`. This checkout has no tools/shop-driver/SKILL.md. The cart feature has one Drive step: open /cart and take a screenshot. The screenshot command writes ./evidence/cart-basket-01-screenshot.png and its sidecar ./evidence/cart-basket-01-screenshot.png.txt, whose text is `Cart (2 items) Checkout`. Nobody is available to answer questions.",
+      "expected_output": "Cannot read the hand-off target, so the screenshot is recorded with mask not-checked and publishable false, and neither the screenshot nor report.public.md nor report.public.json goes in report.json's publishable list, though the sidecar text is clean.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records cart-basket-01-screenshot.png in artifacts with mask not-checked and publishable false",
+        "Leaves cart-basket-01-screenshot.png, report.public.md and report.public.json out of report.json's publishable list",
+        "Does NOT fall back to the hub's own sections or a generic mask in place of the missing target",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "mask-values-lone-none-source-publishable",
+      "prompt": "/app-control:drive cart --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds `- account email | [^@ ]+@[^@ ]+` and values: `cli/shop whoami`. The read-only command `cli/shop whoami` prints the single line `none: API-key auth has no signed-in account` and exits 0. The cart feature has one Drive step: open /cart and take a screenshot. The screenshot command writes ./evidence/cart-basket-01-screenshot.png and its sidecar ./evidence/cart-basket-01-screenshot.png.txt, whose text is `Cart (2 items) Checkout`. Nobody is available to answer questions.",
+      "expected_output": "Treats cli/shop whoami as resolved with no values, records it in report.json's values_none with its source and reason, scans the sidecar for the generic credential pattern, and records the screenshot with mask applied and publishable true, listing it in report.json's publishable list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records an entry in report.json's values_none with source cli/shop whoami and reason API-key auth has no signed-in account",
+        "Records cart-basket-01-screenshot.png in artifacts with mask applied and publishable true, and lists it in publishable",
+        "Does NOT record the screenshot as not-checked because the values source gave no value",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "mask-values-none-beside-resolved-source-still-scanned",
+      "prompt": "/app-control:drive billing --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds `- usage meter | Usage: .*` and values: `cli/shop whoami`, `cli/shop org`. The read-only command `cli/shop whoami` prints the single line `none: API-key auth has no signed-in account` and exits 0; `cli/shop org` prints Northwind Traders and exits 0. The billing feature has one Drive step: open /billing and take a screenshot. The screenshot command writes ./evidence/billing-overview-01-screenshot.png and its sidecar ./evidence/billing-overview-01-screenshot.png.txt, whose text is two rows: `Northwind` then `Traders · Billing overview`. Nobody is available to answer questions.",
+      "expected_output": "Resolves cli/shop whoami with no values and records it in values_none, resolves Northwind Traders from cli/shop org, finds it in the sidecar once the wrap is joined, records the screenshot with mask hit and publishable false, and leaves it out of report.json's publishable list, never writing the org name into either public report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records an entry in report.json's values_none for cli/shop whoami and none for cli/shop org",
+        "Records billing-overview-01-screenshot.png in artifacts with mask hit and publishable false",
+        "Leaves billing-overview-01-screenshot.png out of report.json's publishable list",
+        "Does NOT write Northwind Traders into report.public.md or report.public.json"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "mask-values-none-with-extra-line-not-checked",
+      "prompt": "/app-control:drive cart --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds `- account email | [^@ ]+@[^@ ]+` and values: `cli/shop whoami`. The read-only command `cli/shop whoami` exits 0 and prints two lines: `none: no signed-in account` then `Northwind Traders`. The cart feature has one Drive step: open /cart and take a screenshot. The screenshot command writes ./evidence/cart-basket-01-screenshot.png and its sidecar ./evidence/cart-basket-01-screenshot.png.txt, whose text is `Cart (2 items) Checkout`. Nobody is available to answer questions.",
+      "expected_output": "Does not accept the none: line because another line sits beside it, so cli/shop whoami is unresolved: the screenshot is recorded with mask not-checked and publishable false, values_none is empty, and neither the screenshot nor either public report goes in report.json's publishable list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records cart-basket-01-screenshot.png in artifacts with mask not-checked and publishable false",
+        "Leaves cart-basket-01-screenshot.png, report.public.md and report.public.json out of report.json's publishable list",
+        "Records no values_none entry for cli/shop whoami",
+        "Does NOT write Northwind Traders into any file"
+      ]
     }
   ]
 }

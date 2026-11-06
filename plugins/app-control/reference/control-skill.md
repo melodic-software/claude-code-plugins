@@ -222,12 +222,34 @@ in a code span whose stdout is one value per line:
 values: config.account.email, `cli/shop whoami --org`
 ```
 
+A `cli/` source may instead print exactly one line, `none: <reason>` with a reason that is not
+empty, and exit 0: the source then resolves with no values, such as an account command run under
+key auth, which has no signed-in account. Each source is judged on its own. A non-zero exit, empty
+output, or any other line beside the `none:` line leaves that source unresolved.
+
+A hub whose driving tool's own control skill holds the masks hands off instead: its `## Mask` holds
+this single line and nothing else, as the hub's other sections hand off to the driving tool's:
+
+```text
+The driving tool's `## Mask`.
+```
+
+The target is the hub named on the hub's `Driving tool:` line: the first code span on that line, or
+on the lines that continue it up to the next blank line, that holds a relative path ending in `.md`,
+resolved against the root the index `sources` resolve against ([Hub](#hub)). Its real path must sit
+inside that root, and under drive's `--trusted-root <dir>` inside `<dir>`'s real path, so a checkout
+under test cannot supply its own masks or values source. The target's `## Mask` is then the one in
+effect, and its `values:` sources resolve against the target's own `config/` and `cli/`. A target
+that is missing, sits outside the root, has no `## Mask`, or hands off again cannot be read, and
+every capture of the run is unchecked.
+
 The mask lines are for the Capture commands, which apply them ([Writing the Capture
 section](#writing-the-capture-section)). Drive's post-check does not read them: it scans each
 sidecar for the `values:` values and a generic credential pattern, so a mask that missed a region
 still fails the check. A value is a secret like a credential: a run never writes it to the report.
 `/app-control:map check` reports a hub whose `## Capture` records a `screenshot` or `video` and
-whose `## Mask` holds no mask line and no `none: <reason>`.
+whose `## Mask` in effect, the hand-off target's included, holds no mask line and no
+`none: <reason>`, or whose hand-off target cannot be read.
 
 ## Feature files
 

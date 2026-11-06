@@ -32,6 +32,10 @@ The driving tool's `## Capture`. `logs` is the kind a run with no one present us
 The driving tool's `## Cleanup` when this run launched a session; a run of `logs` captures alone
 has nothing to stop.
 
+## Mask
+
+The driving tool's `## Mask`.
+
 ## Next
 
 /app-control:drive claude-code-plugins <module>/<skill>
