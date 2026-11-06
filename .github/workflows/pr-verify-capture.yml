@@ -768,7 +768,10 @@ jobs:
       # read, hashes to the real key's SHA-256; and the client key the legs
       # get is not the real key. The client key in this step's own
       # environment is the canary that shows the environment scan reads
-      # values. Only counts are printed, never a value.
+      # values. Only counts are printed, never a value. The runner worker,
+      # a runner-user process, holds the job's secrets in memory, so Yama's
+      # ptrace_scope must be at least 1, which keeps its descendants from
+      # attaching to it; the value read is printed for the run record.
       - name: Check the driver legs hold no real key
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 1
@@ -791,6 +794,10 @@ jobs:
             const walk = (v) => (typeof v === "string" ? strings.push(v) : v && typeof v === "object" && Object.values(v).forEach(walk));
             walk(settings);
             if (strings.some((s) => sha(s) === real)) fail("the managed settings hold the real key");
+            let ptrace = "unreadable";
+            try { ptrace = readFileSync("/proc/sys/kernel/yama/ptrace_scope", "utf8").trim(); } catch {}
+            console.log(`kernel.yama.ptrace_scope=${ptrace}`);
+            if (!/^[0-9]+$/.test(ptrace) || Number(ptrace) < 1) fail(`kernel.yama.ptrace_scope is ${ptrace}, not at least 1, so a runner-user process could read the memory of the runner worker`);
             let read = 0, values = 0, canary = false, hits = 0;
             for (const pid of readdirSync("/proc").filter((n) => /^[0-9]+$/.test(n))) {
               let raw;

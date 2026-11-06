@@ -1803,14 +1803,25 @@ test("the no-real-key check fails on the real key in the managed settings or a p
   const real = `${"sk-ant-"}api03-${"R".repeat(40)}`;
   const realSha = createHash("sha256").update(real).digest("hex");
   const client = `ccd-outer-${"ab".repeat(32)}`;
-  const run = (settings, env = {}) => {
+  const ptraceFile = path.join(dir, "ptrace_scope");
+  assert.ok(block.includes("/proc/sys/kernel/yama/ptrace_scope"), "the step reads Yama's ptrace_scope");
+  const run = (settings, env = {}, ptrace = "1\n") => {
     writeFileSync(settingsFile, JSON.stringify(settings));
-    const swapped = block.replace("/etc/claude-code/managed-settings.json", settingsFile);
+    rmSync(ptraceFile, { force: true });
+    if (ptrace !== null) writeFileSync(ptraceFile, ptrace);
+    const swapped = block.replace("/etc/claude-code/managed-settings.json", settingsFile).replace("/proc/sys/kernel/yama/ptrace_scope", ptraceFile);
     return runStep(swapped, { REAL_SHA: realSha, CLIENT_KEY: client, ...env });
   };
   const good = { apiKeyHelper: "", env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:47101" } };
   const clean = run(good);
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.match(clean.stdout, /^kernel\.yama\.ptrace_scope=1$/m);
+  assert.equal(run(good, {}, "2\n").status, 0);
+  for (const [ptrace, shown] of [["0\n", "0"], ["x\n", "x"], [null, "unreadable"]]) {
+    const low = run(good, {}, ptrace);
+    assert.equal(low.status, 1, `ptrace_scope ${shown}`);
+    assert.match(low.stdout, new RegExp(`^::error::kernel\\.yama\\.ptrace_scope is ${shown}, not at least 1`, "m"));
+  }
   assert.match(clean.stdout, /::notice::the driver legs hold no real key: 2 managed-settings values and [1-9][0-9]* values in [1-9][0-9]* process environments checked/);
   assert.doesNotMatch(clean.stdout + clean.stderr, new RegExp(client));
   const refused = [
