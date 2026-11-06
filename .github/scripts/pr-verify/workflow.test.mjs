@@ -1588,7 +1588,7 @@ const FENCE = [
   "Read(~/.claude/**)",
   "Edit(//proc/**)",
   "Edit(/${{ runner.temp }}/**)",
-  "Edit(./.base/**)",
+  "Edit(/${{ github.workspace }}/.base/**)",
   "Edit(~/.claude/**)",
 ];
 const FILE_TOOL = /^(?:Read|Edit|Write|Glob|Grep|NotebookEdit)$/;
@@ -1640,7 +1640,7 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
     "run-claude-cli 4aba9be6cc58c88c132308d417ebe136dd054296 4aba9be 2026-11-06",
   ]);
-  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(./head/**)", "Read(./capture-run/**)", "Read(./.base/plugins/**)", "Read(./.base/.claude/skills/**)", "Edit(./head/**)", "Edit(./capture-run/**)"]);
+  assert.deepEqual(allowed.filter((rule) => /^(?:Read|Edit|Write)\(/.test(rule)), ["Read(/${{ github.workspace }}/head/**)", "Read(/${{ github.workspace }}/capture-run/**)", "Read(/${{ github.workspace }}/.base/plugins/**)", "Read(/${{ github.workspace }}/.base/.claude/skills/**)", "Edit(/${{ github.workspace }}/head/**)", "Edit(/${{ github.workspace }}/capture-run/**)"]);
   assert.equal(input(driver, "permission-mode"), "dontAsk");
   const denied = list(driver, "disallowed-tools");
   for (const rule of FENCE) assert.ok(denied.includes(rule), rule);
@@ -1750,7 +1750,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "worktree list --porcelain",
   ];
   // run-e2e's network git reads of the default branch (context/e2e.md:37-38), exact.
-  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'");
+  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'", "rev-parse --verify --end-of-options 'refs/remotes/origin/main^{commit}'");
   const gitRules = HEADS.flatMap((head) => git.map((command) => `Bash(git -C ${head} ${command})`));
   // The other commands the skills name, from main's checkout only: run-e2e's
   // config and browser-driver scripts (SKILL.md:198-200, quoted as written
@@ -1759,6 +1759,8 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const scriptRules = [`${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
     [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
   );
+  // drive's Affected script stays refused: its --out write follows a symlink the head or the sandbox can plant.
+  const affected = `${WS}/.base/plugins/app-control/scripts/affected_features.py`;
   const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
   assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules, ...otherRules].sort());
   const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
@@ -1783,6 +1785,9 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "wget https://example.com",
     "python3 -c 'print(1)'",
     "python -c 'print(1)'",
+    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
+    "python3 -I head/plugins/app-control/scripts/affected_features.py --out /tmp/x",
+    `python3 -I ${WS}/head/plugins/app-control/scripts/affected_features.py --out /tmp/x`,
     "bash -c 'curl https://example.com'",
     "bash head/plugins/testing/scripts/resolve-config.sh e2e",
     `bash ${WS}/.base/plugins/testing/scripts/resolve-config.sh other`,
@@ -2496,6 +2501,8 @@ test("the screenshot font is installed before isolation and checked for U+23F8",
   const script = scriptOf(capStep("Install the screenshot font"));
   assert.match(script, /apt-get install -y --no-install-recommends fonts-noto-core/);
   assert.match(script, /fc-list ':charset=23f8'/);
+  // An emoji font also has U+23F8, so only Symbols 2's own file skips the install.
+  assert.match(script, /if ! grep -q NotoSansSymbols2 <<<"\$fonts"; then/);
   assert.match(script, /exit 1/);
 });
 
