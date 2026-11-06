@@ -20,7 +20,7 @@ number the `TIME: <suite> <n>s` line prints.
 
 - **Linux CI.** Every `test-bash (<n>)` job of a whole-tree `pr-require-checks`
   run on main prints a `TIME:` line per suite. Read each job's log with
-  `gh run view --log --job <job-id>` and keep its `TIME:` lines; the seven legs
+  `gh run view --log --job <job-id>` and keep its `TIME:` lines; the legs
   together cover the shell corpus. The log read needs an authenticated `gh`.
 - **Windows Git Bash.** Run
   `bash scripts/run-plugin-tests.sh --timings <file>` from the repository root
