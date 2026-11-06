@@ -3,7 +3,8 @@
 The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
 reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and
 an item may carry one or none. CI intake no longer applies one; a shared intake reusable may still
-print a proposed class in its triage comment, which nothing applies or reads. C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and
+print a proposed class in its triage comment. Nothing applies or reads it, except that a proposed
+legacy `work-class: untrusted-provenance` still holds the item as untrusted. C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and
 provenance labels, only `provenance: untrusted` and `provenance: signal` hold an item for a
 person, as a provenance hold.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
