@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The audit stops rather than estimating a number.",
+      "why": "stops rather than estimating"
+    },
+    {
+      "answer": "The engine is a Node script, so it never produces an estimate.",
+      "why": "never an estimate"
+    },
+    {
+      "answer": "The audit ends up stopping rather than estimating.",
+      "why": "stopping rather than estimating"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The audit falls back to an estimate.",
+      "why": "estimates"
+    },
+    {
+      "answer": "The engine cannot run.",
+      "why": "no estimate clause"
+    }
+  ]
+}

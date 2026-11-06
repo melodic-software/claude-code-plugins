@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: su-node-absent-both-dependents
+graders:
+  - name: node-fail
+    type: regex
+    pattern: '\b[Nn]ode(?:\.js)?\b[^\n]{0,120}\bFAIL\b|\bFAIL\b[^\n]{0,120}\b[Nn]ode(?:\.js)?\b'
+    target: 'last_message'
+  - name: node-not-info
+    type: regex
+    pattern: '\b[Nn]ode(?:\.js)?\b[^\n]{0,60}(?:\|\s*|:\s*)INFO\b'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: hard-prerequisite
+    type: regex
+    pattern: '\bhard (?:prereq\w*|requirement|dependency)\b|\b(?:one|only|sole) (?:hard |required )?(?:prereq\w*|requirement|dependency)\b|\brequired for correctness\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: engine-stops-no-estimate
+    type: regex
+    pattern: '\b(?:stop\w*|halt\w*|refus\w*|exit\w*|fail\w*)\b[^\n]{0,120}\b(?:rather than|instead of|not|never|no|without)\b[^\n]{0,40}\bestimat\w*|\b(?:no|never|not|won''t|won’t|doesn''t|doesn’t|does not|will not)\s+(?:\w+\s+)?(?:an?\s+)?estimat\w*'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-hook-dependent
+    type: regex
+    pattern: '\b(?:PreToolUse|checkpoint|hook)\b[^\n]{0,200}\b(?:launch\w*|silent\w*|no (?:ask|prompt)|never (?:fires|runs|asks|prompts)|cannot run|can''t run|can’t run|won''t run|won’t run|does(?:n''t|n’t| not) run|fails? to (?:start|run))'
+    flags: 'i'
+    target: 'last_message'
+  - name: install-channel
+    type: regex
+    pattern: 'nodejs\.org/(?:[a-z-]+/)?download'
+    target: 'last_message'
+  - name: no-install
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:(?:apt(?:-get)?|brew|dnf|yum|choco|winget|scoop|pacman|apk|snap|nvm|fnm|volta|asdf|mise)\s+(?:-\S+\s+)*(?:install|add)\b|(?:p?npm|yarn|bun)\b(?:[^|;&"\\]|\\.)*?\s(?:i|install|add|ci)\b|(?:curl|wget)\b(?:[^"\\]|\\.)*\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:bash|zsh|sh)\b|n\s+(?:lts|latest)\b)'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -38,10 +38,12 @@ has nothing to stop.
 
 ## Gotchas
 
-- The driver launches Claude Code with `--restricted`. A skill step that needs a tool that launch
+- A local drive launches Claude Code with `--restricted`. A skill step that needs a tool that launch
   removes stops there: record the step and its entry point, and never drop the flag. Which tools it
   removes: the `--restricted` row of <https://code.claude.com/docs/en/cli-reference#cli-flags> (as
-  of 2026-10-28; recheck when that row changes which tools it removes).
+  of 2026-10-28; recheck when that row changes which tools it removes). The pr-verify capture's
+  driven session launches through the broker with `--in-sandbox`, without `--restricted`, so Bash is
+  there.
 - A Parts line marked `No slash command.` or `No plain-words entry.` names the entry points that
   skill lacks.
 

@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: au-bare-apply-prints-config
+graders:
+  - name: deny-entry-bare-name
+    type: regex
+    pattern: '"deny"\s*:\s*\[[^\]]*"NotebookEdit"'
+    target: 'last_message'
+  - name: no-disallowedtools-key
+    type: regex
+    pattern: '\bdisallowedTools\b\s*["'']?\s*[:=]'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: operator-applies
+    type: regex
+    pattern: '\b(?:you|operator)\b[^\n]{0,40}\b(?:paste|add|merge|copy|put|apply|insert)\b[^\n]{0,120}settings\.json|(?:^|[.:]\s+)(?:paste|add|merge|copy|put|apply|insert)\b[^\n]{0,120}settings\.json|\b(?:I|this skill)\s+(?:won''t|will not|do(?:n''t| not)|never|can(?:no|'')t|didn''t|did not)\s+(?:write|edit|modify|touch|change)\b|\bpaste-ready\b|\bprint-only\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: no-claims-applied
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:already\s+)?(?:added|applied|wrote|written|updated|edited|merged|handled)\b|\b(?:you|operator)\s+(?:don''t|don’t|do not|won''t|won’t|needn''t|needn’t)\s+(?:need to\s+|have to\s+)?(?:paste|add|apply|edit)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: ledger-loop-offered
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:re-?measur\w*|re-?run\w*|after (?:you apply|applying|you add))\b)(?=[\s\S]*\bledger\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'

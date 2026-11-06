@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The 3,000 is request weight: the deferred schema still ships with every request.",
+      "why": "request weight"
+    },
+    {
+      "answer": "It trims each request by 3,000 tokens.",
+      "why": "each request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The deferred pool drops by 3,000.",
+      "why": "no request framing"
+    },
+    {
+      "answer": "Deferred tools sit outside the window.",
+      "why": "no request framing"
+    }
+  ]
+}
