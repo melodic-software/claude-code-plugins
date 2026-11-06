@@ -689,14 +689,14 @@ function attribution(results, runs) {
   const medians = counts.map((n) => `${n}: ${median(results.filter((t) => t.processes === n).map((t) => t.writerMaxMs))} ms`);
   out.push(`${tableLocks}. Median over the runs of the writer's slowest update, by process count: ${medians.join(', ')}.`);
   out.push(`${runs} runs show the worst case; they support no estimate of run-to-run spread.`);
-  const failures = [
-    agentLockMs >= d.lockTimeoutMs && `an agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms)`,
-    agentCausedMs >= d.requestTimeoutMs && `a wait on an agent session reached the request timeout (${d.requestTimeoutMs} ms)`,
-    open > 0 && 'a transaction was left open',
-  ].filter(Boolean);
-  out.push('', failures.length === 0
-    ? `Bounded-blocking check: PASS. Every call returned; no agent lock wait reached the lock timeout, no wait on an agent session reached the request timeout, and no transaction was left open.`
-    : `Bounded-blocking check: FAIL. ${failures.join('; ')}.`);
+  // A call whose lock wait hit the lock timeout, or that ran past the request
+  // timeout, fails its query and ends the run before this line (serverProcess
+  // throws). The lock timeout limits each lock wait, not a call's length. The
+  // line judges only what can still differ; the magnitudes are the worst-case
+  // line above.
+  out.push('', open === 0
+    ? `Topology check: PASS. No agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms), every call returned within the request timeout (${d.requestTimeoutMs} ms), and no transaction was left open. How long anyone waited is the worst-case line above.`
+    : `Topology check: FAIL. ${open} transaction(s) left open after a topology run.`);
   return out;
 }
 

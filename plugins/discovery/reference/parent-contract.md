@@ -97,13 +97,15 @@ it sits below the default stop turn (30), so the worker honors it. The number is
 so the gathering a `low` row allows fits well inside it. Other `Budget:` words leave the value to
 the parent, up to that default.
 
-**Research adds two more labeled lines.** `Source breadth:` because source breadth is the
+**Research adds three more labeled lines.** `Source breadth:` because source breadth is the
 caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
-only the caller knows whether the answer will be quoted outside the session:
+only the caller knows whether the answer will be quoted outside the session; `Research config:`
+because the caller resolved the research skill's "Tunable defaults":
 
 ```text
 Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
+Research config: corroborators=<n> recency=<active>/<standard>/<guide>
 ```
 
 The parent resolves the `Source breadth:` value from `${CLAUDE_EFFORT}` in the parent skill load
@@ -121,6 +123,10 @@ pull-request review reply, an issue, a design document, a message to a third par
 `internal`. The line is degradable: a research worker that does not receive it records `internal`
 in the index and says so. What `publish` tightens, and why the value is copied into the index
 rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
+
+`Research config:` carries the values the parent resolved, because a body read from disk carries
+no `userConfig` substitution. The line is degradable: a research worker that does not receive it
+resolves the keys itself.
 
 Those labels are the ones the research deep tier already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.

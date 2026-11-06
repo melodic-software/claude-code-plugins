@@ -295,7 +295,11 @@ precedence rule at the top of this page). Cut text from a shipped skill by this 
 (by hand or with `/docs-hygiene:compress`), label what it changed with
 `/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
 (`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
-non-inferiority rule; otherwise the removed text stays. Replacing a restated upstream fact with a
+non-inferiority rule; otherwise the removed text stays. When the skill-creator plugin is
+installed, its
+[comparator agent](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
+adds a blind A/B judgment of the two versions' outputs; without it, the eval run above is the
+comparison. Replacing a restated upstream fact with a
 pointer to its live upstream section, as the
 [upstream-pointer rule](https://github.com/melodic-software/claude-code-plugins/blob/main/.claude/rules/skill-bodies-state-current-rules.md)
 requires, needs no eval run; a removed sentence giving a reason the skill acts on still does, or it
@@ -390,6 +394,10 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Skill-creator reasons**,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
   As of 2026-10-29. Recheck: that section moves or changes its guidance on explaining the why.
+- **Skill-creator comparator**,
+  [agents/comparator.md](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
+  (blind A/B judgment of two versions' outputs). As of 2026-11-06. Recheck: the file moves or is
+  renamed, or it stops judging the two versions blind.
 - **Context engineering post**,
   [The anatomy of effective context](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents#the-anatomy-of-effective-context).
   As of 2026-10-29. Recheck: that section moves or changes its guidance on examples.

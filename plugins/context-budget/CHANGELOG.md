@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.0.6] - 2026-11-06
+
+### Fixed
+
+- `setup` check reads the Agent SDK state from a load-time row (`present`, `absent` or `unavailable`) instead of having the model probe the plugin data directory, which an eval run denies, and states the headless fallback's two caveats when the SDK is absent or unavailable; the four setup cases held out of the evals.json conversion are restored ([#13751](https://github.com/melodic-software/claude-code-plugins/issues/13751)).
+
 ## [1.0.5] - 2026-11-06
 
 ### Changed

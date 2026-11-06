@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.0] - 2026-11-06
+
+### Added
+
+- `/planning:plan` reads its plan size bands and file-inventory threshold from two new convention-home keys, `plan_size_bands` (`trivial: 1`, `small: 5`, `medium: 15`, each a band's largest file count, rising in that order) and `plan_inventory_min_files` (`10`), in the team `<home>/planning.yaml` and personal `<home>/planning.local.yaml`. With nothing set, the bands and threshold are unchanged.
+
+## [2.12.2] - 2026-11-06
+
+### Fixed
+
+- gate devils-advocate's incumbent exploration on discovery
+
+  incumbent mode's first step invokes /discovery:explore if enabled,
+  else explores directly, matching the skill's other discovery sites.
+
 ## [2.12.1] - 2026-11-06
 
 ### Fixed

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Read\", \"input\": {\"file_path\": \"/p/context-budget/skills/audit/scripts/measure.mjs\"}}]}}",
+      "why": "Read tool"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t2\", \"name\": \"Bash\", \"input\": {\"command\": \"head -40 /p/skills/audit/scripts/measure.mjs\", \"description\": \"x\"}}]}}",
+      "why": "head"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t2\", \"name\": \"Bash\", \"input\": {\"command\": \"node /p/skills/audit/scripts/measure.mjs snapshot\", \"description\": \"x\"}}]}}",
+      "why": "runs the engine, does not read it"
+    },
+    {
+      "answer": "{\"type\": \"assistant\", \"message\": {\"content\": [{\"type\": \"tool_use\", \"id\": \"t1\", \"name\": \"Read\", \"input\": {\"file_path\": \"/p/skills/audit/scripts/measure.test.sh\"}}]}}",
+      "why": "other file"
+    }
+  ]
+}

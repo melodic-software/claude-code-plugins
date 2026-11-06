@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The fix gate fails, so the run writes no fix and opens no PR.",
+      "why": "no PR"
+    },
+    {
+      "answer": "It escalates #12 without opening a pull request, then releases the claim.",
+      "why": "without opening"
+    },
+    {
+      "answer": "It does not open a PR while @dana holds the fix.",
+      "why": "does not open"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then I dispatch the fix for the header writer and open a draft PR.",
+      "why": "opens a PR"
+    },
+    {
+      "answer": "After the gate the orchestrator opens the pull request with the before-and-after runs.",
+      "why": "opens the pull request"
+    }
+  ]
+}

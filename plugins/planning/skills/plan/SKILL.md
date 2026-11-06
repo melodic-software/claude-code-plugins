@@ -181,7 +181,7 @@ Produce a structured plan using [context/plan-template.md](context/plan-template
 - **Alternatives considered**: what was rejected and why, plus a one-line switch condition per alternative: the observable fact that would make it the better choice, so a reviewer or later phase can flip the decision without re-deriving the analysis
 - **Risks and mitigations**: what could go wrong
 
-Scale the plan to the task:
+Scale the plan to the task. The file counts below are the defaults of `plan_size_bands` (each band's largest count); resolve it per [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md) "Convention-home keys" (no `userConfig` layer), read each band's counts from the resolved values, and report one line, e.g. `plan_size_bands: trivial 1, small 5, medium 15 (default)`:
 
 | Task scale | Plan depth |
 |-----------|-----------|
@@ -202,7 +202,7 @@ Per-scale examples: [context/plan-template.md](context/plan-template.md) "Choosi
 
 **Phase merge floor**. A phase of one file and a few lines with no verification need of its own merges into the adjacent phase it serves. Every phase pays a full dispatch, sanity-check, commit and plan-mark cycle, which a one-line phase does not earn. The threshold is judgment (nearest anchor: Step 4.5's ~100 LOC parallelism floor); keep a small phase separate when it is its own commit boundary or needs its own Sanity Check.
 
-**File inventory for large-scope plans**. When a plan or phase touches ≥10 files, emit a checkbox inventory table per phase (file, action, rationale), ticked as each file is processed. Include KEEP rows for files audited and deliberately left unchanged. Format: [context/plan-template.md](context/plan-template.md) "File Inventory".
+**File inventory for large-scope plans**. When a plan or phase touches `plan_inventory_min_files` or more files (default 10, resolved like `plan_size_bands` above and reported in the same line), emit a checkbox inventory table per phase (file, action, rationale), ticked as each file is processed. Include KEEP rows for files audited and deliberately left unchanged. Format: [context/plan-template.md](context/plan-template.md) "File Inventory".
 
 **Sanity-check verifiable-criterion enforcement**. Every phase ends with at least one `**Sanity Check:**` bullet that is mechanically verifiable (a specific grep, file Read assertion, build exit code, test exit code, or runtime probe). Never vague (~~"documented appropriately"~~, ~~"behaves as expected"~~, ~~"all cases covered"~~): rewrite as exact commands a fresh session can execute without inferential judgment, so each phase can be verified green at its own boundary rather than only at the end; this is what backs implementation's every-step-lands-green expectation. Format: [context/plan-template.md](context/plan-template.md) "Sanity-Check Format".
 

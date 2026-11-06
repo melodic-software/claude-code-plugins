@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: ai-light-skips-cross-review
+context:
+  scaffold_script: scaffold.sh

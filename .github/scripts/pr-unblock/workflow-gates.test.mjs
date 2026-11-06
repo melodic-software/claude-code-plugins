@@ -1014,7 +1014,7 @@ const DISPATCHER = "pr-unblock-dispatch.yml";
 // no later job, publish-feedback and apply-dependency-verdict included, starts.
 for (const [file, jobs] of [
   ["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]],
-  ["pr-refine.yml", ["fix-docs-head"]],
+  ["pr-refine.yml", ["plan", "fix-docs-head"]],
 ]) {
   test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -1023,7 +1023,8 @@ for (const [file, jobs] of [
     const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
     assert.deepEqual(starts, ["dispatcher-current"], "every other job waits on a job");
     for (const job of jobs) {
-      const block = new RegExp(`\\n  ${job}:\\n    needs: dispatcher-current\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
+      // needs: dispatcher-current, alone or first in a list.
+      const block = new RegExp(`\\n  ${job}:\\n    needs: (?:dispatcher-current|\\[dispatcher-current(?:, [a-z-]+)*\\])\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
       assert.ok(block, `${job} needs dispatcher-current`);
       assert.match(block[1], /needs\.dispatcher-current\.outputs\.stale != 'true'/, job);
     }

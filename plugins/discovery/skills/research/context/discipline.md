@@ -41,7 +41,7 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 
 ## Source-tier ratio (per claim)
 
-Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier. That is the floor criterion 4 checks; acceptance also needs HIGH (criterion 7), per "Confidence calibration" below. The one exception to the floor is the next section.
+Every accepted claim has at least one Tier 0/1 source plus `research_corroborators` (default two; SKILL.md "Tunable defaults") independent corroborators of any tier. That is the floor criterion 4 checks; acceptance also needs HIGH (criterion 7), per "Confidence calibration" below. The one exception to the floor is the next section.
 
 **Anti-pattern:** three AI-synthesis citations of three different secondary blogs = 1 Tier 2 source, not 3. They're synthesizing from the same upstream pool. Count INDEPENDENT primary sources, not citation count.
 
@@ -59,21 +59,21 @@ Some claims can have only one publisher. A **first-party content claim** states 
 
 The claim's confidence is `HIGH (single source)` (see "Confidence calibration"), and the flag stays visible wherever the claim goes: the evidence table's Confidence cell, the sidecar header, the answer, and any synthesis built from it. A flagged claim may ground a code edit, and the record written beside that edit carries the flag. Inside the artifact, a restatement cites the claim's `id:` with the label beside it, and `<plugin-root>/scripts/check-restatement-labels.py` reports each line that names the ID without it (the artifact-shape file's "Restatements cite; they do not restate").
 
-**A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs two independent corroborators, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
+**A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs the full corroborator floor, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
 
 **A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher, so it carries no `subject_pool` and the cap in "Single-publisher facts" below does not apply to it, even though its one source is the publisher's. When the artifact states the publisher's own pricing, roadmap, internal metrics, or how its product behaves or performs, "the artifact says X" can carry the flag, while X as a fact about the publisher or its product is a separate claim under "Single-publisher facts" and is never accepted on the publisher's word alone.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
-When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. When the changelog or release notes are a docs page, read the page itself through the docs lookup, `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`, not a WebFetch summary of it. The windows below bound how stale a cited doc may be before this cross-check is required. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
+When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. When the changelog or release notes are a docs page, read the page itself through the docs lookup, `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`, not a WebFetch summary of it. The windows below bound how stale a cited doc may be before this cross-check is required; each is a default the run resolves from its key (SKILL.md "Tunable defaults"); a dispatched run takes the values from the envelope's `Research config:` line. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
 
 **Tightening tiers:**
 
 | Topic class | Recency gate |
 |---|---|
-| Very active project (weekly releases, breaking changes, security-sensitive) | 14 days |
-| Standard library / tool / CLI / API | 30 days |
-| Tool- or vendor-specific architecture guide (a cloud provider's reference architecture, a framework's architecture docs) | 90 days |
+| Very active project (weekly releases, breaking changes, security-sensitive) | 14 days (`research_recency_active_days`) |
+| Standard library / tool / CLI / API | 30 days (`research_recency_standard_days`) |
+| Tool- or vendor-specific architecture guide (a cloud provider's reference architecture, a framework's architecture docs) | 90 days (`research_recency_guide_days`) |
 | Pattern definition or canonical pattern book (GoF, PoEAA, EIP, DDD, SOLID, Hexagonal) | No recency gate, since a definition doesn't drift. Tool-specific advice built on it does, and takes its own row |
 
 **Major version bump invalidates prior docs.** When the upstream repo moved `x.y.z` → `(x+1).0.0` since the doc was last updated, treat ALL prior docs as suspect, including first-party docs, which routinely lag a major release. Re-verify every behavior claim against the new release notes regardless of doc age.
@@ -238,7 +238,7 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **An announcement is the shallowest rung that still carries the claim.** It states the headline figure; the specific run, its conditions, and its methodology live at rung 1. Checking an announcement, an intro page, and a couple of searches, then reporting the figure as unsourced, is a ladder that was never walked.
 
-**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check; the one exception is a claim about what the doc itself says, or what a paper reports about its own publisher's product, under "Single-source first-party content claims" above. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve. A fact only the publisher itself can state has no independent corroborator to find, so it is reported as "Single-publisher facts" below sets out, never accepted.
+**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs the full corroborator floor and a freshness check; the one exception is a claim about what the doc itself says, or what a paper reports about its own publisher's product, under "Single-source first-party content claims" above. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve. A fact only the publisher itself can state has no independent corroborator to find, so it is reported as "Single-publisher facts" below sets out, never accepted.
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
