@@ -3,7 +3,7 @@ name: au-engine-error-relays-remediation
 graders:
   - name: no-token-figure
     type: regex
-    pattern: '(?:\b[1-9][0-9]{0,2}(?:,[0-9]{3})+|\b[1-9][0-9]*|\b0\.[0-9]+)(?:\.[0-9]+)?\s*[kK]?[\s-]*(?:[A-Za-z]+\s+){0,2}?(?:tokens?|tok)\b|~\s*[0-9]|\b[0-9]+(?:\.[0-9]+)?\s*[kK]\b|\b(?:hundred|thousand)s?\s+(?:of\s+)?tokens?\b'
+    pattern: '(?<![Ee]xit )(?<![Ee]xits )(?<![Ee]xited )(?<!code )(?<!status )(?:\b[1-9][0-9]{0,2}(?:,[0-9]{3})+|\b[1-9][0-9]*|\b0\.[0-9]+)(?:\.[0-9]+)?\s*[kK]?[\s-]*(?:[A-Za-z]+\s+){0,2}?(?:tokens?|tok)\b|~\s*[0-9]|\b[0-9]+(?:\.[0-9]+)?\s*[kK]\b|\b(?:hundred|thousand)s?\s+(?:of\s+)?tokens?\b'
     match: 'not_contains'
     target: 'last_message'
   - name: reports-measurement-gap

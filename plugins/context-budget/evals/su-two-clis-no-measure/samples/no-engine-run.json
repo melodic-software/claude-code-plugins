@@ -11,6 +11,36 @@
         }
       ],
       "why": "probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -n 40 \"$CLAUDE_PLUGIN_ROOT/skills/audit/scripts/measure.mjs\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n '^//' /p/plugins/context-budget/skills/audit/scripts/measure.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$CLAUDE_PLUGIN_ROOT/skills/audit/scripts/measure.mjs\" --help"
+          }
+        }
+      ]
     }
   ],
   "fail": [
@@ -25,6 +55,28 @@
         }
       ],
       "why": "ran the engine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "D=\"/sb/config/plugins/data/context-budget-inline\"; node \"/p/plugins/context-budget/skills/audit/scripts/measure.mjs\" snapshot --sdk-dir \"$D/sdk\" --out \"$D/audit/baseline.json\" </dev/null 2>&1 | head -c 6000"
+          }
+        }
+      ],
+      "why": "smoke-1 snapshot run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/plugins/context-budget/skills/audit/scripts/measure.mjs attribute --tools from-baseline"
+          }
+        }
+      ],
+      "why": "attribution run"
     }
   ]
 }

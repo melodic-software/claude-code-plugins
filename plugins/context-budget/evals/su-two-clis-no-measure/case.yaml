@@ -21,7 +21,7 @@ graders:
   - name: no-engine-run
     type: tool_used
     tool: 'Bash'
-    input_match: 'measure\.mjs'
+    input_match: '\bnode\b(?:[^;|&]|\\.)*?measure\.mjs(?:\\"|'')?\s+(?:snapshot|attribute|verify-catalogue)\b'
     min: 0
     max: 0
     arm: 'both'
