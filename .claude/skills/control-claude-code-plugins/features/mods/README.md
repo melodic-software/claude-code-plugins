@@ -1,7 +1,8 @@
 # mods
 
-The mods a plugin registers in `plugins/<module>/hooks/register.tsx`, and the `.ts` and `.tsx` files
-beside it that it imports. Each one is driven with `<plugin-dir>` set to `plugins/<module>`.
+The mods a plugin registers in `plugins/<module>/hooks/register.ts` or `register.tsx`, and the
+`.ts` and `.tsx` files beside it that it imports. Each one is driven with `<plugin-dir>` set to
+`plugins/<module>`.
 
 ## Parts
 
@@ -26,14 +27,18 @@ the mod draws in. A transcript transform needs none.
 
 ## Drive
 
-Read `register.tsx` for where the mod draws, then drive it as the driving tool's `mods/band`,
-`mods/toast` or `mods/panel` feature, with `<plugin-dir>` set to `plugins/<module>`. A mod that draws
-in more than one place gets one pass per place.
+Read the mod's `register.ts` or `register.tsx` for where it draws, then drive it as the driving
+tool's `mods/band`, `mods/toast` or `mods/panel` feature, with `<plugin-dir>` set to
+`plugins/<module>`. A mod that draws in more than one place gets one pass per place.
+
+A mod that draws nothing of its own (it forwards other mods' toasts, logs, or runs scripts on
+events) has nothing to wait for here: record it as `not driven: draws nothing` and drive it as the
+`hooks` feature, which its files also match.
 
 A mod that transforms transcript components has no band, toast or panel:
 
-1. Read `register.tsx` for the components it handles (assistant message, user message, tool use,
-   tool result).
+1. Read `register.ts` or `register.tsx` for the components it handles (assistant message, user
+   message, tool use, tool result).
 2. `type "<a prompt that makes one of them appear>" --key Enter --session <session>`, choosing a
    prompt whose result holds the text the mod changes.
 3. `wait-for "<text the mod shows in place of the original>" --session <session>`, then capture
