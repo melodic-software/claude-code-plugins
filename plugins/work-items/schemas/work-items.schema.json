@@ -80,8 +80,23 @@
     "bug_path": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far /work-items:work runs its bug path. Repository layer only; no userConfig option. CI mode (--issue <n> --ci) does not read it.",
+      "description": "How far /work-items:work runs its bug path, and the fix gate a bug passes before any fix. Repository layer only; no userConfig option. CI mode (--issue <n> --ci) does not read it.",
       "properties": {
+        "fix_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The seven conditions a bug item passes, in full mode, before /work-items:work dispatches a fix; one that fails stops the run with no fix and no PR, naming the condition. Read from the default branch's committed file, so a branch cannot loosen it. The five floor keys are tighten-only: a false is named and ignored, and the condition stays on.",
+          "properties": {
+            "confirmed_repro": { "enum": [true], "default": true, "description": "Floor. Both reproduction runs showed the named broken state." },
+            "evidence_reviewed": { "enum": [true], "default": true, "description": "Floor. A fresh-context reviewer confirmed the run output shows the named broken state." },
+            "no_fix_artifact": { "enum": [true], "default": true, "description": "Floor. No commit, PR or comment claims a fix; one that does routes to verify-existing-fix instead." },
+            "no_human_claim": { "enum": [true], "default": true, "description": "Floor. No person's comment claims the fix and no one else is assigned; no waiting window." },
+            "root_cause_evidenced": { "enum": [true], "default": true, "description": "Floor. A run, log or trace ties the cause to the symptom; otherwise the root-cause diagnosis runs first." },
+            "before_after_runnable": { "type": "boolean", "default": true, "description": "The reproduction command runs on both the baseline and the patched build (through /app-control:drive when installed). false turns the condition off." },
+            "budget_minutes": { "type": "integer", "minimum": 1, "default": 90, "description": "Minutes the fix is expected to fit; the dispatch brief carries it, and a fix that outgrows it is escalated." },
+            "scope": { "type": "array", "items": { "$ref": "#/$defs/name" }, "minItems": 1, "description": "Path prefixes the fix may touch. Absent: the paths the root cause names." }
+          }
+        },
         "mode": {
           "type": "string",
           "enum": ["full", "investigate"],

@@ -223,6 +223,24 @@ when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
 
+`bug_path.fix_gate` lives only in the repository file and is read from the
+default branch, so a branch cannot loosen it. It holds the seven conditions a
+bug item passes, in full mode, before `/work-items:work` dispatches a fix:
+`confirmed_repro`, `evidence_reviewed`, `no_fix_artifact`, `no_human_claim`
+and `root_cause_evidenced` are floors, always on (a `false` is named and
+ignored); `before_after_runnable` (default `true`) may be turned off;
+`budget_minutes` (default 90) and `scope` (path prefixes, default the paths the
+root cause names) bound the fix. A failing condition stops the run with no fix
+and no pull request, naming the condition. The work skill's "Fix gate (bugs)"
+sub-step says how it is read.
+
+```yaml
+bug_path:
+  fix_gate:
+    before_after_runnable: false
+    budget_minutes: 45
+```
+
 `triage_cluster` lives only in the repository file and sets how
 `/work-items:triage` clusters items that share a signature under one parent, the
 only member that can get `agent-ready`. `signatures` lists which shared

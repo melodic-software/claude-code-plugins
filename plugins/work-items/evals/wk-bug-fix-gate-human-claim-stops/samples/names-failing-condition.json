@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Fix gate: `no_human_claim` fails, since @dana commented \"I'm on it\". The file's `false` for that floor is ignored.",
+      "why": "names the failing key"
+    },
+    {
+      "answer": "The gate stops on no_human_claim; I escalate #12 and release the claim.",
+      "why": "key without backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Someone else is fixing it, so I escalate #12 to the human queue.",
+      "why": "does not name the condition"
+    },
+    {
+      "answer": "The gate passes, so I dispatch the fix to src/report/csv.py.",
+      "why": "proceeds to a fix"
+    }
+  ]
+}
