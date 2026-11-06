@@ -2408,8 +2408,10 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   it again, and builds the line from closed values alone. With no artifact, a run of that file
   still going for the head is `pending`, a finished one `no-rating`, none `no-run`. It reads the
   body again and writes only when the body is unchanged since the listing and the line differs.
-- **It never blocks or delays.** The reads have 15 seconds and the body write 5; any error or
-  timeout records `unrated` or skips the write, and the arm goes on. Nothing reads the line back:
+- **It never blocks or delays.** The reads have 15 seconds and the body write 5. The artifact
+  download runs `gh` and `unzip`, each capped at 8 seconds, and that timer cannot cut it short,
+  so one arm waits at most about 40 seconds. Any error or timeout records `unrated` or skips the
+  write, and the arm goes on. Nothing reads the line back:
   no gate, hold or rung. Not while `merge.report-only` is true.
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
   `durationMs`, `costUsd`, models), and each arm logs a `merge-risk` notice

@@ -37,7 +37,7 @@ on:
 
 # merge-risk-line.mjs runTitle: the arm side tells a run still going for this
 # pull request and head by it.
-run-name: merge-risk #${{ github.event.workflow_run.pull_requests[0].number || 'none' }} ${{ github.event.workflow_run.head_sha }}
+run-name: "merge-risk #${{ github.event.workflow_run.pull_requests[0].number || 'none' }} ${{ github.event.workflow_run.head_sha }}"
 
 permissions: {}
 
@@ -286,9 +286,10 @@ jobs:
 
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome step; "Fail without a rating" carries the red. Under
-      # dontAsk only the allow rules' paths are readable, and only the one
-      # skill and its blind checker may run; the deny rules hold if the tools
-      # or the working directory change. The model may share its job with the
+      # dontAsk only the allow rules' paths are readable and only the one skill
+      # may run; Agent is allowed bare, as pr-verify-capture.yml allows it, for
+      # the skill's blind checker, which takes the same rules. The deny rules
+      # hold if the tools or the working directory change. The model may share its job with the
       # upload: it has no code-running tool and the job token can only read.
       - name: Rate the pull request
         id: rate
@@ -321,7 +322,7 @@ jobs:
             Read(./merge-risk-data/**)
             Read(./.lane/plugins/review/**)
             Skill(review:merge-risk *)
-            Agent(review:brief-reviewer)
+            Agent
           disallowed-tools: |
             Read(./.base/**)
             Glob

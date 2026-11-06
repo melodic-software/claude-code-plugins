@@ -170,7 +170,8 @@ const within = (promise, ms, fallback) => {
   return Promise.race([Promise.resolve(promise).catch(() => fallback), new Promise((resolve) => (timer = setTimeout(resolve, ms, fallback)))]).finally(() => clearTimeout(timer));
 };
 
-// The arm-side step: read the rating within `readMs`, then set the line on a
+// The arm-side step: read the rating within `readMs` (a synchronous
+// `download` runs to its own timeout first), then set the line on a
 // fresh read of the body within `writeMs`. `github` is the client that may
 // edit the body. A body that changed since the listing (`pull.body`) is left
 // alone, so a person's edit is never overwritten. Never throws.

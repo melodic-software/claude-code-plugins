@@ -170,7 +170,9 @@
 // Just before an arm, after its pin, the run sets the report-only Merge-Risk
 // line as the body's last line (merge-risk-line.mjs recordMergeRisk): the
 // rating pr-rate-merge-risk.yml uploaded for the head, or `unrated` with a
-// closed reason, read and written within about 20 seconds; whatever happens,
+// closed reason, read and written within about 40 seconds at most (15 for
+// the reads, 5 for the write, and a download capped at 8 for gh and 8 for
+// unzip that no timer can cut short); whatever happens,
 // the arm goes on, and no rule here or in ci-status reads the line. It logs a
 // `merge-risk` notice per arm and adds its token to the step summary.
 //
