@@ -5,7 +5,7 @@
 #
 #   scripts/credential-sweep.sh [--owner OWNER] [--repo NAME ...]
 #                               [--since YYYY-MM-DD] [--out DIR] [--keep]
-#                               [--reserve N]
+#                               [--reserve N] [--interval SECONDS]
 #
 #   --owner    GitHub owner (default melodic-software)
 #   --repo     sweep only NAME, which must be public; repeatable. Default:
@@ -16,6 +16,8 @@
 #   --keep     keep the downloads under DIR/downloads (they hold raw values)
 #   --reserve  REST requests left for other work: below N remaining, wait for
 #              the hourly reset (default 1500)
+#   --interval minimum seconds from one request's start to the next one's,
+#              decimals allowed (default 1)
 #
 # Sources per repository. --since bounds runs, artifacts and comments; releases
 # and caches are swept whole.
@@ -48,12 +50,13 @@
 # under downloads/<repo>/strings/ so it never replaces a downloaded file; nested
 # archives are read by gitleaks --max-archive-depth.
 #
-# Read-only: every request is a REST GET, one at a time. Every JSON response's
+# Read-only: every request is a REST GET, one at a time, each starting at least
+# --interval seconds after the one before. Every JSON response's
 # x-ratelimit-remaining and x-ratelimit-reset headers are read (downloads
 # redirect to storage that sends none); when remaining falls below --reserve,
 # the sweep sleeps until the reset, so it never takes the budget other work on
-# the same login needs. The first rate-limit error stops the sweep, which
-# reports it as a gap and sends nothing more.
+# the same login needs. The first rate-limit error, a secondary rate limit
+# included, stops the sweep, which reports it as a gap and sends nothing more.
 #
 # The scanner is gitleaks at the version the lint-repo `Scan for secrets` step
 # installs (melodic-software/ci-workflows gitleaks action, pinned in
@@ -88,6 +91,9 @@ SINCE=""
 OUT=""
 KEEP=0
 RESERVE=1500
+INTERVAL=1
+INTERVAL_US=1000000
+LAST_START=""
 
 DL=""
 STATE=""
@@ -109,7 +115,7 @@ die() {
 }
 
 usage() {
-  sed -n '6,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '6,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 3
 }
 
@@ -141,6 +147,27 @@ pace() {
   REMAINING=""
 }
 
+# set_interval <seconds>: sets INTERVAL and INTERVAL_US from a whole or decimal
+# number of seconds; returns 1 for anything else.
+set_interval() {
+  [[ -n "$1" && "$1" =~ ^([0-9]{0,6})(\.([0-9]+))?$ ]] || return 1
+  local frac="${BASH_REMATCH[3]}000000"
+  INTERVAL="$1"
+  INTERVAL_US=$((10#${BASH_REMATCH[1]:-0} * 1000000 + 10#${frac:0:6}))
+}
+
+# space: before a request, sleep until INTERVAL has passed since the last
+# request started, then record this start. EPOCHREALTIME is microsecond wall
+# time, read in-process.
+space() {
+  local now="${EPOCHREALTIME/[.,]/}" wait
+  if [[ -n "$LAST_START" ]] && ((wait = LAST_START + INTERVAL_US - now, wait > 0)); then
+    sleep "$((wait / 1000000)).$(printf '%06d' $((wait % 1000000)))"
+    now="${EPOCHREALTIME/[.,]/}"
+  fi
+  LAST_START="$now"
+}
+
 # read_headers <response> <body>: splits a gh api --include response at the
 # first blank line, and sets REMAINING and RESET from the headers it carries.
 read_headers() {
@@ -166,6 +193,7 @@ request() {
   shift 3
   [[ -z "$STOPPED" ]] || return 3
   pace
+  space
   REQUESTS=$((REQUESTS + 1))
   [[ -z "$REMAINING" ]] || REMAINING=$((REMAINING - 1))
   if [[ "$mode" == raw ]]; then
@@ -635,8 +663,8 @@ report() {
     printf '# Credential sweep: %s since %s\n\n' "$OWNER" "$SINCE"
     printf 'Scanner: gitleaks %s, default config without its global path allowlist, redacted. Binaries: strings(1) -n 8 pass, scanned as text (<repo>/strings/). Nested archives: gitleaks --max-archive-depth 8.\n' \
       "$GITLEAKS_PIN"
-    printf 'API requests: %d (REST GET only). Reserve: %d; waited for the reset %d times, %ds.\n' \
-      "$REQUESTS" "$RESERVE" "$PAUSES" "$PAUSED"
+    printf 'API requests: %d (REST GET only). Reserve: %d; waited for the reset %d times, %ds. Interval: %ss between request starts.\n' \
+      "$REQUESTS" "$RESERVE" "$PAUSES" "$PAUSED" "$INTERVAL"
     printf 'skipped runs (no job ran): %d; their logs and check runs are not fetched.\n\n## Swept\n\n' "$SKIPPED"
     printf '| repo |'
     printf ' %s |' "${sources[@]}" hits
@@ -688,7 +716,7 @@ main() {
         shift
         continue
         ;;
-      --owner | --repo | --since | --out | --reserve) [[ -n "${2:-}" ]] || usage ;;
+      --owner | --repo | --since | --out | --reserve | --interval) [[ -n "${2:-}" ]] || usage ;;
       *) usage ;;
     esac
     case "$1" in
@@ -696,11 +724,13 @@ main() {
       --repo) REPOS+=("$2") ;;
       --since) SINCE="$2" ;;
       --reserve) RESERVE="$2" ;;
+      --interval) set_interval "$2" || die "usage: --interval SECONDS takes a number such as 1 or 1.5, got '$2'" ;;
       *) OUT="$2" ;;
     esac
     shift 2
   done
   [[ "$RESERVE" =~ ^[0-9]+$ ]] || die "--reserve must be a whole number, got '$RESERVE'"
+  [[ -n "${EPOCHREALTIME:-}" ]] || die "bash 5 or later is required (EPOCHREALTIME spaces the requests)"
   for tool in gh jq unzip strings gitleaks; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
   done

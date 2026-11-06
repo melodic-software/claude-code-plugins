@@ -646,7 +646,7 @@ F="$TMP/reserve"
 base_fixture "$F" r
 : >"$F.sleep"
 STUB_REMAINING=100 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
-  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve" --repo r
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve" --repo r --interval 0
 first_sleep="$(head -n 1 "$F.sleep")"
 if [[ "$first_sleep" =~ ^[0-9]+$ ]] && ((first_sleep > 0 && first_sleep <= 31)); then
   ok "under the reserve, the sweep sleeps until the reset"
@@ -656,13 +656,13 @@ fi
 expect_out "the report states the waits" 'Reserve: 1500; waited for the reset'
 : >"$F.sleep"
 STUB_REMAINING=1500 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
-  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-at" --repo r
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-at" --repo r --interval 0
 if [[ ! -s "$F.sleep" ]]; then ok "at the reserve, the sweep does not wait"; else fail "slept at the reserve: $(cat "$F.sleep")"; fi
 STUB_REMAINING=100 STUB_RESET="$(($(date +%s) + 30))" STUB_SLEEP_LOG="$F.sleep" \
-  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-zero" --repo r --reserve 0
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-zero" --repo r --reserve 0 --interval 0
 if [[ ! -s "$F.sleep" ]]; then ok "--reserve 0 never waits"; else fail "slept with --reserve 0: $(cat "$F.sleep")"; fi
 STUB_REMAINING=100 STUB_RESET="$(($(date +%s) - 30))" STUB_SLEEP_LOG="$F.sleep" \
-  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-past" --repo r
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-past" --repo r --interval 0
 if [[ ! -s "$F.sleep" ]]; then ok "a reset already past is not waited for"; else fail "slept for a past reset: $(cat "$F.sleep")"; fi
 
 # --- The first rate-limit error stops every later request -------------------
@@ -676,13 +676,95 @@ expect_out "the stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
 expect_out "the repo after the stop is a gap" '- s: all: not swept'
 if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
 
+# A secondary-limit 403 stops the sweep the same way.
+F="$TMP/secondary"
+base_fixture "$F" r
+base_fixture "$F" s
+fix_err "$F" "$(day_runs r "$SINCE")" \
+  'gh: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-secondary" --repo r --repo s
+expect_rc "a secondary-limit stop exits 2" 2
+expect_out "the secondary-limit stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
+expect_out "the repo after a secondary-limit stop is a gap" '- s: all: not swept'
+if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then
+  ok "no request follows a secondary-limit error"
+else
+  fail "requests after the secondary limit: $LOG"
+fi
+
+# --- Requests start at least --interval seconds apart ------------------------
+# The stub sleep logs each spacing wait and returns at once.
+F="$TMP/interval"
+base_fixture "$F" r
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-default" --repo r
+expect_out "the default interval is 1 second" 'Interval: 1s between request starts.'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-frac" --repo r --interval .5
+expect_out "an interval with no whole part is accepted" 'Interval: .5s between request starts.'
+: >"$F.sleep"
+STUB_SLEEP_LOG="$F.sleep" sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval" --repo r --interval 1.5
+expect_rc "a sweep with --interval 1.5 exits 0" 0
+expect_out "the report states the interval" 'Interval: 1.5s between request starts.'
+if [[ -s "$F.sleep" ]] && awk '!($1 > 0 && $1 <= 1.5) { bad = 1 } END { exit bad }' "$F.sleep"; then
+  ok "each spacing wait is above 0 and at most the interval"
+else
+  fail "spacing waits wrong for --interval 1.5: '$(cat "$F.sleep")'"
+fi
+
+# Two requests through a stub gh that stamps its start, with the real sleep:
+# the second starts at least the interval after the first. Process start-up
+# jitter between the two stub runs is allowed 100 ms. Interval 0 is the control.
+mkdir -p "$TMP/timed-bin"
+cat >"$TMP/timed-bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "${EPOCHREALTIME/[.,]/}" >>"$STUB_TIME_LOG"
+printf 'HTTP/2.0 200 OK\r\n\r\n{}\n'
+EOF
+chmod +x "$TMP/timed-bin/gh"
+# two_requests <interval>: prints the microseconds between the two stub starts.
+two_requests() {
+  local log="$TMP/timed-$1.log"
+  : >"$log"
+  (
+    PATH="$TMP/timed-bin:$PATH"
+    STUB_TIME_LOG="$log"
+    export STUB_TIME_LOG
+    # shellcheck source=credential-sweep.sh
+    . "$SUT"
+    STATE="$TMP/timed-state-$1"
+    mkdir -p "$STATE"
+    set_interval "$1"
+    api_get "$STATE/a" repos/o/r
+    api_get "$STATE/b" repos/o/r
+  )
+  awk 'NR == 1 { a = $1 } NR == 2 { print $1 - a }' "$log"
+}
+gap_us="$(two_requests 0.6)"
+if [[ "$gap_us" =~ ^[0-9]+$ ]] && ((gap_us >= 500000)); then
+  ok "a second request starts at least the interval after the first"
+else
+  fail "requests ${gap_us:-?} us apart with --interval 0.6"
+fi
+gap_us="$(two_requests 0)"
+if [[ "$gap_us" =~ ^[0-9]+$ ]] && ((gap_us < 500000)); then
+  ok "with interval 0 the two requests are not spaced (control)"
+else
+  fail "requests ${gap_us:-?} us apart with interval 0"
+fi
+
 # --- Could not start ---------------------------------------------------------
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-bogus" --bogus
 expect_rc "an unknown option exits 3" 3
 expect_out "usage describes --keep" '--keep     keep the downloads'
 expect_out "usage describes --reserve" '--reserve  REST requests left for other work'
+expect_out "usage describes --interval" '--interval minimum seconds'
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-bad" --repo r --reserve lots
 expect_rc "a non-numeric --reserve exits 3" 3
+for bad in fast -1 1. . 1,5; do
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-bad" --repo r --interval "$bad"
+  expect_rc "--interval $bad exits 3" 3
+  expect_out "--interval $bad prints a usage line" "usage: --interval SECONDS"
+  if [[ -z "$LOG" ]]; then ok "--interval $bad requests nothing"; else fail "requests with --interval $bad: $LOG"; fi
+done
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-usage" --since 2026-13-45
 expect_rc "a malformed --since exits 3" 3
 STUB_GITLEAKS_VERSION=8.0.0 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-version" --repo r
