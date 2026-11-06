@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/board-export.md"
+          }
+        }
+      ],
+      "why": "the export read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "score board",
+            "prompt": "Score board-export.md against the Big Picture rubric."
+          }
+        }
+      ],
+      "why": "the scorer was dispatched"
+    }
+  ]
+}

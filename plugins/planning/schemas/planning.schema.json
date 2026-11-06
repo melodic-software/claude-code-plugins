@@ -259,6 +259,16 @@
           "default": ["screenshot", "snapshot"]
         }
       }
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "standard",
+      "description": "How much independent checking this plugin's skills run: off, light (skip the verifier dispatch), standard (today's behavior) or strict (run the passes that are optional today). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example plan); an entry beats this file's verification value."
     }
   }
 }

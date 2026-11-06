@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Upgrading the job runner to 3.0\n\nThe scheduler now hands each job to the least busy worker, so a queue of 500 jobs drains in\nabout four minutes instead of eleven.\n\nA failed job now waits 30 seconds, then 60, then 120, and is marked dead after the third retry.\n\nThe new `--drain` flag stops accepting jobs and exits once the running ones finish, so an\noperator can restart a node without losing work.\n\n## Breaking changes\n\n- `RUNNER_POOL` is now `RUNNER_WORKERS`, which defaults to 8.\n- A job payload over 1 MB is rejected instead of truncated.\n",
+      "why": "schedule kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Upgrading the job runner to 3.0\n\nThe scheduler now hands each job to the least busy worker, so a queue of 500 jobs drains in\nabout four minutes instead of eleven.\n\nA failed job now waits 30 seconds, with longer waits after, and is marked dead after the third retry.\n\nThe new `--drain` flag stops accepting jobs and exits once the running ones finish, so an\noperator can restart a node without losing work.\n\n## Breaking changes\n\n- `RUNNER_POOL` is now `RUNNER_WORKERS`, which defaults to 8.\n- A job payload over 1 MB is rejected instead of truncated.\n",
+      "why": "60 and 120 dropped"
+    }
+  ]
+}

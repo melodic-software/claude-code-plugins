@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The upload failed: role `invoice-export-nightly` lacks `s3:PutObject`.\n\n1. Add `\"s3:PutObject\"` to the `Action` list in `infra/iam/invoice-export-nightly.json`\n2. Run `make apply-iam ROLE=invoice-export-nightly`\n3. Re-run the nightly export\n\nNext: open `infra/iam/invoice-export-nightly.json`.",
+      "why": "first line states what happened"
+    },
+    {
+      "answer": "1. Add `\"s3:PutObject\"` to the `Action` list in `infra/iam/invoice-export-nightly.json`\n2. Run `make apply-iam ROLE=invoice-export-nightly`\n3. Re-run the nightly export\n\nNext: run step 1; the upload was denied because the policy has no `s3:PutObject`.",
+      "why": "last line states what happened"
+    },
+    {
+      "answer": "Add `s3:PutObject` to `infra/iam/invoice-export-nightly.json`: the CSV was written, but S3 denied the upload because the role only allows GetObject and ListBucket.\n\n1. Edit the policy\n2. Run `make apply-iam ROLE=invoice-export-nightly`\n\nNext: re-run the export.",
+      "why": "an action first line that also states the cause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `s3:PutObject` to the `Action` list in `infra/iam/invoice-export-nightly.json`.\n\nThe CSV was written, but the S3 upload was denied because the role's policy only allows GetObject and ListBucket.\n\n1. Edit the policy\n2. Run `make apply-iam ROLE=invoice-export-nightly`\n3. Re-run the export\n\nNext: open `infra/iam/invoice-export-nightly.json`.",
+      "why": "the cause sits only in the middle; the first and last lines are actions"
+    },
+    {
+      "answer": "Add the missing `s3:PutObject` action to `infra/iam/invoice-export-nightly.json`.\n\nThe upload was denied because the policy only allows GetObject and ListBucket.\n\n1. Edit the policy\n2. Run `make apply-iam ROLE=invoice-export-nightly`\n\nNext: re-run the export once the missing permission is applied.",
+      "why": "action-only first and last lines that say 'the missing'; the cause is only in the middle"
+    },
+    {
+      "answer": "Run `make apply-iam ROLE=invoice-export-nightly` after adding `s3:PutObject`.\n\nNext: re-run the export.",
+      "why": "no line says what happened"
+    }
+  ]
+}

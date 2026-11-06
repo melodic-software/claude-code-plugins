@@ -74,8 +74,7 @@ markdown runs only the markdown passes.
    act on each finding as its **In tidy-diff** column says: an edit pass 1 allows is applied under
    pass 1's rule, and every other fix is a proposal naming the residue kind and the fix, including
    each choice of a loud failure over a quiet wrong answer. Comments are pass 2's alone: pass 2
-   already triaged every comment in the listed lines, and this pass edits none. Finish with the
-   reference's closing read, bounded as it says.
+   already triaged every comment in the listed lines, and this pass edits none.
 4. **Apply the docs-hygiene writing rules to the markdown lines.** For markdown an agent loads
    (a `SKILL.md`, an agent, a rule, `CLAUDE.md`, `AGENTS.md`, a reference file a skill reads) invoke
    `/docs-hygiene:write-for-agents <file>`; for other markdown invoke

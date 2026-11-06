@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: distill-polish-vague-file-looks-complete
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: missing-specifics-named
+    type: regex
+    pattern: 'idempotency\.md[\s\S]*(?:Idempotency-Key|24 hours|24-hour|409|422)|(?:Idempotency-Key|24 hours|24-hour|409|422)[\s\S]*idempotency\.md'
+    arm: both
+    target: last_message
