@@ -1,19 +1,19 @@
 ---
-description: "Produce a short explainer video with ManimCE, narrated when the speech plugin is installed: plan the beats, write the narration and one scene script, time each scene change to the narration's word timings, render at low quality, mux the audio with ffmpeg, add captions, and check the file before calling it done (ffprobe streams and duration, a frame read back after every animation, overlapping text and elements cut off by the frame edge). Without the speech plugin it renders a silent video. Use when: 'make an explainer video', 'narrated explainer', 'animate this concept', 'Manim video of', 'render a math animation', 'turn this explanation into a video', 'silent explainer clip'. Not for hand-drawn film from style packs (use /animation:produce)."
+description: "Produce a short explainer video with ManimCE, narrated when the speech plugin is installed: plan the beats, write the narration and one scene script, time each scene change to the narration's word timings, render at low quality, mux the audio with ffmpeg, add captions, and check the file before calling it done (ffprobe streams and duration, overlapping text and elements cut off by the frame edge, then a fresh-context subagent judging the frames against the script). Without the speech plugin it renders a silent video. Use when: 'make an explainer video', 'narrated explainer', 'animate this concept', 'Manim video of', 'render a math animation', 'turn this explanation into a video', 'silent explainer clip'. Not for hand-drawn film from style packs (use /animation:produce)."
 argument-hint: "<topic> [output dir]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
-  summary: Script, narrate, render and self-check a ManimCE explainer video
+  summary: Script, narrate, render and check a ManimCE explainer video, frames judged in a fresh context
 ---
 
 # Produce
 
 Turn a topic into a short MP4 made with ManimCE, narrated when `/speech:narrate` is available.
 The audio comes first: each scene change waits for the word that starts its part of the
-narration. Every render is checked by `render.py`, and you read its frames back, before the video
-is called done.
+narration. Every render is checked by `render.py`, and you read its frames to fix what you see.
+Before the video is called done, a fresh-context subagent judges the delivery frames (step 7).
 
 Run every script through the launcher, which uses the packages the SessionStart hook installed and
 never installs:
@@ -35,6 +35,7 @@ record bundle or beside the markdown record they explain
 | Path | Who writes it | What it holds |
 |---|---|---|
 | `scene.py` | you | one `Scene` subclass |
+| `beats.txt` | you | the beat plan, one line per beat |
 | `strings.json` | you, only for untrusted text | on-screen strings the scene loads |
 | `narration/script.txt` | you, when narrated | the words spoken, one paragraph per beat |
 | `narration/narration.wav`, `narration/words.json` | `/speech:narrate` | the audio and each word's start and end |
@@ -43,7 +44,8 @@ record bundle or beside the markdown record they explain
 ## Loop
 
 1. Plan three to six beats, one idea each, under a minute in total. A beat is something the viewer
-   sees change, not a sentence to read.
+   sees change, not a sentence to read. Write the plan to `<dir>/beats.txt`, one line per beat
+   saying what the viewer sees.
 2. Narrate, when you can. Narration is available when `/speech:narrate` is in this session's skill
    list.
    - Write `<dir>/narration/script.txt`: one paragraph per beat, a blank line between paragraphs,
@@ -79,16 +81,28 @@ record bundle or beside the markdown record they explain
    text.
    - The list holds at most `MAX_FRAMES` frames (`${CLAUDE_PLUGIN_ROOT}/scripts/render.py`),
      spread evenly over the animations, and every `play`, every `wait` and every `beat` that waits counts as one. The
-     line above the list says how many animation ends it covers; an end past the cap is not read
-     back, so a scene with more animations than the cap has end states nobody checked.
+     line above the list says how many animation ends it covers; an end past the cap has no
+     frame in the list, so a scene with more animations than the cap has end states nobody checked.
    - Each `STILL:` line (`stills` in `report.json`) is a span with no change in picture, with the
      words spoken during it. A still is reported, never failed: when the words in it name
      something the picture does not show, show it and go back to step 4.
 6. When the low-quality render passes and its frames read clean, render the delivery at the
    quality the user asked for (`--quality m` or `--quality h`, default `l` is the draft) into
    `<dir>/final`, and read its frames the same way.
-7. Report the video path, its duration from `report.json`, whether it is narrated or silent (and
-   why, when silent), the `LOUDNESS:` and `FLAG:` lines, and the work directory.
+7. Your own frame reads are the fix loop, not the verdict. Run
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin explainer-video --skill produce`
+   and copy its line into the report
+   ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+   - At standard or strict, dispatch a fresh-context subagent with the paths to
+     `<dir>/final/report.json`, its frames and `<dir>/beats.txt`, plus `narration/script.txt`
+     when narrated, never your notes on them. It returns each frame with a defect from step 5's
+     list, or a beat that does not show what its line or paragraph says. A returned defect sends you back to step 4.
+   - Under `light`, and `off`, which acts as `light` here, dispatch no subagent and never give that
+     verdict yourself in its place: the report writes `verification: skipped (<level>)` and says
+     the frames were not independently judged. `render.py`'s checks run at every level.
+8. Report the video path, its duration from `report.json`, whether it is narrated or silent (and
+   why, when silent), the `LOUDNESS:` and `FLAG:` lines, the verification lines, and the work
+   directory.
 
 ## What the narrated checks hold to
 

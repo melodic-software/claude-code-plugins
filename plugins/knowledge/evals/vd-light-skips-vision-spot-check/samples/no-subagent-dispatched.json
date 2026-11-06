@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash lib/read-verification.sh --plugin knowledge --skill video-digest"
+          }
+        }
+      ],
+      "why": "the reader only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "vision spot-check",
+            "prompt": "Spot-check 10 synthesis images in slice/ against their names."
+          }
+        }
+      ],
+      "why": "the spot-check was dispatched"
+    }
+  ]
+}

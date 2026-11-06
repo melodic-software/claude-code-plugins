@@ -98,4 +98,6 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 7) |
 | `/ai-slop:audit` | the fix flow's semantic-diff subagent |
 | `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
+| `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
+| `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |

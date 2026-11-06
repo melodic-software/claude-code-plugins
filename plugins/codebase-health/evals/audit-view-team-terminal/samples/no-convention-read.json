@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/docs/conventions/rendered-views.yaml"
+          }
+        }
+      ],
+      "why": "team file read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/eval/home/.claude/rendered-views.md"
+          }
+        }
+      ],
+      "why": "retired file read"
+    }
+  ]
+}
