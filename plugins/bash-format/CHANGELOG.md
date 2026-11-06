@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.6] - 2026-11-06
+
+### Changed
+
+- Grouped the hook test suite's test-scope header lines, matching its sibling suites.
+
 ## [1.0.5] - 2026-11-06
 
 ### Changed
