@@ -1707,8 +1707,10 @@ const bashRuleMatches = (rule, command) => {
   return new RegExp(`^${pattern}$`, "s").test(command);
 };
 const WS = "${{ github.workspace }}";
-const DRIVER_PATHS = [".base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs", `${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`];
-const HEADS = ["head", `${WS}/head`];
+// Absolute paths only: the leg runs from the head checkout, where a relative
+// .base/ or head path names files the pull request controls.
+const DRIVER_PATHS = [`${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`];
+const HEADS = [`${WS}/head`];
 
 test("the driver leg's Bash runs only main's driver, one rule per verb the control skill uses, and named git commands on the head", () => {
   const driver = capStep(DRIVER);
@@ -1734,7 +1736,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   // config and browser-driver scripts (SKILL.md:198-200, quoted as written
   // there and unquoted), drive's plugin list (SKILL.md:63), and cmp
   // (SKILL.md:298-299), which takes free paths and only reads.
-  const scriptRules = [".base/plugins/testing/scripts", `${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
+  const scriptRules = [`${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
     [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
   );
   const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
@@ -1742,13 +1744,13 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
   // What the control skill and run-e2e run passes.
   for (const command of [
-    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins plugins/testing/skills/run-e2e/SKILL.md",
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins plugins/testing/skills/run-e2e/SKILL.md`,
     `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --plugin-dir plugins/testing --session s1`,
-    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop --session s1",
-    "git -C head status --porcelain",
-    "git -C head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD",
-    "git -C head ls-remote --symref origin HEAD",
-    "git -C head fetch origin 'main'",
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop --session s1`,
+    `git -C ${WS}/head status --porcelain`,
+    `git -C ${WS}/head diff --name-only \${{ steps.pr.outputs.base-sha }}...HEAD`,
+    `git -C ${WS}/head ls-remote --symref origin HEAD`,
+    `git -C ${WS}/head fetch origin 'main'`,
     `bash "${WS}/.base/plugins/testing/scripts/resolve-config.sh" e2e --user 'e2e_driver=auto' --user 'reuse_running_instance=auto'`,
     `bash "${WS}/.base/plugins/testing/scripts/check-browser-driver.sh" --user 'browser_driver=playwright'`,
     "claude plugin list --json",
@@ -1763,20 +1765,27 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "python -c 'print(1)'",
     "bash -c 'curl https://example.com'",
     "bash head/plugins/testing/scripts/resolve-config.sh e2e",
-    "bash .base/plugins/testing/scripts/resolve-config.sh other",
+    `bash ${WS}/.base/plugins/testing/scripts/resolve-config.sh other`,
     "node -e 'process.exit(0)'",
     "claude -p hi",
     "claude plugin install x",
-    "git -C head fetch origin main --upload-pack='sh -c id'",
-    "git -C head fetch https://example.com/x.git",
-    "git -C head ls-remote --upload-pack='sh -c id' origin",
+    `git -C ${WS}/head fetch origin main --upload-pack='sh -c id'`,
+    `git -C ${WS}/head fetch https://example.com/x.git`,
+    `git -C ${WS}/head ls-remote --upload-pack='sh -c id' origin`,
     "node head/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --session s1",
-    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs doctor",
-    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs",
-    "git -C head diff --no-index /etc/passwd /dev/null",
-    "git -C head diff --output=/tmp/x HEAD",
-    "git -C head fetch origin pr-branch",
-    "git -C head push origin HEAD",
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs doctor`,
+    `node ${WS}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs`,
+    // Relative forms resolve against the leg's working directory, the head
+    // checkout, so each could run a copy the pull request commits.
+    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins plugins/testing/skills/run-e2e/SKILL.md",
+    "node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch --session s1",
+    "bash .base/plugins/testing/scripts/resolve-config.sh e2e --quick",
+    'bash ".base/plugins/testing/scripts/check-browser-driver.sh" --user browser_driver=playwright',
+    "git -C head status --porcelain",
+    `git -C ${WS}/head diff --no-index /etc/passwd /dev/null`,
+    `git -C ${WS}/head diff --output=/tmp/x HEAD`,
+    `git -C ${WS}/head fetch origin pr-branch`,
+    `git -C ${WS}/head push origin HEAD`,
     "git status --porcelain",
   ]) assert.ok(!allowed(command), command);
   assert.equal(input(driver, "permission-mode"), "dontAsk");

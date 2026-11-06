@@ -517,9 +517,11 @@ jobs:
       # reach the port; key-proxy.mjs), handed to the legs as this step's
       # output. The real key's SHA-256 is an output too, for "Check the
       # driver legs hold no real key". The loopback listener has its own
-      # token budget, the same cap's size, so a driver leg cannot spend the
-      # driven session's budget or the reverse (our decision; the usage step
-      # reports each listener's spend for sizing it). The proxy's log, in its
+      # token budget, the same cap's size, so the driver legs' requests do not
+      # draw on the driven session's budget or the reverse; the job can spend
+      # up to twice the cap in all, and any runner-user process, a leg's Bash
+      # child included, can reach the 0660 socket (our decision; the usage
+      # step reports each listener's spend for sizing it). The proxy's log, in its
       # own 0750 directory, holds request paths and token counts, never a
       # key. A watcher beside it, with no access to the key, ends it once
       # /run/ccd-stop/stop exists ("Stop the key proxy"). The readiness
@@ -1055,14 +1057,17 @@ jobs:
       # Claude Code's built-in read-only commands
       # (https://code.claude.com/docs/en/permissions#read-only-commands, as
       # of 2026-11-06; recheck when that list changes). The rules name only
-      # main's driver, by its relative and its absolute path, one rule per
-      # verb the control skill uses, the git commands run-e2e and drive
-      # run on the head, and the other commands those skills name: main's
-      # testing config and browser-driver scripts, `claude plugin list
-      # --json`, cmp (it only reads), and the default branch's ls-remote and
-      # fetch, each exact, since `fetch *` or `ls-remote *` would admit
-      # --upload-pack, which runs a program. A head copy of the driver or a
-      # script matches none of them.
+      # main's driver, by its absolute path, one rule per verb the control
+      # skill uses, the git commands run-e2e and drive run on the head, and
+      # the other commands those skills name: main's testing config and
+      # browser-driver scripts, `claude plugin list --json`, cmp (it only
+      # reads), and the default branch's ls-remote and fetch, each exact,
+      # since `fetch *` or `ls-remote *` would admit --upload-pack, which
+      # runs a program. Every path is absolute: the leg runs from the head
+      # checkout, where a relative .base/ or head path names files the pull
+      # request controls. The skills name absolute paths already, since
+      # run-claude-cli resolves each plugin-dirs entry to one. A head copy
+      # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
       # allow rule names, so the file tools write only in the head and the
@@ -1109,13 +1114,6 @@ jobs:
             Skill
             Agent
           allowed-tools: |
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs ready *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs screenshot *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs record *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs log *)
-            Bash(node .base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs plugins *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs launch *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs ready *)
@@ -1123,13 +1121,6 @@ jobs:
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs record *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs log *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop *)
-            Bash(git -C head branch --show-current)
-            Bash(git -C head status --porcelain)
-            Bash(git -C head status --porcelain --untracked-files=all --ignored)
-            Bash(git -C head diff HEAD)
-            Bash(git -C head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD)
-            Bash(git -C head rev-parse --show-toplevel)
-            Bash(git -C head worktree list --porcelain)
             Bash(git -C ${{ github.workspace }}/head branch --show-current)
             Bash(git -C ${{ github.workspace }}/head status --porcelain)
             Bash(git -C ${{ github.workspace }}/head status --porcelain --untracked-files=all --ignored)
@@ -1137,18 +1128,11 @@ jobs:
             Bash(git -C ${{ github.workspace }}/head diff --name-only ${{ steps.pr.outputs.base-sha }}...HEAD)
             Bash(git -C ${{ github.workspace }}/head rev-parse --show-toplevel)
             Bash(git -C ${{ github.workspace }}/head worktree list --porcelain)
-            Bash(git -C head ls-remote --symref origin HEAD)
-            Bash(git -C head fetch origin main)
-            Bash(git -C head fetch origin 'main')
             Bash(git -C ${{ github.workspace }}/head ls-remote --symref origin HEAD)
             Bash(git -C ${{ github.workspace }}/head fetch origin main)
             Bash(git -C ${{ github.workspace }}/head fetch origin 'main')
-            Bash(bash .base/plugins/testing/scripts/resolve-config.sh e2e *)
-            Bash(bash ".base/plugins/testing/scripts/resolve-config.sh" e2e *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh e2e *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
-            Bash(bash .base/plugins/testing/scripts/check-browser-driver.sh --user *)
-            Bash(bash ".base/plugins/testing/scripts/check-browser-driver.sh" --user *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
             Bash(claude plugin list --json)
