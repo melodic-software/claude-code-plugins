@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "claude plugin configure needs Claude Code 2.1.285 or later."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verified on 2.1.290 and 2.1.301.",
+      "why": "restates measured releases"
+    },
+    {
+      "answer": "Tested on 2.1.316."
+    }
+  ]
+}

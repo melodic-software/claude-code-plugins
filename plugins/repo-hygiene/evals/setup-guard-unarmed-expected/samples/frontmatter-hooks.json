@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "It registers from the hooks: block in the clean skill's frontmatter."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It registers from the clean skill.",
+      "why": "no frontmatter"
+    },
+    {
+      "answer": "frontmatter only"
+    }
+  ]
+}

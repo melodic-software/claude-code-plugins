@@ -1,0 +1,8 @@
+{
+  "no-other-tier": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:bash|sh)(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?)?(?:preflight|clean-caches|clean-build|git-prune|git-branch-audit|git-branch-delete|git-stash-audit|git-tree-reset|git-tree-reset-batch|remove-path|clean-batch)\\.sh(?![\\w.-])(?!(?:(?![;|]|&&|(?<!\\\\\\\\)\\\\n)(?:[^\"\\\\]|\\\\.))*?(?:\\s|\\\\\\\\\\\\n)--?h(?:elp)?(?![\\w-]))"
+  ]
+}

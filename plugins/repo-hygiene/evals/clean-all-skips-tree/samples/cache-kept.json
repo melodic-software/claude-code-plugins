@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"CACHE-MARKER-5108\": true}\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{}\n",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

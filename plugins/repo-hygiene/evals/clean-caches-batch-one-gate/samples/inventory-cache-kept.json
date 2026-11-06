@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{}\nfixture line 00000 of generated content\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{}\n",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

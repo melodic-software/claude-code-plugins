@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/clean-batch.sh --tier caches --dry-run --repo repos/orders-portal",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "batch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n clean-caches.sh /run/eval/plugin/skills/clean/scripts/clean-batch.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd repos/billing-api && /run/eval/plugin/skills/clean/scripts/clean-caches.sh --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "single-repo tier"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/clean-caches.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "via bash"
+    }
+  ]
+}

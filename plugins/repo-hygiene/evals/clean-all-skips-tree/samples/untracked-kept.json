@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "SCRATCH-MARKER-4410 notes\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notes\n",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}
