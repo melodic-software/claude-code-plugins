@@ -32,9 +32,11 @@ The guard answers this command with a hook `ask` whose prompt lists the tier, th
 path. That prompt is the tier's removal question at the
 [confirmation gate](../SKILL.md#confirmation-gate), so ask nothing separately before it. Confirm it
 only when it names exactly the tier and paths you just showed; a declined prompt runs nothing.
-Whether a hook `ask` prompts in the session's mode: see the pointer in
-[the PowerShell guard lane](#the-powershell-guard-lane). Where it would not prompt, ask the gate's
-removal question first.
+In an interactive session the hook `ask` prompts in Manual and auto mode alike: auto mode still
+shows a prompt a hook forces, so in auto mode too ask nothing before it. It does not prompt only
+where nobody can answer it (`dontAsk`, which denies the call, or a `-p` run with no prompt tool);
+only there ask the gate's removal question first. Pointer and recheck: [the PowerShell guard
+lane](#the-powershell-guard-lane).
 
 The engine then removes nothing at all when `--tier` ranks above the lowest `confidence_ceiling`
 among any path's hints, or any path has no hint (exit 2, no report), and when any path's volume
@@ -253,7 +255,7 @@ confirm prompt.
   fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a section changes whether either kind of `ask`
+  live. **As of**: 2026-11-06. **Recheck trigger**: a section changes whether either kind of `ask`
   prompts in a mode.
 
 Engine invocations from PowerShell stay hard-denied.
