@@ -462,6 +462,7 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
 test("api_budget_classify decides every rate-guard vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
+  assert.ok(vectors.vectors.length > 0, "rate-guard.vectors.json holds vectors");
   for (const vector of vectors.vectors) {
     const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
     const out = withDir((dir) => bash(dir, 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) }));
@@ -897,6 +898,7 @@ function readBoth(dir, now) {
 
 test("the stop file reads the same in the shell and in Node: every stop_files vector", () => {
   const vectors = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
+  assert.ok(vectors.stop_files.length > 0, "rate-guard.vectors.json holds stop_files vectors");
   for (const vector of vectors.stop_files) {
     withDir((dir) => {
       mkdirSync(join(dir, "api-budget"));
