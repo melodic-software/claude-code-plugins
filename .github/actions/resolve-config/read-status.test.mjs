@@ -68,6 +68,14 @@ test("a hold github-actions[bot] set is added to the labels; its agent-ready, an
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: 209825114 } }).labels(7, ["priority: high"]), ["priority: high"]);
 });
 
+// The value (REST) and its setter (GraphQL events) are two reads: when the
+// newest event left another option than the value names, the setter belongs to
+// another write, so the field reads as unset.
+test("a value the newest field event does not name reads as unset", async () => {
+  assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]), ["priority: high"]);
+  assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-human" } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
+});
+
 test("a failed read warns and leaves the labels to decide", async () => {
   const { labels, lines } = reader({ 7: new Error("GET answered 500") });
   assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready"]);

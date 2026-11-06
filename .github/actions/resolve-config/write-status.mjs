@@ -149,7 +149,9 @@ export async function writeState({ github, repository, number, state, config, cu
 // loadTrustedActors):
 // - `set(number, state, {fields})` writes `state` (writeState), skipping an
 //   option this process already wrote for the issue, or one `fields` (field
-//   id -> {option}, when the writer already read them) shows it holds;
+//   id -> {option}) shows it holds. `fields` must come from a trusted read
+//   (read-status.mjs fieldStatus's rule): an option an untrusted account set
+//   would otherwise stop a write the field needs;
 // - `leaveAgentReady(number, state)` writes `state` only while the field's
 //   trusted state (read-status.mjs fieldStatus) is agent-ready, so taking
 //   agent-ready off never resets another state.

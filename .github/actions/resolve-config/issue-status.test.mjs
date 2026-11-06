@@ -191,3 +191,15 @@ test("read: a melodic- bot-setter the trusted-actor list no longer holds as that
   // github-actions[bot] is not on the list and counts without it.
   assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: ACTIONS_BOT } }, CONFIG, { actors: [] }), "needs-human");
 });
+
+// The value (REST) and setter (GraphQL) are separate reads; `fieldNames`
+// carries the option the newest event left, and a disagreement reads as unset.
+test("read: a value the newest field event names differently reads null, for any setter", () => {
+  const fieldValues = [{ field: FIELD, option: OPTIONS["needs-human"] }];
+  for (const setter of [LISTED, LANES_APP, ACTIONS_BOT]) {
+    const fieldSetters = { [FIELD]: setter };
+    assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: "needs-triage" } }, CONFIG, TRUSTED), null, setter);
+    assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: "needs-human" } }, CONFIG, TRUSTED), "needs-human", setter);
+    assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: null } }, CONFIG, TRUSTED), "needs-human", `${setter}, no name`);
+  }
+});

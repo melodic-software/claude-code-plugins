@@ -30,13 +30,13 @@
 //   stop here. `needs-triage` is the claim, since work-unblock already took
 //   the label: a second run finds it and dispatches nothing;
 // - EVENT_NAME `issues` with EVENT_ACTION `field_added` or `field_removed`: a
-//   listed human (SENDER_ID) changed the Work status field. The issue's
-//   newest Work status field event must be that person's, from a hold state
-//   (read-status.mjs HOLD_STATES) to none or needs-triage; the issue must
-//   carry no status label but `needs-triage` and intake must admit its
-//   author. `needs-triage` is the claim, added before the dispatch: a second
-//   run finds it and dispatches nothing. After the dispatch, a release that
-//   left the field empty sets it to needs-triage;
+//   listed human (SENDER_ID) changed the Work status field. Past this lane's
+//   own needs-triage writes, the issue's newest Work status field events must
+//   be that person's, from a hold state (read-status.mjs HOLD_STATES) to none
+//   or needs-triage; the issue must carry no status label but `needs-triage`
+//   and intake must admit its author. `needs-triage` is the claim, added
+//   first: a second run finds it and dispatches nothing. A release that left
+//   the field empty then sets it to needs-triage, and intake is dispatched;
 //
 // A decision on an issue that carries `needs-human` changes nothing: only a
 // listed human removes that label (docs/contracts/loop-lane/README.md, the
@@ -227,11 +227,25 @@ async function unparkReenters({ github, base, issue, humans, lanesAppId }) {
   return authorAdmitted(issue, humans, lanesAppId) && (await lastRemover(github, base, CONFIRMED))?.id === lanesAppId;
 }
 
+// The job token's bot, whose needs-triage write is this lane's own.
+const ACTIONS_BOT_ID = 41898282;
+
 // A listed human released a hold the Work status field held, on an issue no
-// status label holds or moves: the issue's newest Work status event is the
-// sender's (a listed human's, as a User), from a hold state to none or the
-// floor. Returns that event, or null when intake should not take the issue.
+// status label holds or moves. Walking back from the newest Work status event,
+// past this lane's own needs-triage writes (the job token's or the lanes
+// App's), the sender's run of newest events (a listed human's, as a User)
+// must start from a hold state and end at none or the floor, so a removal and
+// then a needs-triage add release too, and a re-run that sees its own write
+// still finds the release. Every value an event names must be an option the
+// config maps, so a renamed option fails the run instead of hiding a release.
+// Returns {from, to}, `to` the field's state now, or null when intake should
+// not take the issue.
 async function fieldReleases({ github, repository, issue, humans, lanesAppId, senderId, config, fieldEvents }) {
+  const states = new Set(Object.values(config.options));
+  const unknown = HOLD_STATES.find((state) => !states.has(state));
+  if (unknown !== undefined) {
+    throw new Error(`models.issue-status maps no option to the hold \`${unknown}\``);
+  }
   if (issue.pull_request || issue.state !== "open" || !humans.has(senderId) || !authorAdmitted(issue, humans, lanesAppId)) {
     return null;
   }
@@ -241,17 +255,39 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
     return null;
   }
   const field = String(config["field-id"]);
-  const newest = (await fieldEvents(github, repository, Number(issue.number))).filter((event) => event.field === field).at(-1);
-  const released = newest?.actorType === "User" && newest.actorId === senderId && HOLD_STATES.includes(newest.from);
-  return released && (newest.to === null || newest.to === NEEDS_TRIAGE) ? newest : null;
+  const events = (await fieldEvents(github, repository, Number(issue.number))).filter((event) => event.field === field);
+  for (const event of events) {
+    for (const name of [event.from, event.to]) {
+      if (name !== null && !states.has(name)) {
+        throw new Error(`the Work status field names option \`${name}\`, which models.issue-status does not map`);
+      }
+    }
+  }
+  const now = events.at(-1)?.to ?? null;
+  if (now !== null && now !== NEEDS_TRIAGE) {
+    return null;
+  }
+  const ownWrite = (event) => event.to === NEEDS_TRIAGE && event.actorType === "Bot" && (event.actorId === ACTIONS_BOT_ID || event.actorId === lanesAppId);
+  let i = events.length - 1;
+  while (i >= 0 && ownWrite(events[i])) {
+    i -= 1;
+  }
+  const sender = (event) => event.actorType === "User" && event.actorId === senderId;
+  if (i < 0 || !sender(events[i])) {
+    return null;
+  }
+  while (i > 0 && sender(events[i - 1])) {
+    i -= 1;
+  }
+  return HOLD_STATES.includes(events[i].from) ? { from: events[i].from, to: now } : null;
 }
 
 // The Work status field path: a listed human's release (fieldReleases) adds
-// `needs-triage`, the claim a second run finds, dispatches intake once, and
-// then sets the field to needs-triage when the release left it empty. A failed
-// dispatch takes the label back so a re-run can claim again; a field write
-// that fails after the dispatch only warns, since an unset field leaves the
-// labels to decide.
+// `needs-triage`, the claim a second run finds, sets the field to
+// needs-triage when the release left it empty, and dispatches intake once. A
+// failed field write only warns, since an unset field leaves the labels to
+// decide and the claim stops a second run; a failed dispatch takes the label
+// back so a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
   const senderId = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
   const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
@@ -268,16 +304,7 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
     log(`intake-reenter: ${NEEDS_TRIAGE} is already on the issue; nothing dispatched`);
     return 0;
   }
-  try {
-    await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-    await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
-      ref: "main",
-      inputs: { "issue-number": String(issue.number) },
-    });
-  } catch (error) {
-    await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
-    throw error;
-  }
+  await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
   let field = "";
   if (release.to === null) {
     try {
@@ -287,6 +314,15 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
     } catch (error) {
       log(`::warning title=intake-reenter::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}; the labels decide`);
     }
+  }
+  try {
+    await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
+      ref: "main",
+      inputs: { "issue-number": String(issue.number) },
+    });
+  } catch (error) {
+    await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+    throw error;
   }
   log(`intake-reenter: Work status ${release.from} released, added ${NEEDS_TRIAGE}${field}, dispatched ${WORKFLOW}`);
   return 0;

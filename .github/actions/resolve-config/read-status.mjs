@@ -42,17 +42,27 @@ export function loadTrustedActors(env = {}) {
 
 // The state the issue's Work status field holds (issue-status.mjs
 // issueStatus), or null when no counted account set it; throws when the field
-// cannot be read. `issueStatus` and `fieldSetters` default to the modules'.
-export async function fieldStatus({ github, repository, number, config, trustedActors, issueStatus, fieldSetters }) {
+// cannot be read. The setter and the value come from two reads (GraphQL field
+// events, REST values), so issueStatus also gets the option name the newest
+// event left and reads a disagreement as unset. `issueStatus` and
+// `fieldEvents` default to the modules'.
+export async function fieldStatus({ github, repository, number, config, trustedActors, issueStatus, fieldEvents }) {
   const status = issueStatus ?? (await import("./issue-status.mjs")).issueStatus;
-  const setters = fieldSetters ?? (await import("./resolve-config.mjs")).fieldSetters;
+  const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;
   const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
   if (!Array.isArray(rows)) {
     throw new Error("its field values answered something other than a list");
   }
+  const fieldSetters = Object.create(null);
+  const fieldNames = Object.create(null);
+  for (const event of await events(github, repository, number)) {
+    fieldSetters[event.field] = event.removed ? null : event.actorId;
+    fieldNames[event.field] = event.to;
+  }
   const facts = {
     fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
-    fieldSetters: await setters(github, repository, number),
+    fieldSetters,
+    fieldNames,
   };
   return status(facts, config, trustedActors);
 }
@@ -69,14 +79,14 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
   let setup;
   const prepare = async () => {
     try {
-      const { fieldSetters, issueStatusFromBase } = await import("./resolve-config.mjs");
+      const { fieldEvents, issueStatusFromBase } = await import("./resolve-config.mjs");
       const { issueStatus } = await import("./issue-status.mjs");
       const leaf = config === undefined ? issueStatusFromBase(env) : config;
       if (!leaf) {
         return null;
       }
       const actors = trustedActors ?? loadTrustedActors(env);
-      return { config: leaf, trustedActors: actors, issueStatus, fieldSetters };
+      return { config: leaf, trustedActors: actors, issueStatus, fieldEvents };
     } catch (error) {
       log(`::warning title=work-status::the Work status field is not read, so status labels decide: ${annotate(error?.message ?? error)}`);
       return null;

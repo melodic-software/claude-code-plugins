@@ -19,7 +19,8 @@ export const STRANGER_ID = 99;
 export const TRUSTED_ACTORS = { version: 1, actors: [{ id: HUMAN_ID, login: "person", kind: "human" }] };
 
 // `github` with issue field reads answered from `fields`: issue number ->
-// {state, setter} (setter defaults to HUMAN_ID), or an Error the read throws.
+// {state, setter, named} (setter defaults to HUMAN_ID, and named, the option
+// name the newest field event left, to state), or an Error the read throws.
 // An issue `fields` omits holds no value. Every other call goes to `github`.
 export function withFields(github, fields = {}) {
   return async (method, path, body, ...rest) => {
@@ -33,7 +34,7 @@ export function withFields(github, fields = {}) {
     }
     if (method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
       const entry = fields[String(body.variables.number)];
-      const nodes = entry && !(entry instanceof Error) ? [{ __typename: "IssueFieldChangedEvent", actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
+      const nodes = entry && !(entry instanceof Error) ? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
       return { data: { repository: { issue: { timelineItems: { nodes } } } } };
     }
     return github(method, path, body, ...rest);

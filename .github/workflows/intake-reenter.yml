@@ -33,9 +33,10 @@ name: intake-reenter
 # A listed human who changes the Work status field (48484079) from a hold to
 # none or needs-triage has released it: the `issues: field_added` or
 # `field_removed` run reads the issue's field events, and when that person
-# made the newest one, on an open issue with no status label but
-# `needs-triage` and an admitted author, it adds `needs-triage`, dispatches the
-# same way, and sets the field to needs-triage when the release emptied it.
+# made the newest ones (past this lane's own needs-triage write), on an open
+# issue with no status label but `needs-triage` and an admitted author, it
+# adds `needs-triage`, sets the field to needs-triage when the release emptied
+# it, and dispatches the same way.
 #
 # Accepted exposure: only a trusted comment decides whether a re-entry
 # happens, and the triage run it starts passes the model only comments whose

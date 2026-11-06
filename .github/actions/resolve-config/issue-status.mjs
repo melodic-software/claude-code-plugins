@@ -43,8 +43,11 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // human or the lanes App counts for every state; a `bot-setters` account for
 // every state but agent-ready, github-actions[bot] always and a `melodic-` bot
 // only while `trustedActors` lists it as a bot with the same id and login (one
-// the list dropped reads as unset). An option a counted setter chose that the
-// config does not map stops the read: GitHub's options drifted.
+// the list dropped reads as unset). `facts.fieldNames`, when given, maps a
+// field id to the option name its newest field event left: a value that
+// names another option than the REST value maps to reads as unset, since the
+// setter read belongs to another write. An option a counted setter chose that
+// the config does not map stops the read: GitHub's options drifted.
 export function issueStatus(facts, config, trustedActors) {
   const unmapped = (option) =>
     new Rejection(
@@ -53,6 +56,11 @@ export function issueStatus(facts, config, trustedActors) {
     );
   const fieldId = config["field-id"];
   const setter = facts.fieldSetters[String(fieldId)];
+  const named = facts.fieldNames?.[String(fieldId)];
+  const held = facts.fieldValues.find((value) => value.field === fieldId);
+  if (typeof named === "string" && held !== undefined && config.options[String(held.option)] !== named) {
+    return null;
+  }
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   const listed = ({ id, login }) =>
     (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||

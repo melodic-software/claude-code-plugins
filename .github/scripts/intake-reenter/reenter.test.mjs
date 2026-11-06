@@ -724,7 +724,7 @@ test("a listed human clearing a field-only hold dispatches once, then sets the f
   expectDispatched(w);
   assert.deepEqual(fieldWrites(w).map(([method, , body]) => [method, body]), [["POST", { issue_field_values: [{ field_id: 48484079, value: "needs-triage" }] }]]);
   const order = w.writes.map(([method, path]) => `${method} ${path.split("/").at(-1)}`);
-  assert.deepEqual(order, ["POST labels", "POST dispatches", "POST issue-field-values"], "claim, dispatch, then the field");
+  assert.deepEqual(order, ["POST labels", "POST issue-field-values", "POST dispatches"], "claim, field, then dispatch");
   w.writes.length = 0;
   assert.equal(await runField(w, "field_removed"), 0, "a queued second run stops");
   assert.deepEqual(w.writes, []);
@@ -741,15 +741,31 @@ test("every hold state released by a listed human re-enters", async () => {
 test("a failed dispatch after a field release takes the claim back, and a re-run dispatches once", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${DISPATCH}` });
   assert.equal(await runField(w, "field_removed"), 1);
-  assert.deepEqual(w.labels(), []);
-  assert.deepEqual(fieldWrites(w), [], "no field write before a dispatch lands");
-  assert.equal(await runField(w, "field_removed"), 0);
+  assert.deepEqual(w.labels(), [], "the claim comes back off");
+  assert.equal(fieldWrites(w).length, 1, "the field was set before the dispatch");
+  assert.equal(await runField(w, "field_removed"), 0, "the re-run walks past its own field write");
   assert.deepEqual(w.labels(), ["needs-triage"]);
   assert.equal(w.dispatches().length, 2, "the failed call and the re-run's");
-  assert.equal(fieldWrites(w).length, 1);
+  assert.equal(fieldWrites(w).length, 1, "the field already reads needs-triage");
 });
 
-test("a field write that fails after the dispatch warns and leaves the run green", async () => {
+test("a re-run that sees the job token's or the lanes App's own needs-triage write still finds the release", async () => {
+  for (const bot of [ACTIONS_BOT, LANES_APP]) {
+    const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(bot, "needs-triage")] });
+    assert.equal(await runField(w, "field_removed"), 0, bot.login);
+    expectDispatched(w);
+    assert.deepEqual(fieldWrites(w), [], bot.login);
+  }
+});
+
+test("a listed human who removes a hold and then sets needs-triage releases it", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(OWNER, "needs-triage")] });
+  assert.equal(await runField(w, "field_added"), 0);
+  expectDispatched(w);
+  assert.deepEqual(fieldWrites(w), []);
+});
+
+test("a field write that fails warns, still dispatches, and the claim stops a queued second run", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${FIELD_WRITE}` });
   const lines = [];
   const code = await main({
@@ -760,6 +776,16 @@ test("a field write that fails after the dispatch warns and leaves the run green
   assert.equal(code, 0);
   expectDispatched(w);
   assert.ok(lines.some((line) => line.startsWith("::warning title=intake-reenter::#42's Work status field was not set")), lines.join("\n"));
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  w.writes.length = 0;
+  assert.equal(await runField(w, "field_removed"), 0);
+  assert.deepEqual(w.writes, [], "the needs-triage claim stops it");
+});
+
+test("an option name models.issue-status does not map fails the run", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(LANES_APP, "on-hold"), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed"), 1);
+  assert.deepEqual(w.writes, []);
 });
 
 const fieldQuiet = [
@@ -769,6 +795,8 @@ const fieldQuiet = [
   ["a listed human moving a hold to agent-ready", { labels: [], fieldNodes: [heldBy(), changed(OWNER, "needs-human", "agent-ready")] }, "field_added", OWNER],
   ["a newest event that is not the sender's", { labels: [], fieldNodes: [heldBy(), changed(STRANGER, "needs-human", "needs-triage")] }, "field_added", OWNER],
   ["a hold set again after the release", { labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(LANES_APP)] }, "field_added", OWNER],
+  ["another person between the hold and the sender", { labels: [], fieldNodes: [heldBy(), changed(STRANGER, "needs-human", "ready"), changed(OWNER, "ready", "needs-triage")] }, "field_added", OWNER],
+  ["a third-party bot's needs-triage after the release", { labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(LISTED_BOT, "needs-triage")] }, "field_added", OWNER],
   ["a change from a state that is no hold", { labels: [], fieldNodes: [heldBy(LANES_APP, "confirmed"), removed(OWNER)] }, "field_removed", OWNER],
   ["another field's release", { labels: [], fieldNodes: [heldBy(), fieldNode("IssueFieldRemovedEvent", OWNER, {}, "15462270")] }, "field_removed", OWNER],
   ["a status label still on the issue", { labels: ["status: needs-decision"], fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
