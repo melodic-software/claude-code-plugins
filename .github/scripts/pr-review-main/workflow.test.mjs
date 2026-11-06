@@ -1134,7 +1134,7 @@ test("a held file list marks the run and starts no review, in the trigger job an
   const keyRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { trigger, [PROBE]: probe } });
   assert.ok(keyRuns(triggered));
   assert.ok(!keyRuns(held));
-  const handsOn = (trigger) => admits(jobGate("review-handoffs"), { github: upstreamRun, needs: { trigger, review: { result: "skipped", outputs: {} }, [PROBE]: { result: "success", outputs: { "skip-key": "true" } } } });
+  const handsOn = (trigger) => admits(jobGate("review-handoffs"), { github: upstreamRun, needs: { trigger, review: { result: "skipped", outputs: {} }, [PROBE]: { result: "success", outputs: { "next-leg": "subscription" } } } });
   assert.ok(handsOn(triggered));
   assert.ok(!handsOn(held));
   // A lane a person re-runs alone gates itself, so an earlier attempt's hold does not stop it.
