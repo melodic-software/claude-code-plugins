@@ -81,6 +81,13 @@ thresholds:
 `--show-config` ends each effective value with `[layer: <file>]`, the layer that supplied it, or
 `[layer: default]` when none did.
 
+`verification` (`off`, `light`, `standard`, `strict`; default `standard`) and `verification_skills`
+(a skill name to a level, beating `verification`) set how much independent checking `/ai-slop:audit`
+runs: under `light` and `off` its fix flow dispatches no semantic-diff subagent. They are read by
+`lib/read-verification.sh` from the team file at the default branch only, never the personal layer
+or `--show-config`, so a branch cannot lower them
+([verification level](../../docs/contracts/verification-level/README.md)).
+
 `phrase_add`/`phrase_remove` tune the model-era phrase roster (`rule-model-era-phrases`, the
 catalog's "Model-era additions" section). Fragments are whole EREs: spaces allowed,
 apostrophes spelled `.` (the detector's phrase convention), metacharacters live. Each key
