@@ -265,19 +265,34 @@ A bug item (native Issue Type `Bug`, else a `type: bug` label) first resolves it
 
 ### Bug report
 
-Both modes keep one report comment on the item. Post it once the outcome is known: after the
-root-cause diagnosis (in full mode, the gate or the brief's Root cause field), or when step 2 shows
-no repro or step 3 ends Inconclusive. Its first line is
-`<!-- work-items:investigation outcome=<outcome> -->`; in an autonomous session the AI disclaimer,
-when the setting adds one, follows it. After that, edit the same comment in place through the
-adapter's comment edit (GitHub: "Comment on item / edit a comment" in the adapter README), never a
-second comment: find it by its first line, and rewrite the status line at each later step (the
-dispatch, the PR with its link, an escalation, the release). The report carries:
+Both modes keep one report comment on the item. Post it once the outcome is known, before any
+dispatch: in investigate mode after the root-cause diagnosis; in full mode after Step 5's root-cause
+gate, or, when the gate is skipped because the brief names the cause or has no Root cause field (or
+no counted brief), right before the dispatch; in either mode as soon as step 2 shows no repro or
+step 3 ends Inconclusive. Its first line is
+`<!-- work-items:investigation outcome=<outcome> desired=cause-named -->`; in an autonomous session
+the AI disclaimer, when the setting adds one, follows it. The marker is a desired-state/result-state
+pair: `desired=` is the state this pre-work set out to reach and `outcome=` the state it reached,
+so a reader tells finished pre-work from pre-work that still needs a follow-up by comparing the two,
+without knowing the outcome vocabulary. Keep `outcome=` first.
+
+After that, edit the same comment in place through the adapter's comment edit (GitHub: "Comment on
+item / edit a comment" in the adapter README), never a second comment, and rewrite the status line
+at each later step (the dispatch, the PR with its link, an escalation, the release). Keep the
+posted comment's id and author login from the post's response and edit by that id. A run that lost
+the id finds the comment by its first line among comments authored by the identity the adapter's
+comment write posts as (bare `gh`: `gh api user --jq .login`; the bot wrapper's login when it
+routes writes). Never edit a comment by any other author, whatever its first line says; with no
+match, post a new report. The report carries:
 
 1. **Status**: one line naming where the run stands and what comes next, for example
    `Status: fix dispatched; PR to follow` or `Status: escalated to the human queue`.
-2. **Outcome**: `cause-named` (one cause the evidence confirms), `causes-ranked` (candidates, none
-   confirmed) or `not-reproduced` (the baseline runs did not show the broken state twice).
+2. **Outcome**: `cause-named` (one cause the evidence or the brief's Root cause field names; the
+   field is quoted as data), `causes-ranked` (candidates, none confirmed), `not-reproduced` (the
+   baseline runs did not show the broken state twice) or `cause-unconfirmed` (full mode only: the
+   brief has no Root cause field or no counted brief, so the gate was skipped and no diagnosis ran;
+   Ranked causes reads `none (gate skipped)` and the fixing-agent instruction says the cause is
+   unconfirmed).
 3. **Repro evidence**: the repro count and the surface (`reproduced 2/2 through <surface>`), both
    final states, each run's command, revision and observed output, and the capture check's line
    (confirmed, or `verification: skipped (<level>)`).
