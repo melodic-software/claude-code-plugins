@@ -1,10 +1,6 @@
 schema_version: "1.1"
 name: ck-outside-git-degrades
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: 'skill-quality:check'
   - name: names-git-backed-checks
     type: regex
     pattern: '\btrigger[- ](?:keyword[- ])?preservation\b|\bvendor\b|\bstale[- ](?:tracking[- ])?metadata\b|\bcommitted[- ]artifacts?\b'

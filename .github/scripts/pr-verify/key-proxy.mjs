@@ -1,7 +1,14 @@
-// The key proxy: the only path from pr-verify's driven Claude Code to the
+// The key proxy: the only path from pr-verify's Claude Code sessions to the
 // Messages API. It runs as its own OS user, holds the real key (read from
 // stdin, never argv or env) and listens on a unix socket, so pull request code
-// in the no-network sandbox never sees the key. Every request passes an
+// in the no-network sandbox never sees the key. With --listen it also listens
+// on a loopback TCP port for the capture's driver legs, which hold a per-run
+// client key instead of the real one; that listener refuses with a 401 any
+// request whose x-api-key is not the client key, has its own budget and state,
+// and relays an upstream error to a count_tokens preflight as sent, so a
+// credit stop or a refused key reaches the leg as the API's own answer. Any
+// process on the runner can reach a loopback port, so the client key, not the
+// port, is what admits a request (our decision). Every request passes an
 // ordered pipeline of checks (path, query, size, parse, body keys, model,
 // max_tokens, betas, server tools, content, count_tokens limits, in-flight
 // slot, cap reservation). One that passes goes upstream as the re-serialized
@@ -11,7 +18,10 @@
 // /v1/messages reservation is the upstream's own count_tokens figure for the
 // request plus its max_tokens.
 //
-//   node key-proxy.mjs --socket <path> --config <file.json> [--upstream <url>] < key
+//   node key-proxy.mjs --socket <path> --config <file.json> [--upstream <url>] [--listen <port>] < key
+//
+// Stdin holds the key; with --listen, the key's line is followed by a second
+// line holding the loopback listener's client key, which must differ from it.
 //
 // Config (JSON, read from the base branch by the workflow, never the head):
 //   tokenCap               per-job token budget (input, cache and output tokens)
@@ -33,10 +43,11 @@
 //   upstream               API base URL (default https://api.anthropic.com)
 //   socketMode             octal mode set on the socket after listen, e.g. "660"
 //
-// It logs one JSON line per request to stderr: method, path without query,
-// status and token counts, and for a beta refusal the refused beta names, so a
+// It logs one JSON line per request to stderr: the listener (socket or
+// loopback), method, path without query, status and token counts, and for a beta refusal the refused beta names, so a
 // failed capture says what to add to `betas`. Never the key, any other header
 // value, or a body.
+import { createHash, timingSafeEqual } from "node:crypto";
 import { chmodSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -388,8 +399,17 @@ const forwardHeaders = (incoming, key, length) => {
 
 const relayHeaders = (incoming) => Object.fromEntries(Object.entries(incoming).filter(([name]) => RELAY_NAMED.has(name) || RELAY_PREFIX.test(name)));
 
-export function createProxy({ key, config, log = () => {} }) {
+const digest = (s) => createHash("sha256").update(s, "utf8").digest();
+
+// clientKey, when set, is the x-api-key every request must carry, compared in
+// constant time over SHA-256 digests so the length leaks nothing either.
+// relayPreflightErrors relays every non-200 count_tokens preflight answer
+// instead of only a 429 or 5xx.
+export function createProxy({ key, config, log = () => {}, clientKey, relayPreflightErrors = false }) {
   if (typeof key !== "string" || !key) throw new Error("key is required");
+  if (clientKey !== undefined && (typeof clientKey !== "string" || !clientKey || clientKey === key)) throw new Error("clientKey must be a non-empty string other than the key");
+  const clientDigest = clientKey === undefined ? null : digest(clientKey);
+  const admitted = (header) => clientDigest === null || (typeof header === "string" && timingSafeEqual(digest(header), clientDigest));
   const budget = createBudget(config.tokenCap);
   const state = { inFlight: 0, countTokensRequests: 0, preflights: 0 };
   const lib = config.upstream.protocol === "https:" ? https : http;
@@ -423,7 +443,7 @@ export function createProxy({ key, config, log = () => {} }) {
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
         const raw = Buffer.concat(chunks);
-        if (res.statusCode === 429 || res.statusCode >= 500) return resolve({ relay: { status: res.statusCode, headers: relayHeaders(res.headers), body: raw } });
+        if (res.statusCode === 429 || res.statusCode >= 500 || (relayPreflightErrors && res.statusCode !== 200)) return resolve({ relay: { status: res.statusCode, headers: relayHeaders(res.headers), body: raw } });
         if (res.statusCode !== 200) return resolve({});
         try { resolve({ input: JSON.parse(raw.toString("utf8")).input_tokens }); } catch { resolve({}); }
       });
@@ -444,6 +464,13 @@ export function createProxy({ key, config, log = () => {} }) {
     let clientGone = false;
     res.on("close", () => { clientGone = true; });
     const done = (status, extra = {}) => log({ method: req.method, path, status, ...extra });
+    // Before any of the body is kept: an unadmitted client's body is drained unread.
+    if (!admitted(req.headers["x-api-key"])) {
+      req.resume();
+      sendRefusal(res, refuse(401, "authentication_error", "invalid x-api-key"));
+      done(401, { refused: "authentication_error" });
+      return;
+    }
 
     req.on("data", (c) => {
       if (tooLarge) return;
@@ -613,8 +640,9 @@ async function readStdin() {
 async function main(argv) {
   const socket = argValue(argv, "--socket");
   const configPath = argValue(argv, "--config");
-  if (!socket || !configPath) {
-    process.stderr.write("usage: key-proxy.mjs --socket <path> --config <file.json> [--upstream <url>] < key\n");
+  const port = argValue(argv, "--listen");
+  if (!socket || !configPath || (port !== undefined && !(/^[1-9][0-9]{0,4}$/.test(port) && Number(port) <= 65535))) {
+    process.stderr.write("usage: key-proxy.mjs --socket <path> --config <file.json> [--upstream <url>] [--listen <port>] < key\n");
     return 2;
   }
   let config;
@@ -624,18 +652,32 @@ async function main(argv) {
     process.stderr.write(`key-proxy: bad config: ${e.message}\n`);
     return 2;
   }
-  const key = await readStdin();
+  const [key, clientKey] = (await readStdin()).split("\n").map((l) => l.trim());
   if (!key) {
     process.stderr.write("key-proxy: no key on stdin\n");
     return 2;
   }
-  const log = (entry) => process.stderr.write(`${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`);
+  if (port !== undefined && (!clientKey || clientKey === key)) {
+    process.stderr.write("key-proxy: --listen needs a client key on stdin's second line, other than the key\n");
+    return 2;
+  }
+  const write = (entry) => process.stderr.write(`${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`);
+  const log = (entry) => write({ listener: "socket", ...entry });
   const { server } = createProxy({ key, config, log });
   rmSync(socket, { force: true });
   await new Promise((resolve, reject) => server.once("error", reject).listen(socket, resolve));
   if (config.socketMode !== undefined) chmodSync(socket, config.socketMode);
   log({ listening: socket, models: config.models, tokenCap: config.tokenCap });
-  const stop = () => server.close(() => process.exit(0));
+  const servers = [server];
+  if (port !== undefined) {
+    const loopbackLog = (entry) => write({ listener: "loopback", ...entry });
+    const loopback = createProxy({ key, config, log: loopbackLog, clientKey, relayPreflightErrors: true }).server;
+    await new Promise((resolve, reject) => loopback.once("error", reject).listen(Number(port), "127.0.0.1", resolve));
+    servers.push(loopback);
+    loopbackLog({ listening: `127.0.0.1:${port}`, models: config.models, tokenCap: config.tokenCap });
+  }
+  let open = servers.length;
+  const stop = () => servers.forEach((s) => s.close(() => { open -= 1; if (open === 0) process.exit(0); }));
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
   return null;
