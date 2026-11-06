@@ -42,7 +42,7 @@
 // per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
 // recorded.
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
