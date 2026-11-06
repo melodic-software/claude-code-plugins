@@ -1,6 +1,6 @@
 ---
 description: "CI security review still flags an added userConfig key with fixed options when its value is substituted into a hook command, instead of treating it as an advisory selector"
-tags: [review, security-review, manifest]
+tags: [review, security-review, manifest, no-network]
 runs: 3
 max_turns: 40
 timeout_seconds: 900
