@@ -3153,6 +3153,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
   assert.deepEqual(held.sort(), [
     "intake-triage.yml apply-verdict: Write the verdict",
     "pr-merge.yml merge: List the candidate PRs",
+    "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
     "pr-verify-capture.yml capture-fallback: Resolve the pull request",
@@ -9623,7 +9624,12 @@ function missingLegs(catalog, launched) {
 // waives and why. The test fails when an exempt lane lacks a leg its entry
 // does not name, or runs a leg its entry waives, so an entry never covers
 // more than it says and goes once its lane gains the leg.
-const LEG_EXEMPTIONS = {};
+const LEG_EXEMPTIONS = {
+  "pr-rate-merge-risk.yml pr-verify rate-merge-risk": {
+    legs: ["subscription", "fallback"],
+    reason: "a report-only rating (#13657, owner decision Q57): a key-leg stop records the Merge-Risk line unrated, which a subscription or fallback leg would not change for any merge (#13586)",
+  },
+};
 // A secret name's leg: the role's API key, its subscription token, or the
 // central fallback token.
 const legOf = (name) => (name === FALLBACK_SECRET ? "fallback" : /_CLAUDE_API_KEY$/.test(name) ? "key" : "subscription");

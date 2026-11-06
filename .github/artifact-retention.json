@@ -45,6 +45,19 @@
       "scan": "upload",
       "computed-by": ".github/workflows/pr-verify-capture.yml"
     },
+    "pr-merge-risk-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/scripts/pr-merge/merge-risk-line.mjs readRating reads it by exact name when enable-auto-merge.mjs arms that head",
+        ".github/scripts/pr-verify/resolve-pr.mjs ratedBy reads it by exact name, so a head is not rated twice"
+      ],
+      "reason": "It is read only when the head arms, which follows its pass within the hour or two a lane pull request waits for its checks and verdict; a week covers a head that waits on a hold, and an expired one only records the line unrated (owner decision Q57: the line is report-only). The squash commit, not the artifact, is the record #13656 joins against.",
+      "scan": "upload",
+      "computed-by": ".github/workflows/pr-rate-merge-risk.yml",
+      "uploads": [
+        ".github/workflows/pr-rate-merge-risk.yml#rate-merge-risk"
+      ]
+    },
     "key-credit-stop-pr-verify.yml-check-intent": {
       "retention-days": 1,
       "readers": [

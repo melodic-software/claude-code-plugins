@@ -337,6 +337,9 @@ jobs:
         .github/scripts/pr-merge/who.mjs
         .github/scripts/pr-merge/post-unarmed-status.mjs
         .github/scripts/pr-merge/verify-answers.mjs
+        .github/scripts/pr-merge/merge-risk-line.mjs
+        .github/scripts/pr-merge-risk/input.mjs
+        .github/scripts/pr-merge-risk/write-rating.mjs
         .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
         .github/scripts/pr-unblock/address-feedback.mjs
@@ -398,6 +401,7 @@ jobs:
         .github/workflows/post-merge-test-mutation.yml
         .github/workflows/pr-feedback-dispatch.yml
         .github/workflows/pr-merge.yml
+        .github/workflows/pr-rate-merge-risk.yml
         .github/workflows/pr-refine.yml
         .github/workflows/pr-require-checks.yml
         .github/workflows/pr-review-approved.yml
