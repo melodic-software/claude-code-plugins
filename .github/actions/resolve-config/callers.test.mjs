@@ -9417,9 +9417,13 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
         .replace("the next leg runs the eval", "the next leg runs the pass")
         .replace(`echo "The managed policy denied the probe's Read, Grep and Glob calls."\n`, "");
     assert.equal(probeOf(steps), probeOf(first), `${file} ${id} probe`);
-    const names = steps.map((s) => s.name);
-    assert.ok(names.indexOf("Deny the eval's reads of process and runner state") < names.indexOf("Isolate the runner"), `${file} ${id}: the policy is written while sudo works`);
-    assert.ok(names.indexOf("Isolate the runner") < names.indexOf("Probe that the policy denies those reads"), `${file} ${id}`);
+    const [denyIdx, isolateIdx, probeIdx] = ["Deny the eval's reads of process and runner state", "Isolate the runner", "Probe that the policy denies those reads"].map((n) => {
+      const i = steps.findIndex((s) => s.name === n);
+      assert.ok(i >= 0, `${file} ${id}: no step named ${n}`);
+      return i;
+    });
+    assert.ok(denyIdx < isolateIdx, `${file} ${id}: the policy is written while sudo works`);
+    assert.ok(isolateIdx < probeIdx, `${file} ${id}`);
   }
   const probe = step(first, "probe").run;
   assert.match(probe, /jq -e -R -s --arg t "\$1" --arg p "\$2" '\[split\("\\n"\)\[\] \| fromjson\? \| objects\] \| last\(/);
