@@ -43,12 +43,18 @@ if curl -s -o /dev/null --max-time 3 https://api.anthropic.com/; then
 else
   egress=refused
 fi
-if getent hosts api.anthropic.com >/dev/null 2>&1; then
+# A tool that is missing leaves its fact untested, which the check refuses
+# like an open one: a missing tool must not read as a refusal.
+if ! command -v getent >/dev/null; then
+  dns=untested
+elif getent hosts api.anthropic.com >/dev/null 2>&1; then
   dns=resolved
 else
   dns=refused
 fi
-if unshare -U true >/dev/null 2>&1; then
+if ! command -v unshare >/dev/null; then
+  userns=untested
+elif unshare -U true >/dev/null 2>&1; then
   userns=open
 else
   userns=refused
@@ -69,13 +75,15 @@ writes=$(jq -n -c --arg w "$(write "$ws")" --arg h "$(write "$ws/head")" --arg b
   '{workspace: $w, head: $h, base: $b, capture_run: $r}')
 
 # Every unix socket on the file system that accepts a connection; only the
-# proxy's is expected. The toolcache, /usr and /snap hold none and would make
+# proxy's is expected, and with no socat the scan is untested. The toolcache, /usr and /snap hold none and would make
 # the scan slow; a scan cut off by its bound counts as not done.
 scan=$(timeout 90 find / \( -path /proc -o -path /sys -o -path /usr -o -path /opt/hostedtoolcache -o -path /snap \) -prune -o -type s -print 2>/dev/null)
 scan_rc=$?
 scanned=true
 if [[ $scan_rc -eq 124 ]]; then
   scanned=false
+elif ! command -v socat >/dev/null; then
+  scanned='"untested"'
 fi
 sockets=$(while IFS= read -r found; do
   if [[ -n $found ]] && timeout 2 socat -u /dev/null "UNIX-CONNECT:$found" >/dev/null 2>&1; then

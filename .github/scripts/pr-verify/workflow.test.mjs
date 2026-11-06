@@ -1391,7 +1391,7 @@ test("the capture gates run first, then the reach probe after runner isolation a
   assert.equal(capIndex(PROBE_CHECK) + 1, capIndex(HEAD_CHECKOUT));
   const probe = capStep(PROBE);
   assert.match(probe, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
-  assert.deepEqual(list(probe, "tools"), ["Bash", "Read"]);
+  assert.deepEqual(list(probe, "tools"), ["Bash", "Read", "Write", "Grep"]);
   assert.equal(list(probe, "allowed-tools")[0], "Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)");
   assert.ok(!list(probe, "allowed-tools").includes("Bash"));
   assert.equal(input(probe, "permission-mode"), "dontAsk");
@@ -1656,7 +1656,7 @@ test("the driver's file tools are fenced to the head and the run directory, and 
     assert.match(promptText, listed(link), name);
   }
   // The links go once the probe passed, before any head code.
-  assert.match(capStep(PROBE_CHECK), /^ {10}rm -f -- "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link"$/m);
+  assert.match(capStep(PROBE_CHECK), /^ {10}rm -f -- "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-write-link"$/m);
   assert.equal(input(capStep(PROBE_CHECK), "EXECUTION_FILE"), "${{ steps.probe.outputs.execution-file }}");
   assert.equal(input(capStep(PROBE_CHECK), "PROMPT_FILE"), input(probePrompt, "PROMPT_FILE"));
   // The run directory: made before the legs, named to the driver, and the only place the collect step takes a summary from.
@@ -1894,6 +1894,65 @@ test("capture-subscription repeats the capture job's gate steps, then writes the
   }
 });
 
+test("the probe's Write and Grep through links in the run directory must be refused, with the driver's own allowances", { skip: process.platform === "win32" && "bash step" }, () => {
+  const probe = capStep(PROBE);
+  const driver = capStep(DRIVER);
+  // The probe holds the driver's Write and Grep and its edit allowances, so only the fence can refuse them.
+  for (const tool of ["Write", "Grep"]) assert.ok(list(driver, "tools").includes(tool), tool);
+  assert.deepEqual(
+    list(probe, "allowed-tools").filter((rule) => rule.startsWith("Edit(")),
+    list(driver, "allowed-tools").filter((rule) => rule.startsWith("Edit(")),
+  );
+  for (const bare of ["Write", "Grep", "Edit"]) assert.ok(!list(probe, "disallowed-tools").includes(bare), `no bare ${bare} deny`);
+
+  // The prompt step: a link to a file under ~/.claude that does not exist, named for the Write; the environ link for the Grep.
+  const home = tempDir("capture-probe-write-home-");
+  const workspace = tempDir("capture-probe-write-ws-");
+  const promptFile = path.join(tempDir("capture-probe-write-prompt-"), "probe.md");
+  const target = path.join(home, ".claude", "pr-verify-probe-written");
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, "left over");
+  const wrote = runStep(capStep("Write the probe prompt"), { HOME: home, GITHUB_WORKSPACE: workspace, PROMPT_FILE: promptFile });
+  assert.equal(wrote.status, 0, wrote.stderr);
+  const writeLink = path.join(workspace, "capture-run", "probe-write-link");
+  const environLink = path.join(workspace, "capture-run", "probe-environ-link");
+  assert.equal(readlinkSync(writeLink), target);
+  assert.ok(!existsSync(target), "the Write's target starts absent, so one let through leaves it behind");
+  const prompt = readFileSync(promptFile, "utf8");
+  assert.match(prompt, new RegExp(`call the Write tool once[^\\n]*\\n\\n {4}${writeLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n`));
+  assert.match(prompt, new RegExp(`call the Grep tool once[^\\n]*\\n\\n {4}${environLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n`));
+
+  // The check: the transcript filter, run on hand-built transcripts, then the absence of the Write's target.
+  const check = scriptOf(capStep(PROBE_CHECK));
+  const [, writeArg, grepArg, program] = /^if ! jq -e --arg write "([^"]+)" --arg grep "([^"]+)" '([\s\S]*?)' "\$EXECUTION_FILE" >\/dev\/null 2>&1 \|\| \[ -e "\$HOME\/\.claude\/pr-verify-probe-written" \]; then$/m.exec(check) ?? [];
+  assert.ok(program, "the Write and Grep check");
+  assert.equal(writeArg, "$GITHUB_WORKSPACE/capture-run/probe-write-link");
+  assert.equal(grepArg, "$GITHUB_WORKSPACE/capture-run/probe-environ-link");
+  const W = "/ws/capture-run/probe-write-link";
+  const G = "/ws/capture-run/probe-environ-link";
+  const use = (id, name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
+  const result = (id, isError) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, is_error: isError }] } });
+  const write = use("w1", "Write", { file_path: W, content: "probe" });
+  const grep = use("g1", "Grep", { pattern: "PATH", path: G });
+  const passes = (messages) => {
+    const file = path.join(tempDir("capture-probe-transcript-"), "execution.json");
+    writeFileSync(file, JSON.stringify(messages));
+    return spawnSync("jq", ["-e", "--arg", "write", W, "--arg", "grep", G, program, file], { encoding: "utf8" }).status === 0;
+  };
+  assert.ok(passes([write, result("w1", true), grep, result("g1", true)]), "both answered with an error");
+  assert.ok(passes([write, grep, { type: "result", permission_denials: [{ tool_use_id: "w1" }, { tool_use_id: "g1" }] }]), "both in permission_denials");
+  const fails = {
+    "a Write let through": [write, result("w1", false), grep, result("g1", true)],
+    "a Grep let through": [write, result("w1", true), grep, result("g1", false)],
+    "a Grep with no answer": [write, result("w1", true), grep],
+    "no Write tried": [grep, result("g1", true)],
+    "a Grep on another path only": [write, result("w1", true), use("g2", "Grep", { pattern: "PATH", path: "/elsewhere" }), result("g2", true)],
+    "a second Write let through": [write, result("w1", true), use("w2", "Write", { file_path: W, content: "x" }), result("w2", false), grep, result("g1", true)],
+  };
+  for (const [why, messages] of Object.entries(fails)) assert.ok(!passes(messages), why);
+  assert.match(check, /^rm -f -- "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-write-link"$/m);
+});
+
 test("the sibling sandbox runs under an env -i allowlist with every isolation flag, and holds no secret", () => {
   const block = capStep(SIBLING);
   const script = scriptOf(block);
@@ -2040,6 +2099,10 @@ test("the sibling probe fails closed before any head code and must not see the s
     /'\{pids: \$pids, proxy_status: \$ps, egress: \$eg, doctor_rc: \$dr, engine: \$engine, pid1_env: \$env, dns: \$dns, userns: \$userns, writes: \$writes, sockets: \$sockets, sockets_scanned: \$scanned\}' >"\$probe\/facts\.json"/,
   );
   assert.match(SIBLING_INIT, /'\{workspace: \$w, head: \$h, base: \$b, capture_run: \$r\}'/);
+  // A missing tool leaves its fact untested, never refused.
+  assert.match(SIBLING_INIT, /^if ! command -v getent >\/dev\/null; then\n {2}dns=untested\n/m);
+  assert.match(SIBLING_INIT, /^if ! command -v unshare >\/dev\/null; then\n {2}userns=untested\n/m);
+  assert.match(SIBLING_INIT, /^elif ! command -v socat >\/dev\/null; then\n {2}scanned='"untested"'\n/m);
   assert.match(SIBLING_INIT, /--arg w "\$\(write "\$ws"\)" --arg h "\$\(write "\$ws\/head"\)" --arg b "\$\(write "\$ws\/\.base"\)" --arg r "\$\(write "\$ws\/capture-run"\)"/);
   // Reported only once the probe and the facts are written, and before the broker holds the dummy key.
   const lines = SIBLING_INIT.split("\n");
@@ -2092,6 +2155,9 @@ test("the sibling probe fails closed before any head code and must not see the s
       "a writable main checkout": { facts: { ...clean.facts, writes: { ...writes, base: "open" } } },
       "a run directory it cannot write": { facts: { ...clean.facts, writes: { ...writes, capture_run: "refused" } } },
       "no facts on writes": { facts: { ...clean.facts, writes: undefined } },
+      "names untested, with no getent": { facts: { ...clean.facts, dns: "untested" } },
+      "user namespaces untested, with no unshare": { facts: { ...clean.facts, userns: "untested" } },
+      "sockets untested, with no socat": { facts: { ...clean.facts, sockets_scanned: "untested" } },
       "no report": { done: false },
     };
     for (const [why, fixture] of Object.entries(fails)) {
@@ -2155,7 +2221,19 @@ test("the sandbox is stopped before collect, and collect copies no link", { skip
   const pid = Number(started.stdout.trim());
   assert.ok(pid > 0);
   assert.ok(existsSync(`/proc/${pid}`));
-  assert.equal(runStep(stop, { CHILD_PID: String(pid) }).status, 0);
+  // A run directory where the sandbox planted dot entries beside the capture.
+  const workspace = tempDir("capture-stop-ws-");
+  const runDir = path.join(workspace, "capture-run");
+  for (const dir of [".git/hooks", ".claude/skills/x", "login"]) mkdirSync(path.join(runDir, dir), { recursive: true });
+  for (const file of [".git/config", ".claude/settings.json", ".mcp.json", "..odd", "e2e-summary.json", "login/shot.png", "login/.keep"]) writeFileSync(path.join(runDir, file), "x");
+  writeFileSync(path.join(workspace, ".outside"), "x");
+  const stopped = runStep(stop, { CHILD_PID: String(pid), GITHUB_WORKSPACE: workspace });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  for (const planted of [".git", ".claude", ".mcp.json", "..odd"]) assert.ok(!existsSync(path.join(runDir, planted)), planted);
+  // Only the run directory's top level: the capture, its subdirectories' own files and the workspace stay.
+  for (const kept of ["e2e-summary.json", "login/shot.png", "login/.keep", "../.outside"]) assert.ok(existsSync(path.join(runDir, kept)), kept);
+  const stopScript = scriptOf(stop);
+  assert.ok(stopScript.indexOf("the sibling sandbox is still running") < stopScript.indexOf("rm -rf --"), "nothing is removed while the sandbox may still write");
   const gone = () => {
     try {
       return /^State:\s+Z/m.test(readFileSync(`/proc/${pid}/status`, "utf8"));

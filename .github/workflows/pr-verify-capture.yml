@@ -641,7 +641,11 @@ jobs:
       # so a refused Read of it is the fence, not a missing file. Two links in
       # the run directory, which the driver may read and the sibling sandbox
       # may write, point at /proc/self/environ and the fence file: a read
-      # through either must be refused too.
+      # through either must be refused too, and so must a Grep through the
+      # environ link. A third link points at a file under ~/.claude that does
+      # not exist, so a Write through it is refused by the fence alone (an
+      # existing file would be refused for never having been read) and, were
+      # it let through, would leave that file behind.
       - name: Write the probe prompt
         if: steps.credential.outputs.present == 'true'
         env:
@@ -652,8 +656,11 @@ jobs:
           echo 'not a credential' >"$FENCE_FILE"
           ENVIRON_LINK="$GITHUB_WORKSPACE/capture-run/probe-environ-link"
           FENCE_LINK="$GITHUB_WORKSPACE/capture-run/probe-fence-link"
+          WRITE_LINK="$GITHUB_WORKSPACE/capture-run/probe-write-link"
           ln -sfn /proc/self/environ "$ENVIRON_LINK"
           ln -sfn "$FENCE_FILE" "$FENCE_LINK"
+          rm -f -- "$HOME/.claude/pr-verify-probe-written"
+          ln -sfn "$HOME/.claude/pr-verify-probe-written" "$WRITE_LINK"
           {
             echo 'Run this one command with the Bash tool, exactly as written:'
             echo
@@ -668,13 +675,23 @@ jobs:
             echo "    $ENVIRON_LINK"
             echo "    $FENCE_LINK"
             echo
-            echo 'Then answer with the last line the command printed. Do nothing else.'
+            echo 'Then call the Write tool once, with the content probe, on this path:'
+            echo
+            echo "    $WRITE_LINK"
+            echo
+            echo 'Then call the Grep tool once, with the pattern PATH, on this path:'
+            echo
+            echo "    $ENVIRON_LINK"
+            echo
+            echo 'Both are expected to be refused. Then answer with the last line the command printed.'
+            echo 'Do nothing else.'
           } >"$PROMPT_FILE"
 
       # The reach probe, before any pull request code, under the driver's
-      # own file-tool fence (the same deny rules as "Capture the change"): a
-      # Bash child of a leg on the job's credential, where the app under
-      # test will run, and five Read calls the fence must refuse. continue-on-error lets a
+      # own file-tool fence (the same deny rules as "Capture the change", and
+      # the same Write and Grep tools with its edit allowances): a Bash child
+      # of a leg on the job's credential, where the app under test will run,
+      # and five Read calls, a Write and a Grep the fence must refuse. continue-on-error lets a
       # handoff end the job green; "Check the probe" fails the job on any
       # other probe failure, so no head code runs unprobed.
       - name: Probe what head code can reach
@@ -692,17 +709,21 @@ jobs:
           preamble: You run unattended; do only what you are told.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
-          max-turns: "8"
+          max-turns: "10"
           permission-mode: dontAsk
           tools: |
             Bash
             Read
+            Write
+            Grep
           allowed-tools: |
             Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)
             Read(./head/**)
             Read(./capture-run/**)
             Read(./.base/plugins/**)
             Read(./.base/.claude/skills/**)
+            Edit(./head/**)
+            Edit(./capture-run/**)
           disallowed-tools: |
             Read(//proc/**)
             Read(//sys/**)
@@ -715,9 +736,6 @@ jobs:
             Edit(./.base/**)
             Edit(~/.claude/**)
             Glob
-            Grep
-            Edit
-            Write
             NotebookEdit
             WebFetch
             WebSearch
@@ -751,7 +769,7 @@ jobs:
           credential: ${{ steps.probe.outputs.credential }}
           handoff: ${{ steps.probe.outputs.handoff }}
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
-          max-turns: "8"
+          max-turns: "10"
           fallback-reason: ${{ env.LEG_FALLBACK_REASON }}
 
       # Read by the next runs' credit gate: the artifact its `marker` output
@@ -813,8 +831,10 @@ jobs:
       # the probe writes no value. A handoff skips this step, and with it
       # every step from the head checkout on.
       # The file-tool half, from the leg's own transcript: each fenced path
-      # needs a Read call that was refused, so a fence that let one through,
-      # or a leg that never tried, fails the job (capture-probe.mjs reads).
+      # needs a Read call that was refused (capture-probe.mjs reads), and the
+      # Write and Grep through links a refused call too, with nothing left
+      # where the Write would have landed, so a fence that let one through,
+      # or a leg that never tried, fails the job.
       - name: Check the probe
         id: probe-check
         if: steps.credential.outputs.present == 'true' && steps.probe.outputs.handoff != 'true'
@@ -841,7 +861,21 @@ jobs:
             echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude, directly or through a link; no pull request code runs"
             exit 1
           fi
-          rm -f -- "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link"
+          # The Write and the Grep, read from the transcript as capture-probe.mjs
+          # reads a Read: at least one call on the path, and every one refused
+          # (listed in permission_denials, or answered with an error).
+          if ! jq -e --arg write "$GITHUB_WORKSPACE/capture-run/probe-write-link" --arg grep "$GITHUB_WORKSPACE/capture-run/probe-environ-link" '
+            def blocks: [.[]? | .message.content? | arrays | .[]];
+            def refused($tool; $field; $path):
+              ([.[]? | select(.type == "result") | .permission_denials[]? | .tool_use_id]) as $denied
+              | ([blocks[] | select(.type == "tool_result") | {key: .tool_use_id, value: (.is_error == true)}] | from_entries) as $error
+              | [blocks[] | select(.type == "tool_use" and .name == $tool and .input[$field] == $path) | .id] as $ids
+              | ($ids | length) > 0 and all($ids[]; . as $id | any($denied[]; . == $id) or $error[$id] == true);
+            refused("Write"; "file_path"; $write) and refused("Grep"; "path"; $grep)' "$EXECUTION_FILE" >/dev/null 2>&1 || [ -e "$HOME/.claude/pr-verify-probe-written" ]; then
+            echo "::error::the driver's Write or Grep reached ~/.claude or /proc through a link in the run directory, or the leg never tried; no pull request code runs"
+            exit 1
+          fi
+          rm -f -- "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link" "$GITHUB_WORKSPACE/capture-run/probe-write-link"
           echo "::notice::the reach probe found nothing head code or the driver's file tools can read"
 
       # persist-credentials false keeps the job token out of .git/config. The
@@ -1022,6 +1056,10 @@ jobs:
             echo "::error::the sibling sandbox is still running"
             exit 1
           fi
+          # With nothing left to write it, the run directory loses every
+          # top-level dot entry the sandbox could have planted (.git, .claude,
+          # .mcp.json and the like), which git or Claude Code would read.
+          rm -rf -- "${GITHUB_WORKSPACE:?}"/capture-run/.[!.]* "${GITHUB_WORKSPACE:?}"/capture-run/..?*
 
       # Whenever the proxy started: nothing after the drive needs the key.
       # The runner's user cannot signal ccd-proxy's processes, so the stop
