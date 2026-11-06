@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Trigger-keyword preservation (check 3) skips with a note.", "why": "check 3 name" },
+    { "answer": "The vendor byte-identity, stale-tracking metadata and committed-artifact checks no-op.", "why": "three names" }
+  ],
+  "fail": [
+    { "answer": "The git-backed checks skip; everything else runs.", "why": "no check named" },
+    { "answer": "Run the skill-quality check from a working directory that is not inside any git repository, pointed at a marketplace plugin-cache skills root via CHECK_SKILL_SKILLS_ROOT.", "why": "echoes the prompt" }
+  ]
+}

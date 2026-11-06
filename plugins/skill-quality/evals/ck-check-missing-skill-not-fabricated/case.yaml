@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ck-check-missing-skill-not-fabricated
+graders:
+  - name: names-missing
+    type: regex
+    pattern: '\b(?:not found|does not exist|doesn[''’]t exist|no such|missing|absent|not present|isn[''’]t there)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-root
+    type: regex
+    pattern: '\.claude/skills|\bskills_root\b|\bCHECK_SKILL_SKILLS_ROOT\b'
+    target: last_message
+  - name: no-fabricated-results
+    type: llm
+    focus: last_message
+    criteria: "PASS if the reply says my-skill, or the skills root that should hold it, was not found, and reports no check results for it: no PASS verdict and no findings about its frontmatter, description, references or other checks. Quoting the checker's own 'Skill not found' FAIL line, or its error about a missing skills root, is reporting the missing directory, not a fabricated result. Offering /skill-quality:setup, or naming skills_root or CHECK_SKILL_SKILLS_ROOT as the way to point the checker elsewhere, is fine but not required. FAIL if it reports my-skill as passing, lists check findings for a skill that does not exist, or says it created my-skill."
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

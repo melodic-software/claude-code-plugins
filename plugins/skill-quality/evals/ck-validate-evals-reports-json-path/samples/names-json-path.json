@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "- `evals[1]`: missing required property `prompt`", "why": "bracket path" },
+    { "answer": "FAIL /evals/1: 'prompt' is a required property", "why": "JSON pointer, then prompt" },
+    { "answer": "`$.evals[1].prompt` is required but absent (case id 2).", "why": "dotted path" },
+    { "answer": "Required field prompt missing at evals[1].", "why": "prompt before the path" }
+  ],
+  "fail": [
+    { "answer": "Case id 2 is missing its prompt.", "why": "no JSON path" },
+    { "answer": "evals[0] conforms; the file is valid.", "why": "wrong case, no violation" },
+    { "answer": "/skill-quality:check validate-evals my-skill", "why": "echoes the prompt" }
+  ]
+}

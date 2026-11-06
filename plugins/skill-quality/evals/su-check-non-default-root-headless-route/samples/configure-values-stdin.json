@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`claude plugin configure skill-quality@<marketplace> --values-stdin < values.json`",
+      "why": "placeholder marketplace"
+    },
+    {
+      "answer": "claude plugin configure skill-quality@melodic-software --values-stdin < values.json",
+      "why": "named marketplace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /plugin configure skill-quality@<marketplace>.",
+      "why": "interactive only"
+    },
+    {
+      "answer": "claude plugin configure skill-quality --values-stdin",
+      "why": "no marketplace"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

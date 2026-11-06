@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": "skill-quality is a static quality gate for skills you already have.", "why": "quality gate" },
+    { "answer": "It is not an authoring tool; it lints and validates.", "why": "not an authoring tool" },
+    { "answer": "skill-quality:check is not for writing new skills.", "why": "description wording" },
+    { "answer": "It doesn’t write new skills; it checks them.", "why": "curly apostrophe" },
+    { "answer": "skill-quality never writes skills; it checks them.", "why": "never writes" }
+  ],
+  "fail": [
+    { "answer": "Use skill-quality to write me a brand-new skill for parsing CSV files.", "why": "echoes the prompt" },
+    { "answer": "Sure, here is a skill for parsing CSV files.", "why": "complies" },
+    { "answer": "I can write that skill and then check it.", "why": "complies with a check after" }
+  ]
+}

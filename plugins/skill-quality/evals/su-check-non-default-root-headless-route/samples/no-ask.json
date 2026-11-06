@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/SKILL.md"
+          }
+        }
+      ],
+      "why": "glob only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "Use packages/agent/skills as the root?"
+              }
+            ]
+          }
+        }
+      ],
+      "why": "a confirmation question"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "The git-backed checks skip with a note.", "why": "skip" },
+    { "answer": "Check 3 is skipped: not in a git repo.", "why": "skipped" }
+  ],
+  "fail": [
+    { "answer": "It exits 2: not in a git repo.", "why": "aborts" },
+    { "answer": "Nothing is skipped: the checker exits 2 because cwd is not a git repo.", "why": "negated skip" },
+    { "answer": "The git checks are not skipped; the whole run stops.", "why": "not skipped" },
+    { "answer": "Checks don't skip, they abort.", "why": "don't skip" },
+    { "answer": "Run the skill-quality check from a working directory that is not inside any git repository, pointed at a marketplace plugin-cache skills root via CHECK_SKILL_SKILLS_ROOT. What happens?", "why": "echoes the prompt" }
+  ]
+}
