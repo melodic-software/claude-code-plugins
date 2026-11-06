@@ -162,7 +162,11 @@
         "hold-paths",
         "generated-copies",
         "generated-data",
-        "lane-transcript-public-key"
+        "lane-transcript-public-key",
+        "pr-number",
+        "head-sha",
+        "base-sha",
+        "event-action"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",

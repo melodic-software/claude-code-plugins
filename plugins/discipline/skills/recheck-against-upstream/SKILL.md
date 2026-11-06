@@ -78,7 +78,11 @@ Correct each forward now per the method doc: fix gaps toward upstream,
 re-check that deliberate divergences still hold, and surface undocumented
 ones for the human with both options stated. Where your own reading of the
 docs is the suspected source of error, re-verify in a fresh-context
-subagent.
+subagent. Resolve the verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill recheck-against-upstream --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+`light` and `off` skip that subagent and the fan-out tier's dispatch, as the method doc and
+[`fan-out.md`](../../context/fan-out.md) say.
 
 ## The fan-out tier
 

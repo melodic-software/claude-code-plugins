@@ -84,7 +84,13 @@ builder. With Node missing, write the markdown fallback and say the page was not
 - **The answer key is fresh-context authored.** Produce or verify the key with a fresh-context pass
   that reads only the report and the diff, not the authoring conversation, so grading tests what
   the artifact supports rather than what its author remembers meaning. Without a fresh sub-agent
-  surface, re-derive the key from the artifact alone before embedding it.
+  surface, re-derive the key from the artifact alone before embedding it. The verification level
+  governs that pass: resolve it once with
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin education --skill quiz-me --file docs/conventions/education.yaml` and
+  report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+  Under `light`, and `off`, which acts as `light` here, run no fresh-context pass and no
+  re-derivation in its place: the key keeps the authored answers and carries
+  `verification: skipped (<level>)`.
 - **The answer key persists with the artifact**: the builder's collapsed answer-key block in HTML,
   an appendix in the markdown fallback. Grade in-conversation in the same session; a later or
   compacted session grades by reading the key back from the retained artifact, re-deriving from

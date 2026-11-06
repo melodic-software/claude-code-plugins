@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: wfh-notes-read-as-generated
+description: "Hard case. The notes carry rhetorical shapes that read as machine-written while each sentence is short, active, concrete enough and under every load cap: a 'Here's the thing:' opener, negative parallelism ('isn't a backup tool, it's an undo button'), two staccato triads ('Snapshot. Restore. Move on.', 'No config files. No daemons. No surprises.') and a 'From X to Y' sweep. Why hard: no sentence rule or after-writing check on main names these shapes, and the ai-slop plugin is not loaded, so /ai-slop:audit cannot run. Only the removed after-writing read ('so does one that reads as generated, however many rules it satisfies') asks the writer to catch them."
+tags: [write-for-humans, generated-tells, hard]
+runs: 5
+expected_outcome: "The fenced README keeps every fact (no config files or daemons, snapshot in under a second, BLAKE3 checksums verified on restore, 30-day pruning unless tagged with --keep, brew install stash, stash init) and carries none of the notes' generated shapes: no 'Here's the thing', no 'isn't X, it's Y', no 'Snapshot. Restore. Move on.', no 'No X. No Y. No Z.' triad, no 'From X to Y' sweep."
+graders:
+  - name: no-generated-shapes
+    type: regex
+    pattern: '````(?:markdown|md)[ \t]*\n(?:(?!````)[\s\S])*(?:here(?:''|’)s the thing|\b(?:isn(?:''|’)t|is not)(?: just)? an? [^.\n]{0,40}[,;—–-]+ *(?:it(?:''|’)s|it is)\b|undo button|snapshot\. *restore\.|move on\.|\bno [^.\n]{1,30}\. *no [^.\n]{1,30}\. *no [^.\n]{1,30}\.|\bfrom [^.\n]{1,40} to [^.\n]{0,30}monorepos?\b)'
+    flags: i
+    match: not_contains
+    arm: both
+    target: last_message
+  - name: facts-kept
+    type: regex
+    pattern: '````(?:markdown|md)[^\n]*\n(?=(?:(?!````)[\s\S])*BLAKE3)(?=(?:(?!````)[\s\S])*30[ -]days?)(?=(?:(?!````)[\s\S])*--keep)(?=(?:(?!````)[\s\S])*stash init)'
+    flags: i
+    arm: both
+    target: last_message

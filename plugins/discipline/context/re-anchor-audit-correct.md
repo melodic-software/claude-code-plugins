@@ -48,7 +48,11 @@ Run these in order. Skip a step only when its input is genuinely absent
    judgment is the suspected source of the drift, re-derive it in a
    fresh-context subagent (blind to the reasoning that produced the drift)
    instead of self-checking in the context that produced it. A self-check
-   in the same context is weak by construction. Prefer a cross-vendor
+   in the same context is weak by construction. The `verification` level the
+   invoking SKILL.md resolved, when it resolves one, governs this subagent; a
+   corrector that resolves no level keeps the subagent as above. Under `light`, and
+   `off`, which acts as `light` here, dispatch none and do not self-check in
+   its place; report the finding open with `verification: skipped (<level>)`. Prefer a cross-vendor
    advisor for that re-derivation **when one is installed and set up**.
    One example is the OpenAI Codex plugin, when its documented surface can take this artifact,
    invoked per its own docs. Keep the fresh-context same-vendor subagent as the stated fallback,

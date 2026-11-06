@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "The upload failed: role `invoice-export-nightly` lacks `s3:PutObject`.\n\nNext: open `infra/iam/invoice-export-nightly.json`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The export failed. Next: re-run it and paste the log."
+    }
+  ]
+}
