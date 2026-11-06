@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.9] - 2026-11-06
+
+### Fixed
+
+- The setup resolver's tracker probe reads the binding from the `tracker` mapping of `docs/conventions/work-items.yaml` first, and the legacy `.work-item-tracker.json` only when that file binds none, so a repository `/work-items:setup` migrated is no longer reported as having no tracker. The plugin now ships its own copy of the repository's YAML subset parser for that read.
+
 ## [4.1.8] - 2026-11-06
 
 ### Changed
