@@ -1018,7 +1018,7 @@ test('a recording draws only masked frames and its sidecar holds their text', po
     await withPath(box.bin, async () => {
       await main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']);
       await quietly(() => main(['record', 'start', mp4, '--session', name]));
-      await quietly(() => main(['record', 'stop', '--session', name]));
+      assert.equal((await quietly(() => main(['record', 'stop', '--session', name]))).text, 'recording stopped');
     });
     const sidecar = readFileSync(`${mp4}.txt`, 'utf8');
     assert.ok(sidecar.includes('Email:             ****************'), sidecar);
@@ -1316,6 +1316,33 @@ test('screenshot and record start use only the path they asked for: any other an
     assert.equal((await quietly(() => main(['screenshot', 'shot.png', '--session', name]))).text, want);
     answer = `recording: ${join(process.cwd(), 'shot.mp4')}`;
     assert.equal((await quietly(() => main(['record', 'start', 'shot.mp4', '--session', name]))).text, answer);
+  } finally {
+    close();
+  }
+});
+
+test('record stop prints only the fixed stop reply: a holder naming a path fails the verb', posixOnly, async () => {
+  const name = session();
+  let answer;
+  const close = await fakeHolder(name, (_line, conn) => conn.end(`${JSON.stringify({ ok: true, result: answer })}\n`));
+  try {
+    answer = '/elsewhere/x.mp4';
+    await assert.rejects(main(['record', 'stop', '--session', name]), /other than "recording stopped"; use nothing it wrote/);
+    answer = 'recording stopped';
+    assert.equal((await quietly(() => main(['record', 'stop', '--session', name]))).text, 'recording stopped');
+  } finally {
+    close();
+  }
+});
+
+// Node's setTimeout takes at most 2^31-1 ms and fires a longer delay after 1 ms.
+test('a deadline past the setTimeout maximum waits instead of firing at once', posixOnly, async () => {
+  assert.equal(driver.brokerDeadline('ready', { timeout: '9999999999' }), 2 ** 31 - 1);
+  assert.equal(driver.brokerDeadline('ready', { timeout: String(2 ** 31 - 1) }), 2 ** 31 - 1);
+  const name = session();
+  const close = await fakeHolder(name, (_line, conn) => setTimeout(() => conn.end(`${JSON.stringify({ ok: true, result: 'late' })}\n`), 300));
+  try {
+    assert.equal(await driver.request(name, 'wait-for', { timeout: 2 ** 32 }), 'late');
   } finally {
     close();
   }

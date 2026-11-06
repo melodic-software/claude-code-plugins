@@ -7,14 +7,14 @@
 // driver child; replies streamed as {stdout}, {stderr} and a final {exit}.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { childEnv, driverArgs, Refused, startConfig, VERBS } from './broker.mjs';
-import { installDir as installDirOf } from './driver.mjs';
+import { childEnv, driverArgs, Refused, SESSION, startConfig, VERBS } from './broker.mjs';
+import { SESSION as DRIVER_SESSION, installDir as installDirOf } from './driver.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DRIVER = join(HERE, 'driver.mjs');
@@ -40,7 +40,7 @@ function readOnlyDriver(b) {
   const skill = join(b.top, 'base', 'control-claude-code');
   const dirs = { driver: join(skill, 'driver'), config: join(skill, 'config') };
   for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true });
-  for (const name of ['driver.mjs', 'package.json', 'package-lock.json']) copyFileSync(join(HERE, name), join(dirs.driver, name));
+  for (const name of ['broker.mjs', 'driver.mjs', 'package.json', 'package-lock.json']) copyFileSync(join(HERE, name), join(dirs.driver, name));
   copyFileSync(join(HERE, '..', 'config', 'defaults.json'), join(dirs.config, 'defaults.json'));
   copyFileSync(join(HERE, '..', 'SKILL.md'), join(skill, 'SKILL.md'));
   lock(dirs.driver, dirs.config);
@@ -175,48 +175,84 @@ test('the driver child gets the start key and no other credential or broker sock
   assert.equal(env.ANTHROPIC_API_KEY, 'from-env', 'the broker environment is not changed');
 });
 
+/** startConfig as a broker copy beside `values.driver` runs it, the way the workflow starts one. */
+const startAt = (values, key) => startConfig(values, key, dirname(realpathSync(values.driver)));
+
 test('the broker refuses to start on a driver inside a root, an empty key, or a socket directory others can open', unprivileged, () => {
   const b = box();
   const driver = readOnlyDriver(b);
   const base = { socket: join(b.rt, 'broker.sock'), driver, root: [b.root] };
-  assert.equal(startConfig(base, KEY).driver, driver);
+  assert.equal(startAt(base, KEY).driver, driver);
   const inRoot = join(b.root, 'driver.mjs');
   writeFileSync(inRoot, '');
-  assert.throws(() => startConfig({ ...base, driver: inRoot }, KEY), /--driver may not sit inside a --root/);
-  assert.throws(() => startConfig(base, ''), /read from stdin, which was empty/);
+  assert.throws(() => startAt({ ...base, driver: inRoot }, KEY), /--driver may not sit inside a --root/);
+  assert.throws(() => startAt(base, ''), /read from stdin, which was empty/);
   const open = join(b.top, 'open');
   mkdirSync(open);
   chmodSync(open, 0o777); // mkdir's mode is masked by the umask
-  assert.throws(() => startConfig({ ...base, socket: join(open, 'broker.sock') }, KEY), /not a private directory/);
+  assert.throws(() => startAt({ ...base, socket: join(open, 'broker.sock') }, KEY), /not a private directory/);
 });
 
 test('the broker starts only on a ccd-dummy- key and refuses one shaped like a real Anthropic key', unprivileged, () => {
   const b = box();
   const base = { socket: join(b.rt, 'broker.sock'), driver: readOnlyDriver(b), root: [b.root] };
-  assert.throws(() => startConfig(base, 'sk-ant-api03-abc'), /looks like a real Anthropic key \(sk-ant-\)/);
-  assert.throws(() => startConfig(base, 'sk-ant-ccd-dummy-x'), /looks like a real Anthropic key/);
-  assert.throws(() => startConfig(base, 'dummy'), /must be a dummy starting with ccd-dummy-/);
-  assert.throws(() => startConfig(base, 'ccd-dummy-'), /must be a dummy starting with ccd-dummy-/);
-  assert.equal(startConfig(base, 'ccd-dummy-x').key, 'ccd-dummy-x');
+  assert.throws(() => startAt(base, 'sk-ant-api03-abc'), /looks like a real Anthropic key \(sk-ant-\)/);
+  assert.throws(() => startAt(base, 'sk-ant-ccd-dummy-x'), /looks like a real Anthropic key/);
+  assert.throws(() => startAt(base, 'dummy'), /must be a dummy starting with ccd-dummy-/);
+  assert.throws(() => startAt(base, 'ccd-dummy-'), /must be a dummy starting with ccd-dummy-/);
+  assert.equal(startAt(base, 'ccd-dummy-x').key, 'ccd-dummy-x');
 });
 
 test('the broker refuses a driver dir, driver config dir or deps dir it can write, and a deps dir inside a root', unprivileged, () => {
   const b = box();
   const base = { socket: join(b.rt, 'broker.sock'), root: [b.root] };
   // The working tree's own driver sits in directories this process can write.
-  assert.throws(() => startConfig({ ...base, driver: DRIVER }, KEY), new RegExp(`${dirname(realpathSync(DRIVER))} is writable by the broker`));
+  assert.throws(() => startAt({ ...base, driver: DRIVER }, KEY), new RegExp(`${dirname(realpathSync(DRIVER))} is writable by the broker`));
   const driver = readOnlyDriver(b);
   const config = join(dirname(driver), '..', 'config');
   chmodSync(config, 0o700);
-  assert.throws(() => startConfig({ ...base, driver }, KEY), /config is writable by the broker/);
+  assert.throws(() => startAt({ ...base, driver }, KEY), /config is writable by the broker/);
   chmodSync(config, 0o500);
-  assert.throws(() => startConfig({ ...base, driver, 'deps-dir': b.deps }, KEY), new RegExp(`${b.deps} is writable by the broker`));
+  assert.throws(() => startAt({ ...base, driver, 'deps-dir': b.deps }, KEY), new RegExp(`${b.deps} is writable by the broker`));
   const inRoot = join(b.root, 'deps');
   mkdirSync(inRoot);
   lock(inRoot);
-  assert.throws(() => startConfig({ ...base, driver, 'deps-dir': inRoot }, KEY), /--deps-dir may not sit inside a --root/);
+  assert.throws(() => startAt({ ...base, driver, 'deps-dir': inRoot }, KEY), /--deps-dir may not sit inside a --root/);
   lock(b.deps);
-  assert.equal(startConfig({ ...base, driver, 'deps-dir': b.deps }, KEY).depsDir, b.deps);
+  assert.equal(startAt({ ...base, driver, 'deps-dir': b.deps }, KEY).depsDir, b.deps);
+});
+
+test('the broker starts only from the --driver directory: a driver elsewhere is refused, the one beside it passes', unprivileged, () => {
+  const b = box();
+  const driver = readOnlyDriver(b);
+  const base = { socket: join(b.rt, 'broker.sock'), driver, root: [b.root] };
+  assert.throws(() => startConfig(base, KEY), new RegExp(`--driver must sit in the broker's own directory ${HERE}`));
+  assert.equal(startConfig(base, KEY, dirname(driver)).driver, driver);
+});
+
+test('a broker outside the --driver directory refuses to start before any module beside it runs', unprivileged, async () => {
+  const b = box();
+  const driver = readOnlyDriver(b);
+  const elsewhere = join(b.top, 'elsewhere');
+  mkdirSync(elsewhere);
+  copyFileSync(BROKER, join(elsewhere, 'broker.mjs'));
+  const marker = join(b.top, 'imported');
+  writeFileSync(join(elsewhere, 'driver.mjs'), `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, '');\n`);
+  const child = spawn(process.execPath, [join(elsewhere, 'broker.mjs'), '--socket', join(b.rt, 'broker.sock'), '--driver', driver, '--root', b.root], {
+    stdio: ['pipe', 'ignore', 'pipe'],
+  });
+  children.push(child);
+  child.stdin.end(KEY);
+  let stderr = '';
+  child.stderr.on('data', (d) => (stderr += d));
+  const code = await new Promise((done) => child.on('close', done));
+  assert.equal(code, 2);
+  assert.equal(stderr, `launch broker: --driver must sit in the broker's own directory ${elsewhere}\n`);
+  assert.equal(existsSync(marker), false, 'the driver.mjs beside the broker never ran');
+});
+
+test("pin: the broker's session rule is the driver's", () => {
+  assert.equal(SESSION.source, DRIVER_SESSION.source);
 });
 
 // ---- over the socket, against a stub claude ----
@@ -249,7 +285,7 @@ function startBroker(b, key = KEY) {
   const sock = join(b.rt, 'broker.sock');
   const driver = readOnlyDriver(b);
   lock(b.deps);
-  const child = spawn(process.execPath, [BROKER, '--socket', sock, '--driver', driver, '--root', b.root, '--deps-dir', b.deps], {
+  const child = spawn(process.execPath, [join(dirname(driver), 'broker.mjs'), '--socket', sock, '--driver', driver, '--root', b.root, '--deps-dir', b.deps], {
     env: brokerEnv(b),
     stdio: ['pipe', 'ignore', 'pipe'],
   });

@@ -83,6 +83,8 @@ const NPM_TIMEOUT_MS = 600_000;
 const SIGNED = '.signatures-verified';
 const FONT_ENTRY = 'noto-sans-symbols-2';
 const MAX_TTL_S = 2147483; // setTimeout holds at most 2^31-1 ms
+const TIMER_MAX_MS = 2 ** 31 - 1; // a longer setTimeout delay fires after 1 ms
+const timerMs = (ms) => Math.min(ms, TIMER_MAX_MS);
 const SOCK_MAX = 100; // a Unix socket path is limited to roughly a hundred bytes
 const EXIT_POLL_MS = 1000;
 const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
@@ -460,13 +462,14 @@ const REPLY_LINE_MAX = 1 << 20;
 // Time a holder or broker gets beyond the verb's own timeout before the client gives up.
 const REPLY_GRACE_MS = 120_000;
 
-/** Sends one verb to the session holder; fails past `deadlineMs` or a reply over REPLY_LINE_MAX. */
+/** Sends one verb to the session holder; fails past `deadlineMs` (at most TIMER_MAX_MS) or a reply over REPLY_LINE_MAX. */
 export function request(session, verb, args = {}, deadlineMs = (args.timeout ?? 0) + REPLY_GRACE_MS) {
   const { sock } = endpoint(session);
+  const ms = timerMs(deadlineMs);
   return new Promise((resolveReply, rejectReply) => {
     const conn = net.createConnection(sock);
     let buf = '';
-    const timer = setTimeout(() => fail(new Error(`the session holder did not reply within ${deadlineMs} ms`)), deadlineMs);
+    const timer = setTimeout(() => fail(new Error(`the session holder did not reply within ${ms} ms`)), ms);
     const done = (v) => (clearTimeout(timer), resolveReply(v));
     const fail = (err) => {
       clearTimeout(timer);
@@ -750,6 +753,9 @@ async function syncFrame(t, ctx, rec) {
 
 // ---- holder: owns the terminal session (internal verb `serve`) ----
 
+// record-stop's one answer: the path is already known from record start, so the holder names none.
+const RECORD_STOPPED = 'recording stopped';
+
 const HANDLERS = {
   ping: async () => 'pong',
   'wait-for': async (t, { text, timeout }) => {
@@ -801,10 +807,10 @@ const HANDLERS = {
     while (rec.busy) await sleep(20);
     try {
       await syncFrame(t, ctx, rec);
-      const out = await rec.mirror.stopRecording();
+      await rec.mirror.stopRecording();
       if (rec.error) throw rec.error;
       writeFileSync(`${rec.path}.txt`, `${rec.frames.map(settled).join('\n\n')}\n`);
-      return out;
+      return RECORD_STOPPED;
     } catch (err) {
       removeCapture(rec.path);
       throw err;
@@ -1186,11 +1192,11 @@ export const RELAY_PREFIX = 'broker| ';
 // Launch's own wait plus one engine install, which a broker's pre-filled deps dir skips.
 const LAUNCH_MS = 30_000 + NPM_TIMEOUT_MS;
 
-/** How long a brokered verb waits for the broker's exit: the verb's own timeout plus the reply grace. */
+/** How long a brokered verb waits for the broker's exit: the verb's own timeout plus the reply grace, at most TIMER_MAX_MS. */
 export function brokerDeadline(verb, values) {
   const own = /^[1-9]\d*$/.test(values.timeout ?? '') ? Number(values.timeout) : undefined;
   const base = { launch: LAUNCH_MS, ready: own ?? READY_TIMEOUT_MS, log: own ?? LOG_TIMEOUT_MS }[verb];
-  return Math.min(base, MAX_TTL_S * 1000) + REPLY_GRACE_MS;
+  return timerMs(base + REPLY_GRACE_MS);
 }
 
 // ESC sequences (CSI, OSC, two-byte), then every other C0 and C1 control but \n and \t.
@@ -1301,9 +1307,9 @@ const OPTIONS = {
   unattended: { type: 'boolean' },
 };
 
-/** A capture reply must be exactly what the holder answers for the requested path; any other path is never printed. */
-const expectReply = (got, want) => {
-  if (got !== want) throw new Error('the session holder answered with something other than the requested capture path; use nothing it wrote');
+/** A capture reply must be exactly what the holder answers for the request; any other path is never printed. */
+const expectReply = (got, want, what = 'the requested capture path') => {
+  if (got !== want) throw new Error(`the session holder answered with something other than ${what}; use nothing it wrote`);
   return got;
 };
 
@@ -1328,7 +1334,7 @@ const VERBS = {
       const want = resolve(path);
       return expectReply(await request(o.session, 'record-start', { path: want }), `recording: ${want}`);
     }
-    if (action === 'stop') return request(o.session, 'record-stop');
+    if (action === 'stop') return expectReply(await request(o.session, 'record-stop'), RECORD_STOPPED, `"${RECORD_STOPPED}"`);
     throw new UsageError('record takes start <path> or stop');
   },
   stop: (o) => request(o.session, 'stop'),

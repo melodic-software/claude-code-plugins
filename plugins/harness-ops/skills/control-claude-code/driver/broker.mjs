@@ -16,7 +16,9 @@
 // It starts only on a dummy key (KEY_PREFIX), and only when it cannot write the
 // driver's directory, the driver's config directory or --deps-dir: the workflow
 // mounts all three read-only, so the PR code beside the broker cannot change
-// what the broker runs.
+// what the broker runs. Our rule: the broker also starts only from the --driver's
+// own directory, so the broker itself sits where it cannot write, and it imports
+// no module from beside it, so nothing there runs before these checks.
 //
 // Exit: 0 stopped by a signal, 2 usage.
 import { spawn } from 'node:child_process';
@@ -26,9 +28,11 @@ import { basename, dirname, isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
-import { SESSION } from './driver.mjs';
 
+const SELF_DIR = dirname(realpathSync(fileURLToPath(import.meta.url)));
 const REQUEST_MAX = 64 * 1024;
+// The driver's session rule (driver.mjs SESSION), kept here so the broker imports nothing from beside it.
+export const SESSION = /^[A-Za-z0-9_][\w-]{0,31}$/;
 const CREDENTIALS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
 // Our rule: the broker hands the driven side a dummy key only. A key must carry this prefix, and one
 // shaped like a real Anthropic key is refused outright, so a misconfigured job cannot pass the real one.
@@ -216,8 +220,8 @@ const writable = (dir) => {
   }
 };
 
-/** Checks the start options and returns what the server needs. */
-export function startConfig(values, key) {
+/** Checks the start options and returns what the server needs; `selfDir` is the broker's own real directory. */
+export function startConfig(values, key, selfDir = SELF_DIR) {
   const { socket, driver, root = [], 'deps-dir': depsDir } = values;
   if (!socket || !isAbsolute(socket)) throw new Usage('--socket takes an absolute path');
   if (!driver || !isAbsolute(driver) || !existsSync(driver)) throw new Usage('--driver takes the absolute path of an existing driver.mjs');
@@ -236,6 +240,7 @@ export function startConfig(values, key) {
   });
   const realDriver = realpathSync(driver);
   if (inside(roots, realDriver)) throw new Usage('--driver may not sit inside a --root: the broker runs only a driver the roots cannot change');
+  if (dirname(realDriver) !== selfDir) throw new Usage(`--driver must sit in the broker's own directory ${selfDir}`);
   if (depsDir && !existsSync(depsDir)) throw new Usage(`--deps-dir ${depsDir} does not exist; pre-fill it before the broker starts`);
   const realDeps = depsDir && realpathSync(depsDir);
   if (realDeps && inside(roots, realDeps)) throw new Usage('--deps-dir may not sit inside a --root');
