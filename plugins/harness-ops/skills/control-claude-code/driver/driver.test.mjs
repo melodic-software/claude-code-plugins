@@ -1127,13 +1127,14 @@ test('CCD_RUNTIME_DIR comes ahead of XDG_RUNTIME_DIR for session sockets, create
 });
 
 test('a socket path too long under CCD_RUNTIME_DIR names CCD_RUNTIME_DIR as the variable to shorten', posixOnly, async () => {
-  const ccd = join(mkdtempSync(join(tmpdir(), 'ccd-long-')), 'x'.repeat(120));
+  const root = mkdtempSync(join(tmpdir(), 'ccd-long-'));
   try {
+    const ccd = join(root, 'x'.repeat(120));
     await withEnv({ CCD_RUNTIME_DIR: ccd, CCD_BROKER_SOCK: undefined }, () =>
       assert.throws(() => driver.endpoint('s', 'linux'), /; set CCD_RUNTIME_DIR to a short private directory$/),
     );
   } finally {
-    rmSync(dirname(ccd), { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
