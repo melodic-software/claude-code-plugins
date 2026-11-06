@@ -1730,8 +1730,11 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const bash = list(driver, "allowed-tools").filter((rule) => /^Bash\b/.test(rule));
   // The verbs the control skill's hub runs the driver with.
   const hub = readFileSync(new URL("../../../plugins/harness-ops/skills/control-claude-code/SKILL.md", import.meta.url), "utf8");
-  const verbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
-  assert.deepEqual([...verbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
+  const hubVerbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
+  assert.deepEqual([...hubVerbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
+  // The feature pages drive the terminal session with type and wait-for, which the hub names only in
+  // prose; capture run 42313414930 had every typed entry point refused without them.
+  const verbs = [...hubVerbs, "type", "wait-for"];
   const driverRules = DRIVER_PATHS.flatMap((p) => verbs.map((verb) => `Bash(node ${p} ${verb} *)`));
   driverRules.push(ACCOUNT_RULE);
   const git = [
