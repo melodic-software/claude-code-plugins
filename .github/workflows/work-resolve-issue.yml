@@ -19,7 +19,14 @@ name: work-resolve-issue
 # a failed stop); an issue its dimensions skip gets the same from report-skip,
 # never needs-human. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
-# docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
+# docs/conventions/pr-pipeline.yaml. A person setting the Work status field
+# to agent-ready (`field_added`) runs only admit's trigger check, which passes
+# a listed human alone, and logs the change: the text freeze (write-issue.mjs
+# readAdmittedAt) and the restart counts (report-outcome.mjs) still anchor on
+# the agent-ready label, so the label alone starts work. The lanes App's
+# mirror writes of the field start nothing: the App starts runs only through
+# its agent-ready label, the one App event the token broker admits
+# (azure-iac authorize.mjs). The kill switch, the labeler check (a
 # listed human, or the lanes App) and the token broker run inside each
 # runner.
 
@@ -37,15 +44,20 @@ run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
 # rate limit past the guard's budget.
 on:
   issues:
-    types: [labeled]
+    types: [labeled, field_added]
 
 permissions: {}
 
-# One agent-ready run per issue at a time. A newer agent-ready event replaces
-# one still waiting; a running one finishes. Other labels get their own group,
-# so they never replace a waiting agent-ready run.
+# One agent-ready run per issue at a time. A newer agent-ready event, a label
+# or a person's Work status field change (field 48484079, option 84879220:
+# models.issue-status in pr-pipeline.yaml), replaces one still waiting; a
+# running one finishes. Other labels and field writes, the App's mirror among
+# them, get their own group, so they never replace a waiting agent-ready run.
 concurrency:
-  group: work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}
+  group: >-
+    work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready'
+    || github.event.action == 'field_added' && github.event.issue_field.id == 48484079
+    && github.event.issue_field_value.option.id == 84879220 && github.event.sender.type == 'User' }}
   cancel-in-progress: false
 
 jobs:
@@ -66,7 +78,10 @@ jobs:
   # check-blockers.mjs (RECHECK) before the model job and stops the run the
   # same way, at its `Stop on an open blocker` step.
   admit:
-    if: github.event.label.name == 'agent-ready'
+    if: >-
+      github.event.label.name == 'agent-ready'
+      || (github.event.action == 'field_added' && github.event.issue_field.id == 48484079
+      && github.event.issue_field_value.option.id == 84879220 && github.event.sender.type == 'User')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -138,9 +153,16 @@ jobs:
           require-kind: human
           app-label: agent-ready
 
+      # A field run stops here, green: the agent-ready label starts work.
+      - name: Log the Work status change
+        if: steps.gate.outputs.proceed == 'true' && github.event.action == 'field_added'
+        run: |
+          echo "::notice title=field trigger::a listed human set Work status to agent-ready; the run stops here, since work starts on the agent-ready label"
+          jq -c '{from: .changes.issue_field_value.from, to: .issue_field_value}' "$GITHUB_EVENT_PATH"
+
       - name: Wait for open blockers
         id: blockers
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && github.event.action == 'labeled'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}

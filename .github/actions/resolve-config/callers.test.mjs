@@ -1221,11 +1221,52 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
     assert.doesNotMatch(jobs[id].if, /capped != 'true'/, id);
   }
   // The per-issue run group still dedupes: one agent-ready run per issue.
-  assert.equal(
-    concurrency.group,
-    "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
-  );
+  assert.match(concurrency.group, /^work-resolve-issue-\$\{\{ github\.event\.issue\.number \}\}-\$\{\{ /);
   assert.equal(concurrency["cancel-in-progress"], false);
+});
+
+// #13484: a person's Work status change to agent-ready joins the agent-ready
+// label's run group and runs only admit's trigger check; the lanes App's
+// mirror write, another field or another option starts nothing and takes
+// the other group, so it never replaces a waiting agent-ready run.
+test("work-resolve-issue.yml: a person's Work status field change to agent-ready runs admit alone, in the agent-ready group", () => {
+  const { on, jobs, concurrency } = workflow("work-resolve-issue.yml");
+  assert.deepEqual(on.issues.types, ["labeled", "field_added"]);
+  const group = concurrency.group.replace(/^work-resolve-issue-\$\{\{ github\.event\.issue\.number \}\}-/, "");
+  const label = { "github.event.action": "labeled", "github.event.label.name": "agent-ready" };
+  const field = (fieldId, optionId, type) => ({
+    "github.event.action": "field_added",
+    "github.event.label.name": "",
+    "github.event.issue_field.id": fieldId,
+    "github.event.issue_field_value.option.id": optionId,
+    "github.event.sender.type": type,
+  });
+  const cases = [
+    ["agent-ready label", label, true],
+    ["another label", { ...label, "github.event.label.name": "bug" }, false],
+    ["a person's agent-ready field", field(48484079, 84879220, "User"), true],
+    ["the App's mirror write", field(48484079, 84879220, "Bot"), false],
+    ["another option", field(48484079, 86380002, "User"), false],
+    ["another field", field(1, 84879220, "User"), false],
+  ];
+  for (const [name, context, starts] of cases) {
+    const labelOnly = { "github.event.issue_field.id": 0, "github.event.issue_field_value.option.id": 0, "github.event.sender.type": "User", ...context };
+    assert.equal(evaluate(group, labelOnly), starts, `group: ${name}`);
+    assert.equal(evaluate(jobs.admit.if, labelOnly), starts, `admit: ${name}`);
+  }
+  // The field ids are models.issue-status's.
+  const status = parse(read("../../../docs/conventions/pr-pipeline.yaml")).models["issue-status"];
+  assert.equal(status["field-id"], 48484079);
+  assert.equal(status.options["84879220"], "agent-ready");
+  // A field run checks the trigger and logs; the blocker read and every later
+  // job wait for the label.
+  const steps = jobs.admit.steps;
+  const log = steps.find((step) => step.name === "Log the Work status change");
+  assert.ok(steps.indexOf(log) > steps.findIndex((step) => step.id === "gate"));
+  assert.match(steps.find((step) => step.id === "blockers").if, /github\.event\.action == 'labeled'/);
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id !== "admit") assert.doesNotMatch(String(job.if ?? ""), /field_added/, id);
+  }
 });
 
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
@@ -1781,7 +1822,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   assert.equal(upstream.if, "steps.blockers.outputs.proceed == 'true'");
   assert.equal(upstream["continue-on-error"], true);
   const blockers = admit.steps.find((s) => s.id === "blockers");
-  assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
+  assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true' && github.event.action == 'labeled'");
   assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
   // Trusted closes and provenance are judged against the default branch's list, never the head's.
   assert.equal(blockers.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
