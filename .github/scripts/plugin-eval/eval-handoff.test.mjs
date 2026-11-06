@@ -12,7 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { CLASSIFIER_FILES, erroredTraces, handoffReason, judgeLegStreams, loadLauncher } from "./eval-handoff.mjs";
+import { CLASSIFIER_FILES, erroredTraces, handoffReason, judgeLegStreams, loadLauncher, withPartials } from "./eval-handoff.mjs";
 
 test("a key leg hands off on a credit stop or a 401 or 402, never a 403 or a limit stop", () => {
   assert.equal(handoffReason("api-key", "credit-stop", 400), "credit-stop");
@@ -171,6 +171,44 @@ test("the real classifier: a subscription leg's limit stop and credit stop hand 
   assert.equal(judgeLegStreams([{ text: jsonl(SPEND_LIMIT), exitCode: 1 }], sub, real).reason, "credit-stop");
   assert.equal(judgeLegStreams([{ text: jsonl(LIMITED), exitCode: 1 }], { leg: "subscription", fallbackReady: false }, real).handoff, false);
   assert.equal(judgeLegStreams([{ text: jsonl(LIMITED), exitCode: 1 }], { leg: "fallback", fallbackReady: true }, real).handoff, false);
+});
+
+// The partial reasons plugin-evals' results.json table lists: cost_ceiling,
+// interrupted and auth_failed. Only auth_failed is the credential's stop.
+const partial = (partialReason) => ({ partial: true, partialReason, cases: [{ arms: { with: [{ error: "exit 1: Not logged in · Please run /login", tracePath: "/absent/trace.jsonl" }] } }] });
+const none = { handoff: false, reason: "", laneClass: "" };
+
+test("a suite that ended auth_failed hands off as a refused credential, and never reads as success", () => {
+  const results = [{ partial: false }, partial("auth_failed")];
+  assert.deepEqual(withPartials(none, results, { leg: "api-key", fallbackReady: false }), { handoff: true, reason: "auth", laneClass: "auth" });
+  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: true }), { handoff: true, reason: "auth", laneClass: "auth" });
+  assert.deepEqual(withPartials(none, results, { leg: "subscription", fallbackReady: false }), { handoff: false, reason: "", laneClass: "auth" }, "no fallback leg");
+  assert.deepEqual(withPartials(none, results, { leg: "fallback", fallbackReady: true }), { handoff: false, reason: "", laneClass: "auth" }, "the fallback leg is the last");
+});
+
+test("a suite stopped by its cost ceiling or an interrupt, or not partial, leaves the streams' verdict", () => {
+  const key = { leg: "api-key", fallbackReady: false };
+  for (const reason of ["cost_ceiling", "interrupted"]) assert.deepEqual(withPartials(none, [partial(reason)], key), none, reason);
+  assert.deepEqual(withPartials(none, [{ partial: false, partialReason: null }, null], key), none);
+  const limited = { handoff: false, reason: "", laneClass: "rate-limit" };
+  assert.deepEqual(withPartials(limited, [partial("cost_ceiling")], key), limited);
+  const credit = { handoff: true, reason: "credit-stop", laneClass: "credit-stop" };
+  assert.deepEqual(withPartials(credit, [partial("auth_failed")], key), credit, "a stream's handoff stands");
+});
+
+test("the CLI hands a key leg off on an auth_failed suite whose runs kept no trace, and fails the fallback leg", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const dir = tempDir("eval-handoff-auth-");
+  writeFileSync(join(dir, "results.json"), JSON.stringify({ durationSeconds: 1, costUsd: 0, ...partial("auth_failed") }));
+  writeFileSync(join(dir, "ceiling.json"), JSON.stringify({ durationSeconds: 1, costUsd: 5, ...partial("cost_ceiling") }));
+  const run = (leg, file) =>
+    spawnSync(process.execPath, [new URL("./eval-handoff.mjs", import.meta.url).pathname], {
+      encoding: "utf8",
+      env: { LEG: leg, FALLBACK_READY: "", CI_WORKFLOWS: ROOT, RESULTS: join(dir, file) },
+    });
+  assert.equal(run("key", "results.json").stdout, "handoff=true\nhandoff-reason=auth\nlane-class=auth\noutcome=failure\n");
+  assert.equal(run("fallback", "results.json").stdout, "handoff=false\nhandoff-reason=\nlane-class=auth\noutcome=failure\n");
+  assert.equal(run("key", "ceiling.json").stdout, "handoff=false\nhandoff-reason=\nlane-class=\noutcome=success\n");
 });
 
 test("the CLI reads the probe and the errored runs, and writes the leg's duration for the lane record", async () => {
