@@ -2282,6 +2282,21 @@ test("the screenshot font is installed before isolation and checked for U+23F8",
   assert.match(script, /exit 1/);
 });
 
+test("the screenshot font check passes on any font fc-list reports for U+23F8 and fails on none", () => {
+  // Capture run 42230112786 failed on a family-name match the runner's fc-list did not print.
+  const check = scriptOf(capStep("Install the screenshot font")).split("\n").filter((line) => !/apt-get/.test(line)).join("\n");
+  const dir = tempDir("font-check-");
+  const fcList = path.join(dir, "fc-list");
+  const run = (output) => {
+    writeFileSync(fcList, `#!/bin/sh\nprintf '%s' '${output}'\n`, { mode: 0o755 });
+    return spawnSync("bash", ["-eo", "pipefail", "-c", check], { env: { PATH: `${dir}:/usr/bin:/bin` }, encoding: "utf8" });
+  };
+  assert.equal(run("/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf: Noto Sans Symbols2\n").status, 0);
+  const none = run("");
+  assert.equal(none.status, 1);
+  assert.match(none.stdout, /no installed font has U\+23F8/);
+});
+
 test("stopping the key proxy matches the proxy's node command line, not its sh watcher", () => {
   // Node's comm is MainThread (runner probe run 42223922880), so `pgrep -x node` never matched.
   const stop = scriptOf(capStep("Stop the key proxy"));

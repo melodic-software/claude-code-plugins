@@ -10,7 +10,7 @@
 //   work-resolve-issue.yml's report-skip removes agent-ready and comments that
 //   a listed human re-files the work as a new issue. No read past the issue's own.
 // - Then provenance, by admission's rule (admit.mjs untrustedHold): an issue
-//   carrying `work-class: untrusted-provenance`, or whose newest removal of it
+//   carrying one of UNTRUSTED_LABELS, or whose newest removal of one
 //   was by neither a listed human nor the lanes App, does not run, for good:
 //   `untrusted` is true, and work-unblock's sweep never re-fires the run.
 // - Then blockers (owner decision Q95): an issue a blocker still blocks, as

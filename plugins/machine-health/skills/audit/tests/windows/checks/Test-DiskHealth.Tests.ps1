@@ -94,6 +94,7 @@ Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {
 
         It 'never emits a volume detail with a blank or null drive letter' {
             $result = Invoke-DiskHealthAsObject
+            @($result.detail.volumes).Count | Should -BeGreaterThan 0
             foreach ($v in $result.detail.volumes) {
                 $v.drive | Should -Not -BeNullOrEmpty
             }

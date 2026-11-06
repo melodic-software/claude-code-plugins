@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "// BUNDLE-MARKER-2207\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

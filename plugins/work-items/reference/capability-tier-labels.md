@@ -44,7 +44,7 @@ triage stamps it.
 1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`
    validates presence only and never writes labels ad hoc.
 2. **No label-as-code owner.** `/work-items:setup apply` may create the label with an
-   interactive user present, using the same mechanics as the work-class axis migration. An
+   interactive user present, using the same mechanics as the provenance label migration. An
    unattended `apply` stops with explicit remediation instead of guessing.
 
 Triage preflights the label before stamping; when absent, it reports remediation and omits the

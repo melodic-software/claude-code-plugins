@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "One confirmation covers the whole batch, not per repo.",
+      "why": "rejects per repo"
+    },
+    {
+      "answer": "Confirm once for the whole batch, not per repository.",
+      "why": "rejects per repository"
+    },
+    {
+      "answer": "Each repo would clear 2 paths; confirm to apply the batch plan?",
+      "why": "per-repo facts, one gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will confirm with you for each repo before clearing it.",
+      "why": "per-repo gate"
+    },
+    {
+      "answer": "Please approve per repository.",
+      "why": "approve per repository"
+    }
+  ]
+}

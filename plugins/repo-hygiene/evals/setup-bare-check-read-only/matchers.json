@@ -1,0 +1,32 @@
+{
+  "no-clean-tier": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:bash|sh)(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?)?(?:scan|preflight|clean-caches|clean-build|git-prune|git-branch-audit|git-branch-delete|git-stash-audit|git-tree-reset|git-tree-reset-batch|remove-path|clean-batch|clean-run-marker)\\.sh(?![\\w.-])(?!(?:(?![;|]|&&|(?<!\\\\\\\\)\\\\n)(?:[^\"\\\\]|\\\\.))*?(?:\\s|\\\\\\\\\\\\n)--?h(?:elp)?(?![\\w-]))"
+  ],
+  "no-install": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-{1,2}[\\w-]+(?:[= ][^\\s-]\\S*)?(?:\\s|\\\\\\\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\\b|pacman\\s+-S|go(?:\\s|\\\\\\\\\\\\n)+install\\b|uv(?:\\s|\\\\\\\\\\\\n)+(?:tool|pip)(?:\\s|\\\\\\\\\\\\n)+install\\b|(?:mise|asdf|rtx|aqua)(?:\\s|\\\\\\\\\\\\n)+(?:install|use|upgrade|up|plugin\\s+add)\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:curl|wget)\\b(?:[^\\\"\\\\]|\\\\.)*?\\|\\s*(?:sudo(?:\\s+-\\S+)*\\s+)?(?:bash|dash|zsh|sh)\\b|(?:bash|zsh|sh)\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)"
+  ],
+  "verdict-table": [
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\bgit\\b"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\bghq\\b"
+      }
+    },
+    "[\\s\\S]*?",
+    {
+      "use": "table_header_rule"
+    }
+  ]
+}

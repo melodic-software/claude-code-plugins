@@ -10,18 +10,24 @@ assertion:
   calls:
     - '(^|[^A-Za-z0-9_])(pass|fail|assert_[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)'
   # Raw text over three lines: a FAIL message, then a non-zero exit.
-  # A failure counter the script exits on, and the same shape in an embedded
-  # node driver.
+  # A failure counter or rc= accumulator the script exits on, guarded or
+  # direct, and the same shape in an embedded node driver: how a local check()
+  # helper's failures reach the exit status.
   idioms:
     - '(echo|printf).*FAIL.*exit[[:space:]]+[1-9]'
     - 'FAIL"?[[:space:]]*(-eq|==)[[:space:]]*0'
     - 'exit[[:space:]]+"?\$\(\([[:space:]]*\$?FAIL[[:space:]]*>[[:space:]]*0[[:space:]]*\)\)'
+    - 'exit[[:space:]]+"?\$[{]?(FAIL(ED|S|URES)?|fail(ed|s|ures)?|rc)[}]?"?([[:space:];]|$)'
+    - 'if[[:space:]]*\(\(?[[:space:]]*\$?[A-Za-z_]*(fail|FAIL)[A-Za-z_]*[^)]*\)\)?.*(exit[[:space:]]+[1-9]|process\.exit\([1-9])'
     - 'process\.exit\([A-Za-z_]*fail'
 # The assertions live in the suite this script runs or the helpers it loads.
 delegation:
   - 'gate_test::run_suite'
   - '(^|[[:space:];&|])(source|\.)[[:space:]].*test-(helpers|harness)'
   - '(^|[[:space:];&|])(node|python3?|pytest|exec|pwsh)[[:space:]].*(test|spec)'
+  # exec hands the process, and its exit status, to the command it runs; an
+  # exec of only redirections or a file descriptor runs nothing.
+  - '(^|[[:space:];&|])exec[[:space:]]+(bash|sh|node|python3?|pwsh|"?\$)[[:space:]"{A-Za-z_]'
   - '(^|[[:space:];&|])"\$(PYTHON|PY)"[[:space:]]'
 equality:
   call2: [assert_eq, assert_equal, assert_equals, assert_same]

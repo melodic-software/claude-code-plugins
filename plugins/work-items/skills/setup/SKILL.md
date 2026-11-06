@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (the home's work-items.yaml), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider (copying legacy JSON), writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
+description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (the home's work-items.yaml), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, provenance and capability-tier labels; apply binds the provider (copying legacy JSON), writes the schedule, migrates provenance and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
 argument-hint: "[check|apply] [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -230,9 +230,9 @@ unambiguous; ask only where an item genuinely needs the user.
    the bind, before any schedule work, so it runs identically on the skipped first-time path (where no
    interview happens) and on the seeding path, and every later step resolves the post-remap labels.
    Then run the "Won't-do classification" procedure below for the bound provider.
-3. **Migrate the work-class label axis.** Run the "Work-class label axis (migration)" procedure below.
-   It discovers missing canonical members and provisions them when authorized. When any member is still
-   missing after this pass, stop. Triage and the work-loop admission gate cannot operate correctly.
+3. **Migrate the provenance label.** Run the "Provenance label (migration)" procedure below.
+   It discovers a missing `provenance: untrusted` and provisions it when authorized. When it is still
+   missing after this pass, stop. Triage cannot mark an untrusted item without it.
 4. **Migrate the capability-tier label axis.** Run the procedure in
    [reference/capability-tier-axis-migration.md](reference/capability-tier-axis-migration.md), which
    provisions the canonical `capability-tier: frontier` member defined in
@@ -341,30 +341,29 @@ unambiguous; ask only where an item genuinely needs the user.
    is well-formed; JSON validity; unique `id`/`title`; tracked-not-ignored, and report the actual
    results, never success on the write alone. This re-run is scoped to those probes: step 9 already
    owns whether the resolved recurring-maintenance label exists in the provider, so do not repeat that
-   lookup here; steps 3–4 already own work-class and capability-tier axis provisioning.
+   lookup here; steps 3–4 already own provenance-label and capability-tier axis provisioning.
 
-## Work-class label axis (migration)
+## Provenance label (migration)
 
 `apply` runs this pass at **step 3** of its numbered flow, after the role-label pass and before any
-schedule work. Triage's autonomous-eligible outcomes and the work-loop admission gate require all five
-canonical members from
+schedule work. Triage marks an untrusted item with `provenance: untrusted`, the canonical member in
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md).
 
 1. **Skip when no binding exists**, nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report
    INFO and continue; triage verifies at item-edit time.
 3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
-   `work-class:` and `provenance:`). Compare against the five canonical members in the reference.
-4. **All present**. Report "work-class axis provisioned" and continue.
-5. **Any missing, label-as-code owner declared**, stop. Name each missing label and route remediation
+   `provenance:`). Look for `provenance: untrusted`.
+4. **Present**. Report "provenance label provisioned" and continue.
+5. **Missing, label-as-code owner declared**, stop. Name the label and route remediation
    to that owner; never `gh label create` ad hoc.
-6. **Any missing, no label-as-code owner, interactive user present**, offer to create each missing
-   label via the adapter's label-creation mechanics (GitHub: `gh label create "<name>" --description
-   "<description>" --color "<color>"` using the reference table). RECOMMENDED: create all missing
-   members, this pass is the upgrade migration for repos that predated the axis. Re-list after
-   creation and confirm all five exist before continuing.
-7. **Any missing, no label-as-code owner, no interactive user**, stop per `apply`'s "Autonomous
-   invocation" rule: "work-class axis needs provisioning; run `/work-items:setup apply` with a user
+6. **Missing, no label-as-code owner, interactive user present**, offer to create it via the
+   adapter's label-creation mechanics (GitHub: `gh label create "<name>" --description
+   "<description>" --color "<color>"` using the reference table). RECOMMENDED: create it, this pass
+   is the upgrade migration for repos that predated the label. Re-list after creation and confirm
+   it exists before continuing.
+7. **Missing, no label-as-code owner, no interactive user**, stop per `apply`'s "Autonomous
+   invocation" rule: "provenance label needs provisioning; run `/work-items:setup apply` with a user
    present".
 
 ## Canonical role labels (optional remap)

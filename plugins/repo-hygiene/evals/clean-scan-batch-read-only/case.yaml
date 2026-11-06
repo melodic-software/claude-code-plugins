@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: clean-scan-batch-read-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: orders-bundle-kept
+    type: regex
+    pattern: 'BUNDLE-MARKER-2207'
+    target: { source: file, path: repos/orders-portal/dist/bundle.js }
+  - name: billing-bundle-kept
+    type: regex
+    pattern: 'BUNDLE-MARKER-2207'
+    target: { source: file, path: repos/billing-api/dist/bundle.js }
+  - name: inventory-bundle-kept
+    type: regex
+    pattern: 'BUNDLE-MARKER-2207'
+    target: { source: file, path: repos/inventory-sync/dist/bundle.js }
+  - name: no-apply-or-plan
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'clean-batch\.sh(?:[^"\\]|\\.)*--(?:apply|batch-plan)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-other-tier
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:bash|sh)(?:\s|\\\\\\n)+(?:-[^\s\"\\]+(?:\s|\\\\\\n)+)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?)?(?:(?:clean-caches|clean-build|git-prune|git-branch-delete|git-tree-reset|git-tree-reset-batch|remove-path)\.sh(?![\w.-])(?!(?:(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:\s|\\\\\\n)--?h(?:elp)?(?![\w-]))|clean-batch\.sh(?:[^"\\]|\\.)*--tier[ =](?:caches|build|git|all)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-confirm-gate
+    type: regex
+    pattern: '(?<!\bno need to )(?<!n''t need to )(?<!\bno )(?<!\bwithout )\b(?:confirm|approve)\b[^\n.!?]{0,80}\b(?:apply|applying|delete|deleting|deletion|remove|removing|removal|wipe|wiping)\b[^\n.!?]{0,60}\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: names-each-repo
+    type: regex
+    pattern: '^(?=[\s\S]*orders-portal)(?=[\s\S]*billing-api)(?=[\s\S]*inventory-sync)'
+    target: last_message
+  - name: reports-bytes
+    type: regex
+    pattern: '\b\d+(?:[.,]\d+)?\s?(?:[KMG]i?B|[KMG]|bytes)\b'
+    flags: 'i'
+    target: last_message
+  - name: scan-batch-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'clean-batch\.sh(?=(?:[^"\\]|\\.)*--tier[ =]scan\b)'
+    min: 1
+    arm: 'with-only'
