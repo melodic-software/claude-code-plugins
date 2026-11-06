@@ -4,8 +4,13 @@
 # disconnected export is less visible than the plan.
 set -euo pipefail
 
-mkdir -p evals/fixtures
-cp -R "$(dirname "${BASH_SOURCE[0]}")/../fixtures/disconnected-admin-export" evals/fixtures/
+src="$(dirname "${BASH_SOURCE[0]}")/../fixtures/disconnected-admin-export"
+dst=evals/fixtures/disconnected-admin-export
+for f in README.md config/flags.json db/schema.sql src/admin/routes.js src/db.js src/flags.js \
+  src/reports/csv-exporter.js; do
+  mkdir -p "$dst/$(dirname "$f")"
+  cp "$src/$f" "$dst/$f"
+done
 
 mkdir -p evals/fixtures/disconnected-admin-export/docs
 cat > evals/fixtures/disconnected-admin-export/docs/bulk-export-plan.md <<'EOF'
