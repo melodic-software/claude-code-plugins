@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Stamp: `/opt/claude/bin/claude` 2.1.304, mode sdk (exact), sessionKind headless.",
+      "why": "full stamp"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stamp: `/opt/claude/bin/claude`, mode sdk (exact), headless.",
+      "why": "version missing"
+    },
+    {
+      "answer": "Binary 2.1.304 at /opt/claude/bin/claude, exact mode.",
+      "why": "session kind missing"
+    }
+  ]
+}

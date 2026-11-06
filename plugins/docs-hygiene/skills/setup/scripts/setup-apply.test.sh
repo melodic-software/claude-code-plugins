@@ -272,7 +272,7 @@ if [[ "$OUT" == INFO*absent* ]]; then ok '--check reports the file absent'; else
 mkdir -p "$repo/docs/conventions"
 printf 'compress_articles: keep\n' >"$repo/$REL"
 run "$repo" --check
-expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$(grep -v '^INFO .*no provenance recorded' <<<"$OUT")" = 'PASS compress_articles: keep'
+expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$(grep -v '^INFO .*no provenance recorded' <<<"$OUT")" = $'PASS compress_articles: keep\nPASS verification: (unset)\nPASS verification_skills: (unset)'
 expect '--check on a file with no record prints one INFO line' test "$(grep -c '^INFO .*no provenance recorded' <<<"$OUT")" -eq 1
 expect '--check writes nothing' test "$(cat "$repo/$REL")" = 'compress_articles: keep'
 

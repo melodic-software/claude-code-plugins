@@ -152,6 +152,16 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
    `leave-with-reason` as a veto does; a SURVIVES makes the finding eligible for the relay and
    changes no tier.
 
+   **The verification level** governs the review pass, the refutation pass and fix mode's
+   semantic-diff check, not the judges. Resolve it once before step 8 with
+   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin attribution --skill audit` and
+   report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `standard`.
+   `strict` runs the review pass even when `accuracy.review_agents` is 0, with one agent. Under
+   `light`, and `off`, which acts as `light` here, dispatch neither pass and never grade a
+   verdict yourself in its place: each finding that would have taken one carries
+   `verification: skipped (<level>)`, and a restated-fact STANDS with no SURVIVES is never
+   eligible for the relay.
+
 10. **Report.** Group by file. Per finding give the tier, the class, the location, the rubric
     grades with their quoted evidence, and the source with the rung it came from. State the
     carve-out declines with counts, the stamp declines with reasons, the budget telemetry, and
@@ -195,7 +205,9 @@ everything else is a report. Read that file first, per file, worst-first:
 4. **Verify with a fresh-context semantic-diff subagent**, blind to the rewrite rationale. It
    flags semantic loss, new ambiguity, and quote damage. Withholding the rationale is the
    mechanism: an agent told why an edit was made reliably finds that the edit achieved it.
-   Revert every flagged hunk.
+   Revert every flagged hunk. Under a `light` or `off` verification level (audit step 9), dispatch no
+   subagent and never self-check the rewrite: the file's report line carries
+   `verification: skipped (<level>)`.
 
 5. **Close the file**: every finding fixed, left with a reason, or reverted with a reason.
 

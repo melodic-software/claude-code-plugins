@@ -133,6 +133,13 @@ stamp forms; enable it where that holds.
 
 Every detector script accepts `--show-config` and names the layer each value came from.
 
+`verification` (`off`, `light`, `standard`, `strict`; default `standard`) and `verification_skills`
+(a skill name to a level, beating `verification`) set how much independent checking `/attribution:audit`
+runs: `strict` forces the review pass, and `light` and `off` skip the review pass, the refutation pass
+and fix mode's semantic-diff check. They are read by `lib/read-verification.sh` from
+`<home>/attribution.yaml` at the default branch only, never the personal or user-global layer, so a
+branch cannot lower them ([verification level](../../docs/contracts/verification-level/README.md)).
+
 ## Prerequisites
 
 - **bash** for `list-corpus.sh`, `extract-breadcrumbs.sh`, `check-stamps.sh`,

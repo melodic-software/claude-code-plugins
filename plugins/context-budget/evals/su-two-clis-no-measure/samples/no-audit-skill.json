@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "context-budget:setup"
+          }
+        }
+      ],
+      "why": "setup only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "context-budget:audit"
+          }
+        }
+      ],
+      "why": "invoked the audit"
+    }
+  ]
+}
