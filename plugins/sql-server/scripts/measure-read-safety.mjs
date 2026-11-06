@@ -689,12 +689,13 @@ function attribution(results, runs) {
   const medians = counts.map((n) => `${n}: ${median(results.filter((t) => t.processes === n).map((t) => t.writerMaxMs))} ms`);
   out.push(`${tableLocks}. Median over the runs of the writer's slowest update, by process count: ${medians.join(', ')}.`);
   out.push(`${runs} runs show the worst case; they support no estimate of run-to-run spread.`);
-  // A call that hit the lock or request timeout fails its query and ends the
-  // run before this line (serverProcess throws), so reaching here already
-  // shows every call returned within both timeouts. The line judges only what
-  // can still differ; the magnitudes are the worst-case line above.
+  // A call whose lock wait hit the lock timeout, or that ran past the request
+  // timeout, fails its query and ends the run before this line (serverProcess
+  // throws). The lock timeout limits each lock wait, not a call's length. The
+  // line judges only what can still differ; the magnitudes are the worst-case
+  // line above.
   out.push('', open === 0
-    ? `Topology check: PASS. Every call returned within the lock timeout (${d.lockTimeoutMs} ms) and the request timeout (${d.requestTimeoutMs} ms), and no transaction was left open. How long anyone waited is the worst-case line above.`
+    ? `Topology check: PASS. No agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms), every call returned within the request timeout (${d.requestTimeoutMs} ms), and no transaction was left open. How long anyone waited is the worst-case line above.`
     : `Topology check: FAIL. ${open} transaction(s) left open after a topology run.`);
   return out;
 }
