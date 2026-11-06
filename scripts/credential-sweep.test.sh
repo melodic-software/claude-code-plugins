@@ -525,6 +525,60 @@ else
   fail "the build record's symlink survives"
 fi
 
+# record_tar <dir> <mode> <member:mode[:content]>...: artifact 5 ("x.dockerbuild")
+# is a tar written with tarfile mode <mode> ("w:xz", "w:gz"); a member whose
+# name ends in / is a directory.
+record_tar() {
+  local d="$1" mode="$2"
+  shift 2
+  fix "$d" "repos/o/r/actions/artifacts?per_page=100&page=1" \
+    '{"artifacts":[{"id":5,"name":"x.dockerbuild","expired":false,"created_at":"2026-10-05T00:00:00Z"}]}'
+  "$PYTHON" -I - "$d/$(key "repos/o/r/actions/artifacts/5/zip")" "$mode" "$@" <<'PY' || fail "could not build the tar"
+import io, sys, tarfile
+t = tarfile.open(sys.argv[1], sys.argv[2])
+for m in sys.argv[3:]:
+    name, mode, *rest = m.split(":", 2)
+    i = tarfile.TarInfo(name.rstrip("/"))
+    i.mode = int(mode, 8)
+    if name.endswith("/"):
+        i.type = tarfile.DIRTYPE
+        t.addfile(i)
+    else:
+        data = (rest[0] if rest else "").encode()
+        i.size = len(data)
+        t.addfile(i, io.BytesIO(data))
+t.close()
+PY
+}
+
+# A tar compressed other than with gzip is never handed to tar, which would
+# decompress it without a bound: it is kept as one file and scanned as bytes.
+F="$TMP/record-xz"
+base_fixture "$F" r
+record_tar "$F" w:xz "inner.txt:644:token $PLANTED"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-xz" --repo r --keep
+expect_rc "an xz tar sweeps without a gap" 0
+x="$TMP/out-record-xz/downloads/r/artifacts/5-x.dockerbuild"
+if [[ -f "$x/5-x.dockerbuild" && ! -e "$x/inner.txt" ]]; then
+  ok "an xz tar is kept as one file, not extracted"
+else
+  fail "an xz tar was extracted or lost: $(find "$x" 2>&1)"
+fi
+
+# A tar that fails partway is cleaned up: no read-only directory or member is
+# left behind once the sweep removes its downloads.
+F="$TMP/record-partial"
+base_fixture "$F" r
+record_tar "$F" w:gz "d/:555" "d/f:444:partial" "../x:644:escape"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-partial" --repo r
+expect_rc "a tar that fails partway is a gap" 2
+expect_out "the failed tar is named" "artifact tar did not extract"
+if [[ ! -e "$TMP/out-record-partial/downloads" && ! -e "$TMP/x" && ! -e "$TMP/out-record-partial/downloads/r/x" ]]; then
+  ok "a failed tar leaves nothing on disk"
+else
+  fail "left on disk: $(find "$TMP/out-record-partial/downloads" "$TMP/x" 2>&1)"
+fi
+
 # --- A --repo that is not public is refused ----------------------------------
 F="$TMP/private"
 base_fixture "$F" r

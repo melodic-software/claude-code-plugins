@@ -249,12 +249,16 @@ unpack() {
 
 # unpack_artifact <download> <dir>: an artifact uploaded unzipped (a Docker
 # build record is a gzipped tar) comes back as its own bytes, not a zip. A zip
-# goes to unpack; a tar, gzipped or not, is extracted; any other file is kept
-# as one file, gunzipped first when gzipped. The UNPACK_MAX cap applies to the
-# decompressed stream and to the extracted files; symlinks are deleted.
+# goes to unpack. A gzip is decompressed through a bounded read; that stream,
+# or the download itself, is extracted only when it is a plain tar (the ustar
+# magic at offset 257), so tar never decompresses anything unbounded. Any other
+# file (an xz, bzip2 or zstd tar included) is kept as one file and scanned as
+# bytes. The UNPACK_MAX cap applies to the decompressed stream and to the
+# extracted files; symlinks are deleted whether or not tar succeeds.
 unpack_artifact() {
-  local lead size name
+  local lead size name raw rc
   lead="$(head -c 2 "$1" | od -An -tx1 | tr -d ' \n')"
+  raw="$1.raw"
   case "$lead" in
   504b)
     unpack "$@"
@@ -265,42 +269,50 @@ unpack_artifact() {
     rm -f "$1"
     return 1
     ;;
-  1f8b) size="$(gzip -dc <"$1" 2>/dev/null | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')" ;;
-  *) size="$(wc -c <"$1" | tr -d ' ')" ;;
+  1f8b)
+    gzip -dc <"$1" 2>/dev/null | head -c $((UNPACK_MAX + 1)) >"$raw"
+    rc="${PIPESTATUS[0]}"
+    rm -f "$1"
+    ;;
+  *)
+    mv "$1" "$raw"
+    rc=0
+    ;;
   esac
+  size="$(wc -c <"$raw" | tr -d ' ')"
   if ((size > UNPACK_MAX)); then
     API_ERR="artifact over $UNPACK_MAX bytes uncompressed"
-    rm -f "$1"
+    rm -f "$raw"
+    return 1
+  fi
+  if ((rc != 0)); then
+    API_ERR="artifact did not gunzip"
+    rm -f "$raw"
     return 1
   fi
   mkdir -p "$2"
   name="$2/$(basename "$2")"
-  if tar -tf "$1" >/dev/null 2>&1; then
-    if ! tar -xf "$1" -C "$2" >/dev/null 2>&1; then
-      API_ERR="artifact tar did not extract"
-      rm -f "$1"
-      return 1
-    fi
-    find "$2" -type d -exec chmod u+rwx {} +
-    find "$2" -type l -delete
-    # A sparse member can declare more than the stream held.
-    size="$(find "$2" -type f -exec cat {} + | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')"
-    if ((size > UNPACK_MAX)); then
-      API_ERR="artifact over $UNPACK_MAX bytes extracted"
-      rm -rf "${2:?}"
-      rm -f "$1"
-      return 1
-    fi
-  elif [[ "$lead" == 1f8b ]]; then
-    if ! gzip -dc <"$1" >"$name" 2>/dev/null; then
-      API_ERR="artifact did not gunzip"
-      rm -f "$1"
-      return 1
-    fi
-  else
-    mv "$1" "$name"
+  if [[ "$(tail -c +258 "$raw" | head -c 5)" != ustar ]]; then
+    mv "$raw" "$name"
+    return 0
   fi
-  rm -f "$1"
+  tar -xf "$raw" -C "$2" >/dev/null 2>&1
+  rc=$?
+  rm -f "$raw"
+  find "$2" -type d -exec chmod u+rwx {} +
+  find "$2" -type l -delete
+  if ((rc != 0)); then
+    API_ERR="artifact tar did not extract"
+    rm -rf "${2:?}"
+    return 1
+  fi
+  # A sparse member can declare more than the stream held.
+  size="$(find "$2" -type f -exec cat {} + | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')"
+  if ((size > UNPACK_MAX)); then
+    API_ERR="artifact over $UNPACK_MAX bytes extracted"
+    rm -rf "${2:?}"
+    return 1
+  fi
   return 0
 }
 
