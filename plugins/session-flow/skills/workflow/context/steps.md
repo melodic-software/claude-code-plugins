@@ -181,10 +181,13 @@ failures to root cause.
 ## 10. Review
 
 Quality checks before verification: self-review the diff against the consuming repo's conventions
-and review criteria, or delegate to a fresh-context reviewer.
+and review criteria as the floor, then delegate to a fresh-context reviewer. The stage is done only
+when that reviewer has returned, unless the `verification` level is `light` or `off`
+(`context/pre-pr.md` step 2). Resolve the level first if this session has not, as `SKILL.md`
+("The verification level") says, on this route too.
 
-- For a non-trivial diff, prefer a reviewer started in a fresh context over auditing your own work,
-  because the author's reasoning cannot color what that reviewer concludes
+- The fresh-context reviewer, not the author, closes the stage, because the author's reasoning
+  cannot color what that reviewer concludes
   - **Pointer**: for the review-against-your-spec step, see
     [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec)
   - **As of**: 2026-10-30
@@ -202,7 +205,11 @@ Prove the change achieved its intent, with evidence.
 
 - Mechanical pass first: build + test + lint per the consuming repo's commands
 - Then outcome confirmation: does the result match the Brief and plan? Exercise the affected flow,
-  not just the compiler
+  not just the compiler. The verdict comes from a fresh-context verifier, not the author
+  (an outcome-verification capability, if installed, e.g. /verification:confirm, dispatches one
+  at the level it reads; without one, dispatch the verifier with the Brief and the diff, except
+  under this skill's `light` or `off` level (Stage 10), where the report notes
+  `verification: skipped (<level>)`)
 - **Never claim improvement without before/after measurements.** Baselines first, measure deltas,
   report with data
 - **Effort:** proving the outcome with evidence before the work is called done

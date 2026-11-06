@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "To apply a trim, rerun as `/context-budget:audit fix`.",
+      "why": "slash form"
+    },
+    {
+      "answer": "Applying needs the explicit `fix` argument.",
+      "why": "argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can apply these for you if you confirm.",
+      "why": "no fix route"
+    },
+    {
+      "answer": "Fix it yourself by pasting this.",
+      "why": "verb only"
+    }
+  ]
+}

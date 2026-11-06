@@ -82,7 +82,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/discipline:do-your-research`, `/discipline:recheck-against-upstream`, `/discipline:sweep-all` | the fresh-context re-derivation (shared method, step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
 | `/education:quiz-me` | the fresh-context answer-key pass |
 | `/planning:plan` | the plan-reviewer dispatch in Step 3 |
-| `/session-flow:orchestrate`, `/session-flow:workflow` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, which `strict` always dispatches |
+| `/session-flow:orchestrate`, `/session-flow:workflow`, `/session-flow:retro` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, without which Stage 10 is not done; retro's single-pass analysis and scoring under `retro_lenses: 1` |
 | `/harness-config:audit-automation-gaps` | the fresh-context refusal gate (2.3), whose verdicts `light` lists as `unverified`, and the Phase 4 step 6 reviewer |
 | `/harness-config:audit-instructions` | the Phase C verifiers (per lane, B2 and I33) |
 | `/harness-config:audit-pass` | the Phase 5 apply-verify dispatch and the Phase 6 main-session verification |
@@ -91,6 +91,13 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
+| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
+| `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
+| `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
+| `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
+| `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 6, "The verification level") |
+| `/ai-slop:audit` | the fix flow's semantic-diff subagent |
+| `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
