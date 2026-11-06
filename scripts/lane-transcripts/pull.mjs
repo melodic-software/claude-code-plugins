@@ -74,7 +74,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => [`adjudicate-feedback-${n}`, `adjudicate-feedback-${n}-subscription`, `adjudicate-feedback-${n}-fallback`]),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-verify-capture.yml": legs("capture", ["-probe", ""]),
-  "pr-rate-merge-risk.yml": ["rate-merge-risk"],
+  "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("model"), ...legs("scrub-probe")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => ["", "-2", "-3", "-4"].map((chunk) => `${lane}-${job}${chunk}`))),
