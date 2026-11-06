@@ -1,0 +1,17 @@
+name: probe-gt-field-write
+on: push
+permissions:
+  issues: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST an option that does not exist (422 = token accepted, 403 = refused)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          printf '%s' '{"issue_field_values":[{"field_id":48484079,"value":"probe-no-such-option"}]}' > body.json
+          set +e
+          gh api -X POST "repos/$REPO/issues/13486/issue-field-values" -H 'X-GitHub-Api-Version: 2026-03-10' --input body.json -i 2>&1 | head -n 30
+          echo "PROBE_EXIT=${PIPESTATUS[0]}"
