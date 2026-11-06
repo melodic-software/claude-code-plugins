@@ -87,6 +87,11 @@ default cap is read at [gh issue list § Options](https://cli.github.com/manual/
 (as of 2026-11-03; recheck when that section changes the `--limit` default). Past what one
 `--limit` returns, page with `--search` date ranges.
 
+**Recurring items with their marker.** The recurring flows match an item to its schedule row by a
+body line ([`../../../../reference/issue-conventions.md`](../../../../reference/issue-conventions.md)
+"Recurring marker"), so their read adds `body` to the `--json` fields above, with `--label` set
+to the resolved `recurring-maintenance` label.
+
 **`list-items` in a cloud session.** `gh issue list --json blockedBy` is GraphQL, so with
 `CLAUDE_CODE_REMOTE=true` the `list-items` verb reads the
 [repository issues endpoint](https://docs.github.com/en/rest/issues/issues#list-repository-issues)
