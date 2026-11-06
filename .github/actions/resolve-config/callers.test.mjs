@@ -9845,7 +9845,8 @@ test("the leg check fails a lane that lacks a leg and passes one that has all th
 // check-key-credit step takes it as window-hours, and every call of a
 // ci-workflows reusable that gates its own key takes it as
 // key-credit-window-hours (a number input, so fromJSON), so the variable
-// reaches every lane and the unset default is this one constant.
+// reaches every lane, and a site whose unset default differs from
+// KEY_CREDIT_DEFAULT_HOURS fails here.
 const KEY_CREDIT_DEFAULT_HOURS = "1";
 const KEY_CREDIT_WINDOW = `\${{ vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}' }}`;
 const KEY_CREDIT_WINDOW_NUMBER = `\${{ fromJSON(vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}') }}`;

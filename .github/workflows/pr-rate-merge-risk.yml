@@ -529,8 +529,6 @@ jobs:
           log-file: ${{ steps.rate-subscription.outputs.log-file }}
           lane: pr-merge-risk
           lane-id: pr-merge-risk
-          step-started-at: ${{ steps.prompt.outputs.started-at }}
-          step-timeout-minutes: 25
           credential: ${{ steps.rate-subscription.outputs.credential }}
           handoff: ${{ steps.rate-subscription.outputs.handoff }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -622,8 +620,6 @@ jobs:
           log-file: ${{ steps.rate-fallback.outputs.log-file }}
           lane: pr-merge-risk
           lane-id: pr-merge-risk
-          step-started-at: ${{ steps.prompt.outputs.started-at }}
-          step-timeout-minutes: 25
           credential: ${{ steps.rate-fallback.outputs.credential }}
           handoff: ${{ steps.rate-fallback.outputs.handoff }}
           max-turns: ${{ steps.models.outputs.max-turns }}
