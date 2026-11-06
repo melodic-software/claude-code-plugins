@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.13] - 2026-11-06
+
+### Fixed
+
+- inventory: `VALIDATED_AGAINST` is now Claude Code 2.1.318, so the self-check no longer warns that the installed build differs from the last validated one. On 2.1.318 every lane except `builtin_plugins` reads `ok`; `builtin_plugins` stays degraded on its two accepted floors.
+- inventory: a report no longer gives a count for a `broken` lane anywhere, its Summary line and section heading included; the report template now applies each lane's integrity status to every count.
+
 ## [8.4.12] - 2026-11-05
 
 ### Fixed

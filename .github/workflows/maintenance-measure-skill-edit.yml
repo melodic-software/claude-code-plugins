@@ -10,9 +10,10 @@ name: maintenance-measure-skill-edit
 #             keeps a case once judged graders are dropped.
 #   pass-a,   the unchanged skill twice (eval-hill-climb-pass.yml), each on its
 #   pass-a2   own runner, 3 runs per case per arm under --max-cost-usd 5.
-#   propose   win-test.py's baseline gates, then one run-claude-cli leg
-#             (--restricted, read-only GITHUB_TOKEN, no write token, read-only
-#             tools) that returns one edit as structured output.
+#   propose   win-test.py's baseline gates, then run-claude-cli on the key,
+#             subscription and fallback legs in turn (--restricted, read-only
+#             GITHUB_TOKEN, no write token, read-only tools), the first that
+#             finishes returning one edit as structured output.
 #   scan      no model, no secret: applies the edit to a fresh checkout and
 #             refuses it outside plugins/<p>/skills/<skill>/, under evals/, or
 #             as select-plugins.mjs refuses a pull request's change.
@@ -39,8 +40,10 @@ name: maintenance-measure-skill-edit
 # publish hold id-token, each to mint one lanes App token from the broker,
 # which refuses this caller on any event but workflow_dispatch and any actor
 # or re-runner but a listed human. No job holds a merge right, checks or
-# statuses write, or workflows. The credential is the maintenance role's
-# subscription token, as in eval-browser-dispatch.yml. How to stop it: set the
+# statuses write, or workflows. Every pass and the proposal run on the
+# maintenance role's chain, as in eval-browser-dispatch.yml: its API key, then
+# its subscription token, then the central fallback token, one per job or
+# step, each after the one before hands off. How to stop it: set the
 # organization or repository lanes kill-switch variable to anything but
 # "false"; every job that spends or writes checks it first, and the broker
 # reads it live.
@@ -212,6 +215,7 @@ jobs:
     if: needs.gate.outputs.go == 'true'
     permissions:
       contents: read
+      actions: read # the pass's gate job lists this repository's key markers
     uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
@@ -220,13 +224,16 @@ jobs:
       pass: a
       base-sha: ${{ needs.gate.outputs.base-sha }}
     secrets:
+      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
       MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   pass-a2:
     needs: gate
     if: needs.gate.outputs.go == 'true'
     permissions:
       contents: read
+      actions: read # the pass's gate job lists this repository's key markers
     uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
@@ -235,14 +242,58 @@ jobs:
       pass: a2
       base-sha: ${{ needs.gate.outputs.base-sha }}
     secrets:
+      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
       MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # The model, with the subscription token, a read-only GITHUB_TOKEN and
+  # The proposer's key-credit gate (ci-workflows check-key-credit, gate.cjs:
+  # one artifact-list call for the marker propose uploads after a key leg's
+  # credit stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour
+  # unset) starts the proposal on the subscription, with no refused key
+  # attempt first. No secret, no model, no checkout; every failure runs the
+  # key (skip-key empty). Probing is off.
+  propose-key-credit:
+    needs: [gate, pass-a, pass-a2]
+    if: needs.pass-a.result == 'success' && needs.pass-a2.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read # list this repository's credit-stop markers
+    outputs:
+      skip-key: ${{ steps.credit.outputs.skip-key }}
+      marker: ${{ steps.credit.outputs.marker }}
+    steps:
+      - name: Read the key's credit history
+        id: credit
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: propose
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: maintenance-measure-skill-edit
+          lane-id: maintenance-measure-skill-edit
+          credential: MAINTENANCE_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
+
+  # The model, with one maintenance credential per leg (the API key, then the
+  # subscription token, then the fallback token), a read-only GITHUB_TOKEN and
   # nothing else. run-claude-cli runs the CLI with --restricted, which confines
-  # the file tools to the workspace; the leg gets Read, Grep and Glob only, so
+  # the file tools to the workspace; each leg gets Read, Grep and Glob only, so
   # its one result is the structured output, which the scan job checks.
   propose:
-    needs: [gate, pass-a, pass-a2]
+    needs: [gate, pass-a, pass-a2, propose-key-credit]
     if: needs.pass-a.result == 'success' && needs.pass-a2.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -385,22 +436,44 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' '{"type":"object","properties":{"file":{"type":"string","minLength":1,"maxLength":200},"old_string":{"type":"string","minLength":1,"maxLength":20000},"new_string":{"type":"string","maxLength":20000},"rationale":{"type":"string","maxLength":4000},"findings":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":500}}},"required":["file","old_string","new_string","rationale","findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Which legs can run, never a token's value. The maintenance role holds
-      # no API key (#13586): the subscription leg runs first, and the central
-      # fallback token's leg after it hands off (a limit stop, a credit stop,
-      # or a 401 or 402) or when its token is empty.
+      # Which legs can run, never a secret's value. The key runs unless it is
+      # empty or propose-key-credit skipped it; key-reason says why the
+      # proposal starts on the subscription.
+      - name: Check the API key
+        id: key
+        if: steps.prompt.outcome == 'success'
+        env:
+          KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          SKIP_KEY: ${{ needs.propose-key-credit.outputs.skip-key }}
+        run: |
+          key=$KEY
+          reason=""
+          if [ "$SKIP_KEY" = true ]; then
+            key=false
+            reason=credit-stop
+          elif [ "$KEY" != true ]; then
+            echo "::warning::MAINTENANCE_CLAUDE_API_KEY is empty; the subscription leg proposes"
+            reason=no-key
+          fi
+          { echo "key=$key"; echo "key-reason=$reason"; } >>"$GITHUB_OUTPUT"
+
+      # The subscription leg runs after the key leg hands off (a credit stop,
+      # or a 401 or 402) or did not run, and the central fallback token's leg
+      # after the subscription leg hands off (a limit stop, a credit stop, or
+      # a 401 or 402) or finds its token empty.
       - name: Check the credentials
         id: credential
         if: steps.prompt.outcome == 'success'
         env:
+          KEY_USABLE: ${{ steps.key.outputs.key }}
           PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
-          if [ "$PRESENT" != true ]; then
+          if [ "$KEY_USABLE" != true ] && [ "$PRESENT" != true ]; then
             if [ "$FALLBACK_PRESENT" = true ]; then
               echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg proposes on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
             else
-              echo "::notice::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
+              echo "::notice::no maintenance credential and no FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is usable; no leg runs"
             fi
           fi
           { echo "present=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
@@ -415,9 +488,52 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
+      # The three legs hold one credential each and stay in one job: the model
+      # has Read, Grep and Glob only, no Bash (run-claude-cli's one-job rule).
+      - name: Propose the edit on the API key
+        id: run-key
+        if: steps.prompt.outcome == 'success' && steps.key.outputs.key == 'true'
+        continue-on-error: true
+        timeout-minutes: 30
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: maintenance-measure-skill-edit
+          role: maintenance
+          prompt-file: ${{ runner.temp }}/hill-climb-prompt.md
+          preamble: You run unattended as the eval hill-climb CI lane. No one can answer a question during this run, and you change nothing.
+          api-key: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Grep
+            Glob
+          allowed-tools: |
+            Read(./hill-climb-data/**)
+            Read(./.base/plugins/**)
+          disallowed-tools: |
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+            Read(//proc/**)
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
+          leg-timeout-minutes: "25"
+
       - name: Propose the edit
         id: run
-        if: steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
+        if: >-
+          steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
+          && (steps.run-key.outcome == 'skipped' || steps.run-key.outputs.handoff == 'true')
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -459,7 +575,8 @@ jobs:
         id: run-fallback
         if: >-
           steps.prompt.outcome == 'success' && steps.credential.outputs.fallback-ready == 'true'
-          && (steps.run.outputs.handoff == 'true' || steps.credential.outputs.present != 'true')
+          && (steps.run.outputs.handoff == 'true'
+          || steps.credential.outputs.present != 'true' && (steps.run-key.outcome == 'skipped' || steps.run-key.outputs.handoff == 'true'))
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -496,6 +613,15 @@ jobs:
           json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
           leg-timeout-minutes: "25"
 
+      - name: Upload the key leg's sealed transcript
+        if: always() && steps.run-key.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run-key.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-key
+
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
@@ -514,6 +640,58 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-fallback
 
+      # Read by the next runs' credit gate (propose-key-credit): the artifact
+      # its `marker` output names (check-key-credit gate.cjs markerName),
+      # uploaded only after the key leg's credit-stop handoff. The name is
+      # written out so its retention row claims it.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && needs.propose-key-credit.outputs.marker == 'key-credit-stop-maintenance-measure-skill-edit.yml-propose' && steps.run-key.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-maintenance-measure-skill-edit.yml-propose
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      # The key leg's lane-outcome record: its credential, outcome, handoff,
+      # fallback reason and durationMs.
+      - name: Record the key leg
+        if: always() && steps.run-key.outcome != 'skipped' && steps.run-key.outcome != ''
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.run-key.outcome }}
+          execution-file: ${{ steps.run-key.outputs.execution-file }}
+          log-file: ${{ steps.run-key.outputs.log-file }}
+          lane: maintenance-measure-skill-edit
+          lane-id: maintenance-measure-skill-edit
+          credential: ${{ steps.run-key.outputs.credential }}
+          handoff: ${{ steps.run-key.outputs.handoff }}
+          known-failure-class: ${{ steps.run-key.outputs.lane-class }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          fallback-reason: ""
+
       # The subscription leg's lane-outcome record: its credential, outcome, handoff,
       # fallback reason and durationMs.
       - name: Record the subscription leg
@@ -530,7 +708,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ""
+          fallback-reason: ${{ steps.run-key.outputs.handoff-reason || steps.key.outputs.key-reason }}
 
       # The fallback leg's lane-outcome record: its credential, outcome, handoff,
       # fallback reason and durationMs.
@@ -548,7 +726,7 @@ jobs:
           handoff: ${{ steps.run-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.run-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.run.outputs.handoff-reason || steps.credential.outputs.present != 'true' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.run.outputs.handoff-reason || 'no-key' }}
 
       # Read from the launcher's file only after the leg's init message reports
       # dontAsk; the scan job validates it.
@@ -557,10 +735,11 @@ jobs:
         if: >-
           steps.run-fallback.outcome == 'success' && steps.run-fallback.outputs.structured-output-file != ''
           || steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
+          || steps.run-key.outcome == 'success' && steps.run-key.outputs.structured-output-file != ''
         env:
-          EXECUTION_FILE: ${{ steps.run-fallback.outputs.execution-file || steps.run.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.run-fallback.outputs.execution-file || steps.run.outputs.execution-file || steps.run-key.outputs.execution-file }}
           MODE: dontAsk
-          OUTPUT_FILE: ${{ steps.run-fallback.outputs.structured-output-file || steps.run.outputs.structured-output-file }}
+          OUTPUT_FILE: ${{ steps.run-fallback.outputs.structured-output-file || steps.run.outputs.structured-output-file || steps.run-key.outputs.structured-output-file }}
         run: |
           bash .base/.github/scripts/read-patch/check-permission-mode.sh
           mkdir -p "$RUNNER_TEMP/proposal"
@@ -689,6 +868,7 @@ jobs:
     if: ${{ !cancelled() && needs.scan.outputs.artifact-id != '' }}
     permissions:
       contents: read
+      actions: read # the pass's gate job lists this repository's key markers
     uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
@@ -699,7 +879,9 @@ jobs:
       edit-artifact-id: ${{ needs.scan.outputs.artifact-id }}
       edit-sha256: ${{ needs.scan.outputs.sha256 }}
     secrets:
+      MAINTENANCE_CLAUDE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
       MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
+      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # No model, no secret. Names the gate that stopped the run, with its
   # numbers; on a win, keeps the edit and each pass's results for 3 days.

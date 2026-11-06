@@ -50,8 +50,17 @@ pruned).
 
 ## What a pull takes
 
-Artifacts are listed newest first, back to the last successful pull less 6 hours (7 days on the
-first pull). It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
+Artifacts are listed one name at a time, since the repository-wide artifact listing answers 500
+for this repository. A name is `lane-transcript-<job-id>-<attempt>`: `TRANSCRIPT_JOB_IDS` in
+`pull.mjs` holds every job-id an upload step passes, by workflow, including the `ci-workflows`
+reusables this repository calls with the transcript key, and the pull lists each with attempts 1
+to 3. `pull.test.mjs` fails when a workflow that calls `upload-lane-transcript` or such a
+reusable is missing from that list, or a local job-id with no expression in it is, so a new upload
+step adds its job-id there; a job-id that changes inside a reusable is not checked. One gap:
+`pr-run-activity-read.yml`'s reuse summary puts the issue number in its job-id, which no fixed
+list can name, so the pull does not reach it. Each name is listed newest first, back to the last
+successful pull less 6 hours (7 days on the first pull), by the artifact's own `created_at`, so a
+re-run attempt of an older run is still pulled. It skips an artifact it already holds, an expired one, one over 64 MiB, and one whose
 run's head repository is not this repository: the public key is public, so a fork's run could seal
 a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that does not open for the
 key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
@@ -66,8 +75,10 @@ and the calls that failed (`artifact-zip`, `artifact-unzip`, `run-read`).
 
 Four outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
 a rate limit on any `gh` call, which is not retried (`rate-limited`), a listing page that still
-fails after its tries (`artifact-list`, since skipping it would lose artifacts for good), 400 pages
-read without reaching the cutoff (`page-cap`), and a window where
+fails after its tries (`artifact-list`, since skipping it would lose artifacts for good),
+`MAX_LIST_CALLS` listing calls spent before every name reached the cutoff (`call-cap`: two pages a
+name plus 25%, at least 400, out of the 5,000 REST requests an hour a user token gets), and a
+window where
 records failed to open and none opened or was already held (`key-mismatch`: the vault key and the
 repository variable differ).
 
