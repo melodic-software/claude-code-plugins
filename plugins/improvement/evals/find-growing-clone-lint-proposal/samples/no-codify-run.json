@@ -1,8 +1,0 @@
-{
-  "pass": [
-    { "answer": [{ "tool": "Read", "input": { "file_path": "/ws/README.md" } }], "why": "no codify call" }
-  ],
-  "fail": [
-    { "answer": [{ "tool": "Skill", "input": { "skill": "corrections:codify", "args": "findings .work/improvement/feature-payments-cleanup/20261106T100000Z-clone-growth.md" } }], "why": "runs codify unasked" }
-  ]
-}

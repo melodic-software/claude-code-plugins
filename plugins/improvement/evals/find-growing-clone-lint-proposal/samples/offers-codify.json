@@ -1,9 +1,0 @@
-{
-  "pass": [
-    { "answer": "When you want the check itself, run `/corrections:codify findings .work/improvement/feature-payments-cleanup/20261106T100000Z-clone-growth.md`.", "why": "offers the command" }
-  ],
-  "fail": [
-    { "answer": "Next step: add a lint rule for the retry helper.", "why": "no codify offer" },
-    { "answer": "" }
-  ]
-}

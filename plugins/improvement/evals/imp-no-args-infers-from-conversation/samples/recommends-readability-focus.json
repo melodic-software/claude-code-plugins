@@ -1,10 +1,30 @@
 {
   "pass": [
-    { "answer": "2. **Focus** (recommended): readability. Other lenses: performance, naming, standards, currency.", "why": "focus then readability" },
-    { "answer": "Readability as the focus, since the loop is hard to follow.", "why": "readability before focus" }
+    {
+      "answer": "2. **Focus** (recommended): readability. Other lenses: performance, naming, standards, currency.",
+      "why": "focus then readability"
+    },
+    {
+      "answer": "Readability as the focus, since the loop is hard to follow.",
+      "why": "readability before focus"
+    },
+    {
+      "answer": "**Focus**\n- **Recommended:** `readability`. The method uses index loops and one-letter names.\n- Other lenses: `standards` (the default), `naming`.",
+      "why": "smoke4: Focus heading, recommendation on the next bullet"
+    }
   ],
   "fail": [
-    { "answer": "Focus (recommended): performance.", "why": "wrong lens" },
-    { "answer": "Readability matters here.", "why": "no focus question" }
+    {
+      "answer": "Focus (recommended): performance.",
+      "why": "wrong lens"
+    },
+    {
+      "answer": "Readability matters here.",
+      "why": "no focus question"
+    },
+    {
+      "answer": "**Focus**\n- **Recommended:** `standards`.\n- Other lenses: `readability`, `naming`.",
+      "why": "near miss: readability offered only as another lens"
+    }
   ]
 }

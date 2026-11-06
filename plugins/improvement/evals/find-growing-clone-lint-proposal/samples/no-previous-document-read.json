@@ -1,9 +1,0 @@
-{
-  "pass": [
-    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/.work/improvement/feature-payments-cleanup/20261106T100000Z-clone-growth.md", "content": "x" } }], "why": "no read of the earlier document" },
-    { "answer": [], "why": "no tool calls" }
-  ],
-  "fail": [
-    { "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/cm/audit-duplication-20260927T091000Z.json" } }], "why": "opens previous_document" }
-  ]
-}
