@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [8.58.1] - 2026-11-06
+
+### Fixed
+
+- The concurrency table's `pr-feedback-dispatch` row now matches the workflow. Its group is per
+  pr-verify run (`verify-<run id>`), shared by all sweeps (`sweep`), or per reviewed head
+  otherwise, and `queue: max` queues waiting runs instead of replacing them.
+
 ## [8.58.0] - 2026-11-06
 
 ### Added
