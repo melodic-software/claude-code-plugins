@@ -121,6 +121,7 @@ async function gate({
   ownRun,
   sleep = fakeSleep(),
   attemptTimeoutMs,
+  faultReason,
 }) {
   const outputPath = writeJson("output", "");
   // This run's own record, unless the test routes it: the re-runner is read
@@ -168,6 +169,7 @@ async function gate({
       ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
       ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
+      ...(faultReason === undefined ? {} : { FAULT_REASON: faultReason }),
     },
     github: withOwnRun,
     sleep,
@@ -3572,4 +3574,96 @@ test("reconciler-record.mjs: exit 0 when the record vouches, 3 when it does not,
     assert.equal(await recordMain({ env: recordEnv(bad), github, sleep: quiet }), 2, JSON.stringify(bad));
     assert.deepEqual(github.calls, [], JSON.stringify(bad));
   }
+});
+
+// fault-reason (pr-verify's gate): a stop a read GitHub failed to answer
+// caused writes read-fault, so pr-verify can mark the run held for the
+// reconciler. proceed stays false, and every refusal on an answer GitHub
+// gave keeps its own reason, whatever the input says.
+
+const FAULTS = [
+  ["a 502", () => new GitHubError(502, "read")],
+  ["a 503", () => new GitHubError(503, "read")],
+  ["a 429", () => new GitHubError(429, "read")],
+];
+
+for (const [label, fault] of FAULTS) {
+  test(`fault-reason: ${label} on the PR read stops with read-fault, and with the input off with no-pr`, async () => {
+    const routes = () => fakeGitHub({ [pullRoute]: fault() });
+    const run = (faultReason) => gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", github: routes(), faultReason });
+    assert.deepEqual(await run("true"), STOPPED("read-fault"));
+    assert.deepEqual(await run(undefined), STOPPED("no-pr"));
+    assert.deepEqual(await run(""), STOPPED("no-pr"));
+  });
+
+  test(`fault-reason: ${label} on both reads of the run's pull requests stops with read-fault`, async () => {
+    const github = fakeGitHub({ [commitPulls]: fault(), "POST /graphql": fault() });
+    assert.deepEqual(await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github, faultReason: "true" }), STOPPED("read-fault"));
+  });
+
+  test(`fault-reason: ${label} on this run's own record stops with read-fault, and with the input off with untrusted-rerunner`, async () => {
+    const run = (faultReason) => gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun: fault(), faultReason });
+    assert.deepEqual(await run("true"), STOPPED("read-fault"));
+    assert.deepEqual(await run(undefined), STOPPED("untrusted-rerunner"));
+  });
+
+  test(`fault-reason: ${label} on the dispatcher's tag lookup stops with read-fault`, async () => {
+    const github = fakeGitHub({ ...dispatcherRoutes(), [tagRoute]: fault() });
+    assert.deepEqual(await dispatched({ github, faultReason: "true" }), STOPPED("read-fault"));
+  });
+}
+
+test("fault-reason: a read that got no answer stops with read-fault", async () => {
+  const github = fakeGitHub({});
+  const offline = async (method, apiPath) => {
+    if (`${method} ${apiPath}` === pullRoute) {
+      github.calls.push(`${method} ${apiPath}`);
+      throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+    }
+    return github(method, apiPath);
+  };
+  offline.calls = github.calls;
+  offline.routes = github.routes;
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", github: offline, faultReason: "true" }), STOPPED("read-fault"));
+});
+
+// Guards: the input changes no refusal. Each case is refused today with the
+// reason named, and stays refused with that reason with the input on.
+test("fault-reason: every refusal on an answer GitHub gave keeps its reason", async () => {
+  const on = { faultReason: "true" };
+  // A 404 PR is a refusal, not a fault.
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", ...on }), STOPPED("no-pr"));
+  // A 403 on this run's record is a token that cannot read it.
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun: new GitHubError(403, "own run"), ...on }), STOPPED("untrusted-rerunner"));
+  const fork = fixture("event-pull-request.json");
+  fork.pull_request.head.repo.full_name = "stranger/claude-code-plugins";
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fork, ...on }), STOPPED("fork"));
+  const actor = fixture("event-pull-request.json");
+  actor.sender = STRANGER;
+  assert.deepEqual(await gate({ eventName: "pull_request", event: actor, ...on }), STOPPED("untrusted-actor"));
+  const author = fixture("event-pull-request.json");
+  author.pull_request.user = STRANGER;
+  assert.deepEqual(await gate({ eventName: "pull_request", event: author, ...on }), STOPPED("untrusted-author"));
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), triggeringActor: "stranger", ...on }), STOPPED("untrusted-rerunner"));
+  const run = fixture("event-workflow-run.json");
+  run.workflow_run.triggering_actor = STRANGER;
+  assert.deepEqual(await gate({ eventName: "workflow_run", event: run, github: fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] }), ...on }), STOPPED("untrusted-actor"));
+  assert.deepEqual(await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github: fakeGitHub({ [commitPulls]: [] }), ...on }), STOPPED("no-pr"));
+  // A tag that shares the default branch's name, and a tip that 404s.
+  assert.deepEqual(
+    await dispatched({ github: fakeGitHub({ ...dispatcherRoutes(), [tagRoute]: { ref: "refs/tags/main", object: { sha: DISPATCHER_HEAD, type: "commit" } } }), ...on }),
+    STOPPED("untrusted-actor"),
+  );
+  const noTip = dispatcherRoutes();
+  delete noTip[tipRoute];
+  assert.deepEqual(await dispatched({ github: fakeGitHub(noTip), ...on }), STOPPED("untrusted-actor"));
+  // A trusted trigger still proceeds with the input on.
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ...on }), PROCEED);
+  assert.deepEqual(await dispatched({ github: fakeGitHub(dispatcherRoutes()), ...on }), PROCEED);
+});
+
+test("fault-reason: action.yml passes the input as FAULT_REASON, empty by default", () => {
+  const action = readFileSync(path.join(HERE, "action.yml"), "utf8");
+  assert.match(action, /\n  fault-reason:\n(?: {4}.*\n)+? {4}default: ""\n/);
+  assert.match(action, /\n {8}FAULT_REASON: \$\{\{ inputs\.fault-reason \}\}\n/);
 });

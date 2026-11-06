@@ -3245,9 +3245,12 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-rate-merge-risk.yml rate-merge-risk-fallback: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk-subscription: Resolve the pull request",
     "pr-rate-merge-risk.yml rate-merge-risk: Resolve the pull request",
+    "pr-refine.yml fix-docs-head: Check the human-gated hold",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-refine.yml plan: List the PR's changed files",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
+    "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
     "pr-verify-capture.yml capture: Resolve the pull request",
     "pr-verify.yml check-intent-fallback: Resolve the pull request",
@@ -3314,7 +3317,10 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   // files it also marks, and fix-docs-head), holds no grant, and logs signal
   // 13's notice.
   const { jobs } = workflow("pr-refine.yml");
-  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread }}");
+  // lane-hold.mjs's fault hold sets unread too, and hold-unread names it.
+  assert.equal(jobs["fix-docs-head"].outputs.unread, "${{ steps.head.outputs.unread || steps.hold.outputs.unread }}");
+  assert.equal(jobs["fix-docs-head"].outputs["hold-unread"], "${{ steps.hold.outputs.unread }}");
+  assert.equal(jobs["fix-docs-head"].steps.find((s) => s.id === "hold").env.API_BUDGET_HOLD, "1");
   for (const id of ["setup-node", "hold"]) {
     const later = jobs["fix-docs-head"].steps.find((s) => s.id === id || (id === "setup-node" && s.name === "Set up Node"));
     assert.equal(later.if, "steps.head.outputs.sha != ''", id);
@@ -3327,8 +3333,11 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   assert.equal(holds("", "true"), true);
   assert.equal(holds("", "false"), false);
   assert.equal(holds("", ""), false);
-  assert.match(held.steps[0].run, /echo "::notice title=PR head hold::the head of #\$PR_NUMBER could not be read/);
+  assert.match(held.steps[0].run, /^what="head"\n\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"\nif \[\[ \$PLAN_HELD != true \]\]; then\n  echo "::notice title=PR head hold::the \$what of #\$PR_NUMBER could not be read/);
+  assert.match(held.steps[0].run, /\nelse\n  echo "::notice title=PR head hold::the changed files of #\$PR_NUMBER could not be read/);
   assert.equal(held.steps[0].env.PR_NUMBER, "${{ inputs.pr-number }}");
+  assert.equal(held.steps[0].env.HOLD_UNREAD, "${{ needs.fix-docs-head.outputs.hold-unread }}");
+  assert.equal(held.steps[0].env.PLAN_HELD, "${{ needs.plan.outputs.held }}");
   // fix-docs-dispatch.mjs heldHead reads this job's name.
   assert.match(readFileSync(new URL("../../scripts/pr-unblock/fix-docs-dispatch.mjs", import.meta.url), "utf8"), /`\$\{activity\}-head-held`/);
   // fix-docs-head ends green on an unread head, so its dependents are not
@@ -3339,7 +3348,12 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
   const needsOf = (job) => [job.needs ?? []].flat();
   const downstream = new Set(["fix-docs-head"]);
   const results = { "fix-docs-head": "success", "fix-docs-head-held": "success" };
-  const heads = { unread: { unread: "true" }, read: { "head-sha": "a".repeat(40), unread: "", held: "false" } };
+  const heads = {
+    unread: { unread: "true" },
+    // A head that was read, and a hold read that met a fault: no held output.
+    holdUnread: { "head-sha": "a".repeat(40), unread: "true", "hold-unread": "true" },
+    read: { "head-sha": "a".repeat(40), unread: "", held: "false" },
+  };
   const ifContext = (expression, head) => {
     // A real fix-docs dispatch from a person: a PR number and this activity.
     const context = { "inputs.pr-number": "7", "inputs.activity": "fix-docs" };
@@ -3356,6 +3370,7 @@ test("pr-refine.yml: fix-docs-head's head-SHA read retries a transient fault onc
     // The sender check passes, so only the head's outputs can stop the job.
     const expression = String(job.if ?? "true").replace(/format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/g, "true");
     assert.equal(evaluate(expression, ifContext(expression, heads.unread)), false, `${id} runs on an unread head: ${expression}`);
+    assert.equal(evaluate(expression, ifContext(expression, heads.holdUnread)), false, `${id} runs on an unread hold: ${expression}`);
     if (id === "fix-docs") assert.equal(evaluate(expression, ifContext(expression, heads.read)), true, `fix-docs does not run on a read head: ${expression}`);
     results[id] = "skipped";
   }
@@ -6863,9 +6878,14 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.equal(proceed("", ""), "");
   assert.equal(proceed("true", ""), "", "a merge step that failed");
   // The human-gated hold (lane-hold.mjs) runs after the slot and before any
-  // merge: held skips awaiting-human; a failed read stops it.
+  // merge: held skips awaiting-human; a read that failed, or one that held
+  // on a GitHub fault (no held output), decides nothing, so no check posts
+  // and the next dispatcher tick sends the head again.
   assert.equal(proceed("true", "", "true"), "false");
-  assert.equal(proceed("true", "", ""), "", "a hold read that failed");
+  assert.equal(proceed("true", "", ""), "", "a hold read that failed or held on a fault");
+  const faultSkip = evaluate(select.outputs["skip-reason"], { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "" });
+  assert.equal(faultSkip, "", "a fault hold names no skip");
+  assert.equal(step("hold").env.API_BUDGET_HOLD, "1");
   const skip = evaluate(select.outputs["skip-reason"], { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true", "steps.behind.outputs.behind": "" });
   assert.equal(skip, "awaiting-human");
   assert.equal(step("hold").if, "steps.slot.outputs.applies == 'true'");
@@ -8767,6 +8787,9 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.deepEqual(decide({ ...gated, "steps.slot.outputs.applies": "false", "steps.slot.outputs.skip-reason": "not-applicable" }), ["false", "not-applicable"]);
   assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
   assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
+  // lane-hold.mjs held on a GitHub fault: no held or lane-escalated output.
+  assert.deepEqual(decide({ ...gated, "steps.hold.outputs.held": "", "steps.hold.outputs.lane-escalated": "" }), ["", ""], "a fault hold decides nothing");
+  assert.equal(jobs["sync-shared-copies-select"].steps.find((step) => step.id === "hold").env.API_BUDGET_HOLD, "1");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
 });
 
@@ -8824,7 +8847,7 @@ test("pr-unblock.yml: sync-shared-copies-not-run posts every decided outcome neu
   assert.deepEqual(posted({ reason: "shared-copy-merge-conflicted" }), ["skipped", "lane-stopped"]);
   assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "" })), true, "a failed select posts");
   assert.deepEqual(posted({ result: "failure", proceed: "" }), ["failure", ""]);
-  assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop posts nothing");
+  assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop or a fault hold posts nothing");
   assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "", sha: "" })), false, "no head read, nothing to post on");
 });
 

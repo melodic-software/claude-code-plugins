@@ -629,7 +629,8 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head. A
+`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI

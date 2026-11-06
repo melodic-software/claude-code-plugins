@@ -603,12 +603,22 @@ export function parseDeniedIds(value = "") {
 
 export const isListed = (ids, user) => Number.isInteger(user?.id) && ids.has(user.id);
 
+// `fault` marks a stop a read GitHub failed to answer caused (isFault): the
+// reason is the one a refusal at that read gives, and with fault-reason on
+// (FAULT_REASON) main writes FAULT_REASON in its place.
 class Stop extends Error {
-  constructor(reason) {
+  constructor(reason, fault = false) {
     super(reason);
     this.reason = reason;
+    this.fault = fault;
   }
 }
+
+// The reason a stop that a read fault caused writes when the caller sets
+// fault-reason (FAULT_REASON=true): proceed stays false, so it accepts nothing
+// a refusal stops, and the caller can mark the run held (pr-verify.yml's
+// `Note the hold`). A refusal on an answer GitHub gave keeps its own reason.
+export const FAULT_REASON = "read-fault";
 
 export const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 // GET /pulls can lag a push by minutes, so the PR is re-read until its head
@@ -660,8 +670,8 @@ async function fetchPull(github, repository, number, sleep) {
   let read;
   try {
     read = await readPull(github, `/repos/${repository}`, number, sleep, sameRepo);
-  } catch {
-    throw new Stop("no-pr");
+  } catch (error) {
+    throw new Stop("no-pr", isFault(error));
   }
   if (!read.headConfirmed && sameRepo(read.pull)) {
     throw new Stop("head-lag");
@@ -684,8 +694,8 @@ async function resolveRunPull(github, repository, run, attemptTimeoutMs) {
       readGraphQL: graphQLReader(github),
       timeoutMs: attemptTimeoutMs,
     });
-  } catch {
-    throw new Stop("no-pr");
+  } catch (error) {
+    throw new Stop("no-pr", isFault(error));
   }
   const matches = pulls.filter(
     (pull) =>
@@ -705,8 +715,8 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
   let body;
   try {
     body = await github("GET", apiPath);
-  } catch {
-    throw new Stop(reason);
+  } catch (error) {
+    throw new Stop(reason, isFault(error));
   }
   if (!isPlainObject(body)) {
     throw new Stop(reason);
@@ -744,13 +754,15 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
 // absent).
 export async function readDefaultBranchTip(github, repository, defaultBranch, reason) {
   let tagAbsent = false;
+  let fault = false;
   try {
     await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
   } catch (error) {
     tagAbsent = error instanceof GitHubError && error.status === 404;
+    fault = isFault(error);
   }
   if (!tagAbsent) {
-    throw new Stop(reason);
+    throw new Stop(reason, fault);
   }
   const tip = await readOrRefuse(github, `/repos/${repository}/git/ref/heads/${defaultBranch}`, reason);
   if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
@@ -1055,7 +1067,7 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
       if (cached && error instanceof GitHubError && error.status === 304) {
         return cached.body;
       }
-      throw new Stop(refuse);
+      throw new Stop(refuse, isFault(error));
     }
     if (!isPlainObject(body)) {
       throw new Stop(refuse);
@@ -1448,7 +1460,8 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
     if (!(error instanceof Stop)) {
       console.log(`check-trusted-trigger: unexpected ${error?.name ?? "error"}; stopping`);
     }
-    result = stopped(error instanceof Stop ? error.reason : "no-pr");
+    const fault = error instanceof Stop ? error.fault : isFault(error);
+    result = stopped(env.FAULT_REASON === "true" && fault ? FAULT_REASON : error instanceof Stop ? error.reason : "no-pr");
   }
   try {
     writeOutputs(result, env.GITHUB_OUTPUT);

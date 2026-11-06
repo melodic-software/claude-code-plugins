@@ -12,9 +12,17 @@ const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot"
 const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
 const HEAD = "a".repeat(40);
 
-function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed", reviewComments = [], reviews = [] } = {}) {
+// createGitHubApi's error for a refused answer: a plain Error with the status.
+const refused = (status) => Object.assign(new Error(`GET returned ${status}`), { status });
+
+function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed", reviewComments = [], reviews = [], pullError = null, timelineError = null } = {}) {
   return {
-    getPull: async () => ({ head: { sha: HEAD }, labels: labels.map((name) => ({ name })) }),
+    getPull: async () => {
+      if (pullError) {
+        throw pullError;
+      }
+      return { head: { sha: HEAD }, labels: labels.map((name) => ({ name })) };
+    },
     listReviewComments: async () => {
       if (reviewComments instanceof Error) {
         throw reviewComments;
@@ -22,16 +30,25 @@ function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-dis
       return reviewComments;
     },
     listReviews: async () => reviews,
-    listTimeline: async () => [
-      {
-        event: "commented",
-        user: APP,
-        created_at: "2026-10-22T10:00:05Z",
-        body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
-      },
-      { event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" },
-    ],
+    listTimeline: async () => {
+      if (timelineError) {
+        throw timelineError;
+      }
+      return timeline(actor, reason);
+    },
   };
+}
+
+function timeline(actor, reason) {
+  return [
+    {
+      event: "commented",
+      user: APP,
+      created_at: "2026-10-22T10:00:05Z",
+      body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
+    },
+    { event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" },
+  ];
 }
 
 async function outputs(activity, options) {
@@ -68,7 +85,31 @@ test("a person's inline review-thread reply since the label, or an unread review
   const reply = (user) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" });
   assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(PERSON)] }), "held=true\nlane-escalated=false\n");
   assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(APP)] }), "held=false\nlane-escalated=true\n");
-  assert.equal(await outputs("resolve-conflicts", { reviewComments: new Error("GET pulls/7/comments returned 502") }), "held=true\nlane-escalated=false\n");
+  assert.equal(await outputs("resolve-conflicts", { reviewComments: new Error("GET pulls/7/comments returned 404") }), "held=true\nlane-escalated=false\n");
+});
+
+// Outage posture element 2: a fault leaves the hold unknown, so the step holds
+// green with unread=true and neither held nor lane-escalated, which every
+// caller reads as "run nothing, post nothing".
+test("a GitHub fault on the pull, timeline or review read holds the step unread", async () => {
+  const unread = "unread=true\n";
+  for (const status of [502, 503, 429]) {
+    assert.equal(await outputs("fix-docs", { pullError: refused(status) }), unread, `pull ${status}`);
+    assert.equal(await outputs("resolve-conflicts", { timelineError: refused(status) }), unread, `timeline ${status}`);
+    assert.equal(await outputs("resolve-conflicts", { reviewComments: refused(status) }), unread, `review comments ${status}`);
+  }
+  const network = Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  assert.equal(await outputs("fix-docs", { pullError: network }), unread, "no answer");
+  const stop = Object.assign(new Error("GET pulls/7 stopped"), { name: "RateLimitStop" });
+  assert.equal(await outputs("fix-docs", { timelineError: stop }), unread, "a rate-guard stop");
+});
+
+test("a refused read that is no fault still fails the step, and a non-fault review read still holds for a person", async () => {
+  for (const status of [401, 403, 404, 422]) {
+    await assert.rejects(outputs("fix-docs", { pullError: refused(status) }), /returned/, `pull ${status}`);
+    await assert.rejects(outputs("resolve-conflicts", { timelineError: refused(status) }), /returned/, `timeline ${status}`);
+    assert.equal(await outputs("resolve-conflicts", { reviewComments: refused(status) }), "held=true\nlane-escalated=false\n", `review comments ${status}`);
+  }
 });
 
 test("no human-gated label is no hold; do-not-merge is left to the activity's applies-when", async () => {
