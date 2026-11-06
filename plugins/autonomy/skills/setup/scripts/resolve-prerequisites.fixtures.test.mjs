@@ -175,6 +175,16 @@ function assertPositiveVerdict(output) {
   }
 }
 
+// The same repository bound by docs/conventions/work-items.yaml, with no
+// legacy JSON file: the probe reads the YAML binding.
+function assertPositiveVerdictYamlBinding(output) {
+  assertPositiveVerdict(output);
+  const tracker = requireRow(output, "issue-triage-sweep").signals.find((s) => s.need === "tracker");
+  if (!JSON.stringify(tracker.provenance).includes("docs/conventions/work-items.yaml")) {
+    throw new Error(`expected the YAML binding in provenance; got ${JSON.stringify(tracker.provenance)}`);
+  }
+}
+
 const ASSERTIONS = {
   "bare-repo": assertBareRepo,
   "fail-closed": assertFailClosed,
@@ -183,6 +193,7 @@ const ASSERTIONS = {
   "probe-could-not-run": assertProbeCouldNotRun,
   "posture-divergence": assertPostureDivergence,
   "positive-verdict": assertPositiveVerdict,
+  "positive-verdict-yaml-binding": assertPositiveVerdictYamlBinding,
 };
 
 for (const [name, entry] of Object.entries(fixtures)) {

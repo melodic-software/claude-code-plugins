@@ -208,7 +208,7 @@ say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/
 
 // The report-escalation script reads the base's tracker config.
 const tracker = at((s) => s.id === "tracker-config");
-say(tracker >= 0 && tracker < checkout && /\.base\/\.work-item-tracker\.json/.test(byId("tracker-config").run ?? ""),
+say(tracker >= 0 && tracker < checkout && /\.base\/docs\/conventions\/work-items\.yaml/.test(byId("tracker-config").run ?? ""),
   "the base tracker config is copied before the head checkout");
 say(/sha256/.test(byId("tracker-config").run ?? ""), "the tracker config copy records its SHA-256");
 const scriptEnv = byId("act-script").env ?? {};
@@ -247,7 +247,7 @@ say(applyPatch.indexOf("await target.held(api, number,", applyPatch.indexOf("asy
   "apply-patch.mjs re-reads the PR's holds before creating a merge commit");
 const holdLabel = byId("hold-label").run ?? "";
 const promoteEnv = byId("promote").env ?? {};
-say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
+say(/\.base\/docs\/conventions\/work-items\.yaml/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
   && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(promoteEnv.HOLD_LABELS))
   && String(promoteEnv.READ_TOKEN) === "${{ github.token }}"
   && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(byId("act-script").env?.HOLD_LABELS))

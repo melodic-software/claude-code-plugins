@@ -1185,7 +1185,6 @@ const liftWorld = ({
   fail = "",
 } = {}) => {
   const reads = [];
-  const tracker = { config: { role_labels: { "human-gated": "needs-human" } } };
   const github = async (method, path) => {
     reads.push(path);
     assert.equal(method, "GET");
@@ -1202,7 +1201,6 @@ const liftWorld = ({
     if (path.startsWith("/repos/owner/repo/issues/99/events?")) return path.endsWith("page=1") ? events : [];
     if (path.startsWith("/repos/owner/repo/issues/99/timeline?")) return path.endsWith("page=1") ? timeline : [];
     if (path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100") return activity;
-    if (path === `/repos/owner/repo/contents/.work-item-tracker.json?ref=${BASE}`) return { type: "file", encoding: "base64", content: Buffer.from(JSON.stringify(tracker)).toString("base64") };
     const parent = new RegExp(`^/repos/owner/repo/compare/([0-9a-f]{40})\\.\\.\\.${TIP}$`).exec(path);
     if (parent) return { status: bases[parent[1]] ?? "diverged" };
     const compare = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path);
@@ -1676,6 +1674,44 @@ test("queueHolds: the human-gated label is the tracker's, trimmed, else needs-hu
   for (const blank of [{ config: { role_labels: { "human-gated": " " } } }, { config: {} }, [], "x", null]) {
     assert.equal(holdsModule.humanGatedLabel(blank), "needs-human", JSON.stringify(blank));
   }
+});
+
+test("trackerBindingText: a .yaml file's tracker mapping as JSON, null when it binds none; any other file as is", () => {
+  const dir = tempDir("tracker-binding-");
+  const yaml = join(dir, "work-items.yaml");
+  writeFileSync(yaml, 'ai_disclaimer: false\ntracker:\n  schema_version: "1.0"\n  provider: "github"\n  config:\n    lease_ttl_hours: 24\n    role_labels:\n      human-gated: "hitl"\n');
+  const bound = JSON.parse(holdsModule.trackerBindingText(yaml));
+  assert.deepEqual(bound, { schema_version: "1.0", provider: "github", config: { lease_ttl_hours: 24, role_labels: { "human-gated": "hitl" } } });
+  assert.equal(holdsModule.humanGatedLabel(bound), "hitl");
+  writeFileSync(yaml, "ai_disclaimer: false\n");
+  assert.equal(JSON.parse(holdsModule.trackerBindingText(yaml)), null);
+  writeFileSync(yaml, "tracker: [unclosed\n");
+  assert.throws(() => holdsModule.trackerBindingText(yaml));
+  const json = join(dir, ".work-item-tracker.json");
+  writeFileSync(json, '{"provider":"github"}');
+  assert.equal(holdsModule.trackerBindingText(json), '{"provider":"github"}');
+  assert.throws(() => holdsModule.trackerBindingText(join(dir, "absent.yaml")), { code: "ENOENT" });
+  assert.equal(holdsModule.TRACKER_BINDING_PATH, "docs/conventions/work-items.yaml");
+  const path = process.env.PATH;
+  process.env.PATH = dir;
+  try {
+    const missing = (() => {
+      try {
+        holdsModule.trackerBindingText(yaml);
+      } catch (error) {
+        return error;
+      }
+      return null;
+    })();
+    assert.ok(missing instanceof Error && missing.code !== "ENOENT", "a missing yq must not read as an absent binding file");
+  } finally {
+    process.env.PATH = path;
+  }
+});
+
+test("trackerBindingText: address-feedback.mjs keeps an identical copy, since the write runner loads pr-unblock alone", async () => {
+  const feedback = await import("../pr-unblock/address-feedback.mjs");
+  assert.equal(String(feedback.trackerBindingText), String(holdsModule.trackerBindingText));
 });
 
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {

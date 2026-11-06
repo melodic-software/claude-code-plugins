@@ -512,6 +512,7 @@ lib/view-registry.mjs plugins/ai-briefing/lib/view-registry.mjs
 lib/config-cascade.mjs plugins/adhd/lib/config-cascade.mjs
 lib/config-cascade.mjs plugins/ai-briefing/lib/config-cascade.mjs
 lib/yaml-subset.mjs plugins/adhd/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/autonomy/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/ai-briefing/lib/yaml-subset.mjs
 lib/state-key.sh plugins/adhd/lib/state-key.sh
 lib/state-key.sh plugins/ai-briefing/lib/state-key.sh

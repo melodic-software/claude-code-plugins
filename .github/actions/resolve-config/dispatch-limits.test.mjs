@@ -106,7 +106,7 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
 async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   const base = baseWith(text);
   if (tracker !== null) {
-    writeFileSync(join(base, ".work-item-tracker.json"), tracker);
+    writeFileSync(join(base, "docs/conventions/work-items.yaml"), `tracker: ${tracker}\n`);
   }
   const output = join(base, "output");
   writeFileSync(output, "");

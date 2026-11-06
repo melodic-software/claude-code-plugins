@@ -28,6 +28,10 @@
     "positive-verdict": {
       "surface": "ci-cron",
       "assert": "positive-verdict"
+    },
+    "positive-verdict-yaml-binding": {
+      "surface": "ci-cron",
+      "assert": "positive-verdict-yaml-binding"
     }
   }
 }
