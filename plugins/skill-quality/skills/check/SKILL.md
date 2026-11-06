@@ -250,7 +250,8 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    `compare <baseline> <treatment>` prints per-skill train and validation deltas, each trigger-rate
    delta with a 95% interval and a "within noise" line when the interval contains 0.
    `emit-plugin-eval [--runs N] <probes-dir> <out-dir>` writes `claude plugin eval` cases into an
-   empty or new `<out-dir>`, 3 runs per case unless `--runs` says otherwise. Each emitted case
+   empty or new `<out-dir>`; runs per case come from `--runs`, else the `plugin_eval_runs` setting
+   (README, Settings), else 3, and its INFO line names the value and layer to report. Each case
    checks that the target skill fired through a `tool_used` grader on the `Skill` tool.
    - **Pointer**: when an emitted case fails to load or its grader shape is in doubt, fetch
      <https://code.claude.com/docs/en/plugin-evals#write-a-case-manually> and

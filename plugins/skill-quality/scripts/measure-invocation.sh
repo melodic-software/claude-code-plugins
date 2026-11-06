@@ -23,7 +23,9 @@
 # every competitor whose id does not start with the file's plugin and a colon
 # (--verbose: one WARN per competitor, plus each skill's listing and query
 # split; the warning count is the same either way). emit-plugin-eval writes N runs
-# per case (default 3, the CLI's own default). compare adds a 95% paired
+# per case: --runs, else the plugin_eval_runs setting (skill-quality.yaml, then
+# skill-quality.local.yaml, in the convention home), else 3, the CLI's own
+# default. compare adds a 95% paired
 # normal-approximation interval on each trigger-rate delta, from per-probe
 # outcomes matched by id, and an INFO line that says "within noise" when the
 # interval contains 0.
@@ -577,12 +579,56 @@ rel_path() {
   printf '%s\n' "${rest:-.}"
 }
 
+# plugin_eval_runs_setting <root>: prints the plugin_eval_runs key from the
+# skill-quality settings layers check-skill.sh reads (<home>/skill-quality.yaml,
+# then .local.yaml; <home> per lib/resolve-convention-home.sh, docs/conventions
+# when no home is bound) into RUNS and its layer into RUNS_LAYER; 3 and
+# "default" when no layer sets it. A layer with a value that is not a positive
+# integer, or that does not parse, is named in a WARN and dropped.
+plugin_eval_runs_setting() {
+  local root="$1" home rel value status lib="$SCRIPT_DIR/../lib"
+  RUNS=3
+  RUNS_LAYER=default
+  local -a layers=()
+  home="$(bash "$lib/resolve-convention-home.sh" --root "$root" 2>/dev/null)"
+  case $? in
+  0) layers=("$home/skill-quality.yaml" "$home/skill-quality.local.yaml") ;;
+  1) layers=("docs/conventions/skill-quality.yaml" "docs/conventions/skill-quality.local.yaml") ;;
+  3) warn "the convention-home pointer region does not resolve (see lib/resolve-convention-home.sh --explain): plugin_eval_runs uses its default" ;;
+  *) ;;
+  esac
+  for rel in ${layers[@]+"${layers[@]}"}; do
+    [[ -f "$root/$rel" ]] || continue
+    value="$(bash "$lib/parse-concern-value.sh" --strict "$root/$rel" plugin_eval_runs 2>/dev/null)"
+    status=$?
+    value="${value//$'\r'/}"
+    ((status == 0)) && [[ -z "$value" ]] && continue
+    if ((status == 0)) && [[ "$value" =~ ^[1-9][0-9]{0,5}$ ]]; then
+      RUNS="$value"
+      RUNS_LAYER="$rel"
+      continue
+    fi
+    if ((status == 0)); then
+      warn "$rel: plugin_eval_runs is '$value', not a positive integer; that layer is dropped"
+    else
+      warn "$rel does not parse; that layer is dropped for plugin_eval_runs"
+    fi
+    RUNS=3
+    RUNS_LAYER=default
+  done
+}
+
 cmd_emit() {
-  local runs=3
+  local runs layer
   if [[ "${1:-}" == "--runs" ]]; then
     positive_int --runs "${2:-}"
     runs="$2"
+    layer=--runs
     shift 2
+  else
+    plugin_eval_runs_setting "$(repo_root)"
+    runs="$RUNS"
+    layer="$RUNS_LAYER"
   fi
   local dir="${1:-}" out="${2:-}"
   if [[ -z "$dir" || ! -d "$dir" || -z "$out" ]]; then
@@ -593,6 +639,7 @@ cmd_emit() {
     printf 'Error: emit-plugin-eval needs an empty or new <out-dir>; stale cases would still run\n' >&2
     exit 2
   fi
+  note "runs per case: $runs ($layer)"
   local f root missing=0
   local -a files
   mapfile -t files < <(probe_files "$dir")

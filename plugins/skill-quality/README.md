@@ -262,7 +262,7 @@ stands alone.
 `measure-invocation` scores whether a skill's listing text would win the requests it should
 (and stay quiet on the ones it should not). Default method is a deterministic lexical
 listing-overlap floor; `emit-plugin-eval` writes `claude plugin eval` cases for a live run, 3 runs
-per case by default. `validate` warns on a should-trigger probe that copies 4 or more consecutive
+per case by default (`--runs N`, or the `plugin_eval_runs` [setting](#settings)). `validate` warns on a should-trigger probe that copies 4 or more consecutive
 listing words, and `compare` reports each trigger-rate delta with a 95% interval and says when it is
 within noise.
 Contract: [`reference/invocation-probes.md`](reference/invocation-probes.md).
@@ -276,23 +276,24 @@ bash plugins/skill-quality/scripts/measure-invocation.sh compare \
 
 ## Settings
 
-`check-skill.sh` reads two repository settings for check 30 from the convention home your
-`AGENTS.md` or `CLAUDE.md` pointer region binds (`docs/conventions` when the repository binds
-none): the team file `<home>/skill-quality.yaml`, then the personal, gitignored
-`<home>/skill-quality.local.yaml`. A later file wins key by key; with neither, the defaults apply.
+`check-skill.sh` reads two repository settings for check 30, and `measure-invocation.sh
+emit-plugin-eval` reads one, from the convention home your `AGENTS.md` or `CLAUDE.md` pointer
+region binds (`docs/conventions` when the repository binds none): the team file
+`<home>/skill-quality.yaml`, then the personal, gitignored `<home>/skill-quality.local.yaml`. A later file wins key by key; with neither, the defaults apply.
 
 | Key | Default | What it does |
 | --- | --- | --- |
 | `description_target` | `250` | A description longer than this prints an INFO line. |
 | `description_warn` | `419` | A description longer than this warns. |
+| `plugin_eval_runs` | `3` | Runs per case `emit-plugin-eval` writes; `--runs N` beats it. |
 
 ```yaml
 description_target: 200
 description_warn: 350
 ```
 
-Each value is a whole number from 1 to 1,024. A file that holds any other value, or does not
-parse, is named in a WARN and ignored for that key, so the default applies unless a later file
+The description values are whole numbers from 1 to 1,024; `plugin_eval_runs` is from 1 to
+999,999. A file that holds any other value, or does not parse, is named in a WARN and ignored for that key, so the default applies unless a later file
 sets a valid value. The 1,024-character field maximum (check 2b) is fixed. A repository whose
 pointer region records `declined` uses the defaults. The schema is
 `schemas/skill-quality.schema.json`.
