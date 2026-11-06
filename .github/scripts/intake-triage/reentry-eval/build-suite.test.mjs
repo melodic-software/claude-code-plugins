@@ -13,6 +13,8 @@ const SCRIPT = [
   'const fs = require("node:fs");',
   'const path = require("node:path");',
   "const env = process.env;",
+  'github.hook.after("request", () => {});',
+  'github.hook.error("request", (error) => { throw error; });',
   "const labels = await github.paginate(github.rest.issues.listLabelsForRepo, {});",
   'const dir = fs.mkdtempSync(path.join(env.RUNNER_TEMP, "t-"));',
   // biome-ignore lint/suspicious/noTemplateCurlyInString: the stub script's own template literal

@@ -131,6 +131,8 @@ export async function compose(script, env) {
     ]),
   ];
   const github = {
+    // The script meters API budget through request hooks; the stub makes no requests.
+    hook: { after: () => {}, error: () => {} },
     rest: { issues: { listLabelsForRepo: "listLabelsForRepo" } },
     paginate: async () => labels.map((name) => ({ name })),
     graphql: async () => ({
