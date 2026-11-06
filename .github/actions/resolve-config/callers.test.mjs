@@ -9123,6 +9123,16 @@ for (const [file, gateId, [keyId, subId, fbId], marker] of [
         assert.match(step.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, /^(?:"?1"?|\$\{\{ .+ \}\})$/, `${id} ${step.name} scrubs Bash subprocesses`);
       }
       assert.equal(steps.find((s) => s.id === "judge").env.LEG, leg, id);
+      // A leg whose credential is empty, or whose key the gate skipped, runs
+      // nothing past its credential check: every later step but the budget
+      // log has a condition, and the first ones read `run`.
+      const after = steps.slice(steps.findIndex((s) => s.id === "credential") + 1);
+      assert.deepEqual(after.filter((s) => s.if === undefined || s.if === "always()").map((s) => s.name).filter((n) => n !== "Log the API budget at the end"), [], id);
+      assert.match(after[0].if, /^steps\.credential\.outputs\.run == 'true'/, id);
+      // A classifier that cannot run stops the leg red, never as a handoff.
+      for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {
+        assert.match(step.run, /eval-handoff\.mjs\) \|\|\n\s+\{ echo "::error::the handoff classifier failed[^"]*"; exit 1; \}/, `${id} ${step.name}`);
+      }
       const checkout = steps.find((s) => s.with?.repository === "melodic-software/ci-workflows");
       assert.equal(checkout.with.ref, CLASSIFIER_PIN, `${id} reads the classifier at the run-claude-cli pin`);
       assert.equal(checkout.with["persist-credentials"], false);

@@ -25,7 +25,7 @@
 // one result message carrying the suites' summed durationSeconds and costUsd,
 // nothing a run wrote).
 // Prints handoff, handoff-reason, lane-class and outcome as key=value lines.
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
@@ -103,13 +103,36 @@ function readJson(path) {
   }
 }
 
+// The classifier's three files, copied under a folder of their own whose
+// package.json ends Node's package-scope lookup there. Required in place, the
+// lookup climbs past the sparse checkout to the workspace root, and a
+// package.json there that does not parse stops the require (run 42138674762).
+export const CLASSIFIER_FILES = [
+  ".github/actions/run-claude-cli/lane.cjs",
+  ".github/actions/report-lane-outcome/classify.cjs",
+  ".github/scripts/resolve-npm-tool-version.cjs",
+];
+export function loadLauncher(root) {
+  const dir = mkdtempSync(join(tmpdir(), "eval-handoff-classifier-"));
+  try {
+    writeFileSync(join(dir, "package.json"), '{"type":"commonjs"}\n');
+    for (const path of CLASSIFIER_FILES) {
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      copyFileSync(join(root, path), join(dir, path));
+    }
+    const require = createRequire(join(dir, CLASSIFIER_FILES[0]));
+    const { judgeLeg, linesToMessages } = require("./lane.cjs");
+    const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
+    return { judgeLeg, linesToMessages, isCreditStop };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function main(env) {
   const leg = LEGS[env.LEG];
   if (!leg) throw new Error(`LEG must be key, subscription or fallback, not ${JSON.stringify(env.LEG)}`);
-  const root = env.CI_WORKFLOWS ?? "";
-  const require = createRequire(join(root, ".github/actions/run-claude-cli/lane.cjs"));
-  const { judgeLeg, linesToMessages } = require("./lane.cjs");
-  const { isCreditStop } = require("../report-lane-outcome/classify.cjs");
+  const { judgeLeg, linesToMessages, isCreditStop } = loadLauncher(env.CI_WORKFLOWS ?? "");
   const streams = [];
   if (env.PROBE && existsSync(env.PROBE)) {
     const exitCode = Number.parseInt(env.PROBE_EXIT ?? "", 10);
