@@ -23,7 +23,12 @@
 //   betas                  anthropic-beta values a request may name
 //   bodyKeys               top-level request body keys a request may carry
 //   blockTypes             content block types allowed in messages and system
-//   upstreamTimeoutMs      idle time after which a stalled upstream request is aborted
+//   upstreamTimeoutMs      idle time after which a stalled upstream request is aborted;
+//                          set it longer than the longest non-streaming generation and
+//                          the longest gap between SSE pings. Claude Code's own
+//                          API_TIMEOUT_MS bounds only the time to response headers.
+//                          Pointer: https://code.claude.com/docs/en/errors#tune-retry-behavior
+//                          As of: 2026-11-06. Recheck trigger: the API_TIMEOUT_MS row changes.
 //   upstream               API base URL (default https://api.anthropic.com)
 //   socketMode             octal mode set on the socket after listen, e.g. "660"
 //
@@ -512,15 +517,24 @@ export function createProxy({ key, config, log = () => {} }) {
       });
     });
 
-    // No response byte relayed yet: a retryable answer, and the reservation
-    // is released. Bytes relayed: drop the client and commit as for a
-    // disconnect.
+    // No response byte relayed yet: a retryable answer either way. Once the
+    // body was fully written upstream, generation may have run (a
+    // non-streaming response sends nothing until it ends), and Claude Code
+    // resends a retryable failure, so the full reservation is committed;
+    // it is released only when the connection failed before the body was
+    // written (our decision). Bytes relayed: drop the client and commit as
+    // for a disconnect.
+    // Pointer: https://code.claude.com/docs/en/errors#automatic-retries
+    // As of: 2026-11-06. Recheck trigger: that section changes which
+    //   failures before any streamed response Claude Code retries.
+    let bodySent = false;
+    upReq.on("finish", () => { bodySent = true; });
     upReq.on("error", (err) => {
       if (finished) return;
       finished = true;
       if (!res.headersSent) {
         sendRefusal(res, upstreamFailure(err));
-        settle(0);
+        settle(bodySent ? reserved : 0);
       } else {
         meter?.end();
         res.destroy();

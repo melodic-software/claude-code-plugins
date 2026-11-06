@@ -61,7 +61,7 @@ async function stubUpstream(handler, { countTokens = 50 } = {}) {
   });
   servers.push(server);
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  return { url: `http://127.0.0.1:${server.address().port}`, seen, counts };
+  return { url: `http://127.0.0.1:${server.address().port}`, seen, counts, server };
 }
 
 const okJson = (usage = { input_tokens: 1, output_tokens: 1 }) => (_req, _body, res) => {
@@ -474,36 +474,57 @@ test("a preflight whose connection drops is answered 502 with x-should-retry tru
   assert.equal(budget.committed, 0);
 });
 
-test("a main request whose upstream connection drops before any response is a retryable 502 that releases its reservation and slot", async () => {
+test("a main request whose upstream drops after reading the body is a retryable 502 that commits its reservation and frees its slot", async () => {
   let n = 0;
   const up = await stubUpstream((req, body, res) => {
     if (n++ === 0) return res.socket.destroy();
-    okJson()(req, body, res);
+    okJson({ input_tokens: 1, output_tokens: 1 })(req, body, res);
   }, { countTokens: 50 });
   const { socket, budget } = await startProxy(up, { maxInFlight: 1 });
-  const res = await call(socket, { body: message() });
+  const res = await call(socket, { body: message({ max_tokens: 100 }) });
   assert.equal(res.status, 502);
   assert.equal(res.headers["x-should-retry"], "true");
   assert.equal(JSON.parse(res.body).error.type, "api_error");
   assert.equal(budget.reserved, 0);
-  assert.equal(budget.committed, 0);
-  assert.equal((await call(socket, { body: message() })).status, 200);
+  assert.equal(budget.committed, 150); // 50 counted + 100 max_tokens
+  assert.equal((await call(socket, { body: message({ max_tokens: 100 }) })).status, 200);
+  assert.equal(budget.committed, 152); // + 1 input + 1 output
 });
 
-test("an upstream that never answers the main request times out as a retryable 502 that releases its reservation and slot", { timeout: 10_000 }, async () => {
-  let n = 0;
-  const up = await stubUpstream((req, body, res) => {
-    if (n++ > 0) okJson()(req, body, res);
-  }, { countTokens: 50 });
-  const { socket, budget } = await startProxy(up, { maxInFlight: 1, upstreamTimeoutMs: 150 });
-  const res = await call(socket, { body: message() });
+test("a non-streaming request whose upstream takes the body and then stalls times out as a retryable 502 and commits its reservation", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream(() => {}, { countTokens: 50 });
+  const { socket, budget } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 600, maxInFlight: 1, upstreamTimeoutMs: 150 });
+  const body = message({ max_tokens: 600 });
+  const res = await call(socket, { body });
   assert.equal(res.status, 502);
   assert.equal(res.headers["x-should-retry"], "true");
   assert.equal(JSON.parse(res.body).error.type, "api_error");
   await up.seen[0].closed; // the proxy aborted the stalled upstream request
   assert.equal(budget.reserved, 0);
+  assert.equal(budget.committed, 650); // 50 counted + 600 max_tokens
+  // Another 650 fits under 1000 only if the first had been released; the
+  // 429 (not the in-flight 403) also shows the slot was freed.
+  assertRefused(await call(socket, { body }), 429, "rate_limit_error");
+  assert.equal(up.seen.length, 1);
+});
+
+test("a connect failure before the body is written is a retryable 502 that releases its reservation", { timeout: 10_000 }, async () => {
+  // The preflight answers and closes its connection, then the upstream stops
+  // listening, so the main request's connect is refused.
+  const up = await stubUpstream(okJson(), {
+    countTokens: (res) => {
+      res.writeHead(200, { "content-type": "application/json", connection: "close" }).end(JSON.stringify({ input_tokens: 50 }));
+      up.server.close();
+    },
+  });
+  const { socket, budget } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 600, maxInFlight: 1 });
+  const res = await call(socket, { body: message({ max_tokens: 600 }) });
+  assert.equal(res.status, 502);
+  assert.equal(res.headers["x-should-retry"], "true");
+  assert.equal(up.counts.length, 1);
+  assert.equal(up.seen.length, 0);
+  assert.equal(budget.reserved, 0);
   assert.equal(budget.committed, 0);
-  assert.equal((await call(socket, { body: message() })).status, 200);
 });
 
 test("a count_tokens preflight that never answers times out as a retryable 502 and frees its slot", { timeout: 10_000 }, async () => {
