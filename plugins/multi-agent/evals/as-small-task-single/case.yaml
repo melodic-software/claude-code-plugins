@@ -28,7 +28,7 @@ graders:
     target: 'last_message'
   - name: 'reason-names-size'
     type: 'regex'
-    pattern: '^reason:[^\n]*\b(?:small|tiny|short|trivial|minor|few|little|quick)\b'
+    pattern: '^reason:[^\n]*(?:\b(?:small|tiny|short|trivial|minor|few|little|quick)\b|(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!to )\bfit(?:s|ting)?[ \t]+(?:(?:in|into|within)[ \t]+)?(?:this|one|the|a[ \t]+single|a)[ \t]+(?:(?:single|main)[ \t]+)?context\b)'
     flags: 'im'
     target: 'last_message'
   - name: 'no-workflow-launch'

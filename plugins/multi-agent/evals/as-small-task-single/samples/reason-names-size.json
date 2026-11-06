@@ -7,13 +7,21 @@
     {
       "answer": "verdict: single\nreason: a tiny dependent edit that fits this context",
       "why": "tiny"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain that fits this context",
+      "why": "legacy expected_output verbatim: 'a reason saying the task is one dependent chain that fits this context'; SKILL.md step 2 sizes by the context the task needs"
+    },
+    {
+      "answer": "verdict: single\nreason: One local-variable rename in a single 30-line function is one dependent chain that fits this context. Workflows are not available here because the `Workflow` tool isn't callable, though no off switch is set, and the verdict wouldn't change either way.",
+      "why": "measured smoke-1 reply: fits this context"
+    },
+    {
+      "answer": "verdict: single\nreason: a dependent chain fitting this context",
+      "why": "fitting inflection"
     }
   ],
   "fail": [
-    {
-      "answer": "verdict: single\nreason: a dependent chain that fits this context",
-      "why": "no size"
-    },
     {
       "answer": "verdict: single\nreason: renames are a common single-context task",
       "why": "topic, not size"
@@ -23,12 +31,24 @@
       "why": "single names the chain, not the size"
     },
     {
-      "answer": "verdict: single\nreason: one dependent chain that fits this context",
-      "why": "one is SKILL.md's definition of single, not a size"
-    },
-    {
       "answer": "verdict: single\nreason: the one 30-line function sumScores",
       "why": "prompt words echoed"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain, though it does not fit this context",
+      "why": "negated fit"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain that doesn't fit this context",
+      "why": "contracted negation"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain not fitting this context",
+      "why": "negated fitting"
+    },
+    {
+      "answer": "verdict: single\nreason: one dependent chain in the one 30-line function\nThe edit fits this context.",
+      "why": "size statement off the reason line"
     }
   ]
 }

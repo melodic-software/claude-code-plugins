@@ -45,6 +45,8 @@ graders:
     match: 'not_contains'
     target: 'last_message'
   - name: 'override-file-kept'
-    type: 'file_exists'
-    path: '.claude/multi-agent.local.yaml'
-    exists: true
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?[^\s;|&"\\]*multi-agent\.local\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))(?:tee|sed[ \t]+-i|mv|rm|unlink|truncate|perl[ \t]+-\w*i|yq[ \t]+-i)\b(?:[^"\\]|\\.)*?multi-agent\.local\.yaml|multi-agent\.local\.yaml(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)|\btee\b(?:[ \t]+-a)?)[ \t]*(?:\\")?\$)'
+    min: 0
+    max: 0

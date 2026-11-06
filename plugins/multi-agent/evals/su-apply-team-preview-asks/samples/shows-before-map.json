@@ -3,6 +3,10 @@
     {
       "answer": "orchestrator: single inherit @ high; fanout inherit @ high\nworker: single inherit @ medium; fanout inherit @ medium\nverifier: single inherit @ high; fanout inherit @ high\nretrieval: single sonnet @ medium; fanout sonnet @ medium",
       "why": "four role lines"
+    },
+    {
+      "answer": "**Before** (session: sonnet, all values from the bundled defaults):\n\n| Role | Single | Fan-out |\n|---|---|---|\n| orchestrator | inherit: omit the model option @ high | inherit @ high |\n| worker | inherit @ medium | inherit @ medium |\n| verifier | inherit @ high | inherit @ high |\n| retrieval | sonnet @ medium | sonnet @ medium |\n\nAll three consumer layers are absent and there are no notes.\n\n**Proposed change.** I chose the `team` layer because you want this for everyone on the repo.\n\n```diff\n+schema: 1\n+roles:\n+  verifier:\n+    effort: xhigh\n```\n\nShould I write this file? Reply yes to confirm.",
+      "why": "measured smoke-1 reply: before map as a Single / Fan-out table"
     }
   ],
   "fail": [
@@ -13,6 +17,14 @@
     {
       "answer": "The map resolves from the bundled defaults.",
       "why": "no lines"
+    },
+    {
+      "answer": "| Role | Single | Fan-out |\n|---|---|---|\n| verifier | inherit @ high | inherit @ high |\n\nShould I write this file?",
+      "why": "table shows only the role being changed"
+    },
+    {
+      "answer": "| Role | Effort |\n|---|---|\n| orchestrator | inherit @ high |\n| worker | inherit @ medium |\n| verifier | inherit @ high |\n| retrieval | sonnet @ medium |",
+      "why": "table with one column: no single/fan-out split"
     }
   ]
 }

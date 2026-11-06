@@ -24,7 +24,7 @@ graders:
     arm: 'both'
   - name: 'role-lines'
     type: 'regex'
-    pattern: '^(?=[\s\S]*?\borchestrator\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bworker\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bverifier\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bretrieval\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)'
+    pattern: '^(?:(?=[\s\S]*?\borchestrator\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bworker\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bverifier\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)(?=[\s\S]*?\bretrieval\b[^\n]*?\bsingle\b[^\n]*?@[^\n]*?\bfan-?out\b[^\n]*?@)|(?=[\s\S]*?(?:^|\n)[ \t]*\|[^|\n]*\|[ \t]*[`*]*single[`*]*[ \t]*\|[ \t]*[`*]*fan-?out[`*]*[ \t]*\|)(?=[\s\S]*?(?:^|\n)[ \t]*\|[ \t]*[`*]*orchestrator[`*]*[ \t]*\|[^|\n]*@[^|\n]*\|[^|\n]*@[^|\n]*\|)(?=[\s\S]*?(?:^|\n)[ \t]*\|[ \t]*[`*]*worker[`*]*[ \t]*\|[^|\n]*@[^|\n]*\|[^|\n]*@[^|\n]*\|)(?=[\s\S]*?(?:^|\n)[ \t]*\|[ \t]*[`*]*verifier[`*]*[ \t]*\|[^|\n]*@[^|\n]*\|[^|\n]*@[^|\n]*\|)(?=[\s\S]*?(?:^|\n)[ \t]*\|[ \t]*[`*]*retrieval[`*]*[ \t]*\|[^|\n]*@[^|\n]*\|[^|\n]*@[^|\n]*\|))'
     flags: 'i'
     target: 'last_message'
   - name: 'recommends-local-ignore-line'
