@@ -407,7 +407,7 @@ jobs:
       # The artifact enable-auto-merge.mjs reads by exact name, counting it
       # only from a run of this file on main (merge-risk-line.mjs readRating).
       - name: Upload the rating
-        if: ${{ !cancelled() && steps.rating.outcome == 'success' && steps.scan-upload.outputs.clean == 'true' }}
+        if: (!cancelled() && steps.rating.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-risk-${{ steps.pr.outputs.pr-number }}-${{ steps.pr.outputs.head-sha }}
