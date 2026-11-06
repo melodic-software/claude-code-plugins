@@ -21,6 +21,17 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P(){ python3 /opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts/pydeps.py run --data-dir /opt/eval/run/e/lane-1/8635-animation-s1a/claude-eval-UZ2feM/config/plugins/data/animation-inline -- \"$@\"; }; R=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/skills/rotoscope/scripts; P $R/extract.py roto/ink-short --video clips/ink-short.mp4 2>&1 | tail -20"
+          }
+        }
+      ],
+      "why": "smoke 1: P(){ pydeps.py run --data-dir ... -- \"$@\"; } wrapper"
     }
   ],
   "fail": [
@@ -71,6 +82,41 @@
         }
       ],
       "why": "another work dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=\"python3 /opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts/pydeps.py run --data-dir /opt/eval/run/e/lane-1/8635-animation-s1a/claude-eval-UZ2feM/config/plugins/data/animation-inline --\"; R=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/skills/rotoscope/scripts; $P $R/extract.py roto/ink-short --video clips/ink-short.mp4 2>&1 | tail -20"
+          }
+        }
+      ],
+      "why": "smoke 1: a command string in $P, which zsh never split, so it never ran"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P(){ python3 /p/scripts/pydeps.py run -- \"$@\"; }; P /p/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "wrapper without --data-dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P(){ python3 /p/scripts/pydeps.py run --data-dir /d -- \"$@\"; }; P /p/skills/rotoscope/scripts/extract.py roto/ink-short --apply",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "wrapper, no --video"
     }
   ]
 }

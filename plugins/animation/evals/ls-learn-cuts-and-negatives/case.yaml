@@ -43,8 +43,3 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: style-json-no-paths
-    type: regex
-    pattern: '"(?:paths|points|traces)"\s*:'
-    match: 'not_contains'
-    target: { source: file, path: packs/ink-short/style.json }

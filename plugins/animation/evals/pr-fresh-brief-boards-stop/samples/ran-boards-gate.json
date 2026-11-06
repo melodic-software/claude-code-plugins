@@ -1,52 +1,50 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py boards films/harbor",
-            "description": "x"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \\\"/sb/data\\\" -- /p/plugins/animation/scripts/produce.py boards films/harbor\",\"description\":\"x\"}}]}}",
+      "why": "explicit production dir"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "python3 /p/scripts/produce.py boards ./films/harbor",
-            "description": "x"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/scripts/produce.py boards ./films/harbor\",\"description\":\"x\"}}]}}",
+      "why": "relative path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"P=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation; cd films/harbor; cat brief.md boards/palette.json boards/style-guide.md boards/vibe.md boards/storyboard.json; cat $P/styles/woodcut-ink/STYLE.md; head -c 2500 $P/styles/woodcut-ink/style.json; cat $P/skills/rotoscope/fixtures/synthetic.js\",\"description\":\"x\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"# Brief ...\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"P=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts; grep -n \\\"^export\\\" $P/ink.js; sed -n 1,40p $P/render.py | head -60; python3 $P/produce.py boards . 2>&1 | head\",\"description\":\"x\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t2\",\"content\":\"produce: brief.md Subject: is empty\"}]}}",
+      "why": "smoke 1: cd films/harbor in one call, boards . in the next"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd films/harbor && python3 /p/scripts/produce.py boards .\",\"description\":\"x\"}}]}}",
+      "why": "cd and boards . in one command"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py boards film",
-            "description": "x"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/plugins/animation/scripts/produce.py boards film\",\"description\":\"x\"}}]}}",
       "why": "another directory"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/produce.py init films/harbor",
-            "description": "x"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/plugins/animation/scripts/produce.py init films/harbor\",\"description\":\"x\"}}]}}",
       "why": "init only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/scripts/produce.py boards .\",\"description\":\"x\"}}]}}",
+      "why": "boards . with no cd into films/harbor"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd films/other\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/scripts/produce.py boards .\",\"description\":\"x\"}}]}}",
+      "why": "cd into another production"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd films/harbor; ls\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"cd ..\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/scripts/produce.py boards .\",\"description\":\"x\"}}]}}",
+      "why": "left films/harbor before boards ."
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd films/harbor\",\"description\":\"x\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"Shell cwd was reset to /w\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/scripts/produce.py boards .\",\"description\":\"x\"}}]}}",
+      "why": "the harness reset the cwd"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd films/harbor\",\"description\":\"x\"}}]}}\n{\"type\":\"result\",\"result\":\"Next I will run produce.py boards . again.\"}",
+      "why": "boards . only in the reply text"
     }
   ]
 }

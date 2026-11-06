@@ -47,6 +47,10 @@
     {
       "answer": "Please confirm you approve the boards before I write shots.json.",
       "why": "please confirm with approval words"
+    },
+    {
+      "answer": "To go ahead, look over the updated boards, especially `boards/vibe.md`, and tell me in your own words that you approve them. I'll then run `produce.py approve film --note \"<your words>\"`, check the shot list, render, run the pack check, and send the film to the independent review.",
+      "why": "smoke 1 pr-edited: tell me ... that you approve"
     }
   ],
   "fail": [
@@ -93,6 +97,14 @@
     {
       "answer": "I rendered the film already. Please confirm the output looks right.",
       "why": "please confirm, no approval ask"
+    },
+    {
+      "answer": "After that I'll finish the boards, render the boat sheet and a few scene stills, and run `produce.py boards`. Then I'll stop for your approval before rendering any shots. The 10 s length is also shorter than the style pack was learned on, which is about 30 s. The pack check may fail a row that the pictures don't deserve, and if it does I'll say so instead of editing the pack.",
+      "why": "smoke 1 pr-fresh: a promise to stop later, not an ask"
+    },
+    {
+      "answer": "Don't tell me that you approve until you have read the boards.",
+      "why": "negated"
     }
   ]
 }

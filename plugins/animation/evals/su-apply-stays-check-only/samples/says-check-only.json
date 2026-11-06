@@ -5,6 +5,10 @@
     },
     {
       "answer": "Installs are left to you; the Python packages come from the SessionStart hook."
+    },
+    {
+      "answer": "I didn't install anything. `/animation:setup` only checks, and the plugin treats these prerequisites as the operator's to install. Three rows fail.",
+      "why": "smoke 1: only checks; the operator's to install"
     }
   ],
   "fail": [
@@ -19,6 +23,14 @@
     {
       "answer": "Running apply.",
       "why": "runs an apply"
+    },
+    {
+      "answer": "I didn't install numpy because pip is missing.",
+      "why": "a failed install attempt, not check-only"
+    },
+    {
+      "answer": "I only checked ffmpeg first; installing numpy now.",
+      "why": "checks first, then installs"
     }
   ]
 }

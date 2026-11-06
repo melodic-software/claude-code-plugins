@@ -47,6 +47,39 @@
         }
       ],
       "why": "variable form, model sheet render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/eval/run/e/lane-1/8635-animation-s1a/claude-eval-Nq13zp/home/cwd/films/harbor\nP=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts\nD=/opt/eval/run/e/lane-1/8635-animation-s1a/claude-eval-Nq13zp/config/plugins/data/animation-inline\nr(){ python3 $P/pydeps.py run --data-dir $D -- $P/render.py \"$@\"; }\nr boards/models/boat.js $TMPDIR/boat --drawings 0 --root . 2>&1 | tail -3\nr boards/elements/harbor-scene.js $TMPDIR/hs --drawings 0,1,2 --root . 2>&1 | tail -3\nls $TMPDIR/boat $TMPDIR/hs"
+          }
+        }
+      ],
+      "why": "smoke 1 pr-fresh: a render.py \"$@\" function whose every call passes --drawings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p /tmp/x 2>/dev/null; cd /opt/eval/worktrees/.ev/lane-1/8635-animation-s2a/claude-eval-H3lLXt/home/cwd/films/harbor && cat > boards/elements/harborlib.js <<'EOF'\n// harborlib.js: shared drawing code for the harbor-at-dusk film (models, elements, storyboard, shots).\n// Every mark is built from ink.js strokes and re-laid each drawing (step). No filled polygons.\nimport { INK, rng, inkFill, inkStroke, splatter } from '/ink.js';\n\nexport const W = 960, H = 540, PAPER = '#efe9e0', FPS = 24, M = 36;      // M: paper margin kept free of ink\nexport const HORIZON = 330;\n\n// Drawing clock: ~8 drawings a second, mostly on 3s, some on 2s and 4s (never strictly 3s).\nconst PATTERN = [3, 3, 2, 3, 4, 3, 3, 2, 3, 3, 4, 3, 2, 3, 3];\nexport const START = (() => { const s = [0]; let i = 0; while (s[s.length - 1] < 24 * 12) s.push(s[s.length - 1] + PATTERN[i++ % PATTERN.length]); return s; })();\nexport function drawingAt(t) { const f = Math.round(t * FPS); let k = 0; while (START[k + 1] <= f) k++; return k; }\nexport const timeOf = k => START[k] / FPS;                                 // motion is posed per drawing, not per frame\n\nconst P = (night) => night ? { ink: PAPER, paper: INK } : { ink: INK, paper: PAPER };\nconst J = (a, n, r) => a.map(([x, y]) => [x + (r() - 0.5) * n, y + (r() - 0.5) * n]);\n\n// Gouges: short chunky cream cuts at irregular lengths and widths.\nfunction gouges(ctx, step, seed, x0, x1, y0, y1, n, col, lenR = [18, 70], wR = [5, 10], bias) {\n  const f = rng(seed, 0), r = rng(seed, step);\n  for (let i = 0; i < n; i++) {\n    let x = x0 + f() * (x1 - x0), y = y0 + (f() ** 1.3) * (y1 - y0), l = lenR[0] + f() * (lenR[1] - lenR[0]), w = wR[0] + f() * (wR[1] - wR[0]);\n    if (bias) { const k = bias(x, y); if (f() > k) continue; }\n    x += (r() - 0.5) * 10; y += (r() - 0.5) * 5;\n    inkStroke(ctx, [[x, y], [x + l * 0.5, y + (r() - 0.5) * 4], [x + l, y + (r() - 0.5) * 6]], { width: w, taper: [0.7, 0.6], seed: seed + i, step, color: col, dryBrush: 0.05 });\n  }\n}\n\nexport function ground(ctx, step, night, seed = 11) {\n  const c = P(night);\n  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);\n  if (night) {\n    const r = rng(seed, step);\n    inkFill(ctx, J([[M, M], [W - M, M], [W - M, H - M], [M, H - M]], 4, r), { width: 22, seed, step, color: INK, len: [80, 220], overshoot: 0.5, dryBrush: 0.02, angle: 0 });\n  }\n  return c;\n}\n\n// Sky: cream with brushed black cloud bands; a cream sun sinking into a black ray mass. Night: black with cream moon and stars.\nexport function sky(ctx, step, night, o = {}) {\n  const c = P(night), sx = o.sunX ?? 640, sy = o.sunY ?? 300, r = rng(7, step);\n  if (!night) {\n    // dusk darkening at the top: a heavy ragged black mass\n    inkFill(ctx, J([[M + 6, M + 6], [W - M - 6, M + 6], [W - M - 6, 112], [700, 142], [420, 104], [M + 6, 136]], 6, r), { width: 20, seed: 21, step, color: c.ink, angle: 0, len: [60, 200] });\n    // cloud bands\n    const bands = [[M + 30, 168, 430, 190], [520, 150, 880, 176], [130, 222, 560, 244], [600, 214, 900, 236]];\n    bands.forEach(([a, b, d, e], i) => inkFill(ctx, J([[a, b], [d, b + 4], [d - 30, e], [a + 40, e + 3]], 5, r), { width: 11, seed: 30 + i, step, color: c.ink, angle: 0, len: [40, 150], dryBrush: 0.16 }));\n    // sun: a cream disc cut out of a black ring of rays\n    inkFill(ctx, J(ring(sx, sy, 78, 12), 5, r), { width: 11, seed: 40, step, color: c.ink, len: [30, 90] });\n    inkFill(ctx, J(ring(sx, sy, 52, 12), 4, r), { width: 9, seed: 41, step, color: PAPER, len: [20, 70], overshoot: 0.3 });\n    for (let i = 0; i < 9; i++) { const a = -Math.PI + i * (Math.PI / 8) + (r() - 0.5) * 0.08, d0 = 86 + r() * 6, d1 = d0 + 40 + r() * 50; inkStroke(ctx, [[sx + Math.cos(a) * d0, sy + Math.sin(a) * d0], [sx + Math.cos(a) * d1, sy + Math.sin(a) * d1]], { width: 9, taper: [1, 0.3], seed: 50 + i, step, color: c.ink }); }\n  } else {\n    const mx = o.moonX ?? 250, my = o.moonY ?? 150;\n    inkFill(ctx, J(ring(mx, my, 44, 12), 4, r), { width: 9, seed: 60, step, color: c.ink, len: [20, 70] });\n    inkFill(ctx, J(ring(mx + 18, my - 6, 38, 12), 4, r), { width: 9, seed: 61, step, color: c.paper, len: [20, 70], overshoot: 0.3 });   // crescent bite\n    const f = rng(8, 0);\n    for (let i = 0; i < 16; i++) { const x = M + 20 + f() * (W - 2 * M - 40), y = M + 20 + f() * 200; if (Math.hypot(x - mx, y - my) < 80) continue; if (rng(8 + i, step)() > 0.18) splatter(ctx, x, y, 3, { color: c.ink, seed: 70 + i, step, dots: 1, dashes: 0, size: 4.5, flicker: 0 }); }\n    gouges(ctx, step, 80, M + 20, W - M - 20, 250, 322, 8, c.ink, [60, 160], [6, 9]);       // thin cloud streaks\n  }\n}\nconst ring = (cx, cy, R, n) => Array.from({ length: n }, (_, i) => [cx + Math.cos(i / n * 6.283) * R, cy + Math.sin(i / n * 6.283) * R]);\n\n// Water: a black mass with cream gouges, widest and densest in the sun column.\nexport function water(ctx, step, night, o = {}) {\n  const c = P(night), r = rng(9, step), hz = o.horizon ?? HORIZON, col = o.glintX ?? 640;\n  const cut = night ? c.paper : c.paper;\n  inkFill(ctx, J([[M + 4, hz], [W - M - 4, hz + 3], [W - M - 4, H - M - 4], [M + 4, H - M - 4]], 5, r), { width: 14, seed: 90, step, color: c.ink, angle: 0, len: [60, 200], dryBrush: 0.04 });\n  gouges(ctx, step, 91, M + 14, W - M - 14, hz + 14, H - M - 14, 70, cut, [16, 60], [4, 8], (x, y) => 0.25 + 0.75 * Math.exp(-((x - col) ** 2) / (2 * 110 ** 2)));\n  gouges(ctx, step, 92, col - 130, col + 130, hz + 8, H - M - 20, 26, cut, [30, 90], [7, 12]);\n}\n\n// Fishing boat, facing right. (x, y) is the waterline midpoint; s scales; rock tilts it a little.\nexport function boat(ctx, step, night, x, y, s = 1, o = {}) {\n  const c = P(night), r = rng(100 + (o.seed || 0), step), rock = o.rock || 0, k = o.seed || 0;\n  const T = (px, py) => { const a = rock, X = px * s, Y = py * s; return [x + X * Math.cos(a) - Y * Math.sin(a), y + X * Math.sin(a) + Y * Math.cos(a)]; };\n  const poly = (a) => J(a.map(([px, py]) => T(px, py)), 3 * s, r);\n  const w = (v) => Math.max(3, v * s);\n  // hull\n  inkFill(ctx, poly([[-90, -22], [96, -30], [78, 14], [-66, 16]]), { width: w(13), seed: 110 + k, step, color: c.ink, len: [30 * s, 90 * s], overshoot: 0.5 });\n  // broken outline gouge along the sheer line\n  inkStroke(ctx, [T(-82, -14), T(0, -17), T(70, -20)], { width: w(4), taper: [1, 0.8], seed: 120 + k, step, color: c.paper, dryBrush: 0.3, dab: 22 * s });\n  // cabin\n  inkFill(ctx, poly([[-30, -26], [-30, -74], [16, -74], [22, -26]]), { width: w(11), seed: 130 + k, step, color: c.ink, len: [20 * s, 60 * s] });\n  inkFill(ctx, poly([[-20, -62], [-20, -48], [-4, -48], [-4, -62]]), { width: w(6), seed: 135 + k, step, color: c.paper, len: [8 * s, 20 * s], overshoot: 0.3 });   // window cut\n  // mast, boom, rigging\n  inkStroke(ctx, [T(46, -28), T(46, -150)], { width: w(7), taper: [1, 0.7], seed: 140 + k, step, color: c.ink });\n  inkStroke(ctx, [T(46, -110), T(-70, -34)], { width: w(3.5), taper: [1, 0.8], seed: 142 + k, step, color: c.ink, dryBrush: 0.02 });\n  inkStroke(ctx, [T(46, -146), T(92, -28)], { width: w(3.5), taper: [1, 0.8], seed: 143 + k, step, color: c.ink, dryBrush: 0.02 });\n  // pennant\n  inkFill(ctx, poly([[46, -152], [76, -146], [46, -138]]), { width: w(5), seed: 145 + k, step, color: c.ink, len: [8 * s, 24 * s] });\n  // reflection smear under the hull\n  gouges(ctx, step, 150 + k, x - 80 * s, x + 80 * s, y + 18 * s, y + 46 * s, 5, c.paper, [14 * s, 44 * s], [4, 7]);\n}\n\n// Lighthouse: a tapered tower with cream bands cut across it, a lamp room, and (night) a beam.\nexport function lighthouse(ctx, step, night, x, y, s = 1, o = {}) {\n  const c = P(night), r = rng(200, step);\n  const T = (px, py) => [x + px * s, y + py * s], poly = a => J(a.map(([px, py]) => T(px, py)), 3 * s, r), w = v => Math.max(3, v * s);\n  // rock base\n  inkFill(ctx, poly([[-90, 0], [-50, -34], [60, -30], [100, 4]]), { width: w(14), seed: 210, step, color: c.ink, len: [30 * s, 80 * s] });\n  // tower\n  inkFill(ctx, poly([[-34, -30], [-20, -230], [20, -230], [36, -30]]), { width: w(12), seed: 211, step, color: c.ink, len: [30 * s, 90 * s], angle: 0 });\n  [-175, -120, -70].forEach((by, i) => inkStroke(ctx, [T(-26 + i * 3, by), T(0, by - 3), T(28 - i * 3, by)], { width: w(11), taper: [1, 0.9], seed: 215 + i, step, color: c.paper, dryBrush: 0.1, dab: 18 * s }));\n  // gallery and lamp room\n  inkStroke(ctx, [T(-34, -234), T(34, -234)], { width: w(9), taper: [1, 1], seed: 220, step, color: c.ink });\n  inkFill(ctx, poly([[-17, -236], [-17, -276], [17, -276], [17, -236]]), { width: w(8), seed: 221, step, color: c.paper, len: [10 * s, 30 * s], overshoot: 0.3 });\n  inkFill(ctx, poly([[-24, -276], [0, -304], [24, -276]]), { width: w(8), seed: 222, step, color: c.ink, len: [10 * s, 30 * s] });\n  if (night) {\n    const a = o.beam ?? 0, L = 520 * s, spread = 0.07;\n    for (const sgn of [-1, 1]) inkStroke(ctx, [T(0, -256), [x + Math.cos(a + sgn * spread) * L, y - 256 * s + Math.sin(a + sgn * spread) * L]], { width: w(8), taper: [0.6, 1.4], seed: 230 + sgn, step, color: c.ink, dryBrush: 0.2 });\n    for (let i = 0; i < 4; i++) { const d = (120 + i * 100) * s; inkStroke(ctx, [[x + Math.cos(a) * d, y - 256 * s + Math.sin(a) * d - 10], [x + Math.cos(a) * (d + 50 * s), y - 256 * s + Math.sin(a) * (d + 50 * s) + 6]], { width: w(8 + i * 2), taper: [1, 1], seed: 240 + i, step, color: c.ink }); }\n  }\n}\n\n// Pier: black posts and a plank deck on the left, in front.\nexport function pier(ctx, step, night, x0 = M + 4, x1 = 330, y = 360) {\n  const c = P(night), r = rng(300, step);\n  inkFill(ctx, J([[x0, y], [x1, y + 4], [x1 - 10, y + 24], [x0, y + 22]], 4, r), { width: 11, seed: 301, step, color: c.ink, angle: 0, len: [40, 120] });\n  for (let i = 0; i < 4; i++) { const px = x0 + 30 + i * ((x1 - x0 - 50) / 3); inkStroke(ctx, [[px, y + 20], [px + (r() - 0.5) * 3, y + 96 + (i % 2) * 10]], { width: 12, taper: [1, 0.8], seed: 310 + i, step, color: c.ink }); }\n  gouges(ctx, step, 320, x0 + 10, x1 - 10, y + 4, y + 18, 3, c.paper, [10, 28], [3, 5]);\n}\n\nexport function gull(ctx, step, night, x, y, s = 1, seed = 1) {\n  const c = P(night), f = (Math.floor(step / 2) % 2) ? -8 : 6;\n  inkStroke(ctx, [[x - 22 * s, y + f * s], [x, y], [x + 22 * s, y + f * s]], { width: 5 * s, taper: [0.7, 0.5], seed: 400 + seed, step, color: c.ink, dab: 14 });\n}\n\n// Camera: scale about (cx, cy) and shift. Used by every shot; boards use zoom 1.\nexport function camera(ctx, zoom, cx, cy, dx = 0, dy = 0) { ctx.save(); ctx.translate(W / 2 + dx, H / 2 + dy); ctx.scale(zoom, zoom); ctx.translate(-cx, -cy); }\nexport const uncamera = ctx => ctx.restore();\n\nexport function setup() { const cv = document.getElementById('c'); cv.width = W; cv.height = H; return cv.getContext('2d'); }\nEOF\ncat > boards/models/fishing-boat.js <<'EOF'\nimport { setup, W, H, ground, sky, water, boat } from '/boards/elements/harborlib.js';\nconst ctx = setup(); window.DURATION = 1;\nfunction draw(k) { ground(ctx, k, false); water(ctx, k, false, { horizon: 200 }); boat(ctx, k, false, W / 2, 260, 2.2, { seed: 1 }); }\nwindow.renderDrawing = async k => draw(k); window.renderFrame = async t => draw(Math.round(t * 8));\nEOF\ncat > boards/elements/lighthouse.js <<'EOF'\nimport { setup, W, H, ground, sky, water, lighthouse } from '/boards/elements/harborlib.js';\nconst ctx = setup(); window.DURATION = 1;\nfunction draw(k) { ground(ctx, k, true); water(ctx, k, true, { horizon: 440 }); lighthouse(ctx, k, true, W / 2, 440, 1.3, { beam: -0.25 }); }\nwindow.renderDrawing = async k => draw(k); window.renderFrame = async t => draw(Math.round(t * 8));\nEOF\ncat > boards/storyboard.js <<'EOF'\n// Board-only thumbnails: one drawing per storyboard panel, composed from the same elements the shots will use.\nimport { setup, ground, sky, water, boat, lighthouse, pier, gull, camera, uncamera } from '/boards/elements/harborlib.js';\nconst ctx = setup(); window.DURATION = 1;\nconst PANELS = [\n  k => { ground(ctx, k, false); sky(ctx, k, false); water(ctx, k, false); boat(ctx, k, false, 300, 372, 0.8, { seed: 1 }); boat(ctx, k, false, 520, 346, 0.45, { seed: 2 }); pier(ctx, k, false); gull(ctx, k, false, 700, 120, 1, 1); },\n  k => { camera(ctx, 1.12, 480, 300); ground(ctx, k, false); sky(ctx, k, false); water(ctx, k, false); boat(ctx, k, false, 300, 372, 0.8, { seed: 1 }); boat(ctx, k, false, 520, 346, 0.45, { seed: 2 }); pier(ctx, k, false); uncamera(ctx); },\n  k => { ground(ctx, k, false); sky(ctx, k, false, { sunY: 260 }); water(ctx, k, false, { horizon: 380 }); boat(ctx, k, false, 480, 440, 1.8, { seed: 1, rock: 0.03 }); },\n  k => { ground(ctx, k, false); sky(ctx, k, false, { sunY: 260 }); water(ctx, k, false, { horizon: 380 }); boat(ctx, k, false, 500, 440, 1.8, { seed: 1, rock: -0.03 }); },\n  k => { ground(ctx, k, true); sky(ctx, k, true); water(ctx, k, true, { glintX: 250 }); lighthouse(ctx, k, true, 620, 400, 0.9, { beam: -0.15 }); },\n  k => { ground(ctx, k, true); sky(ctx, k, true); water(ctx, k, true, { glintX: 250 }); lighthouse(ctx, k, true, 620, 400, 0.9, { beam: -0.5 }); boat(ctx, k, true, 260, 392, 0.5, { seed: 3 }); },\n];\nwindow.renderDrawing = async k => PANELS[k](k + 3); window.renderFrame = async t => PANELS[0](0);\nEOF\nP=/opt/eval/.ev/lane-1/8635-animation/copy-s2a/plugins/animation/scripts\nR=\"python3 $P/pydeps.py run --data-dir /opt/eval/worktrees/.ev/lane-1/8635-animation-s2a/claude-eval-H3lLXt/config/plugins/data/animation-inline -- $P/render.py\"\necho \"$R\" > $TMPDIR/R.txt\nmkdir -p $TMPDIR/o; $R boards/models/fishing-boat.js $TMPDIR/o/boat --drawings 0 --root . 2>&1 | tail -5; ls $TMPDIR/o/boat"
+          }
+        }
+      ],
+      "why": "smoke 2 pr-fresh: R=\"... render.py\" assignment, then a board render through $R with --drawings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/eval/.ev/lane-1/8635-animation/copy-s2a/plugins/animation/scripts; sed -n 40,135p $P/ink.js; python3 $P/render.py -h | head -40; sed -n 1,30p $P/produce.py"
+          }
+        }
+      ],
+      "why": "smoke 2 pr-fresh: render.py -h, help only"
     }
   ],
   "fail": [
@@ -121,6 +154,66 @@
         }
       ],
       "why": "--drawings after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "r(){ python3 /p/scripts/pydeps.py run --data-dir /d -- /p/scripts/render.py \"$@\"; }\nr film/film.js film/frames --fps 24 --root film",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "function call renders the film"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "r () { /p/scripts/render.py \"$@\"; }; r boards/models/m.js /tmp/m --drawings 0; r shots/s1.js frames --fps 24 --encode mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "one call site renders a shot"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts\nR=\"python3 $P/pydeps.py run --data-dir /d -- $P/render.py\"\n$R shots/s01.js out",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a shot rendered through the $R string, no --drawings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts\nR=\"python3 $P/pydeps.py run --data-dir /d -- $P/render.py\"\nmkdir -p o; $R boards/models/boat.js o/boat --drawings 0; $R film/film.js film/frames --fps 24 --encode mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "one $R call renders the film"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R='python3 /p/scripts/render.py'; $R shots/s01.js out --fps 24",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "single-quoted string assignment, shot rendered"
     }
   ]
 }

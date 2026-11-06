@@ -21,6 +21,17 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls; P=/opt/eval/.ev/lane-1/8635-animation/copy-s1a/plugins/animation/scripts/produce.py; ls film 2>&1 | head; python3 $P boards film; echo \"boards exit $?\"; python3 $P shots film; echo \"shots exit $?\""
+          }
+        }
+      ],
+      "why": "smoke 1: produce.py held in $P, then shots film"
     }
   ],
   "fail": [
@@ -59,6 +70,30 @@
         }
       ],
       "why": "reads the file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts/produce.py; python3 $P boards film; python3 $P cuts film",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "alias, but boards and cuts only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/p/plugins/animation/scripts/produce.py; python3 $P shots other",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "alias, another directory"
     }
   ]
 }

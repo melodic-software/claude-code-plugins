@@ -11,11 +11,9 @@ graders:
     pattern: '(?=[\s\S]*\bffmpeg\b)(?=[\s\S]*\b[Nn]ode\b)(?=[\s\S]*\b[Cc]hromium\b)(?=[\s\S]*\b(?:PASS|FAIL)\b)'
     target: 'last_message'
   - name: fail-rows-keep-remedy
-    type: regex
-    pattern: '^\|[^\n|]*\|\s*\**FAIL\**\s*\|[^\n|]*\|\s*-?\s*\|?\s*$'
-    flags: 'm'
-    match: 'not_contains'
-    target: 'last_message'
+    type: llm
+    criteria: 'Legacy setup default-check-runs-the-probe-and-reports-the-table: ''Reports each row''s status and, for a FAIL, its remedy line''. PASS when the reply gives the status of every row the probe printed and, for each row it reports as FAIL, the remedy the probe printed for that row, in the table or in a list after it (one line may carry a remedy that rows share). FAIL when any row reported FAIL has no remedy anywhere in the reply, or a remedy is invented instead of taken from the probe''s output.'
+    focus: 'last_message'
   - name: no-install
     type: tool_used
     tool: 'Bash'

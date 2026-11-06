@@ -1,20 +1,18 @@
 {
   "pass": [
     {
-      "answer": "| numpy | FAIL | numpy not installed | start a new Claude Code session, whose SessionStart hook installs the packages |"
-    },
-    {
-      "answer": "| ffmpeg | PASS | /usr/bin/ffmpeg | - |"
+      "answer": "Setup check: **FAIL**. Three prerequisites are missing, and I changed nothing.\n\nThe Python packages aren't installed for cpython-314, so `pydeps.py run` exited 2 without printing the full table. That is the first FAIL below. I ran `prereq.py` on its own for the tool rows, which is why numpy and opencv show FAIL.\n\n| prerequisite | status | detail |\n|---|---|---|\n| Python packages | FAIL | Not installed for cpython-314. |\n| ffmpeg | PASS | `/usr/bin/ffmpeg` |\n| ffprobe | PASS | `/usr/bin/ffprobe` |\n| libx264 | PASS | Listed by `ffmpeg -encoders`. |\n| ffmpeg-version | PASS | 8.0 |\n| node | PASS | `/opt/eval/.local/share/mise/installs/node/24.21.0/bin/node` |\n| chromium | FAIL | playwright-core or Chromium not found. |\n| numpy | FAIL | Not installed. |\n| opencv | FAIL | opencv-python-headless not installed. |\n\n**Remedies**\n- **Python packages, numpy and opencv:**\n  - Start a new Claude Code session, since the SessionStart hook installs the packages. If an install failed earlier, a notice appeared at session start.\n  - Alternatively, run this: `/usr/bin/python3 /opt/eval/.ev/lane-1/8635-animation/copy-s1b/plugins/animation/scripts/pydeps.py install --data-dir /opt/eval/run/e/lane-1/8635-animation-s1b/claude-eval-WUaCq9/config/plugins/data/animation-inline`\n- **Chromium:** do one of these, then run `npx playwright install chromium`.\n  - Pass `--playwright-core <dir>` through the plugin's `playwright_core` option.\n  - Run `npm i playwright-core` in the working directory.\n  - Install `@playwright/cli`. The playwright plugin's setup does this if that plugin is installed.\n\nThe `playwright_core` option is unset, so it got no row of its own.\n\nOnce these are fixed, rerun `/animation:setup`. After that, the next step is `/animation:rotoscope <clip> <work dir>`.",
+      "why": "smoke 1: every FAIL row's remedy in a list after the table"
     }
   ],
   "fail": [
     {
-      "answer": "| numpy | FAIL | numpy not installed | - |",
-      "why": "remedy dropped"
+      "answer": "Setup check: **FAIL**. Three prerequisites are missing, and I changed nothing.\n\nThe Python packages aren't installed for cpython-314, so `pydeps.py run` exited 2 without printing the full table. That is the first FAIL below. I ran `prereq.py` on its own for the tool rows, which is why numpy and opencv show FAIL.\n\n| prerequisite | status | detail |\n|---|---|---|\n| Python packages | FAIL | Not installed for cpython-314. |\n| ffmpeg | PASS | `/usr/bin/ffmpeg` |\n| ffprobe | PASS | `/usr/bin/ffprobe` |\n| libx264 | PASS | Listed by `ffmpeg -encoders`. |\n| ffmpeg-version | PASS | 8.0 |\n| node | PASS | `/opt/eval/.local/share/mise/installs/node/24.21.0/bin/node` |\n| chromium | FAIL | playwright-core or Chromium not found. |\n| numpy | FAIL | Not installed. |\n| opencv | FAIL | opencv-python-headless not installed. |\n\nThe `playwright_core` option is unset, so it got no row of its own.\n\nOnce these are fixed, rerun `/animation:setup`. After that, the next step is `/animation:rotoscope <clip> <work dir>`.",
+      "why": "smoke 1 reply with its Remedies section removed"
     },
     {
-      "answer": "| numpy | FAIL | numpy not installed |",
-      "why": "remedy column dropped"
+      "answer": "| prerequisite | status |\n|---|---|\n| ffmpeg | PASS |\n| numpy | FAIL |\n\nRun apply to fix numpy.",
+      "why": "invented remedy"
     }
   ]
 }

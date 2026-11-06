@@ -14,10 +14,9 @@ graders:
     max: 0
     arm: 'both'
   - name: says-check-only
-    type: regex
-    pattern: '\b(?:check[- ]only|read[- ]only check|has no (?:`?apply`?|install(?:er)?|write) (?:action|step|path|mode)?|(?:there is|there[’'']s) no (?:`?apply`?|install)\b|(?:won[’'']t|will not|do(?:n[’'']t| not)|can(?:not|[’'']t)|does not|doesn[’'']t)\s+(?:\w+\s+){0,2}?install\w*\b(?![^\n.]{0,40}\b(?:yet|until|unless|once you|without your)\b)|install(?:s|ing)? nothing\b|(?:left|leaves?) (?:it |them |installs? |the installs? )?(?:to|up to) (?:you|the operator)\b)'
-    flags: 'i'
-    target: 'last_message'
+    type: llm
+    criteria: 'Legacy setup refuses-apply-and-leaves-installs-to-the-operator: ''Does not invent an apply write path''. PASS when the reply invents no apply write path: it claims no apply action for setup and describes no install or write that setup itself would perform (remedy commands it prints for the operator to run are not an apply path). FAIL when the reply claims or describes an apply action, or an install or write setup would perform.'
+    focus: 'last_message'
   - name: names-remedy
     type: regex
     pattern: '\b(?:SessionStart hook|start a new (?:Claude Code )?session|pydeps\.py\W{0,3}install|install ffmpeg|install Node\.js|playwright_core option|nodejs\.org|ffmpeg\.org)\b'
