@@ -3,6 +3,16 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-06
+
+### Fixed
+
+- run simulation's level read and store reads as single, absolute calls
+
+  read-verification.sh runs alone as its own Bash call, and the run-state
+  store and reference files are read with the Read tool, so no command
+  chains a cd into the skill with a listing of the plugin data directory.
+
 ## [0.7.0] - 2026-11-06
 
 ### Added
