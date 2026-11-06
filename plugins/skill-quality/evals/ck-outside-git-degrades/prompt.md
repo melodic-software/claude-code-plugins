@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The reply says the static gate still runs its non-git checks against the cache tree because CHECK_SKILL_SKILLS_ROOT gives it a skills root, the git-backed checks (trigger-keyword preservation, vendor byte-identity, stale metadata, committed-artifact scan) skip with a note, and the script exits 2 only when no skills root override, no CLAUDE_PROJECT_DIR and no git toplevel is available."
 ---
 
-Run the skill-quality check from a working directory that is not inside any git repository, pointed at a marketplace plugin-cache skills root via CHECK_SKILL_SKILLS_ROOT. What happens?
+I will run the skill-quality check on my own machine, from a working directory that is not inside any git repository, pointed at a marketplace plugin-cache skills root via CHECK_SKILL_SKILLS_ROOT. What happens? This session has no shell and no plugin cache is installed here, so it cannot be run here.
