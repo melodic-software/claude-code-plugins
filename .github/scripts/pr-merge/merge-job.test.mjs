@@ -117,35 +117,45 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.doesNotMatch(job, /dispatch: .*needs-dispatch/);
 });
 
-// Runs the listing step's script against a fake `gh` whose `gh pr list`
+// Runs the listing step's script against a fake `gh` whose GraphQL listing
 // fails its first `failures` calls and then answers `prs` (by default one pull
-// request of the lanes App's) and whose open-count read answers `total` (by
-// default as many as `prs`; null fails it), with `.base` pointing at this checkout,
+// request of the lanes App's) 100 a page, each page counting `total` open pull
+// requests (by default as many as `prs`; null leaves the count out), with
+// `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
-// `attempts` scripts each `gh pr list` in turn: `502` fails that one.
-const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
-const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
+// `attempts` scripts each call in turn: `502` fails that one.
+const bot = (login, databaseId) => ({ __typename: "Bot", login, databaseId });
+const user = (login, databaseId) => ({ __typename: "User", login, databaseId });
+const LANES = bot("melodic-automation-lanes", 337595936);
+const listed = (number, author, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: { nodes: [] }, body: "", author });
+const LANES_PR = [listed(7, LANES)];
 const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length, attempts = []) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
-    writeFileSync(join(dir, "prs.json"), JSON.stringify(prs));
+    const pages = Math.max(1, Math.ceil(prs.length / 100));
+    for (let p = 0; p < pages; p++) {
+      const connection = {
+        ...(total === null ? {} : { totalCount: total }),
+        pageInfo: { hasNextPage: p + 1 < pages, endCursor: `p${p + 1}` },
+        nodes: prs.slice(p * 100, p * 100 + 100),
+      };
+      writeFileSync(join(dir, `page-p${p}.json`), JSON.stringify({ data: { repository: { pullRequests: connection } } }));
+    }
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash\n` +
-        `if [ "$1" = api ]; then\n` +
-        `  [[ "$*" == *.totalCount* && "$*" == *'pullRequests(states: OPEN, baseRefName: "main")'* ]] || { echo "unexpected query: $*" >&2; exit 1; }\n` +
-        `  ${total === null ? 'echo "HTTP 502: Bad Gateway" >&2; exit 1' : `echo ${total}; exit 0`}\n` +
-        `fi\n` +
+        `[[ "$1" = api && "$*" == *graphql* && "$*" == *'pullRequests(states: OPEN, baseRefName: "main", first: 100'* ]] || { echo "unexpected call: $*" >&2; exit 1; }\n` +
         `echo "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `attempts=(${attempts.join(" ")})\n` +
         `if [ "$n" -le ${failures} ] || [ "\${attempts[$((n - 1))]:-}" = 502 ]; then echo "${failure}" >&2; exit 1; fi\n` +
-        `cat "${dir}/prs.json"\n`,
+        `page=p0\nfor arg; do [[ $arg == after=* ]] && page=\${arg#after=}; done\n` +
+        `cat "${dir}/page-$page.json"\n`,
     );
     writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/sleeps"\n`);
     chmodSync(join(bin, "gh"), 0o755);
@@ -203,7 +213,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
   }
 };
 
-test("the listing retries a failed gh pr list", () => {
+test("the listing retries a failed GraphQL read", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
   // Three tries of the one list.
@@ -233,7 +243,7 @@ test("a listing with pull requests missing from a 200 holds the job, and the nex
   assertHeld(degraded);
   // A count that moved between the two reads gets the retries before it holds.
   assert.equal(degraded.calls, 3);
-  assert.match(degraded.stderr, /gh pr list holds 1 of 2 open pull requests/);
+  assert.match(degraded.stderr, /the listing holds 1 of 2 open pull requests/);
   assert.match(degraded.output, /^held-reason=failed 3 times \(count mismatch\)$/m);
   const next = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 1);
   assert.equal(next.status, 0, next.stderr);
@@ -254,10 +264,10 @@ test("the hold names only the last try's fault", () => {
 });
 
 test("a repeated pull request does not stand in for a missing one", () => {
-  assertHeld(runListing(0, undefined, undefined, {}, undefined, [listed(7, "app/melodic-automation-lanes"), listed(7, "app/melodic-automation-lanes")], 2));
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, [listed(7, LANES), listed(7, LANES)], 2));
 });
 
-test("a listing whose open count cannot be read holds the job", () => {
+test("a page with no open count holds the job", () => {
   assertHeld(runListing(0, undefined, undefined, {}, undefined, LANES_PR, null));
 });
 
@@ -322,32 +332,42 @@ test("no step after the listing acts on a held listing", () => {
 
 // GitHub Support's audit item 7: one listing of every open pull request into
 // main, filtered by author, in place of one `gh pr list --author` (a search
-// call) per author.
+// call) per author. Trusted actors match by numeric id, never by login.
 const AUTHORED = [
-  listed(1, "app/melodic-automation-lanes"),
-  listed(2, "a-person"),
-  listed(3, "app/some-release"),
-  listed(4, "app/dependabot"),
-  listed(5, "a-stranger"),
-  listed(6, "app/melodic-automation-lanes", true),
+  listed(1, LANES),
+  listed(2, user("a-person", 1)),
+  listed(3, bot("some-release", 2)),
+  listed(4, bot("dependabot", 49699333)),
+  listed(5, user("a-stranger", 99)),
+  listed(6, LANES, true),
+  // A trusted App renamed since trusted-actors.json was written: its id holds.
+  listed(7, bot("renamed-release", 2)),
+  // A trusted login under an id the list does not hold.
+  listed(8, user("a-person", 77)),
+  listed(9, bot("some-release", 55)),
+  // No id: a deleted account and a mannequin.
+  listed(10, null),
+  listed(11, { __typename: "Mannequin", login: "a-person" }),
+  listed(12, user("a-shape", 5)),
 ];
 
 // Owner decision 2026-10-22: every trusted actor's PR is a candidate.
-test("the listing keeps each trusted actor's pull requests, a person by login and an App as app/<slug>, from one list", () => {
+test("the listing keeps each trusted actor's pull requests by id, a renamed one included, from one list", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
     { id: 2, login: "some-release[bot]", kind: "bot" },
-    { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
-    { id: 4, login: "dependabot[bot]", kind: "bot" },
-    { id: 5, login: "bad login; rm", kind: "human" },
+    { id: 337595936, login: "melodic-automation-lanes[bot]", kind: "bot" },
+    { id: 49699333, login: "dependabot[bot]", kind: "bot" },
+    { id: "5", login: "a-shape", kind: "human" },
   ];
   const run = runListing(0, (config) => config, actors, {}, undefined, AUTHORED);
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.calls, 1);
   assert.doesNotMatch(run.args, /--author/);
-  assert.deepEqual(run.listed, [1, 2, 3]);
+  // Dependabot's id is listed, but merge.dependabot.mode off still drops it.
+  assert.deepEqual(run.listed, [1, 2, 3, 7]);
   assert.deepEqual(run.draftsListed, [6]);
-  assert.doesNotMatch(run.args, /^api /m);
+  assert.match(run.args, /^api -i graphql /m);
 });
 
 test("without an adoption section no trusted actor is listed", () => {
@@ -361,11 +381,12 @@ test("without an adoption section no trusted actor is listed", () => {
 });
 
 // merge.lane-prs: native leaves the lanes App's pull requests to GitHub's
-// auto-merge: the listing drops them, so the gate never reads them.
+// auto-merge: the listing drops them, so the gate never reads them, even with
+// the lanes App's id on the trusted-actor list.
 test("under lane-prs native the listing skips the lanes App and keeps every other author", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
-    { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
+    { id: 337595936, login: "melodic-automation-lanes[bot]", kind: "bot" },
   ];
   const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" }, undefined, AUTHORED);
   assert.equal(native.status, 0, native.stderr);
@@ -401,32 +422,33 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-// gh pr list's --limit is 1000: a listing that long may be cut short whatever
-// the count says, so it holds after one call; one short of it still lists.
-const lanePrs = (n) => Array.from({ length: n }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
-test("a listing that reaches the limit holds the job green after one call, never retried", () => {
-  for (const total of [1000, 1500]) {
-    const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(1000), total);
+// The listing reads at most 10 pages of 100: a list with an 11th page is cut
+// short, so it holds after those 10 calls; 1000 still lists.
+const lanePrs = (n) => Array.from({ length: n }, (_, i) => listed(i + 1, LANES));
+test("a listing past the page cap holds the job green after ten calls, never retried", () => {
+  for (const total of [1001, 1500]) {
+    const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(total), total);
     assertHeld(run);
-    assert.equal(run.calls, 1);
+    assert.equal(run.calls, 10);
     assert.deepEqual(run.sleeps, []);
     assert.doesNotMatch(run.stdout, /^::error/m);
-    assert.match(run.output, /^held-reason=listing full: gh pr list returned the limit, so it may be cut short$/m);
+    assert.match(run.output, /^held-reason=listing full: more than 1000 open pull requests, so it is cut short$/m);
   }
   // The hold and its reason reach the sweep summary, whose listing_held
   // monitor signal 12 counts.
   assert.match(step("Count the sweep's refusals"), /\n {10}LISTING_HELD: \$\{\{ steps\.candidates\.outputs\.held \}\}\n {10}LISTING_HELD_REASON: \$\{\{ steps\.candidates\.outputs\.held-reason \}\}\n/);
 });
 
-test("a complete listing one short of the limit still lists every candidate", () => {
-  const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(999), 999);
+test("a complete listing at the page cap still lists every candidate", () => {
+  const run = runListing(0, undefined, undefined, {}, undefined, lanePrs(1000), 1000);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.calls, 1);
+  assert.equal(run.calls, 10);
+  assert.equal((run.args.match(/after=p\d+/g) ?? []).length, 9);
   assert.doesNotMatch(run.stdout, /Merge lane hold/);
   assert.doesNotMatch(run.output, /held/);
   assert.match(run.output, /^listed=true$/m);
-  assert.match(run.output, /^count=999$/m);
-  assert.equal(run.listed.length, 999);
+  assert.match(run.output, /^count=1000$/m);
+  assert.equal(run.listed.length, 1000);
 });
 
 test("a held listing files no failed lane merge; a run that listed goes by its own check", () => {

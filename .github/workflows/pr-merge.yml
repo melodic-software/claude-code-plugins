@@ -1202,21 +1202,20 @@ jobs:
             echo "::error::merge.agent-identity is not an App bot login: $identity"
             exit 1
           fi
-          authors=()
-          [ "$LANE_PRS" = native ] || authors+=("app/$slug")
-          # With adoption.idle-hours set, each trusted-actors.json account, a
-          # person by login and an App as app/<slug>: the gate adopts their
-          # pull requests (babysit_merge_policy.adoption_refusal) and checks
-          # the id again. Dependabot is listed below, by its own switch.
+          lanes=true
+          [ "$LANE_PRS" != native ] || lanes=false
+          dependabot=true
+          [ "$DEPENDABOT" != off ] || dependabot=false
+          # With adoption.idle-hours set, each trusted-actors.json account by
+          # its numeric id, a person's User.databaseId or an App's
+          # Bot.databaseId, so a renamed account still matches: the gate
+          # adopts their pull requests (babysit_merge_policy.adoption_refusal)
+          # and checks the id again. The lanes App (merge.agent-identity) and
+          # Dependabot go by their own switches below whatever their ids.
+          ids='[]'
           if [ -n "$(yq '.adoption."idle-hours" // ""' .base/docs/conventions/pr-pipeline.yaml)" ]; then
-            while IFS= read -r login; do
-              author=$login
-              [[ $login =~ ^(.*)\[bot\]$ ]] && author="app/${BASH_REMATCH[1]}"
-              if [[ $author =~ ^(app/)?[A-Za-z0-9][A-Za-z0-9-]*$ ]] &&
-                [ "$author" != "app/$slug" ] && [ "$author" != app/dependabot ]; then
-                authors+=("$author")
-              fi
-            done < <(jq -r '.actors[].login' .base/.github/standards/trusted-actors/trusted-actors.json)
+            ids=$(jq -c '[.actors[].id | select(type == "number" and . > 0 and . == floor)] | unique' \
+              .base/.github/standards/trusted-actors/trusted-actors.json)
           fi
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
@@ -1229,11 +1228,8 @@ jobs:
               exit 1
             }
           fi
-          if [ "$DEPENDABOT" != off ]; then
-            authors+=(app/dependabot)
-          fi
           # A failed read, a rate stop past the budget, a 200 that fails the
-          # completeness check, or a listing that reaches the limit leaves the
+          # completeness check, or a listing past the page cap leaves the
           # listing unknown: this step ends green with a notice and `held`, the
           # steps that need the listing wait on `listed`, and the next scheduled
           # run is the probe. Only the sweep summary and cost run on `held`: no
@@ -1241,49 +1237,83 @@ jobs:
           # waits for a run that lists. The summary's listing_held is what
           # monitor signal 12 counts. 60 s of waits covers the documented minute
           # of a secondary limit; a longer stop gains little over the next run.
-          # A listing at the limit is not tried again: another try reads the
+          # A listing past the cap is not tried again: another try reads the
           # same. gh goes through the shared rate guard (api-budget.bash).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
           . .base/.github/scripts/pr-merge/retry-call.bash
           api_budget_wrap_gh github-token
           listing="$RUNNER_TEMP/listing.json"
-          # One list of every open pull request into main (GraphQL), kept
-          # by author below, rather than one `gh pr list --author` search
-          # call per author.
-          limit=1000
+          page_file="$RUNNER_TEMP/listing-page.json"
+          # One GraphQL list of every open pull request into main, 100 a page
+          # with the connection's totalCount on each page, kept by author
+          # below. At most max_pages pages (1000 pull requests); a list with
+          # more is cut short, so it leaves the retry at once and holds the
+          # step below. Order is gh pr list's, newest first.
+          max_pages=10
           echo '[]' >"$listing"
-          # A listing as long as the limit may be cut short whatever a count
-          # says, so it leaves the retry at once and holds the step below.
-          # Under the limit, gh pr list --json prints no total, so the same
-          # connection's totalCount is read after it.
           listing_full='' listing_fault=''
           list_open_prs() {
-            local total held
+            local page=0 cursor='' total='' held more
+            local -a after
             listing_fault=
-            gh pr list --repo "$REPO" --base main --state open --limit "$limit" \
-              --json id,number,headRefOid,isDraft,updatedAt,labels,body,author >"$listing" || return 1
+            echo '[]' >"$listing"
+            while :; do
+              page=$((page + 1))
+              after=()
+              [ -z "$cursor" ] || after=(-f after="$cursor")
+              # shellcheck disable=SC2016 # GraphQL variables, not shell ones
+              gh api graphql -f owner="${REPO%/*}" -f name="${REPO#*/}" "${after[@]}" \
+                -f query='query($owner: String!, $name: String!, $after: String) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after,
+                        orderBy: {field: CREATED_AT, direction: DESC}) {
+                      totalCount
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        id number headRefOid isDraft updatedAt body
+                        labels(first: 100) { nodes { name } }
+                        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
+                      } } } }' >"$page_file" || return 1
+              # A 200 with errors, or without the connection, fails the try.
+              jq -e '(.errors // [] | length) == 0
+                  and (.data.repository.pullRequests | (.nodes | type) == "array"
+                    and (.totalCount | type) == "number"
+                    and (.pageInfo.hasNextPage | type) == "boolean")' "$page_file" >/dev/null || return 1
+              jq -c --slurpfile page "$page_file" \
+                '. + [$page[0].data.repository.pullRequests.nodes[] | .labels = .labels.nodes]' \
+                "$listing" >"$listing.next" && mv "$listing.next" "$listing" || return 1
+              # Every page must count the same total.
+              held=$(jq '.data.repository.pullRequests.totalCount' "$page_file") || return 1
+              if [ -n "$total" ] && [ "$held" != "$total" ]; then
+                listing_fault="count mismatch"
+                echo "the open count moved from $total to $held while listing" >&2
+                return 1
+              fi
+              total=$held
+              more=$(jq -r '.data.repository.pullRequests.pageInfo.hasNextPage' "$page_file") || return 1
+              [ "$more" = true ] || break
+              if [ "$page" -ge "$max_pages" ]; then
+                listing_full=true
+                return 0
+              fi
+              cursor=$(jq -r '.data.repository.pullRequests.pageInfo.endCursor // ""' "$page_file") || return 1
+              [ -n "$cursor" ] || return 1
+            done
             held=$(jq 'map(.number) | unique | length' "$listing") || return 1
-            if [ "$held" -ge "$limit" ]; then
-              listing_full=true
-              return 0
-            fi
-            # shellcheck disable=SC2016 # GraphQL variables, not shell ones
-            total=$(gh api graphql --jq .data.repository.pullRequests.totalCount -f owner="${REPO%/*}" -f name="${REPO#*/}" \
-              -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
-                pullRequests(states: OPEN, baseRefName: "main") { totalCount } } }') || return 1
             if [ "$held" != "$total" ]; then
               listing_fault="count mismatch"
-              echo "gh pr list holds $held of $total open pull requests" >&2
+              echo "the listing holds $held of $total open pull requests" >&2
               return 1
             fi
           }
           # The reason reaches a public issue: fixed text, never a call's stderr.
           reason=''
-          if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
+          if { [ "$lanes" = true ] || [ "$dependabot" = true ] || [ "$ids" != '[]' ]; } &&
+            ! retry_call --read 60 list_open_prs; then
             reason="$retry_call_unknown${listing_fault:+ ($listing_fault)}"
           elif [ -n "$listing_full" ]; then
-            reason="listing full: gh pr list returned the limit, so it may be cut short"
+            reason="listing full: more than $((max_pages * 100)) open pull requests, so it is cut short"
           fi
           if [ -n "$reason" ]; then
             echo "::notice title=Merge lane hold::the open pull requests are unknown ($reason); this job gates, merges, re-readies, re-fires, files, dequeues and clears nothing; it still writes the sweep summary; the next scheduled run lists again"
@@ -1293,10 +1323,17 @@ jobs:
           fi
           # A pull_request_target run gates only its own pull request, as the
           # listing holds it; the scheduled run gates every candidate.
-          jq -c --args '($ARGS.positional | map(ascii_downcase)) as $authors
-              | [.[] | select((.author.login // "" | ascii_downcase) as $a | $authors | index($a))
+          # The lanes App and Dependabot are Bots matched by login and kept by
+          # their switches alone; every other author by its id. GraphQL gives
+          # a Bot's login without the [bot] suffix. An author with no id (a
+          # deleted account, a mannequin) matches nothing.
+          jq -c --arg slug "$slug" --argjson lanes "$lanes" --argjson dependabot "$dependabot" --argjson ids "$ids" '
+              [.[] | select(.author as $a | ($a.__typename // "") as $type | ($a.login // "" | ascii_downcase) as $login
+                | if $type == "Bot" and $login == $slug then $lanes
+                  elif $type == "Bot" and $login == "dependabot" then $dependabot
+                  else ($a.databaseId // null) as $id | $id != null and any($ids[]; . == $id) end)
               | select(env.EVENT_PR == "" or (.number | tostring) == env.EVENT_PR)]' \
-            "${authors[@]}" <"$listing" >"$RUNNER_TEMP/authored.json"
+            <"$listing" >"$RUNNER_TEMP/authored.json"
           jq -c '[.[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' "$RUNNER_TEMP/authored.json" |
