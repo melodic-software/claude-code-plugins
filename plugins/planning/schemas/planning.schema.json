@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
   "title": "Planning team config",
-  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, wayfind_suggest_questions, interview_page and plan_stress_test are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md. question_pacing, answer_audit_rounds, wayfind_suggest_questions, interview_page, plan_stress_test, plan_size_bands and plan_inventory_min_files are read from <home>/planning.yaml in a bound convention home, and from <home>/planning.local.yaml above it (docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -79,6 +79,22 @@
           "default": "auto"
         }
       }
+    },
+    "plan_size_bands": {
+      "description": "The file counts /planning:plan scales a plan's depth by, each the largest file count of its band: trivial (default 1), small (default 5), medium (default 15); more than medium, or cross-cutting work, is large. Each value must be larger than the one before it; a layer that breaks the order is dropped. A layer that sets the key supplies all three values, a missing one taking its default.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trivial": { "description": "The largest file count of a trivial plan.", "type": "integer", "minimum": 1, "default": 1 },
+        "small": { "description": "The largest file count of a small plan.", "type": "integer", "minimum": 2, "default": 5 },
+        "medium": { "description": "The largest file count of a medium plan.", "type": "integer", "minimum": 3, "default": 15 }
+      }
+    },
+    "plan_inventory_min_files": {
+      "description": "The file count at which /planning:plan emits a checkbox file inventory for a plan or phase: it does when the plan or phase touches this many files or more.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 10
     },
     "plan_panel_rubric": {
       "description": "The criteria the planning:plan-panel judges score each draft on, 1 to 5 each, and the synthesizer grafts by. 2 to 6 criteria with unique snake_case names other than draft, rationale, angle, judges and total; the workflow keeps the default rubric for any other value.",
