@@ -59,8 +59,9 @@ dispatcher's record step and the job that holds the four invariants come in a la
 
 ## Consequences
 
-- The `pull_requests` list is live data. A pull request retargeted to `main` after its event run
-  still matches the entry; that residual is open with the owner.
+- The `pull_requests` list is live data, read when the gate runs. A pull request retargeted to
+  `main` after its event run still matches the entry. Retargeting needs write access to this
+  repository, and the dispatched Refine runs `main`'s code either way.
 - `dispatcher-current.sh` runs before the record may exist, and leaves that run to the broker.
 - The once-per-PR rule stays in the push dispatcher (`fix-docs-dispatch.mjs`). The event
   dispatcher runs `main`'s code, so it can apply the same rule before it dispatches; in
