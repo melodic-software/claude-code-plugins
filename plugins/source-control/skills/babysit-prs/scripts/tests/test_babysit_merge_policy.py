@@ -6320,6 +6320,17 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 config = policy.read_config_at(REPO, SHA)
                 self.assertEqual(config.spec_from_body_apps, expected)
 
+    def test_self_merging_apps_reads_the_setting(self) -> None:
+        for text, expected in (
+            (PIPELINE, ()),
+            (PIPELINE + "adoption:\n  self-merging-apps: [5, 77]\n", (5, 77)),
+            (PIPELINE + "adoption:\n  self-merging-apps: [5, x]\n", ()),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.self_merging_apps, expected)
+
     def test_a_fresh_owner_pr_is_not_adopted(self) -> None:
         self.owner_fake(committed=FRESH)
         result = self.eligibility(owner_pr())
