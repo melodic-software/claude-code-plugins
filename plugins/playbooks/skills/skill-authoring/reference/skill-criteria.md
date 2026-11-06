@@ -389,6 +389,10 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Skill-creator reasons**,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
   As of 2026-10-29. Recheck: that section moves or changes its guidance on explaining the why.
+- **Skill-creator comparator**,
+  [agents/comparator.md](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
+  (blind A/B judgment of two versions' outputs). As of 2026-11-06. Recheck: the file moves or is
+  renamed, or it stops judging the two versions blind.
 - **Context engineering post**,
   [The anatomy of effective context](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents#the-anatomy-of-effective-context).
   As of 2026-10-29. Recheck: that section moves or changes its guidance on examples.
