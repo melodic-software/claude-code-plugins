@@ -38,8 +38,14 @@ test("a pull request run proves the policy denies the reads before any case runs
   for (const call of ["Read /proc/self/environ", 'Read "$RUNNER_ROOT/.runner"', "Grep /proc/self", "Glob /proc/self"]) {
     assert.ok(probe.includes(`\n          denied ${call}\n`), `the probe checks a denied ${call}`);
   }
-  assert.match(probe, /if grep -qF "\$CLAUDE_CODE_OAUTH_TOKEN" "\$out"; then\n[^\n]*\n {12}exit 1/);
+  // The leak check looks for the leg's own credential, whichever leg runs.
+  assert.match(probe, /credential=\$\{ANTHROPIC_API_KEY:-\$\{CLAUDE_CODE_OAUTH_TOKEN:-\}\}\n {10}\[ -n "\$credential" \] \|\| /);
+  assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {14}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
+  // A probe the credential's own stop ended hands off before the denial checks, never past them.
+  assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("denied Read /proc/self/environ"));
+  assert.ok(probe.indexOf('if grep -qF "$credential"') < probe.indexOf("eval-handoff.mjs"), "the leak check runs before the classifier");
+  assert.match(probe, /env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="\$out"/, "the classifier runs without the credential");
   assert.doesNotMatch(probe, /cat "\$out"|jq [^\n]*"\$out"[^\n]*\| *tee/);
   assert.ok(text.indexOf("- name: Install the locked root toolchain") < text.indexOf("- name: Probe that the policy"));
   assert.ok(text.indexOf("- name: Probe that the policy") < text.indexOf("- name: Run the plugin eval"));
@@ -83,13 +89,14 @@ test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'pull_request' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
   // Only a dispatched run scans and uploads, and the upload needs the scan's clean output.
+  // A leg that handed off to the next credential uploads nothing.
   const scan = step("Scan the upload for credentials");
-  assert.match(scan, /if: >-\n {10}always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch'\n/);
+  assert.match(scan, /if: >-\n {10}always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch' && steps\.judge\.outputs\.handoff != 'true'\n/);
   assert.match(scan, /\n {8}id: scan-upload\n/);
   assert.match(scan, /\n {10}path: \$\{\{ runner\.temp \}\}\/eval-results\/\n/);
   assert.match(
     step("Upload the eval results"),
-    /if: >-\n {10}\(always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch'\) && steps\.scan-upload\.outputs\.clean == 'true'\n/,
+    /if: >-\n {10}\(always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch' && steps\.judge\.outputs\.handoff != 'true'\) && steps\.scan-upload\.outputs\.clean == 'true'\n/,
   );
   assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
 });

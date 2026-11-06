@@ -18,9 +18,8 @@
 # directory would surface. Requires shfmt and jq; without them the behavioral
 # assertions cannot run, so the suite skips them.
 # test-scope: plugins/bash-format/.claude-plugin/plugin.json plugins/bash-format/hooks/hooks.json plugins/bash-format/prerequisites.json plugins/bash-format/git-hooks/shfmt-rewrite.sh
-
-# shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 # test-scope: plugins/bash-format/lib/git-hooks/install.mjs plugins/bash-format/lib/prerequisites.mjs
+# shellcheck disable=SC2016 # fixtures hold literal shell text, not expansions
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

@@ -36,11 +36,12 @@ It binds every step below, hardest at step 1.
 ## Scope: raw intake only
 
 **Classification vocabulary.** Triage records an item's class on the `work-class:` label axis (`read-only`,
-`mechanical`, `scoped`, `structural`, `untrusted-provenance`). Human-readable aliases of the
-autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
+`mechanical`, `scoped`, `structural`), and C5 as `provenance: untrusted`. Human-readable aliases
+of the autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
 read it before step 5 stamps a member. No class gates the autonomous-eligible role label; only
-`work-class: untrusted-provenance` and `provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
+`provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) and
+`provenance: signal` keep an item off it. `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata (loop-lane status lines may report
 simple/medium/complex counts as lane-local telemetry only). The separate frontier
 capability-tier stamp (`capability-tier: frontier`) has its own canonical member and migration
@@ -238,7 +239,8 @@ machine and changes no label but that one.
 1. **List** open issues carrying the label (adapter: "List items", label filter), after the
    lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
-   - `work-class: untrusted-provenance` or `provenance: signal`;
+   - `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) or
+     `provenance: signal`;
    - an escalation marker from a
      [trusted escalation author](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md#trusted-escalation-authors);
    - issue dimensions that human-gated it (a split size or an uncertainty mode other than `run`);
@@ -374,8 +376,9 @@ Instead, route it to `/planning:interview`. Once the direction gate is met, run 
 `/planning:interview` as the next step and says the item waits on its intent. If the comment
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
 marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
-issue also gets `provenance: signal` and `work-class: untrusted-provenance` (`provenance: signal`
-alone in a lane that may not write `work-class:` labels), and never the human-gated role label. In an
+issue also gets `provenance: signal` and `provenance: untrusted` (`provenance: signal`
+alone in a lane that may not write `work-class:` labels, which applies no `provenance: untrusted`
+either), and never the human-gated role label. In an
 interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
 Once an interview records the item's intent, return it to raw in one label edit that removes
 `needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is
@@ -386,6 +389,7 @@ Then run these checks:
 - **Redundancy**. Look for code that already delivers what the item asks for, searching by the domain idea behind the request rather than its exact words, and name the places searched. A hit closes the item as already implemented (step 5).
 - **Rejected-concept ledger**, when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), compare the request with each concept file by **what it asks for, not the words it uses**. On a match, answer from the ledger instead of re-litigating: "Rejected before. `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
 - **Cluster detection**. Cross-reference other open intake: when this item shares **one underlying decision** with other open items, do not human-gate each member individually. Designate one representative as the **decision carrier** (human-gated, with the member numbers listed in its body) and link every other member to it via the native `blocked-by` edge with a `blocked by #<carrier> decision` comment (applied in step 5). One human touch on the carrier resolves the decision for the whole cluster.
+- **Signature clusters**. When this item shares a **signature** with other open intake (the same error text or failing check, the same reproduced symptom, or the same suspect commit), they form one cluster with one **parent**: by default the oldest member with a confirmed reproduction, else the oldest. Only the parent takes a briefed outcome, so only the parent can get the autonomous-eligible role label (default `agent-ready`). Every other member closes as a duplicate of the parent and its sighting is recorded on the parent, through the seam's `add-recurrence` verb or, for a local item, a body note (applied in step 5). These defaults are provisional until tuned on the first 20 clusters.
 
 ### 2. Recommend category + state
 

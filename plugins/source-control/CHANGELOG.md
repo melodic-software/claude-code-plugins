@@ -3,6 +3,41 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.2.4] - 2026-11-06
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it: an opt-in shfmt parse memo that only the guardrails Bash dispatcher turns on (#6634); no change to this plugin's behavior.
+
+## [8.2.3] - 2026-11-05
+
+### Changed
+
+- name provenance: untrusted as the merge gate's trust-hold label
+
+  `UNTRUSTED_PROVENANCE_LABEL` is now `provenance: untrusted`. The hold
+  matches any label naming untrusted work, so the legacy
+  `work-class: untrusted-provenance` still holds a merge; the refusal
+  reason codes are unchanged.
+
+## [8.2.2] - 2026-11-05
+
+### Changed
+
+- name `provenance: untrusted` as the babysit merge gate's trust-hold label
+
+  `UNTRUSTED_PROVENANCE_LABEL` is now `provenance: untrusted`. The hold
+  already matched any label holding "untrusted", so it still holds an
+  issue carrying the legacy `work-class:` name and merge-gate behavior is
+  unchanged. The tests and the safety, cycle-shape and config-resolution
+  prose use the new name.
+
+## [8.2.1] - 2026-11-05
+
+### Changed
+
+- The PR-prep verify gate counts a `/verification:confirm` `NOT VERIFIED` whose only cause is `verification: skipped (<level>)`, from the default branch's level, as clean, so a team that turns verification down does not stall PR creation.
+
 ## [8.2.0] - 2026-11-05
 
 ### Changed

@@ -1,6 +1,6 @@
 ---
 description: "teach primer is a single-session vocabulary ladder: core terms mapped from the learner's vague words to precise specs, good-versus-bad examples, a how-to-ask template and an offer of the full topic workspace, with no workspace or mission created even though Write is granted"
-tags: [education, teach, outcome, primer]
+tags: [education, teach, outcome, primer, no-network]
 max_turns: 15
 timeout_seconds: 600
 allowed_tools: [Skill, Read, Glob, Grep, Write]

@@ -140,6 +140,7 @@ setup() {
   : >"$STUB/calls"
   : >"$STUB/requests"
   : >"$STUB/bodies"
+  : >"$STUB/github_output"
   if [[ ${3:-none} != none ]]; then
     printf '%s' "$3" >"$STUB/ws/.base/.work-item-tracker.json"
   fi
@@ -150,7 +151,7 @@ run() {
   set +e
   (cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t \
     GITHUB_REPOSITORY=o/r LANES_BOT_LOGIN="${LBL:-}" PR_NUMBER=42 HEAD_SHA="${2:-$HEAD_A}" \
-    TARGET_URL="${TARGET_URL:-}" ESCALATION_REASON="$1" "$SUT" ${MODE:+"$MODE"}) >"$STUB/out" 2>&1
+    TARGET_URL="${TARGET_URL:-}" GITHUB_OUTPUT="$STUB/github_output" ESCALATION_REASON="$1" "$SUT" ${MODE:+"$MODE"}) >"$STUB/out" 2>&1
   RC=$?
   set -e
 }
@@ -509,34 +510,44 @@ publish_case "$MODIFIED"
 check "publish-failed, workflow-modified: exit 0" 0 "$RC"
 check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
+check "publish-failed, workflow-modified: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
 # A head at the sweep's cap gets no resend, so the status goes on. Rounds
 # another app posted, or another check, do not count.
 ROUND='{"name":"pr-unblock / address-feedback","app":{"id":15368}}'
 ROUNDS="{\"check_runs\":[$ROUND,$ROUND,$ROUND]}" publish_case "$MODIFIED"
 check "publish-failed, workflow-modified at the sweep cap: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, at the sweep cap: no status-withheld output" "" "$(cat "$STUB/github_output")"
 ROUNDS="{\"check_runs\":[$ROUND,$ROUND,{\"name\":\"pr-unblock / address-feedback\",\"app\":{\"id\":1}},{\"name\":\"other\",\"app\":{\"id\":15368}}]}" publish_case "$MODIFIED"
 check "publish-failed, workflow-modified under the cap: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+check "publish-failed, workflow-modified under the cap: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
 # A transient refusal proves no retry: pr-merge's re-fire skips a PR that
 # changes a lane file, a skip branch or one that fails qualifies, so the
 # status goes on.
 publish_case 'broker-unreachable: the lanes token broker gave no response'
 check "publish-failed, broker unreachable: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, broker unreachable: no status-withheld output" "" "$(cat "$STUB/github_output")"
 publish_case 'lane-token-denied: the broker answered 503 with reason github-unavailable'
 check "publish-failed, broker 503: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, broker 503: no status-withheld output" "" "$(cat "$STUB/github_output")"
 # A 403 other than workflow-modified is no retry, so the status goes on.
 publish_case 'lane-token-denied: the broker answered 403 with reason actor-not-trusted'
 check "publish-failed, other 403: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, other 403: no status-withheld output" "" "$(cat "$STUB/github_output")"
 # A reply job that got its token and failed later (a script error) has no retry.
 publish_case "$MODIFIED" failure success
 check "publish-failed, failed after the token step: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, failed after the token step: no status-withheld output" "" "$(cat "$STUB/github_output")"
 publish_case -
 check "publish-failed, no annotation: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+check "publish-failed, no annotation: no status-withheld output" "" "$(cat "$STUB/github_output")"
 # A jobs read that fails is no evidence: the status goes on.
 publish_case "$MODIFIED"
 touch "$STUB/fail_jobs"
+: >"$STUB/github_output"
 GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
 check "publish-failed, jobs read fails: exit 0" 0 "$RC"
 check "publish-failed, jobs read fails: posts the failing status" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests" | tail -1)"
+check "publish-failed, jobs read fails: no status-withheld output" "" "$(cat "$STUB/github_output")"
 # Another fail-routed reason never reads the jobs.
 setup '[]' '[]'
 GITHUB_RUN_ID=777 MODE=status run feedback-incomplete

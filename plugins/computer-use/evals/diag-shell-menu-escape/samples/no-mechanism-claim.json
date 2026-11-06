@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Close it with a left-click on empty space. Why Escape fails is not known: the behavior is reproducible on shell-owned menus, while in-app menus such as Notepad's close on Escape.",
+      "why": "says the mechanism is unknown"
+    },
+    {
+      "answer": "**Fix:** left-click a blank area of the window. Shell context menus ignore a synthesized Escape; app menus don't. Waiting for the menu to load does not change it.",
+      "why": "describes the behavior, no cause asserted"
+    },
+    {
+      "answer": "Left-click empty space. One guess is that the key reaches a different window, but that has not been shown, and the click works either way.",
+      "why": "candidate cause plainly marked as a guess"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Escape fails because the menu hadn't finished rendering; wait 3 seconds and send it again.",
+      "why": "states the ruled-out load-timing cause"
+    },
+    {
+      "answer": "The shell menu runs at a higher integrity level, so UIPI drops the synthesized Escape. Left-click empty space instead.",
+      "why": "states an invented UIPI cause as fact"
+    },
+    {
+      "answer": "It's most likely because the keystroke goes to the Explorer window that owns the menu, so focus the menu first and then press Escape.",
+      "why": "near miss: hedged, but the advice depends on the cause"
+    }
+  ]
+}

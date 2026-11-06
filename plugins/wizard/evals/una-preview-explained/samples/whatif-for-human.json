@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run `pwsh -File .\\retire-distro.ps1 -WhatIf` from an elevated PowerShell 7 first and read the What if: lines and the blast radius.",
+      "why": "names -WhatIf"
+    },
+    {
+      "answer": "Preview: -whatif narrates every step.",
+      "why": "lower case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Read the script first, then launch it.",
+      "why": "no preview switch"
+    },
+    {
+      "answer": "I want to see what it would do without changing anything.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

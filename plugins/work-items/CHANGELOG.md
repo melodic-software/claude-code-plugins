@@ -3,6 +3,83 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.6.2] - 2026-11-06
+
+### Fixed
+
+- measure-delivery: count `revert:` and `revert(<scope>):` squash commits as reverts
+
+  A commit with a revert subject now reverts the deployment its
+  `Reverts [<owner>/<repo>]#<n>` body line or `(#<n>` subject group names
+  by pull request number, else the one its quoted or remaining subject
+  matches; `This reverts commit <sha>` still comes first. A revert subject
+  that names no deployment counts as rework and in the new
+  `unresolved_reverts` count, never dropped. Targets that landed before
+  `--since` now resolve.
+
+## [11.6.1] - 2026-11-05
+
+### Changed
+
+- read provenance: untrusted as the untrusted-provenance label
+
+  Triage now applies `provenance: untrusted` to a signal-marked item in
+  place of `work-class: untrusted-provenance`. The autonomous frontier,
+  the work-loop provenance and provenance-removal holds, the attend-queue
+  flip rules and the triage pairing ban and sweep hold both names: the
+  legacy one stays floored until the label source drops it.
+
+## [11.6.0] - 2026-11-05
+
+### Added
+
+- triage clusters intake that shares a signature under one parent
+
+  Items with the same error text or failing check, the same reproduced
+  symptom, or the same suspect commit form one cluster. The parent (the
+  oldest member with a confirmed reproduction, else the oldest) is the
+  only member that can get `agent-ready`; every other member closes as a
+  duplicate, with its sighting recorded on the parent through
+  `add-recurrence` (a body note for a local-markdown member, whose
+  `file://` link `add-recurrence` refuses). Members get no `blocked-by`
+  edge, so the parent's close never promotes them.
+- `/work-items:track add` files no ticket when unsure
+
+  Unless `--force` is passed or the user chose "Add anyway", a signal
+  that may not be real or new gets one question first (on an open item,
+  with `status:needs-info`). An answer showing it is real and new files
+  it; otherwise the signal is recorded on the matching item as seen
+  again and nothing is filed.
+
+## [11.5.0] - 2026-11-05
+
+### Changed
+
+- mark untrusted provenance with the `provenance: untrusted` label
+
+  Triage now applies `provenance: untrusted` to a signal-marked item in
+  place of the legacy `work-class:` name. The autonomous frontier
+  floor, the work-loop provenance and provenance-removal holds, the
+  attend-queue flip rules and triage's pairing ban and human-gated sweep
+  hold both names. They keep the old one, now called the legacy name,
+  until the label source drops it. Setup checks for `provenance: untrusted`
+  among the canonical members.
+
+## [11.4.0] - 2026-11-05
+
+### Added
+
+- `/work-items:morning-brief` gains a Landed section
+
+  It lists the PRs merged since this machine's `landed_at` (the last day
+  on a first read), with a count, and under "Read these" a sample of 3
+  of them: the oldest, the newest and evenly between. `--landed-sample`
+  or the `morning_brief.landed_sample` key sets the size. `landed_at` is
+  a stamp under the plugin data dir beside the stranded-findings
+  bookmark, and it moves only after the section read in full. The
+  section reuses the stranded-findings read of merged PRs when that read
+  reaches back far enough.
+
 ## [11.3.1] - 2026-11-05
 
 ### Fixed

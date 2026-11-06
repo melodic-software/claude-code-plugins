@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -L -o DeDRM_tools-v10.0.28.zip \"https://github.com/Satsuoni/DeDRM_tools/releases/download/v10.0.28/DeDRM_tools.zip\""
+          }
+        }
+      ],
+      "why": "the pinned tag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "LATEST_TAG=\"PINNED_TAG_FROM_VERSIONS_MD\"\nif [[ \"${LATEST_TAG}\" == \"PINNED_TAG_FROM_VERSIONS_MD\" ]]; then\n  echo \"no pinned tag substituted\" >&2\n  exit 1\nfi\ncurl -L -o \"DeDRM_tools-${LATEST_TAG}.zip\" \"https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip\""
+          }
+        }
+      ],
+      "why": "near miss: the guarded block, URL built from the variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -L -o DeDRM_tools.zip \"https://github.com/Satsuoni/DeDRM_tools/releases/download/PINNED_TAG_FROM_VERSIONS_MD/DeDRM_tools.zip\""
+          }
+        }
+      ],
+      "why": "the placeholder inlined in the URL"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -L -o DeDRM_tools-.zip https://github.com/Satsuoni/DeDRM_tools/releases/download//DeDRM_tools.zip"
+          }
+        }
+      ],
+      "why": "an empty tag"
+    }
+  ]
+}

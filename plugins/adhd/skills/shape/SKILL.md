@@ -202,9 +202,6 @@ Before sending, delete:
 4. Any hedging adverb that adds no information ("perhaps," "might," "could
    possibly").
 
-Then check: reading only the first line and the last line, does the reader know
-(a) what to do next and (b) what just happened? If yes, send.
-
 ## Gotchas
 
 - **The standing posture erodes across context compaction.** "Applies for the

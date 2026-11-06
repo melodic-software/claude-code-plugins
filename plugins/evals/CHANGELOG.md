@@ -1,5 +1,25 @@
 # Changelog: evals
 
+## [0.17.0] - 2026-11-05
+
+### Changed
+
+- `plugin-eval` runs the Docker link swap on WSL2 without asking when `DOCKER_CONFIG` is unset, every `~/.docker` link points under `/mnt/`, and no link target holds a `tls/` directory, and says so in the run report. When any condition fails it refuses and names the links, as before.
+- `docker-links.py` refuses the swap with exit 2, changing nothing, when a `tls` directory sits under any link's target, and names that directory.
+- The `sandbox-docker-symlink` eval case accepts running the CLI through the link swap as resolving the links.
+
+## [0.16.11] - 2026-11-05
+
+### Changed
+
+- plugin-eval: the cloud-session route row now records why no run exists there and links the record.
+
+## [0.16.10] - 2026-11-05
+
+### Fixed
+
+- `/evals:validate` now fails a regex `target` or an llm `focus` whose value is not `last_message`, `trace`, `files`, `mock_calls` or `{ source: file, path: <path> }`. `claude plugin eval` refuses such a case at load and skips it without a run, so a grader set to `focus: reply` dropped its case from every eval with no warning ([#13542](https://github.com/melodic-software/claude-code-plugins/issues/13542)).
+
 ## [0.16.9] - 2026-11-05
 
 ### Fixed

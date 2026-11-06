@@ -21,9 +21,10 @@ name: pr-refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it. handoff-evidence.sh sets it itself for the
-# fix-docs reads, and fix-docs-head's reads end red, a run fix-docs-dispatch.mjs
-# counts toward limit-stops-per-head.
+# API_BUDGET_HOLD (outage posture element 2): only fix-docs-head's head read sets
+# it, since an unread head holds green and starts nothing. handoff-evidence.sh
+# sets it itself for the fix-docs reads. lane-hold.mjs's reads still end red, a
+# run fix-docs-dispatch.mjs counts toward limit-stops-per-head.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -118,6 +119,9 @@ jobs:
   # on the new head.
   # It also reads whether the human-gated label holds fix-docs: only when a
   # lane escalation did not put it on (lane-hold.mjs); a held PR runs nothing.
+  # A head it cannot read (a failed read, a rate limit past the guard's budget,
+  # or an answer with no SHA) holds (outage posture element 2): one notice,
+  # unread=true, no head-sha, so nothing after it starts but fix-docs-head-held.
   fix-docs-head:
     needs: dispatcher-current
     if: >-
@@ -131,6 +135,7 @@ jobs:
       pull-requests: read
     outputs:
       head-sha: ${{ steps.head.outputs.sha }}
+      unread: ${{ steps.head.outputs.unread }}
       held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
@@ -160,22 +165,32 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
+          # A rate limit past the guard's budget refuses the read with a notice
+          # (api-budget.bash), and the step holds.
+          API_BUDGET_HOLD: "1"
+          READ_PR_FAILURE: notice
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           # read_pr_fields reads a transient fault (a 5xx, a network error) once
-          # more and never a rate limit; any failure that remains ends red.
+          # more and never a rate limit; a read that still fails, or names no
+          # SHA, holds: fix-docs-head-held logs the hold and nothing else runs.
           # shellcheck source=/dev/null
           . .base/.github/scripts/pr-unblock/read-pr-head.bash
           [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
-          read_pr_fields "$PR_NUMBER" .head.sha || exit 1
-          sha=$pr_fields
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
+          sha=""
+          if read_pr_fields "$PR_NUMBER" .head.sha; then sha=$pr_fields; fi
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::notice::no PR head SHA read for #$PR_NUMBER; fix-docs does not run"
+            echo "unread=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
+        if: steps.head.outputs.sha != ''
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -183,6 +198,7 @@ jobs:
 
       - name: Check the human-gated hold
         id: hold
+        if: steps.head.outputs.sha != ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
@@ -198,6 +214,25 @@ jobs:
         with:
           tokens: github-token
 
+  # Job-level evidence that fix-docs-head held on an unread head: the run ends
+  # green, and fix-docs-dispatch.mjs (heldHead) reads this job's conclusion, as
+  # it reads a handoff hold, to dispatch the PR again until
+  # limit-stops-per-head runs went red or held. Monitor signal 13 counts its
+  # titled notice (signals.mjs HOLD_LANES). It needs fix-docs-head alone, a job
+  # that runs no head code, so nothing forges it.
+  fix-docs-head-held:
+    needs: fix-docs-head
+    if: needs.fix-docs-head.outputs.unread == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Note the hold
+        env:
+          PR_NUMBER: ${{ inputs.pr-number }}
+        run: |
+          echo "::notice title=PR head hold::the head of #$PR_NUMBER could not be read; fix-docs did not run, and the next dispatcher tick sends the PR again"
+
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
@@ -211,6 +246,7 @@ jobs:
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
       && needs.fix-docs-head.outputs.held == 'false'
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -224,6 +260,7 @@ jobs:
       role: pr-unblock
       lane: pr-refine
       activity: fix-docs
+      key-credit-job: fix-docs
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -311,6 +348,83 @@ jobs:
         with:
           tokens: github-token
 
+  # The key's credit-stop markers, read by the read runner's broker-check in
+  # later runs (each first call's key-credit-job). Each comes from a jobs-API
+  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
+  # call's output. No job needs this one, so the read, which waits for the
+  # jobs listing's steps, delays no handoff.
+  key-credit-markers:
+    needs: [fix-docs]
+    if: ${{ !cancelled() && (needs.fix-docs.result != 'skipped') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+            awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }')
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether fix-docs's key hit a credit stop
+        id: credit-stop-fix-docs
+        if: needs.fix-docs.result != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-docs
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write fix-docs's credit-stop marker
+        id: credit-marker-fix-docs
+        if: steps.credit-stop-fix-docs.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-fix-docs"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-fix-docs/run-id"
+
+      - name: Upload fix-docs's credit-stop marker
+        if: steps.credit-marker-fix-docs.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-refine.yml-fix-docs
+          path: ${{ runner.temp }}/key-credit-stop-fix-docs/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
   # only when the broker allowed fix-docs, fix-docs posted no check, and
   # fix-docs handed off: a credit stop or an empty key, whose run job succeeds
@@ -331,6 +445,7 @@ jobs:
       && needs.fix-docs-handoff.outputs.allowed == 'true'
       && needs.fix-docs-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write
@@ -422,6 +537,7 @@ jobs:
     needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
+      actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
       pull-requests: read
       checks: write

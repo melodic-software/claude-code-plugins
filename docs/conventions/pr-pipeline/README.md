@@ -158,7 +158,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -376,7 +376,10 @@ serves an adopted owner PR, posting its replies as the lanes App:
   reply that left it open (`resolve-threads.mjs`). It reads the threads from GitHub, never from
   another job, judges each again on its re-read comments just before resolving, and escalates
   nothing. It runs after an acted round and after the reply script's own stops (an escalation,
-  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip. A CRITICAL finding
+  `finding-stands`, `no-model-turn`), never after a kill-switch or gate skip, and starts no job
+  (so asks the broker for no token) on a PR no listed person opened (the select job's
+  `person-opened`) or on a round whose upstream is a relayed person's reply (the dispatch's
+  `upstream-relay`), where it has no thread to resolve. A CRITICAL finding
   and any thread a person wrote or joined stay open for the person.
 - No pass-only round goes to an owner PR: a person-opened PR gets no fail-note threads
   (`verify-notes.mjs`).
@@ -580,11 +583,13 @@ dispatched. A lost record restarts the count, at most that many runs more.
 
 A completed `fix-docs` run ends the PR too, check or not, unless it says nothing about the PR. One
 lost run gets another dispatch. So do fewer than `limits.limit-stops-per-head` runs that went red or
-held on a failed `handoff-evidence.sh` read, the next tick being the probe: red alone cannot tell a
-read that failed from a broker that refused, so the count is what ends a refusal, and an outage
-past that many runs still ends the PR. A held run ends green, so the dispatcher reads the jobs of
-each green run it finds for a candidate: a leg that handed off, whose handoff job succeeded, with no
-next leg started, is a held run. A run whose jobs cannot be read holds the PR for a later run.
+held on a failed `handoff-evidence.sh` read or an unread PR head, the next tick being the probe: red
+alone cannot tell a read that failed from a broker that refused, so the count is what ends a
+refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
+dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
+handoff job succeeded, with no next leg started, is a held run, and so is a run whose
+`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head. A
+run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -814,7 +819,8 @@ session-builder queue, which no merge gate reads), a failing commit status on th
 sweep sends again; a transient broker refusal still posts it, since pr-merge's re-fire skips some
 PRs), and one
 lanes App comment per activity (marked `<!-- pr-unblock:lane-stopped activity=<activity> -->`,
-naming the run) that the next stop edits in place. The stopping job's check skips `lane-stopped`.
+naming the run) that the next stop edits in place; when `report-stop-status` withholds the status,
+`report-escalation` posts no comment either. The stopping job's check skips `lane-stopped`.
 `workflow-staged` routes `fail` as a capability limit: the merge carries the PR's own
 `.github/workflows/` changes together with the base's, which the lane token cannot push, and
 nothing in it is a person's decision, so a session merges main by hand.
@@ -1221,7 +1227,8 @@ the rules that only tighten in
   that has lifted by that same rule; post-merge-failure canary records lift and close the same
   way. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
-  its enqueuer cannot be read; a revert of one a person enqueued files nothing. The alert job
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing, and one on a
+  record-mode path gets labels only ([Merge paths](#merge-paths)). The alert job
   finds the revert and hands the record, through its job outputs, to the `file-revert` job, whose
   token holds `issues: write` alone; that job re-reads the revert records and files nothing when
   one already lists every revert commit. A commit names it
@@ -1772,7 +1779,9 @@ except six:
   (or the aliases `C2` and `C3`) caps the rung;
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
-  merge by a person or by another App, such as a release pull request, is not the lane's.
+  merge by a person or by another App, such as a release pull request, is not the lane's. An
+  agent session's merge through the owner login is recorded on its own path and changes no lane
+  state ([Merge paths](#merge-paths)).
 
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
 review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
@@ -1955,10 +1964,21 @@ head-ref map and run cache and one artifact listing for the run, which its first
 and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
 merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
 never arms, and
-only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. An arm
-survives a push to its head: turning auto-merge off needs `contents: write`, which the lanes App's
-arming token holds and `ci-status`'s `GITHUB_TOKEN` deliberately lacks. The merge queue's
-`ci-status` holds a new head until a pr-verify pass stands at the exact head it merges. That check
+only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. GitHub
+checks `expectedHeadOid` only when the arm is made, and turns auto-merge off only on a push by
+someone without write access
+([Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request)),
+so a push by the lanes App or a person with write access leaves on an arm whose checks judged the
+head it moved off. The merge queue's `ci-status` holds a head that the lanes App's newest pin
+(`<!-- babysit-merge-pin sha=... -->`, posted just before each arm) does not name, or that pin
+when it was edited or its edit time does not read, unless a trusted person's approval of that head
+lifts it (`merge-holds.mjs` `pinHold`). The queue's failed
+check removes the entry, and GitHub drops the arm with it. `enable-auto-merge` also disarms an armed
+one whose head that pin does not name, and its next scheduled run judges and pins the new head
+before arming it again. Turning auto-merge off needs `contents: write`, which the lanes App's
+arming token holds and `ci-status`'s `GITHUB_TOKEN` deliberately lacks, so `ci-status` holds
+rather than disarms. The merge queue's
+`ci-status` also holds a new head until a pr-verify pass stands at the exact head it merges. That check
 reads the pull request's live head, not the SHA in the queue ref, and relies on GitHub dequeuing an
 entry when its head branch is pushed. `enable-auto-merge` turns auto-merge off on an armed one that
 now fails any of those, and does not turn it back on once a person has turned it off. A scheduled or
@@ -3543,7 +3563,7 @@ with its default.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
+the WIP cap check holds the run ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
 In pr-merge, a rate limit that stops any of `post-merge-dispatch`'s GitHub calls (its post-merge
@@ -3596,16 +3616,16 @@ the admission share, at or over the queued cap, or with a held PR past the alarm
 writes a warning annotation. Over the WIP cap or the held cap on or after `pause-from` it pauses runs: work-resolve-issue
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
-(a `::notice` annotation titled `admission paused`). When the open listing or the base config
-cannot be read, the lane keeps the last known pause: the status work-unblock's hourly sweep last
-saved to the Actions cache (key prefix `check-wip-cap-state-`) from reads that succeeded. Only a
-trusted trigger such as `schedule` can save a default-branch cache, so work-resolve-issue's
-pick-slot (`cache-mode: read`) only restores it. A kept pause names only `wip`, `held-cap` or
-`wip,held-cap`; any other saved reason counts as no saved state. A kept pause logs
-`admission paused: reason=<reason> (read-error, kept last state)`, unless a config that was read no
-longer pauses (`pause-from` cleared or in the future); with no saved state (none yet,
-or the cache evicted it), the check fails open and the run starts. Without a merged count the
-cap is `limits.wip-cap`. A held PR's age runs from when it opened.
+(a `::notice` annotation titled `admission paused`). When the open listing or
+the base config cannot be read, or a search answers `incomplete_results: true`, the pause is
+unknown and the run holds (outage posture elements 2 and 3, `docs/outage-posture-audit.md`):
+`capped` is `true`, `pause_basis` is `unknown`, and the log and step summary carry one line
+`WIP cap hold: <what could not be read>, ...` (a `::notice` annotation titled `WIP cap hold`).
+pick-slot starts resolve-issue only on `capped` `false`, so a check that fails or sets nothing
+holds too, with the same notice from pick-slot's `Hold on an unknown WIP cap` step. The job ends
+green, and work-unblock's sweep re-fires the issue as a WIP cap skip, whose run reads again. No
+stored state decides the pause. Without a merged count the cap is `limits.wip-cap`, a configured
+default, so that failure holds nothing. A held PR's age runs from when it opened.
 
 Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
 PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes
@@ -3630,7 +3650,7 @@ unknown, not failed: admissions pause whether or not `pause-from` is set or reac
 and work-unblock's deferral log names that reason. A base config the check cannot read (a failed
 resolve-config import, as after a failed `npm ci` of its dependencies) leaves the caps unknown, so
 admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
-a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
+a `check-wip-cap` warning; the run holds, as on any failed read the pause depends on. The queued cap itself still
 pauses only on or after `pause-from`, and no run pause changes.
 The queued issues come from the repository issues listing (open `agent-ready` issues, oldest
 first), not the search index, whose results carry no recency guarantee. The listing also returns
@@ -3669,8 +3689,9 @@ intake with the cutoff past that pull request. Each pass reads its issues in one
 most 50 issues a call); a read that fails admits as though no such pull request merged.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
-group, queued, never cancelled), so a burst of closes or finished issue runs, or a close run beside
-the hourly sweep, cannot each admit the full room. An `agent-ready` label added moments before may still be missing from
+group with one waiting run, which a newer run replaces), so a burst of closes or finished issue runs,
+or a close run beside the hourly sweep, cannot each admit the full room. The next sweep does a
+replaced run's work: it reads the whole state, and its closed-issue window repeats a close run's. An `agent-ready` label added moments before may still be missing from
 the issues listing, so a run right after another may read the room as one admission too wide.
 
 Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read
@@ -3698,9 +3719,9 @@ count as queued work:
 | `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
-and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
+and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause or hold;
 `admission-open` is `false` only while new admissions pause. A job that reads only `capped`
-(pick-slot, and work-unblock's state save) passes `reads: pause`: the check then makes just the
+(pick-slot) passes `reads: pause`: the check then makes just the
 open listing and the merged count, and leaves the admission fields null with `admission_basis`
 `not-read` (`search-incomplete` or `config-unreadable` when either applies).
 
@@ -3723,7 +3744,7 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `alert` | Any of the five. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
-| `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
+| `pause_basis` | `read` from this run's reads; `unknown` when a read the pause depends on failed, so the run holds. |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued`, `search-incomplete` or `config-unreadable` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
 | `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`; `config-unreadable` when the base config could not be read; otherwise `not-read` under `reads: pause`. |
 
@@ -3868,6 +3889,44 @@ and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absen
 | Key | Default | Meaning |
 |---|---|---|
 | `reviewer-ids` | `[]` | Account ids of the extra review bots whose threads `address-feedback` works. |
+
+## Merge paths
+
+The post-merge accounting sorts each merge into a path, so the paths roll up and compare per
+window (owner decision Q1 (a) on
+[#7531](https://github.com/melodic-software/claude-code-plugins/issues/7531)). `lanes` is a merge
+the agent identity enqueued, the merges the post-merge check and the revert breaker act on. Each
+path under `post-merge.paths` in `pr-pipeline.yaml` names the logins whose merge-queue actor or
+enqueuer puts a merge on it, for a pull request an agent session wrote: its body carries
+`<!-- session: … -->` or `Generated with [Claude Code]`, and one of its commits a
+`Co-Authored-By: Claude` trailer (`isAgentAuthored` in
+[`merge-path.mjs`](../../../.github/scripts/post-merge-demotion-alert/merge-path.mjs)). This
+repository sets one, `owner-agent`, for agent sessions merging through the owner login.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `paths.<name>.mode` | none | `record`: the path's merges and reverts are labeled, and nothing demotes the lane, trips the revert breaker or holds a pull request. The only mode built. |
+| `paths.<name>.enqueuers` | none | Logins (at least one) whose merge-queue actor or enqueuer puts an agent-authored merge on the path. |
+
+On every canary push run, the alert workflow's `label-paths` job (`issues: write`, after the
+alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path:<name>` and
+each reverted one also `post-merge:reverted`, creating a label that is missing. It files no issue
+and posts no comment, and its `GITHUB_TOKEN` writes start no workflow run. A lane merge gets no
+label; a push that reverts a lane pull request still files the revert demotion record, and
+labels any record-path pull request it also reverts. A failed label write fails the job.
+
+The rollup counts, per path, the merges in a window, how many were reverted (labeled
+`post-merge:reverted` or named on a lane revert record) and how many escaped (a pull request with a
+`fix:` title merged later cites it as `#N` or by URL). That escape count is an upper bound, since
+a fix also cites pull requests it did not repair. A merge with no path label is `lanes` by
+its enqueuer, else `other`, so record-path merges before the labels count as `other`:
+
+```bash
+npm ci --prefix .github/actions/resolve-config && node .github/scripts/post-merge-demotion-alert/merge-path.mjs rollup --since 2026-11-06 --until 2026-11-12
+```
+
+It prints a Markdown table (`--json` for JSON, `--repo <owner/repo>` for another repository),
+reading every pull request merged from `--since` to today, a day per search.
 
 ## Red main
 

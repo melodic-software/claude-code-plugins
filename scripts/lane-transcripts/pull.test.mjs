@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -7,7 +7,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { generate } from "../../.github/actions/open-lane-output/keygen.mjs";
 import { parsePublicKey, sealRecord } from "../../.github/actions/seal-lane-output/seal.mjs";
 import { tempDir } from "../../lib/test-tmp.mjs";
-import { ENTRY, main, PAYLOAD } from "./pull.mjs";
+import { ENTRY, main, MAX_LIST_CALLS, PAYLOAD, REPO, TRANSCRIPT_JOB_IDS, TRANSCRIPT_NAMES } from "./pull.mjs";
 import { CAP_BYTES, parseArtifactName, paths, prune, query, readRows, transcriptMetrics, writeRows } from "./store.mjs";
 
 const MARKER = "plaintext-marker-5d21";
@@ -23,19 +23,21 @@ const iso = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
 // A fake artifact zip: the fake unzip reads this JSON back as its entries.
 const zipOf = (entries) => Buffer.from(JSON.stringify(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, Buffer.from(v).toString("base64")]))));
 
-function artifact(id, { jobId = "verify", attempt = 1, runId = 42, createdAt = NOW - 60_000, fork = false, entries, record }) {
+function artifact(id, { jobId = "check-intent", attempt = 1, runId = 42, createdAt = NOW - 60_000, fork = false, entries, record }) {
   return { id, name: `lane-transcript-${jobId}-${attempt}`, size_in_bytes: 100, expired: false, created_at: iso(createdAt), workflow_run: { id: runId, repository_id: REPO_ID, head_repository_id: fork ? 1 : REPO_ID }, zip: zipOf(entries ?? { [ENTRY]: record }) };
 }
 
-function sealed(publicLine, { runId = 42, jobId = "verify", messages = MESSAGES } = {}) {
+function sealed(publicLine, { runId = 42, jobId = "check-intent", messages = MESSAGES } = {}) {
   return sealRecord(parsePublicKey(publicLine), PAYLOAD, gzipSync(Buffer.from(JSON.stringify(messages))), String(runId), jobId);
 }
 
-// `failures` maps a gh URL's suffix to how many calls to it fail before one succeeds.
-function fakeDeps(pages, { now = NOW, runs = {}, failures = {} } = {}) {
+// `artifacts` is newest first, as GitHub lists them; each name's listing pages
+// through the ones with that name. `failures` maps a gh URL's suffix to how
+// many calls to it fail before one succeeds.
+function fakeDeps(artifacts, { now = NOW, runs = {}, failures = {} } = {}) {
   const calls = [];
   const sleeps = [];
-  const byId = new Map(pages.flat().map((a) => [a.id, a]));
+  const byId = new Map(artifacts.map((a) => [a.id, a]));
   const left = { ...failures };
   return {
     calls,
@@ -47,8 +49,11 @@ function fakeDeps(pages, { now = NOW, runs = {}, failures = {} } = {}) {
       const url = args[1];
       const failing = Object.keys(left).find((suffix) => url.endsWith(suffix));
       if (failing && left[failing]-- > 0) throw Object.assign(new Error(`HTTP 502 ${MARKER}`), { status: 1 });
-      let m = /actions\/artifacts\?per_page=100&page=(\d+)$/.exec(url);
-      if (m) return Buffer.from(JSON.stringify({ artifacts: (pages[Number(m[1]) - 1] ?? []).map(({ zip, ...a }) => a) }));
+      let m = /actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(url);
+      if (m) {
+        const page = artifacts.filter((a) => a.name === m[1]).slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100);
+        return Buffer.from(JSON.stringify({ artifacts: page.map(({ zip, ...a }) => a) }));
+      }
       m = /actions\/artifacts\/(\d+)\/zip$/.exec(url);
       if (m) return byId.get(Number(m[1])).zip;
       m = /actions\/runs\/(\d+)$/.exec(url);
@@ -71,12 +76,18 @@ function run(argv, { env = {}, deps } = {}) {
 }
 
 const sinkDir = () => path.join(tempDir("lane-transcripts-"), "sink");
+const FOREVER = Number.MAX_SAFE_INTEGER;
+const stateOf = (sink) => JSON.parse(readFileSync(paths(sink).state, "utf8"));
+const seedState = (sink, state) => {
+  mkdirSync(sink, { recursive: true });
+  writeFileSync(paths(sink).state, JSON.stringify(state));
+};
 
 test("a pull opens each sealed transcript into the sink, gzipped, with a metrics row and no plaintext on stdout or stderr", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
   const env = { LANE_TRANSCRIPT_PRIVATE_KEY: privateText };
-  const deps = fakeDeps([[artifact(7, { record: sealed(publicLine) })]]);
+  const deps = fakeDeps([artifact(7, { record: sealed(publicLine) })]);
   const result = run(["pull", "--sink", sink], { env, deps });
   assert.equal(result.code, 0, result.err);
   assert.equal(env.LANE_TRANSCRIPT_PRIVATE_KEY, undefined, "the key leaves the environment");
@@ -84,7 +95,7 @@ test("a pull opens each sealed transcript into the sink, gzipped, with a metrics
   const [row] = readRows(sink);
   assert.deepEqual(
     { lane: row.lane, job: row.job_id, run: row.run_id, model: row.model, models: row.models, outcome: row.outcome, turns: row.num_turns, date: row.date },
-    { lane: "pr-verify", job: "verify", run: 42, model: "claude-opus-5-5", models: ["claude-opus-5-5", "claude-sonnet-5-5"], outcome: "success", turns: 7, date: "2026-11-02" },
+    { lane: "pr-verify", job: "check-intent", run: 42, model: "claude-opus-5-5", models: ["claude-opus-5-5", "claude-sonnet-5-5"], outcome: "success", turns: 7, date: "2026-11-02" },
   );
   assert.ok(!JSON.stringify(row).includes(MARKER), "the metrics row holds no transcript text");
   const file = path.join(sink, row.transcript);
@@ -102,51 +113,138 @@ test("a pull skips fork runs, records bound to another run, a wrong key, odd zip
     artifact(11, { record: sealed(publicLine, { runId: 99 }) }),
     artifact(12, { record: sealed(other.publicLine) }),
     artifact(13, { entries: { [ENTRY]: "x", "extra.txt": "y" } }),
-    artifact(14, { jobId: "judge", record: sealed(publicLine, { jobId: "judge" }) }),
+    artifact(14, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) }),
   ];
-  let deps = fakeDeps([page]);
+  let deps = fakeDeps(page);
   const first = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(first.code, 0, first.err);
   assert.match(first.out, /"pulled":1,"known":0,"fork":1,.*"bad_zip":1,"sealed_mismatch":2/);
   assert.ok(!deps.calls.some((c) => c.includes("artifacts/10/zip")), "a fork artifact is never downloaded");
-  deps = fakeDeps([page]);
+  deps = fakeDeps(page);
   const second = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.match(second.out, /"pulled":0,"known":1/);
   assert.ok(!deps.calls.some((c) => c.includes("artifacts/14/zip")), "a held artifact is not downloaded again");
   assert.equal(readRows(sink).length, 1);
 });
 
-test("a pull stops paging at artifacts older than the last successful pull, less the overlap", () => {
-  const { publicLine, privateText } = generate();
-  const sink = sinkDir();
-  mkdirSync(sink, { recursive: true });
-  writeFileSync(paths(sink).state, JSON.stringify({ last_success_at: iso(NOW - 24 * 3600_000) }));
-  const full = Array.from({ length: 100 }, (_, i) => ({ ...artifact(1000 - i, { record: sealed(publicLine) }), name: "other-artifact" }));
-  full[99].created_at = iso(NOW - 31 * 3600_000);
-  const deps = fakeDeps([full, [artifact(5, { record: sealed(publicLine) })]]);
-  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
-  assert.ok(!deps.calls.some((c) => c.includes("page=2")), deps.calls.join("\n"));
+const listings = (deps) => deps.calls.filter((c) => c.includes("actions/artifacts?"));
+
+test("a pull lists every name built from the job-ids by attempts 1 to 3, one call per name with no artifact, and never the repository-wide listing", () => {
+  const { privateText } = generate();
+  const deps = fakeDeps([]);
+  assert.equal(run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 0);
+  const expected = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flat().flatMap((id) => [1, 2, 3].map((n) => `api repos/${REPO}/actions/artifacts?name=lane-transcript-${id}-${n}&per_page=100&page=1`)))];
+  assert.deepEqual(listings(deps), expected, "each name once, though two workflows share the model job-id");
+  for (const name of ["lane-transcript-check-intent-spec-3", "lane-transcript-judge-fallback-d8-1", "lane-transcript-review-subscription-claude-security-review-4-2", "lane-transcript-adjudicate-feedback-2-fallback-1"]) {
+    assert.ok(TRANSCRIPT_NAMES.includes(name), name);
+  }
+  assert.ok(MAX_LIST_CALLS >= TRANSCRIPT_NAMES.length * 2, "the cap leaves two pages a name");
 });
 
-test("a pull that hits the page cap before the cutoff fails and keeps the last success", () => {
+test("a name's listing pages until an artifact older than the last successful pull, less the overlap, then the next name is listed", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
-  mkdirSync(sink, { recursive: true });
+  seedState(sink, { last_success_at: iso(NOW - 24 * 3600_000) });
+  const held = Array.from({ length: 100 }, (_, i) => artifact(1000 - i, { record: sealed(publicLine) }));
+  held[99].created_at = iso(NOW - 31 * 3600_000);
+  writeRows(sink, held.slice(0, 99).map((a) => ({ artifact_id: a.id, created_at: a.created_at, date: a.created_at.slice(0, 10), transcript: null })));
+  const older = artifact(900, { createdAt: NOW - 40 * 3600_000, record: sealed(publicLine) });
+  const deps = fakeDeps([...held, older, artifact(5, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) })]);
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 0, result.err);
+  assert.ok(!deps.calls.some((c) => c.includes("check-intent-1&per_page=100&page=2")), "the page that reached the cutoff ends that name");
+  assert.ok(deps.calls.some((c) => c.includes("name=lane-transcript-check-intent-2&")), "the next name is still listed");
+  assert.match(result.out, /"pulled":1,"known":99/);
+  assert.deepEqual(readRows(sink).filter((r) => r.transcript).map((r) => r.artifact_id), [5]);
+});
+
+test("a re-run's attempt-2 artifact of a run created before the cutoff is pulled, by the artifact's own created_at", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  seedState(sink, { last_success_at: iso(NOW - 24 * 3600_000) });
+  const rerun = artifact(77, { attempt: 2, runId: 77, createdAt: NOW - 3600_000, record: sealed(publicLine, { runId: 77 }) });
+  const runs = { 77: { path: ".github/workflows/pr-verify.yml", name: "pr-verify", event: "pull_request", head_branch: "feat/x", conclusion: "success", created_at: iso(NOW - 3 * 86400_000) } };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([rerun], { runs }) });
+  assert.equal(result.code, 0, result.err);
+  const [row] = readRows(sink);
+  assert.deepEqual({ id: row.artifact_id, attempt: row.run_attempt, job: row.job_id }, { id: 77, attempt: 2, job: "check-intent" });
+});
+
+test("a pull that hits the listing call cap before the cutoff fails with call-cap and keeps the last success", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
   const last = iso(NOW - 3 * 86400_000);
-  writeFileSync(paths(sink).state, JSON.stringify({ last_success_at: last }));
-  const full = () => Array.from({ length: 100 }, (_, i) => ({ ...artifact(5000 - i, { record: sealed(publicLine) }), name: "other-artifact" }));
-  const deps = { ...fakeDeps([full(), full(), full()]), maxPages: 2 };
+  seedState(sink, { last_success_at: last });
+  const deps = { ...fakeDeps([artifact(8, { record: sealed(publicLine) })]), maxListCalls: 2 };
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
-  assert.match(result.err, /pull failed: page-cap: 2 pages/);
-  assert.equal(JSON.parse(readFileSync(paths(sink).state, "utf8")).last_success_at, last);
+  assert.match(result.err, /pull failed: call-cap: 2 listing calls/);
+  assert.equal(listings(deps).length, 2);
+  assert.equal(stateOf(sink).last_success_at, last);
+  assert.equal(stateOf(sink).last_error, "call-cap: 2 listing calls did not reach the last pull's cutoff");
+});
+
+// The job-id each upload-lane-transcript step passes, read from the workflow
+// text: the enclosing job's key stands in for github.job.
+const WORKFLOWS = path.join(import.meta.dirname, "..", "..", ".github", "workflows");
+const workflowLines = () => readdirSync(WORKFLOWS).filter((f) => f.endsWith(".yml")).map((file) => [file, readFileSync(path.join(WORKFLOWS, file), "utf8").split("\n")]);
+
+function uploadJobIds() {
+  const found = {};
+  for (const [file, lines] of workflowLines()) {
+    let inJobs = false;
+    let job = null;
+    lines.forEach((line, i) => {
+      if (/^jobs:/.test(line)) inJobs = true;
+      const key = inJobs && /^ {2}([A-Za-z0-9_-]+):\s*(#.*)?$/.exec(line);
+      if (key) job = key[1];
+      if (!/^\s+(- )?uses:\s*\S*\/\.github\/actions\/upload-lane-transcript\b/.test(line)) return;
+      const rest = lines.slice(i + 1);
+      const end = rest.findIndex((l) => /^\s+- /.test(l));
+      const idLine = rest.slice(0, end === -1 ? undefined : end).find((l) => /^\s+job-id:/.test(l));
+      assert.ok(idLine, `${file}:${i + 1} passes no job-id`);
+      (found[file] ??= []).push(idLine.replace(/^\s+job-id:\s*/, "").trim().replaceAll("${{ github.job }}", job));
+    });
+  }
+  return found;
+}
+
+test("every workflow that uploads a lane transcript, and every job-id it passes, is in the puller's list", () => {
+  const found = uploadJobIds();
+  const local = Object.keys(TRANSCRIPT_JOB_IDS).filter((key) => !key.startsWith("ci-workflows/"));
+  assert.deepEqual(Object.keys(found).sort(), local.sort(), "the workflows that call upload-lane-transcript");
+  for (const [file, ids] of Object.entries(found)) {
+    for (const id of ids) {
+      if (id.includes("${{ inputs.")) continue;
+      const shape = new RegExp(`^${id.split(/\$\{\{[^}]*\}\}/).map((part) => part.replace(/[.*+?^$()|[\]\\]/g, "\\$&")).join(".+")}$`);
+      assert.ok(TRANSCRIPT_JOB_IDS[file].some((listed) => shape.test(listed)), `${file}: job-id ${id} has no name in TRANSCRIPT_JOB_IDS`);
+    }
+  }
+});
+
+test("every ci-workflows reusable called with the transcript key, and the lane it is called with, is in the puller's list", () => {
+  const callers = [];
+  for (const [file, lines] of workflowLines()) {
+    lines.forEach((line, i) => {
+      if (!/^\s+lane-transcript-public-key:/.test(line)) return;
+      const usesAt = lines.slice(0, i).findLastIndex((l) => /^\s+uses:/.test(l));
+      const reusable = /ci-workflows\/\.github\/workflows\/([^@\s]+)@/.exec(lines[usesAt] ?? "")?.[1];
+      assert.ok(reusable, `${file}:${i + 1} passes the transcript key to no ci-workflows reusable`);
+      const key = `ci-workflows/${reusable}`;
+      assert.ok(TRANSCRIPT_JOB_IDS[key], `${file}:${i + 1}: ${key} is missing from TRANSCRIPT_JOB_IDS`);
+      const lane = lines.slice(usesAt, i).map((l) => /^\s+lane:\s*(\S+)/.exec(l)?.[1]).find(Boolean);
+      if (lane) assert.ok(TRANSCRIPT_JOB_IDS[key].some((id) => id.startsWith(`${lane}-`)), `${file}:${i + 1}: lane ${lane} has no name under ${key}`);
+      callers.push(key);
+    });
+  }
+  assert.deepEqual([...new Set(callers)].sort(), Object.keys(TRANSCRIPT_JOB_IDS).filter((key) => key.startsWith("ci-workflows/")).sort());
 });
 
 test("a pull where every transcript fails to open for the key fails, so the stale alert can fire", () => {
   const { privateText } = generate();
   const other = generate();
   const sink = sinkDir();
-  const deps = fakeDeps([[artifact(21, { record: sealed(other.publicLine) }), artifact(22, { jobId: "judge", record: sealed(other.publicLine, { jobId: "judge" }) })]]);
+  const deps = fakeDeps([artifact(21, { record: sealed(other.publicLine) }), artifact(22, { jobId: "capture", record: sealed(other.publicLine, { jobId: "capture" }) })]);
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: key-mismatch: 2 transcript/);
@@ -157,12 +255,12 @@ test("a metrics append cut short leaves a tail the next pull drops and replaces"
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
   const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
-  assert.equal(run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[artifact(31, { record: sealed(publicLine) })]]) }).code, 0);
+  assert.equal(run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([artifact(31, { record: sealed(publicLine) })]) }).code, 0);
   writeFileSync(paths(sink).metrics, '{"artifact_id":32,"run_id":4', { flag: "a" });
   assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([]) }).code, 0);
   assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31]);
-  const page = [artifact(32, { jobId: "judge", record: sealed(publicLine, { jobId: "judge" }) }), artifact(31, { record: sealed(publicLine) })];
-  const again = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([page]) });
+  const page = [artifact(32, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) }), artifact(31, { record: sealed(publicLine) })];
+  const again = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps(page) });
   assert.equal(again.code, 0, again.err);
   assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31, 32]);
   assert.ok(readFileSync(paths(sink).metrics, "utf8").endsWith("}\n"));
@@ -170,7 +268,7 @@ test("a metrics append cut short leaves a tail the next pull drops and replaces"
 
 test("a pull with no key, or a malformed one, fails naming the kind only", () => {
   for (const key of [undefined, "", "not-a-key"]) {
-    const result = run(["pull", "--sink", sinkDir()], { env: key === undefined ? {} : { LANE_TRANSCRIPT_PRIVATE_KEY: key }, deps: fakeDeps([[]]) });
+    const result = run(["pull", "--sink", sinkDir()], { env: key === undefined ? {} : { LANE_TRANSCRIPT_PRIVATE_KEY: key }, deps: fakeDeps([]) });
     assert.equal(result.code, 1);
     assert.match(result.err, /^no-key/);
     if (key) assert.ok(!result.err.includes(key));
@@ -186,25 +284,19 @@ test("a failed pull with no success in 5 days alerts, and status exits 1 until a
   assert.match(failed.err, /pull failed: artifact-list: gh exited 4/);
   assert.match(failed.err, /^ALERT: no lane transcript pull has succeeded in the last 5 days \(last: never\)$/m);
   assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([]) }).code, 1);
-  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([[]]) }).code, 0);
+  assert.equal(run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([]) }).code, 0);
   assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([], { now: NOW + 4 * 86400_000 }) }).code, 0);
   const late = run(["status", "--sink", sink], { deps: fakeDeps([], { now: NOW + 6 * 86400_000 }) });
   assert.equal(late.code, 1);
   assert.match(late.err, /^ALERT: /m);
 });
 
-const FOREVER = Number.MAX_SAFE_INTEGER;
-const stateOf = (sink) => JSON.parse(readFileSync(paths(sink).state, "utf8"));
-const seedState = (sink, state) => {
-  mkdirSync(sink, { recursive: true });
-  writeFileSync(paths(sink).state, JSON.stringify(state));
-};
 const zipCalls = (deps, id) => deps.calls.filter((c) => c.endsWith(`artifacts/${id}/zip`)).length;
 
 test("a gh call that fails is retried with a growing delay, and the pull then succeeds", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
-  const deps = fakeDeps([[artifact(41, { record: sealed(publicLine) })]], { failures: { "artifacts/41/zip": 2, "actions/runs/42": 1, "page=1": 1 } });
+  const deps = fakeDeps([artifact(41, { record: sealed(publicLine) })], { failures: { "artifacts/41/zip": 2, "actions/runs/42": 1, "page=1": 1 } });
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 0, result.err);
   assert.equal(readRows(sink).length, 1);
@@ -215,10 +307,18 @@ test("a gh call that fails is retried with a growing delay, and the pull then su
 
 test("the retry count and delay are injectable", () => {
   const { publicLine, privateText } = generate();
-  const deps = { ...fakeDeps([[artifact(42, { record: sealed(publicLine) })]], { failures: { "artifacts/42/zip": FOREVER } }), ghAttempts: 2, ghDelayMs: 5 };
+  const deps = { ...fakeDeps([artifact(42, { record: sealed(publicLine) })], { failures: { "artifacts/42/zip": FOREVER } }), ghAttempts: 2, ghDelayMs: 5 };
   assert.equal(run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps }).code, 1);
   assert.equal(zipCalls(deps, 42), 2);
   assert.deepEqual(deps.sleeps, [5]);
+});
+
+test("a zip fetch keeps the short schedule: five tries, about 30 s, while a listing page gets the long one", () => {
+  const { publicLine, privateText } = generate();
+  const deps = fakeDeps([artifact(42, { record: sealed(publicLine) })], { failures: { "artifacts/42/zip": FOREVER } });
+  run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(zipCalls(deps, 42), 5);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000]);
 });
 
 for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }], ["run-read", { "actions/runs/51": FOREVER }]]) {
@@ -230,9 +330,9 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
     // Older than OVERLAP (6 hours) at the failed pull, so a cutoff taken from that pull would miss it.
     const failing = artifact(51, { runId: 51, createdAt: NOW - 10 * 3600_000, record: sealed(publicLine, { runId: 51 }) });
-    const healthy = artifact(52, { jobId: "judge", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "judge" }) });
+    const healthy = artifact(52, { jobId: "capture", runId: 52, record: sealed(publicLine, { runId: 52, jobId: "capture" }) });
 
-    const partial = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[failing, healthy]], { failures }) });
+    const partial = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([failing, healthy], { failures }) });
     assert.equal(partial.code, 0, partial.err);
     assert.match(partial.out, /"fetch_failed":1/);
     assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [52], "the artifact listed after the failure is still pulled");
@@ -244,7 +344,7 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
     for (const text of [partial.out, partial.err, JSON.stringify(state)]) assert.ok(!text.includes(MARKER), "no call's error text is stored or printed");
 
     const later = NOW + 3600_000;
-    const clean = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[failing, healthy]], { now: later }) });
+    const clean = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([failing, healthy], { now: later }) });
     assert.equal(clean.code, 0, clean.err);
     assert.deepEqual(readRows(sink).map((r) => r.artifact_id).sort(), [51, 52]);
     assert.equal(stateOf(sink).last_success_at, new Date(later).toISOString());
@@ -255,7 +355,7 @@ for (const [kind, failures] of [["artifact-zip", { "artifacts/51/zip": FOREVER }
 test("a zip that unzip cannot read is a fetch failure, not an aborted pull or a permanent skip", () => {
   const { publicLine, privateText } = generate();
   const sink = sinkDir();
-  const fake = fakeDeps([[artifact(53, { record: sealed(publicLine) })]]);
+  const fake = fakeDeps([artifact(53, { record: sealed(publicLine) })]);
   const unreadable = { ...fake, unzip: () => { throw Object.assign(new Error("bad zip"), { status: 9 }); } };
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: unreadable });
   assert.equal(stateOf(sink).last_error, "fetch-failed: 1 transcript(s) (artifact-unzip)");
@@ -268,7 +368,7 @@ test("a rate limit on an artifact's call stops the pull at once, with no retry a
   const sink = sinkDir();
   const last = iso(NOW - 86400_000);
   seedState(sink, { last_success_at: last });
-  const fake = fakeDeps([[artifact(54, { record: sealed(publicLine) }), artifact(55, { jobId: "judge", record: sealed(publicLine, { jobId: "judge" }) })]]);
+  const fake = fakeDeps([artifact(54, { record: sealed(publicLine) }), artifact(55, { jobId: "capture", record: sealed(publicLine, { jobId: "capture" }) })]);
   const gh = (args) => {
     if (!args[1].endsWith("/zip")) return fake.gh(args);
     fake.calls.push(args.join(" "));
@@ -288,14 +388,16 @@ test("a listing page that fails past its retries fails the pull and keeps the la
   const sink = sinkDir();
   const last = iso(NOW - 3 * 86400_000);
   seedState(sink, { last_success_at: last });
-  const full = Array.from({ length: 100 }, (_, i) => ({ ...artifact(6000 - i, { record: sealed(publicLine) }), name: "other-artifact" }));
-  const deps = fakeDeps([full, []], { failures: { "page=2": FOREVER } });
+  // Fork artifacts, so none is downloaded.
+  const full = Array.from({ length: 100 }, (_, i) => artifact(6000 - i, { fork: true, record: sealed(publicLine) }));
+  const second = "name=lane-transcript-check-intent-1&per_page=100&page=2";
+  const deps = fakeDeps(full, { failures: { [second]: FOREVER } });
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
   assert.ok(!result.err.includes(MARKER));
-  assert.equal(deps.calls.filter((c) => c.endsWith("page=2")).length, 5);
-  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000], "the wait doubles, about 30 s before giving up");
+  assert.equal(deps.calls.filter((c) => c.endsWith(second)).length, 10);
+  assert.deepEqual(deps.sleeps, [2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 300000], "the wait doubles to a 5 min cap, about 13.5 min before giving up");
   assert.equal(stateOf(sink).last_success_at, last);
 });
 
@@ -304,7 +406,7 @@ test("a pull with a fetch failure exits 0 until the held last success is over 5 
   const attempt = (ageDays) => {
     const sink = sinkDir();
     seedState(sink, { last_success_at: iso(NOW - ageDays * 86400_000) });
-    const deps = fakeDeps([[artifact(61, { record: sealed(publicLine) })]], { failures: { "artifacts/61/zip": FOREVER } });
+    const deps = fakeDeps([artifact(61, { record: sealed(publicLine) })], { failures: { "artifacts/61/zip": FOREVER } });
     return run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   };
   const fresh = attempt(4);
@@ -320,8 +422,8 @@ test("a fetch failure beside transcripts that do not open for the key still fail
   const { privateText } = generate();
   const other = generate();
   const sink = sinkDir();
-  const page = [artifact(71, { record: sealed(other.publicLine) }), artifact(72, { jobId: "judge", record: sealed(other.publicLine, { jobId: "judge" }) })];
-  const deps = fakeDeps([page], { failures: { "artifacts/72/zip": FOREVER } });
+  const page = [artifact(71, { record: sealed(other.publicLine) }), artifact(72, { jobId: "capture", record: sealed(other.publicLine, { jobId: "capture" }) })];
+  const deps = fakeDeps(page, { failures: { "artifacts/72/zip": FOREVER } });
   const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
   assert.equal(result.code, 1);
   assert.match(result.err, /pull failed: key-mismatch: 1 transcript/);
@@ -337,7 +439,7 @@ test("a result with is_error true is stored as outcome error, with its subtype a
     artifact(82, { runId: 82, record: sealed(publicLine, { runId: 82 }) }),
     artifact(83, { runId: 83, record: sealed(publicLine, { runId: 83, messages: [MESSAGES[0]] }) }),
   ];
-  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps([page]) });
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: fakeDeps(page) });
   assert.equal(result.code, 0, result.err);
   const shape = ({ outcome, subtype, is_error: isError, api_error_status: status }) => ({ outcome, subtype, isError, status });
   const rows = readRows(sink);

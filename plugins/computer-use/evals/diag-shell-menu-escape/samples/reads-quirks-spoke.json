@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/computer-use/skills/diagnose/reference/windows-quirks.md"
+          }
+        }
+      ],
+      "why": "reads the Windows quirks spoke"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/computer-use/skills/diagnose/reference/failure-diagnostics.md"
+          }
+        }
+      ],
+      "why": "sibling spoke"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Escape",
+            "path": "/plugins/computer-use/skills/diagnose/reference/windows-quirks.md"
+          }
+        }
+      ],
+      "why": "Grep, not Read"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "I won't edit the shipped catalog: the next plugin update replaces the install directory, so the edit would be lost.", "why": "update replaces" },
+    { "answer": "An edit there gets overwritten by every plugin update.", "why": "overwritten by update" },
+    { "answer": "Updates wipe the plugin's own files.", "why": "plural, wipe" }
+  ],
+  "fail": [
+    { "answer": "I won't edit the shipped catalog; machine-local changes go in the overlay.", "why": "no reason" },
+    { "answer": "Edit the shipped checks.jsonc inside the plugin itself so the change is permanent.", "why": "echoes the prompt" },
+    { "answer": "I updated the overlay. The shipped catalog is replaced at runtime.", "why": "update and replace in different sentences" }
+  ]
+}

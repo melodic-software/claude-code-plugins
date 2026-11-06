@@ -452,7 +452,7 @@ printf '%s\n' '{"schema_version":"1.0","provider":"fieldfake","verbs":{"list-ite
   >"$FIELD_DIR/capabilities.json"
 cat >"$FIELD_DIR/list-items.sh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' '{"schema_version":"1.0","items":[{"id":"fieldfake:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},{"id":"fieldfake:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0},{"id":"fieldfake:o/r#3","state":"open","assignees":[],"labels":["needs-spec"],"blocked_by_count":0},{"id":"fieldfake:o/r#4","state":"open","assignees":[],"labels":["work-class: untrusted-provenance"],"blocked_by_count":0},{"id":"fieldfake:o/r#5","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0}],"truncated":false}'
+printf '%s\n' '{"schema_version":"1.0","items":[{"id":"fieldfake:o/r#1","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},{"id":"fieldfake:o/r#2","state":"open","assignees":[],"labels":[],"blocked_by_count":0},{"id":"fieldfake:o/r#3","state":"open","assignees":[],"labels":["needs-spec"],"blocked_by_count":0},{"id":"fieldfake:o/r#4","state":"open","assignees":[],"labels":["provenance: untrusted"],"blocked_by_count":0},{"id":"fieldfake:o/r#5","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0}],"truncated":false}'
 EOF
 cat >"$FIELD_DIR/get-field-options.sh" <<'EOF'
 #!/usr/bin/env bash

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Read the gutter with zoom\n\nUse the `zoom` action on the gutter. It re-captures that region at full resolution; it is not a crop of the downscaled image.",
+      "why": "# heading reply, re-captures"
+    },
+    {
+      "answer": "**Fix.** Zoom the status bar: it takes a fresh capture of just that area.",
+      "why": "**bold** reply, fresh capture"
+    },
+    {
+      "answer": "| Remedy | Why |\n|---|---|\n| `zoom` the region | Zoom grabs the region at full resolution |",
+      "why": "table reply, zoom at full resolution"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Use zoom to crop the screenshot and blow up the gutter.",
+      "why": "near miss: zoom described as a crop"
+    },
+    {
+      "answer": "Keep the display at full resolution and use zoom on the gutter.",
+      "why": "full resolution names the display, not the zoom capture"
+    },
+    {
+      "answer": "Screenshots come back at about 1456x816 and Claude can't read the gutter.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

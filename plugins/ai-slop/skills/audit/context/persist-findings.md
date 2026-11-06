@@ -1,5 +1,9 @@
 # Persisting findings: this skill's read of the detector-findings contract
 
+**First decide whether a file is written at all** ("Surfaces, and when the file is written at
+all" below, and SKILL.md step 5: only an audit that examined tracked files writes one). When
+none is written, fetch nothing.
+
 **Read the producer contract before the first write**:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence

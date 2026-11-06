@@ -66,6 +66,7 @@ import {
   verifyHold,
   SKIP_STATE_PREFIX,
   pinBody,
+  pinMoved,
   VETO_MARKER,
   vetoLabelOwned,
   vetoNote,
@@ -1374,6 +1375,47 @@ test("an armed pull request that now holds is disarmed", async () => {
     { mutation: "disarm", id: "PR_1" },
     { mutation: "disarm", id: "PR_2" },
   ]);
+});
+
+// GitHub checks expectedHeadOid only when the arm is made, and a push by an
+// account with write access leaves the arm on: an arm whose newest pin names
+// another head, or was edited, judged a head the pull request no longer has.
+test("an armed pull request whose head moved off its newest pin is disarmed before any verifier read", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const older = { ...lanesSaid(`${pinLine("C2")}\nArmed.`), lastEditedAt: null };
+  const moved = { ...lanesSaid(`<!-- babysit-merge-pin sha=${"c".repeat(40)} rung=C2 -->\nArmed.`), createdAt: "2026-10-23T12:00:00Z", lastEditedAt: null };
+  const edited = { ...lanesSaid(`${pinLine("C2")}\nArmed.`), lastEditedAt: "2026-10-23T11:00:00Z" };
+  const { code, writes, verified, pins, lines } = await run([
+    pull(1, { autoMergeRequest: armed, discussion: { comments: [older, moved] } }),
+    pull(2, { autoMergeRequest: armed, discussion: { comments: [edited] } }),
+  ]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_1" },
+    { mutation: "disarm", id: "PR_2" },
+  ]);
+  assert.deepEqual(verified, []);
+  assert.deepEqual(pins, []);
+  assert.ok(lines.some((line) => line === `enable-auto-merge: #1 disarmed: its head moved from ${"c".repeat(40)}, the head its arm judged, to ${HEAD}`));
+});
+
+test("an armed pull request whose newest pin names its head, or that no pin names, stays armed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const current = { ...lanesSaid(`${pinLine("C2")}\nArmed.`), lastEditedAt: null };
+  const { code, writes } = await run([pull(1, { autoMergeRequest: armed, discussion: { comments: [current] } }), pull(2, { autoMergeRequest: armed })]);
+  assert.equal(code, 0);
+  assert.deepEqual(writes, []);
+});
+
+test("pinMoved names the head the newest pin judged, and nothing without a pin", () => {
+  const bot = LANES.login;
+  const at = (sha, createdAt, lastEditedAt = null) => ({ ...lanesSaid(`<!-- babysit-merge-pin sha=${sha} -->`), createdAt, lastEditedAt });
+  assert.equal(pinMoved([], bot, HEAD), null);
+  assert.equal(pinMoved([at(HEAD, "2026-10-23T10:00:00Z")], bot, HEAD), null);
+  assert.equal(pinMoved([at(HEAD, "2026-10-23T10:00:00Z"), at("c".repeat(40), "2026-10-23T09:00:00Z")], bot, HEAD), null);
+  assert.equal(pinMoved([at("c".repeat(40), "2026-10-23T10:00:00Z")], bot, HEAD), `its head moved from ${"c".repeat(40)}, the head its arm judged, to ${HEAD}`);
+  assert.match(pinMoved([at(HEAD, "2026-10-23T10:00:00Z", "2026-10-23T11:00:00Z")], bot, HEAD), /edited/);
+  assert.equal(pinMoved([{ ...said("kyle-sexton", `<!-- babysit-merge-pin sha=${"c".repeat(40)} -->`, "2026-10-23T10:00:00Z"), lastEditedAt: null }], bot, HEAD), null);
 });
 
 test("a pr-verify-failed pull request is not armed, and an armed one is disarmed", async () => {

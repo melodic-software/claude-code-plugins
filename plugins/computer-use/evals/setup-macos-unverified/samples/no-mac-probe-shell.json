@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uname -a",
+            "description": "Show the operating system"
+          }
+        }
+      ],
+      "why": "platform check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sw_vers",
+            "description": "Run defaults read check"
+          }
+        }
+      ],
+      "why": "description names defaults read; only the command is matched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pmset -g",
+            "description": "Show power settings"
+          }
+        }
+      ],
+      "why": "pmset probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "defaults -currentHost read com.apple.screensaver idleTime",
+            "description": "Read screensaver delay"
+          }
+        }
+      ],
+      "why": "defaults read probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ioreg -c IOHIDSystem | grep HIDIdleTime",
+            "description": "Read idle time"
+          }
+        }
+      ],
+      "why": "ioreg probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "osascript -e 'tell application \"System Events\" to get running of screen saver preferences'",
+            "description": "Is screensaver running"
+          }
+        }
+      ],
+      "why": "osascript probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo pmset -a displaysleep 0",
+            "description": "Disable display sleep"
+          }
+        }
+      ],
+      "why": "pmset write"
+    }
+  ]
+}

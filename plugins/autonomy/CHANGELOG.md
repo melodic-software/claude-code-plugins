@@ -3,6 +3,32 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.7] - 2026-11-06
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it: an opt-in shfmt parse memo that only the guardrails Bash dispatcher turns on (#6634); no change to this plugin's behavior.
+
+## [4.1.6] - 2026-11-05
+
+### Changed
+
+- name provenance: untrusted in the merge gate's trust hold
+
+  The work-classes reference names `provenance: untrusted` as the label
+  the unattended merge gate holds, and notes that it reads the legacy
+  name too.
+
+## [4.1.5] - 2026-11-05
+
+### Changed
+
+- name `provenance: untrusted` as the label the merge trust hold reads
+
+  The work-classes guardrail now names `provenance: untrusted`, the
+  label that marks C5 untrusted provenance, in place of the legacy
+  `work-class:` name.
+
 ## [4.1.4] - 2026-11-04
 
 ### Changed

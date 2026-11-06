@@ -56,6 +56,9 @@
 //   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
 //   `_pass_refusal`), so a body edited after arming to close or name another
 //   issue does not merge on a pass for the old one. The same approval lifts it.
+// - A head the arm never judged, when a verdicts file is given: the lanes
+//   App's newest read-back pin names another head, or was edited (pinHold), so
+//   a push after the arm left GitHub's auto-merge on. The same approval lifts it.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
@@ -257,7 +260,65 @@ export const fromRest = (row) => ({
   association: row?.author_association,
   at: String(row?.submitted_at ?? row?.created_at ?? ""),
   body: String(row?.body ?? ""),
+  nodeId: row?.node_id,
 });
+
+// The read-back pin (babysit_postmerge.PIN_RE): the lanes App posts one naming
+// the head just before it arms auto-merge (enable-auto-merge.mjs pinBody) or
+// enqueues. enable-auto-merge.mjs reads it from here.
+export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+
+// Why the merge queue holds `head`, or null: the lanes App's newest pin among
+// `items` (fromRest's) names another head. GitHub checks expectedHeadOid only
+// when the arm is made, and turns auto-merge off only on a push by someone
+// without write access, so a later push by the lanes App or a person with
+// write access leaves the arm on, and the queue would merge a head the
+// arming checks never judged. With no pin, no lane armed it, and nothing holds.
+// A pin not read as unedited (withPinEdit sets its lastEditedAt) holds too:
+// enable-auto-merge.mjs pinned and pinMoved, and babysit_postmerge, read an
+// edited pin as naming no head the arm judged.
+export function pinHold(items, head) {
+  const pin = newestPin(items);
+  if (pin === undefined) {
+    return null;
+  }
+  const again =
+    "enable-auto-merge judges and pins this head before it arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue";
+  if (!unedited(pin)) {
+    return `the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+  }
+  const sha = PIN_RE.exec(pinLine(pin))[1];
+  return sha === head ? null : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; ${again}`;
+}
+
+const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
+// The lanes App's newest read-back pin among `items` (fromRest's), or undefined.
+const newestPin = (items) =>
+  items
+    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(pinLine(item)))
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .at(-1);
+
+// `items` with the lanes App's newest pin's lastEditedAt, read with
+// COMMENT_EDITED_QUERY as enable-auto-merge.mjs reads it. A pin with no node
+// id, or a read that fails or answers no lastEditedAt, is left without one,
+// so pinHold holds.
+export async function withPinEdit(github, items) {
+  const pin = newestPin(items);
+  if (pin === undefined || typeof pin.nodeId !== "string" || !pin.nodeId) {
+    return items;
+  }
+  let node;
+  try {
+    node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: pin.nodeId } }))?.data?.node;
+  } catch {
+    return items;
+  }
+  if (!node || typeof node !== "object" || !("lastEditedAt" in node)) {
+    return items;
+  }
+  return items.map((item) => (item === pin ? { ...item, lastEditedAt: node.lastEditedAt } : item));
+}
 
 // Whether `path` matches the hold-path `glob`, case-folded as glob_match
 // folds it: a lane host on a case-insensitive filesystem reads `.github/codeowners`
@@ -1569,9 +1630,10 @@ export function humanGatedLabel(tracker) {
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
 // The labels that hold untrusted-provenance work for a person; either holds
-// alone. Writers still apply UNTRUSTED_LABEL until every reader takes both.
-export const UNTRUSTED_LABEL = "work-class: untrusted-provenance";
-export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL, "provenance: untrusted"]);
+// alone. Writers apply only UNTRUSTED_LABEL; the other is its legacy name,
+// which readers hold on until the label source drops it.
+export const UNTRUSTED_LABEL = "provenance: untrusted";
+export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL, "work-class: untrusted-provenance"]);
 
 // The label a pr-verify fail puts on a person's pull request; a pass removes
 // it, at a new commit or at the same head judged again after trusted people
@@ -1734,8 +1796,18 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }
     }
+    // In the merge queue only, where a moved head would merge: an approval of
+    // the head lifts it, as it lifts the verifier hold.
+    const unpinned = verdictsFile ? pinHold(await withPinEdit(github, items), head) : null;
+    if (unpinned && approved.length) {
+      console.log(`#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '${escape(unpinned)}'.`);
+    }
+    const pinHeld = unpinned !== null && approved.length === 0;
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${escape(reason)}.`);
+    }
+    if (pinHeld) {
+      console.log(`::error::#${number}: ${escape(unpinned)}.`);
     }
     for (const reason of verifier) {
       console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
@@ -1743,7 +1815,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (!reasons.length) {
       console.log(`#${number}: no member veto and no hold path.`);
     }
-    return reasons.length || verifier.length ? 1 : 0;
+    return reasons.length || verifier.length || pinHeld ? 1 : 0;
   } catch (error) {
     console.log(`::error::merge-holds: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return 2;

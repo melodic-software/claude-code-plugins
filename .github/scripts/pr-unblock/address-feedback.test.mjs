@@ -1164,7 +1164,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
     TRUSTED_ACTORS: actors,
   });
   await main(["select"], env("ok"), { api: fakeApi(), log: () => {} });
-  assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\n");
+  assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   const okFile = JSON.parse(readFileSync(join(dir, "ok.json"), "utf8"));
   assert.equal(okFile.threads[0].id, "PRRT_1");
   // No lane branch: the model job commits nothing.
@@ -1180,7 +1180,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
 
   // The people on the list come from TRUSTED_ACTORS.
   await main(["select"], env("decided"), { api: fakeApi(escalated()), log: () => {} });
-  assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\n");
+  assert.equal(readFileSync(join(dir, "decided.out"), "utf8"), "proceed=true\nhuman-gate=\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   assert.equal(JSON.parse(readFileSync(join(dir, "decided.json"), "utf8")).threads[0].comments[2].direction, true);
 
   // The human-gated label comes from TRACKER_CONFIG; a fix request sets human-gate=fix-request.
@@ -1188,15 +1188,15 @@ test("main select writes outputs and the thread file; escalation writes no threa
   writeFileSync(tracker, JSON.stringify({ config: { role_labels: { "human-gated": "status: blocked-human" } } }));
   const gatedEnv = { ...env("gated"), TRACKER_CONFIG: tracker };
   await main(["select"], gatedEnv, { api: fakeApi({ ...escalated({ replies: [[102, HUMAN, REQUEST]] }), labels: ["status: blocked-human"] }), log: () => {} });
-  assert.equal(readFileSync(join(dir, "gated.out"), "utf8"), "proceed=true\nhuman-gate=fix-request\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\n");
+  assert.equal(readFileSync(join(dir, "gated.out"), "utf8"), "proceed=true\nhuman-gate=fix-request\nmodel-rung=\nskip-reason=\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
   const heldEnv = { ...env("held"), TRACKER_CONFIG: tracker };
   await main(["select"], heldEnv, { api: fakeApi({ ...escalated(), labels: ["status: blocked-human"] }), log: () => {} });
-  assert.equal(readFileSync(join(dir, "held.out"), "utf8"), "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=awaiting-human\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\n");
+  assert.equal(readFileSync(join(dir, "held.out"), "utf8"), "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=awaiting-human\nescalation-reason=\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n");
 
   await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
   assert.equal(
     readFileSync(join(dir, "esc.out"), "utf8"),
-    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-protected-path\nnot-run-detail=\nstop-resolved=false\n",
+    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-protected-path\nnot-run-detail=\nstop-resolved=false\nperson-opened=false\n",
   );
   assert.throws(() => readFileSync(join(dir, "esc.json")));
   assert.throws(() => readFileSync(join(dir, "esc.run.json")), "an escalation writes no run.json");
@@ -1214,7 +1214,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   await main(["select"], { ...env("bound"), REVIEW_ROUNDS: "1" }, { api: bound, log: () => {} });
   assert.equal(
     readFileSync(join(dir, "bound.out"), "utf8"),
-    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-not-converging\nnot-run-detail=round 2 of max 2\nstop-resolved=false\n",
+    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-not-converging\nnot-run-detail=round 2 of max 2\nstop-resolved=false\nperson-opened=false\n",
   );
 });
 
@@ -1251,6 +1251,18 @@ test("main select takes the head step's PR read for this PR and head, and reads 
   const taken = await go("taken", pullFile("taken", same));
   assert.equal(taken.reads, 0, "no second GET of the PR");
   assert.match(taken.out, /^proceed=true$/m);
+  // resolve-feedback-threads' gate reads the file's PR author, as
+  // resolve-threads.mjs ownerPull does: a listed person's PR only.
+  assert.match(taken.out, /^person-opened=false$/m, "a lanes App PR");
+  for (const [name, user, opened] of [
+    ["person", { id: HUMAN, type: "User" }, "true"],
+    ["stranger", { id: HUMAN + 1, type: "User" }, "false"],
+    ["typed-bot", { id: HUMAN, type: "Bot" }, "false"],
+  ]) {
+    const { out } = await go(name, pullFile(name, { ...same, user }));
+    assert.match(out, new RegExp(`^person-opened=${opened}$`, "m"), name);
+  }
+  assert.match((await go("unread", undefined)).out, /^person-opened=false$/m, "no PR file: the job stays off");
   for (const [name, path] of [
     ["unset", undefined],
     ["missing", join(dir, "absent.json")],

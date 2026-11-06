@@ -172,23 +172,24 @@ describe("decide", () => {
     }
   });
 
+  const LEGACY_UNTRUSTED = "work-class: untrusted-provenance";
   // The hold is a constant of decide, so no rules file loadRules accepts
   // lifts it, one whose `classes` names the class included.
   test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
     const dir = tempDir("admit-rules-");
     const widened = [
-      { ...RULES, classes: [...RULES.classes, UNTRUSTED_CLASS] },
-      { ...RULES, classes: [UNTRUSTED_CLASS], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+      { ...RULES, classes: [...RULES.classes, LEGACY_UNTRUSTED] },
+      { ...RULES, classes: [LEGACY_UNTRUSTED], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
     ];
     widened.forEach((content, index) => {
       const path = join(dir, `rules-${index}.json`);
       writeFileSync(path, JSON.stringify(content));
       const rules = loadRules(path);
-      for (const overrides of [{ verdict: { ...VERDICT, workClass: UNTRUSTED_CLASS } }, { issue: issueOf({ labels: [{ name: READY }, { name: UNTRUSTED_CLASS }] }) }]) {
+      for (const overrides of [{ verdict: { ...VERDICT, untrusted: true } }, ...[UNTRUSTED_CLASS, LEGACY_UNTRUSTED].map((name) => ({ issue: issueOf({ labels: [{ name: READY }, { name }] }) }))]) {
         const result = decide(facts({ rules, ...overrides }));
         assert.equal(result.verdict, "refuse", path);
         assert.equal(result.hold, true, path);
-        assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
+        assert.match(result.reasons.join(), /provenance: untrusted work needs a person/, path);
       }
     });
   });
@@ -277,7 +278,7 @@ describe("decide", () => {
     const event = (kind, id) => ({ event: kind, label: { name: "work-class: untrusted-provenance" }, actor: { id } });
     const refused = decide(facts({ events: [event("labeled", APP), event("unlabeled", OUTSIDER)] }));
     assert.equal(refused.verdict, "refuse");
-    assert.match(refused.reasons.join(), /untrusted-provenance work needs a person/);
+    assert.match(refused.reasons.join(), /provenance: untrusted work needs a person/);
     for (const remover of [HUMAN, APP]) {
       assert.deepEqual(decide(facts({ events: [event("labeled", APP), event("unlabeled", remover)] })), { verdict: "admit", reasons: [] }, String(remover));
     }
@@ -321,16 +322,16 @@ describe("decide", () => {
       },
       /Uncertainty unknown/,
     ],
-    ["criterion 3: untrusted-provenance work", { verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" } }, /untrusted-provenance work needs a person/],
+    ["criterion 3: an untrusted verdict", { verdict: { ...VERDICT, untrusted: true } }, /provenance: untrusted work needs a person/],
     [
       "criterion 3: an untrusted-provenance label on the issue",
       { issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) },
-      /untrusted-provenance work needs a person/,
+      /provenance: untrusted work needs a person/,
     ],
     [
       "criterion 3: a provenance: untrusted label on the issue",
       { issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) },
-      /untrusted-provenance work needs a person/,
+      /provenance: untrusted work needs a person/,
     ],
     ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no trusted-human acceptance criteria: .*confirmed `- \[ \]` criteria/],
     [
@@ -3052,7 +3053,7 @@ describe("size split sub-issues", () => {
   });
 
   test("a parent with an open sub-issue still refuses for a person when a hold applies", () => {
-    const result = decide(facts({ verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" }, subIssues: [{ number: 8, state: "open" }] }));
+    const result = decide(facts({ verdict: { ...VERDICT, untrusted: true }, subIssues: [{ number: 8, state: "open" }] }));
     assert.equal(result.verdict, "refuse");
     assert.equal(result.hold, true);
   });

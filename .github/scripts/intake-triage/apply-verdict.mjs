@@ -10,7 +10,8 @@
 //   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value an option
 //   name of models.issue-dimensions (its key, capitalized: Small, Knowable);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
-//   security and cost;
+//   security, cost and untrusted, the last marking untrusted provenance as
+//   the legacy `work-class: untrusted-provenance` class proposal also does;
 // - the issues it depends on from one `Blocked by: ` line, `none` or a comma
 //   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
@@ -43,10 +44,10 @@
 // eval) reaches admission, which routes it to `host-run` or holds it with a
 // split, and a choice of means stays the issue lane's. The
 // `needs-triage` floor label is taken off after the verdict is written.
-// The work class gates nothing (owner Q85, #9668) except
-// `work-class: untrusted-provenance`, which holds the issue and is never taken
-// off. The lanes App's own earlier class and field values give way to the new
-// verdict; a field value a listed human set is kept and is the value admission
+// The work class gates nothing (owner Q85, #9668). Untrusted provenance adds
+// `provenance: untrusted`, which holds the issue, and neither that label nor
+// its legacy name is taken off. The lanes App's own earlier class and field
+// values give way to the new verdict; a field value a listed human set is kept and is the value admission
 // reads; one anyone else set, or one whose setter cannot be read, is kept and
 // sends the issue to needs-decision; a class anyone else set is kept. A class
 // that is not one of the repository's work-class labels is not applied. When
@@ -95,7 +96,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, GitHubError, loadTrustedList, networkFailure, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
@@ -132,6 +133,9 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
+// The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
+// for security, and is not a flag an owner reason or a later verdict reads.
+const UNTRUSTED_FLAG = "untrusted";
 const LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const QUOTED = /^\s*(?:(?:[-*+]|\d+[.)])\s*)?>/;
 // The two canonical shapes, bare or in `**Label:**` bold.
@@ -166,10 +170,10 @@ export function checkActors(env, humans, logins) {
   return rerunner !== undefined && humans.has(rerunner);
 }
 
-// The verdict the lane comment carries: {escalated, workClass, dimensions,
-// flags, problems}. workClass is null for `none`; dimensions maps each key to
-// its config key or is null; flags is a list or null. problems says why a part
-// did not parse.
+// The verdict the lane comment carries: {escalated, workClass, untrusted,
+// dimensions, flags, problems}. workClass is null for `none` or the legacy
+// untrusted class; dimensions maps each key to its config key or is null;
+// flags is a list or null. problems says why a part did not parse.
 export function parseVerdict(body, dimensionsConfig, classes) {
   const lines = String(body ?? "").split("\n");
   const problems = [];
@@ -177,9 +181,9 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   const escalated = String(body ?? "").includes(ESCALATED);
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
   const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
-  const workClass = proposed !== null && classes.has(proposed) ? proposed : null;
-  // The hold reads the proposal itself, so a missing label cannot drop it.
-  const untrusted = proposed === UNTRUSTED;
+  // The legacy untrusted class marks provenance, never a work class to apply.
+  const proposedUntrusted = UNTRUSTED_LABELS.includes(proposed);
+  const workClass = proposed !== null && !proposedUntrusted && classes.has(proposed) ? proposed : null;
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
@@ -209,17 +213,24 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   }
 
   let flags = null;
+  // Any Flags line naming it counts, so an unreadable or repeated line still
+  // marks the issue untrusted.
+  const flaggedUntrusted = lines.some(
+    (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
+  );
   const flagText = lineValue("Flags");
   if (flagText === "none") {
     flags = [];
   } else if (flagText !== null) {
     const list = flagText.split(",").map((flag) => flag.trim());
-    if (list.every((flag) => FLAGS.has(flag)) && new Set(list).size === list.length) {
-      flags = list;
+    if (list.every((flag) => FLAGS.has(flag) || flag === UNTRUSTED_FLAG) && new Set(list).size === list.length) {
+      flags = list.filter((flag) => flag !== UNTRUSTED_FLAG);
     } else {
-      problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS].join(", ")}`);
+      problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS, UNTRUSTED_FLAG].join(", ")}`);
     }
   }
+  // The hold reads the verdict itself, so a missing label cannot drop it.
+  const untrusted = proposedUntrusted || flaggedUntrusted;
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
@@ -279,6 +290,9 @@ export function planWrites(
     reasons.push(`${UNTRUSTED} work needs a person`);
     codes.add("security");
   }
+  if (verdict.untrusted && !labels.includes(UNTRUSTED)) {
+    add.push(UNTRUSTED);
+  }
 
   let classApplied = false;
   if (verdict.workClass !== null) {
@@ -288,15 +302,11 @@ export function planWrites(
       classApplied = true;
     } else if (held.length === 1 && held[0] === verdict.workClass) {
       classApplied = true;
-    } else if (held.length === 1 && held[0] !== UNTRUSTED && isApp(classSetters[held[0]], appId)) {
-      // Only the lanes App's own earlier class gives way; anyone else's,
-      // or one no event names, is kept.
+    } else if (held.length === 1 && !UNTRUSTED_LABELS.includes(held[0]) && isApp(classSetters[held[0]], appId)) {
+      // Only the lanes App's own earlier class gives way, never a provenance
+      // hold; anyone else's, or one no event names, is kept.
       remove.push(held[0]);
       add.push(verdict.workClass);
-      classApplied = true;
-    } else if (verdict.workClass === UNTRUSTED) {
-      // A hold label is added beside any class already held.
-      add.push(UNTRUSTED);
       classApplied = true;
     }
   }
@@ -825,13 +835,9 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
       };
 }
 
-// A GitHub 5xx or 429, a call the rate guard refused, or a request that got no
-// answer: what happened to the issue is unknown, not wrong. Any other 4xx (a
-// lost permission, a missing label) stays red, since a retry meets it again.
-export const isFault = (error) =>
-  (error?.name === "GitHubError" && (error.status >= 500 || error.status === 429)) ||
-  error?.name === "RateLimitStop" ||
-  networkFailure(error);
+// isFault (check-trusted-trigger.mjs): what happened to the issue is unknown,
+// not wrong.
+export { isFault };
 
 // The step's closing annotations and exit code, for run()'s result or the
 // error it threw. A fault, in admission or anywhere in the run, holds green

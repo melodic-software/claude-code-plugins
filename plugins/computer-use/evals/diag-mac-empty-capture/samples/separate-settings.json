@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Screensaver running?** This is the most likely cause. A screensaver is separate from screen lock and from display sleep.",
+      "why": "smoke run 2026-11-05: separate from screen lock"
+    },
+    {
+      "answer": "# Not a tool bug\n\n1. **Screensaver running?** The most likely cause. A screensaver is not a lock and not display sleep; they are three separate settings.",
+      "why": "# heading reply, separate settings"
+    },
+    {
+      "answer": "**Check the screensaver first.** It is configured independently of display sleep, so 'display never sleeps' tells you nothing about it.",
+      "why": "**bold** reply, configured independently"
+    },
+    {
+      "answer": "| Rung | Note |\n|---|---|\n| Screensaver | Has its own idle delay, separate from display sleep |",
+      "why": "table reply, separate from display sleep"
+    },
+    {
+      "answer": "The screensaver isn't a lock, so the session can look unlocked while capture is dead.",
+      "why": "screensaver is not a lock"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Read the three settings in System Settings: screensaver idle delay, display sleep, and require password on wake.",
+      "why": "near miss: lists the three settings without saying they are independent"
+    },
+    {
+      "answer": "Check whether the screensaver is on, the session is locked, or the display is asleep, then reset switch_display to auto.",
+      "why": "names the rungs, never says they differ"
+    },
+    {
+      "answer": "Is the tool broken? Give me the exact Terminal commands to check the screensaver.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

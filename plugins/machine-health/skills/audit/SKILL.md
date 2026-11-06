@@ -74,31 +74,38 @@ no catalog overlay entry; deprecations and demotions are proposed in `TODO.md` t
 # Detect current OS (the skill requires PowerShell 7.4+; launch pwsh, not
 # Windows PowerShell 5.1, which cannot run the checks)
 if   (PowerShell 7.4+)  use $IsWindows / $IsMacOS / $IsLinux
-else                    non-PowerShell shell: uname -s -> Darwin|Linux
+else                    non-PowerShell shell: uname -s -> Darwin|Linux,
+                        as its own Bash call with nothing chained to it
 
-# Load references (shared first, then OS-specific)
-Read reference/shared/severity-rubric.md
-Read reference/shared/output-schema.md
-Read reference/shared/report-template.md
-Read reference/shared/discovery-guide.md
-Read reference/shared/remediation-philosophy.md
-Read reference/shared/approvals.md
-Read reference/shared/catalog-overlay.md
-Read reference/<os>/*.md
+# Load references (shared first, then OS-specific), each with the Read tool
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/severity-rubric.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/output-schema.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/report-template.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/discovery-guide.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/remediation-philosophy.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md
+Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/catalog-overlay.md
+Windows:      Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/windows/check-catalog.md,
+              elevation-matrix.md and remediation-policy.md in that folder
+macOS, Linux: Read ${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/<os>/not-implemented.md
 
-# If the detected OS folder contains not-implemented.md, STOP.
+# macOS and Linux are stubs (routing table below): STOP.
 # Produce an UNKNOWN-severity report explaining the gap, link to
 # reference/shared/discovery-guide.md for porting guidance, and exit.
 # Never attempt to execute Windows scripts on macOS/Linux.
 ```
 
+**Bundled files.** Every plugin file this skill names is under `${CLAUDE_PLUGIN_ROOT}/skills/audit/`.
+Read one with the `Read` tool and run a script by that path; never list the plugin directory or
+read its files through Bash (`ls`, `cat`), Glob or Grep.
+
 Routing table:
 
 | Detected OS | Orchestrator | Status |
 |---|---|---|
-| Windows | `scripts/windows/Invoke-MachineHealthCheck.ps1` | Implemented |
-| macOS | `scripts/macos/not-implemented.md` | Stub. Report UNKNOWN and stop |
-| Linux | `scripts/linux/not-implemented.md` | Stub. Report UNKNOWN and stop |
+| Windows | `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1` | Implemented |
+| macOS | `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/macos/not-implemented.md` | Stub. Report UNKNOWN and stop |
+| Linux | `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/linux/not-implemented.md` | Stub. Report UNKNOWN and stop |
 
 ## High-level procedure
 

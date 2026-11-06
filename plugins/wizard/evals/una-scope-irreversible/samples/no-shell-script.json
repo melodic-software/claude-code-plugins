@@ -41,6 +41,18 @@
         }
       ],
       "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /workspace\ncp /opt/plugins/wizard/skills/unattended/template.ps1 ./rebuild-debian-build.ps1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "same command on the second line of a multi-line call"
     }
   ]
 }

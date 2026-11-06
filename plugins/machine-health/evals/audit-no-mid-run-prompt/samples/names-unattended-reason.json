@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "It runs unattended, so nobody would be there to answer.", "why": "unattended" },
+    { "answer": "A scheduled run would hang on the prompt until it timed out.", "why": "scheduled, hang" },
+    { "answer": "A stalled prompt would stop the weekly job.", "why": "stalled" }
+  ],
+  "fail": [
+    { "answer": "No, it never asks during a run.", "why": "no reason given" },
+    { "answer": "Before you run anything: can this audit pause partway through to ask me a yes/no question?", "why": "echoes the prompt" }
+  ]
+}

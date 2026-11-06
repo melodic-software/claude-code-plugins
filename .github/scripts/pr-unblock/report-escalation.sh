@@ -58,7 +58,9 @@
 # with statuses: write and reads TARGET_URL (optional, the run). For
 # feedback-publish-failed it posts nothing when the reply job's lane token was
 # refused in a way a retry takes the head on (retried_refusal), which also
-# reads GITHUB_RUN_ID with actions: read and checks: read.
+# reads GITHUB_RUN_ID with actions: read and checks: read, and writes
+# `status-withheld=true` to GITHUB_OUTPUT, so the caller's report-escalation
+# job posts no lane-stopped comment either.
 #
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
@@ -208,6 +210,9 @@ case ${1:-} in
     # shellcheck disable=SC2310 # retried_refusal returns 1 itself on every failed read
     if [[ $ESCALATION_REASON == feedback-publish-failed ]] && refusal=$(retried_refusal); then
       echo "::notice title=report-stop-status::no status for $ESCALATION_REASON: the reply job's lane token was refused ($refusal), and a retry takes this head"
+      # The step's status-withheld output: report-escalation posts no
+      # lane-stopped comment for the same refusal.
+      [[ -z ${GITHUB_OUTPUT:-} ]] || echo "status-withheld=true" >>"$GITHUB_OUTPUT"
       exit 0
     fi
     if [[ $activity == resolve-conflicts ]]; then

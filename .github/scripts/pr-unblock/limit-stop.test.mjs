@@ -158,6 +158,34 @@ test("with failures retried, failed runs stop handling the head until three of t
   assert.equal(permanentlyHandles([run(1), run(2), run(3)], { failuresRetry: true }), true);
 });
 
+// A class whose run never started the model (ci-workflows lane-outcome.md:
+// install-failed, sandbox-unavailable) is a fault: it holds, counts toward no
+// cap, and the next tick dispatches the head again. A class that persists or
+// that a model turn may have run under (no-credential, max-turns) still counts.
+test("a fault stop holds without counting toward the cap; a max-turns failure still counts", () => {
+  const now = ended + HOUR;
+  const fault = (cls, id) => posted(`lane=pr-unblock activity=resolve-conflicts class=${cls}`, { id });
+  const record = (cls, id) => ({ ...run(id), name: "pr-unblock / resolve-conflicts", output: { title: "Failed", text: `lane-outcome {"v":1,"lane":"pr-unblock","activity":"resolve-conflicts","outcome":"failure","class":"${cls}","credential":{"secret":"CLAUDE_CODE_OAUTH_TOKEN","kind":"oauth-token"}}` } });
+  for (const faults of [
+    [1, 2, 3, 4].map((id) => fault("install-failed", id)),
+    [1, 2, 3, 4].map((id) => record("sandbox-unavailable", id)),
+  ]) {
+    for (const opt of [{}, { failuresRetry: true }, { failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true }]) {
+      assert.equal(anyHandles(faults, { now, ...opt }), false);
+      assert.equal(permanentlyHandles(faults, opt), false);
+      assert.equal(cappedAt(faults, opt), 0);
+    }
+  }
+  const turns = [1, 2, 3].map((id) => fault("max-turns", id));
+  assert.equal(anyHandles(turns, { now, failuresRetry: true }), true);
+  assert.equal(cappedAt(turns, { failuresRetry: true }), 3);
+  assert.equal(anyHandles([turns[0], fault("install-failed", 9), turns[1]], { now, failuresRetry: true }), false, "two counted failures of three");
+  assert.equal(anyHandles([run(1)], { now }), true, "a red run with no record still handles the head");
+  const noCred = [1, 2, 3].map((id) => record("no-credential", id));
+  assert.equal(anyHandles(noCred, { now, failuresRetry: true }), true, "a missing credential fails every tick, so it still caps the head");
+  assert.equal(cappedAt(noCred, { failuresRetry: true }), 3);
+});
+
 test("with failures retried, an unreset limit stop or any run that did not fail still handles the head", () => {
   const options = { now: ended + HOUR, failuresRetry: true };
   assert.equal(anyHandles([posted(LIMIT, { id: 1 })], options), true);

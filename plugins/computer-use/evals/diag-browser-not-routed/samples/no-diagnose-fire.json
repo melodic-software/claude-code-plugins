@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:diagnose"
+          }
+        }
+      ],
+      "why": "another plugin's diagnose skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/workspace/README.md"
+          }
+        }
+      ],
+      "why": "a different tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "computer-use:diagnose"
+          }
+        }
+      ],
+      "why": "namespaced diagnose call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "diagnose",
+            "args": "screenshots"
+          }
+        }
+      ],
+      "why": "bare name with args"
+    }
+  ]
+}

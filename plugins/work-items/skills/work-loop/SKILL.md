@@ -331,12 +331,12 @@ the former default-on pause).
 
 The gate does not decide by work class. A candidate that passes the in-flight check, the objection
 window, the labeler precondition and the hard gates below is admitted, whatever its `work-class:`
-label, and with none. Of the class and provenance labels, only `work-class: untrusted-provenance`
-or `provenance: signal` holds a candidate for a person: `list-frontier --autonomous` already drops both
+label, and with none. Of the class and provenance labels, only `provenance: signal` or
+`provenance: untrusted` (also under its legacy name `work-class: untrusted-provenance`) holds a
+candidate for a person: `list-frontier --autonomous` already drops each
 ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)),
-and a candidate found carrying either is escalated through step 5, never dispatched. A candidate
-whose latest removal of either label came from an actor below `write` is held the same way (the
-provenance-removal hold below).
+and a candidate found carrying any of them is escalated through step 5, never dispatched. A candidate
+whose latest removal of any of them came from an actor below `write` is held the same way (the provenance-removal hold below).
 
 **In-flight precondition (before the other checks).** A frontier candidate that already has an
 open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply
@@ -391,29 +391,28 @@ As of: 2026-10-04. Recheck trigger: the endpoint's role mapping changes.
 
 Hard gates:
 
-- **Provenance hold.** A candidate carrying `work-class: untrusted-provenance` or
-  `provenance: signal` is human-gated. Step 5 escalates it as `kind=escalated`; it is never
-  dispatched.
+- **Provenance hold.** A candidate carrying `provenance: signal` or
+  `provenance: untrusted` (or its legacy name `work-class: untrusted-provenance`) is human-gated.
+  Step 5 escalates it as `kind=escalated`; it is never dispatched.
 - **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
   absence counts only when someone allowed to grant admission removed it. For each candidate, and
-  for each of `work-class: untrusted-provenance` and `provenance: signal`, run the bound adapter's
-  "Label-removal provenance" operation (GitHub: the adapter README section of that name). Its
-  latest-removal read names the actor of the label's latest removal, and its actor-permission read
+  for each of `provenance: untrusted`, its legacy name `work-class: untrusted-provenance`, and
+  `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
+  adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
   reads that actor's permission with the labeler precondition's permission mapping. A candidate whose latest removal of
-  either label came from an actor below `write` (a triage or read actor, `none`, or a permission
+  any of these labels came from an actor below `write` (a triage or read actor, `none`, or a permission
   that does not read) is human-gated: step 5 escalates it as `kind=escalated`, and it is never
   dispatched. The escalation's one-line question names the label, the actor and the permission,
   and gives the human both ways to settle it. If the item is trusted, a person with `write`
   applies the label again and then removes it, which clears the hold, because the latest removal
   decides. If it really is untrusted, they apply the label again and leave it on, so the
-  provenance hold takes over. A role-label flip alone does not clear this hold: the next cycle reads the same
-  removal and escalates again. A failed or empty timeline
-  read, a removal event with no usable actor login, and a binding that cannot read removal events
-  fail closed for this cycle the way the labeler precondition does: not dispatched, no label
-  changed, reported as `provenance-removal check failed: #<item> (<reason>)`, and not progress.
-  Pass the label names to the operation as `jq --arg` values, never spliced into a command or jq
-  program. An actor login reaches the permission read's API path only after the operation's
-  login check.
+  provenance hold takes over. A role-label flip alone does not clear this hold: the next cycle reads
+  the same removal and escalates again. A failed or empty timeline read, a removal event with no
+  usable actor login, and a binding that cannot read removal events fail closed for this cycle the
+  way the labeler precondition does: not dispatched, no label changed, reported as
+  `provenance-removal check failed: #<item> (<reason>)`, and not progress. Pass the label names to
+  the operation as `jq --arg` values, never spliced into a command or jq program. An actor login
+  reaches the permission read's API path only after the operation's login check.
 - **Path/topic hard gate.** An item touching dependency SHA pins, checksum or pin recomputation,
   or any surface the consuming repository's `CLAUDE.md` declares as inviolable ground rules is
   human-gated, such items surface-read as mechanical dependency bumps but are

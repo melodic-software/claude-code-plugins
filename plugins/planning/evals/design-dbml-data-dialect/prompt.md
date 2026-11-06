@@ -1,6 +1,6 @@
 ---
 description: "The repository's convention home sets diagram_dialect.data to dbml: the data-scope design writes entity-relationships.md labeled dialect dbml with a dbml fenced block, resolved through the plugin's authoring-formats ladder"
-tags: [design, conventions, dialect, data, scaffold]
+tags: [design, conventions, dialect, data, scaffold, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

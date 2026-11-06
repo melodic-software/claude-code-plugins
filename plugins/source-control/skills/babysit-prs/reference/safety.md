@@ -1125,7 +1125,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
    No work class is read: the only class-named check is the trust hold, which refuses an issue
-   carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
+   carrying `provenance: untrusted`, or one a non-human removed it from. Eligibility
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
    write-access human wrote it and no non-human, or anyone through an App, retitled it
    (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
