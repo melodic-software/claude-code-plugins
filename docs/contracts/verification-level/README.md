@@ -93,3 +93,4 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 7) |
 | `/ai-slop:audit` | the fix flow's semantic-diff subagent |
 | `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
+| `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |

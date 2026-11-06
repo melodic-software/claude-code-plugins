@@ -351,7 +351,18 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 
 1. **Complete the simulation**: all 3 formats (BP, PM, DL) or the subset being evaluated
 2. **Read ALL boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
-3. **Score each rubric section**: Pass/Partial/Fail for each criterion
+3. **Score each rubric section in a fresh context**: the context that ran the simulation never
+   scores it. Run the plugin's `lib/read-verification.sh --plugin event-storming --skill simulation`
+   (the full command is in SKILL.md, "Scoring in a fresh context") and copy its line into the evaluation report
+   ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+   - At standard or strict, dispatch a fresh-context subagent with the board export from
+     step 2 (in structured-markdown mode, the markdown artifact), the round transcripts a
+     criterion reads, and this file's rubric, never your own notes or verdicts. It returns
+     Pass/Partial/Fail for each criterion with the item it rests on.
+   - Under `light`, and `off`, which acts as `light` here, dispatch no scorer and never score the
+     board yourself in its place. The report writes `verification: skipped (<level>)` and every
+     criterion reads `unscored`; the `history.jsonl` entry carries no scores, and step 5 reports
+     that no comparison was made.
 4. **Take screenshots (live-board path with a browser MCP only)**: visual verification at every
    phase transition per the checklist above. Without a browser MCP, or in structured-markdown mode,
    skip this step and verify against the markdown artifact instead
