@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: review-light-skips-reviewer
+name: review-light-labels-unverified
 context:
   scaffold_script: scaffold.sh

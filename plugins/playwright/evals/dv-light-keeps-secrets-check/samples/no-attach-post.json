@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash lib/read-verification.sh --plugin playwright --skill demo-video"
+          }
+        }
+      ],
+      "why": "the reader only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr view 12"
+          }
+        }
+      ],
+      "why": "a read, no post"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr comment 12 --body 'Demo' --attach work/demo.mp4"
+          }
+        }
+      ],
+      "why": "posted with --attach"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh  pr comment 12 --attach=work/demo.mp4"
+          }
+        }
+      ],
+      "why": "posted, other spacing"
+    }
+  ]
+}

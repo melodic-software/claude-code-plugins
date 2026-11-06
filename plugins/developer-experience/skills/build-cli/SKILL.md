@@ -107,8 +107,9 @@ and copy its line into the report
 ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 `standard` is the rule above; `strict` dispatches the subagent for every review, not only for a
 tool built or changed in this session. Under `light`, and `off`, which acts as `light` here,
-dispatch none and write `verification: skipped (<level>)`. A tool built or changed in this session
-is then reported as not independently reviewed: never review it yourself in the subagent's place.
+dispatch none and write `verification: skipped (<level>)`. The review is the product, so run it
+yourself against the same fifteen rules, the secrets rule and correctness, and label every gap
+`unverified`: a tool built or changed in this session was reviewed by its own author.
 
 ## Next
 
