@@ -730,10 +730,6 @@ lib/read-verification.sh plugins/event-storming/lib/read-verification.sh
 lib/config-root.sh plugins/event-storming/lib/config-root.sh
 lib/yaml-subset.awk plugins/event-storming/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/event-storming/lib/resolve-convention-home.sh
-lib/read-verification.sh plugins/animation/lib/read-verification.sh
-lib/config-root.sh plugins/animation/lib/config-root.sh
-lib/yaml-subset.awk plugins/animation/lib/yaml-subset.awk
-lib/resolve-convention-home.sh plugins/animation/lib/resolve-convention-home.sh
 lib/read-verification.sh plugins/codebase-health/lib/read-verification.sh
 lib/config-root.sh plugins/codebase-health/lib/config-root.sh
 lib/yaml-subset.awk plugins/codebase-health/lib/yaml-subset.awk

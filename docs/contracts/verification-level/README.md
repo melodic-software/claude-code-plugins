@@ -94,7 +94,6 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
-| `/animation:produce` | the step 9 fresh-context film reviewer: `light` delivers the film marked not independently reviewed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
 | `/developer-experience:build-cli` | the review mode's fresh-context reviewer; `strict` dispatches it for every review, not only a tool built in the session |
 | `/harness-ops:audit-install-state` | the fresh-context cross-review (evidence-discipline section 5); `strict` dispatches it for a single-agent run too |
