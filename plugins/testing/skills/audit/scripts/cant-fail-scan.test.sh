@@ -1892,10 +1892,9 @@ assert_contains "Surfaces counts the report-only rules" "$out" \
   "report-only findings (never gate --check): testing/audit/rule-inert-assertion 1, testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
 
 # --- Phase 4b report-only rules -------------------------------------------------
-# (a) conditional-assertion, recomputed-derived, snapshot-only and weak-oracle
+# (a) recomputed-derived, snapshot-only, weak-oracle and throw-only-oracle
 # print, and gate neither --check nor --check --strict.
-for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
-  derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
+for pair in derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
   snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
   weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs \
   throw:rule-throw-only-oracle:cs-xunit/bad/WidgetConstructedNotNullTests.cs; do
@@ -1910,6 +1909,17 @@ for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unche
   assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
   assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
 done
+# conditional-assertion gates --check, --strict or not, and is not named
+# report-only.
+ro_repo "$RO/cond"
+cp "$CORPUS/js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture" "$RO/cond/test/vitest-rows-loop-unchecked.test.ts"
+run_scan "$RO/cond" --check
+assert_exit "(a) --check fails a tree whose only finding is rule-conditional-assertion (exit 1)" 1 "$rc"
+assert_contains "(a) --check prints the rule-conditional-assertion finding" "$out" "finding [testing/audit/rule-conditional-assertion]"
+assert_contains "(a) --check counts it as a gating finding" "$out" "FAIL: 1 gating finding(s)."
+assert_not_contains "(a) --check does not name rule-conditional-assertion report-only" "$out" "report-only and never gate"
+run_scan "$RO/cond" --check --strict
+assert_exit "(a) --check --strict fails a tree whose only finding is rule-conditional-assertion (exit 1)" 1 "$rc"
 
 # Each "gives 0 findings" case below runs beside a control: the same body
 # without the exemption fires, so the silent run cannot pass vacuously.
@@ -2155,8 +2165,10 @@ assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" 
 assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
 assert_matches "a throw-only-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/WidgetConstructedNotNullTests.cs:12 \|'
+assert_contains "Surfaces counts conditional-assertion with the gating rules" "$out" \
+  "testing/audit/rule-recomputed-expectation 0, testing/audit/rule-conditional-assertion 1, testing/audit/rule-mock-only-oracle 0; report-only"
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
-  "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
+  "testing/audit/rule-source-text-read 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 
 # (e), and 4b (f): every rule id the scanner can emit, the seven report-only
 # rules included, has a positive evals.json expectation.
