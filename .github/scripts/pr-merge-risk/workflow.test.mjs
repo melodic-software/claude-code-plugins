@@ -64,7 +64,32 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
   assert.match(rate, /continue-on-error: true\n/);
   assert.deepEqual(list(rate, "tools"), ["Read", "Skill", "Agent"]);
   assert.deepEqual(list(rate, "allowed-tools"), ["Read(./merge-risk-data/**)", "Read(./.lane/plugins/review/**)", "Skill(review:merge-risk *)", "Agent"]);
-  assert.deepEqual(list(rate, "disallowed-tools"), ["Read(./.base/**)", "Glob", "Grep", "Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "mcp__*"]);
+  // merge-risk's frontmatter allowed-tools pre-approves bare Read once the
+  // skill runs, so these deny rules, not the allow list, bound what it reads.
+  // None may name the workspace or the home whole: the workspace sits under it.
+  assert.match(readFileSync(new URL("../../../plugins/review/skills/merge-risk/SKILL.md", import.meta.url), "utf8"), /^allowed-tools: \[[^\]]*"Read"/m);
+  const denied = list(rate, "disallowed-tools");
+  assert.deepEqual(denied, [
+    "Read(./.base/**)",
+    "Read(/${{ runner.temp }}/**)",
+    "Read(~/.config/**)",
+    "Read(~/.git-credentials)",
+    "Read(~/.claude/**)",
+    "Read(//proc/**)",
+    "Read(//sys/**)",
+    "Read(//etc/**)",
+    "Glob",
+    "Grep",
+    "Bash",
+    "Edit",
+    "Write",
+    "NotebookEdit",
+    "WebFetch",
+    "WebSearch",
+    "mcp__*",
+  ]);
+  assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
+  assert.match(text, /allow rules do not bound Read once the skill runs/);
   assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
   assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
   // The managed settings and the isolation come first.

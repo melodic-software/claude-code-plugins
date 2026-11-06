@@ -6,6 +6,7 @@ import {
   InvalidRating,
   RATING_WORKFLOW_PATH,
   REASONS,
+  appOnlyBody,
   artifactName,
   checkRating,
   checkResult,
@@ -122,12 +123,39 @@ test("modelsOf takes the rater from the main thread and the checker from the sub
   assert.deepEqual(modelsOf("nope"), { rater: "unknown", checker: "none" });
 });
 
-test("withMergeRiskLine sets the line last and replaces any earlier one", () => {
+test("withMergeRiskLine sets the line last and replaces only the trailing line it wrote", () => {
   const line = unratedLine("pending");
   assert.equal(withMergeRiskLine("Closes #1\n\nbody", line), `Closes #1\n\nbody\n\n${line}`);
-  assert.equal(withMergeRiskLine(`Closes #1\n\nMerge-Risk: unrated reason=pending\n\nmore\n`, line), `Closes #1\n\nmore\n\n${line}`);
+  assert.equal(withMergeRiskLine(`Closes #1\n\nbody\n\n${unratedLine("no-run")}\n`, line), `Closes #1\n\nbody\n\n${line}`);
+  assert.equal(withMergeRiskLine(withMergeRiskLine("body", line), line), `body\n\n${line}`);
   assert.equal(withMergeRiskLine(null, line), line);
-  assert.equal(withMergeRiskLine("a\r\nMerge-Risk: max=LOW\r\nb", line), `a\r\nb\n\n${line}`);
+  // A Merge-Risk line mid-body is the author's text, not this function's.
+  assert.equal(withMergeRiskLine("a\r\nMerge-Risk: max=LOW\r\nb", line), `a\r\nMerge-Risk: max=LOW\r\nb\n\n${line}`);
+});
+
+test("withMergeRiskLine keeps a fenced example of the format, as this pull request's own body has", () => {
+  const line = unratedLine("pending");
+  const example = ["## Summary", "", "```text", "Merge-Risk: max=<level> demote=<bool>", "Merge-Risk: unrated reason=<reason>", "```", "", "## Fix"].join("\n");
+  assert.equal(withMergeRiskLine(example, line), `${example}\n\n${line}`);
+  // A body that ends inside an open fence keeps its fenced lines too.
+  const open = ["text", "```text", "Merge-Risk: max=LOW"].join("\n");
+  assert.equal(withMergeRiskLine(open, line), `${open}\n\n${line}`);
+  // After a closed fence, the trailing written line is still replaced.
+  assert.equal(withMergeRiskLine(`${example}\n\n${unratedLine("no-run")}`, line), `${example}\n\n${line}`);
+});
+
+test("appOnlyBody holds only for a body the lanes App alone wrote, its edit list read whole", () => {
+  const app = { __typename: "Bot", login: "lanes" };
+  const edits = (...editors) => ({ totalCount: editors.length, nodes: editors.map((editor) => ({ editor })) });
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits() }, "lanes"), true);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits(app, app) }, "lanes"), true);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits({ __typename: "User", login: "someone" }) }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits({ __typename: "Bot", login: "other-app" }) }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits(null) }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: { totalCount: 101, nodes: [] } }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: app }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: { __typename: "User", login: "lanes" }, userContentEdits: edits() }, "lanes"), false);
+  assert.equal(appOnlyBody({ author: app, userContentEdits: edits() }, undefined), false);
 });
 
 test("the artifact name is prefix, pr and head", () => {
@@ -208,7 +236,9 @@ test("readRating: a bad artifact is invalid, an unreadable one unreadable", asyn
 });
 
 // recordMergeRisk: the arm-side step. It never throws.
-const pull = { number: 7, headRefOid: HEAD, body: "Closes #1\n\nbody" };
+const BOT = "melodic-automation-lanes";
+const APP = { __typename: "Bot", login: BOT };
+const pull = { number: 7, headRefOid: HEAD, body: "Closes #1\n\nbody", author: APP, userContentEdits: { totalCount: 0, nodes: [] } };
 function writer({ body = pull.body, failGet = false, failPatch = false } = {}) {
   const sent = [];
   const github = async (method, path, payload) => {
@@ -224,7 +254,7 @@ function writer({ body = pull.body, failGet = false, failPatch = false } = {}) {
 test("recordMergeRisk writes the rated line as the body's last line", async () => {
   const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
   const { github, sent } = writer();
-  const result = await recordMergeRisk({ pull, repository: REPO, actions, github, download: () => JSON.stringify(rating()) });
+  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => JSON.stringify(rating()) });
   assert.equal(result.token, "rated");
   assert.equal(result.wrote, true);
   const patch = sent.find((call) => call.method === "PATCH");
@@ -235,15 +265,25 @@ test("recordMergeRisk writes the rated line as the body's last line", async () =
 test("recordMergeRisk writes nothing when the line is already exact", async () => {
   const { actions } = fake({ listing: [runOf(5, { status: "queued", conclusion: null })] });
   const { github, sent } = writer({ body: `x\n\n${unratedLine("pending")}` });
-  const result = await recordMergeRisk({ pull: { ...pull, body: `x\n\n${unratedLine("pending")}` }, repository: REPO, actions, github, download: () => "" });
+  const result = await recordMergeRisk({ bot: BOT, pull: { ...pull, body: `x\n\n${unratedLine("pending")}` }, repository: REPO, actions, github, download: () => "" });
   assert.equal(result.wrote, false);
   assert.equal(sent.some((call) => call.method === "PATCH"), false);
+});
+
+test("recordMergeRisk neither reads nor writes a body another account edited", async () => {
+  const { actions, calls } = fake({ listing: [] });
+  const { github, sent } = writer();
+  const edited = { ...pull, userContentEdits: { totalCount: 1, nodes: [{ editor: { __typename: "User", login: "outsider" } }] } };
+  const result = await recordMergeRisk({ bot: BOT, pull: edited, repository: REPO, actions, github, download: () => "" });
+  assert.deepEqual([result.token, result.wrote, result.skipped], ["skipped", false, "untrusted-body"]);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(sent, []);
 });
 
 test("recordMergeRisk skips the write when the body changed since the listing", async () => {
   const { actions } = fake({ listing: [] });
   const { github, sent } = writer({ body: "Closes #1\n\nbody\n\ndo not merge" });
-  const result = await recordMergeRisk({ pull, repository: REPO, actions, github, download: () => "" });
+  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
   assert.equal(result.wrote, false);
   assert.equal(result.skipped, "body-changed");
   assert.equal(sent.some((call) => call.method === "PATCH"), false);
@@ -252,7 +292,7 @@ test("recordMergeRisk skips the write when the body changed since the listing", 
 test("recordMergeRisk records unrated when every read throws, and still writes", async () => {
   const { actions } = fake({ fail: new Set(["/actions/"]) });
   const { github, sent } = writer();
-  const result = await recordMergeRisk({ pull, repository: REPO, actions, github, download: () => "" });
+  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
   assert.equal(result.token, "unrated:unreadable");
   assert.equal(sent.find((call) => call.method === "PATCH").payload.body.endsWith(unratedLine("unreadable")), true);
 });
@@ -261,7 +301,7 @@ test("recordMergeRisk records over-budget when a read hangs past the deadline", 
   const actions = () => new Promise(() => {});
   const { github, sent } = writer();
   const started = Date.now();
-  const result = await recordMergeRisk({ pull, repository: REPO, actions, github, download: () => "", readMs: 50, writeMs: 200 });
+  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "", readMs: 50, writeMs: 200 });
   assert.equal(result.token, "unrated:over-budget");
   assert.ok(Date.now() - started < 2000);
   assert.equal(sent.find((call) => call.method === "PATCH").payload.body.endsWith(unratedLine("over-budget")), true);
@@ -271,12 +311,12 @@ test("recordMergeRisk never throws when the GET or the PATCH fails or hangs", as
   const { actions } = fake({ listing: [] });
   for (const options of [{ failGet: true }, { failPatch: true }]) {
     const { github } = writer(options);
-    const result = await recordMergeRisk({ pull, repository: REPO, actions, github, download: () => "" });
+    const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
     assert.equal(result.wrote, false);
     assert.equal(result.skipped, "write-failed");
   }
   const hang = async (method) => (method === "GET" ? { body: pull.body } : new Promise(() => {}));
-  const result = await recordMergeRisk({ pull, repository: REPO, actions, github: hang, download: () => "", writeMs: 50 });
+  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github: hang, download: () => "", writeMs: 50 });
   assert.equal(result.wrote, false);
   assert.equal(result.skipped, "write-failed");
 });
@@ -285,6 +325,7 @@ test("recordMergeRisk survives a throwing download and a malformed pull", async 
   const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
   const { github } = writer();
   const result = await recordMergeRisk({
+    bot: BOT,
     pull,
     repository: REPO,
     actions,
@@ -294,7 +335,7 @@ test("recordMergeRisk survives a throwing download and a malformed pull", async 
     },
   });
   assert.equal(result.token, "unrated:unreadable");
-  const bad = await recordMergeRisk({ pull: { number: "x", headRefOid: "no" }, repository: REPO, actions, github, download: () => "" });
+  const bad = await recordMergeRisk({ bot: BOT, pull: { number: "x", headRefOid: "no" }, repository: REPO, actions, github, download: () => "" });
   assert.equal(bad.wrote, false);
 });
 

@@ -172,9 +172,13 @@
 // rating pr-rate-merge-risk.yml uploaded for the head, or `unrated` with a
 // closed reason, read and written within about 40 seconds at most (15 for
 // the reads, 5 for the write, and a download capped at 8 for gh and 8 for
-// unzip that no timer can cut short); whatever happens,
-// the arm goes on, and no rule here or in ci-status reads the line. It logs a
-// `merge-risk` notice per arm and adds its token to the step summary.
+// unzip that no timer can cut short), only on a body the lanes App alone
+// wrote (appOnlyBody); whatever happens,
+// the arm goes on, and no rule here or in ci-status reads the line. The edit
+// is a `pull_request: edited` event, so the queue takes the pull request only
+// after that contract-only ci-status run reports (docs/conventions/pr-pipeline/
+// README.md, "The Merge-Risk line", states the wait). It logs a `merge-risk`
+// notice per arm and adds its token to the step summary.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (contents and pull-requests write)
@@ -295,7 +299,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
       nodes {
         id number isDraft isCrossRepository headRefOid baseRefOid body updatedAt
         author { __typename login }
-        userContentEdits(first: 100) { totalCount nodes { editor { __typename } } }
+        userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
         autoMergeRequest { enabledAt }
       }
@@ -1858,6 +1862,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             repository: repo[0],
             actions,
             github,
+            bot: slug,
             download: ghDownloadArtifact({ repo: repo[0], token: env.BABYSIT_VERIFY_GH_TOKEN || env.GH_TOKEN, dir: env.RUNNER_TEMP || ".", name: ARTIFACT_PREFIX, file: RATING_FILE, env, timeout: 8000 }),
           });
         };

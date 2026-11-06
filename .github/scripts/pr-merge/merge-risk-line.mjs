@@ -108,19 +108,33 @@ export function unratedLine(reason) {
   return `Merge-Risk: unrated reason=${reason}`;
 }
 
-// `body` with `line` as its last line, every earlier Merge-Risk line removed
-// with the blank line before it, which is how this writes it.
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+// `body` with `line` as its last line. Only what this writes is replaced: the
+// trailing run of Merge-Risk lines at the body's end, outside any fence, with
+// the blank lines before it. A Merge-Risk line anywhere else, a fenced
+// example of the format included, is the author's text and stays as written.
 export function withMergeRiskLine(body, line) {
-  const kept = [];
-  for (const text of String(body ?? "").split("\n")) {
-    if (!LINE.test(text.replace(/\r$/, ""))) {
-      kept.push(text);
-    } else if (kept.length > 0 && kept.at(-1).trim() === "") {
-      kept.pop();
-    }
-  }
-  const joined = kept.join("\n").replace(/\s+$/, "");
-  return joined === "" ? line : `${joined}\n\n${line}`;
+  const lines = String(body ?? "")
+    .replace(/\s+$/, "")
+    .split("\n");
+  let end = lines.length;
+  while (end > 0 && LINE.test(lines[end - 1].replace(/\r$/, ""))) end -= 1;
+  // An odd number of fence lines before the run puts it inside an open fence.
+  const fences = lines.slice(0, end).filter((text) => FENCE.test(text)).length;
+  const kept = (fences % 2 === 0 ? lines.slice(0, end) : lines).join("\n").replace(/\s+$/, "");
+  return kept === "" ? line : `${kept}\n\n${line}`;
+}
+
+// Whether only the lanes App (`bot`, its login without `[bot]`) wrote the
+// body, read whole: its author and every editor. A body anyone else touched
+// is left alone, so the App's edit never makes an untrusted editor's text
+// read as trusted (select-trusted-text keeps a body by its last editor).
+export function appOnlyBody(pull, bot) {
+  const edits = pull?.userContentEdits;
+  if (typeof bot !== "string" || bot === "" || pull?.author?.__typename !== "Bot" || pull.author.login !== bot) return false;
+  if (!Array.isArray(edits?.nodes) || !(edits.totalCount <= edits.nodes.length)) return false;
+  return edits.nodes.every((edit) => edit?.editor?.__typename === "Bot" && edit.editor.login === bot);
 }
 
 // The line for `pr` at `head`, and its outcome token (`rated` or
@@ -173,9 +187,11 @@ const within = (promise, ms, fallback) => {
 // The arm-side step: read the rating within `readMs` (a synchronous
 // `download` runs to its own timeout first), then set the line on a
 // fresh read of the body within `writeMs`. `github` is the client that may
-// edit the body. A body that changed since the listing (`pull.body`) is left
-// alone, so a person's edit is never overwritten. Never throws.
-export async function recordMergeRisk({ pull, repository, actions, github, download, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
+// edit the body. A body anyone but the lanes App (`bot`) wrote or edited
+// (appOnlyBody) is neither read for nor written, and a body that changed
+// since the listing (`pull.body`) is left alone, so a person's edit is never
+// overwritten. Never throws.
+export async function recordMergeRisk({ pull, repository, actions, github, download, bot, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
   const started = now();
   const result = { token: "unrated:unreadable", wrote: false, skipped: undefined, readMs: 0 };
   try {
@@ -183,6 +199,11 @@ export async function recordMergeRisk({ pull, repository, actions, github, downl
     const head = pull?.headRefOid;
     if (!Number.isSafeInteger(pr) || pr < 1 || !SHA.test(String(head))) {
       result.skipped = "no-pull";
+      return result;
+    }
+    if (!appOnlyBody(pull, bot)) {
+      result.token = "skipped";
+      result.skipped = "untrusted-body";
       return result;
     }
     const over = { line: unratedLine("over-budget"), token: "unrated:over-budget" };

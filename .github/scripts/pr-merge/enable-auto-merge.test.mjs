@@ -4317,7 +4317,7 @@ const failingReads = async () => {
 
 test("a rating whose reads and body edit both fail still arms, and records unrated", async () => {
   const writer = riskWriter({ failPatch: true });
-  const mergeRisk = (target) => recordMergeRisk({ pull: { ...target, body: "" }, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
+  const mergeRisk = (target) => recordMergeRisk({ bot: LANES.login, pull: { ...target, body: "", userContentEdits: { totalCount: 0, nodes: [] } }, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
   const { code, writes, lines } = await run([pull(1)], {}, { mergeRisk });
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
@@ -4328,7 +4328,7 @@ test("a rating whose reads and body edit both fail still arms, and records unrat
 
 test("a rating read that hangs is cut off at its deadline, recorded over-budget, and the pull request arms", async () => {
   const writer = riskWriter();
-  const mergeRisk = (target) => recordMergeRisk({ pull: { ...target, body: "" }, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
+  const mergeRisk = (target) => recordMergeRisk({ bot: LANES.login, pull: { ...target, body: "", userContentEdits: { totalCount: 0, nodes: [] } }, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
   const { code, writes } = await run([pull(1)], {}, { mergeRisk });
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);

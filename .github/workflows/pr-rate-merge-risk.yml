@@ -286,11 +286,19 @@ jobs:
 
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome step; "Fail without a rating" carries the red. Under
-      # dontAsk only the allow rules' paths are readable and only the one skill
-      # may run; Agent is allowed bare, as pr-verify-capture.yml allows it, for
-      # the skill's blind checker, which takes the same rules. The deny rules
-      # hold if the tools or the working directory change. The model may share its job with the
-      # upload: it has no code-running tool and the job token can only read.
+      # dontAsk only the one skill may run, and Agent is allowed bare, as
+      # pr-verify-capture.yml allows it, for the skill's blind checker. The
+      # allow rules do not bound Read once the skill runs: its frontmatter
+      # allowed-tools pre-approves bare Read. The deny rules do, since a deny
+      # beats any allow: .base, the runner's temp directory (the reads and the
+      # prompt), the home's credential and Claude files (as
+      # pr-verify-capture.yml denies them; the workspace itself sits under the
+      # home, so the home is not denied whole) and /proc, /sys and /etc stay
+      # unreadable.
+      # --restricted keeps the file tools inside the workspace, which holds
+      # nothing else but the data directory and the plugin copy. Only Read,
+      # Skill and Agent exist (tools:), so nothing writes or runs code. The
+      # model may share its job with the upload: the job token can only read.
       - name: Rate the pull request
         id: rate
         if: steps.prompt.outcome == 'success'
@@ -325,6 +333,13 @@ jobs:
             Agent
           disallowed-tools: |
             Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(~/.config/**)
+            Read(~/.git-credentials)
+            Read(~/.claude/**)
+            Read(//proc/**)
+            Read(//sys/**)
+            Read(//etc/**)
             Glob
             Grep
             Bash
