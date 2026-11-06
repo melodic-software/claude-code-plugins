@@ -799,6 +799,11 @@ class PipelineConfig:
     # against its title and body, as a person's is. Any other App needs a
     # closing issue. An entry that is not an id empties it. Main's.
     spec_from_body_apps: tuple[int, ...] = ()
+    # `adoption.self-merging-apps`: the App ids that enqueue and merge their
+    # own pull requests, so the pr-merge lane writes no reasons comment or
+    # risk escalation on one; its score still holds the lane's own merge. An
+    # entry that is not an id empties it. Main's.
+    self_merging_apps: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -977,6 +982,7 @@ def read_config_at(
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
             ("adoption.spec-from-body-apps", True),
+            ("adoption.self-merging-apps", True),
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
             ("merge.lane-prs", False),
@@ -1109,6 +1115,13 @@ def read_config_at(
             "is not an account id; every App needs a closing issue"
         )
         body_apps = ()
+    self_merging = tuple(values["adoption.self-merging-apps"])
+    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in self_merging):
+        notes.append(
+            f"adoption.self-merging-apps {list(self_merging)!r} holds an entry "
+            "that is not an account id; every App gets its reasons comment"
+        )
+        self_merging = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -1162,6 +1175,7 @@ def read_config_at(
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
         spec_from_body_apps=tuple(int(i) for i in body_apps),
+        self_merging_apps=tuple(int(i) for i in self_merging),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
@@ -1244,6 +1258,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
         spec_from_body_apps=main.spec_from_body_apps,
+        self_merging_apps=main.self_merging_apps,
         issue_holds=_union(base.issue_holds, main.issue_holds),
     )
 
@@ -1325,6 +1340,8 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             )
             and isinstance(c.spec_from_body_apps, tuple)
             and all(count(i, 1) for i in c.spec_from_body_apps)
+            and isinstance(c.self_merging_apps, tuple)
+            and all(count(i, 1) for i in c.self_merging_apps)
         )
     except (TypeError, ValueError):
         return None
