@@ -345,7 +345,7 @@ what belongs to `harness-memory:audit`'s C6 instead.
 
 ## Phase C: Verify pass
 
-Every removal or rewrite proposal is re-judged before it reaches the report. Dispatch **fresh-context,
+Every removal or rewrite proposal is re-judged before it reaches the report, at the `standard` and `strict` verification levels: resolve the level with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-config --skill audit-instructions` and copy its line into the report header ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). Under `light`, and `off`, which acts as `light` here, dispatch no Phase C verifier and never re-judge inline in its place: follow "When dispatch is unavailable" below with every verification mode `skipped` for the reason `verification: skipped (<level>)`. Dispatch **fresh-context,
 non-fork** subagents, since this is a self-grade of the audit's own proposals and a fork that inherits the
 producing context would not be independent (pointer: when checking what a fork inherits, fetch [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
 live; as of 2026-11-01, recheck when that table changes what a fork inherits), prompted to refute: "would removing this instruction cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is

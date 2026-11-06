@@ -206,6 +206,14 @@ results it returns. Where the environment exposes no subagent surface, run the g
 in the report that the refusal gate ran in the context that generated the candidates, so the bias
 is visible.
 
+**Verification level.** Before this gate, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-config --skill audit-automation-gaps`
+and copy its line into the report ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` and `strict` are the paragraph above. Under `light`, and `off`, which acts as `light`
+here, dispatch neither this gate nor the Phase 4 step 6 reviewer, and never run either inline in
+its place: write `verification: skipped (<level>)` where the gate results or the review would go.
+The gate's verdict is this audit's product, so each candidate is listed as `unverified`, never
+`PASS`, `CONDITIONAL` or `REJECT`, and none is persisted for `--implement`.
+
 | Gate | Condition | Evidence Required |
 |------|-----------|-------------------|
 | **Already enforced** | A higher enforcement hierarchy level covers it, and the shift-left carve-out below does not apply | Name the level and mechanism; where the candidate claims the carve-out, the result of each of its three conjuncts |
@@ -406,7 +414,9 @@ For each user-selected item:
 6. **Review**: dispatch a fresh-context reviewer to check the change against existing patterns,
    since the context that wrote it is a biased judge of it. It lists only problems that should
    block the change, each with file and line, why it is wrong, and how to show it fails. Where no subagent surface exists,
-   review inline and record that the review was same-context
+   review inline and record that the review was same-context. Under a `light` or `off`
+   verification level (2.3), dispatch no reviewer and review nothing inline: write
+   `verification: skipped (<level>)` in the review's place
 7. **Verify**: build/test the repo if code changed, confirm no regressions
 
 Route steps 2-7 through the consuming environment's own workflow skills when it has them; the inline

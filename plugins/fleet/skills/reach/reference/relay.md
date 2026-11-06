@@ -116,7 +116,8 @@ Per-turn resume survives a disconnect. Choose the id up front so nothing parses 
 <ssh> <wsl-alias> 'cd <dir> && claude -p --resume <uuid> "<prompt>" < /dev/null'
 ```
 
-Take `<uuid>` from `uuidgen`, or `/proc/sys/kernel/random/uuid` where `uuidgen` is missing.
+This session generates no id: leave `<uuid>` for whoever runs the command to fill, or start the
+first turn with `--output-format json` and resume with the `session_id` it returns.
 
 One open pipe keeps a single process and its context for as long as the connection stays open,
 with user messages as NDJSON lines on stdin:

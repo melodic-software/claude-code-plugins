@@ -81,7 +81,7 @@ config chose, and never raises one:
 
 An effort-derived cap is a cap like any other, so Phase 1 step 5 already governs how it is reported:
 say what was dropped, because a truncated run must never read as a clean one. Nothing downstream
-moves. Phase 4 triage still runs in fresh context on every surviving mutant, at every effort level.
+moves. Phase 4 triage still runs in fresh context on every surviving mutant, at every effort level; only a `light` or `off` verification level skips it ([Phase 4](#phase-4-triage-fresh-context)).
 
 ## The exercised scope (`--exercised`)
 
@@ -303,7 +303,7 @@ decide whether its own findings are worth reporting, and a fork inherits that re
 removing it ([what a fork inherits](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of 2026-11-01; recheck when that section changes).
 Hand over the artifact, the mutated line, its surrounding code, and the tests that covered it, never the reasoning
 that produced the mutant. The brief says it is done when every handed-over survivor has one of the three verdicts
-or is marked unclassified, and that it returns early rather than guess when the handed-over code is not enough to decide.
+or is marked unclassified, and that it returns early rather than guess when the handed-over code is not enough to decide. Before dispatching it, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin mutation-testing --skill audit --file docs/conventions/mutation-testing.yaml` and copy its line into the report ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)); `standard` and `strict` are this phase as written. Triage is this audit's product, so `light`, and `off`, which acts as `light` here, keep every survivor but label it: dispatch no triage subagent, never triage in this context instead, and report each survivor *unclassified* with the reason `verification: skipped (<level>)`, which withholds none.
 
 **Every productive survivor also gets a cause**, assigned in the same brief, in both scopes, with a
 quoted line as its evidence:

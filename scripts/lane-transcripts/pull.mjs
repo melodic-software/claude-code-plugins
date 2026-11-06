@@ -45,6 +45,9 @@ export const GH_ATTEMPTS = 5;
 export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
 export const GH_MAX_DELAY_MS = 300_000;
+// gh calls one pull may make, every retry counted: a fifth of the login's
+// 5,000 REST requests an hour, so the other lanes on it keep their headroom.
+export const GH_CALL_BUDGET = 1000;
 
 // GitHub answers the repository-wide artifact listing with a 500 for this
 // repository, so the pull lists each artifact name on its own instead. A name
@@ -82,10 +85,6 @@ export const TRANSCRIPT_JOB_IDS = {
 // Two workflows can share a job-id (model), so each name is listed once.
 export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
-// Listing calls one pull may spend: two pages a name plus 25%, and never under
-// 400, out of the user token's 5,000 REST requests an hour. Reaching it before
-// every name reaches the cutoff fails the pull, so the window stays.
-export const MAX_LIST_CALLS = Math.max(400, Math.ceil(TRANSCRIPT_NAMES.length * 2 * 1.25));
 
 const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
@@ -96,6 +95,8 @@ export class PullError extends Error {}
 // One artifact's call that still failed: the pull counts it and goes on. Its
 // message is the call's kind, so the failed call's own text goes no further.
 class FetchFailed extends Error {}
+// The pull's gh call budget is spent: it stops fetching and keeps what it has.
+class BudgetSpent extends Error {}
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -130,10 +131,12 @@ function defaultDeps(env) {
 // rides out a bad spell of several minutes. A zip or run read, whose failure
 // the pull already tolerates (fetch_failed), keeps five tries (about 30 s). A
 // rate limit stops the pull at once: every further call while limited spends
-// the user's shared budget.
+// the user's shared budget. Every attempt counts against the pull's call budget.
 function ghRetried(deps, args, list = false) {
   const attempts = deps.ghAttempts ?? (list ? GH_LIST_ATTEMPTS : GH_ATTEMPTS);
   for (let attempt = 1; ; attempt++) {
+    if (deps.meter.calls >= deps.meter.budget) throw new BudgetSpent();
+    deps.meter.calls++;
     try {
       return deps.gh(args);
     } catch (error) {
@@ -148,7 +151,7 @@ function fetched(kind, call) {
   try {
     return call();
   } catch (error) {
-    throw error instanceof PullError ? error : new FetchFailed(kind);
+    throw error instanceof PullError || error instanceof BudgetSpent ? error : new FetchFailed(kind);
   }
 }
 
@@ -170,15 +173,14 @@ function sealedRecord(deps, sink, zip) {
 // Each transcript artifact created since the cutoff: every name's listing,
 // newest first, paged until an artifact older than the cutoff or a short page.
 // The cutoff is by artifact created_at, so a re-run attempt of an older run is
-// still reached.
-function* listed(deps, repo, cutoff) {
-  const maxCalls = deps.maxListCalls ?? MAX_LIST_CALLS;
-  let calls = 0;
-  for (const name of TRANSCRIPT_NAMES) {
+// still reached. Names are listed from `at.name` (where a budget-stopped pull
+// stopped), wrapping round, so the names late in the list cannot starve.
+function* listed(deps, repo, cutoff, at) {
+  const start = Math.max(0, TRANSCRIPT_NAMES.indexOf(at.name));
+  for (let i = 0; i < TRANSCRIPT_NAMES.length; i++) {
+    const name = TRANSCRIPT_NAMES[(start + i) % TRANSCRIPT_NAMES.length];
+    at.name = name;
     for (let page = 1; ; page++) {
-      // Stopping short of the cutoff would record a success that skipped
-      // artifacts, so it fails and the window stays.
-      if (++calls > maxCalls) throw new PullError(`call-cap: ${maxCalls} listing calls did not reach the last pull's cutoff`);
       const { artifacts = [] } = json(ghRetried(deps, ["api", `repos/${repo}/actions/artifacts?name=${name}&per_page=${PER_PAGE}&page=${page}`], true));
       const fresh = artifacts.filter((artifact) => Date.parse(artifact.created_at) >= cutoff);
       yield* fresh;
@@ -188,39 +190,59 @@ function* listed(deps, repo, cutoff) {
 }
 
 export function pull({ sink, repo, recipient, deps, log }) {
+  const meter = { calls: 0, budget: deps.ghCallBudget ?? GH_CALL_BUDGET };
+  try {
+    return pullWithin({ sink, repo, recipient, deps: { ...deps, meter }, log });
+  } finally {
+    log(`gh calls: ${meter.calls} of ${meter.budget}`);
+  }
+}
+
+function pullWithin({ sink, repo, recipient, deps, log }) {
   const now = deps.now();
   ensureDir(sink);
   ensureDir(paths(sink).transcripts);
   ensureDir(paths(sink).tmp);
   const state = readState(sink);
   const last = Date.parse(state.last_success_at ?? "");
-  const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, Number.isNaN(last) ? 0 : last - OVERLAP);
+  // A pull stopped at its budget leaves its own cutoff, so the next pull still
+  // reaches the artifacts it did not get to.
+  const resume = Date.parse(state.resume_cutoff_at ?? "");
+  const since = Number.isNaN(resume) ? (Number.isNaN(last) ? 0 : last - OVERLAP) : resume;
+  const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, since);
   const known = new Set(readRows(sink).map((row) => row.artifact_id));
   const runs = new Map();
   const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0, fetch_failed: 0 };
   const failedKinds = new Set();
+  let exhausted = false;
+  const at = { name: state.resume_name ?? null };
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
 
-  for (const artifact of listed(deps, repo, cutoff)) {
-    const named = parseArtifactName(artifact.name);
-    const wf = artifact.workflow_run ?? {};
-    if (!named) tally.unnamed++;
-    else if (known.has(artifact.id)) tally.known++;
-    else if (artifact.expired) tally.expired++;
-    // The public key is public: a fork's run could seal a record of its own.
-    else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
-    else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
-    else {
-      try {
-        const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
-        tally[outcome]++;
-        if (outcome === "pulled") known.add(artifact.id);
-      } catch (error) {
-        if (!(error instanceof FetchFailed)) throw error;
-        tally.fetch_failed++;
-        failedKinds.add(error.message);
+  try {
+    for (const artifact of listed(deps, repo, cutoff, at)) {
+      const named = parseArtifactName(artifact.name);
+      const wf = artifact.workflow_run ?? {};
+      if (!named) tally.unnamed++;
+      else if (known.has(artifact.id)) tally.known++;
+      else if (artifact.expired) tally.expired++;
+      // The public key is public: a fork's run could seal a record of its own.
+      else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
+      else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
+      else {
+        try {
+          const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
+          tally[outcome]++;
+          if (outcome === "pulled") known.add(artifact.id);
+        } catch (error) {
+          if (!(error instanceof FetchFailed)) throw error;
+          tally.fetch_failed++;
+          failedKinds.add(error.message);
+        }
       }
     }
+  } catch (error) {
+    if (!(error instanceof BudgetSpent)) throw error;
+    exhausted = true;
   }
   // Every candidate sealed to another key and none opened: the vault key does
   // not match the repository variable, which must alert, not pass.
@@ -228,9 +250,13 @@ export function pull({ sink, repo, recipient, deps, log }) {
   const pruned = prune(sink, now);
   // A pull that missed an artifact keeps the last success, so the next pull's
   // cutoff still reaches it; the artifact's 7-day expiry bounds how long.
-  const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} transcript(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null };
-  writeState(sink, { ...readState(sink), ...finished, last_tally: tally });
-  log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}`);
+  // A pull stopped at its budget is a success that keeps its cutoff and the name
+  // it stopped on for the next. The 7-day floor can pass that cutoff and drop
+  // what is left; status alerts at 5 days, before it does.
+  const finished = tally.fetch_failed > 0 ? { last_error: `fetch-failed: ${tally.fetch_failed} transcript(s) (${[...failedKinds].join(", ")})` } : { last_success_at: new Date(now).toISOString(), last_error: null, resume_cutoff_at: null };
+  if (exhausted) finished.resume_cutoff_at = new Date(cutoff).toISOString();
+  writeState(sink, { ...readState(sink), ...finished, last_tally: tally, budget_exhausted: exhausted, gh_calls: deps.meter.calls, resume_name: exhausted ? at.name : null });
+  log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}${exhausted ? `; stopped at the gh call budget of ${deps.meter.budget}` : ""}`);
   return tally;
 }
 
@@ -279,10 +305,14 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
 
 export function status(sink, now = Date.now()) {
   const rows = readRows(sink);
-  return { sink, ...staleness(readState(sink), now), rows: rows.length, transcripts: rows.filter((r) => r.transcript).length, bytes: sinkBytes(sink) };
+  const state = readState(sink);
+  return { sink, ...staleness(state, now), budget_exhausted: state.budget_exhausted ?? false, resume_cutoff_at: state.resume_cutoff_at ?? null, rows: rows.length, transcripts: rows.filter((r) => r.transcript).length, bytes: sinkBytes(sink) };
 }
 
-const alert = (s) => `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
+const alert = (s) =>
+  s.backlog_stale
+    ?`ALERT: budget-stopped pulls have not drained the lane transcript backlog in 5 days (cutoff: ${s.resume_cutoff_at})`
+    : `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
 
 // Exit codes: 0 done, 1 failed or stale, 2 usage.
 export function main(argv = process.argv.slice(2), env = process.env, deps = undefined, io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) }) {
@@ -327,8 +357,9 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     return 1;
   }
   try {
-    const tally = pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
-    if (tally.fetch_failed === 0) return 0;
+    // A complete pull is fresh; one that missed an artifact or stopped at its
+    // budget is stale once its kept window is.
+    pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
     const s = status(sink, d.now());
     if (s.stale) io.err(`${alert(s)}\n`);
     return s.stale ? 1 : 0;

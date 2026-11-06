@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Evidence**: unverified",
+      "why": "the label"
+    },
+    {
+      "answer": "**Evidence:** `unverified` (verification: skipped (light))",
+      "why": "code-spanned label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Evidence**: verified-by-reading",
+      "why": "a gated label"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
