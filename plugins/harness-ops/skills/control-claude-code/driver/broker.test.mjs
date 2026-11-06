@@ -169,6 +169,18 @@ test('an accepted request becomes one --opt=value argument per option, --unatten
   ]);
 });
 
+test('a broker started --in-sandbox adds --in-sandbox to every request, and a request cannot ask for it', posixOnly, () => {
+  const b = box();
+  const out = join(b.root, 'run.jsonl');
+  assert.deepEqual(driverArgs({ verb: 'launch', args: ['--plugin-dir', b.plugin] }, [b.root], b.deps, true), [
+    'launch', `--plugin-dir=${b.plugin}`, '--unattended', '--in-sandbox', `--deps-dir=${b.deps}`,
+  ]);
+  assert.deepEqual(driverArgs({ verb: 'log', args: ['--plugin-dir', b.plugin, '--out', out, '--', 'run /demo'] }, [b.root], b.deps, true), [
+    'log', `--plugin-dir=${b.plugin}`, `--out=${out}`, '--unattended', '--in-sandbox', '--', 'run /demo',
+  ]);
+  refuses({ verb: 'launch', args: ['--plugin-dir', b.plugin, '--in-sandbox'] }, /Unknown option/, b);
+});
+
 test('the driver child gets the start key and no other credential or broker socket', posixOnly, () => {
   const env = { PATH: '/bin', ANTHROPIC_API_KEY: 'from-env', CLAUDE_CODE_OAUTH_TOKEN: 'sub', CCD_BROKER_SOCK: '/s', CCD_RUNTIME_DIR: '/rt' };
   assert.deepEqual(childEnv(env, 'dummy'), { PATH: '/bin', CCD_RUNTIME_DIR: '/rt', ANTHROPIC_API_KEY: 'dummy' });
@@ -201,6 +213,8 @@ test('the broker starts only on a ccd-dummy- key and refuses one shaped like a r
   assert.throws(() => startAt(base, 'dummy'), /must be a dummy starting with ccd-dummy-/);
   assert.throws(() => startAt(base, 'ccd-dummy-'), /must be a dummy starting with ccd-dummy-/);
   assert.equal(startAt(base, 'ccd-dummy-x').key, 'ccd-dummy-x');
+  assert.equal(startAt(base, KEY).inSandbox, false);
+  assert.equal(startAt({ ...base, 'in-sandbox': true }, KEY).inSandbox, true);
 });
 
 test('the broker refuses a driver dir, driver config dir or deps dir it can write, and a deps dir inside a root', unprivileged, () => {

@@ -170,6 +170,20 @@ test('unattended with no CI credential set runs as attended does', () => {
   assert.equal(keySource, 'none');
 });
 
+// The launch the #13711 probe ran in the sibling sandbox (probe-13711-bash.yml at 6764ca031f8):
+// LAUNCH_FLAGS ['--strict-mcp-config'] and no scrub line, so Bash is in the default tools.
+test('in-sandbox drops --restricted and the scrub, and still keeps the one CI credential', () => {
+  const { argv, env, keySource } = buildLaunch(
+    { pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true },
+    { ANTHROPIC_API_KEY: 'ccd-dummy-x', ANTHROPIC_AUTH_TOKEN: 'x' },
+  );
+  assert.deepEqual(argv, ['claude', '--strict-mcp-config', '--plugin-dir', '/p']);
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(env.ANTHROPIC_API_KEY, 'ccd-dummy-x');
+  assert.equal('ANTHROPIC_AUTH_TOKEN' in env, false);
+  assert.equal(keySource, 'ANTHROPIC_API_KEY');
+});
+
 test('unattended refuses two CI credentials set at once, before anything runs', async () => {
   const saved = { ...process.env };
   process.env.ANTHROPIC_API_KEY = 'fake';
@@ -558,6 +572,41 @@ export const TuiTest = { ephemeral: () => ({
     assert.equal(got.scrub, '1');
     assert.equal(await main(['type', 'x', '--session', name]), 0);
     assert.equal(readFileSync(`${seen}.holder`, 'utf8'), 'unset', 'the holder drops the key once claude has it');
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('an in-sandbox launch reaches the holder: claude starts without --restricted and with no scrub', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
+    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+  })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'ccd-dummy-x';
+  try {
+    await withPath(box.bin, () =>
+      main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--unattended', '--in-sandbox']),
+    );
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.deepEqual(got.args, ['--strict-mcp-config', '--plugin-dir', '/p']);
+    assert.equal(got.key, 'ccd-dummy-x');
+    assert.equal(got.scrub, null);
     assert.equal(await main(['stop', '--session', name]), 0);
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
