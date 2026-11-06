@@ -40,7 +40,7 @@ the asked-for key and keeps the unknown key's line as written.
 
 | Key | Values | Default | Reader and effect |
 |---|---|---|---|
-| `compress_articles` | `keep`, `cut` | `keep` | `/docs-hygiene:compress`. `keep` leaves every `a`, `an` and `the` in place and runs the in-session Edit backend with the batch path's word-level cuts only: no sentence or restatement is deleted, and `/caveman:compress` is not used even when installed, because it always removes articles ([caveman's Remove list](#caveman-removes-articles)). `cut` treats articles as flavor and keeps the earlier behavior: the caveman backend when installed, otherwise the Edit backend with the full flavor matrix. |
+| `compress_articles` | `keep`, `cut` | `keep` | `/docs-hygiene:compress`. `keep` leaves every `a`, `an` and `the` in place and runs the in-session Edit backend with the batch path's word-level cuts only: no sentence or restatement is deleted, and `/caveman:caveman-compress` is not used even when installed, because it always removes articles ([caveman's Remove list](#caveman-removes-articles)). `cut` treats articles as flavor and keeps the earlier behavior: the caveman backend when installed, otherwise the Edit backend with the full flavor matrix. |
 | `compress_revert_below_pct` | a whole number from `0` to `100` | `3` | `/docs-hygiene:compress`. A result that compresses the target by less than this percent with zero semantic loss is reverted, on any file. `0` turns the auto-revert off. A run's `--force` flag beats every layer. Read from the repository file with the plugin's copy of `lib/parse-concern-value.sh`, under the same layer rules as `compress_articles`. |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | `/docs-hygiene:compress` (the semantic-diff dispatch), `/docs-hygiene:audit-derivability` (the spot-test) and `/docs-hygiene:audit-noise` (the verification pass), through `lib/read-verification.sh`. Repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)). |
 
@@ -53,4 +53,4 @@ the asked-for key and keeps the unknown key's line as written.
   its **Remove** list.
 - **As of**: 2026-11-06
 - **Recheck trigger**: the **Remove** list drops articles or makes them optional, or the skill is
-  renamed or moved (it is `caveman-compress` today, while Step B invokes `caveman:compress`).
+  renamed or moved (it is `caveman-compress` today, which Step B invokes as `caveman:caveman-compress`).

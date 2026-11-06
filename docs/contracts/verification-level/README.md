@@ -36,8 +36,8 @@ emits the results labeled unverified instead of skipping them.
 
 - `verification_skills.<skill>` wins; otherwise `verification`; otherwise `standard`.
 - A plugin whose team file sits at a fixed path whatever the convention home passes it with
-  `--file <path>`, and the convention home is not read: `bugs`, `testing` and `mutation-testing`
-  pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
+  `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing` and
+  `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
@@ -101,6 +101,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
+| `/work-items:work` | the bug path's step 2 capture check, a fresh-context subagent per reproduction capture; `light` leaves the runs unconfirmed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
 | `/developer-experience:build-cli` | the review mode's fresh-context reviewer, the product: `light` runs the review in the main session and labels every gap `unverified`; `strict` dispatches the reviewer for every review |
 | `/harness-ops:audit-install-state` | the fresh-context cross-review (evidence-discipline section 5); `strict` dispatches it for a single-agent run too |
