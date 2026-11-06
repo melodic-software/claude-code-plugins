@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.0] - 2026-11-06
+
+### Added
+
+- morning-brief: read `pr-rate-merge-risk.yml` as a lane workflow by default, so the brief's
+  lane, spend and model rows count the report-only merge-risk ratings (`pr-merge-risk` lane
+  records) beside the other model lanes.
+
 ## [11.6.2] - 2026-11-06
 
 ### Fixed
