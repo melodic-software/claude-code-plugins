@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-11-06
+
+### Added
+
+- `/mutation-testing:audit --phase generate|triage` runs one half of the audit, for a caller that executes the mutants itself in a process that holds no credential: generate returns each mutant's exact edit and runs no test, and triage classifies the executed survivors.
+
 ## [0.14.3] - 2026-11-04
 
 ### Changed
