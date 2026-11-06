@@ -16,10 +16,9 @@ graders:
     pattern: '^(?=[\s\S]*--repo\b)(?=[\s\S]*--repos-from\b)'
     target: last_message
   - name: only-ghq-unavailable
-    type: regex
-    pattern: '\bonly\b[^\n]{0,80}\bghq\b[^\n]{0,80}\b(?:enumerat\w*|discover\w*|unavailable|missing|lost|not available)|\bghq\b[^\n]{0,60}\b(?:enumeration|discovery)\b[^\n]{0,80}\b(?:unavailable|missing|lost|not available|is gone|goes away)\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'States that only the ghq-derived enumeration is unavailable. A reply that says the batch actions are broken or unusable without ghq fails.'
+    focus: last_message
   - name: empty-list-expected
     type: regex
     pattern: '\bexpected\b|\bnot (?:a |the )?(?:bug|defect)\b|\b(?:isn''t|is not|not) broken\b|\bnothing is (?:wrong|broken)\b|\bworking as (?:intended|designed)\b|\bby design\b'
