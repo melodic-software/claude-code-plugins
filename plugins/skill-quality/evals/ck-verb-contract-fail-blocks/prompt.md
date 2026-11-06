@@ -1,0 +1,10 @@
+---
+description: "Legacy check eval 9. Given a description/verb-contract mismatch FAIL line on a skill named audit, the reply names it check 25, a FAIL that blocks shipping, explains it as a listing-surface factual-consistency mismatch between the description lead and the Naming verb contract (read-only versus mutating), and says to correct the listing or add --fix to the description as the compliant override, not to add a --fix code path or rename the skill. check SKILL.md Action: check step 3 (polarity mismatch FAIL, --fix in the description as the override) and the check 25 Gotchas paragraph (out of scope: a --fix path, any rename). names-check-25 grades the check number; blocks-shipping grades the blocking wording, which the prompt lacks; names-listing grades the listing-surface framing; fix-listing-not-path judges the remedy, separating --fix in the description (passes) from a --fix code path or rename (fails); skill-fired is an indicator."
+tags: [skill-quality, check, outcome, narration, read-only, no-network]
+max_turns: 8
+timeout_seconds: 240
+allowed_tools: [Read, Glob, Grep, Skill]
+expected_outcome: "The reply says this is check 25, a FAIL that blocks shipping; the description lead advertises mutation while the leaf verb audit promises a read-only findings report, a factual-consistency defect in the listing; fix it by correcting the description lead, or by adding --fix to the description as the compliant override (harness-config:audit [--fix]), not by adding a --fix code path or renaming the skill."
+---
+
+The skill-quality check on skill audit returned: `FAIL: description/verb-contract mismatch: leaf verb 'audit' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override`. What does it mean and what should I do?

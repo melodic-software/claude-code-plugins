@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "For writing it, use /playbooks:skill-authoring.", "why": "playbook redirect" },
+    { "answer": "Run skill-creator to draft it, then come back for the check.", "why": "skill-creator" }
+  ],
+  "fail": [
+    { "answer": "Use skill-quality to write me a brand-new skill for parsing CSV files.", "why": "echoes the prompt" },
+    { "answer": "Write the skill yourself, then run /skill-quality:check.", "why": "no authoring route named" }
+  ]
+}

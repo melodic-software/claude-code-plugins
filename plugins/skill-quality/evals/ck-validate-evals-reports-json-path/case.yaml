@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: ck-validate-evals-reports-json-path
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-json-path
+    type: regex
+    pattern: 'evals\s*(?:\[\s*1\s*\]|/1\b|\.1\b)[^\n]{0,80}\bprompt\b|\bprompt\b[^\n]{0,80}\bevals\s*(?:\[\s*1\s*\]|/1\b|\.1\b)'
+    target: last_message
+  - name: reports-violation
+    type: regex
+    pattern: '(?<!no )(?<!not )(?<!zero )(?<!0 )(?<!without )\b(?:does not conform|doesn[''’]t conform|non-?conform\w*|violations?|invalid|fails? (?:the )?schema|FAIL(?:ED|S)?)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-eval-run
+    type: tool_used
+    tool: Bash
+    input_match: 'claude(?:\.exe)?(?:\\?"|'')?\s+(?:plugin\s+eval|-p|--print)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-contract-gate
+    type: tool_used
+    tool: Bash
+    input_match: 'check-skill\.sh'
+    min: 0
+    max: 0
+    arm: both
+  - name: ran-lint
+    type: tool_used
+    tool: Bash
+    input_match: 'check-evals-quality\.sh'
+    arm: with-only

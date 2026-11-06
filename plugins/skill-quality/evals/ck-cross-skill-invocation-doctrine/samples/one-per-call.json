@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Make one Skill call per skill a step needs.", "why": "hub wording" },
+    { "answer": "The Skill tool runs one skill per call, so that step is two separate calls.", "why": "one skill per call" },
+    { "answer": "Two skills means two Skill-tool calls.", "why": "two calls" }
+  ],
+  "fail": [
+    { "answer": "One Skill call can run both skills.", "why": "wrong rule" },
+    { "answer": "When reviewing a SKILL.md that says to call two other skills in one step, and also to invoke a :setup skill via the Skill tool", "why": "echoes the prompt" }
+  ]
+}

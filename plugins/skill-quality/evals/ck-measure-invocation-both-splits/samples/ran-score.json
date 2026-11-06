@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/measure-invocation.sh\" score probes" } }], "why": "score" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes && bash /p/scripts/measure-invocation.sh score probes" } }], "why": "validate then score in one call" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh validate probes" } }], "why": "validate only" }
+  ]
+}

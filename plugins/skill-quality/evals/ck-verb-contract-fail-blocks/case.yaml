@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ck-verb-contract-fail-blocks
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+  - name: names-check-25
+    type: regex
+    pattern: '\bcheck\s*#?\s*25\b'
+    flags: 'i'
+    target: last_message
+  - name: blocks-shipping
+    type: regex
+    pattern: '(?<!not )(?<!n[''’]t )(?<!never )(?<!non-)\bblock(?:s|ed|ing|er)?\b|(?<!not )(?<!n[''’]t )\bbefore\s+(?:you\s+)?(?:ship|publish|merg|release?)\w*'
+    flags: 'i'
+    target: last_message
+  - name: names-listing
+    type: regex
+    pattern: '\blisting\b|\bfactual[- ]consistency\b'
+    flags: 'i'
+    target: last_message
+  - name: fix-listing-not-path
+    type: llm
+    focus: last_message
+    criteria: "PASS only if the reply calls the line a check 25 FAIL that blocks shipping until fixed; explains it as a mismatch between what the description lead promises (mutation) and the Naming verb contract for an audit leaf (a read-only findings report), a factual-consistency defect in the listing; and tells the user to correct the description lead (hand-checking it against the verb contract and body is fine but not required), or add `--fix` to the description as the compliant override shape (as in harness-config:audit [--fix]). Adding `--fix` to the description text is the override and passes. FAIL if it says the fix is to add a --fix code path, flag or mutation mode to the skill's behavior, or to rename the skill, or if it calls the line advisory or non-blocking."

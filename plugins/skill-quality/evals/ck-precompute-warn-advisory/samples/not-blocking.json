@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "It is advisory, never a FAIL.", "why": "advisory" },
+    { "answer": "It doesn't block shipping.", "why": "doesn't block" },
+    { "answer": "A WARN, not a FAIL: the skill did not fail.", "why": "not a FAIL" }
+  ],
+  "fail": [
+    { "answer": "Fix it before you ship: the check failed.", "why": "treated as blocking" },
+    { "answer": "It's not advisory; treat it as a FAIL.", "why": "negated advisory" },
+    { "answer": "This warning isn't advisory here; it fails the skill.", "why": "isn't advisory" },
+    { "answer": "WARN: precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via !-injection ...", "why": "echoes the prompt" }
+  ]
+}

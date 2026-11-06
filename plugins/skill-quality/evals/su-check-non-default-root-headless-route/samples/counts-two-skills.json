@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "PASS: packages/agent/skills holds 2 skills.",
+      "why": "count after"
+    },
+    {
+      "answer": "Two skills found: tidy-imports, release-notes.",
+      "why": "two first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PASS: packages/agent/skills resolves.",
+      "why": "no count"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}

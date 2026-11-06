@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh score probes" } }], "why": "the harness, not the gate" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/check-skill.sh skills" } }], "why": "runs the static contract gate" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash /p/scripts/measure-invocation.sh score probes && bash /p/scripts/check-skill.sh release-notes" } }], "why": "gate after the harness" }
+  ]
+}

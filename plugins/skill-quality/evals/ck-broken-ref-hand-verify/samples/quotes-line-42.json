@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Line 42 reads: \"The orchard sample shows the shape of a spoke link, [the big picture](reference/big-picture.md); it is an illustration\".", "why": "quotes the line" },
+    { "answer": "It sits in the 'Linking spokes (example only)' section, in the Orchard sample sentence.", "why": "names the sample" }
+  ],
+  "fail": [
+    { "answer": "Line 42 may be an illustrative example; check it before fixing.", "why": "echoes the FAIL line's advice without reading the line" },
+    { "answer": "Create reference/big-picture.md so the link resolves.", "why": "blind fix" }
+  ]
+}

@@ -1,0 +1,12 @@
+---
+description: "Legacy setup eval 2. /skill-quality:setup check with skills_root unset and two scaffolded skills under packages/agent/skills: setup verifies that root without a confirmation gate and routes the persistent skills_root change through Claude Code. setup SKILL.md check steps 1-2 and 'Reconfiguration guidance': headless claude plugin configure skill-quality@<marketplace> --values-stdin with a values file holding skills_root (preferred), run from the project the plugin is installed in; the claude plugin install ... --config skills_root=<dir> rerun with the scope claude plugin list reports (fallback); the plugin-reconfiguration convention owns the verified-version record; do not uninstall, it resets every option to its manifest default; rerun check in a fresh session; never write user settings or pluginConfigs. counts-two-skills grades the verified count (the prompt names the path, so no grader reads it); no-ask grades that no confirmation is asked; configure-values-stdin, values-skills-root, install-config-fallback, scope-from-plugin-list, names-reconfiguration-convention, fresh-session and uninstall-reason each grade one legacy requirement; routes-through-claude-code judges the whole route, run-from-project, no uninstall, and that neither settings nor the CHECK_SKILL_SKILLS_ROOT override is persisted (explaining the one-run override is optional); no-write and no-edit grade that nothing is written. Slash-invoked (disable-model-invocation), so there is no Skill grader. Needs --scaffold."
+tags: [skill-quality, setup, check, outcome, scaffold, read-only, no-network]
+max_turns: 10
+timeout_seconds: 240
+allowed_tools: [Read, Glob, Grep]
+expected_outcome: "The reply verifies packages/agent/skills holds 2 skills, without asking first, and routes the persistent skills_root change through Claude Code: claude plugin configure skill-quality@<marketplace> --values-stdin with {\"skills_root\": \"packages/agent/skills\"}, run from the project, preferred; a claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=packages/agent/skills rerun with the scope claude plugin list reports as the fallback; the plugin-reconfiguration convention's verified-version record; never uninstall, since that resets every option to its manifest default; then rerun check in a fresh session. It writes nothing."
+---
+
+/skill-quality:setup check
+
+Our skills live under packages/agent/skills.

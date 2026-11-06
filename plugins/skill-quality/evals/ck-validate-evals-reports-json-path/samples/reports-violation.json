@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "my-skill/evals/evals.json does not conform to the schema.", "why": "conformance verdict" },
+    { "answer": "1 violation: evals[1] is missing prompt.", "why": "violation count" },
+    { "answer": "Schema check: FAIL", "why": "FAIL verdict" }
+  ],
+  "fail": [
+    { "answer": "my-skill/evals/evals.json conforms to the bundled schema.", "why": "says it conforms" },
+    { "answer": "No violations; evals.json conforms.", "why": "negated violations" },
+    { "answer": "0 violations found, the file is not invalid.", "why": "zero count, negated invalid" },
+    { "answer": "/skill-quality:check validate-evals my-skill", "why": "echoes the prompt" }
+  ]
+}

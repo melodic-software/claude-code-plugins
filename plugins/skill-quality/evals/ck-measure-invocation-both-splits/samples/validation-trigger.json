@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| split | trigger_rate | false_trigger_rate |\n|---|---|---|\n| train | 1 | 0.25 |\n| validation | 0.75 | 0 |", "why": "row table" },
+    { "answer": "validation trigger_rate=0.75 false_trigger_rate=0", "why": "script line" },
+    { "answer": "0.75 of the validation positives triggered.", "why": "number first" }
+  ],
+  "fail": [
+    { "answer": "Overall trigger rate 0.875.", "why": "one blended rate, no split" },
+    { "answer": "/skill-quality:check measure-invocation probes", "why": "echoes the prompt" }
+  ]
+}

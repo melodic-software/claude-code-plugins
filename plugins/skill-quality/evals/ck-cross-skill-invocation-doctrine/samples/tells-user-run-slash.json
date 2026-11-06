@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Tell the user to run `/plugin:skill` instead.", "why": "hub placeholder" },
+    { "answer": "Ask the user to run /skill-quality:setup.", "why": "a named setup command" },
+    { "answer": "Have the user type the slash command.", "why": "slash command" }
+  ],
+  "fail": [
+    { "answer": "Invoke it via the Skill tool.", "why": "no slash route" },
+    { "answer": "When reviewing a SKILL.md that says to call two other skills in one step, and also to invoke a :setup skill via the Skill tool", "why": "echoes the prompt" }
+  ]
+}

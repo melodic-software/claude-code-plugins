@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "See the marketplace's plugin-reconfiguration convention.",
+      "why": "convention"
+    },
+    {
+      "answer": "Its Verified-version record lists the tested release.",
+      "why": "record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See the Claude Code docs for configure.",
+      "why": "no convention"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}
