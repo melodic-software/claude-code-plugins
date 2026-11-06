@@ -1435,6 +1435,18 @@ test('account prints the none: line and exits 0 under key auth with no account',
   assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
 });
 
+test('account prints the none: line and exits 0 when no account is signed in', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' }));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'none: no account is signed in\n');
+});
+
+test('account exits 1 when the login is missing but an auth method is named', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ loggedIn: false, authMethod: 'claude.ai' }));
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+});
+
 test('account prints the organization under key auth that names one', posixOnly, () => {
   const run = runAccount(JSON.stringify({ ...KEY_AUTH, orgName: 'Example Org' }));
   assert.equal(run.status, 0, run.stderr);
