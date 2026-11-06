@@ -35,7 +35,8 @@ Authorize the candidate-count consent gate for the whole repo. Tag any `alive` n
 
 This step's args run the remove pass, which does not read audit rows. Run
 `/code-tidying:remove-comments audit .` first for history narration and ticket back-references,
-and fix its findings in the same step. CI workflows stay excluded unless the operator lifts them
+and fix its findings in the same step. When the `code-tidying` plugin is not installed, the step
+does not run: report it as not run. CI workflows stay excluded unless the operator lifts them
 by hand, for example `remove-comments override .github/workflows/ci.yml`; the skill's Hard rules
 section owns the exclusion and its lift channels. Findings on files synced from another repository
 are fixed upstream, never in this sweep; filter them out before fixing.

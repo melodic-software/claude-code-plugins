@@ -12,6 +12,11 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 
 ## Before you start
 
+This page runs `/skill-quality:check`, the `/evals:*` skills and `/docs-hygiene:compress` when the
+`skill-quality`, `evals` and `docs-hygiene` plugins are installed. When one is not, say which
+step's check did not run and that installing that plugin would run it; never report that step as
+passed.
+
 - Run `/evals:plugin-eval preflight <plugin>`. A case that grants `Bash`, `Write` or `Edit` needs a
   sandbox backend, and the skill names the route when this host has none or when the CLI refuses a
   repository with many linked worktrees.
@@ -24,10 +29,6 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
   chosen after seeing scores can be picked to pass.
 
 ## Order of work
-
-The steps run `/skill-quality:check` and the `/evals:*` skills when the `skill-quality` and
-`evals` plugins are installed. When one is not, say which step's check did not run and that
-installing that plugin would run it; never report that step as passed.
 
 1. **Inventory.** List each skill, whether it is model-invoked, its outcome cases under
    `evals/`, and its probe file `probes/<skill>.json`. Run `/skill-quality:check <plugin root>` and
