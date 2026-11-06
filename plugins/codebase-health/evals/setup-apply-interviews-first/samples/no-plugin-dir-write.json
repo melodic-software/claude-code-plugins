@@ -36,6 +36,30 @@
         }
       ],
       "why": "plugin data dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/codebase-health.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin root file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/templates/config.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "plugin subdirectory not in the old list"
     }
   ]
 }

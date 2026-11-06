@@ -33,7 +33,21 @@ graders:
   - name: no-plugin-dir-write
     type: tool_used
     tool: 'Write'
-    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/(?:skills|lib|evals|\.claude-plugin)/|/plugins/data/)'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/|/plugins/data/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-plugin-dir-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/|/plugins/data/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-plugin-dir-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:[^"\\]|\\.)*?)(?:\\\"|'')?(?:\$\{?CLAUDE_PLUGIN_(?:ROOT|DATA)\b|[^\s\"\\;&|<>'']*?(?:/codebase-health/|/plugins/data/))'
     min: 0
     max: 0
     arm: 'both'
