@@ -370,15 +370,15 @@ jobs:
       # deps directory stays the runner's, the owner the driver requires, and
       # the sandbox mounts it read-only. The runtime directory, short for
       # socket paths, sits outside the runner's temp directory and ~/.claude;
-      # "Capture the change" names it by its /home/runner path. Once sudo is
+      # "Capture the change" names it by its /home/runner path. Once sudo is (machine-path:allow: the hosted runner home)
       # gone the runner's user cannot signal the proxy, so it stops the proxy
       # by creating a file in /run/ccd-stop, which the proxy's user can see.
       - name: Create the key proxy's user and directories
         if: steps.credential.outputs.present == 'true'
         timeout-minutes: 1
         run: |
-          if [ "$HOME" != /home/runner ]; then
-            echo "::error::HOME is not /home/runner, the home the capture step's CCD_RUNTIME_DIR names"
+          if [ "$HOME" != /home/runner ]; then  # machine-path:allow
+            echo "::error::HOME is not /home/runner, the home the capture step's CCD_RUNTIME_DIR names"  # machine-path:allow
             exit 1
           fi
           gid=$(id -g)
@@ -944,8 +944,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-          CCD_RUNTIME_DIR: /home/runner/.ccd
-          CCD_BROKER_SOCK: /home/runner/.ccd/broker/broker.sock
+          CCD_RUNTIME_DIR: /home/runner/.ccd  # machine-path:allow
+          CCD_BROKER_SOCK: /home/runner/.ccd/broker/broker.sock  # machine-path:allow
         with:
           lane: pr-verify-capture
           role: pr-verify
