@@ -15,7 +15,7 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
    legacy repo-root JSON binding) at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` when the file or entry is
    absent (the documented default, no warning). Stop on a malformed, empty, or non-string
-   configured value. Use the resolved string in the search below.
+   configured value. Use the resolved string in the listing below.
 
 1. **Find the item in the recurring schedule:**
 
@@ -53,7 +53,8 @@ Re-read the current file from disk immediately before writing (the schedule is s
 - If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
 
 1. **Close the associated item** (if one exists). List open items with the resolved
-   recurring-maintenance label (adapter: "List items", bare read), read each body, and close only
+   recurring-maintenance label (adapter: "List items", `--label <resolved label>`, bare read; on
+   `truncated: true` stop and report rather than close from a partial list), read each body, and close only
    the item whose schedule marker carries the matched row's `id`
    ([`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
    "Recorded postures"), with a recheck comment (adapter: "Close item"), reason `completed`, comment

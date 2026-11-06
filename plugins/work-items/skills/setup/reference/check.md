@@ -78,7 +78,7 @@ check.
 4. **Schedule validity**, a present file parses as JSON with the root `{"items": [ ... ]}` shape
    (FAIL otherwise), and **every `id` AND every `title` is unique across the whole `items` array**.
    A duplicate `id` (the key an item's schedule marker carries and `recheck <id>` resolves against)
-   silently breaks reconciliation, and a duplicate `title` files items no reader can tell apart:
+   silently breaks reconciliation, and a duplicate `title` files same-titled items a person cannot tell apart:
    FAIL, naming the collision. Editing a row's `title` is safe; editing its `id` unlinks its open
    item unless `apply` step 11 rewrites the item's marker. A valid file whose `items` array is empty is the
    skipped first-time bind's skeleton, INFO: the schedule carries no rows, so `due` / `recheck` /

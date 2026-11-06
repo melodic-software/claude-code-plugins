@@ -316,7 +316,7 @@ unambiguous; ask only where an item genuinely needs the user.
    maintenance (which would create duplicate items). Preserve any existing rows the user did not
    touch. Before writing, **verify every final `id` AND every final `title` is unique across the whole
    `items` array**: the `id` is the key an item's schedule marker carries, and two rows sharing a
-   `title` would file items no reader can tell apart. On any collision, stop and prompt the user to merge the
+   `title` would file same-titled items a person cannot tell apart. On any collision, stop and prompt the user to merge the
    two rows, replace one, or pick a unique value; never write a schedule with a duplicate `id` or
    `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is tracked, not
    ignored.

@@ -31,7 +31,7 @@
     },
     {
       "id": "stale-doc-drift-watch",
-      "title": "docs: report doc references that no longer hold",
+      "title": "docs(repo): report doc references that no longer hold",
       "cadence": "quarterly",
       "area": [],
       "category": "general",
@@ -55,7 +55,7 @@
     },
     {
       "id": "actionlint-self-repository-watch",
-      "title": "ci: check actionlint for a release that parses uses: $/...",
+      "title": "ci(actionlint): check for a release that parses uses: $/...",
       "cadence": "monthly",
       "area": [],
       "category": "general",

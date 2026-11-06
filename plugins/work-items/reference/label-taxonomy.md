@@ -87,7 +87,9 @@ F3.7):
 - **Schedule marker `<!-- recurring-schedule id=<row id> -->`**: the one body line that links a
   recurring item to its schedule row, and the match key every reader uses. A reader lists items
   carrying the resolved recurring-maintenance label, reads each body (adapter: "View item"), and
-  matches a row when the body's marker carries that row's `id`, compared whole. A body holds
+  matches a row when the body's marker carries that row's `id`, compared whole. An `id` is
+  letters, digits, `.`, `_` and `-` only; a marker whose id holds any other character is not a
+  marker, and its text never reaches a command. A body holds
   exactly one marker; the title is never a match key. Making the marker configurable is deferred
   until a consumer asks for a different one; when that request lands it joins the binding as a
   sibling of `config.role_labels` (a `config` key, not a parallel mechanism), and every reader
