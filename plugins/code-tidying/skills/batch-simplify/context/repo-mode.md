@@ -173,7 +173,7 @@ depth.
 
 ## Refutation verifier
 
-**Mandatory in repo mode, once per group**, at the `standard` and `strict` verification levels; `light` and `off` skip it as SKILL.md Phase 7 says. Spawn a fresh-context agent that did not perform
+**Mandatory in repo mode, once per group**, at the `standard` and `strict` verification levels; `light` and `off` skip it as SKILL.md Phase 6 ("The verification level") says. Spawn a fresh-context agent that did not perform
 the simplification and has not seen the reasoning behind it, on the verifier tier the spawn contract sets, and
 give it the group's diff and one job: try to refute the claim that behavior is preserved. Ask for a specific counterexample (an
 input, a call sequence, a state) that behaves differently before and after, not a general opinion

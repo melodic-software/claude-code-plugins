@@ -95,7 +95,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
 | `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
 | `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
-| `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 7) |
+| `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 6, "The verification level") |
 | `/ai-slop:audit` | the fix flow's semantic-diff subagent |
 | `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
