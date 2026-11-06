@@ -85,7 +85,11 @@ Rows evaluate top-down; the first match wins per detection site.
   declaration in a different file of the same skill does not satisfy proximity; the WARN message
   says so ("declaration may live in a referenced spoke — hand-verify"). <!-- ai-slop-ignore: quotes check-skill.sh's emitted check 21 WARN string verbatim -->
 - **Judgment-language heuristic:** a curated POSIX ERE list shipped in `check-skill.sh`. It is a
-  heuristic, WARN-only by design. Curation policy: this plugin owns the list; update triggers are a
+  heuristic, WARN-only by design. Besides review and scoring wording, it matches the
+  completion gate a self-check closes, `called done` or `calling it done`: `you read its frames
+  back, before the video is called done` is the maker checking its own output. The gate phrase is
+  matched rather than `read back`, which far more often names a mechanical read of written data.
+  Curation policy: this plugin owns the list; update triggers are a
   confirmed false hit, a valid exemption directive reading stale, or a fleet regression.
   Disposition ladder for any WARN during triage: false hit → regex fix; genuine hit → delegate or
   add a directive; declaration-in-spoke gap → hand-verified note, no code change.
