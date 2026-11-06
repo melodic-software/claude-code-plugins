@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "Count -gt 0 first"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            $pools.Count -ge 1 -and -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "-ge 1"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = @(poolctl list --json | ConvertFrom-Json | Where-Object { $_.name -eq 'linux-pool' })\n            $pools.Count -gt 0 -and -not ($pools | Where-Object { $_.active })\n        }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "observed shape (smoke2): Where-Object filter braces inside the predicate"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $mine = @(poolctl list --json | ConvertFrom-Json | Where-Object { $_.name -eq 'linux-pool' })\n            $mine.Count -eq 1 -and -not $mine[0].active\n        }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "observed shape (smoke2): exactly one listed pool, so an empty listing fails"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = @(poolctl list --json | ConvertFrom-Json | Where-Object name -eq 'linux-pool')\n            # An empty listing must fail, not pass.\n            $pools.Count -gt 0 -and -not ($pools | Where-Object active)\n        }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "observed shape (smoke2): a comment line before the count check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no file"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools\n            -not ($pools | Where-Object active)\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "vacuous: an empty listing passes"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nfunction Get-Pools { @(poolctl list --json | ConvertFrom-Json) }\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        $null = Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $pools = Get-Pools; $n = @($pools | Where-Object { $_.active }).Count\n            -not ($pools | Where-Object active) # $pools.Count -gt 0 checked elsewhere\n        }\n        Restart-Service BuildAgent\n        Wait-ForState -Name 'BuildAgent running' -Predicate { (Get-Service BuildAgent).Status -eq 'Running' }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "near miss: count tested only after a closing brace"
+    },
+    {
+      "answer": "function Use-GuardedResource { param([scriptblock] $Prove, [switch] $TolerateTakeExit) }\n# STAGES\nInvoke-UnattendedRun -ResultDirectory (Join-Path (Get-Location) 'unattended-results') -Stages {\n    Assert-Elevation -Mode Required\n    Use-GuardedResource -Name 'linux-pool' -TolerateTakeExit -Take {\n        poolctl drain linux-pool --wait\n    } -Prove {\n        Wait-ForState -Name 'linux-pool drained' -Predicate {\n            $mine = @(poolctl list --json | ConvertFrom-Json | Where-Object { $_.name -eq 'linux-pool' })\n            $mine.Count -eq 0 -or -not $mine[0].active\n        }\n    } -Release {\n        poolctl resume linux-pool\n    }\n}\n",
+      "why": "near miss: -eq 0 lets an empty listing pass"
+    }
+  ]
+}

@@ -3812,14 +3812,20 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
           RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
+          READ_PR_FAILURE: warning
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          # read_pr_fields reads a transient fault once more and never a rate
+          # limit (outage posture element 1); a read that still fails warns and
+          # leaves the head empty.
+          # shellcheck source=/dev/null
+          . .base/.github/scripts/pr-unblock/read-pr-head.bash
           sha=""
-          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
-            sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha) || sha=""
+          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] && read_pr_fields "$PR_NUMBER" .head.sha; then
+            sha=$pr_fields
           fi
           if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
             echo "No PR head SHA read"

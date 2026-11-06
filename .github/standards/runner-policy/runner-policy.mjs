@@ -165,19 +165,22 @@ export function validatePolicy(value) {
 
   const approvedReusableWorkflowContracts = new Map();
   for (const [reference, contract] of Object.entries(value.approvedReusableWorkflowContracts)) {
+    // A list of exact maps lets a permission change land expand/contract: the
+    // old and new maps both pass until every caller has moved to the new one.
+    const callerPermissionMaps = callerPermissionMapEntries(
+      contract.allowedCallerPermissions,
+      `reusable workflow contract ${reference}.allowedCallerPermissions`,
+    );
     if (contract.routing === "runner-input") {
       if (!contract.allowedInputs.includes(contract.runnerInput)) {
         throw new ConfigurationError(
           `reusable workflow contract ${reference}.allowedInputs must include ${contract.runnerInput}`,
         );
       }
-      if (
-        Object.hasOwn(contract, "allowedCallerPermissions") &&
-        !Object.values(contract.allowedCallerPermissions).includes("write")
-      ) {
-        throw new ConfigurationError(
-          `reusable workflow contract ${reference}.allowedCallerPermissions must include at least one write permission`,
-        );
+      for (const { permissions, location } of callerPermissionMaps) {
+        if (!Object.values(permissions).includes("write")) {
+          throw new ConfigurationError(`${location} must include at least one write permission`);
+        }
       }
       // A floor may only require read. GitHub downgrades write grants to read
       // (and write-only scopes to none) on forked and Dependabot pull requests
@@ -202,22 +205,21 @@ export function validatePolicy(value) {
         }
       }
       // The two caller-permission terms are independent — a ceiling and a
-      // floor — but a contract naming both must be satisfiable: the exact
-      // waiver is the only mapping any caller may present, so a waiver that
-      // falls short of the floor admits nothing at all.
-      if (
-        Object.hasOwn(contract, "minimumCallerPermissions") &&
-        Object.hasOwn(contract, "allowedCallerPermissions")
-      ) {
-        const shortfall = minimumPermissionShortfall(
-          contract.allowedCallerPermissions,
-          contract.minimumCallerPermissions,
-          `reusable workflow contract ${reference}.allowedCallerPermissions`,
-        );
-        if (shortfall) {
-          throw new ConfigurationError(
-            `${shortfall}, which its own minimumCallerPermissions requires`,
+      // floor — but a contract naming both must be satisfiable: a caller may
+      // present only an exact waiver map, so every listed map must clear the
+      // floor or it admits nothing at all.
+      if (Object.hasOwn(contract, "minimumCallerPermissions")) {
+        for (const { permissions, location } of callerPermissionMaps) {
+          const shortfall = minimumPermissionShortfall(
+            permissions,
+            contract.minimumCallerPermissions,
+            location,
           );
+          if (shortfall) {
+            throw new ConfigurationError(
+              `${shortfall}, which its own minimumCallerPermissions requires`,
+            );
+          }
         }
       }
       if (contract.role && !contract.allowedInputs.includes("role")) {
@@ -274,10 +276,9 @@ export function validatePolicy(value) {
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
       ...(contract.allowedCallerPermissions
         ? {
-            allowedCallerPermissions: Object.freeze({
-              ...contract.allowedCallerPermissions,
-            }),
-            allowedCallerPermissionNames: new Set(Object.keys(contract.allowedCallerPermissions)),
+            allowedCallerPermissions: Object.freeze(
+              callerPermissionMaps.map(({ permissions }) => Object.freeze({ ...permissions })),
+            ),
           }
         : {}),
       ...(contract.minimumCallerPermissions
@@ -890,6 +891,35 @@ function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   return undefined;
 }
 
+function callerPermissionMapEntries(allowed, location) {
+  if (allowed === undefined) {
+    return [];
+  }
+  if (!Array.isArray(allowed)) {
+    return [{ permissions: allowed, location }];
+  }
+  return allowed.map((permissions, index) => ({
+    permissions,
+    location: `${location}[${index}]`,
+  }));
+}
+
+// Each reviewed map is matched exactly, so the ceiling stays exact; a caller
+// passes when its permissions equal any one of them.
+function exactCallerPermissionsError(actual, allowedMaps) {
+  const location = "reusable workflow caller permissions";
+  const errors = allowedMaps.map((permissions) =>
+    exactCanonicalMap(actual, permissions, {}, new Set(Object.keys(permissions)), location),
+  );
+  if (errors.includes(undefined)) {
+    return undefined;
+  }
+  if (errors.length === 1 || !isMapping(actual)) {
+    return errors[0];
+  }
+  return `${location} must be exactly one of ${allowedMaps.map((permissions) => JSON.stringify(permissions)).join(", ")}`;
+}
+
 const PERMISSION_ACCESS_RANK = { none: 0, read: 1, write: 2 };
 
 // GITHUB_TOKEN access is ordered (none < read < write), so a caller granting
@@ -989,12 +1019,9 @@ function reusableWorkflowStatus(job, policy, workflow) {
     };
   }
   if (contract.allowedCallerPermissions) {
-    const permissionError = exactCanonicalMap(
+    const permissionError = exactCallerPermissionsError(
       effectivePermissions(workflow, job),
       contract.allowedCallerPermissions,
-      {},
-      contract.allowedCallerPermissionNames,
-      "reusable workflow caller permissions",
     );
     if (permissionError) {
       return { isReusable: true, approved: false, reason: permissionError };

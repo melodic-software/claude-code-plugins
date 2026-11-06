@@ -4,12 +4,14 @@
 # (the api-budget wrapper's gh when the caller defined it) and leaves the
 # fields, one per line, in pr_fields. A failed read prints
 # `::error::the PR could not be read (<class>): <stderr>` and returns 1; the
-# caller ends the step. Classes: rate-limit (a 429, a rate-limit message or the
+# caller ends the step, or, with READ_PR_FAILURE=warning or notice, goes on and
+# the line takes that level. Classes: rate-limit (a 429, a rate-limit message or the
 # wrapper's refusal) is never read again; transient (a 5xx, a network error or
-# a body that is not JSON) is read once more after 5 to 10 s; other is final.
+# a body that is not JSON) is read once more after a wait drawn from 0 to 10 s (full jitter); other is
+# final.
 # Source it from the default branch checkout, never from the PR's head.
 read_pr_fields() {
-  local err attempt class reason
+  local err attempt class reason level
   err=$(mktemp)
   for attempt in 1 2; do
     if pr_fields=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$1" --jq "$2" 2>"$err"); then
@@ -27,10 +29,11 @@ read_pr_fields() {
     reason=${reason//%/%25}
     if [[ $class == transient && $attempt == 1 ]]; then
       echo "::warning::reading #$1 failed (transient): ${reason:-no error text}; reading again"
-      sleep $((5 + RANDOM % 6))
+      sleep $((RANDOM % 11))
       continue
     fi
-    echo "::error::the PR could not be read ($class): ${reason:-no error text}"
+    case ${READ_PR_FAILURE:-} in warning | notice) level=$READ_PR_FAILURE ;; *) level=error ;; esac
+    echo "::$level::the PR could not be read ($class): ${reason:-no error text}"
     rm -f "$err"
     return 1
   done

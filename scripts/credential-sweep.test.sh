@@ -165,6 +165,34 @@ z.close()
 PY2
 }
 
+# artifact_record <dir> <repo> <blob-content> [<victim>]: artifact 5
+# ("x.dockerbuild") uploaded unzipped, so its download is a Docker build
+# record's own bytes: a gzipped tar of an OCI layout. With <victim>, the tar
+# also holds a symlink bin.strings.txt to it beside a binary bin.
+BLOB=blobs/sha256/0000000000000000000000000000000000000000000000000000000000000001
+artifact_record() {
+  local d="$1" b="repos/o/$2"
+  fix "$d" "$b/actions/artifacts?per_page=100&page=1" \
+    '{"artifacts":[{"id":5,"name":"x.dockerbuild","expired":false,"created_at":"2026-10-05T00:00:00Z"}]}'
+  "$PYTHON" -I - "$d/$(key "$b/actions/artifacts/5/zip")" "$BLOB" "$3" "${4:-}" <<'PY' || fail "could not build the build record"
+import io, sys, tarfile
+t = tarfile.open(sys.argv[1], "w:gz")
+def add(name, data, mode=0o444):
+    i = tarfile.TarInfo(name)
+    i.size, i.mode = len(data), mode
+    t.addfile(i, io.BytesIO(data))
+add("oci-layout", b'{"imageLayoutVersion":"1.0.0"}')
+add("index.json", b'{"schemaVersion":2,"manifests":[]}')
+add(sys.argv[2], sys.argv[3].encode())
+if sys.argv[4]:
+    link = tarfile.TarInfo("bin.strings.txt")
+    link.type, link.linkname = tarfile.SYMTYPE, sys.argv[4]
+    t.addfile(link)
+    add("bin", b"\x00\x01ATTACKER_CONTROLLED_LINE\x00")
+t.close()
+PY
+}
+
 # log_zip <dir> <repo> <text>: run 11's log archive holds build/1_step.txt.
 log_zip() {
   local d="$1" src="$TMP/zipsrc-$RANDOM"
@@ -244,6 +272,14 @@ if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
   sweep "$TMP/no-such-dir" "$F" "$TMP/out-allowlisted" --repo r
   expect_rc "a token under a default-allowlisted path is found" 1
   expect_out "the allowlisted-path hit names its location" '| github-pat | r/artifacts/5-a/node_modules/x/.env |'
+
+  # A token inside a Docker build record artifact is found.
+  F="$TMP/record-real"
+  base_fixture "$F" r
+  artifact_record "$F" r "token $PLANTED"
+  sweep "$TMP/no-such-dir" "$F" "$TMP/out-record-real" --repo r
+  expect_rc "the real scanner finds a token in a build record" 1
+  expect_out "the build record hit names its blob" "| github-pat | r/artifacts/5-x.dockerbuild/$BLOB |"
 else
   printf 'SKIP: gitleaks 8.30.1 not on PATH; the real-scanner cases did not run\n'
 fi
@@ -461,6 +497,87 @@ z.close()
 PY
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-symlink" --repo r
 if [[ "$(cat "$TMP/victim")" == untouched ]]; then ok "a symlink in an archive is not written through"; else fail "victim overwritten: $(cat "$TMP/victim")"; fi
+
+# --- A Docker build record artifact (a gzipped tar, not a zip) is scanned ----
+F="$TMP/record"
+base_fixture "$F" r
+artifact_record "$F" r "token $PLANTED"
+STUB_LEAK_FILE="r/artifacts/5-x.dockerbuild/$BLOB" STUB_SECRET="$PLANTED" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record" --repo r --keep
+expect_rc "a hit in a build record exits 1" 1
+expect_out "a build record is not a gap" $'## GAPS (0)\n\nNone'
+if grep -qF "token $PLANTED" "$TMP/out-record/downloads/r/artifacts/5-x.dockerbuild/$BLOB" 2>/dev/null; then
+  ok "a build record's blobs are extracted for the scan"
+else
+  fail "build record blob missing: $(find "$TMP/out-record/downloads/r/artifacts" 2>&1)"
+fi
+
+F="$TMP/record-symlink"
+base_fixture "$F" r
+printf 'untouched\n' >"$TMP/victim2"
+artifact_record "$F" r "nothing secret here" "$TMP/victim2"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-symlink" --repo r --keep
+expect_rc "a build record with a symlink sweeps clean" 0
+if [[ "$(cat "$TMP/victim2")" == untouched ]]; then ok "a symlink in a build record is not written through"; else fail "victim2 overwritten: $(cat "$TMP/victim2")"; fi
+if [[ ! -L "$TMP/out-record-symlink/downloads/r/artifacts/5-x.dockerbuild/bin.strings.txt" ]]; then
+  ok "a symlink in a build record is deleted"
+else
+  fail "the build record's symlink survives"
+fi
+
+# record_tar <dir> <mode> <member:mode[:content]>...: artifact 5 ("x.dockerbuild")
+# is a tar written with tarfile mode <mode> ("w:xz", "w:gz"); a member whose
+# name ends in / is a directory.
+record_tar() {
+  local d="$1" mode="$2"
+  shift 2
+  fix "$d" "repos/o/r/actions/artifacts?per_page=100&page=1" \
+    '{"artifacts":[{"id":5,"name":"x.dockerbuild","expired":false,"created_at":"2026-10-05T00:00:00Z"}]}'
+  "$PYTHON" -I - "$d/$(key "repos/o/r/actions/artifacts/5/zip")" "$mode" "$@" <<'PY' || fail "could not build the tar"
+import io, sys, tarfile
+t = tarfile.open(sys.argv[1], sys.argv[2])
+for m in sys.argv[3:]:
+    name, mode, *rest = m.split(":", 2)
+    i = tarfile.TarInfo(name.rstrip("/"))
+    i.mode = int(mode, 8)
+    if name.endswith("/"):
+        i.type = tarfile.DIRTYPE
+        t.addfile(i)
+    else:
+        data = (rest[0] if rest else "").encode()
+        i.size = len(data)
+        t.addfile(i, io.BytesIO(data))
+t.close()
+PY
+}
+
+# A tar compressed other than with gzip is never handed to tar, which would
+# decompress it without a bound: it is kept as one file and scanned as bytes.
+F="$TMP/record-xz"
+base_fixture "$F" r
+record_tar "$F" w:xz "inner.txt:644:token $PLANTED"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-xz" --repo r --keep
+expect_rc "an xz tar sweeps without a gap" 0
+x="$TMP/out-record-xz/downloads/r/artifacts/5-x.dockerbuild"
+if [[ -f "$x/5-x.dockerbuild" && ! -e "$x/inner.txt" ]]; then
+  ok "an xz tar is kept as one file, not extracted"
+else
+  fail "an xz tar was extracted or lost: $(find "$x" 2>&1)"
+fi
+
+# A tar that fails partway is cleaned up: no read-only directory or member is
+# left behind once the sweep removes its downloads.
+F="$TMP/record-partial"
+base_fixture "$F" r
+record_tar "$F" w:gz "d/:555" "d/f:444:partial" "../x:644:escape"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-partial" --repo r
+expect_rc "a tar that fails partway is a gap" 2
+expect_out "the failed tar is named" "artifact tar did not extract"
+if [[ ! -e "$TMP/out-record-partial/downloads" && ! -e "$TMP/x" && ! -e "$TMP/out-record-partial/downloads/r/x" ]]; then
+  ok "a failed tar leaves nothing on disk"
+else
+  fail "left on disk: $(find "$TMP/out-record-partial/downloads" "$TMP/x" 2>&1)"
+fi
 
 # --- A --repo that is not public is refused ----------------------------------
 F="$TMP/private"
