@@ -190,7 +190,7 @@ export const CHECKS = Object.freeze([
     if (body.mcp_servers !== undefined) return policy("mcp_servers is not allowed through this proxy");
     for (const t of Array.isArray(body.tools) ? body.tools : []) {
       if (t && typeof t === "object" && t.type !== undefined && t.type !== "custom") {
-        return policy(`server tools are not allowed through this proxy: Input tag '${String(t.type).slice(0, 80)}'`);
+        return policy(`server tools are not allowed through this proxy: ${String(t.type).slice(0, 80)}`);
       }
     }
     for (const m of Array.isArray(body.messages) ? body.messages : []) {
@@ -294,7 +294,17 @@ export function createProxy({ key, config, log = () => {} }) {
         const ok = upRes.statusCode >= 200 && upRes.statusCode < 300;
         settle(meter.seen ? meter.total() : ok ? reservation?.tokens ?? 0 : 0);
       });
+      // Upstream dropped mid-response: drop the client too, so Claude Code
+      // sees a dropped connection rather than a stall, and commit as for a
+      // client disconnect.
       upRes.on("error", () => {});
+      upRes.on("close", () => {
+        if (finished) return;
+        finished = true;
+        meter.end();
+        res.destroy();
+        settle(Math.max(reservation?.tokens ?? 0, meter.total()));
+      });
     });
 
     upReq.on("error", () => {

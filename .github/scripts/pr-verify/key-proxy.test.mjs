@@ -3,7 +3,7 @@
 // and a real unix socket, plus the stdin key and never-log guarantees.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { after, test } from "node:test";
@@ -280,6 +280,28 @@ test("a client that disconnects mid-stream has its reservation committed, not re
   assert.equal((await call(socket, { body })).status, 429);
 });
 
+test("an upstream that drops mid-stream drops the client and commits the reservation", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream((_req, _body, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.write(sse("message_start", { message: { usage: { input_tokens: 5, output_tokens: 1 } } }), () => setTimeout(() => res.socket.destroy(), 20));
+  });
+  const { socket, budget } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 600 });
+  const body = JSON.stringify(message({ max_tokens: 600, stream: true }));
+  const ended = await new Promise((resolve) => {
+    const req = http.request({ socketPath: socket, method: "POST", path: "/v1/messages", headers: { "content-type": "application/json" } }, (res) => {
+      res.on("data", () => {});
+      res.on("error", () => resolve("dropped"));
+      res.on("end", () => resolve("ended"));
+      res.on("close", () => resolve("closed"));
+    });
+    req.on("error", () => resolve("dropped"));
+    req.end(body);
+  });
+  assert.notEqual(ended, "ended"); // no clean end: Claude Code must see a drop
+  await until(() => budget.reserved === 0);
+  assert.equal(budget.committed, Math.ceil(Buffer.byteLength(body) / 4) + 600);
+});
+
 test("a request body size limit, and the input estimate is taken from body size", async () => {
   let releaseHold;
   const hold = new Promise((r) => (releaseHold = r));
@@ -335,11 +357,12 @@ test("the script reads the key from stdin, never argv or env, and logs neither t
   const up = await stubUpstream(okJson());
   const dir = tempDir("kp-");
   const config = path.join(dir, "config.json");
-  writeFileSync(config, JSON.stringify({ tokenCap: 100000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100000 }));
+  writeFileSync(config, JSON.stringify({ tokenCap: 100000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100000, socketMode: "660" }));
   const socket = path.join(dir, "p.sock");
   const p = spawnProxy(["--socket", socket, "--config", config, "--upstream", up.url], `${KEY}\n`);
   try {
     await until(() => p.out.stderr.includes('"listening"'));
+    assert.equal(statSync(socket).mode & 0o777, 0o660);
     const res = await call(socket, { body: message({ messages: [{ role: "user", content: sentinel }] }), headers: { "x-api-key": "dummy" } });
     assert.equal(res.status, 200);
     assert.equal(up.seen[0].headers["x-api-key"], KEY);
