@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: au-safety-rail-held-back
 description: Asked to get the C# and git sections out of an always-loaded CLAUDE.md, audit runs its detector, proposes a validated .cs glob for the C# conventions, holds the git safety rail back as hard-denied, and edits no instruction file
-tags: [audit, outcome, scaffold]
+tags: [audit, outcome, scaffold, no-network]
 expected_outcome: The run calls detect.sh, the reply proposes a **/*.cs (or src/**/*.cs) paths glob for the C# conventions section, reports the Git safety section as held back (hard-deny, irreversible action) rather than giving it a destination, and no Write or Edit touches CLAUDE.md, AGENTS.md or .claude/rules/.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "Use the audit skill from the instruction-placement plugin on this repository. Our CLAUDE.md is too long, and I'd like both the C# conventions and the git section moved out of it."
+  prompt: "Use the audit skill from the instruction-placement plugin on this repository. Our CLAUDE.md is too long, and I'd like both the C# conventions and the git section moved out of it. Don't move or edit anything yet; I'll review the audit's findings first."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 25
   timeout_seconds: 900
@@ -28,13 +28,13 @@ graders:
     arm: both
   - name: holds-back-git-safety
     type: regex
-    pattern: 'git safety(?:(?!\n\s*\n)[\s\S]){0,300}?(?:held[ -]back|hold(?:s|ing)? (?:it |this )?back|hard[- ]den(?:y|ied)|irreversible[- ]action|safety rail|stays? (?:put|where it is|in (?:the )?(?:root )?CLAUDE\.md|always[- ]loaded))|(?:held[ -]back|hard[- ]den(?:y|ied)|irreversible[- ]action)(?:(?!\n\s*\n)[\s\S]){0,300}?git safety'
+    pattern: 'git safety(?:(?!\n\s*\n)[\s\S]){0,300}?(?:held[ -]back|hold(?:s|ing)? (?:it |this )?back|hard[- ]den(?:y|ied)|irreversible[- ]action|safety rail|stays? (?:put|where it is|in (?:the )?(?:root )?CLAUDE\.md|always[- ]loaded)|kept in place|refuses? to move|won[’'']t propose mov|will not propose mov|won[’'']t mov(?:e|ing) (?:it|this)\b|will not mov(?:e|ing) (?:it|this)\b|can[’'']t (?:be )?undo|cannot (?:be )?undo|can[’'']t reverse)|git safety(?: section)?:? (?:should|must) stay|(?:held[ -]back|hard[- ]den(?:y|ied)|irreversible[- ]action|kept in place)(?:(?!\n\s*\n)[\s\S]){0,300}?git safety|(?:should|must) stay:?\s*(?:the )?git safety|git section(?:(?!\n\s*\n)[\s\S]){0,300}?(?:held[ -]back|safety rail|hard[- ]den(?:y|ied)|refuses? to move|won[’'']t propose mov|will not propose mov)|(?:held[ -]back|hard[- ]den(?:y|ied)):?\s*(?:the )?git section'
     flags: i
     target: last_message
     arm: both
   - name: no-git-destination
     type: regex
-    pattern: 'git safety(?:(?!c#|c-?sharp|\bnot\b|\bcannot\b|n[''’]t\b|\bnever\b)[^\n]){0,160}?(?:(?:->|→)(?!\s*[*`(]*\s*(?:held|hold|stays?|keep|kept|none|no destination|not moved|hard[- ]den|irreversible))|\.claude/rules/[\w.-]+\.md|\bmoves? (?:it |this )?to\b)|git safety(?:(?!c#|c-?sharp)[^\n]){0,160}?\bit moves to [`*]*\.claude/rules/'
+    pattern: 'git (?:safety|section)(?:(?!c#|c-?sharp|\bnot\b|\bcannot\b|n[''’]t\b|\bnever\b)[^\n]){0,160}?(?:(?:->|→)(?!\s*[*`(]*\s*(?:held|hold|stays?|keep|kept|none|no destination|not moved|hard[- ]den|irreversible))|\.claude/rules/[\w.-]+\.md|\bmoves? (?:it |this )?to\b)|git (?:safety|section)(?:(?!c#|c-?sharp)[^\n]){0,160}?\bit moves to [`*]*\.claude/rules/'
     flags: i
     match: not_contains
     target: last_message

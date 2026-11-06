@@ -49,7 +49,8 @@ surface Claude never reads at all, and proposes where each should go.
 
 ## Read these before adjudicating anything
 
-The judgment lives in the plugin's context files, not in this hub. Do not re-derive them.
+The judgment lives in the plugin's context files, not in this hub. Do not re-derive them. Open
+each with the Read tool, one file per call, never through Bash `cat`.
 
 | Read | For |
 |---|---|
