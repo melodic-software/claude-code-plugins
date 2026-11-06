@@ -122,6 +122,10 @@ while IFS=$'\t' read -r ev cmd; do
   toks=($cmd)
   skip=0
   for tok in "${toks[@]}"; do
+    if ((skip == 2)); then
+      skip=0
+      continue
+    fi
     if ((skip)); then
       skip=0
       [[ " ${SOURCED_LIBS[*]} " == *" $tok "* ]] || SOURCED_LIBS+=("$tok")
@@ -129,6 +133,11 @@ while IFS=$'\t' read -r ev cmd; do
     fi
     if [[ "$tok" == "--lib" ]]; then
       skip=1
+      continue
+    fi
+    # --bps-seed names the library node reads the jq program from, not a hook.
+    if [[ "$tok" == "--bps-seed" ]]; then
+      skip=2
       continue
     fi
     [[ "$tok" == *.sh ]] || continue

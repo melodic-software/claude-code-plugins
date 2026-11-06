@@ -20,6 +20,23 @@
       "enum": ["keep", "cut"],
       "default": "keep",
       "description": "Whether /docs-hygiene:compress removes a, an and the. keep: articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed."
+    },
+    "compress_revert_below_pct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 3,
+      "description": "Percent compression below which /docs-hygiene:compress reverts a result with zero semantic loss. 0 turns the auto-revert off; --force bypasses it on one run."
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "standard",
+      "description": "How much independent checking this plugin's skills run: off, light (skip the verifier dispatch), standard (today's behavior) or strict (run the passes that are optional today). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example compress); an entry beats this file's verification value."
     }
   }
 }

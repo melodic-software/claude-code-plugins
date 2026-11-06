@@ -24,7 +24,7 @@ Citations from sibling skills or consumer workflows MUST use one of:
 /docs-hygiene:compress <dir>                   # batch default action
 /docs-hygiene:compress audit                   # empty-arg audit (read-only dry-run)
 /docs-hygiene:compress audit <target>          # audit single file or dir
-/docs-hygiene:compress --force <target>        # bypass <3%/0SL revert rule (user owns sub-3% diff)
+/docs-hygiene:compress --force <target>        # bypass the <N%/0SL revert rule, N = compress_revert_below_pct (user owns the diff)
 /docs-hygiene:compress --keep-snapshot <target> # persist .orig.md to the plugin data directory
 ```
 

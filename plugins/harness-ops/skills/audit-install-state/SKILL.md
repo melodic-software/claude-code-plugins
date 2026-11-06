@@ -223,6 +223,15 @@ CSV path and row count, and state that the tree was live (`quiesced: false`). Fa
 and the upstream-claim rule (raw markdown only; absence from a summary is not evidence of absence):
 [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
+Before that cross-review, run
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-ops --skill audit-install-state`
+and copy its line into the report
+([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` follows evidence-discipline.md section 5. `strict` dispatches the fresh-context reviewer
+even for a single-agent run. Under `light`, and `off`, which acts as `light` here, dispatch none and
+never review the findings yourself in its place: write `verification: skipped (<level>)` and say
+the findings were not cross-reviewed.
+
 ### Person-invoked `/doctor` suggestion
 
 Relay the sentence below to the user and do not run `/doctor` yourself: it is reserved for the person to run.

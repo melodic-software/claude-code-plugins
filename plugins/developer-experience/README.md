@@ -30,3 +30,13 @@ pointer line in each personal instructions file you confirm.
 
 Research happens at run time from official sources and the project's own files; the plugin ships no
 stack templates.
+
+## Configuration
+
+A repository can commit `developer-experience.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/developer-experience.schema.json`](schemas/developer-experience.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/developer-experience:build-cli` review mode dispatches its fresh-context reviewer: `strict` dispatches it for every review, `light` and `off` skip it, and the main session runs the review itself with every gap labeled `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Agent SDK | INFO | absent |",
+      "why": "INFO"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Agent SDK | FAIL | absent |",
+      "why": "FAIL row"
+    },
+    {
+      "answer": "Agent SDK: FAIL",
+      "why": "FAIL verdict"
+    }
+  ]
+}

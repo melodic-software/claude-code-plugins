@@ -33,4 +33,4 @@ No step runs: every entry point is `not driven`.
 ## Gotchas
 
 - Run the action's script under `plugins/skill-quality/scripts/` directly instead; never drop the
-  driver's `--restricted` flag to reach Bash.
+  driver's `--restricted` flag to reach Bash in a local drive.

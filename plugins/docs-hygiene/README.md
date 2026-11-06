@@ -67,6 +67,7 @@ consuming project's context; nothing requires editing the plugin.
 | Setting | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `compress_articles` | string | `keep` | Whether `compress` removes `a`, `an` and `the`. `keep` leaves them and runs the in-session Edit backend with word-level cuts only; `cut` allows removing them and uses the `caveman` backend when it is installed. A repository can set it for everyone in `docs/conventions/docs-hygiene.yaml`, which wins; keys and layers: [`reference/config.md`](reference/config.md). |
+| `compress_revert_below_pct` | integer | `3` | `compress` reverts a result that compresses a file by less than this percent with zero semantic loss. `0` turns the auto-revert off; `--force` bypasses it on one run. The repository file wins, as for `compress_articles`. |
 
 `/docs-hygiene:setup` reports the effective `compress_articles`, and `/docs-hygiene:setup apply`
 writes the repository's `docs/conventions/docs-hygiene.yaml`. The detector and fact-emitter
@@ -83,6 +84,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `compress_articles` | string | `"keep"` | Whether /docs-hygiene:compress removes a, an and the. keep (default): articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed. docs/conventions/docs-hygiene.yaml overrides this. |
+| `compress_revert_below_pct` | number<br>*min 0, max 100* | `3` | Percent compression below which /docs-hygiene:compress reverts a result with zero semantic loss, a whole number from 0 to 100. Default 3; 0 turns the auto-revert off; --force bypasses it on one run. docs/conventions/docs-hygiene.yaml overrides this. |
 
 ### How to set these
 
