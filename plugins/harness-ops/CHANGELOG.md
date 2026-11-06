@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.6.1] - 2026-11-06
+
+### Changed
+
+- `/harness-ops:observability` points at provisioning's OTEL store reset runbook for a full wipe of the store; `clean` stays the age and size prune ([#6637](https://github.com/melodic-software/claude-code-plugins/issues/6637)).
+
 ## [8.6.0] - 2026-11-06
 
 ### Added
