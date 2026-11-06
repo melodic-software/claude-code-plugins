@@ -78,7 +78,7 @@ user.
    user confirming.
 2. **Draft defaults from the repo.** Before asking: propose `churn_exclude` additions from what
    actually exists (generated/build output trees, snapshot or designer files not covered by the
-   bundled defaults); keep `churn_window` at the bundled default unless the repo's history is
+   bundled defaults, the `excludes` ERE in `${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`: one Read of that file, never Glob or Grep the plugin directory); keep `churn_window` at the bundled default unless the repo's history is
    young or the user says otherwise; and draft `evidence_sources` candidates from the MCP
    servers the consumer has configured that plausibly carry telemetry, a candidate is a
    proposal for the user to confirm, never an assumption. No plausible source and none volunteered
