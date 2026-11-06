@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/work/out/full/crops/d040.png"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/work/out/full/crops/d012.png"
+          }
+        }
+      ],
+      "why": "another crop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/work/out/full/review-012-050.md"
+          }
+        }
+      ],
+      "why": "the review table"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/work/out/full/crops/d040-small.png"
+          }
+        }
+      ],
+      "why": "a resized copy"
+    }
+  ]
+}

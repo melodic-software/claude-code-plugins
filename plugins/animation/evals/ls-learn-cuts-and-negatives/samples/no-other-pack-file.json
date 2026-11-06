@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/STYLE.md",
+            "content": "# Ink short"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/style.json",
+            "content": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/traces/d040.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "trace copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/frames/d001.png",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "frame copy"
+    }
+  ]
+}

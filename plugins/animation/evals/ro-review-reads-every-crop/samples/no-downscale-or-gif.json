@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls work/out/full/crops",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from PIL import Image; print(Image.open('work/out/full/crops/d045.png').size)\"",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "convert work/out/full/crops/d045.png -resize 50% /tmp/d045.png",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "downscale"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ffmpeg -i work/out/full/crops/%04d.png review.gif",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "makes a GIF"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from PIL import Image; im=Image.open('d.png'); im.thumbnail((256,256)); im.save('s.png')\"",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "PIL thumbnail"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/measure.py work --only 40-55 --tag thin --playwright-core '${user_config.playwright_core}'",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/measure.py work --playwright-core x",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "whole clip"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/measure.py work --only 0-59 --playwright-core x",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "another range"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/fit.py work --only 40-55 --playwright-core x",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "fit, not measure"
+    }
+  ]
+}

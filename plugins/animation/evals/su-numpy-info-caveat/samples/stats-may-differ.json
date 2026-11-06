@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Scripts run, but statistics may differ from the shipped pack and the regression."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Statistics may differ.",
+      "why": "pack and regression not named"
+    },
+    {
+      "answer": "This breaks the shipped pack and the regression.",
+      "why": "no may-differ caveat"
+    }
+  ]
+}

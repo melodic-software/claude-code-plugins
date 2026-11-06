@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ffmpeg -i in.mp4 -vf eq=gamma=1.1 out.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n learn.py README.md",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/learn.py work",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "runs the script"
+    }
+  ]
+}

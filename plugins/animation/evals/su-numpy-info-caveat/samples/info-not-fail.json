@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "numpy reads INFO, not a FAIL: scripts still run."
+    },
+    {
+      "answer": "The numpy row is INFO and is not reported as a FAIL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| numpy | FAIL | 2.4.0 | pin 2.5.4 |",
+      "why": "reported as FAIL"
+    },
+    {
+      "answer": "That numpy row FAILs the check.",
+      "why": "FAILs"
+    }
+  ]
+}

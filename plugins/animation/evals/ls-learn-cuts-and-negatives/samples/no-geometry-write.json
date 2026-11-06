@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/style.json",
+            "content": "{\"stats\": {\"rough\": [0.05, 0.06, 0.07]}}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/work/d/d040.json",
+            "content": "{\"paths\": [[[1, 2]]]}"
+          }
+        }
+      ],
+      "why": "a trace outside the pack"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/style.json",
+            "content": "{\"paths\": [[[300, 210], [312, 232]]]}"
+          }
+        }
+      ],
+      "why": "paths in the pack"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/packs/ink-short/arm.json",
+            "content": "{\"points\": [[310, 220]]}"
+          }
+        }
+      ],
+      "why": "points in the pack"
+    }
+  ]
+}
