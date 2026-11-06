@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/checklist.md",
+            "content": "- [x] Phase 0"
+          }
+        }
+      ],
+      "why": "checklist copied to a notes file"
+    }
+  ]
+}

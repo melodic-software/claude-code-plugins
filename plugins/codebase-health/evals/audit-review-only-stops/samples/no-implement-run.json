@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codebase-health:audit",
+            "args": "README.md --docs-only --fix"
+          }
+        }
+      ],
+      "why": "this plugin's own audit skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit"
+          }
+        }
+      ],
+      "why": "bare audit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "verification:confirm"
+          }
+        }
+      ],
+      "why": "the other lane"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement",
+            "args": "fix README.md:9"
+          }
+        }
+      ],
+      "why": "auto-invokes implement"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implement"
+          }
+        }
+      ],
+      "why": "bare implement"
+    }
+  ]
+}

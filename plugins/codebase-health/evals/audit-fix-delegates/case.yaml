@@ -41,3 +41,13 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: report-before-handoff
+    type: regex
+    pattern: '^[ \t]*\|[ \t]*#[ \t]*\|[ \t]*\**severity\b[\s\S]*?(?:implementation:implement\b|\b(?:implementation|verification)\b[^\n]{0,120}?\b(?:not installed|isn''t installed|aren''t installed|is not installed|are not installed|not available|unavailable)\b)'
+    flags: 'im'
+    target: last_message
+  - name: absent-manual-handoff
+    type: regex
+    pattern: '^(?=[\s\S]*?\b(?:implementation|verification)\b[^\n]{0,120}?\b(?:not installed|isn''t installed|aren''t installed|is not installed|are not installed|not available|unavailable)\b)(?=[\s\S]*?(?:\b(?:findings )?table\b[^\n]{0,120}?\b(?:handoff|hand-off|hand off|manual(?:ly)?|fix[- ]priority)\b|\b(?:handoff|hand-off|hand off|manual(?:ly)?)\b[^\n]{0,120}?\b(?:findings|table|fix[- ]priority)\b))'
+    flags: 'i'
+    target: last_message

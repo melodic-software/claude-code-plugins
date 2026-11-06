@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n"
+    },
+    {
+      "answer": "| 1 | **warning** | doc-drift | `README.md:9` | x | y |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 1 | high | doc-drift | `README.md:9` | x | y |",
+      "why": "another scale"
+    },
+    {
+      "answer": "Severity: error. README.md:9 names npm run serve.",
+      "why": "no table row"
+    }
+  ]
+}
