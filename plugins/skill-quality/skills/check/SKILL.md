@@ -374,6 +374,10 @@ and review against the invariant.
   defect. Like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell
   blocks (not prose "run `git status` first") and stays silent whenever the skill already uses any `!`
   injection, so it under-reports by design; a clean run is not proof there is no precompute opportunity.
+  A block qualifies only when every line is an allowlisted reader (`ls`, `cat`, `find`, `wc`, a
+  read-only `git` subcommand such as `status`, `log` or `diff`, a `gh` read verb such as `view` or
+  `list`) with no redirection, substitution, chaining or pipe other than a trailing `|| echo`
+  fallback. A WARN line names no block, so finding it means reading the skill's fenced shell blocks.
 - Check 23 (completion-criteria signal) is an advisory heuristic, never a FAIL. It fires only when a
   numbered procedure of three or more steps carries NO completion-signal token at all. It detects
   the absence of any done-condition, and cannot grade whether a stated criterion is observable or

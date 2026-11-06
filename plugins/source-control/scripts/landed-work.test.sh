@@ -141,6 +141,18 @@ assert_eq "squash: still landed after the base advances" "yes" "$(col "$R" $C_LA
 assert_eq "squash: still by range patch-id after the base advances" \
   "range-patchid" "$(col "$R" $C_METHOD)"
 
+# An empty commit on the base (an empty squash merge) has no patch to hash. It is
+# excused from the base-side count, so the base set stays usable; a commit whose
+# diff fails to render still is not (base-patchid-incomplete).
+git -C "$W" commit -q --allow-empty -m "empty squash on the base" >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-squash")"
+assert_eq "squash: still landed past an empty base commit" "yes" "$(col "$R" $C_LANDED)"
+assert_not_contains "and the base set is not reported incomplete" \
+  "$(col "$R" $C_REASON)" "base-patchid-incomplete"
+
 # --------------------------------------------------------------------------
 # Negative control — a genuinely unmerged branch is NOT landed
 # --------------------------------------------------------------------------
@@ -621,7 +633,7 @@ PR_BIN="$TEST_TMPDIR/pr-bin"
 mkdir -p "$PR_BIN"
 cat >"$PR_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
-[[ -n "${GH_STUB_FAIL:-}" ]] && { echo "gh stub: forced failure" >&2; exit 1; }
+[[ -n "${GH_STUB_FAIL:-}" ]] && { printf 'gh stub:\tforced; failure\nsecond line\n' >&2; exit 1; }
 cat "${GH_STUB_OUT:-/dev/null}"
 STUB
 chmod +x "$PR_BIN/gh"
@@ -676,6 +688,12 @@ assert_contains "pr proof: the reason says why" "$(col "$R" $C_REASON)" "local-c
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only" 1)" "wt-pr")"
 assert_eq "pr proof: a failed read keeps the prior verdict" "no" "$(col "$R" $C_LANDED)"
 assert_contains "pr proof: the failed read is named" "$(col "$R" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
+# gh's first error line rides along, its tab and semicolon blanked so the row's
+# columns and the reason list keep their shape; later lines are dropped.
+assert_contains "pr proof: gh's own error is named" "$(col "$R" $C_REASON)" "gh-pr-list (gh stub: forced  failure)"
+assert_not_contains "pr proof: only gh's first error line is kept" "$(col "$R" $C_REASON)" "second line"
+assert_eq "pr proof: the error text adds no column" \
+  "$(head -n 1 <<<"$OUT" | awk -F'\t' '{print NF}')" "$(awk -F'\t' '{print NF}' <<<"$R")"
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 
 # Bare-name invocation from the scripts directory still loads the library.
