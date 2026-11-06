@@ -80,7 +80,7 @@ const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
 // The key job's credit gate, read inside its credential call: a key it
 // held off runs no pre-judge setup.
 const KEY_SKIP = " && steps.credential.outputs.key-skipped != 'true'";
-const CREDIT_STEPS = ["Report the skipped key leg"];
+const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
@@ -344,20 +344,30 @@ test("the key job runs on main for a same-repository pull_request run that passe
 // head the resolver would judge: a run that skips there (a judged head, a
 // draft, a run red for anything but a hold) spends none.
 const GATED_SETUP = ["Resolve the verifier's model", "Apply the Claude managed settings", "Isolate the runner", "Write the prompt and schema"];
-test("the credit gate runs in the key job's credential call after the resolver, the trigger gate and the reads hand-on, and only then", () => {
+test("the credit gate runs in the key job after the resolver, the trigger gate and the reads hand-on, and only then", () => {
   assert.doesNotMatch(text, /check-key-credit@/);
-  const gate = step("Check the credential");
-  assert.match(gate, /^ {8}id: credential$/m);
+  // Its own step under continue-on-error and a 2-minute limit: a read that
+  // fails or hangs leaves next-leg empty, and the key judges.
+  const gate = step("Read the key's credit history");
+  assert.match(gate, /^ {8}id: credit$/m);
   assert.match(gate, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
   assert.match(gate, /^ {8}continue-on-error: true$/m);
+  assert.match(gate, /^ {8}timeout-minutes: 2$/m);
   assert.match(gate, SELECT);
-  assert.equal(input(gate, "leg"), "key");
-  assert.equal(input(gate, "role"), "pr-verify");
-  // Only whether the key is set reaches the action, never its value.
-  assert.equal(input(gate, "credential-set"), "${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}");
-  assert.deepEqual(gate.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.equal(input(gate, "leg"), "start");
+  assert.doesNotMatch(gate, /secrets\./);
+  // The key call runs whatever the read chose; only whether the key is set reaches it.
+  const key = step("Check the credential");
+  assert.match(key, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
+  assert.match(key, SELECT);
+  assert.equal(input(key, "leg"), "key");
+  assert.equal(input(key, "role"), "pr-verify");
+  assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
+  assert.equal(input(key, "key-job"), undefined);
+  assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.equal(index("Check the credential"), index("Read the key's credit history") + 1);
   for (const before of ["Resolve the pull request", "Check the trigger", "Assert the gate and the resolver agree", "Hand the reads on"]) {
-    assert.ok(index(before) >= 0 && index(before) < index("Check the credential"), before);
+    assert.ok(index(before) >= 0 && index(before) < index("Read the key's credit history"), before);
   }
   for (const after of GATED_SETUP) assert.ok(index(after) > index("Check the credential"), after);
   // The marker's name carries the key-job input; the key job's id stays its display name.
@@ -393,10 +403,10 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   // gate.cjs markerName at 09cf6f2: `key-credit-stop-${workflow file}-${key-job}`.
   // The upload writes it out so its retention row claims it; the write runs only
   // while the gate's `marker` output equals it, so a contract change uploads none.
-  const keyJob = /^ {10}key-job: (\S+)$/m.exec(step("Check the credential"))[1];
+  const keyJob = /^ {10}key-job: (\S+)$/m.exec(step("Read the key's credit history"))[1];
   const marker = `key-credit-stop-pr-verify.yml-${keyJob}`;
   assert.equal(marker, "key-credit-stop-pr-verify.yml-check-intent");
-  assert.equal(condition, `always() && steps.credential.outputs.marker == '${marker}' && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
+  assert.equal(condition, `always() && steps.credit.outputs.marker == '${marker}' && (${chainOf((id) => `steps.${id}.outputs.handoff-reason == 'credit-stop'`, "judge")})`);
   assert.match(writeStep, /echo "\$GITHUB_RUN_ID" >"\$RUNNER_TEMP\/key-credit-stop\/run-id"/);
   const scanStep = step(scan);
   assert.match(scanStep, /^ {8}id: credit-marker-scan$/m);
@@ -442,10 +452,10 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   // Written only while the output equals the name the upload writes out, and the
   // key is set: the first judge step's own term.
   const writeIf = /^ {8}if: (.*)$/m.exec(writeStep)[1];
-  assert.equal(writeIf, `always() && steps.credential.outputs.probing-marker == '${probe}' && steps.credential.outputs.present == 'true'`);
+  assert.equal(writeIf, `always() && steps.credit.outputs.probing-marker == '${probe}' && steps.credential.outputs.present == 'true'`);
   assert.match(step("Judge the pull request"), /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
   const writes = (output, present) =>
-    admits(writeIf.replace(/^always\(\) && /, ""), { steps: { credential: { outputs: { "probing-marker": output, present } } } });
+    admits(writeIf.replace(/^always\(\) && /, ""), { steps: { credit: { outputs: { "probing-marker": output } }, credential: { outputs: { present } } } });
   assert.ok(writes(probe, "true"));
   for (const [output, present] of [["", "true"], ["key-credit-probing-pr-verify.yml-other", "true"], [probe, "false"], [probe, ""]]) {
     assert.ok(!writes(output, present), `${output} ${present}`);
@@ -1864,23 +1874,29 @@ const stepIf = (block) => /^ {8}if: (.*)$/m.exec(block)?.[1];
 // A step's `if:` as admits reads it: always() holds while the job runs.
 const runs = (block, context) => admits(stepIf(block).replaceAll("always() && ", ""), context);
 
-test("the capture's credit gate reads the key's credit history in its credential call after the agree step, and a skipped key sets up nothing", () => {
-  const gate = capStep("Check the credential");
-  assert.match(gate, /^ {8}id: credential$/m);
+test("the capture's credit gate reads the key's credit history after the agree step, and a skipped key sets up nothing", () => {
+  const gate = capStep("Read the key's credit history");
+  assert.match(gate, /^ {8}id: credit$/m);
   assert.equal(stepIf(gate), "steps.agree.outcome == 'success'");
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   assert.match(gate, /^ {8}timeout-minutes: 2$/m);
-  // Only whether the key is set reaches the action, never its value.
-  assert.deepEqual(gate.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.doesNotMatch(gate, /secrets\./);
   // The same pin as pr-verify.yml's credential calls.
   assert.equal(/^ {8}uses: (.*)$/m.exec(gate)[1], /^ {8}uses: (.*)$/m.exec(step("Check the credential"))[1]);
-  assert.equal(input(gate, "leg"), "key");
-  assert.equal(input(gate, "role"), "pr-verify");
+  assert.equal(input(gate, "leg"), "start");
   assert.equal(input(gate, "key-job"), CAP);
   assert.match(CAP, /^[a-z][a-z0-9-]{0,99}$/);
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
-  assert.equal(capIndex("Check the credential"), capIndex("Assert the gate and the resolver agree") + 1);
+  assert.equal(capIndex("Read the key's credit history"), capIndex("Assert the gate and the resolver agree") + 1);
+  // The key call runs whatever the read chose; only whether the key is set reaches it.
+  const key = capStep("Check the credential");
+  assert.equal(stepIf(key), "steps.agree.outcome == 'success'");
+  assert.equal(input(key, "leg"), "key");
+  assert.equal(input(key, "role"), "pr-verify");
+  assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
+  assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.equal(capIndex("Check the credential"), capIndex("Read the key's credit history") + 1);
   const models = capStep("Resolve the capture's model");
   assert.equal(stepIf(models), "steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'");
   assert.ok(capIndex("Resolve the capture's model") > capIndex("Check the credential"));
@@ -1902,8 +1918,8 @@ test("the capture's credit gate reads the key's credit history in its credential
 test("the capture writes, scans and uploads the probing marker once its probe will start, before any head code", () => {
   const [write, scan, upload] = CAP_PROBING_STEPS.map(capStep);
   assert.match(write, /^ {8}id: probe-marker$/m);
-  assert.equal(stepIf(write), `always() && steps.credential.outputs.probing-marker == '${CAP_PROBING}' && steps.credential.outputs.present == 'true'`);
-  const writes = (output, present) => runs(write, { steps: { credential: { outputs: { "probing-marker": output, present } } } });
+  assert.equal(stepIf(write), `always() && steps.credit.outputs.probing-marker == '${CAP_PROBING}' && steps.credential.outputs.present == 'true'`);
+  const writes = (output, present) => runs(write, { steps: { credit: { outputs: { "probing-marker": output } }, credential: { outputs: { present } } } });
   assert.ok(writes(CAP_PROBING, "true"));
   for (const [output, present] of [["", "true"], ["key-credit-probing-pr-verify.yml-check-intent", "true"], [CAP_PROBING, "false"], [CAP_PROBING, ""]]) {
     assert.ok(!writes(output, present), `${output} ${present}`);
@@ -1926,8 +1942,8 @@ test("the capture writes, scans and uploads the probing marker once its probe wi
 test("the capture writes the credit-stop marker only after its probe's credit stop, and only before the head checkout", () => {
   const [write, scan, upload] = CAP_MARKER_STEPS.map(capStep);
   assert.match(write, /^ {8}id: credit-marker$/m);
-  assert.equal(stepIf(write), `always() && steps.credential.outputs.marker == '${CAP_MARKER}' && steps.probe.outputs.handoff-reason == 'credit-stop'`);
-  const writes = (marker, reason) => runs(write, { steps: { credential: { outputs: { marker } }, probe: { outputs: { "handoff-reason": reason } } } });
+  assert.equal(stepIf(write), `always() && steps.credit.outputs.marker == '${CAP_MARKER}' && steps.probe.outputs.handoff-reason == 'credit-stop'`);
+  const writes = (marker, reason) => runs(write, { steps: { credit: { outputs: { marker } }, probe: { outputs: { "handoff-reason": reason } } } });
   assert.ok(writes(CAP_MARKER, "credit-stop"));
   // An auth handoff says nothing of the key's credit; a marker the gate does not name is never written.
   for (const [marker, reason] of [[CAP_MARKER, "auth"], [CAP_MARKER, ""], ["", "credit-stop"], ["key-credit-stop-pr-verify.yml-check-intent", "credit-stop"]]) {

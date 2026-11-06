@@ -115,6 +115,15 @@ function newJob(job, leg, s, needs, end) {
     "steps.checker.outcome": s.checker,
     ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, name]) => [name, s[k] ? "set" : ""]))),
   };
+  // The key job's credit read is its own step under continue-on-error: a read
+  // that fails or times out (gate "failed") leaves its outputs empty, the
+  // key call's selected with them, and the key runs, as before.
+  const credit = leg === "key" ? wf.step(job, "credit") : null;
+  if (credit) {
+    assert.equal(credit.inputs.leg, "start", job);
+    assert.match(credit.text, /^ {8}continue-on-error: true$/m, job);
+    if (runs(credit.if, base) && s.gate !== "failed") Object.assign(base, prefixed("steps.credit.outputs", S.start({ skipKey: s.gate === "skip" })));
+  }
   const call = wf.step(job, "credential");
   assert.equal(call.inputs.leg, leg, job);
   let credential = {};

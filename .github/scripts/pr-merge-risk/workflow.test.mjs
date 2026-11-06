@@ -99,14 +99,20 @@ test("each leg starts only after the one before named it as the next leg, and a 
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
   }
-  // The key leg reads its credit history in its credential call, skips a
-  // key whose credit stop is recent and marks a new one.
+  // The key leg reads its credit history in its own step, under
+  // continue-on-error and a 2-minute limit, so a read that fails or hangs runs
+  // the key; its credential call skips a key whose credit stop is recent, and
+  // the job marks a new one.
+  const credit = step(LEGS.key, "Read the key's credit history");
+  assert.match(credit, /\n {8}id: credit\n/);
+  assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
+  assert.match(credit, /\n {10}leg: start\n {10}key-job: rate-merge-risk\n/);
+  assert.match(credit, /\n {10}probe-minutes: "0"\n/);
   const check = step(LEGS.key, "Check the credential");
-  assert.match(check, /\n {10}key-job: rate-merge-risk\n/);
-  assert.match(check, /\n {10}probe-minutes: "0"\n/);
-  assert.doesNotMatch(text, /steps\.credit\./);
+  assert.match(check, /\n {10}selected: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
+  assert.doesNotMatch(check, /key-job/);
   assert.match(step(LEGS.key, "Report the skipped key leg"), /if: steps\.credential\.outputs\.key-skipped == 'true'\n/);
-  assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credential\.outputs\.marker == 'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
   // The key and subscription legs name the next leg the same way; the
   // fallback leg, last, names none.
@@ -120,7 +126,7 @@ test("each leg starts only after the one before named it as the next leg, and a 
 // Every leg is the key leg's steps but for its credential, the key's credit
 // gate and marker, the next-leg call, and the lane record's fallback reason.
 test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
-  const KEY_ONLY = ["Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
+  const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
   const shape = (id) =>
     [...stepsOf(id)]
       .filter(([name]) => !KEY_ONLY.includes(name) && name !== "Check the credential" && name !== "Pick the next leg")

@@ -246,27 +246,36 @@ jobs:
             exit 1
           fi
 
-      # Whether the key runs: it is set, and a credit stop of this job's
-      # probe is not inside the window (select-model-credential's key call
-      # with key-job, reading check-key-credit's history inline: one
-      # artifact-list call for the `marker` this job uploads after that stop,
-      # and a second for the probing marker once the stop is past the window
-      # but still kept). A held or empty key hands the capture to
-      # capture-subscription. Only whether the secret is set reaches it,
-      # never its value; every failure of the read runs the key.
-      - name: Check the credential
-        id: credential
+      # Whether the key is still out of credit (select-model-credential's
+      # start call: check-key-credit's artifact-list read for the `marker`
+      # this job uploads after a credit stop). Its own step, under
+      # continue-on-error and a 2-minute limit, so a read that fails or hangs
+      # leaves next-leg empty and the key runs. It runs only where the key
+      # call below does, so a run that skips there spends no call.
+      - name: Read the key's credit history
+        id: credit
         if: steps.agree.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
-          leg: key
-          role: pr-verify
-          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          leg: start
           key-job: capture
           window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+
+      # Whether the key runs: it is set, and the read above did not hold it
+      # off (selected). Only whether the secret is set reaches the action,
+      # never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.agree.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          selected: ${{ steps.credit.outputs.next-leg }}
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
@@ -301,7 +310,7 @@ jobs:
       # token, not the job token.
       - name: Write the key's probing marker
         id: probe-marker
-        if: always() && steps.credential.outputs.probing-marker == 'key-credit-probing-pr-verify-capture.yml-capture' && steps.credential.outputs.present == 'true'
+        if: always() && steps.credit.outputs.probing-marker == 'key-credit-probing-pr-verify-capture.yml-capture' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -915,7 +924,7 @@ jobs:
       # to 24 hours.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && steps.credential.outputs.marker == 'key-credit-stop-pr-verify-capture.yml-capture' && steps.probe.outputs.handoff-reason == 'credit-stop'
+        if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-verify-capture.yml-capture' && steps.probe.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
