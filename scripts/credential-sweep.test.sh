@@ -165,6 +165,34 @@ z.close()
 PY2
 }
 
+# artifact_record <dir> <repo> <blob-content> [<victim>]: artifact 5
+# ("x.dockerbuild") uploaded unzipped, so its download is a Docker build
+# record's own bytes: a gzipped tar of an OCI layout. With <victim>, the tar
+# also holds a symlink bin.strings.txt to it beside a binary bin.
+BLOB=blobs/sha256/0000000000000000000000000000000000000000000000000000000000000001
+artifact_record() {
+  local d="$1" b="repos/o/$2"
+  fix "$d" "$b/actions/artifacts?per_page=100&page=1" \
+    '{"artifacts":[{"id":5,"name":"x.dockerbuild","expired":false,"created_at":"2026-10-05T00:00:00Z"}]}'
+  "$PYTHON" -I - "$d/$(key "$b/actions/artifacts/5/zip")" "$BLOB" "$3" "${4:-}" <<'PY' || fail "could not build the build record"
+import io, sys, tarfile
+t = tarfile.open(sys.argv[1], "w:gz")
+def add(name, data, mode=0o444):
+    i = tarfile.TarInfo(name)
+    i.size, i.mode = len(data), mode
+    t.addfile(i, io.BytesIO(data))
+add("oci-layout", b'{"imageLayoutVersion":"1.0.0"}')
+add("index.json", b'{"schemaVersion":2,"manifests":[]}')
+add(sys.argv[2], sys.argv[3].encode())
+if sys.argv[4]:
+    link = tarfile.TarInfo("bin.strings.txt")
+    link.type, link.linkname = tarfile.SYMTYPE, sys.argv[4]
+    t.addfile(link)
+    add("bin", b"\x00\x01ATTACKER_CONTROLLED_LINE\x00")
+t.close()
+PY
+}
+
 # log_zip <dir> <repo> <text>: run 11's log archive holds build/1_step.txt.
 log_zip() {
   local d="$1" src="$TMP/zipsrc-$RANDOM"
@@ -244,6 +272,14 @@ if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
   sweep "$TMP/no-such-dir" "$F" "$TMP/out-allowlisted" --repo r
   expect_rc "a token under a default-allowlisted path is found" 1
   expect_out "the allowlisted-path hit names its location" '| github-pat | r/artifacts/5-a/node_modules/x/.env |'
+
+  # A token inside a Docker build record artifact is found.
+  F="$TMP/record-real"
+  base_fixture "$F" r
+  artifact_record "$F" r "token $PLANTED"
+  sweep "$TMP/no-such-dir" "$F" "$TMP/out-record-real" --repo r
+  expect_rc "the real scanner finds a token in a build record" 1
+  expect_out "the build record hit names its blob" "| github-pat | r/artifacts/5-x.dockerbuild/$BLOB |"
 else
   printf 'SKIP: gitleaks 8.30.1 not on PATH; the real-scanner cases did not run\n'
 fi
@@ -461,6 +497,33 @@ z.close()
 PY
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-symlink" --repo r
 if [[ "$(cat "$TMP/victim")" == untouched ]]; then ok "a symlink in an archive is not written through"; else fail "victim overwritten: $(cat "$TMP/victim")"; fi
+
+# --- A Docker build record artifact (a gzipped tar, not a zip) is scanned ----
+F="$TMP/record"
+base_fixture "$F" r
+artifact_record "$F" r "token $PLANTED"
+STUB_LEAK_FILE="r/artifacts/5-x.dockerbuild/$BLOB" STUB_SECRET="$PLANTED" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record" --repo r --keep
+expect_rc "a hit in a build record exits 1" 1
+expect_out "a build record is not a gap" $'## GAPS (0)\n\nNone'
+if grep -qF "token $PLANTED" "$TMP/out-record/downloads/r/artifacts/5-x.dockerbuild/$BLOB" 2>/dev/null; then
+  ok "a build record's blobs are extracted for the scan"
+else
+  fail "build record blob missing: $(find "$TMP/out-record/downloads/r/artifacts" 2>&1)"
+fi
+
+F="$TMP/record-symlink"
+base_fixture "$F" r
+printf 'untouched\n' >"$TMP/victim2"
+artifact_record "$F" r "nothing secret here" "$TMP/victim2"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-record-symlink" --repo r --keep
+expect_rc "a build record with a symlink sweeps clean" 0
+if [[ "$(cat "$TMP/victim2")" == untouched ]]; then ok "a symlink in a build record is not written through"; else fail "victim2 overwritten: $(cat "$TMP/victim2")"; fi
+if [[ ! -L "$TMP/out-record-symlink/downloads/r/artifacts/5-x.dockerbuild/bin.strings.txt" ]]; then
+  ok "a symlink in a build record is deleted"
+else
+  fail "the build record's symlink survives"
+fi
 
 # --- A --repo that is not public is refused ----------------------------------
 F="$TMP/private"

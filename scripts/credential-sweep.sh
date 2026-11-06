@@ -27,7 +27,9 @@
 #                counted, not fetched.
 #   check-runs   output title, summary and text of each run's check runs, every
 #                attempt
-#   artifacts    every artifact created since --since, unzipped
+#   artifacts    every artifact created since --since, unzipped; one uploaded
+#                unzipped (a Docker build record's gzipped tar) is untarred or
+#                kept as its one file
 #   releases     name and body of every published release, and its assets
 #   bot-comments issue, pull request and review comments by Bot accounts
 #   bot-reviews  review bodies by Bot accounts on pull requests updated since
@@ -245,6 +247,63 @@ unpack() {
   return 1
 }
 
+# unpack_artifact <download> <dir>: an artifact uploaded unzipped (a Docker
+# build record is a gzipped tar) comes back as its own bytes, not a zip. A zip
+# goes to unpack; a tar, gzipped or not, is extracted; any other file is kept
+# as one file, gunzipped first when gzipped. The UNPACK_MAX cap applies to the
+# decompressed stream and to the extracted files; symlinks are deleted.
+unpack_artifact() {
+  local lead size name
+  lead="$(head -c 2 "$1" | od -An -tx1 | tr -d ' \n')"
+  case "$lead" in
+  504b)
+    unpack "$@"
+    return
+    ;;
+  '')
+    API_ERR="artifact download is empty"
+    rm -f "$1"
+    return 1
+    ;;
+  1f8b) size="$(gzip -dc <"$1" 2>/dev/null | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')" ;;
+  *) size="$(wc -c <"$1" | tr -d ' ')" ;;
+  esac
+  if ((size > UNPACK_MAX)); then
+    API_ERR="artifact over $UNPACK_MAX bytes uncompressed"
+    rm -f "$1"
+    return 1
+  fi
+  mkdir -p "$2"
+  name="$2/$(basename "$2")"
+  if tar -tf "$1" >/dev/null 2>&1; then
+    if ! tar -xf "$1" -C "$2" >/dev/null 2>&1; then
+      API_ERR="artifact tar did not extract"
+      rm -f "$1"
+      return 1
+    fi
+    find "$2" -type d -exec chmod u+rwx {} +
+    find "$2" -type l -delete
+    # A sparse member can declare more than the stream held.
+    size="$(find "$2" -type f -exec cat {} + | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')"
+    if ((size > UNPACK_MAX)); then
+      API_ERR="artifact over $UNPACK_MAX bytes extracted"
+      rm -rf "${2:?}"
+      rm -f "$1"
+      return 1
+    fi
+  elif [[ "$lead" == 1f8b ]]; then
+    if ! gzip -dc <"$1" >"$name" 2>/dev/null; then
+      API_ERR="artifact did not gunzip"
+      rm -f "$1"
+      return 1
+    fi
+  else
+    mv "$1" "$name"
+  fi
+  rm -f "$1"
+  return 0
+}
+
 utc() { jq -rn --argjson t "$1" '$t | strftime("%Y-%m-%dT%H:%M:%SZ")'; }
 
 # list_runs <repo> <base> <from> <to>: runs created in [from, to] (epoch
@@ -352,7 +411,7 @@ sweep_artifacts() {
     if ((rc != 0)); then
       rm -f "$dir.zip"
       gap "$r" artifacts "artifact $id ($name): $API_ERR"
-    elif unpack "$dir.zip" "$dir"; then
+    elif unpack_artifact "$dir.zip" "$dir"; then
       bump "$r" artifacts
     else
       gap "$r" artifacts "artifact $id ($name): $API_ERR"
