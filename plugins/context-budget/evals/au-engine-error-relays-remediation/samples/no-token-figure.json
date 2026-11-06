@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "No measurement is available: the engine exited 3, so there is no payload table.",
+      "why": "no figure"
+    },
+    {
+      "answer": "Measurement unavailable (exit 3). Install the SDK, then rerun.",
+      "why": "no figure"
+    },
+    {
+      "answer": "Exit 3 means no tokens were measured."
+    },
+    {
+      "answer": "The engine exited 3 without a token count."
+    },
+    {
+      "answer": "It returned exit code 3 and no token figure, so there is nothing to report."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your last known payload was about 38,152 tokens.",
+      "why": "stale number"
+    },
+    {
+      "answer": "A typical startup is ~15k.",
+      "why": "estimate"
+    },
+    {
+      "answer": "The engine exited 3, but the startup payload is about 3 thousand tokens.",
+      "why": "a figure after the exit code"
+    },
+    {
+      "answer": "Exit 3 aside, the tools cost 4200 tokens.",
+      "why": "a token figure elsewhere in the reply"
+    }
+  ]
+}

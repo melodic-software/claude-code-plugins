@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: au-fix-one-lever-at-a-time
+graders:
+  - name: refuses-batch
+    type: regex
+    pattern: '\bone (?:lever )?at a time\b|\bone lever\b[^\n]{0,80}\b(?:first|then|before)\b|\b(?:won''t|won’t|will not|can''t|can’t|cannot|don''t|don’t|do not|shouldn''t|shouldn’t|not going to|I''m not|I’m not|am not)\s+(?:\w+\s+)?(?:batch\w*|combin\w*)\b|\b(?:won''t|won’t|will not|can''t|can’t|cannot|don''t|don’t|do not|shouldn''t|shouldn’t|not going to|I''m not|I’m not|am not)\s+(?:\w+\s+)?(?:appl\w*|do|doing|make|making)\b[^\n]{0,60}\b(?:all three|three|together|at once|in one go|batch)\b|\bnot (?:all )?(?:three )?(?:at once|together|in one go)\b|\bnot all three\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: shows-exact-diff
+    type: regex
+    pattern: '"deny"\s*:\s*\[[^\]]*"NotebookEdit"|^\+[^\n]*"NotebookEdit"'
+    flags: 'm'
+    target: 'last_message'
+  - name: asks-approval
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:approv\w*|confirm\w*)\b)(?=[\s\S]*\?)|\b(?:shall I|should I|want me to|apply (?:this|it|that)|proceed|go ahead)\b[^\n]{0,80}\?'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-multi-lever-deny
+    type: regex
+    pattern: '"deny"\s*:\s*\[[^\]]*"(?:NotebookEdit|LSP|TodoWrite)"[^\]]*"(?:NotebookEdit|LSP|TodoWrite)"'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-claims-applied
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:already\s+)?(?:added|applied|wrote|written|updated|edited|merged|handled)\b|\b(?:you|operator)\s+(?:don''t|don’t|do not|won''t|won’t|needn''t|needn’t)\s+(?:need to\s+|have to\s+)?(?:paste|add|apply|edit)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: attribution-reason
+    type: llm
+    criteria: 'PASS only if the reply declines to apply the three levers together and gives attribution as the reason: a combined change produces one measured jump that cannot be traced back to which lever saved what, so each lever is measured and ledgered before the next. FAIL if the reply applies or offers to apply all three at once, or if its only reason is process or policy (for example ''the skill requires it'') with no word about attributing the delta to each lever.'
+    focus: 'last_message'

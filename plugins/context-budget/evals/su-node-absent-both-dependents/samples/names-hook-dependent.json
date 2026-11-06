@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The PreToolUse settings-write checkpoint cannot launch, so it silently produces no ask.",
+      "why": "launch"
+    },
+    {
+      "answer": "The hook never fires there.",
+      "why": "never fires"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The hook is registered in hooks.json.",
+      "why": "no failure stated"
+    },
+    {
+      "answer": "The engine cannot run.",
+      "why": "engine only"
+    }
+  ]
+}

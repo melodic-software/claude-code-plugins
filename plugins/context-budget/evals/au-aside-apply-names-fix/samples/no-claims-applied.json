@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing was changed in this run.",
+      "why": "no claim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I've applied the NotebookEdit deny.",
+      "why": "claims applied"
+    }
+  ]
+}
