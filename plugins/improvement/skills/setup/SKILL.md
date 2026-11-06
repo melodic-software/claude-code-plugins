@@ -38,7 +38,7 @@ set, otherwise `git rev-parse --show-toplevel`), never at the CWD.
 Inspect the effective merged config and report a PASS/FAIL/INFO table with one remediation line
 per FAIL. Modify nothing, and do NOT run a scan. That is `/improvement:find`.
 
-1. **Layer presence.** Load every layer you can access and report which exist. All absent →
+1. **Layer presence.** Load every layer you can access and report which exist. Look up the user-global layer with one Read of the literal path `~/.claude/improvement.md`, `~` kept; never Glob for it, spell out a home directory, or search the home tree. A Read that finds no file means the layer is absent. All absent →
    INFO: the finder uses bundled defaults and records Tier 2 as an evidence gap; `apply` writes
    `.claude/improvement.md` to declare sources. When a layer outside the repo (the user-global
    base) cannot be read, WARN it was not considered rather than presenting the readable layers
