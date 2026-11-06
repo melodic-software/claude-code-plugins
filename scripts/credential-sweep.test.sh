@@ -696,8 +696,14 @@ fi
 # The stub sleep logs each spacing wait and returns at once.
 F="$TMP/interval"
 base_fixture "$F" r
-sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-default" --repo r
+: >"$F.sleep"
+STUB_SLEEP_LOG="$F.sleep" sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-default" --repo r
 expect_out "the default interval is 1 second" 'Interval: 1s between request starts.'
+if [[ -s "$F.sleep" ]] && awk '!($1 > 0 && $1 <= 1) { bad = 1 } END { exit bad }' "$F.sleep"; then
+  ok "with no --interval, each spacing wait is above 0 and at most 1 second"
+else
+  fail "spacing waits wrong for the default interval: '$(cat "$F.sleep")'"
+fi
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-interval-frac" --repo r --interval .5
 expect_out "an interval with no whole part is accepted" 'Interval: .5s between request starts.'
 : >"$F.sleep"

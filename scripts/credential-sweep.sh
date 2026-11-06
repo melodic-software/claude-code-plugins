@@ -92,7 +92,7 @@ OUT=""
 KEEP=0
 RESERVE=1500
 INTERVAL=1
-INTERVAL_US=1000000
+INTERVAL_US=""
 LAST_START=""
 
 DL=""
@@ -162,6 +162,8 @@ set_interval() {
 space() {
   local now="${EPOCHREALTIME/[.,]/}" wait
   if [[ -n "$LAST_START" ]] && ((wait = LAST_START + INTERVAL_US - now, wait > 0)); then
+    # A wall clock stepped back would ask for more than one interval.
+    ((wait <= INTERVAL_US)) || wait=$INTERVAL_US
     sleep "$((wait / 1000000)).$(printf '%06d' $((wait % 1000000)))"
     now="${EPOCHREALTIME/[.,]/}"
   fi
@@ -724,12 +726,13 @@ main() {
       --repo) REPOS+=("$2") ;;
       --since) SINCE="$2" ;;
       --reserve) RESERVE="$2" ;;
-      --interval) set_interval "$2" || die "usage: --interval SECONDS takes a number such as 1 or 1.5, got '$2'" ;;
+      --interval) INTERVAL="$2" ;;
       *) OUT="$2" ;;
     esac
     shift 2
   done
   [[ "$RESERVE" =~ ^[0-9]+$ ]] || die "--reserve must be a whole number, got '$RESERVE'"
+  set_interval "$INTERVAL" || die "usage: --interval SECONDS takes a number such as 1 or 1.5, got '$INTERVAL'"
   [[ -n "${EPOCHREALTIME:-}" ]] || die "bash 5 or later is required (EPOCHREALTIME spaces the requests)"
   for tool in gh jq unzip strings gitleaks; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
