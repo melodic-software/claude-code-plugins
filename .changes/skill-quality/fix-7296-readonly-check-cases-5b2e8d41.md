@@ -2,4 +2,6 @@
 bump: patch
 ---
 
-`check`: the check 18 Gotchas entry now says which fenced shell blocks qualify as a precompute opportunity, so the hub answers that without reading the checker's source
+### Fixed
+
+- `/skill-quality:check`: the check 18 Gotchas entry says which fenced shell blocks count as a precompute opportunity, so a reader no longer has to open the checker's source to find out.
