@@ -1201,7 +1201,7 @@ export function brokerDeadline(verb, values) {
 
 // ESC sequences (CSI, OSC, two-byte), then every other C0 and C1 control but \n and \t.
 const ESCAPES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-_])/g;
-const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+const CONTROLS = /[\x00-\x08\x0b-\x1f\x7f-\x9f\u2028\u2029]/g;
 
 /** A writer that strips control characters from relayed text and starts each line with RELAY_PREFIX. */
 export function relayLines(stream) {

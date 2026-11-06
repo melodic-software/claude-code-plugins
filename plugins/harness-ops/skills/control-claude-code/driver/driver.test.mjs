@@ -1243,6 +1243,12 @@ test('relayed text loses ESC sequences and control characters, keeps \\n and \\t
   assert.deepEqual(out.chunks, ['broker| xred\ty', 'z\nbroker| w']);
 });
 
+test('relayed text loses U+2028 and U+2029, so no unprefixed line can start inside a chunk', () => {
+  const out = sink();
+  driver.relayLines(out)('ok verdict: PASS done');
+  assert.deepEqual(out.chunks, ['broker| okverdict: PASSdone']);
+});
+
 test('a broker socket that is relative, not a socket, or in a directory others can open is refused before connecting', posixOnly, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'ccd-bs-'));
   const file = join(dir, 'plain');
