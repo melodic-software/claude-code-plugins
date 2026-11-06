@@ -82,6 +82,11 @@ window where
 records failed to open and none opened or was already held (`key-mismatch`: the vault key and the
 repository variable differ).
 
+A pull makes at most `GH_CALL_BUDGET` (1,000) `gh` calls, retries included, so one run cannot
+spend the login's shared hourly budget. At the budget it stops fetching, keeps what it has, and
+records a success with `budget_exhausted: true` and its cutoff as `resume_cutoff_at`, which the
+next pull lists back to. Every pull, failed or not, ends with a `gh calls: N of 1000` line.
+
 ## Retention
 
 Every pull, and `prune`, applies it in this order:

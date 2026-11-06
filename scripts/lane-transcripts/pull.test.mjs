@@ -184,6 +184,42 @@ test("a pull that hits the listing call cap before the cutoff fails with call-ca
   assert.equal(stateOf(sink).last_error, "call-cap: 2 listing calls did not reach the last pull's cutoff");
 });
 
+test("a pull stops at its gh call budget, records a success that says so, and the next pull a day later still reaches what it left", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
+  // Three artifacts under the first listed name, each its own run, two days old.
+  const backlog = [301, 302, 303].map((id) => artifact(id, { jobId: "refine-issue", runId: id, createdAt: NOW - 2 * 86400_000, record: sealed(publicLine, { runId: id, jobId: "refine-issue" }) }));
+  // Budget 5: one listing call, then a zip and a run read for each of two artifacts.
+  const first = { ...fakeDeps(backlog), ghCallBudget: 5 };
+  const stopped = run(["pull", "--sink", sink], { env: env(), deps: first });
+  assert.equal(stopped.code, 0, stopped.err);
+  assert.equal(first.calls.length, 5, "no call past the budget");
+  assert.match(stopped.out, /gh calls: 5 of 5/);
+  assert.equal(readRows(sink).length, 2);
+  const state = stateOf(sink);
+  assert.deepEqual({ at: state.last_success_at, error: state.last_error, exhausted: state.budget_exhausted, calls: state.gh_calls }, { at: new Date(NOW).toISOString(), error: null, exhausted: true, calls: 5 });
+  const shown = JSON.parse(run(["status", "--sink", sink], { deps: fakeDeps([]) }).out);
+  assert.deepEqual({ stale: shown.stale, exhausted: shown.budget_exhausted, resume: shown.resume_cutoff_at }, { stale: false, exhausted: true, resume: new Date(NOW - 7 * 86400_000).toISOString() });
+
+  const second = fakeDeps(backlog, { now: NOW + 86400_000 });
+  const resumed = run(["pull", "--sink", sink], { env: env(), deps: second });
+  assert.equal(resumed.code, 0, resumed.err);
+  assert.deepEqual(second.calls.filter((c) => c.endsWith("/zip")), [`api repos/${REPO}/actions/artifacts/303/zip`], "only the artifact the stopped pull left");
+  assert.deepEqual(readRows(sink).map((r) => r.artifact_id).sort(), [301, 302, 303]);
+  assert.equal(stateOf(sink).budget_exhausted, false);
+  assert.match(resumed.out, new RegExp(`gh calls: ${second.calls.length} of `));
+});
+
+test("a failed pull still logs its gh call count", () => {
+  const { privateText } = generate();
+  const deps = fakeDeps([], { failures: { "lane-transcript-refine-issue-1&per_page=100&page=1": 99 } });
+  const result = run(["pull", "--sink", sinkDir()], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps: { ...deps, ghAttempts: 2 } });
+  assert.equal(result.code, 1);
+  assert.match(result.out, /gh calls: 2 of /);
+  assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
+});
+
 // The job-id each upload-lane-transcript step passes, read from the workflow
 // text: the enclosing job's key stands in for github.job.
 const WORKFLOWS = path.join(import.meta.dirname, "..", "..", ".github", "workflows");
