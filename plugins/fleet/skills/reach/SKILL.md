@@ -52,6 +52,9 @@ Placeholders, each filled from FLEET.md or a probe, never guessed:
 - `<claude-exe>`: `/mnt/c/Users/<user>/.local/bin/claude.exe`, by absolute path.
 - `<win-dir>`: a scratch directory under `/mnt/c/Users/<user>/` (`claude.exe` needs a Windows-side
   working directory), never a repository that defines the fleet's accounts or firewall.
+- Use FLEET.md's `/mnt/c` paths as given: never check them with file tools (Read, Glob, Grep),
+  and never ask a subagent's brief to. The hop check in
+  [Verify the hop](#verify-the-hop-before-you-trust-it) is what proves them.
 - `<distro>`: from `wsl.exe -l -q`. `<shell>`: the distro account's login shell, so `claude` is on
   `PATH`.
 
@@ -188,7 +191,8 @@ on-demand tasks FLEET.md lists.
 ## Permission and safety posture
 
 - Every verb except running a script starts an agent in another lane, same machine included, and
-  these prompt under auto mode by design; let them prompt. A script is judged on its own content.
+  these prompt under auto mode by design; let them prompt, and say so with every such command you
+  run, delegate or hand over. A script is judged on its own content.
   When a prompt's cause is in doubt, fetch
   [Eliminate prompts with auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
   live (as of 2026-10-11; recheck when that section changes what the classifier lets through
