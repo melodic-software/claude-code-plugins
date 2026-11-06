@@ -913,3 +913,7 @@ test("live config: models.issue-status bot-setters are github-actions[bot] and t
     assert.ok(FILES.trustedActors.actors.some((actor) => actor.id === entry.id && actor.login === entry.login && actor.kind === "bot"), entry.login);
   }
 });
+
+test("live config: models.issue-status field-events-since loads as the S2a cutover time", () => {
+  assert.equal(PLAN_CONFIG.models["issue-status"]["field-events-since"], "2026-11-07T12:00:00Z");
+});

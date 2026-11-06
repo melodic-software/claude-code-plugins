@@ -84,7 +84,8 @@ export function issueStatus(facts, config, trustedActors) {
 // labels no other state has, order lists every state once and ends on the
 // floor, and the field is none of models.issue-dimensions'. Each `bot-setters`
 // entry is github-actions[bot] or a `melodic-` bot other than the lanes App,
-// and no id is listed twice. Whether the trusted-actor list still holds an
+// and no id is listed twice. `field-events-since`, when set, is a real UTC
+// time in the form the schema's pattern allows. Whether the trusted-actor list still holds an
 // entry is issueStatus's to read, not a config error.
 export function checkStatus(config, dimensions) {
   const reject = (message) => {
@@ -136,5 +137,9 @@ export function checkStatus(config, dimensions) {
     if (login === LANES_APP_LOGIN || !/^melodic-.+\[bot\]$/.test(login)) {
       reject(`.bot-setters names ${login}, which is neither github-actions[bot] nor a melodic- bot other than the lanes App`);
     }
+  }
+  const since = config["field-events-since"];
+  if (since !== undefined && (typeof since !== "string" || Number.isNaN(Date.parse(since)) || new Date(since).toISOString().replace(".000Z", "Z") !== since)) {
+    reject(`.field-events-since \`${since}\` is no ISO UTC time such as 2026-11-07T12:00:00Z`);
   }
 }

@@ -1,12 +1,14 @@
 // The Work status reader over the live models.issue-status: a field a trusted
-// account set replaces the issue's status labels with its state's; a field
-// unset, set by an untrusted account, or unreadable leaves the labels as they
-// are.
+// account set replaces the issue's queue labels with its state's and keeps
+// hold labels; a field unset, set by an untrusted account, or unreadable
+// leaves the labels as they are. statusEvents merges the field's history into
+// the REST events as label events.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
-import { statusLabels, statusReader } from "./read-status.mjs";
+import { collapseStatus } from "./issue-status.mjs";
+import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
+import { StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
 
 const unexpected = async (method, path) => {
   throw new Error(`unexpected ${method} ${path}`);
@@ -24,25 +26,37 @@ function reader(fields, extra = {}) {
   return { labels, lines, calls };
 }
 
-test("with a status label on the issue, the labels decide and the field only adds a hold they lack", () => {
-  assert.deepEqual(statusLabels("agent-ready", ["needs-human", "priority: high"], STATUS_CONFIG), ["needs-human", "priority: high"]);
-  assert.deepEqual(statusLabels("ready", ["status: needs-info"], STATUS_CONFIG), ["status: needs-info"]);
-  assert.deepEqual(statusLabels("needs-human", ["agent-ready"], STATUS_CONFIG), ["agent-ready", "needs-human"]);
-  assert.deepEqual(statusLabels("needs-human", ["status: needs-decision"], STATUS_CONFIG), ["status: needs-decision"]);
-  assert.deepEqual(statusLabels("needs-triage", ["Status: Ready"], STATUS_CONFIG), ["Status: Ready"]);
+test("with no trusted field state, the labels are returned unchanged", () => {
+  for (const state of [null, undefined]) {
+    assert.deepEqual(statusLabels(state, ["agent-ready", "status: ready"], STATUS_CONFIG), ["agent-ready", "status: ready"]);
+  }
 });
 
-test("with no status label, the field decides alone, and its floor adds nothing", () => {
-  assert.deepEqual(statusLabels("agent-ready", ["priority: high"], STATUS_CONFIG), ["priority: high", "agent-ready"]);
-  assert.deepEqual(statusLabels("needs-owner-decision", [], STATUS_CONFIG), ["status: needs-decision", "needs-owner-decision"]);
-  assert.deepEqual(statusLabels("needs-triage", [], STATUS_CONFIG), []);
-  assert.deepEqual(statusLabels(null, ["agent-ready"], STATUS_CONFIG), ["agent-ready"]);
+test("a trusted queue state replaces a stale queue label with its own first label", () => {
+  assert.deepEqual(statusLabels("ready", ["status: confirmed", "priority: high"], STATUS_CONFIG), ["priority: high", "status: ready"]);
+  assert.deepEqual(statusLabels("needs-triage", ["Status: Ready"], STATUS_CONFIG), ["needs-triage"]);
+  assert.deepEqual(statusLabels("deferred", ["status: ready", "admission-deferred"], STATUS_CONFIG), ["admission-deferred"]);
+  assert.deepEqual(statusLabels("confirmed", [], STATUS_CONFIG), ["status: confirmed"]);
 });
 
-test("a field equal to what the labels collapse to changes no label set", async () => {
+test("a trusted state keeps every hold label and agent-ready, and adds a hold's first label once", () => {
+  assert.deepEqual(statusLabels("ready", ["needs-human", "agent-ready", "status: confirmed"], STATUS_CONFIG), ["needs-human", "agent-ready", "status: ready"]);
+  assert.deepEqual(statusLabels("needs-human", ["status: needs-decision"], STATUS_CONFIG), ["status: needs-decision", "needs-human"]);
+  assert.deepEqual(statusLabels("needs-human", ["Needs-Human"], STATUS_CONFIG), ["Needs-Human"]);
+  assert.deepEqual(statusLabels("needs-owner-decision", [], STATUS_CONFIG), ["status: needs-decision"]);
+});
+
+test("a trusted agent-ready adds no label and still drops stale queue labels", () => {
+  assert.deepEqual(statusLabels("agent-ready", ["priority: high"], STATUS_CONFIG), ["priority: high"]);
+  assert.deepEqual(statusLabels("agent-ready", ["status: ready", "agent-ready"], STATUS_CONFIG), ["agent-ready"]);
+});
+
+// A field holding what the labels collapse to leaves the collapse as it was.
+test("a field equal to what the labels collapse to leaves their collapse unchanged", () => {
   const sets = [[], ["priority: high"], ["needs-triage"], ["agent-ready"], ["agent-ready", "needs-spec"], ["status: ready", "admission-deferred"], ["status: confirmed", "status: ready"], ["needs-owner-decision"], ["needs-human", "agent-ready"]];
   for (const names of sets) {
-    assert.deepEqual(await mirroredStatusOf(1, names), names, JSON.stringify(names));
+    const state = collapseStatus(names, STATUS_CONFIG);
+    assert.equal(collapseStatus(statusLabels(state, names, STATUS_CONFIG), STATUS_CONFIG), state, JSON.stringify(names));
   }
 });
 
@@ -76,33 +90,194 @@ test("a value the newest field event does not name reads as unset", async () => 
   assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-human" } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
 });
 
-test("a failed read warns and leaves the labels to decide", async () => {
-  const { labels, lines } = reader({ 7: new Error("GET answered 500") });
-  assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready"]);
-  assert.match(lines[0], /^::warning title=work-status::#7's Work status field could not be read/);
+// The labels alone could miss a hold that exists only on the field.
+const unreadable = (error) => error instanceof StatusReadError && error.name === "StatusReadError" && error.number === 7;
+
+test("a failed field read throws StatusReadError naming the issue and the cause", async () => {
+  const { labels } = reader({ 7: new Error("GET answered 500") });
+  await assert.rejects(() => labels(7, ["agent-ready"]), (error) => unreadable(error) && error.message === "#7's Work status could not be read: GET answered 500");
 });
 
 test("an unset models.issue-status reads nothing", async () => {
   const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { config: null });
   assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready"]);
+  assert.deepEqual(await labels(7, ["needs-triage", "status: ready"]), ["needs-triage", "status: ready"]);
   assert.deepEqual(calls, []);
   assert.deepEqual(lines, []);
 });
 
-test("an unreadable trusted-actor list warns once and reads nothing", async () => {
+test("an unreadable trusted-actor list warns once and makes every read throw, naming the load cause", async () => {
   const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { trustedActors: undefined, env: { TRUSTED_ACTORS_PATH: "/nonexistent/trusted.json" } });
-  assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready"]);
-  assert.deepEqual(await labels(8, ["agent-ready"]), ["agent-ready"]);
+  const loadFailed = (number) => (error) => error instanceof StatusReadError && error.number === number && /ENOENT/.test(error.message);
+  await assert.rejects(() => labels(7, ["agent-ready"]), loadFailed(7));
+  await assert.rejects(() => labels(8, ["agent-ready"]), loadFailed(8));
+  await assert.rejects(() => labels.events(7), loadFailed(7));
   assert.deepEqual(calls, []);
   assert.equal(lines.length, 1);
 });
 
-test("each call reads the field fresh, and past the limit the labels decide", async () => {
+test("each call reads the field fresh, and a read past the limit throws", async () => {
   const fields = { 7: { state: "ready" }, 8: { state: "ready" } };
   const { labels, calls } = reader(fields, { limit: 2 });
   assert.deepEqual(await labels(7, []), ["status: ready"]);
   fields[7] = { state: "needs-human" };
   assert.deepEqual(await labels(7, []), ["needs-human"]);
-  assert.deepEqual(await labels(8, []), []);
+  await assert.rejects(() => labels(8, []), (error) => error instanceof StatusReadError && error.number === 8 && /limit of 2 field reads/.test(error.message));
   assert.equal(calls.length, 4);
+});
+
+// statusEvents: field events (fieldEvents' shape) as REST label events.
+const FIELD = String(STATUS_CONFIG["field-id"]);
+const PERSON = { actorId: HUMAN_ID, actorLogin: "person", actorType: "User" };
+const APP = { actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot" };
+const change = (at, from, to, who = PERSON, rest = {}) => ({ field: FIELD, removed: false, at, from, to, ...who, ...rest });
+const label = (event, name, actor, created_at, id = null) => ({ id, event, label: { name }, actor, created_at });
+const personActor = { id: HUMAN_ID, login: "person", type: "User" };
+const appActor = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
+
+// `github` answering the REST event list of issue 7 with `rest`.
+function restEvents(rest, calls = []) {
+  return async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (method === "GET" && path === "/repos/o/r/issues/7/events?per_page=100&page=1") {
+      return rest;
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+}
+const eventsOf = (rest, field, extra = {}) =>
+  statusEvents({ github: restEvents(rest), repository: "o/r", number: 7, config: STATUS_CONFIG, fieldEvents: async () => field, ...extra });
+
+test("a field change is an unlabeled of the old state's first label, then a labeled of the new one's", () => {
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", "needs-human", "needs-triage"), STATUS_CONFIG), [
+    label("unlabeled", "needs-human", personActor, "2026-11-08T10:00:00Z"),
+    label("labeled", "needs-triage", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", null, "needs-owner-decision"), STATUS_CONFIG), [
+    label("labeled", "status: needs-decision", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+});
+
+test("a field removal is an unlabeled of the state it held", () => {
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", "confirmed", null, PERSON, { removed: true }), STATUS_CONFIG), [
+    label("unlabeled", "status: confirmed", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+});
+
+test("a bot actor's login gets [bot], as REST names it", () => {
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", null, "ready", APP), STATUS_CONFIG), [label("labeled", "status: ready", appActor, "2026-11-08T10:00:00Z")]);
+});
+
+test("a change into or out of agent-ready makes no agent-ready event", () => {
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", "deferred", "agent-ready"), STATUS_CONFIG), [
+    label("unlabeled", "admission-deferred", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", "agent-ready", "needs-human"), STATUS_CONFIG), [
+    label("labeled", "needs-human", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+  assert.deepEqual(syntheticFrom(change("2026-11-08T10:00:00Z", null, "agent-ready"), STATUS_CONFIG), []);
+});
+
+test("bot field events before since are dropped, and a person's before it are kept", async () => {
+  const field = [
+    change("2026-11-07T11:00:00Z", null, "needs-human", APP),
+    change("2026-11-07T11:30:00Z", "needs-human", "needs-triage"),
+    change("2026-11-07T13:00:00Z", "needs-triage", "ready", APP),
+  ];
+  const kept = [
+    label("unlabeled", "needs-human", personActor, "2026-11-07T11:30:00Z"),
+    label("labeled", "needs-triage", personActor, "2026-11-07T11:30:00Z"),
+    label("unlabeled", "needs-triage", appActor, "2026-11-07T13:00:00Z"),
+    label("labeled", "status: ready", appActor, "2026-11-07T13:00:00Z"),
+  ];
+  assert.deepEqual(await eventsOf([], field, { since: "2026-11-07T12:00:00Z" }), kept);
+  // The default is the config's field-events-since, 2026-11-07T12:00:00Z.
+  assert.deepEqual(await eventsOf([], field), kept);
+  // A config with no cutoff keeps every field event.
+  assert.equal((await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": undefined } })).length, 5);
+});
+
+test("events merge by time, REST first at the same second, REST by id", async () => {
+  const rest = [
+    label("labeled", "priority: high", personActor, "2026-11-08T09:00:00Z", 9),
+    label("labeled", "bug", personActor, "2026-11-08T10:00:00Z", 5),
+    label("labeled", "docs", personActor, "2026-11-08T10:00:00Z", 3),
+  ];
+  const field = [change("2026-11-08T09:30:00Z", null, "confirmed"), change("2026-11-08T10:00:00Z", "confirmed", "needs-human")];
+  assert.deepEqual(
+    (await eventsOf(rest, field)).map((event) => `${event.id ?? "field"} ${event.event} ${event.label.name}`),
+    ["9 labeled priority: high", "field labeled status: confirmed", "3 labeled docs", "5 labeled bug", "field unlabeled status: confirmed", "field labeled needs-human"],
+  );
+});
+
+test("an issue with only field history and no label event reads its field changes, other fields ignored", async () => {
+  const field = [change("2026-11-08T09:00:00Z", null, "deferred", APP), { ...change("2026-11-08T09:01:00Z", null, "Medium"), field: "15462270" }];
+  assert.deepEqual(await eventsOf([], field), [label("labeled", "admission-deferred", appActor, "2026-11-08T09:00:00Z")]);
+});
+
+// statusReader's events(number): one field event read serves labels and events.
+const node = (typename, at, values, actor) => ({ __typename: typename, createdAt: at, ...values, actor, issueField: { fullDatabaseId: FIELD } });
+const historyFields = () => ({
+  7: {
+    state: "needs-triage",
+    nodes: [
+      node("IssueFieldAddedEvent", "2026-11-08T09:00:00Z", { value: "needs-human" }, { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 }),
+      node("IssueFieldChangedEvent", "2026-11-08T10:00:00Z", { previousValue: "needs-human", newValue: "needs-triage" }, { __typename: "User", login: "person", databaseId: HUMAN_ID }),
+    ],
+  },
+});
+function historyReader(extra = {}) {
+  const calls = [];
+  const github = withFields(restEvents([], calls), historyFields());
+  const counted = async (method, path, body, headers) => {
+    if (path === "/graphql" || path.includes("issue-field-values")) {
+      calls.push(`${method} ${path}`);
+    }
+    return github(method, path, body, headers);
+  };
+  const lines = [];
+  const labels = statusReader({ github: counted, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: (line) => lines.push(line), ...extra });
+  return { labels, calls, lines };
+}
+
+test("reader events reuse the field events its labels call read, so the issue's field history is read once", async () => {
+  const { labels, calls, lines } = historyReader();
+  assert.deepEqual(await labels(7, ["needs-human"]), ["needs-human", "needs-triage"]);
+  assert.deepEqual(await labels.events(7), [
+    label("labeled", "needs-human", appActor, "2026-11-08T09:00:00Z"),
+    label("unlabeled", "needs-human", personActor, "2026-11-08T10:00:00Z"),
+    label("labeled", "needs-triage", personActor, "2026-11-08T10:00:00Z"),
+  ]);
+  assert.deepEqual(calls, ["GET /repos/o/r/issues/7/issue-field-values", "POST /graphql", "GET /repos/o/r/issues/7/events?per_page=100&page=1"]);
+  assert.deepEqual(lines, []);
+});
+
+test("reader events with no labels call read the field events themselves", async () => {
+  const { labels, calls } = historyReader();
+  assert.equal((await labels.events(7)).length, 3);
+  assert.deepEqual(calls, ["GET /repos/o/r/issues/7/events?per_page=100&page=1", "POST /graphql"]);
+});
+
+test("reader events with no config are the REST events alone", async () => {
+  const unset = historyReader({ config: null });
+  assert.deepEqual(await unset.labels.events(7), []);
+  assert.deepEqual(unset.calls, ["GET /repos/o/r/issues/7/events?per_page=100&page=1"]);
+});
+
+test("reader events past the limit throw and read nothing", async () => {
+  const capped = historyReader({ limit: 0 });
+  await assert.rejects(() => capped.labels.events(7), (error) => unreadable(error) && /limit of 0 field reads/.test(error.message));
+  assert.deepEqual(capped.calls, []);
+});
+
+test("reader events whose field history cannot be read throw StatusReadError", async () => {
+  const github = withFields(restEvents([label("labeled", "needs-human", personActor, "2026-11-08T09:00:00Z", 1)]), { 7: new Error("GraphQL answered 502") });
+  const failing = async (method, path, body, headers) => {
+    if (path === "/graphql") {
+      throw new Error("GraphQL answered 502");
+    }
+    return github(method, path, body, headers);
+  };
+  const labels = statusReader({ github: failing, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  await assert.rejects(() => labels.events(7), (error) => unreadable(error) && error.message.endsWith("GraphQL answered 502"));
 });

@@ -1085,6 +1085,8 @@ models:
       - { id: 302525172, login: "melodic-ci-runner-observer[bot]" }
       - { id: 315045210, login: "melodic-claude-lanes-repin[bot]" }
       - { id: 337859524, login: "melodic-plugin-release[bot]" }
+    # Bot field events before this time are label mirrors and never count as history.
+    field-events-since: "2026-11-07T12:00:00Z"
     options:
       "84879216": needs-triage
       "84879217": needs-reporter-info

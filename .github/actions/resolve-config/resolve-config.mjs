@@ -12,6 +12,7 @@ import {
   createGitHub,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { issueStatus } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
@@ -76,21 +77,29 @@ function readJsonUnderBase(basePath, relative) {
 
 // The REST version that documents issue-field-values.
 const FIELD_API_VERSION = "2026-03-10";
-// The newest field events; the REST timeline names the actor but not the field.
-const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { issue(number: $number) {
-    timelineItems(last: 100, itemTypes: [ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]) {
-      nodes {
+// The field event selection; the REST timeline names the actor but not the field.
+const FIELD_EVENT_TYPES = "[ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]";
+const FIELD_EVENT_NODES = `nodes {
         __typename
         ... on IssueFieldAddedEvent { createdAt value actor { ...who } issueField { ...field } }
         ... on IssueFieldChangedEvent { createdAt previousValue newValue actor { ...who } issueField { ...field } }
         ... on IssueFieldRemovedEvent { createdAt actor { ...who } issueField { ...field } }
-      }
+      }`;
+const FIELD_FRAGMENTS = `fragment who on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }
+fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
+const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    timelineItems(last: 100, itemTypes: ${FIELD_EVENT_TYPES}) {
+      ${FIELD_EVENT_NODES}
     }
   } }
 }
-fragment who on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }
-fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
+${FIELD_FRAGMENTS}`;
+
+const graphqlFailure = (answer, what) =>
+  Array.isArray(answer?.errors) && answer.errors.length > 0
+    ? new Error(`${what} could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`)
+    : null;
 
 // The issue's newest 100 single-select field events, oldest first, each
 // {field, removed, actorId, actorLogin, actorType, at, from, to}: `field` the
@@ -102,8 +111,9 @@ fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId }
 export async function fieldEvents(github, repository, number) {
   const [owner, name] = repository.split("/");
   const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
-  if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
-    throw new Error(`the issue's field events could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`);
+  const failure = graphqlFailure(answer, "the issue's field events");
+  if (failure) {
+    throw failure;
   }
   const issue = answer?.data?.repository?.issue;
   if (issue === null || typeof issue !== "object") {
@@ -113,6 +123,10 @@ export async function fieldEvents(github, repository, number) {
   if (!Array.isArray(nodes)) {
     throw new Error("the issue's field events answer holds no event list");
   }
+  return eventsFrom(nodes);
+}
+
+function eventsFrom(nodes) {
   const text = (value) => (typeof value === "string" ? value : null);
   const held = Object.create(null);
   const events = [];
@@ -143,11 +157,86 @@ export async function fieldEvents(github, repository, number) {
 // Field id -> the account id that last set it (null after a removal or for an
 // actor with no id), from fieldEvents.
 export async function fieldSetters(github, repository, number) {
+  return settersOf(await fieldEvents(github, repository, number));
+}
+
+function settersOf(events) {
   const setters = Object.create(null);
-  for (const event of await fieldEvents(github, repository, number)) {
+  for (const event of events) {
     setters[event.field] = event.removed ? null : event.actorId;
   }
   return setters;
+}
+
+// Pages of 100 open issues issuesByStatus reads before it throws.
+export const MAX_ISSUE_PAGES = 20;
+// Field events per issue in the listing: the Work status setter is the newest
+// Work status event among them.
+const LISTED_FIELD_EVENTS = 20;
+const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
+  repository(owner: $owner, name: $name) {
+    issues(states: OPEN, first: 100, after: $cursor, filterBy: { since: $since }) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        createdAt
+        labels(first: 30) { nodes { name } }
+        issueFieldValues(first: 10) { nodes { ... on IssueFieldSingleSelectValue { name field { ...field } } } }
+        timelineItems(last: ${LISTED_FIELD_EVENTS}, itemTypes: ${FIELD_EVENT_TYPES}) {
+          ${FIELD_EVENT_NODES}
+        }
+      }
+    }
+  }
+}
+${FIELD_FRAGMENTS}`;
+
+// The open issues whose Work status is one of `states`, oldest page first,
+// each {number, created_at, labels, state}: `labels` the label names, `state`
+// the trusted field state (issue-status.mjs issueStatus with `config` and
+// `trustedActors`), or null for an issue whose field no counted account set
+// and that carries one of those states' labels, which decide until the field
+// is set. `since` (ISO time, optional) keeps only issues updated at or after
+// it. A field value is read by its option name, a state name; a counted name
+// `config` does not map throws `unmapped-status`. More than MAX_ISSUE_PAGES
+// pages, a GraphQL error or a malformed answer throws.
+export async function issuesByStatus(github, repository, states, { since, config, trustedActors } = {}) {
+  const [owner, name] = repository.split("/");
+  const option = Object.fromEntries(Object.entries(config.options).map(([id, state]) => [state, Number(id)]));
+  const wanted = new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
+  const found = [];
+  let cursor = null;
+  for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
+    const answer = await github("POST", "/graphql", { query: OPEN_ISSUES, variables: { owner, name, cursor, since: since ?? null } });
+    const failure = graphqlFailure(answer, "the open issues");
+    if (failure) {
+      throw failure;
+    }
+    const issues = answer?.data?.repository?.issues;
+    if (!Array.isArray(issues?.nodes) || typeof issues.pageInfo?.hasNextPage !== "boolean") {
+      throw new Error("the open issues answer holds no issue list");
+    }
+    for (const node of issues.nodes) {
+      const labels = (node?.labels?.nodes ?? []).map((label) => label?.name).filter((label) => typeof label === "string");
+      const fieldValues = (node?.issueFieldValues?.nodes ?? [])
+        .filter((value) => typeof value?.name === "string" && typeof value.field?.fullDatabaseId === "string")
+        .map((value) => ({ field: Number(value.field.fullDatabaseId), option: option[value.name] ?? value.name }));
+      const nodes = node?.timelineItems?.nodes;
+      if (!Number.isInteger(node?.number) || !Array.isArray(nodes)) {
+        throw new Error("the open issues answer holds an issue with no number or event list");
+      }
+      // The value and its events come from one read, so no fieldNames check.
+      const state = issueStatus({ fieldValues, fieldSetters: settersOf(eventsFrom(nodes)) }, config, trustedActors);
+      if (state === null ? labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(state)) {
+        found.push({ number: node.number, created_at: node.createdAt, labels, state });
+      }
+    }
+    if (!issues.pageInfo.hasNextPage) {
+      return found;
+    }
+    cursor = issues.pageInfo.endCursor;
+  }
+  throw new Error(`the open issues run past ${MAX_ISSUE_PAGES} pages`);
 }
 
 async function gatherFacts(

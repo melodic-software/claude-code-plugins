@@ -203,3 +203,15 @@ test("read: a value the newest field event names differently reads null, for any
     assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: null } }, CONFIG, TRUSTED), "needs-human", `${setter}, no name`);
   }
 });
+
+test("check: field-events-since must be a real ISO UTC time, and may be unset", () => {
+  checkStatus({ ...CONFIG, "field-events-since": "2026-11-07T12:00:00Z" }, undefined);
+  checkStatus({ ...CONFIG, "field-events-since": undefined }, undefined);
+  for (const since of ["2026-13-01T00:00:00Z", "2026-02-30T00:00:00Z", "yesterday", "2026-11-07T12:00:00+01:00", "2026-11-07", 20261107]) {
+    assert.throws(
+      () => checkStatus({ ...CONFIG, "field-events-since": since }, undefined),
+      (error) => error instanceof Rejection && error.code === "undefined-status" && error.message.includes("field-events-since"),
+      String(since),
+    );
+  }
+});
