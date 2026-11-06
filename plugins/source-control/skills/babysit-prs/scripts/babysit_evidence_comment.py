@@ -123,8 +123,10 @@ def evidence_body(
             MARKER,
             f"### Verification evidence for {head}",
             "",
-            "The verifier passed this head. The capture job's screenshots and "
-            "video are kept as a CI artifact; this comment uploads no file.",
+            "The verifier passed this head. The capture artifact holds the "
+            "capture summary, which says whether the capture ran, and any "
+            "screenshot or video that passed the mask check; this comment "
+            "uploads no file.",
             "",
             f"Capture artifact: [{capture['name']}]({url}), {expiry}.",
             "",
