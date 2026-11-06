@@ -1471,7 +1471,10 @@ test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage er
 
 // ---- cli/account.mjs, run against a stub claude ----
 // The stub outputs follow `claude auth status --json` from Claude Code 2.1.319: `authMethod` is
-// `api_key` under ANTHROPIC_API_KEY (no email or orgName) and `claude.ai` for a subscription login.
+// `api_key` for a key (no email or orgName) and `claude.ai` for a subscription login. account.mjs
+// runs under the attended buildLaunch env, which deletes ANTHROPIC_API_KEY as the driven session's
+// env does, so key auth reaches it only from settings (apiKeyHelper or settings `env`). The stub
+// ignores its environment, so these cases pin the parsing, not where the key comes from.
 
 const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
 
