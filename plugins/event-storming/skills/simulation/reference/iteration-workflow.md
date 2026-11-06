@@ -73,7 +73,9 @@ This document defines the repeatable process for improving the **output of a sim
 **Process:**
 
 1. Read ALL board items (`miro_list_board_items` with `limit=1000`)
-2. Score each criterion in `simulation-evaluation.md` rubric: Pass / Partial / Fail
+2. Score each criterion in `simulation-evaluation.md` rubric: Pass / Partial / Fail, through the
+   fresh-context scorer and the `verification` level in that file's "How to Run an Evaluation",
+   step 3; the context that ran the simulation never scores it
 3. Calculate weighted scores per phase and overall
 4. Flag any Critical criteria that scored Fail
 

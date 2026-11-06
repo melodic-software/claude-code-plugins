@@ -3,6 +3,16 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-11-06
+
+### Changed
+
+- **audit:** `rule-conditional-assertion` now gates `--check`, `--strict` or not, the same way `rule-zero-assertion` does. A whole-repository precision run labeled all 6 of its flags true positives. `--check` exits 1 on it, the `Ran:` line counts it with the gating rules, and the report-only note no longer lists it. The other seven report-only rules are unchanged.
+
+### Fixed
+
+- **audit:** the can't-fail scan reads more bash-harness assertion shapes. A `[[ ]]` test followed by a bare `exit`, which returns its status, is no longer reported as `rule-inert-assertion`. An `exec` of `bash`, `sh`, `node`, a Python, `pwsh` or a variable command counts as delegation, and a failure counter or `rc=` accumulator the script exits on (`exit "$fails"`, `exit "$rc"`, or an `if ((fails > 0))` or node `if (failed)` guard before `exit 1` or `process.exit(1)`) counts as an assertion, so a test built on its own `check()` helper is no longer reported as `rule-zero-assertion`. On this repository the whole-tree scan drops from 3 inert-assertion flags to 0 and from 33 zero-assertion flags to 1. New corpus pairs pin each shape, good and bad.
+
 ## [3.3.0] - 2026-11-06
 
 ### Added
