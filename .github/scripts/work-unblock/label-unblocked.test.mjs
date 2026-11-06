@@ -4332,7 +4332,7 @@ test("a lapsed deferral's holds stop for security on the untrusted-provenance ho
   assert.equal(lapsedReason([]), null);
   assert.equal(lapsedReason([item(EDITED_REASON, false)]), null);
   assert.equal(lapsedReason([item(EDITED_REASON, false), item(SECURITY_REASON, true)]), "security");
-  assert.equal(lapsedReason([item("work-class: untrusted-provenance work needs a person", true, "held")]), "security");
+  assert.equal(lapsedReason([item("provenance: untrusted work needs a person", true, "held")]), "security");
   assert.equal(lapsedReason([item("it carries do-not-merge", true, "held")]), "intent");
   assert.equal(lapsedReason([item("it carries do-not-merge", true, "held"), item(SECURITY_REASON, true)]), "security");
 });

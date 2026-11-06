@@ -308,6 +308,36 @@
         }
       }
     },
+    "post-merge": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Post-merge accounting paths besides the lanes App's. Contract: README.md, Merge paths.",
+      "properties": {
+        "paths": {
+          "type": "object",
+          "default": {},
+          "propertyNames": { "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "not": { "const": "lanes" } },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "enqueuers"],
+            "properties": {
+              "mode": {
+                "enum": ["record"],
+                "description": "record: label the path's merges and reverts, and never demote, trip the revert breaker or hold."
+              },
+              "enqueuers": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*(\\[bot\\])?$" },
+                "description": "Logins whose merge-queue actor or enqueuer puts an agent-authored merge on this path."
+              }
+            }
+          }
+        }
+      }
+    },
     "adoption": {
       "type": "object",
       "additionalProperties": false,

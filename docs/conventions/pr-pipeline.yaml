@@ -1224,6 +1224,19 @@ red-main:
   # decision W-51, 2026-10-21).
   remedy: rollback
 
+# Post-merge accounting paths besides the lanes App's (owner decision Q1 (a)
+# on #7531, 2026-11-05). A merge whose merge-queue actor or enqueuer is one of
+# a path's enqueuers, and whose pull request an agent session wrote, takes
+# that path: post-merge-demotion-alert.yml's canary pass labels it
+# `merge-path:<path>`, and a revert of it `post-merge:reverted`. record: the
+# labels only, never a demotion, a breaker trip or a hold (README.md, "Merge
+# paths").
+post-merge:
+  paths:
+    owner-agent:
+      mode: record
+      enqueuers: [kyle-sexton]
+
 # PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
 # account on .github/standards/trusted-actors/trusted-actors.json opened (by
 # id, a person or an App), with no hold label and no `Hold:` body line, and,
