@@ -1,0 +1,20 @@
+{
+  "resolver-ran": [
+    {
+      "use": "command_position"
+    },
+    "node(?:\\.exe)?",
+    {
+      "use": "token_argument"
+    },
+    "view-settings\\.mjs",
+    {
+      "use": "token_argument"
+    },
+    "\\bresolve\\b",
+    {
+      "use": "token_argument"
+    },
+    "--lane(?:\\s|=)+(?:\\\\\"|')?codebase-health:audit\\b"
+  ]
+}

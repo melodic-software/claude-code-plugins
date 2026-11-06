@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/audit-report.html",
+            "content": "<html>"
+          }
+        }
+      ],
+      "why": "html page"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/findings.svg",
+            "content": "<svg>"
+          }
+        }
+      ],
+      "why": "chart"
+    }
+  ]
+}

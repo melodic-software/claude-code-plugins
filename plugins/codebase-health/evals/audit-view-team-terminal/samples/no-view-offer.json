@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n### Drift patterns\nOne stale script name.\n\n### Fix priority\n1. Doc drift: README.md:9.\n\n### Enforcement escalation\n- #1: a CI script check that every `npm run <x>` in the docs exists in package.json.\n\n### Config-gap observations\nNo gaps beyond the defaults; /codebase-health:setup apply can persist them.\n\nview: terminal (team)",
+      "why": "report line only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n### Drift patterns\nOne stale script name.\n\n### Fix priority\n1. Doc drift: README.md:9.\n\n### Enforcement escalation\n- #1: a CI script check that every `npm run <x>` in the docs exists in package.json.\n\n### Config-gap observations\nNo gaps beyond the defaults; /codebase-health:setup apply can persist them.\n\nWant me to render this through visualization:visualize?",
+      "why": "an offer"
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json defines only `start` and `test` (confidence: verified) | Read `package.json:8-11` |\n\n### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n### Drift patterns\nOne stale script name.\n\n### Fix priority\n1. Doc drift: README.md:9.\n\n### Enforcement escalation\n- #1: a CI script check that every `npm run <x>` in the docs exists in package.json.\n\n### Config-gap observations\nNo gaps beyond the defaults; /codebase-health:setup apply can persist them.\n\nThe optional view is unavailable.",
+      "why": "an unavailable line"
+    }
+  ]
+}

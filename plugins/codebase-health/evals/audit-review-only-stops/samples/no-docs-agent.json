@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit README.md",
+            "prompt": "Extract every claim from README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Audit docs",
+            "prompt": "Extract every claim from docs/topic-03.md"
+          }
+        }
+      ],
+      "why": "a page outside the scope"
+    }
+  ]
+}

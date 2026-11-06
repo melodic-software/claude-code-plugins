@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "judge frames",
+            "prompt": "Judge video/final/frames against video/beats.txt and video/final/report.json."
+          }
+        }
+      ],
+      "why": "the judge gets the beat-plan path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no judge dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "judge frames",
+            "prompt": "Judge video/final/frames against the script."
+          }
+        }
+      ],
+      "why": "dispatched without the beat plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/video/beats.txt"
+          }
+        }
+      ],
+      "why": "the maker read the plan itself"
+    }
+  ]
+}
