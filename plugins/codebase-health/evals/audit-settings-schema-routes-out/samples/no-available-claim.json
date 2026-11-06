@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Run /harness-config:audit if the harness-config plugin is installed."
+    },
+    {
+      "answer": "harness-config is not installed in this session; the lane to run is /harness-config:audit."
+    },
+    {
+      "answer": "If you have harness-config installed, run /harness-config:audit; whether harness-config is installed here, I cannot tell."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "harness-config is installed, so run /harness-config:audit.",
+      "why": "claims installed"
+    },
+    {
+      "answer": "You have harness-config installed; run its audit.",
+      "why": "claims installed"
+    }
+  ]
+}

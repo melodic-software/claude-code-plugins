@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#487 and #501 share ERR_ROW_OVERFLOW at export.ts:88, so they form one signature cluster. #501 is the parent, the only member with a confirmed reproduction: it gets the brief, agent-ready and status: ready. #487 never gets agent-ready: I run add-recurrence 501 --source-link <#487 URL> --note \"seen again: #487 export crash\" and close #487 as a duplicate of #501. No blocked-by edge links them.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both items are delegable, so #487 and #501 each get agent-ready and status: ready.",
+      "why": "gives agent-ready to a member"
+    },
+    {
+      "answer": "#501 is the parent with agent-ready; #487 gets a blocked-by edge to #501 so it waits for the parent.",
+      "why": "links the member by a blocked-by edge"
+    }
+  ]
+}

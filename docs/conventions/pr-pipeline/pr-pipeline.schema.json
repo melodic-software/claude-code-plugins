@@ -355,6 +355,13 @@
           "items": { "type": "integer", "minimum": 1 },
           "default": [],
           "description": "App account ids whose pull request bodies a script writes: an adopted one that closes no issue is judged against its title and body, as a person's is. Any other App needs a closing issue a trusted person wrote."
+        },
+        "self-merging-apps": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "App account ids that enqueue and merge their own pull requests: pr-merge writes no reasons comment or risk escalation on one. Its risk score still holds pr-merge's own merge."
         }
       }
     },

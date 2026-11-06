@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: audit-view-retired-terminal
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: view-line-after-report
+    type: regex
+    pattern: 'verified non-?issues?\b[\s\S]*?view: terminal \(retired ~/\.claude/rendered-views\.md\)'
+    flags: 'i'
+    target: last_message
+  - name: retired-notice
+    type: regex
+    pattern: '~/\.claude/rendered-views\.md`? is retired but still keeps the view local'
+    flags: 'i'
+    target: last_message
+  - name: no-view-offer
+    type: regex
+    pattern: 'visualization:visualize|\b(?:want me to|like me to|shall I|should I|I can|offer(?:ed|s|ing)? to)\b[^\n]{0,80}?\b(?:render\w*|visuali[sz]\w*|chart|HTML|page)\b|\b(?:optional|rendered) view\b[^\n]{0,80}?\b(?:unavailable|not available|isn''t available)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-convention-read
+    type: tool_used
+    tool: 'Read'
+    input_match: 'rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-convention-shell-read
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: resolver-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?codebase-health:audit\b'
+    min: 1
+    arm: 'with-only'

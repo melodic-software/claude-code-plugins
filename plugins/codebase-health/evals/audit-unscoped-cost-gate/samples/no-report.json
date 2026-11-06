@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "That is 40 files. Shall I proceed, or narrow the scope?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Verified non-issues\n- package.json engines",
+      "why": "a report section"
+    },
+    {
+      "answer": "No findings. All claims verified as correct.",
+      "why": "a verdict"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "deny",
+            "path": "/w/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "settings grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "mcp__",
+            "path": "/h/.claude/projects"
+          }
+        }
+      ],
+      "why": "transcript grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "mcp__",
+            "glob": "**/*.jsonl"
+          }
+        }
+      ],
+      "why": "jsonl glob"
+    }
+  ]
+}

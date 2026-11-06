@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n# stash\n\nEvery chunk is checksummed with BLAKE3. stash prunes snapshots older than 30 days unless you tag them with `--keep`.\n\nRun `stash init` in the project root.\n````"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "````markdown\n# stash\n\nEvery chunk is checksummed. Old snapshots are pruned unless you tag them.\n\nRun `stash init` in the project root.\n````"
+    }
+  ]
+}

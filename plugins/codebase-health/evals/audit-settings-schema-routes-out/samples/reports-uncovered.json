@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Schema drift in settings.json and .mcp.json is out of scope for this audit; run /harness-config:audit."
+    },
+    {
+      "answer": "That question belongs to another lane: /harness-config:audit."
+    },
+    {
+      "answer": "Hooks and permissions are uncovered here."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I checked .claude/settings.json and the hooks look fine.",
+      "why": "answered itself"
+    },
+    {
+      "answer": "README.md is covered by this run.",
+      "why": "covered, not uncovered"
+    }
+  ]
+}

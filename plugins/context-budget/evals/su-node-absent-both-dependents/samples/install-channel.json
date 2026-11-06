@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Install node from https://nodejs.org/en/download.",
+      "why": "channel"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install node with your package manager.",
+      "why": "no channel"
+    },
+    {
+      "answer": "See nodejs.org.",
+      "why": "no download page"
+    }
+  ]
+}
