@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "For writing it, use /playbooks:skill-authoring.", "why": "playbook redirect" },
+    { "answer": "Run skill-creator to draft it, then come back for the check.", "why": "skill-creator" }
+  ],
+  "fail": [
+    { "answer": "Use skill-quality to write me a brand-new skill for parsing CSV files.", "why": "echoes the prompt" },
+    { "answer": "Write the skill yourself, then run /skill-quality:check.", "why": "no authoring route named" },
+    { "answer": "I can't use skill-quality to write a skill. Its `check` skill is a static linter and validator for existing `SKILL.md` files, and its description says it's not for writing new skills.\n\nI can still help in either of these ways:\n1. **Draft and lint:** I write a CSV-parsing skill (`SKILL.md` plus an optional helper script) in a directory you choose. I then run `skill-quality:check` on it.\n2. **Draft only:** I write it to a scratch location, and you move it into place.", "why": "smoke 1 reply, trimmed: declines, then offers to write the skill itself with no authoring route" }
+  ]
+}

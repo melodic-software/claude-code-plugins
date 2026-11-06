@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ck-cross-skill-invocation-doctrine
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+  - name: one-per-call
+    type: regex
+    pattern: '\bone\s+skill\s+(?:per|each|a)\s+(?:Skill(?:[- ]tool)?\s+)?(?:call|invocation)\b|\bone\s+(?:Skill(?:[- ]tool)?\s+)?(?:call|invocation)\s+(?:per|for each|for every)\s+skill\b|\btwo\s+(?:separate\s+)?(?:Skill(?:[- ]tool)?\s+)?(?:calls|invocations)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-user-invoked-only
+    type: regex
+    pattern: 'disable-model-invocation|\buser[- ]invo(?:ked|cable)[- ]only\b'
+    flags: 'i'
+    target: last_message
+  - name: tells-user-run-slash
+    type: regex
+    pattern: '/(?:plugin:skill|[a-z][\w-]*:setup)\b|\bslash[- ]commands?\b'
+    flags: 'i'
+    target: last_message
+  - name: not-automated
+    type: llm
+    focus: last_message
+    criteria: "PASS if the reply states the Skill tool takes one skill per call (a step needing two skills is two calls); says not to instruct Skill-tool invocation of a disable-model-invocation (user-invoked-only) target such as a :setup skill, and to tell the user to run its slash command instead; and does not claim check-skill.sh already FAILs this reachability problem automatically. Saying the gate does not automate the check passes. FAIL if it says one Skill call can run two skills, endorses Skill-tool invocation of a user-invoked-only target, or claims the checker flags the reachability class as a FAIL."

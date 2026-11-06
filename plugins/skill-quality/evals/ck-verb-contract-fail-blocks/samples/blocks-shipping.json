@@ -1,0 +1,15 @@
+{
+  "pass": [
+    { "answer": "It is a FAIL that blocks: the skill does not pass.", "why": "blocks" },
+    { "answer": "Fix the listing before you ship the skill.", "why": "before you ship" },
+    { "answer": "This is a blocking failure.", "why": "blocking" }
+  ],
+  "fail": [
+    { "answer": "It is advisory; ship when ready.", "why": "non-blocking" },
+    { "answer": "It doesn't block shipping; it's advisory.", "why": "negated block" },
+    { "answer": "It doesn’t block shipping.", "why": "negated block, curly apostrophe" },
+    { "answer": "This is a non-blocking warning.", "why": "non-blocking" },
+    { "answer": "Fixing it is optional; it won't block the release.", "why": "won't block" },
+    { "answer": "FAIL: description/verb-contract mismatch: leaf verb 'audit' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override", "why": "echoes the prompt" }
+  ]
+}

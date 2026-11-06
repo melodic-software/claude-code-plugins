@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/p/scripts/check-evals-quality.sh\" .claude/skills/my-skill/evals/evals.json" } }], "why": "the lint" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "jq . .claude/skills/my-skill/evals/evals.json" } }], "why": "a hand read, not the lint" }
+  ]
+}

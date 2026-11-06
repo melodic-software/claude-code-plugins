@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": "listing-overlap is a lexical floor, not a model-graded auto-invocation rate.", "why": "hub wording" },
+    { "answer": "These numbers are not a live auto-invocation rate.", "why": "not a live rate" },
+    { "answer": "Treat this as a floor.", "why": "floor" },
+    { "answer": "It is a lexical match score.", "why": "lexical" }
+  ],
+  "fail": [
+    { "answer": "The skill auto-invokes 100% of the time in train.", "why": "treats the floor as live" },
+    { "answer": "This is a live rate, not a lexical floor.", "why": "negated floor" },
+    { "answer": "It isn't a floor; it is the real rate.", "why": "isn't a floor" },
+    { "answer": "/skill-quality:check measure-invocation probes", "why": "echoes the prompt" }
+  ]
+}

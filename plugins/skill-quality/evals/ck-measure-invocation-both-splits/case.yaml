@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: ck-measure-invocation-both-splits
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-score
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?measure-invocation\.sh(?:[^"\\]|\\.)*?\bscore\b'
+    arm: with-only
+  - name: no-contract-gate
+    type: tool_used
+    tool: Bash
+    input_match: 'check-skill\.sh'
+    min: 0
+    max: 0
+    arm: both
+  - name: train-false-trigger
+    type: regex
+    pattern: '\btrain(?:ing)?\b[\s\S]{0,300}?(?:\b0?\.25\b|\b25(?:\.0)?\s?%)|(?:\b0?\.25\b|\b25(?:\.0)?\s?%)[^\n]{0,120}\btrain(?:ing)?\b'
+    flags: 'i'
+    target: last_message
+  - name: validation-trigger
+    type: regex
+    pattern: '\bvalidation\b[\s\S]{0,300}?(?:\b0?\.75\b|\b75(?:\.0)?\s?%)|(?:\b0?\.75\b|\b75(?:\.0)?\s?%)[^\n]{0,120}\bvalidation\b'
+    flags: 'i'
+    target: last_message
+  - name: names-both-rates
+    type: regex
+    pattern: '\bfalse[_ -]trigger(?:[_ -]rate)?\b'
+    flags: 'i'
+    target: last_message
+  - name: names-floor
+    type: regex
+    pattern: '(?<!not a )(?<!not )(?<!n[''’]t a )\blexical\s+floor\b|(?<!not a )(?<!not )(?<!n[''’]t a )(?<!lexical )\bfloor\b|(?<!not a )(?<!not )(?<!n[''’]t a )\blexical\b(?!\s+floor)|\bnot\s+(?:a\s+)?(?:live|model-graded)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

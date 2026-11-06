@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "PASS: packages/agent/skills holds 2 skills.",
+      "why": "count after"
+    },
+    {
+      "answer": "Two skills found in packages/agent/skills: tidy-imports, release-notes.",
+      "why": "two first"
+    },
+    {
+      "answer": "**INFO: `packages/agent/skills` looks correct.** It exists and has 2 child `SKILL.md` files.",
+      "why": "smoke 2 reply: child SKILL.md files"
+    },
+    {
+      "answer": "| **INFO** | `packages/agent/skills` exists and has 2 skills (child `SKILL.md` files). |",
+      "why": "smoke 2 reply: table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PASS: packages/agent/skills resolves.",
+      "why": "no count"
+    },
+    {
+      "answer": "Rung 2 .claude/skills: FAIL, directory absent.",
+      "why": "review near miss: rung number, no count"
+    },
+    {
+      "answer": "Rung 2 (`.claude/skills`): FAIL, 0 skills. packages/agent/skills was not checked.",
+      "why": "rung 2 with a zero count, path named after"
+    },
+    {
+      "answer": "Two skills under .claude/skills.",
+      "why": "count for the wrong root"
+    },
+    {
+      "answer": "/skill-quality:setup check\n\nOur skills live under packages/agent/skills.",
+      "why": "echoes the prompt"
+    }
+  ]
+}
