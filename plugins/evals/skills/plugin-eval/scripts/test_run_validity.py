@@ -1687,6 +1687,10 @@ class RunValidityTest(unittest.TestCase):
             "cd %s && grep -n x toolu_01Example.txt | head -5; wc -l ./toolu_01Example.txt"
             % results,
             "cat %s && cat %s" % (saved, saved),
+            # A value with no / is a literal, checked only where it expands.
+            'P=x; grep -n "$P" ' + saved,
+            'N=40; head -n "$N" ' + saved,
+            "F=%s; P=Balancing; grep -c $P $F; sed -n /$P/p $F" % saved,
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "WARN")
@@ -1715,6 +1719,12 @@ class RunValidityTest(unittest.TestCase):
             "PATH=%s; F=%s; cat $F; cat $F" % (results, saved),
             "LD_PRELOAD=%s; cat %s" % (saved, saved),
             "export F=%s; cat $F" % saved,
+            # A literal that expands into a path outside, or is not one plain word.
+            "P=etc; cat /$P/passwd",
+            "P=etc; cat %s /$P/passwd" % saved,
+            "P='a b'; grep \"$P\" " + saved,
+            "P='a$b'; grep \"$P\" " + saved,
+            "P=~root; cat %s" % saved,
             # Another operator or command beside the reads.
             "F=%s; cat $(echo $F)" % saved,
             "cat %s || rm %s" % (saved, saved),

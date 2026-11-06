@@ -86,8 +86,9 @@ one line per check, detail lines indented under it:
                       received, and a Bash pipeline of cat, head, wc, grep and
                       sed -n reading only there, with no redirect, other
                       operator or unquoted expansion, after any opening
-                      NAME=value commands whose names it expands, each value
-                      a path there, and one opening cd there; several such
+                      NAME=value commands whose names it expands (a value
+                      with a / must be a path there, any other a plain
+                      literal), and one opening cd there; several such
                       pipelines may be joined by ; or &&; with
                       --own-copy-search-warns, so is a Read, Grep or
                       Glob aimed only at or under the plugin copy the run's
@@ -278,6 +279,9 @@ ENV_SENSITIVE = frozenset(
     " TMPDIR LANG LANGUAGE NLSPATH TZ".split()
 )
 ENV_SENSITIVE_PREFIXES = ("LD_", "LC_", "GREP_", "BASH", "DYLD_")
+# An opening value with neither / nor a leading ~ that a tool-results read may
+# expand: a pattern, count or name, never a path.
+SAFE_LITERAL = re.compile(r"\A[A-Za-z0-9._:,+=@%-]+\Z")
 NUMBER = re.compile(r"\A[-+]?\d+\Z")
 # The only sed scripts that qualify: print a line, a range or a /regex/ match.
 SED_ADDRESS = r"(?:\d+|\$|/[^/\\]*/)"
@@ -351,6 +355,7 @@ EXPANSION = re.compile(r"\$(?:(%s)|\{(%s)\})" % (SHELL_NAME, SHELL_NAME))
 # would expand; or a bare name, which a later read "$X" or declare "$X=..."
 # would write through, so $X stays unresolved.
 UNRECORDED_VALUE = re.compile(r"\A\Z|[\s$`*?\[{<>]|\A~|:~|\A%s\Z" % SHELL_NAME)
+BARE_NAME = re.compile(r"\A%s\Z" % SHELL_NAME)
 # A command holding one of these can set or split a variable in a way not traced.
 NO_RESOLVE = ("`", "<<", "IFS")
 # Names the shell sets, ignores assignments to or holds readonly, so an earlier
@@ -1526,15 +1531,16 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
-def inline_assignments(command):
+def inline_assignments(command, bare_names=False):
     """(names, items) for a Bash command: names maps each NAME=value command that
     opens it, standing alone before a ;, newline or &&, to its value; items is the
     rest as ("op", text) and ("word", literal text) pairs, each $NAME or ${NAME}
     outside single quotes replaced by its value. None when the command does not
-    parse, an opening value is not one literal word (UNRECORDED_VALUE) or names a
-    shell-set variable, names were recorded and the command holds a NO_RESOLVE
-    mark, a word holds an unquoted < or > (a redirect), or a word keeps an
-    expansion, glob or brace outside single quotes."""
+    parse, an opening value is not one literal word (UNRECORDED_VALUE, though a
+    bare name passes with bare_names, for a caller whose later commands cannot
+    write through one) or names a shell-set variable, names were recorded and the
+    command holds a NO_RESOLVE mark, a word holds an unquoted < or > (a
+    redirect), or a word keeps an expansion, glob or brace outside single quotes."""
     tokens = shell_tokens(command)
     if tokens is None:
         return None
@@ -1553,7 +1559,10 @@ def inline_assignments(command):
             match = assignment(parts)
             name = match.group(1)
             value = parts[0][0][match.end() :] + "".join(t for t, _ in parts[1:])
-            if UNRECORDED_VALUE.search(value) or name in SHELL_SET or name.startswith("BASH"):
+            unrecorded = UNRECORDED_VALUE.search(value) and not (
+                bare_names and BARE_NAME.match(value)
+            )
+            if unrecorded or name in SHELL_SET or name.startswith("BASH"):
                 return None
             names[name] = value
         start = end + 1
@@ -1607,17 +1616,26 @@ def bash_sequence_reads(command):
     """The paths a Bash command reads, for own_results_denial: after opening
     assignments (inline_assignments) and at most one `cd <rooted dir>`, one or more
     bash_read_paths pipelines joined only by ; or &&, a relative operand resolved
-    against the cd directory. The tuple also holds every assignment value and the
-    cd target, so each must lie where the reads do. None for an ENV_SENSITIVE
-    name, a value that is not a plain rooted path, any other operator, a cd with
-    a flag or more than one operand, a cd not first, or no read after it."""
-    resolved = inline_assignments(command) if isinstance(command, str) else None
+    against the cd directory. The tuple also holds every assignment value with a
+    / and the cd target, so each must lie where the reads do; any other value is
+    a SAFE_LITERAL, checked only where it expands. None for an ENV_SENSITIVE
+    name, a value with a / or leading ~ that is not a plain rooted path, any
+    other value, any other operator, a cd with a flag or more than one operand,
+    a cd not first, or no read after it. The commands after the opening
+    assignments only read, so a bare-name value cannot be written through."""
+    if isinstance(command, str):
+        resolved = inline_assignments(command, bare_names=True)
+    else:
+        resolved = None
     if resolved is None:
         return bash_read_paths(command)
     names, items = resolved
     if any(n in ENV_SENSITIVE or n.startswith(ENV_SENSITIVE_PREFIXES) for n in names):
         return None
-    if not all(plain(v) for v in names.values()):
+    paths = [v for v in names.values() if "/" in v or v.startswith("~")]
+    if not all(plain(v) for v in paths) or not all(
+        SAFE_LITERAL.match(v) for v in names.values() if v not in paths
+    ):
         return None
     segments, current = [], []
     for kind, text in items + [("op", None)]:
@@ -1630,8 +1648,7 @@ def bash_sequence_reads(command):
             current.append((kind, text))
     if len(segments) == 1 and not names:
         return bash_read_paths(command)
-    paths, cwd = list(names.values()), None
-    first = segments[0]
+    cwd, first = None, segments[0]
     if first[0] == ("word", CD):
         if len(first) != 2 or first[1][0] != "word" or not plain(first[1][1]):
             return None

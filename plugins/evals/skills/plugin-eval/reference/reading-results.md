@@ -72,8 +72,9 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   or `Glob` aimed only under the
   session's own `<sandbox>/config/projects/*/*/tool-results/`, where it reads back output it already
   received. The same plain read pipeline that reads only there is set
-  aside the same way, also after opening `NAME=value` commands whose names it expands and whose
-  values are paths there (`F=<saved>; grep -n x "$F"`), after one opening `cd` there whose directory
+  aside the same way, also after opening `NAME=value` commands whose names it expands, where a value
+  with a `/` must be a path there and any other value a plain literal such as a pattern or count
+  (`F=<saved>; N=40; head -n "$N" "$F"`), after one opening `cd` there whose directory
   relative paths then resolve against (`cd <dir>; sed -n 1,9p <file>`), and as several such
   pipelines joined by `;` or `&&`. Any other Bash call (a redirect, another command, a `||`, `&` or
   subshell, a `cd` with a flag or not first, an assignment to `PATH`, `IFS` or another name that
