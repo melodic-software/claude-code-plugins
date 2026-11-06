@@ -117,7 +117,7 @@ Check conversation context for evidence of completed stages:
 - Has code been written via Write/Edit? → Stage 8 in progress or done
 - Have tests been run? → Stage 9 done
 - Has a fresh-context reviewer returned on the diff, after the self-review (self-review alone under `light`/`off`, with the skip token)? → Stage 10 done
-- Has the outcome been verified against intent with evidence? → Stage 11 done
+- Has a fresh-context verifier returned a verdict on the outcome against intent, with evidence (the author's own check alone under `light`/`off`, with the skip token)? → Stage 11 done
 - Is there a PR? → PR lifecycle in progress
 
 Verify a stage from its artifact or output, a plan file, cited sources, green test output, not
