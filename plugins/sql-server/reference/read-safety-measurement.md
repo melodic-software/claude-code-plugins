@@ -65,8 +65,8 @@ Through `query`, a statement that opens a transaction fails with SQL Server's er
 ## Results
 
 <!-- measure-read-safety:results:start -->
-Run on 2026-11-06 by `scripts/measure-read-safety.mjs` against `mcr.microsoft.com/mssql/server:2025-CU8-ubuntu-24.04`
-(`sha256:4bab24f36c1ecd48e85f7d37df26e6bf301641d84c3fe652f9a0dcc947d512e1`), SQL Server 17.0.4075.5 Enterprise Developer Edition (64-bit), in a container capped at 2 GB.
+Run on 2026-11-06 by `scripts/measure-read-safety.mjs` against `mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04`
+(`sha256:245f6b1c8903edae52cb20fa31419cefcde1a49938bb8c3447099011fc871ca3`), SQL Server 17.0.5035.5 Enterprise Developer Edition (64-bit), in a container capped at 2 GB.
 Database `measure`: 200000 rows; READ_COMMITTED_SNAPSHOT off,
 accelerated database recovery off, optimized locking off.
 Reads run as `measure_reader`, a member of `db_datareader` only.
@@ -75,15 +75,15 @@ Reads run as `measure_reader`, a member of `db_datareader` only.
 
 | Reader | Lock timeout (ms) | Request timeout (ms) | Outcome | Blocked (ms) | Lock-wait samples | Open transactions after |
 | --- | --- | --- | --- | --- | --- | --- |
-| executor, no lock or request timeout | -1 | none | returned | 8012 | 76 | 0 |
-| executor, lock timeout only | 500 | none | lock timeout (error 1222) | 579 | 4 | 0 |
-| executor, lock timeout only | 1000 | none | lock timeout (error 1222) | 1080 | 9 | 0 |
-| executor, lock timeout only | 2000 | none | lock timeout (error 1222) | 2078 | 19 | 0 |
-| executor, lock timeout only | 5000 | none | lock timeout (error 1222) | 5079 | 48 | 0 |
+| executor, no lock or request timeout | -1 | none | returned | 8008 | 75 | 0 |
+| executor, lock timeout only | 500 | none | lock timeout (error 1222) | 581 | 4 | 0 |
+| executor, lock timeout only | 1000 | none | lock timeout (error 1222) | 1075 | 9 | 0 |
+| executor, lock timeout only | 2000 | none | lock timeout (error 1222) | 2077 | 19 | 0 |
+| executor, lock timeout only | 5000 | none | lock timeout (error 1222) | 5075 | 47 | 0 |
 | executor, request timeout only | -1 | 1000 | request timeout | 1067 | 9 | 0 |
-| executor, request timeout only | -1 | 3000 | request timeout | 3065 | 29 | 0 |
-| raw session in BEGIN TRAN, XACT_ABORT OFF, cancelled at 2000 ms, kept open | -1 | 2000 (client cancel) | cancelled | 2004 | - | 1 |
-| raw session in BEGIN TRAN, XACT_ABORT ON, cancelled at 2000 ms, kept open | -1 | 2000 (client cancel) | cancelled | 2004 | - | 0 |
+| executor, request timeout only | -1 | 3000 | request timeout | 3066 | 28 | 0 |
+| raw session in BEGIN TRAN, XACT_ABORT OFF, cancelled at 2000 ms, kept open | -1 | 2000 (client cancel) | cancelled | 2003 | - | 1 |
+| raw session in BEGIN TRAN, XACT_ABORT ON, cancelled at 2000 ms, kept open | -1 | 2000 (client cancel) | cancelled | 2003 | - | 0 |
 
 ### A statement that opens a transaction (sent past the reject list)
 
@@ -97,25 +97,25 @@ Reads run as `measure_reader`, a member of `db_datareader` only.
 | Reader isolation | Writer waited (ms) |
 | --- | --- |
 | READ COMMITTED | 5 |
-| REPEATABLE READ | 3039 |
-| SERIALIZABLE | 3013 |
+| REPEATABLE READ | 3003 |
+| SERIALIZABLE | 3010 |
 
 ### Row cap: `SELECT id, payload` over 200000 rows, no contention
 
 | Row cap | Rows returned | Truncated | Call (ms) | Open transactions after |
 | --- | --- | --- | --- | --- |
 | 100 | 100 | true | 56 | 0 |
-| 1000 | 1000 | true | 56 | 0 |
+| 1000 | 1000 | true | 55 | 0 |
 | 10000 | 10000 | true | 65 | 0 |
-| none | 200000 | false | 224 | 0 |
+| none | 200000 | false | 210 | 0 |
 
-Guard overhead: a `SELECT 1` averages 1.22 ms through the executor (guard batch, statement,
-`@@TRANCOUNT` check) and 0.44 ms on a raw session, over 50 calls on a pooled connection.
+Guard overhead: a `SELECT 1` averages 1.27 ms through the executor (guard batch, statement,
+`@@TRANCOUNT` check) and 0.38 ms on a raw session, over 50 calls on a pooled connection.
 
 ### Forced timeouts at the shipped defaults (request 30000 ms, lock 5000 ms, row cap 1000)
 
-- Writer holds a row lock 10000 ms: lock timeout (error 1222) after 5081 ms; open transactions after timeout: 0
-- A cross join that runs past the request timeout: request timeout after 30187 ms; open transactions after timeout: 0
+- Writer holds a row lock 10000 ms: lock timeout (error 1222) after 5076 ms; open transactions after timeout: 0
+- A cross join that runs past the request timeout: request timeout after 30150 ms; open transactions after timeout: 0
 
 ### Process topology: N stdio server processes, 4 concurrent `query` calls each, pool max 2, idle close 30000 ms
 
@@ -123,79 +123,90 @@ A writer updates one random row in autocommit every 20 ms throughout. The whole 
 
 | Run | Processes | Calls | Peak agent sessions | Call median (ms) | Call max (ms) | Wall (ms) | Writer max (ms) | Open transactions after |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 4 | 2 | 1575 | 1640 | 2101 | 140 | 0 |
-| 1 | 2 | 8 | 4 | 2104 | 2528 | 2716 | 332 | 0 |
-| 1 | 4 | 16 | 8 | 2110 | 2806 | 2968 | 122 | 0 |
-| 1 | 8 | 32 | 16 | 2880 | 4013 | 4169 | 197 | 0 |
-| 2 | 1 | 4 | 2 | 1158 | 1158 | 1328 | 197 | 0 |
-| 2 | 2 | 8 | 4 | 1832 | 2169 | 2305 | 366 | 0 |
-| 2 | 4 | 16 | 8 | 2613 | 3459 | 3612 | 356 | 0 |
-| 2 | 8 | 32 | 16 | 3770 | 5094 | 5262 | 230 | 0 |
-| 3 | 1 | 4 | 2 | 1063 | 1085 | 1241 | 41 | 0 |
-| 3 | 2 | 8 | 4 | 1828 | 1987 | 2131 | 48 | 0 |
-| 3 | 4 | 16 | 8 | 3017 | 3823 | 3972 | 66 | 0 |
-| 3 | 8 | 32 | 16 | 3705 | 5213 | 5409 | 309 | 0 |
+| 1 | 1 | 4 | 2 | 1668 | 1677 | 1867 | 57 | 0 |
+| 1 | 2 | 8 | 4 | 2418 | 2979 | 3155 | 45 | 0 |
+| 1 | 4 | 16 | 8 | 2624 | 3332 | 3489 | 83 | 0 |
+| 1 | 8 | 32 | 16 | 3675 | 4869 | 5123 | 148 | 0 |
+| 2 | 1 | 4 | 2 | 1471 | 1471 | 1634 | 60 | 0 |
+| 2 | 2 | 8 | 4 | 2029 | 2190 | 2345 | 59 | 0 |
+| 2 | 4 | 16 | 8 | 2546 | 3512 | 3677 | 91 | 0 |
+| 2 | 8 | 32 | 16 | 3268 | 5078 | 5260 | 204 | 0 |
+| 3 | 1 | 4 | 2 | 1202 | 1205 | 1377 | 83 | 0 |
+| 3 | 2 | 8 | 4 | 1916 | 1974 | 2136 | 94 | 0 |
+| 3 | 4 | 16 | 8 | 2384 | 3659 | 3821 | 95 | 0 |
+| 3 | 8 | 32 | 16 | 3708 | 5687 | 5901 | 64 | 0 |
 
 ### Waiting tasks in the topology runs, by waiter and blocker
 
 Sampled every 50 ms from `sys.dm_os_waiting_tasks`, for the agent sessions and the writer. A task counts when its
 `blocking_session_id` is set and not 0. Longest wait is the largest `wait_duration_ms` a sample saw, so it can
-trail the true wait by up to one sampling interval.
+trail the true wait by up to one sampling interval. Blocker waiting says whether the blocker was itself waiting on
+another session at that sample: a request queued behind a waiting one names it as blocker, so such a wait is
+not counted as caused by the blocker. A negative `blocking_session_id` (an owner SQL Server cannot name) and a
+session's own parallel tasks are classed apart, not as blocking by another session.
 
-| Run | Processes | Waiter | Blocker | Wait class | Wait types | Peak waiting tasks | Longest wait (ms) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | agent | same session | other | CXCONSUMER | 28 | 25 |
-| 1 | 1 | agent | agent | lock | LCK_M_S | 14 | 38 |
-| 1 | 1 | agent | writer | lock | LCK_M_S | 1 | 77 |
-| 1 | 1 | agent | same session | lock | LCK_M_S | 13 | 27 |
-| 1 | 2 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 45 | 429 |
-| 1 | 2 | agent | same session | lock | LCK_M_S | 6 | 294 |
-| 1 | 2 | agent | writer | lock | LCK_M_S | 1 | 312 |
-| 1 | 2 | agent | agent | lock | LCK_M_S | 7 | 15 |
-| 1 | 4 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 71 | 413 |
-| 1 | 4 | agent | agent | lock | LCK_M_S | 3 | 39 |
-| 1 | 4 | agent | same session | lock | LCK_M_S | 1 | 25 |
-| 1 | 4 | agent | writer | lock | LCK_M_S | 1 | 39 |
-| 1 | 8 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 77 | 99 |
-| 1 | 8 | agent | agent | lock | LCK_M_S | 9 | 81 |
-| 1 | 8 | agent | same session | lock | LCK_M_S | 10 | 102 |
-| 1 | 8 | agent | writer | lock | LCK_M_S | 1 | 108 |
-| 2 | 1 | agent | same session | lock | LCK_M_S | 9 | 68 |
-| 2 | 1 | agent | writer | lock | LCK_M_S | 1 | 69 |
-| 2 | 1 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 27 | 40 |
-| 2 | 1 | agent | agent | lock | LCK_M_S | 1 | 12 |
-| 2 | 2 | agent | same session | other | CXCONSUMER, CXSYNC_CONSUMER, CXSYNC_PORT | 91 | 176 |
-| 2 | 2 | agent | writer | lock | LCK_M_S | 1 | 286 |
-| 2 | 2 | agent | agent | lock | LCK_M_S | 43 | 279 |
-| 2 | 2 | agent | same session | lock | LCK_M_S | 23 | 271 |
-| 2 | 4 | agent | same session | other | CXCONSUMER, CXSYNC_PORT | 91 | 146 |
-| 2 | 4 | agent | writer | lock | LCK_M_S | 1 | 299 |
-| 2 | 4 | agent | agent | lock | LCK_M_S | 71 | 276 |
-| 2 | 4 | agent | same session | lock | LCK_M_S | 23 | 283 |
-| 2 | 8 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_PORT | 75 | 129 |
-| 2 | 8 | agent | same session | lock | LCK_M_S | 3 | 29 |
-| 2 | 8 | agent | agent | lock | LCK_M_S | 5 | 13 |
-| 2 | 8 | agent | writer | lock | LCK_M_S | 1 | 32 |
-| 3 | 1 | agent | writer | lock | LCK_M_S | 1 | 25 |
-| 3 | 1 | agent | same session | other | CXCONSUMER, CXSYNC_PORT | 22 | 22 |
-| 3 | 1 | agent | agent | lock | LCK_M_S | 2 | 14 |
-| 3 | 1 | agent | same session | lock | LCK_M_S | 5 | 21 |
-| 3 | 2 | agent | same session | other | CXCONSUMER, CXSYNC_CONSUMER, CXSYNC_PORT | 49 | 20 |
-| 3 | 2 | agent | same session | lock | LCK_M_S | 6 | 14 |
-| 3 | 2 | agent | writer | lock | LCK_M_S | 1 | 16 |
-| 3 | 4 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 52 | 65 |
-| 3 | 4 | agent | writer | lock | LCK_M_S | 1 | 24 |
-| 3 | 4 | agent | agent | lock | LCK_M_S | 7 | 24 |
-| 3 | 4 | agent | same session | lock | LCK_M_S | 5 | 22 |
-| 3 | 8 | agent | same session | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 88 | 336 |
-| 3 | 8 | agent | writer | lock | LCK_M_S | 1 | 24 |
-| 3 | 8 | agent | agent | lock | LCK_M_S | 4 | 21 |
-| 3 | 8 | agent | same session | lock | LCK_M_S | 1 | 13 |
-| 3 | 8 | writer | agent | lock | LCK_M_IX | 1 | 12 |
+| Run | Processes | Waiter | Blocker | Blocker waiting | Wait class | Wait types | Peak waiting tasks | Longest wait (ms) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | agent | same session | no | other | CXCONSUMER, CXPACKET | 22 | 14 |
+| 1 | 1 | agent | writer | no | lock | LCK_M_S | 1 | 4 |
+| 1 | 1 | agent | same session | yes | lock | LCK_M_S | 2 | 2 |
+| 1 | 2 | agent | same session | no | other | CXCONSUMER, CXSYNC_CONSUMER, CXSYNC_PORT | 29 | 521 |
+| 1 | 2 | agent | writer | no | lock | LCK_M_S | 1 | 16 |
+| 1 | 2 | agent | same session | yes | other | CXCONSUMER | 16 | 2 |
+| 1 | 4 | agent | same session | no | other | CXCONSUMER, CXSYNC_CONSUMER, CXSYNC_PORT | 47 | 76 |
+| 1 | 4 | agent | writer | no | lock | LCK_M_S | 1 | 66 |
+| 1 | 4 | agent | agent | yes | lock | LCK_M_S | 4 | 54 |
+| 1 | 4 | agent | same session | yes | other | CXCONSUMER | 13 | 7 |
+| 1 | 4 | agent | same session | yes | lock | LCK_M_S | 4 | 57 |
+| 1 | 8 | agent | same session | no | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 77 | 152 |
+| 1 | 8 | agent | writer | no | lock | LCK_M_S | 1 | 21 |
+| 1 | 8 | agent | same session | yes | other | CXCONSUMER | 19 | 7 |
+| 1 | 8 | agent | agent | yes | lock | LCK_M_S | 1 | 7 |
+| 1 | 8 | agent | same session | yes | lock | LCK_M_S | 1 | 2 |
+| 2 | 1 | agent | same session | yes | lock | LCK_M_S | 3 | 8 |
+| 2 | 1 | agent | agent | yes | lock | LCK_M_S | 3 | 10 |
+| 2 | 1 | agent | writer | no | lock | LCK_M_S | 1 | 12 |
+| 2 | 1 | agent | same session | no | other | CXCONSUMER, CXPACKET | 24 | 18 |
+| 2 | 2 | agent | same session | no | other | CXCONSUMER, CXSYNC_CONSUMER, CXSYNC_PORT | 27 | 45 |
+| 2 | 2 | agent | writer | no | lock | LCK_M_S | 1 | 23 |
+| 2 | 2 | agent | agent | yes | lock | LCK_M_S | 7 | 16 |
+| 2 | 2 | agent | same session | yes | lock | LCK_M_S | 3 | 22 |
+| 2 | 2 | agent | same session | yes | other | CXCONSUMER | 41 | 1 |
+| 2 | 4 | agent | same session | no | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 68 | 207 |
+| 2 | 4 | agent | writer | no | lock | LCK_M_S | 1 | 14 |
+| 2 | 4 | agent | same session | yes | other | CXCONSUMER | 4 | 13 |
+| 2 | 4 | agent | agent | yes | lock | LCK_M_S | 3 | 14 |
+| 2 | 4 | agent | same session | yes | lock | LCK_M_S | 1 | 13 |
+| 2 | 8 | agent | same session | no | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 82 | 55 |
+| 2 | 8 | agent | agent | yes | lock | LCK_M_S | 5 | 18 |
+| 2 | 8 | agent | same session | yes | other | CXCONSUMER | 24 | 20 |
+| 2 | 8 | agent | agent | no | lock | LCK_M_S | 1 | 16 |
+| 2 | 8 | agent | writer | no | lock | LCK_M_S | 1 | 25 |
+| 2 | 8 | agent | same session | yes | lock | LCK_M_S | 3 | 24 |
+| 3 | 1 | agent | same session | no | other | CXCONSUMER | 18 | 3 |
+| 3 | 1 | agent | writer | no | lock | LCK_M_S | 1 | 2 |
+| 3 | 2 | agent | same session | no | other | CXCONSUMER, CXPACKET | 27 | 22 |
+| 3 | 2 | agent | same session | yes | other | CXCONSUMER | 22 | 3 |
+| 3 | 2 | agent | agent | yes | lock | LCK_M_S | 7 | 10 |
+| 3 | 2 | agent | same session | yes | lock | LCK_M_S | 6 | 25 |
+| 3 | 2 | agent | writer | no | lock | LCK_M_S | 1 | 17 |
+| 3 | 2 | agent | agent | no | lock | LCK_M_S | 1 | 0 |
+| 3 | 4 | agent | same session | no | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 65 | 66 |
+| 3 | 4 | agent | writer | no | lock | LCK_M_S | 1 | 34 |
+| 3 | 4 | agent | same session | yes | other | CXCONSUMER, CXPACKET | 13 | 4 |
+| 3 | 4 | agent | agent | yes | lock | LCK_M_S | 3 | 8 |
+| 3 | 4 | agent | same session | yes | lock | LCK_M_S | 3 | 19 |
+| 3 | 8 | agent | same session | no | other | CXCONSUMER, CXPACKET, CXSYNC_CONSUMER, CXSYNC_PORT | 75 | 90 |
+| 3 | 8 | agent | writer | no | lock | LCK_M_S | 1 | 19 |
+| 3 | 8 | agent | same session | yes | lock | LCK_M_S | 1 | 2 |
+| 3 | 8 | agent | same session | yes | other | CXCONSUMER | 3 | 0 |
+| 3 | 8 | agent | agent | yes | lock | LCK_M_S | 2 | 12 |
 
-Worst case over 3 runs: writer max 366 ms; longest wait the writer spent on an agent session
-12 ms; longest wait any session spent on an agent session 279 ms; longest agent lock wait
-312 ms; open transactions after a topology run 0.
+Worst case over 3 runs: writer max 204 ms; longest wait the writer spent on an agent session
+0 ms; longest wait any session spent on an agent session 16 ms; longest agent lock wait
+66 ms; open transactions after a topology run 0; table-level locks an agent session held at once
+0. Median over the runs of the writer's slowest update, by process count: 1: 60 ms, 2: 59 ms, 4: 91 ms, 8: 148 ms.
+3 runs show the worst case; they support no estimate of run-to-run spread.
 
 Bounded-blocking check: PASS. Every call returned; no agent lock wait reached the lock timeout, no wait on an agent session reached the request timeout, and no transaction was left open.
 <!-- measure-read-safety:results:end -->

@@ -194,8 +194,19 @@ What the list lets through, because it is a heuristic:
 - **Locking reads on SQL Server.** `READ_COMMITTED_SNAPSHOT` is off by default on SQL Server, so a
   `READ COMMITTED` read takes shared locks, releasing each row lock before it reads the next row.
   The guarantee is bounded blocking, not none: the lock timeout ends the read's own lock waits,
-  and the request timeout ends the read, and any wait it causes another session, at the latest.
-  Azure SQL Database turns `READ_COMMITTED_SNAPSHOT` on by default and reads row versions instead.
+  and the request timeout, plus the time the server takes to act on the cancel, ends the read and
+  any wait it causes another session. It holds because the executor runs each read in autocommit
+  with `XACT_ABORT ON` and implicit transactions off; a cancel does not end an explicit
+  transaction. A read can still escalate to a table lock: escalation starts at 5,000 locks taken
+  by one statement on one table reference, and a read-committed bookmark lookup that uses
+  `PREFETCH` can run part of a query at repeatable read
+  ([locking guide](https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide),
+  [lock escalation](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/performance/resolve-blocking-problems-caused-lock-escalation)).
+  Azure SQL Database turns `READ_COMMITTED_SNAPSHOT` on by default and reads row versions instead,
+  so reads take no row or page locks. A team that wants that on SQL Server turns the option on for
+  the database itself: the row versions live in `tempdb` (or the database, under accelerated
+  database recovery), each row can grow by up to 14 bytes, and the `ALTER DATABASE` needs no other
+  open connection in the database.
 - **Entra tokens.** Whether a connection that stays busy past its token's expiry keeps working is
   not verified.
 - **Not covered.** Windows integrated and Kerberos authentication. Azure SQL Managed Instance and

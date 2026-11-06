@@ -22,7 +22,7 @@ import { APP_NAME, DEFAULT_LIMITS, IDLE_TIMEOUT_MS, POOL_MAX, createTediousExecu
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = fileURLToPath(import.meta.url);
-const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU8-ubuntu-24.04';
+const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04';
 const DEFAULT_DOC = join(PLUGIN_ROOT, 'reference', 'read-safety-measurement.md');
 const START = '<!-- measure-read-safety:results:start -->';
 const END = '<!-- measure-read-safety:results:end -->';
@@ -219,19 +219,25 @@ class Lab {
     const done = (async () => {
       const connection = await this.connect({ appName: 'measure-sampler' });
       while (!stop) {
-        const [[sessions, lockWaits]] = await this.run(connection, `SELECT
+        const [[sessions, lockWaits, tableLocks]] = await this.run(connection, `SELECT
           (SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE program_name = N'${APP_NAME}'),
           (SELECT COUNT(*) FROM sys.dm_exec_requests AS r JOIN sys.dm_exec_sessions AS s ON s.session_id = r.session_id
-             WHERE s.program_name IN (${list}) AND r.wait_type LIKE N'LCK%');`);
+             WHERE s.program_name IN (${list}) AND r.wait_type LIKE N'LCK%'),
+          (SELECT COUNT(*) FROM sys.dm_tran_locks AS l JOIN sys.dm_exec_sessions AS s ON s.session_id = l.request_session_id
+             WHERE s.program_name = N'${APP_NAME}' AND l.resource_type = N'OBJECT' AND l.request_mode IN (N'S', N'X')
+               AND l.request_status = N'GRANT' AND l.resource_database_id = DB_ID(N'${DB}'));`);
         const waits = await this.run(connection, `SELECT ws.program_name, w.session_id, w.blocking_session_id,
-            bs.program_name, w.wait_type, w.wait_duration_ms
+            bs.program_name, w.wait_type, w.wait_duration_ms,
+            CASE WHEN EXISTS (SELECT 1 FROM sys.dm_os_waiting_tasks AS b
+              WHERE b.session_id = w.blocking_session_id AND b.blocking_session_id > 0
+                AND b.blocking_session_id <> b.session_id) THEN 1 ELSE 0 END
           FROM sys.dm_os_waiting_tasks AS w
           JOIN sys.dm_exec_sessions AS ws ON ws.session_id = w.session_id
           LEFT JOIN sys.dm_exec_sessions AS bs ON bs.session_id = w.blocking_session_id
           WHERE ws.program_name IN (${list}) AND w.blocking_session_id IS NOT NULL AND w.blocking_session_id <> 0;`);
         const seen = new Map();
-        for (const [waiterProgram, session, blocking, blockerProgram, waitType, waitMs] of waits) {
-          const key = [role(waiterProgram), blockerOf(session, blocking, blockerProgram), waitClass(waitType)].join('|');
+        for (const [waiterProgram, session, blocking, blockerProgram, waitType, waitMs, blockerWaiting] of waits) {
+          const key = [role(waiterProgram), blockerOf(session, blocking, blockerProgram), waitClass(waitType), blockerWaiting ? 'yes' : 'no'].join('|');
           seen.set(key, (seen.get(key) ?? 0) + 1);
           const pair = pairs.get(key) ?? { peak: 0, longestMs: 0, types: new Set() };
           pair.longestMs = Math.max(pair.longestMs, Number(waitMs));
@@ -239,7 +245,7 @@ class Lab {
           pairs.set(key, pair);
         }
         for (const [key, count] of seen) pairs.get(key).peak = Math.max(pairs.get(key).peak, count);
-        samples.push({ sessions, lockWaits });
+        samples.push({ sessions, lockWaits, tableLocks });
         await sleep(intervalMs);
       }
       connection.close();
@@ -251,9 +257,10 @@ class Lab {
       return {
         sessions: Math.max(0, ...samples.map((s) => s.sessions)),
         lockWaits: samples.filter((s) => s.lockWaits > 0).length,
+        tableLocks: Math.max(0, ...samples.map((s) => s.tableLocks)),
         pairs: [...pairs].map(([key, pair]) => {
-          const [waiter, blocker, wait] = key.split('|');
-          return { waiter, blocker, wait, peak: pair.peak, longestMs: pair.longestMs, types: [...pair.types].sort() };
+          const [waiter, blocker, wait, blockerWaiting] = key.split('|');
+          return { waiter, blocker, wait, blockerWaiting, peak: pair.peak, longestMs: pair.longestMs, types: [...pair.types].sort() };
         }),
       };
     };
@@ -515,6 +522,7 @@ async function topology(lab, { work, reader }, processes) {
     calls: latencies.length,
     peakSessions: sample.sessions,
     pairs: sample.pairs,
+    tableLocks: sample.tableLocks,
     open: await lab.openTransactions(APP_NAME),
     medianMs: Math.round(latencies[Math.floor(latencies.length / 2)]),
     maxMs: Math.round(latencies.at(-1)),
@@ -642,19 +650,26 @@ function attribution(results, runs) {
   const out = ['', '### Waiting tasks in the topology runs, by waiter and blocker', ''];
   out.push(`Sampled every 50 ms from \`sys.dm_os_waiting_tasks\`, for the agent sessions and the writer. A task counts when its`);
   out.push('`blocking_session_id` is set and not 0. Longest wait is the largest `wait_duration_ms` a sample saw, so it can');
-  out.push('trail the true wait by up to one sampling interval.', '');
+  out.push('trail the true wait by up to one sampling interval. Blocker waiting says whether the blocker was itself waiting on');
+  out.push('another session at that sample: a request queued behind a waiting one names it as blocker, so such a wait is');
+  out.push('not counted as caused by the blocker. A negative `blocking_session_id` (an owner SQL Server cannot name) and a');
+  out.push("session's own parallel tasks are classed apart, not as blocking by another session.", '');
   const rows = results.flatMap((t) => t.pairs.map((p) => ({ run: t.run, processes: t.processes, ...p })));
   if (rows.length === 0) {
     out.push('No task of an agent session or the writer waited on another task in any run.');
   } else {
-    out.push('| Run | Processes | Waiter | Blocker | Wait class | Wait types | Peak waiting tasks | Longest wait (ms) |');
-    out.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
-    for (const r of rows) out.push(`| ${r.run} | ${r.processes} | ${r.waiter} | ${r.blocker} | ${r.wait} | ${r.types.join(', ')} | ${r.peak} | ${r.longestMs} |`);
+    out.push('| Run | Processes | Waiter | Blocker | Blocker waiting | Wait class | Wait types | Peak waiting tasks | Longest wait (ms) |');
+    out.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const r of rows) {
+      out.push(`| ${r.run} | ${r.processes} | ${r.waiter} | ${r.blocker} | ${r.blockerWaiting} | ${r.wait} | ${r.types.join(', ')} | ${r.peak} | ${r.longestMs} |`);
+    }
   }
 
   const max = (values) => Math.max(0, ...values);
+  const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
   const writerMax = max(results.map((t) => t.writerMaxMs));
-  const agentCaused = rows.filter((r) => r.blocker === 'agent');
+  const tableLocks = max(results.map((t) => t.tableLocks));
+  const agentCaused = rows.filter((r) => r.blocker === 'agent' && r.blockerWaiting === 'no');
   const agentCausedMs = max(agentCaused.map((r) => r.longestMs));
   const writerOnAgentMs = max(agentCaused.filter((r) => r.waiter === 'writer').map((r) => r.longestMs));
   const agentLockMs = max(rows.filter((r) => r.waiter === 'agent' && r.wait === 'lock').map((r) => r.longestMs));
@@ -662,7 +677,11 @@ function attribution(results, runs) {
   const d = DEFAULT_LIMITS;
   out.push('', `Worst case over ${runs} runs: writer max ${writerMax} ms; longest wait the writer spent on an agent session`);
   out.push(`${writerOnAgentMs} ms; longest wait any session spent on an agent session ${agentCausedMs} ms; longest agent lock wait`);
-  out.push(`${agentLockMs} ms; open transactions after a topology run ${open}.`);
+  out.push(`${agentLockMs} ms; open transactions after a topology run ${open}; table-level locks an agent session held at once`);
+  const counts = [...new Set(results.map((t) => t.processes))];
+  const medians = counts.map((n) => `${n}: ${median(results.filter((t) => t.processes === n).map((t) => t.writerMaxMs))} ms`);
+  out.push(`${tableLocks}. Median over the runs of the writer's slowest update, by process count: ${medians.join(', ')}.`);
+  out.push(`${runs} runs show the worst case; they support no estimate of run-to-run spread.`);
   const failures = [
     agentLockMs >= d.lockTimeoutMs && `an agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms)`,
     agentCausedMs >= d.requestTimeoutMs && `a wait on an agent session reached the request timeout (${d.requestTimeoutMs} ms)`,
