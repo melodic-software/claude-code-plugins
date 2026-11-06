@@ -37,19 +37,9 @@ self-hosted-runner:
 # message. intake-triage.yml sets `cache-mode: none` on its model jobs.
 # Remove when actionlint knows the key and the pinned actionlint is bumped.
 # Trade-off: actionlint cannot check the key's value.
-#
-# `field_added` is an `issues` activity type GitHub fires when an issue field
-# value is set or updated
-# (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issues),
-# but actionlint 1.7.12 rejects it with `invalid activity type "field_added" for
-# "issues" Webhook event`; the ignore matches only that type on that event.
-# work-status-field-probe.yml and, after #13484, work-resolve-issue.yml use it.
-# Remove when actionlint lists the type and the pinned actionlint is bumped.
-# Trade-off: none beyond that type; a misspelled activity type still fails.
 paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
       - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
       - 'unexpected key "queue" for "concurrency" section'
       - 'unexpected key "cache-mode" for "job" section'
-      - 'invalid activity type "field_added" for "issues" Webhook event'
