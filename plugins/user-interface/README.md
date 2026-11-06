@@ -151,7 +151,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `account_tools_enabled` | boolean | `true` | Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) is tested; the rest stay deferred. |
+| `account_tools_enabled` | boolean | `true` | Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) and Figma are tested; the rest stay deferred. |
 | `css_browser_target` | string | *(none)* | Browserslist query for the browsers CSS must support when the project has no browserslist config, such as "baseline widely available". Empty uses the plugin default. A team or personal convention file overrides it. |
 | `css_important` | string | `"avoid"` | When !important is acceptable: avoid (default), utilities-only, or allow. A team or personal convention file overrides it. |
 | `css_layer` | string | *(none)* | The cascade layer new CSS goes in. Empty follows the project's own layer order. A team or personal convention file overrides it. |

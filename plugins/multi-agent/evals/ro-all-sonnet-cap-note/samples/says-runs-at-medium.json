@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The verifier and orchestrator read high here, but under your cap they run at medium.",
+      "why": "runs at medium"
+    },
+    {
+      "answer": "Effort high is capped to medium at run time.",
+      "why": "capped to medium"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The verifier reads effort high in the map.",
+      "why": "no run-time effect"
+    },
+    {
+      "answer": "The verifier does not run at medium; it stays high.",
+      "why": "negated"
+    },
+    {
+      "answer": "Your managed settings set maxEffortLevel to medium.",
+      "why": "prompt echo"
+    }
+  ]
+}

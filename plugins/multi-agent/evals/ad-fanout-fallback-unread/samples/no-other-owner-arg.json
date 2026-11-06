@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh --json fanout"
+          }
+        }
+      ],
+      "why": "fanout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh fanout; cat /home/<user>/.claude/plugins/multi-agent/reference/defaults.yaml"
+          }
+        }
+      ],
+      "why": "defaults.yaml after, not an argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh --json defaults"
+          }
+        }
+      ],
+      "why": "mode name as owner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-pointers.sh worker"
+          }
+        }
+      ],
+      "why": "another owner"
+    }
+  ]
+}

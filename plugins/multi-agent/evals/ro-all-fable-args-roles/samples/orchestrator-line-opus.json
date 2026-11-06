@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "orchestrator: single inherit: omit the model option @ high; fanout opus @ high (basis: model judgment, fanout model unrecorded, effort judgment)",
+      "why": "contract line"
+    },
+    {
+      "answer": "- `orchestrator: single inherit: omit the model option @ high; fanout opus @ high`",
+      "why": "bullet, code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "orchestrator: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high",
+      "why": "fanout inherit"
+    },
+    {
+      "answer": "orchestrator: single fable @ high; fanout opus @ high",
+      "why": "single names fable"
+    }
+  ]
+}

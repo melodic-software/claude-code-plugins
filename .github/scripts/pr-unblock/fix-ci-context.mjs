@@ -374,7 +374,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
       fetch: await countedFetch(),
     });
-  const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
+  const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/docs/conventions/work-items.yaml`);
   // linkedIssues takes check-trusted-trigger's github(method, path, body)
   // client: one that throws on GraphQL errors, and one that keeps them for
   // its Refs read.

@@ -3,7 +3,8 @@
 The single home for the `bugs` plugin's config-key contract. The team layer is
 `docs/conventions/bugs.yaml`, validated by [`schemas/bugs.schema.json`](../schemas/bugs.schema.json),
 layered per the marketplace's config-cascade convention. It is read by `/bugs:scan` for lane
-selection and rotation, plus filing posture, and verified/written by `/bugs:setup`. All layers are
+selection and rotation, and verified/written by `/bugs:setup`. Filing posture is a work-items key
+([Filing posture](#filing-posture)). All layers are
 optional: **zero config is a fully working state**, because rotation falls through to the bundled
 generic default lanes.
 
@@ -38,8 +39,9 @@ Declared here per the cascade convention, beside the keys they govern:
   `lanes: []`, an explicit empty list rather than an absent key, is an **opt-out** that drops every lane
   inherited from earlier layers and from the bundled defaults; it is reported as an opt-out, not as a
   broken layer. When no layer declares `lanes` at all, the bundled generic default lanes apply.
-- **`filing_posture`** is a scalar, resolved **nearest-wins**: the last layer that declares it supplies
-  the value; a layer that omits it keeps the earlier value.
+- **`filing_posture`** (deprecated here, see [Filing posture](#filing-posture)) is a scalar, resolved
+  **nearest-wins**: the last layer that declares it supplies the value; a layer that omits it keeps
+  the earlier value.
 
 Wholesale replacement of an earlier layer is forbidden.
 
@@ -48,7 +50,7 @@ Wholesale replacement of an earlier layer is forbidden.
 `output_dir` stays a native Claude Code `userConfig` option and is **never** duplicated into this
 cascade file. The two surfaces answer different questions and have different owners: `output_dir` is
 one operator's personal report destination on one machine, set through Claude Code's own plugin
-configuration prompt and stored in user settings; `lanes` and `filing_posture` are team policy about
+configuration prompt and stored in user settings; `lanes` is team policy about
 *this repository*, which structurally cannot ride a per-user, per-machine setting. Declaring
 `output_dir` here would create two sources of truth for one value with no defined precedence between
 them. It is therefore not a recognized key, and a layer that sets it is reported as an inert unknown key.
@@ -70,7 +72,6 @@ lanes:
   - name: billing-core
     globs:
       - 'src/billing/**/*.ts'
-filing_posture: manual-only
 ```
 
 ### Consumer `## Gotchas` (cascade scope, #3547)
@@ -83,12 +84,30 @@ same failure-driven rule the bundled gotchas follow. Generalizable lines belong 
 skill via an issue to this marketplace; see
 [`docs/contracts/config-cascade/consumer-gotchas.md`](../../../docs/contracts/config-cascade/consumer-gotchas.md).
 
+## Filing posture
+
+`filing_posture` is team policy for the explicit filing argument, and it lives in the work-items
+plugin's team file, `docs/conventions/work-items.yaml` (schema
+`plugins/work-items/schemas/work-items.schema.json`). `manual-only`, the default, means `--track`
+files nothing and prints why; a standing autonomous lane must not file into this tracker.
+`allowed` permits `--track` to file. Neither value ever makes a bare invocation file: filing always
+needs the explicit argument as well. Resolve it highest first:
+
+1. `filing_posture` in `docs/conventions/work-items.yaml`: layer `work-items`.
+2. For one release, a `filing_posture` in this plugin's layers above (nearest-wins): layer
+   `bugs (deprecated)`, and print "filing_posture read from <file>, which is deprecated; move it
+   to docs/conventions/work-items.yaml".
+3. The default, `manual-only`: layer `default`.
+
+A value other than `manual-only` or `allowed` is named (file, key, value) and that layer is
+skipped.
+
 ## Keys
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `lanes` | list of lane entries (sub-keys below) | bundled generic default lanes | The rotation set `/bugs:scan` walks on a bare invocation, in declaration order. Concatenating merge with an empty-list opt-out (above). |
-| `filing_posture` | `manual-only` \| `allowed` | `manual-only` | Team policy for the explicit filing argument. `manual-only` means `--track` files nothing and prints why. A standing autonomous lane must not file into this tracker. `allowed` permits `--track` to file. Neither value ever makes a bare invocation file: filing always needs the explicit argument as well. Nearest-wins scalar merge. |
+| `filing_posture` | `manual-only` \| `allowed` | none | Deprecated: read only as the fallback in [Filing posture](#filing-posture), for one release. Nearest-wins scalar merge. |
 | `verification`, `verification_skills.<skill>` | `off` \| `light` \| `standard` \| `strict` | `standard` | How much independent checking `/bugs:scan` runs: `light` and `off` skip the Step 4 gate and report candidates as `unverified`. Read from `docs/conventions/bugs.yaml` on the default branch only, through `lib/read-verification.sh`; no other layer sets it, and a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)). |
 
 ### `lanes[]` sub-keys

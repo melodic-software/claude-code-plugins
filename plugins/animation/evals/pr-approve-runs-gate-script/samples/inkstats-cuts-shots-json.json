@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py film/frames --cuts film/shots.json --pack woodcut-ink",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"$S/inkstats.py\" film/frames --cuts \"$PWD/film/shots.json\" --pack \"$P\"",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py film/frames --t 0-4 --pack woodcut-ink",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "per-shot line, no --cuts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py film/frames --cuts 0,4,8 --pack woodcut-ink",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "retyped cuts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py film/frames --cuts=0,4,8 --pack woodcut-ink",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "retyped cuts with ="
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/scripts/inkstats.py film/frames --cuts $(python3 produce.py cuts film) --pack woodcut-ink",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "cuts printed, not the path"
+    }
+  ]
+}

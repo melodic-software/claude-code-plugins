@@ -626,8 +626,8 @@ activities:
     # The labeled issue; the hourly sweep takes none and lists open issues.
     inputs: [issue]
   apply-verdict:
-    # After intake triage, writes its verdict as the lanes App: the work-class
-    # label, the Size, Complexity and Uncertainty issue fields, and
+    # After intake triage, writes its verdict as the lanes App: the Size,
+    # Complexity and Uncertainty issue fields (never a work-class label), and
     # `status: ready` or `status: needs-decision`, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
     # `Blocked by:` line or the issue body's own `Blocked by` and
@@ -939,6 +939,15 @@ models:
       # One rung up, for fix-ci's retry after it escalated only unfixed or
       # not-reproducible checks.
       escalate-to: code-xhigh
+    # code-fix's worker for a release's plugin edits, with the turns one
+    # release takes: run 42275404281 spent 76 turns on 2.1.319 (134 core
+    # items) before the plan; 150 runs about 45 minutes at its pace, inside
+    # the leg's 70.
+    apply-changelog:
+      role: worker
+      workload: code
+      effort-role: verifier
+      max-turns: 150
     # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
     # issue and fix-ci's one retry. The rung above it is Fable, which no
     # profile names: it stays off, owner-gated pending a per-week Fable
@@ -984,8 +993,8 @@ models:
     summarize-reuse: summary
     # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
-    # A release's plugin edits, on run-claude-cli, as resolve-issue's.
-    apply-changelog: code-fix
+    # A release's plugin edits, on run-claude-cli.
+    apply-changelog: apply-changelog
     # pr-unblock's read-only judge of a finding address-feedback disputed: at
     # least the review lanes' model, so a weaker model never overrules the
     # reviewer.
@@ -1123,9 +1132,12 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts. 0 turns CI fix-docs off,
-  # the owner's decision in #7576 (D100, Q158); set 1 or more to turn it on.
-  fix-docs-per-run: 0
+  # fix-docs runs one pr-unblock-dispatch run starts; 0 turns CI fix-docs off.
+  # On for every PR not tidied in its own run (work-resolve-issue's within
+  # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
+  # D100 to those PRs.
+  # 2 matches fix-ci-per-run.
+  fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12

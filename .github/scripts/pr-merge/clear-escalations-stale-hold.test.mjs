@@ -41,7 +41,7 @@ writeFileSync(
 const ENV = {
   GITHUB_REPOSITORY: REPO,
   KILL_SWITCH: "proceed",
-  TRACKER_CONFIG: "/nonexistent/.work-item-tracker.json",
+  TRACKER_CONFIG: "/nonexistent/work-items.yaml",
   TRUSTED_ACTORS_PATH: TRUSTED,
   BABYSIT_VERIFY_GH_TOKEN: "job-token",
 };

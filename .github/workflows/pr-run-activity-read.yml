@@ -577,7 +577,7 @@ jobs:
           HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
-          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+          CLAUDE_PROJECT_DIR: ${{ github.workspace }}/.base
         run: |
           # Each `gh api` call keeps its rate-limit reading for the job-end
           # api-budget notice (.github/actions/log-api-budget).
@@ -4002,7 +4002,7 @@ jobs:
           HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
-          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+          CLAUDE_PROJECT_DIR: ${{ github.workspace }}/.base
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $LEASE_COMMENT_ID =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::the issue number or lease comment id is not a positive integer"

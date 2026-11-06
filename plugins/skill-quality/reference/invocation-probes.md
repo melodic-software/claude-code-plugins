@@ -208,7 +208,8 @@ as one INFO line per split. With about 4 to 6 positives per split, only a consis
 shift clears noise. When no probe changes, or every probe changes the same way, the
 interval has zero width, so read the probe count before trusting it.
 
-`emit-plugin-eval` writes `runs: 3` per case; `--runs N` changes it.
+`emit-plugin-eval` writes `runs: 3` per case; the `plugin_eval_runs` setting in `skill-quality.yaml`
+(README, Settings) changes it, and `--runs N` beats the setting.
 
 - **Pointer**: for what one `claude plugin eval` run loads, the case-level `plugins` field, and
   how many times a case runs by default, fetch

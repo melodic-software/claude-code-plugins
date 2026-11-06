@@ -90,8 +90,8 @@ when this pass must stop instead of guessing.
    `empty`). Exit `1` names a value it cannot copy (a null, an empty object, a list of mappings);
    `3` an `OVERRIDE` path that no `.gitignore` rule covers or that the index holds; `4` a repository
    where no home applies or whose pointer is broken. Each writes nothing and is a finding to report. The JSON files
-   stay where they are, unchanged: babysit-prs, the autonomy plugin's resolve-prerequisites, and the
-   work, triage, attend-queue and track preflights still read only them. Say so, and say that a later
+   stay where they are, unchanged: older installed plugin versions and the repository's own tooling
+   may still read only them. Say so, and say that a later
    binding edit lands only in the YAML file. Then treat the copy as the current binding. If neither
    file binds the repository, say so and continue to the interview.
 2. **Choose the provider**, recommendation first. One line each below; the selection detail,
@@ -347,7 +347,7 @@ unambiguous; ask only where an item genuinely needs the user.
 
 `apply` runs this pass at **step 3** of its numbered flow, after the role-label pass and before any
 schedule work. Triage marks an untrusted item with `provenance: untrusted`, the canonical member in
-[`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md).
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 
 1. **Skip when no binding exists**, nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report

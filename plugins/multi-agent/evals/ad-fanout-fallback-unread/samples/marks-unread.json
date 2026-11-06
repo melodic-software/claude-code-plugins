@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| fanout | model | opus | unread | workflows#cost | none |",
+      "why": "unread row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fanout | model | opus | current | workflows#cost | none |",
+      "why": "current"
+    },
+    {
+      "answer": "Both sources could not be fetched.",
+      "why": "no unread verdict"
+    }
+  ]
+}

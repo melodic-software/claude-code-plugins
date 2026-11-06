@@ -180,7 +180,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch; off here by configuration (`limits.fix-docs-per-run: 0`, set 1 or more to turn it on), so only a trusted human's dispatch starts it |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch; `limits.fix-docs-per-run: 0` turns the dispatches off |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -473,8 +473,8 @@ before the model turn: a person who comments, or a hold that lands, while the ru
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
 
-On a PR carrying the human-gated role label (`needs-human` unless the base's
-`.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
+On a PR carrying the human-gated role label (`needs-human` unless the base's tracker binding in
+`docs/conventions/work-items.yaml` names another), `address-feedback` works a thread only when it carries
 a fix request, after the lane's escalation when there is one. Without such a
 thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
 stays held; with one, the write runner lifts only the human-gated hold for that run, and
@@ -582,16 +582,27 @@ unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-hu
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-CI `fix-docs` is off in this repository by configuration: `limits.fix-docs-per-run` is `0`, so the
-dispatcher logs `fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call
-for it. Set the value to 1 or more to turn it back on; the rest of this section describes it on.
+CI `fix-docs` runs on every pull request not tidied in its own run
+([ADR 0089](../../adr/0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)). The skip
+reads the base config's tidy cutoffs when it dispatches, not the ones the lane run used.
+`limits.fix-docs-per-run` is `2` here; at `0` the dispatcher logs
+`fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call for it.
 
 The same `pr-unblock-dispatch.yml` run dispatches `pr-refine.yml`'s `fix-docs` once per pull
 request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists
-the non-draft, same-repository ones into `main`, whoever opened them, lanes App PRs included,
-except Dependabot (account 49699333, whose own rebases a lane commit stops), the release App
-(337859524) and the standards-sync App (300666570), whose files are generated or synced; an
-author with no account id is skipped. It keeps those with no `do-not-merge` or `needs-human`
+the non-draft, same-repository ones into `main`, whoever opened them, except Dependabot (account
+49699333, whose own rebases a lane commit stops), the release App (337859524) and the
+standards-sync App (300666570), whose files are generated or synced, and `work-resolve-issue`
+PRs tidied in their own run (within the tidy cutoffs): the lanes App's on a lane branch
+(`work-resolve-issue/issue-<n>-<run>-<attempt>`) whose one commit is the App's API
+commit (a valid signature, the App as author, GitHub as committer), and whose change is within
+`resolve-issue`'s `tidy.cutoffs` in the base config, read from the PR's file count, added plus
+removed lines, changed paths and their areas as the [`tidy` entry](#activities) defines them. A
+lane PR with any other commit (a later push its tidy never saw), over any cutoff, or whose file
+list is cut off, was not tidied and is listed, and so are the lanes
+App's other PRs and a person's PR on a branch with a lane name. An author with no account id is
+skipped. It keeps
+those with no `do-not-merge` or `needs-human`
 label (a lane escalation's aside, as above; a held PR is not recorded), that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
 `pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
 app. For each, lowest number first, one
@@ -1737,7 +1748,7 @@ except six:
   date is not idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting
   and the list read at the default branch head,
   and that no hold applies to: the `do-not-merge` label, the
-  tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
+  tracker's human-gated role label as `docs/conventions/work-items.yaml` binds it, or a hold line in
   the body. Its activity is the newest of its opening, the head's arrival (the newest GitHub
   Actions check suite for the head commit on its branch, since a commit's dates are its
   pusher's; a `pull_request` workflow run that a label or title edit starts adds such a suite, so
@@ -2961,7 +2972,7 @@ false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
 rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
-`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+the tracker binding in `docs/conventions/work-items.yaml` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
@@ -3097,7 +3108,7 @@ No ruleset requires a review check (github-iac ADR 0017); ci-status, the one req
 them on every `pull_request` run, contract-only runs included:
 
 - **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
-  unless the base's `.work-item-tracker.json` names another). Removing it approves.
+  unless the base's `docs/conventions/work-items.yaml` binding names another). Removing it approves.
 - **Only a trusted person lifts a review-lane hold.** A hold is the newest hold comment or the
   newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
   so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
@@ -3675,7 +3686,7 @@ with its default.
 | `stranded-backoff-hours` | 3 each | Per cause, the base hours of work-unblock's re-fire backoff for a stranded `agent-ready` issue: the wait is these hours doubled once per re-fire already made on the same lane workflow files (per trip past `limit-stops-per-issue` for `kill-switch`), up to 24. Causes: `no-run` (no work-resolve-issue run started) and `no-report` (a run ended green with no report and no pull request), where it is also the wait before the first re-fire; `failed-again` (a re-fired run failed or was cancelled again), at least twice these hours; `failed-mint` (no lane token), backed off only past `limit-stops-per-issue` re-fires, so at least these hours doubled that many times; and `kill-switch` (a kill-switch refusal, past `limit-stops-per-issue` trips). Each 1 to 24. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
-| `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; 0 to 20, and 0 turns CI fix-docs off (this repository sets 0). |
+| `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; 0 to 20, and 0 turns CI fix-docs off. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 | `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks, halving its cadence (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler and pr-unblock-dispatch read it), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
@@ -3879,8 +3890,8 @@ person opened. A PR is adopted when all of these hold:
 
 - an account on the trusted-actor list opened it, a person or an App, matched by numeric id;
 - it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
-  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
-  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  `needs-human` or human-gated label (`tracker.config.role_labels["human-gated"]` in the base
+  `docs/conventions/work-items.yaml`, as pr-merge resolves it; a file yq cannot read holds every
   owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
   two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline

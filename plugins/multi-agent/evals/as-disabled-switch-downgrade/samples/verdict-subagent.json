@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: sections",
+      "why": "plain"
+    },
+    {
+      "answer": "verdict: `subagent`\nreason: x",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: workflow\nreason: x",
+      "why": "workflow"
+    },
+    {
+      "answer": "verdict: subagent, maybe workflow\nreason: x",
+      "why": "hedged"
+    }
+  ]
+}

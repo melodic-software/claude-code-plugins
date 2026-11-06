@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "orchestrator: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high (source: bundled, bundled)",
+      "why": "contract wording"
+    },
+    {
+      "answer": "| worker | inherit: omit the model option @ medium | inherit: omit the model option @ medium | bundled |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "orchestrator: single inherit @ high; fanout inherit @ high",
+      "why": "bare inherit"
+    },
+    {
+      "answer": "Inherit means omit the model option.",
+      "why": "no role line"
+    }
+  ]
+}

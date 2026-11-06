@@ -74,8 +74,8 @@ out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(a
 with open(sys.argv[1], "wb") as f:
     f.write(out)
 PY
-mkdir -p .claude/skills/testing/reference
-cat > .claude/skills/testing/SKILL.md <<'EOF'
+mkdir -p skills/testing/reference
+cat > skills/testing/SKILL.md <<'EOF'
 ---
 name: testing
 description: "Testing practice: test structure, naming, fixtures and test doubles."

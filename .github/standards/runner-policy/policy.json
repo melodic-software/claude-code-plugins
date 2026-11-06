@@ -36,7 +36,8 @@
         "allowed-bot-sender-ids",
         "role",
         "lane-transcript-public-key",
-        "key-credit-window-hours"
+        "key-credit-window-hours",
+        "key-credit-reset-at"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
@@ -169,7 +170,8 @@
         "base-sha",
         "event-action",
         "dispatcher-actor-ids",
-        "key-credit-window-hours"
+        "key-credit-window-hours",
+        "key-credit-reset-at"
       ],
       "allowedSecrets": {
         "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",

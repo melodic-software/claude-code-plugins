@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Omit `model` on the Agent call: the single variant's omit_model is true.",
+      "why": "omit model"
+    },
+    {
+      "answer": "Don't pass model; the worker runs on the session model.",
+      "why": "don't pass"
+    },
+    {
+      "answer": "Leave `model` off and pass `effort: \"medium\"`.",
+      "why": "leave off"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pass model: \"opus\" and effort: \"medium\".",
+      "why": "passes opus"
+    },
+    {
+      "answer": "Use the fan-out variant: opus at medium.",
+      "why": "fan-out variant"
+    },
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout opus @ medium\n\nPass model: \"opus\" on the call.",
+      "why": "omit only on the role line"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "I can't tell yet whether it matches: render.py stopped because the Python packages are not installed."
+    },
+    {
+      "answer": "Whether the scene matches the pack is open until the crops are read at 1:1."
+    },
+    {
+      "answer": "Yes, once the render runs I will check it with inkstats.py and read the crops."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, it matches the woodcut pack.",
+      "why": "unconditional yes"
+    },
+    {
+      "answer": "Render done. The scene matches the pack on every row.",
+      "why": "match claim"
+    },
+    {
+      "answer": "- It passes the pack check.",
+      "why": "pass claim"
+    }
+  ]
+}

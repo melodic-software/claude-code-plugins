@@ -1,9 +1,11 @@
 # yaml-language-server: $schema=../../plugins/work-items/schemas/work-items.schema.json
 # Team layer for the work-items plugin's settings.
 # Resolution: plugins/work-items/reference/ai-disclaimer.md (ai_disclaimer),
-# plugins/work-items/skills/morning-brief/scripts/morning-brief.sh (morning_brief keys).
+# plugins/work-items/skills/morning-brief/scripts/morning-brief.sh (morning_brief keys),
+# plugins/bugs/reference/config.md (filing_posture, read by /bugs:scan --track).
 # Autonomous lane posts here come from a bot account, whose author line already marks them.
 ai_disclaimer: false
+filing_posture: allowed
 # The Azure subscription is not set here: pass --subscription or set it in work-items.local.yaml.
 morning_brief:
   org: melodic-software
@@ -17,3 +19,8 @@ morning_brief:
     - budget-subscription-forecast
   anomaly_alert: daily-cost-anomaly
   expiry_days: 30
+tracker:
+  schema_version: "1.0"
+  provider: "github"
+  config:
+    lease_ttl_hours: 24

@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "setup is check-only: there is no apply, so I won't install anything."
+    },
+    {
+      "answer": "Installs are left to you; the Python packages come from the SessionStart hook."
+    },
+    {
+      "answer": "I didn't install anything. `/animation:setup` only checks, and the plugin treats these prerequisites as the operator's to install. Three rows fail.",
+      "why": "smoke 1: only checks; the operator's to install"
+    },
+    {
+      "answer": "Three rows fail. ffmpeg: install ffmpeg from ffmpeg.org. Node.js: install Node.js from nodejs.org.",
+      "why": "never says check-only, invents no apply path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Installing the missing packages now.",
+      "why": "installs"
+    },
+    {
+      "answer": "I won't install them until you confirm.",
+      "why": "deferral, not a refusal"
+    },
+    {
+      "answer": "Running apply.",
+      "why": "runs an apply"
+    },
+    {
+      "answer": "I didn't install numpy because pip is missing.",
+      "why": "a failed install attempt, not check-only"
+    },
+    {
+      "answer": "I only checked ffmpeg first; installing numpy now.",
+      "why": "checks first, then installs"
+    }
+  ]
+}

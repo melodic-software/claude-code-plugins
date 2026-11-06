@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.9.0] - 2026-11-06
+
+### Changed
+
+- `control-claude-code`'s `cli/account.mjs` reports the driven session's account, not the caller's: the session holder runs `claude auth status --json` in that session's own launch environment, the one its masks already read, so the mask post-check resolves in CI, where the outer leg and the driven session run in separate sandboxes. It asks the one session running, or the one `--session <name>` names, and exits 1 with nothing on stdout when no session or several run. The `none:` line now needs the session to run on the `ANTHROPIC_API_KEY` its launch kept.
+
+## [8.8.2] - 2026-11-06
+
+### Fixed
+
+- `/harness-ops:changelog apply --ci` writes `ci-plan.json` once its rows are decided and rewrites it after native drift and after each committed branch, so a run stopped at its turn cap or timeout still publishes the branches it finished and files every other row, instead of leaving no plan ([#7407](https://github.com/melodic-software/claude-code-plugins/issues/7407)).
+
+## [8.8.1] - 2026-11-06
+
+### Changed
+
+- `/harness-ops:changelog apply`'s native-drift filing reads work-items' `filing_posture` on an
+  unattended run: `manual-only`, the default, files nothing and lists the items as unfiled; only
+  `allowed` files without asking. Interactive runs keep the one batch confirmation.
+
 ## [8.8.0] - 2026-11-06
 
 ### Added

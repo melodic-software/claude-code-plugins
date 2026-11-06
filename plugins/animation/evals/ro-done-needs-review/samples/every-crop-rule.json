@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "I still need to read every crop at 1:1, not only the flagged ones."
+    },
+    {
+      "answer": "Done means all the crops look right, not just the flagged one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I read the flagged crop and it looks fine.",
+      "why": "flagged only"
+    },
+    {
+      "answer": "You do not need to read every crop.",
+      "why": "waives the rule"
+    }
+  ]
+}

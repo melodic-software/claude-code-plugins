@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/film/boards/vibe.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/film/shots.json",
+            "old_string": "8",
+            "new_string": "8.0"
+          }
+        }
+      ],
+      "why": "edits shots.json"
+    }
+  ]
+}

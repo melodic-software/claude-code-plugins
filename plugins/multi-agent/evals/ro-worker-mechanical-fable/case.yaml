@@ -12,7 +12,7 @@ graders:
     target: 'last_message'
   - name: 'worker-line-sonnet'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single sonnet @ medium; fanout sonnet @ medium \(basis: model upstream, fanout model upstream, effort upstream\)`?[ \t]*$'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single sonnet @ medium; fanout sonnet @ medium \(basis: model (?:upstream|judgment|config|unrecorded), fanout model (?:upstream|judgment|config|unrecorded), effort (?:upstream|judgment|config|unrecorded)\)`?[ \t]*$'
     flags: 'm'
     target: 'last_message'
   - name: 'hard-cap-line-verbatim'

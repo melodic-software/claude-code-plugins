@@ -42,7 +42,7 @@
 // per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
 // recorded.
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -55,6 +55,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeReco
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -476,7 +477,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles
+        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         files(first: 100) { nodes { path } pageInfo { hasNextPage } }
@@ -485,6 +486,9 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
           nodes {
             commit {
               oid committedDate
+              signature { isValid }
+              author { user { login } }
+              committer { email }
               statusCheckRollup {
                 contexts(first: 100) {
                   nodes {
@@ -747,7 +751,7 @@ export async function loadBaseLimits(env) {
 export function baseHumanGatedLabel(env) {
   let text = null;
   try {
-    text = readFileSync(`${env.BASE_PATH || ".base"}/.work-item-tracker.json`, "utf8");
+    text = trackerBindingText(`${env.BASE_PATH || ".base"}/${TRACKER_BINDING_PATH}`);
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
@@ -771,6 +775,15 @@ export async function loadBaseOwnedBranches(env) {
     new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
   );
   return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
+// The base config's resolve-issue tidy cutoffs, the same way, or null: the
+// fix-docs dispatcher skips a lane PR within them, which tidied in its run.
+export async function loadBaseTidyCutoffs(env) {
+  const { tidyCutoffsFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return tidyCutoffsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
@@ -815,6 +828,7 @@ export async function main(
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
     loadOwnedBranches = loadBaseOwnedBranches,
+    loadTidyCutoffs = loadBaseTidyCutoffs,
     // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
     // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
@@ -837,7 +851,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -845,10 +859,11 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const ownedBranches = await loadOwnedBranches(env);
+  const tidyCutoffs = await loadTidyCutoffs(env);
   // Every dispatcher reads this listing's pages, so one that cannot be read
   // holds the whole run: nothing dispatched, nothing recorded.
   let listed;
@@ -867,7 +882,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   try {
     gateLabel = baseHumanGatedLabel(env);
   } catch (error) {
-    log(`::warning::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); it holds every PR it is on`);
+    log(`::warning::cannot read the human-gated label from the base tracker binding (${error.message}); it holds every PR it is on`);
   }
   const gate = { gateLabel, appSenderId };
   const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record, ...gate });
@@ -898,7 +913,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       ownerIds = [...loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
-      log(`::error::cannot read the base trusted-actors list or the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted PR gets fix-ci`);
+      log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);
       ownersHeld = "base trusted-actors list or tracker config unreadable";
     }
   }
@@ -930,6 +945,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
     maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
+    tidyCutoffs,
     ...gate,
   });
   const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });

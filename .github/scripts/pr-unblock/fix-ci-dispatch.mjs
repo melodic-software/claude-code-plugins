@@ -96,7 +96,7 @@ const HELD_SKIP = "Skipped: awaiting-human";
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
 
-// The tracker's human-gated label from .work-item-tracker.json's text, as
+// The tracker's human-gated label from the binding's JSON text, as
 // pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
 // needs-human when the file is absent (null) or maps none. Invalid JSON throws.
 export function humanGatedLabel(text) {

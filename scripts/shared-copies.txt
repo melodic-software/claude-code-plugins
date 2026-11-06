@@ -512,6 +512,7 @@ lib/view-registry.mjs plugins/ai-briefing/lib/view-registry.mjs
 lib/config-cascade.mjs plugins/adhd/lib/config-cascade.mjs
 lib/config-cascade.mjs plugins/ai-briefing/lib/config-cascade.mjs
 lib/yaml-subset.mjs plugins/adhd/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/autonomy/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/ai-briefing/lib/yaml-subset.mjs
 lib/state-key.sh plugins/adhd/lib/state-key.sh
 lib/state-key.sh plugins/ai-briefing/lib/state-key.sh
@@ -736,6 +737,9 @@ lib/read-verification.sh plugins/event-storming/lib/read-verification.sh
 lib/config-root.sh plugins/event-storming/lib/config-root.sh
 lib/yaml-subset.awk plugins/event-storming/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/event-storming/lib/resolve-convention-home.sh
+lib/read-verification.sh plugins/work-items/lib/read-verification.sh
+lib/config-root.sh plugins/work-items/lib/config-root.sh
+lib/yaml-subset.awk plugins/work-items/lib/yaml-subset.awk
 lib/read-verification.sh plugins/codebase-health/lib/read-verification.sh
 lib/config-root.sh plugins/codebase-health/lib/config-root.sh
 lib/yaml-subset.awk plugins/codebase-health/lib/yaml-subset.awk

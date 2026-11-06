@@ -106,7 +106,7 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
 async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   const base = baseWith(text);
   if (tracker !== null) {
-    writeFileSync(join(base, ".work-item-tracker.json"), tracker);
+    writeFileSync(join(base, "docs/conventions/work-items.yaml"), `tracker: ${tracker}\n`);
   }
   const output = join(base, "output");
   writeFileSync(output, "");
@@ -197,14 +197,40 @@ test("an unreadable base tracker config holds adopted owner PRs only, and no ado
   assert.deepEqual(await run(without, [ciFixPull(63)], [], "{not json"), { code: 0, dispatched: ["40", "63"] });
 });
 
-test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {
-  const pulls = [docsPull(61), docsPull(62), docsPull(63)];
-  assert.match(LIVE, /^ {2}fix-docs-per-run: 0$/m, "the live config turns CI fix-docs off (#7576, D100)");
-  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40"] });
-  const two = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 2");
-  assert.deepEqual(await run(two, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
-  const one = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 1");
-  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
+test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches, and a work-resolve-issue PR is skipped", async () => {
+  // The lanes App's PRs on a lane branch: one within the live tidy cutoffs
+  // (resolve-issue's max-lines 300), tidied in its own run and skipped, and
+  // one a line over them, dispatched (#13717 issuecomment-6692723687).
+  const lanePull = (number, lines) => ({
+    ...docsPull(number),
+    author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP },
+    headRefName: "work-resolve-issue/issue-12-345-1",
+    changedFiles: 1,
+    additions: lines,
+    deletions: 0,
+    // The lane run's one API commit, as GraphQL lists one.
+    commits: {
+      totalCount: 1,
+      nodes: [
+        {
+          commit: {
+            oid: docsPull(number).headRefOid,
+            signature: { isValid: true },
+            author: { user: { login: "melodic-automation-lanes[bot]" } },
+            committer: { email: "noreply@github.com" },
+            statusCheckRollup: { contexts: { nodes: [] } },
+          },
+        },
+      ],
+    },
+  });
+  const pulls = [lanePull(58, 301), lanePull(60, 300), docsPull(61), docsPull(62), docsPull(63)];
+  assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config turns CI fix-docs on at 2 a run (#13717)");
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "58", "61"] });
+  const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
+  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "58"] });
+  const off = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 0");
+  assert.deepEqual(await run(off, [], pulls), { code: 0, dispatched: ["40"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

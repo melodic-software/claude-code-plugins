@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "animation:produce"
+          }
+        }
+      ],
+      "why": "fired"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "animation:rotoscope"
+          }
+        }
+      ],
+      "why": "other skill"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh check session=opus"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "check and preview"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high",
+            "description": "Preview the change; no --write"
+          }
+        }
+      ],
+      "why": "--write named only in the description"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user --write fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "wrote"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --write --layer user roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "wrote the other key only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"preview\"; /home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --write --layer user fanout.frontier_guard=false"
+          }
+        }
+      ],
+      "why": "wrote after a quoted string"
+    }
+  ]
+}

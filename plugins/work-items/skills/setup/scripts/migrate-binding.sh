@@ -2,8 +2,8 @@
 # Copy the legacy JSON tracker binding (.work-item-tracker.json) and its personal
 # override (.work-item-tracker.local.json) into the `tracker` mapping of
 # <home>/work-items.yaml and <home>/work-items.local.yaml, for /work-items:setup
-# apply (SKILL.md "Provider binding"). The JSON files are left in place: readers
-# outside the seam still read only them.
+# apply (SKILL.md "Provider binding"). The JSON files are left in place: older
+# installed plugin versions and a repository's own tooling may still read only them.
 #
 # Each layer is copied only when its YAML file has no `tracker` key. Both layers are
 # checked before either is written: once the YAML binding exists the seam reads only

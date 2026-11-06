@@ -115,16 +115,16 @@ test("a composite's predicate narrows its refine leaves' files", () => {
   assert.deepEqual(planPasses({ slots, changedPaths: ["README.md", "docs/a.md"] }).passes, [{ name: "fix-docs", order: 10, group: "docs", files: 1 }]);
 });
 
-// The plan job's step: the outputs each pass's first job and record-passes read.
+// The plan job's step on this repository's own config, read as the job reads
+// the base's: the outputs each pass's first job and record-passes read.
 test("write-pass-plan.mjs writes the plan's outputs, and only planned passes get <pass>=true", () => {
   const dir = mkdtempSync(join(tmpdir(), "write-pass-plan-"));
   try {
     const plan = (paths) => {
-      writeFileSync(join(dir, "config.json"), JSON.stringify({ activities: LIVE, lanes: { "pr-refine": { stage: "refine", slots: [{ activity: "fix-docs" }] } } }));
       writeFileSync(join(dir, "paths.txt"), paths.join("\n"));
       writeFileSync(join(dir, "out"), "");
       const run = spawnSync(process.execPath, [fileURLToPath(new URL("./write-pass-plan.mjs", import.meta.url))], {
-        env: { PATH: process.env.PATH, CONFIG_FILE: join(dir, "config.json"), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
+        env: { PATH: process.env.PATH, BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), PATHS_FILE: join(dir, "paths.txt"), TRUNCATED: "false", GITHUB_OUTPUT: join(dir, "out") },
         encoding: "utf8",
       });
       assert.equal(run.status, 0, run.stderr);

@@ -30,7 +30,7 @@ contains git. The dated record for that composition claim is the
 
 Markdown in `docs/`, README files, onboarding docs, third-party pasted prose, and drifted skill bodies accumulates FLAVOR: filler ("just", "really", "basically"), hedging ("perhaps", "might"), pleasantries, and, only when `compress_articles` is `cut`, articles. `context/flavor-vs-content-matrix.md` defines FLAVOR (safe to cut) vs CONTENT (never cut). Under the default, `keep`, a run keeps every `a`, `an` and `the` and is held to the batch path's word-level cuts on every target, single file included ([Articles](#articles-compress_articles)). The **batch fan-out path** (Phase A LATITUDE) is a word-level trimmer: mechanical drops + passive→active + nominalization only, no sentence-level restatement deletion. Under `cut`, the **single-file in-session Edit fallback** may apply the full matrix taxonomy (including redundant restatement of bold rule names) behind the same semantic-diff net. Always-loaded instruction files (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) bound empirically at 2-3% yield (see ## Sources); author-time-undisciplined content likely yields 5-15% under the Edit fallback's broader latitude, less under batch fan-out.
 
-Methodology: snapshot original → mechanical compression (the `caveman` plugin via `/caveman:compress`, OR in-session Edit fallback) → semantic-diff subagent compares original vs condensed (SEMANTIC LOSS / AMBIGUITY / FALSE POSITIVE per finding, verbatim citations) → revert every SEMANTIC LOSS + AMBIGUITY → run `markdownlint-cli2` → ship or revert.
+Methodology: snapshot original → mechanical compression (the `caveman` plugin via `/caveman:caveman-compress`, OR in-session Edit fallback) → semantic-diff subagent compares original vs condensed (SEMANTIC LOSS / AMBIGUITY / FALSE POSITIVE per finding, verbatim citations) → revert every SEMANTIC LOSS + AMBIGUITY → run `markdownlint-cli2` → ship or revert.
 
 ## Articles: `compress_articles`
 
@@ -48,7 +48,7 @@ A layer holding anything other than `keep` or `cut` is named in the output (the 
 
 | Value | Backend | What may be cut |
 |---|---|---|
-| `keep` | in-session Edit, even when caveman is installed (`/caveman:compress` always removes articles: [source](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
+| `keep` | in-session Edit, even when caveman is installed (`/caveman:caveman-compress` always removes articles: [source](${CLAUDE_PLUGIN_ROOT}/reference/config.md#caveman-removes-articles)) | the batch path's word-level set without articles: filler, hedging, pleasantries, verbose verb phrases, passive to active, nominalization collapse. No sentence or restatement deletion, on a single file as in a batch. An article dropped anyway is restored in the revert pass |
 | `cut` | caveman when available, otherwise in-session Edit (Step A onward, unchanged) | articles too; a single-file Edit run may use the full matrix, restatement deletion included |
 
 Report the result once per run, as the last line of the summary: `compress_articles: keep (default)`, `compress_articles: cut (docs/conventions/docs-hygiene.yaml)`, or `compress_articles: cut (userConfig)`.
@@ -57,7 +57,7 @@ Report the result once per run, as the last line of the summary: `compress_artic
 
 ## Backend selection
 
-Under `compress_articles: keep`, skip Step A and Step B's caveman path: the backend is the in-session Edit fallback, held to the `keep` row above. Under `cut`, default-action Step B picks the backend: the `caveman` plugin (marketplace `caveman`, invoked as `/caveman:compress` via the Skill tool) when present, otherwise the in-session Edit fallback, which also substitutes whenever caveman is unwanted. Caveman performs the mechanical flavor cuts; it is NOT the verification gate. `/caveman:caveman`, the same plugin's session-wide response formatter, is unrelated to this skill.
+Under `compress_articles: keep`, skip Step A and Step B's caveman path: the backend is the in-session Edit fallback, held to the `keep` row above. Under `cut`, default-action Step B picks the backend: the `caveman` plugin (marketplace `caveman`, invoked as `/caveman:caveman-compress` via the Skill tool) when present, otherwise the in-session Edit fallback, which also substitutes whenever caveman is unwanted. Caveman performs the mechanical flavor cuts; it is NOT the verification gate. `/caveman:caveman`, the same plugin's session-wide response formatter, is unrelated to this skill.
 
 **Step A. Detect caveman plugin:** `bash "${CLAUDE_SKILL_DIR}/scripts/detect-caveman.sh"`
 Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as absent and use the Edit fallback (`unknown` means `claude`/`jq` missing from PATH: fail open to Edit, not a hard error).
@@ -72,7 +72,7 @@ Tri-state: `available` → prefer caveman; `absent` OR `unknown` → treat as ab
    printf '%s\n' "$tempdir/$(basename "$target")"
    ```
 
-2. **Skill call**. `Skill(caveman:compress, args="<absolute-path-from-step-1>")` on that temp copy. Caveman may write `<file>.original.md` beside the copy inside the tempdir.
+2. **Skill call**. `Skill(caveman:caveman-compress, args="<absolute-path-from-step-1>")` on that temp copy. Caveman may write `<file>.original.md` beside the copy inside the tempdir.
 3. **Bash call 2**. On caveman success, copy the compressed file back and remove the tempdir explicitly:
 
    ```bash

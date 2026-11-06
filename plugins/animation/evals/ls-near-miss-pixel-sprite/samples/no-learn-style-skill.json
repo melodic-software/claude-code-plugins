@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "animation:rotoscope"
+          }
+        }
+      ],
+      "why": "another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "learn-style-helper"
+          }
+        }
+      ],
+      "why": "a name that only starts the same"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "animation:learn-style"
+          }
+        }
+      ],
+      "why": "fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "learn-style"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ]
+}

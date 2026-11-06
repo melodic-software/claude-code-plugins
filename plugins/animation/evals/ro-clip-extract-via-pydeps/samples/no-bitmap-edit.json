@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/roto/ink-short/overrides.json",
+            "old_string": "[]",
+            "new_string": "[{\"k\": 3}]"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/roto/ink-short/x.js",
+            "old_string": "a",
+            "new_string": "ctx.drawImage(load('src/d004.png'))"
+          }
+        }
+      ],
+      "why": "replays a source drawing"
+    }
+  ]
+}
