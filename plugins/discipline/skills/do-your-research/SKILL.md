@@ -105,6 +105,13 @@ premature solution from the actual problem, and flag whatever stays
 unverifiable, naming where you looked, rather than smoothing over it. Where your own judgment is
 the suspected source of bias, re-derive in a fresh-context subagent.
 
+**The verification level** governs that subagent and the fan-out tier. Resolve it once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill do-your-research --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`light` and `off` skip both dispatches as the method doc and
+[`fan-out.md`](../../context/fan-out.md) say. `strict` takes the fan-out tier at `full` depth on
+every run, except inside a batch or a fork, where the inline audit still holds.
+
 ## Pending recommendations are an audit unit
 
 Every recommendation the session has put to the user and the user has not
@@ -144,7 +151,7 @@ out.
 - **Recheck trigger**: that section changes whether a fork's Agent tool can spawn.
 
 **Depth**, resolved once before enumerating: the invocation argument (`tiered`
-or `full`) wins; otherwise the configured default,
+or `full`) wins, except that a `strict` verification level resolves `full` ahead of it; otherwise the configured default,
 `${user_config.research_deep_verification}`; otherwise `tiered`. An empty
 value, a surviving literal `${user_config.…}` token, and any unrecognized
 string all mean `tiered`; never error on a bad value.

@@ -65,7 +65,7 @@ Agent({
 
 **Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line, and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **Skipping the verifier for cost**, write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **Skipping the verifier for cost**, write `verification: skipped (cost)`; never leave `pending` after this boundary. First run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill research --file docs/conventions/discovery.yaml` and report its line; dispatch.md ("The verification level") says what each level does. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
@@ -156,7 +156,7 @@ routes, for **one rework round**: the rework, then one re-verify. A row still FA
 re-verify is not reworked again: record it in the artifact as a Gap or Conflicts entry, lowering
 `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
 present the result with that caveat. Rows the run owns and gate exit codes stay mandatory at every
-budget, and an ungradeable or missing artifact still takes the recovery ladder, resume before discard.
+budget, and an ungradeable or missing artifact still takes the recovery ladder, resume before discard. A `strict` verification level gives `low` and `internal` the `publish` loop (dispatch.md, "The verification level").
 
 ## The deep tier
 
