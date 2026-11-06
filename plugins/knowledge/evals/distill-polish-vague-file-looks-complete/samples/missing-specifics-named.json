@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Thin section: `reference/idempotency.md` paraphrased Chapter 2. I added the Idempotency-Key header, the 24-hour retention and the 409 Conflict replay rule."
+    },
+    {
+      "answer": "Nothing was written, because the visibility check could not run. Planned: replays in flight get 409 Conflict, and a reused key with a new body gets 422; these go into reference/idempotency.md."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Cross-reference check passed, the routing table resolves, and reference/idempotency.md covers safe retries. No changes were needed."
+    },
+    {
+      "answer": "I expanded reference/backoff.md with the jitter rationale. reference/idempotency.md looks complete."
+    }
+  ]
+}
