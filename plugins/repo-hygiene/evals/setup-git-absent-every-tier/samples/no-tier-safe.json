@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "No tier is safe to run without git."
+    },
+    {
+      "answer": "Every tier needs git, caches and build included."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Most tiers need git.",
+      "why": "not every tier"
+    },
+    {
+      "answer": "The git tier is unsafe."
+    }
+  ]
+}

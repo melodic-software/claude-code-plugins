@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "dist/ holds 196.0 KB and node_modules 12 KB."
+    },
+    {
+      "answer": "Total reclaimable: 847872 bytes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "dist/ and the caches can go."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

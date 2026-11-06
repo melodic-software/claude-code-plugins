@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: setup-git-absent-every-tier
+graders:
+  - name: rejects-premise
+    type: regex
+    pattern: '\b(?:caches?|build)\b[^\n]{0,160}\b(?:not (?:safe|fine|usable|ok(?:ay)?)|unsafe|needs? git|requires? git|depends? on git|rel(?:y|ies) on git|reach(?:es)? git|still (?:need|use)s? git|fail)|\b(?:not (?:safe|fine|usable|ok(?:ay)?)|unsafe|(?:is|are)n''t (?:safe|fine))\b[^\n]{0,160}\b(?:caches?|build)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-enforcement-point
+    type: regex
+    pattern: '^(?=[\s\S]*git ls-files --error-unmatch)(?=[\s\S]*clean-common\.sh)'
+    target: last_message
+  - name: no-tier-safe
+    type: regex
+    pattern: '\bno (?:clean )?tier\b[^\n]{0,60}\bsafe\b|\bnone of the tiers\b[^\n]{0,60}\bsafe\b|\b(?:every|each|all) (?:clean )?tiers?\b[^\n]{0,80}\b(?:FAIL|unsafe|not safe|needs? git|requires? git|depends? on git)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-reparse-restore
+    type: regex
+    pattern: '\brestor\w*\b[^\n]{0,200}\breparse[- ]point|\breparse[- ]point[^\n]{0,200}\brestor\w*'
+    flags: 'i'
+    target: last_message
+  - name: per-tier-loss
+    type: regex
+    pattern: '^(?=[\s\S]*\bscan\b)(?=[\s\S]*\bstash\b)(?=[\s\S]*\btree\b)(?=[\s\S]*\bcaches\b)(?=[\s\S]*\bbuild\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-blanket-broken
+    type: regex
+    pattern: '(?:^|[.!?\n])(?:(?!rather than|instead of|(?:does|is|do)(?:n''t| not)\b|not (?:that|just|a)\b)[^.!?\n])*\b(?:the )?plugin is (?:broken|unusable|useless)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message

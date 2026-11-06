@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "No. Even the caches and build tiers need git."
+    },
+    {
+      "answer": "That is not safe, caches and build included."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, caches and build will work without git.",
+      "why": "accepts the premise"
+    },
+    {
+      "answer": "git is missing on that server.",
+      "why": "no tier named"
+    }
+  ]
+}

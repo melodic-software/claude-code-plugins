@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Both candidates pass the in-flight check, objection window, labeler precondition and hard gates, so #541 and #542 are admitted and dispatched. work-class: structural on #541 and the missing class on #542 decide nothing. Nothing is escalated.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#542 is admitted. #541 is work-class: structural (C4), so it is human-gated and escalated.",
+      "why": "contradicts the expected outcome"
+    },
+    {
+      "answer": "#541 is admitted; #542 has no work class, so it is escalated for classification.",
+      "why": "contradicts the expected outcome"
+    }
+  ]
+}

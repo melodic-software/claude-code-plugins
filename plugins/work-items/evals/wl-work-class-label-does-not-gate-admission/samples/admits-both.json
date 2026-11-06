@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#541 and #542 are both admitted and dispatched.",
+      "why": "states the hold or outcome"
+    },
+    {
+      "answer": "Dispatches #541 and #542; neither class label nor its absence holds them.",
+      "why": "states the hold or outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#541 is held for its structural class and escalated.",
+      "why": "contradicts the outcome"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

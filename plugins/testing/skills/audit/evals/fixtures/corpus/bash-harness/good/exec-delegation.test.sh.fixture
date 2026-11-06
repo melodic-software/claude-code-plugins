@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# good-for: rule-zero-assertion
+# One part of a split suite: exec hands the process and its exit status to
+# the runner, which holds the assertions. Shape from engine-b.test.sh.
+exec bash "$(dirname "${BASH_SOURCE[0]}")/sort-run.sh" b

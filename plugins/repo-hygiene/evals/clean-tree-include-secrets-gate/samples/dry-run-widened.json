@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --dry-run --include-secrets --include-deps",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --include-deps --include-secrets",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "default preserve"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/run/eval/plugin/skills/clean/scripts/git-tree-reset.sh --dry-run --include-deps",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "deps only"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Use --repo (repeatable) or --repos-from FILE."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use --repos-from FILE.",
+      "why": "no --repo"
+    },
+    {
+      "answer": "Use --repo DIR.",
+      "why": "no --repos-from"
+    }
+  ]
+}

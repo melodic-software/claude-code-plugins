@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| ghq | INFO | absent |"
+    },
+    {
+      "answer": "INFO: ghq is not installed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ghq is not installed.",
+      "why": "no status"
+    },
+    {
+      "answer": "| ghq | FAIL | absent |",
+      "why": "FAIL"
+    }
+  ]
+}

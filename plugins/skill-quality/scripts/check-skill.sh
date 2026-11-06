@@ -1947,7 +1947,7 @@ FRESH_EYES_PROXIMITY_LINES=8
 # [[:space:]] instead of \t: awk -v escape processing differs across awks, a
 # POSIX class does not. (^|[^a-z]) boundary guards keep substrings quiet —
 # "upgrade your own", "underscore its own" must not read as grade/score.
-FRESH_EYES_JUDGE_RE='(^|[^a-z])self[- ](review|audit|assess|score|grade|verif)|(^|[^a-z])(review|verify|assess|grade|score|judge|critique)[a-z]*[[:space:]]+(your|its|their)[[:space:]]+own|(^|[^a-z])spot[- ]check|(^|[^a-z])outcome[[:space:]]+gate|(^|[^a-z])score[[:space:]]+each'
+FRESH_EYES_JUDGE_RE='(^|[^a-z])self[- ](review|audit|assess|score|grade|verif)|(^|[^a-z])(review|verify|assess|grade|score|judge|critique)[a-z]*[[:space:]]+(your|its|their)[[:space:]]+own|(^|[^a-z])spot[- ]check|(^|[^a-z])outcome[[:space:]]+gate|(^|[^a-z])score[[:space:]]+each|(^|[^a-z])(called|calling[[:space:]]+(it|them|the[[:space:]]+[a-z]+))[[:space:]]+done([^a-z]|$)'
 
 FRESH_EYES_FILES=("$SKILL_MD")
 for spoke_dir in context templates reference references actions lanes catalog; do

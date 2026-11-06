@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "| scan | ... |\n| caches | ... |\n| build | ... |\n| git | ... |\n| stash | ... |\n| tree | ... |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| scan | ... |\n| caches | ... |\n| build | ... |",
+      "why": "three rows only"
+    },
+    {
+      "answer": "Which action?"
+    }
+  ]
+}

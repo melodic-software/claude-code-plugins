@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "No confirmation is needed: the scan only reads."
+    },
+    {
+      "answer": "Want me to clear the caches next? That tier dry-runs first.",
+      "why": "an offer, not a gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Confirm and I will delete these paths?",
+      "why": "destructive gate"
+    },
+    {
+      "answer": "Please approve removing dist/ in all three?",
+      "why": "approve removal"
+    }
+  ]
+}

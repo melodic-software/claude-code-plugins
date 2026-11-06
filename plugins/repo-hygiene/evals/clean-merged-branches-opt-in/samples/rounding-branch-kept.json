@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "0000 1ea6 Fabrikam Fixture\tcommit: Note the rounding rule\nmore\n",
+      "why": "marker present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "content replaced"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}
