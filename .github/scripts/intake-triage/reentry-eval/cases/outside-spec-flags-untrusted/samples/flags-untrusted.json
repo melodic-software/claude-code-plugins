@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified, so a person checks it first.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "why": "untrusted alone on the Flags line"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: low\", \"status: needs-decision\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: intent, untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "why": "untrusted listed after another flag"
+    },
+    {
+      "answer": "Size: Small\nComplexity: Low\nUncertainty: Known\nFlags: untrusted, cost\nBlocked by: none\n\nThe spec is quoted from an outside author nobody has identified.",
+      "why": "untrusted first in a list, raw text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\nThe spec comes from an untrusted outside author.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "why": "names untrusted only in prose, not on the Flags line"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\nThe spec is quoted from an outside author.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: untrusted-provenance\"}",
+      "why": "the legacy class proposal with no flag"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted-provenance\\nBlocked by: none\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "why": "a flag name parseVerdict rejects"
+    },
+    {
+      "answer": "",
+      "why": "no reply"
+    }
+  ]
+}

@@ -187,9 +187,16 @@ export function query(rows, { lane, model, outcome, since, until } = {}) {
   );
 }
 
-// The last successful pull, and whether it is more than 5 days old (or never happened).
+// The last successful pull, and whether it is more than 5 days old (or never
+// happened), or a budget-stopped backlog's kept cutoff is.
 export function staleness(state, now = Date.now()) {
-  const last = Date.parse(state.last_success_at ?? "");
-  const ageDays = Number.isNaN(last) ? null : (now - last) / DAY;
-  return { last_success_at: state.last_success_at ?? null, age_days: ageDays === null ? null : Math.round(ageDays * 10) / 10, stale: ageDays === null || ageDays > STALE_DAYS };
+  const days = (at) => {
+    const ms = Date.parse(at ?? "");
+    return Number.isNaN(ms) ? null : (now - ms) / DAY;
+  };
+  const round = (d) => (d === null ? null : Math.round(d * 10) / 10);
+  const ageDays = days(state.last_success_at);
+  const backlogDays = days(state.resume_cutoff_at);
+  const backlogStale = backlogDays !== null && backlogDays > STALE_DAYS;
+  return { last_success_at: state.last_success_at ?? null, age_days: round(ageDays), backlog_age_days: round(backlogDays), backlog_stale: backlogStale, stale: ageDays === null || ageDays > STALE_DAYS || backlogStale };
 }
