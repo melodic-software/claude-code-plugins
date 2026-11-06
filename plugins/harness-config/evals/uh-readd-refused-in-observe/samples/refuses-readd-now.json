@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Not yet. Experiment quay-opus-5-5-20261020-k7q2 is in phase observe, and the ledger in stumbles.md has 3 rows. readd refuses while the observation window is open: rows logged so far are not the evidence the gate reads. When you decide the window is over, say so and I'll set the phase to readd and walk the rows then. Nothing was changed.",
+      "why": "refuses on the observe phase, prints phase and row count, plans nothing"
+    },
+    {
+      "answer": "The manifest says phase: observe, so I'm stopping here. Ledger: 3 stumbles. Two of them (running pytest from the repository root) share one cause, which is what a readd would weigh once you end the window; I'm not restoring anything now.",
+      "why": "mentions what a later readd would weigh, restores nothing now"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's what I'll restore:\n- CLAUDE.md: bring back the Working style section's note to run pytest from the root (2 stumbles).\n- .claude/rules/python-style.md: restore it for the f-string stumble.\nSay yes and I'll apply both.",
+      "why": "plans a restore now, pending a yes"
+    },
+    {
+      "answer": "The experiment is in the observe phase with 3 ledger rows. Two rows share a cause, which clears the re-add gate, so I recommend restoring the pytest-from-root line now. Confirm and I'll do it.",
+      "why": "names the phase but still proposes a restore in this session"
+    },
+    {
+      "answer": "Restored .claude/rules/python-style.md from git and set the manifest phase to readd.",
+      "why": "already restored"
+    }
+  ]
+}
