@@ -524,6 +524,17 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
   hold decision drafted earlier, re-read the PR's live `state` and `mergedAt`. A hold decision
   formed against a stale snapshot can target an already-merged PR, and announcing its state from
   that snapshot misleads every downstream reader.
+- **Record the reason.** The explanation comment carries one line `<!-- pr-hold reason=<reason> -->`,
+  a lowercase kebab-case word (`superseded`, `eval`). A hold waiting only on eval evidence of no
+  loss ([skills and agents](../../review/skills-and-agents.md)) uses `reason=eval`, and the session
+  that posts the paired result adds a line
+  `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
+  and shows no loss. pr-merge's scheduled run then removes `do-not-merge`, after a comment naming
+  the record and the head, when that record is the newest since the label went on and names the
+  current head, both lines are by a listed human, on a line of their own outside a quote or fence,
+  and no other reason, body hold or member veto stands
+  ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
+  merge" and `do-not-merge` out of the record comment: they read as a veto.
 
 ### Escalation record write
 
@@ -1458,11 +1469,13 @@ gh pr edit <n> -R "$R" --add-label do-not-merge
 # Only when the PR is in the merge queue:
 gh api graphql -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' \
   -f id="$(gh pr view <n> -R "$R" --json id -q .id)"
-gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
+gh pr comment <n> -R "$R" --body "Held by operator: <reason>.
+<!-- pr-hold reason=<reason> -->"
 ```
 
 `babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
-that lane's own invocation overrides it. Remove the label to release the PR.
+that lane's own invocation overrides it. Remove the label to release the PR; an eval hold is
+released by its record ([Cross-lane PR hold](#cross-lane-pr-hold)).
 
 **Run a PR's plugin evals.** The `eval: run` label runs
 [`eval-browser-dispatch.yml`](../../../.github/workflows/eval-browser-dispatch.yml) on a

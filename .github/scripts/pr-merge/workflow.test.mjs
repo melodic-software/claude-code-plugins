@@ -1168,12 +1168,31 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
 // The merge job's sizing comment: about two minutes before the loop, then the
 // longer of the gate budget (10) plus a candidate's read limit (4) and a
 // deferred candidate's ceiling (20), plus one read's own timeout (4); the
-// escalation clear's own timeout comes on top.
-test("the merge job's ceiling covers the gate's sweep and the escalation clear", () => {
+// escalation clear's and the eval-hold release's own timeouts come on top.
+test("the merge job's ceiling covers the gate's sweep, the escalation clear and the eval-hold release", () => {
   const gate = job("merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
   const clear = Number(/- name: Clear escalations whose reason no longer holds\n[\s\S]*?\n {8}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
-  assert.ok(total >= 2 + Math.max(10 + 4, 20) + 4 + clear, `${total} minutes for the gate and a ${clear}-minute clear`);
+  const release = Number(/- name: Release eval holds whose record matches the head\n[\s\S]*?\n {8}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
+  assert.ok(total >= 2 + Math.max(10 + 4, 20) + 4 + clear + release, `${total} minutes for the gate, a ${clear}-minute clear and a ${release}-minute release`);
+});
+
+// The eval-hold release runs no model and mints nothing: it reuses the merge
+// job's lane token on the schedule only, under the escalation clear's gate.
+test("the eval-hold release reuses the merge job's lane token on the schedule, with no model", () => {
+  const gate = job("merge");
+  const start = gate.indexOf("- name: Release eval holds whose record matches the head\n");
+  assert.ok(start > 0, "the merge job has the eval-hold release step");
+  const step = gate.slice(start, gate.indexOf("\n\n", start));
+  assert.match(step, /github\.event_name == 'schedule'/);
+  assert.match(step, /steps\.lane-token\.outputs\.token != ''/);
+  assert.match(step, /steps\.mode\.outputs\.report-only == 'false'/);
+  assert.match(step, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(step, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/release-eval-hold\.mjs$/);
+  assert.doesNotMatch(step, /claude|anthropic|request-lane-token|uses:|github\.event\.comment/i);
+  // No new trigger wakes it: the run's triggers stay as they were.
+  const on = merge.slice(merge.indexOf("\non:\n"), merge.indexOf("\npermissions:"));
+  assert.doesNotMatch(on, /\n {2}(?:issue_comment|workflow_run):/);
 });
 
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
