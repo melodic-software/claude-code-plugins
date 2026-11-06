@@ -148,6 +148,10 @@ validates against the schema first and shows the diff and asks before changing a
 keys:
 [`reference/config.md`](reference/config.md).
 
+**`research_corroborators`, `research_recency_*_days`.** `/discovery:research`'s per-claim
+corroborator floor (default 2) and its recency windows (14, 30 and 90 days). They resolve through
+the same layers, and each run reports the values and the layer that supplied them.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -158,6 +162,10 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `explore_output` | string | `"auto"` | Reply shape of /discovery:explore. auto (default): explain when a person asks how something works, else change-prep, including calls from other skills. change-prep: the handoff summary. explain: a walkthrough citing path:line. EXPLORE.md is unchanged. docs/conventions/discovery.yaml overrides this. |
+| `research_corroborators` | number<br>*min 1* | `2` | Independent current corroborators /discovery:research needs per accepted claim beside its primary. Default 2. The broad-topic minimum and the single-source exception are unchanged. docs/conventions/discovery.yaml overrides this. |
+| `research_recency_active_days` | number<br>*min 1* | `14` | Recency window /discovery:research applies to a very active project (weekly releases, breaking changes, security-sensitive). Default 14. docs/conventions/discovery.yaml overrides this. |
+| `research_recency_standard_days` | number<br>*min 1* | `30` | Recency window /discovery:research applies to a standard library, tool, CLI or API. Default 30. docs/conventions/discovery.yaml overrides this. |
+| `research_recency_guide_days` | number<br>*min 1* | `90` | Recency window /discovery:research applies to a tool- or vendor-specific architecture guide. Default 90. docs/conventions/discovery.yaml overrides this. |
 | `medium` | string | `"auto"` | Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option. |
 
 ### How to set these

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Posted on #12:\n\n<!-- work-items:investigation outcome=cause-named -->\nStatus: fix dispatched; PR to follow",
+      "why": "marker with the cause-named outcome"
+    },
+    {
+      "answer": "The report opens with `<!-- work-items:investigation outcome=cause-named -->`, then the status line.",
+      "why": "quotes the marker line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The cause is confirmed, so I dispatch the fix and open draft PR #40.",
+      "why": "no report comment"
+    },
+    {
+      "answer": "Posted <!-- work-items:investigation outcome=causes-ranked --> with two candidates.",
+      "why": "wrong outcome for a confirmed cause"
+    }
+  ]
+}

@@ -12,11 +12,12 @@ on why outcome verification sits after the simplify pass.
 1. **Test thoroughly.** Run all affected tests, smoke test new functionality, verify edge cases.
    No PR without evidence the changes work
 2. **Review.** Self-review the full diff (`git diff HEAD` catches staged + unstaged) against the
-   repo's conventions, or dispatch a fresh-context reviewer. Resolve blocking findings before
-   proceeding. The `verification` level decides the reviewer; if this session has not resolved
-   it yet, resolve it first, as `workflow/SKILL.md` ("The verification level") says. `strict`
-   always dispatches the reviewer; `light` and `off` never do, and the report notes
-   `verification: skipped (<level>)`. The self-review stays at every level. Step 7's outcome
+   repo's conventions; that is the floor. Then dispatch a fresh-context reviewer, which never
+   sees your rationale. The step is done only when the reviewer has returned and its blocking
+   findings are resolved. The `verification` level decides the reviewer; if this session has not
+   resolved it yet, resolve it first, as `workflow/SKILL.md` ("The verification level") says.
+   `standard` and `strict` dispatch it; `light` and `off` never do, the self-review alone closes
+   the step, and the report notes `verification: skipped (<level>)`. Step 7's outcome
    verification reads its own level
 3. **Stage surgically.** `git add <path>` for specific files, never `git add -A` or `git add .`
    (risk of including secrets, build artifacts, or unrelated changes)

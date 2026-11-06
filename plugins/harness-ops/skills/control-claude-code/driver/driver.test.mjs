@@ -6,6 +6,7 @@
 // prerequisites checker's probe rule (the pattern is a regular expression run
 // over the probe's output).
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
@@ -168,6 +169,32 @@ test('unattended with no CI credential set runs as attended does', () => {
   const { env, keySource } = buildLaunch({ pluginDir: '/p', unattended: true, credentials: CI }, { PATH: '/usr/bin' });
   assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
   assert.equal(keySource, 'none');
+});
+
+// The launch the #13711 probe ran in the sibling sandbox (probe-13711-bash.yml at 6764ca031f8):
+// LAUNCH_FLAGS ['--strict-mcp-config'] and no scrub line, so Bash is in the default tools.
+test('in-sandbox drops --restricted and the scrub, and still keeps the one CI credential', () => {
+  const { argv, env, keySource } = buildLaunch(
+    { pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true },
+    { ANTHROPIC_API_KEY: 'ccd-dummy-x', ANTHROPIC_AUTH_TOKEN: 'x' },
+  );
+  assert.deepEqual(argv, ['claude', '--strict-mcp-config', '--plugin-dir', '/p']);
+  assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
+  assert.equal(env.ANTHROPIC_API_KEY, 'ccd-dummy-x');
+  assert.equal('ANTHROPIC_AUTH_TOKEN' in env, false);
+  assert.equal(keySource, 'ANTHROPIC_API_KEY');
+});
+
+test('in-sandbox refuses unless the launch keeps a broker dummy key: --restricted and the scrub never drop around a real one', () => {
+  for (const [config, env] of [
+    [{ pluginDir: '/p', inSandbox: true }, {}],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, {}],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'sk-ant-x' }],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { ANTHROPIC_API_KEY: 'ccd-dummy-' }],
+    [{ pluginDir: '/p', unattended: true, credentials: CI, inSandbox: true }, { CLAUDE_CODE_OAUTH_TOKEN: 'ccd-dummy-x' }],
+  ]) {
+    assert.throws(() => buildLaunch(config, env), /--in-sandbox/, JSON.stringify(env));
+  }
 });
 
 test('unattended refuses two CI credentials set at once, before anything runs', async () => {
@@ -567,6 +594,41 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('an in-sandbox launch reaches the holder: claude starts without --restricted and with no scrub', posixOnly, async () => {
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
+    args, key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
+  })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'ccd-dummy-x';
+  try {
+    await withPath(box.bin, () =>
+      main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60', '--unattended', '--in-sandbox']),
+    );
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.deepEqual(got.args, ['--strict-mcp-config', '--plugin-dir', '/p']);
+    assert.equal(got.key, 'ccd-dummy-x');
+    assert.equal(got.scrub, null);
+    assert.equal(await main(['stop', '--session', name]), 0);
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -927,6 +989,22 @@ test('the startup banner keeps the model and loses the plan tier', () => {
     const [banner] = driver.maskCells(toCells(fixture(name)), MASKS, []).text.split('\n');
     assert.ok(banner.includes('Opus 5.5 · '), `${name} keeps the model`);
     assert.ok(!banner.includes('Max'), `${name} loses the tier`);
+  }
+});
+
+test('the key-auth status screen has no account to hide and still loses its session id and cwd', () => {
+  const { text } = driver.maskCells(toCells(fixture('status-key-auth-screen.txt')), MASKS, []);
+  for (const absent of ['@', 'Email:', 'Organization:', 'Login method:', '00000000-0000', '/home/<user>/project']) {
+    assert.ok(!text.includes(absent), `${absent} is not on the masked screen`);
+  }
+  for (const kept of [
+    `Session ID:                 ${'*'.repeat(36)}`,
+    `cwd:                        ${'*'.repeat(20)}`,
+    'Auth token:                 none',
+    'API key:                    ANTHROPIC_API_KEY',
+    'Opus 5.5 · API Usage Billing',
+  ]) {
+    assert.ok(text.includes(kept), `${kept} stays`);
   }
 });
 
@@ -1389,4 +1467,61 @@ test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage er
     assert.rejects(main(['stop', '--session', session()]), { code: 2, message: 'CCD_RUNTIME_DIR must be an absolute path' }),
   );
   await assert.rejects(main(['stop', '--session=-x']), { code: 2, message: '--session takes 1-32 letters, digits, _ or -, not starting with -' });
+});
+
+// ---- cli/account.mjs, run against a stub claude ----
+// The stub outputs follow `claude auth status --json` from Claude Code 2.1.319: `authMethod` is
+// `api_key` for a key (no email or orgName) and `claude.ai` for a subscription login. account.mjs
+// runs under the attended buildLaunch env, which deletes ANTHROPIC_API_KEY as the driven session's
+// env does, so key auth reaches it only from settings (apiKeyHelper or settings `env`). The stub
+// ignores its environment, so these cases pin the parsing, not where the key comes from.
+
+const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
+
+function runAccount(stdout) {
+  const box = sandbox();
+  writeFileSync(join(box.bin, 'claude'), `#!/bin/sh\nprintf '%s\\n' '${stdout}'\n`, { mode: 0o755 });
+  try {
+    return spawnSync(process.execPath, [ACCOUNT], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${box.bin}${delimiter}${process.env.PATH}` },
+    });
+  } finally {
+    rmSync(box.root, { recursive: true, force: true });
+  }
+}
+
+const KEY_AUTH = { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' };
+
+test('account prints the none: line and exits 0 under key auth with no account', posixOnly, () => {
+  const run = runAccount(JSON.stringify(KEY_AUTH));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'none: API-key auth has no signed-in account\n');
+});
+
+test('account exits 1 with nothing on stdout when no account is signed in at all', posixOnly, () => {
+  // This process may not look where the driven session signs in, so no login is never "nothing to hide".
+  const run = runAccount(JSON.stringify({ loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' }));
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+});
+
+test('account prints the organization under key auth that names one', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ ...KEY_AUTH, orgName: 'Example Org' }));
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, 'Example Org\n');
+});
+
+test('account exits 1 with nothing on stdout for a subscription login with no account', posixOnly, () => {
+  const run = runAccount(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }));
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'account: claude auth status names no email or organization\n');
+});
+
+test('account exits 1 with nothing on stdout when claude auth status prints no JSON', posixOnly, () => {
+  const run = runAccount('not json');
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'account: claude auth status printed no JSON; cannot read the signed-in account to mask it\n');
 });

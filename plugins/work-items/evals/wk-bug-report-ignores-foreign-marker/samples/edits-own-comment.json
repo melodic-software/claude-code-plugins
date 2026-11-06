@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "It edits comment 501, the one lane-bot posted. New line: `Status: draft PR #41 open`.",
+      "why": "names the own comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It edits comment 777, the newest comment carrying the marker.",
+      "why": "edits the other author's comment"
+    },
+    {
+      "answer": "It posts a new report with the PR link.",
+      "why": "names no comment"
+    }
+  ]
+}

@@ -139,12 +139,12 @@ plan_panel_rubric:
 
 ## Convention-home keys
 
-Three interview keys and one plan key resolve through the bound convention home and the four layers of
+Three interview keys and three plan keys resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
 `<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
-`answer_audit_rounds`, `wayfind_suggest_questions` and `plan_stress_test` have no `userConfig`
-option, so they skip that layer.
+`answer_audit_rounds`, `wayfind_suggest_questions`, `plan_stress_test`, `plan_size_bands` and
+`plan_inventory_min_files` have no `userConfig` option, so they skip that layer.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
@@ -152,6 +152,8 @@ option, so they skip that layer.
 | `answer_audit_rounds` | an integer, `0` or more | `2` | `/planning:interview`, after each round's read-back: offer `/planning:audit-answers` once when this many rounds were accepted whole; `0` never offers |
 | `wayfind_suggest_questions` | an integer, `0` or more | `27` | `/planning:interview`, at each round boundary: suggest `/planning:wayfind chart` once when the ledger's register holds more than this many questions; `0` never suggests |
 | `plan_stress_test` | a block map of `plan`, `proposal` and `incumbent`, each `auto`, `reviewer`, `devils-advocate` or `both` | `auto` for each | `/planning:plan` Steps 3 to 4: which stress-tests run on a draft of that mode |
+| `plan_size_bands` | a block map of `trivial`, `small` and `medium`, integers rising in that order (`trivial` 1 or more) | `trivial: 1`, `small: 5`, `medium: 15` | `/planning:plan` Step 2, "Scale the plan to the task": the largest file count of each band, which sets the plan's depth |
+| `plan_inventory_min_files` | an integer, `1` or more | `10` | `/planning:plan` Step 2, "File inventory for large-scope plans": a plan or phase touching this many files or more gets a checkbox file inventory |
 
 `plan_stress_test` modes, by the draft's main decision:
 
@@ -178,6 +180,15 @@ no maps. Only `/planning:plan` reads the key: a direct `/planning:devils-advocat
 it and runs the mode its own arguments select (`incumbent` when that is the first argument after an
 optional depth token, plan-review otherwise). A change skipped under `/planning:plan`'s one-sentence
 rule has no draft to stress-test.
+
+`plan_size_bands` bands, with the defaults as the table in `/planning:plan` Step 2 shows them:
+trivial is up to `trivial` files, small from `trivial` + 1 to `small`, medium from `small` to
+`medium` (the two share their boundary count, as the default `2-5` and `5-15` do), and large is
+more than `medium` files or cross-cutting, architectural work. Unlike `plan_stress_test`, the key
+resolves whole per layer: a layer that sets it supplies all three values, a missing one taking its
+default, and the three must rise strictly (`trivial` < `small` < `medium`). The schema checks each
+value's minimum but cannot compare them, so a layer whose values do not rise is named with its
+file, key and values and dropped like any invalid value.
 
 Resolve `<home>` by running `bash "<plugin-root>/lib/resolve-convention-home.sh"` from the
 repository root (`<plugin-root>` per the reading skill's "Spoke paths"). Exit 0 prints the home.

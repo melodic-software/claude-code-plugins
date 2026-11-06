@@ -15,7 +15,7 @@ here sweeps the references after a rename someone already made.
 
 | Skill | What it does |
 |---|---|
-| `/docs-hygiene:compress` | Tightens markdown by dropping flavor (filler, hedging, and articles only when `compress_articles` is `cut`) while preserving all content, behind a mandatory fresh-context semantic-diff audit that reverts any semantic loss. Supports an optional `caveman` plugin backend (`/caveman:compress`) with a built-in in-session fallback. |
+| `/docs-hygiene:compress` | Tightens markdown by dropping flavor (filler, hedging, and articles only when `compress_articles` is `cut`) while preserving all content, behind a mandatory fresh-context semantic-diff audit that reverts any semantic loss. Supports an optional `caveman` plugin backend (`/caveman:caveman-compress`) with a built-in in-session fallback. |
 | `/docs-hygiene:audit-noise` | Read-only classifier for nine markdown noise shapes (historical citations, ghost refs to ephemeral working directories, "why this file exists" preambles, hard-coupled consumer lists, scope/loading meta-commentary, plan/changeset references, conversational antecedents, tracker/PR back-references, prohibitions with no positive alternative) with tiered findings and per-shape treatment guidance. `--persist-findings` routes the negation findings to the `review:fanout` fix relay. |
 | `/docs-hygiene:extract-ssot` | Deduplicates repeated content into a single named source of truth and migrates call sites to cite it by heading. Reports duplication at every multiplicity in three labeled buckets: a lone recap of an existing SSOT, a drifting pair with no declared owner, and a cluster that meets the Rule of Three. Refuse-fast verification gates reserve *creating* a new artifact for three or more instances; below that the skill offers only non-abstracting remedies. |
 | `/docs-hygiene:audit-encapsulation` | Detects external citations reaching into skill-private surfaces inside `.claude/skills/<name>/` (private subdirectories, heading anchors, schema files) and routes each violation to a remediation path. Ships its own public-surface contract reference. |
@@ -67,6 +67,7 @@ consuming project's context; nothing requires editing the plugin.
 | Setting | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `compress_articles` | string | `keep` | Whether `compress` removes `a`, `an` and `the`. `keep` leaves them and runs the in-session Edit backend with word-level cuts only; `cut` allows removing them and uses the `caveman` backend when it is installed. A repository can set it for everyone in `docs/conventions/docs-hygiene.yaml`, which wins; keys and layers: [`reference/config.md`](reference/config.md). |
+| `compress_revert_below_pct` | integer | `3` | `compress` reverts a result that compresses a file by less than this percent with zero semantic loss. `0` turns the auto-revert off; `--force` bypasses it on one run. The repository file wins, as for `compress_articles`. |
 
 `/docs-hygiene:setup` reports the effective `compress_articles`, and `/docs-hygiene:setup apply`
 writes the repository's `docs/conventions/docs-hygiene.yaml`. The detector and fact-emitter
@@ -83,6 +84,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `compress_articles` | string | `"keep"` | Whether /docs-hygiene:compress removes a, an and the. keep (default): articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed. docs/conventions/docs-hygiene.yaml overrides this. |
+| `compress_revert_below_pct` | number<br>*min 0, max 100* | `3` | Percent compression below which /docs-hygiene:compress reverts a result with zero semantic loss, a whole number from 0 to 100. Default 3; 0 turns the auto-revert off; --force bypasses it on one run. docs/conventions/docs-hygiene.yaml overrides this. |
 
 ### How to set these
 

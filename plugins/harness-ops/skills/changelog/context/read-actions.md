@@ -64,34 +64,32 @@ flag. Without `--changelog` it fetches the raw changelog itself by the route bel
 
 ## Fetch route
 
-The changelog page is `https://code.claude.com/docs/en/changelog.md`, the raw-markdown channel. Read
-it by rung 1 of the upstream-drift convention's fetch route, through the plugin's fetcher, which
-writes the `.md` to a file and a manifest beside it; search the file locally. `--cache --max-age 0`
-stores the page in the docs cache but always asks the server, so a failed fetch is `unread`, never a
-stale cached copy. A summarizing fetch
-truncates a page this long and a truncated read supports no absence claim, so never report a
-version "absent from the changelog" from anything but a complete local copy. The script and this
-action both check the body's first heading, which reads `# Claude Code changelog`; a retired slug
-can serve another page's bytes under a 200, and a body with a different heading is not the
-changelog.
+Read the changelog only through the plugin's `scripts/fetch-changelog.sh`, the one place that
+decides the source: Anthropic's own `CHANGELOG.md` in `anthropics/claude-code` first, the docs
+page only when that read fails. Its header names both sources, the identity check on each, and the
+order. Both reads always ask the server, so a failed fetch is `unread`, never a stale cached copy.
+It writes a complete local copy; search that file. A summarizing fetch truncates a file this long
+and a truncated read supports no absence claim, so never report a version "absent from the
+changelog" from anything but a complete local copy. The status script's `changelog` line names the
+source it read.
 
-This skill reads the page's release markup only through the plugin's `scripts/changelog-releases.sh`,
-the one parser the status script and the behavior-probes recheck share; its header names the
+This skill reads release markup only through the plugin's `scripts/changelog-releases.sh`, the one
+parser the status script and the behavior-probes recheck share; its header names the
 release-marker forms it accepts. Items tagged `[VSCode]` belong to the extension and do not count
 as core items.
 
 - **Pointer**: when the status script reports no release markers parsed, or a sliced release
-  looks wrong, fetch <https://code.claude.com/docs/en/changelog.md> live and compare its release
-  markup with the parser; the markup spans the whole page, so no section anchor applies. **As of**: 2026-10-26. **Recheck trigger**: `range: not computed (no
-  release markers parsed ...)` from the status script on a body whose first heading is the
-  changelog's.
+  looks wrong, read <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> and
+  <https://code.claude.com/docs/en/changelog.md> live and compare their release markup with the
+  parser; the markup spans the whole file, so no section anchor applies. **As of**: 2026-11-06.
+  **Recheck trigger**: `range: not computed (no release markers parsed ...)` from the status
+  script, or a `changelog` line naming the docs page while the repository file is reachable.
 
 Slice a release or range out of the local copy with the parser:
 
 ```bash
-bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --out "$TMPDIR/docs" changelog
-jq -r '.pages[0] | "\(.state) \(.reason)"' "$TMPDIR/docs/manifest.json"
-bash "<skill-dir>/../../scripts/changelog-releases.sh" --blocks 2.1.261 "$TMPDIR/docs/changelog.md"
+bash "<skill-dir>/../../scripts/fetch-changelog.sh" --out "$TMPDIR/cl"
+bash "<skill-dir>/../../scripts/changelog-releases.sh" --blocks 2.1.261 "$TMPDIR/cl/changelog.md"
 ```
 
 ## Action: fetch
@@ -100,7 +98,8 @@ Read-only. Display changelog content.
 
 1. Resolve the target: a `vA..vB` range, a single `vX`, or nothing, which means the newest release.
 2. Fetch by the route above and slice the target releases out of the local copy.
-3. Display each release under its version and date. No edits, no triage.
+3. Display each release under its version, and its date when the copy carries one. No edits, no
+   triage.
 
 ## Action: diff
 

@@ -55,7 +55,7 @@ Routing section below.
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
 
 - prose padded with filler, hedging, or a restatement of what an adjacent
   sentence already said;

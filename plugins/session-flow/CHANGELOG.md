@@ -1,5 +1,24 @@
 # Changelog: session-flow plugin
 
+## [7.3.1] - 2026-11-06
+
+### Changed
+
+- The shared `exec-bash.mjs` launcher has a `--bps-seed <hook-utils.sh>` flag. On Windows it parses a Bash or PowerShell call's command once with shfmt and jq and hands the result to the script, so Git Bash does not fork the processes of that parse. The flag is inert on other platforms, and an inherited result is always dropped (#6634).
+
+## [7.3.0] - 2026-11-06
+
+### Added
+
+- `/session-flow:orchestrate coordinator` loads four rules from `context/coordinator.md`: standing orders as numbered lines restated on every spawn and resume; each human approval parked as an item with its decision, recommendation and what happens if unanswered; a loop tick that checks workers by what they did and stays quiet when nothing changed; and one writer per shared surface, with an environment-improvement note to the corrections buffer when a tick sees friction and that plugin is enabled. One eval case covers a quiet tick and a parked gate.
+
+## [7.2.1] - 2026-11-06
+
+### Fixed
+
+- `/session-flow:workflow` Stage 10 and pre-PR step 2 are done only after a fresh-context reviewer returns, with the self-review as the floor; under the `verification` levels `light` and `off` the self-review alone closes them and the report notes the skip. Stage 11 takes its outcome verdict from a fresh-context verifier.
+- `/session-flow:retro` session mode under `retro_lenses: 1` reads the `verification` level: at `standard` and `strict` one fresh-context subagent runs the analysis and proposes the scores from the transcript, so the session no longer scores itself; at `light` and `off` it runs inline and notes the skip.
+
 ## [7.2.0] - 2026-11-06
 
 ### Added
