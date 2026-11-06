@@ -23,8 +23,27 @@ membership comment on the item, post the matching membership comment on the umbr
 the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone
 (#633).
 
-Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `track add --recurring`
-(the due / work / recheck flows exact-match that prefix); they are exempt from the two prefix dialects.
+Recurring maintenance items take the conventional-commit form too: `chore(<scope>): <summary>` by
+default, the summary being the schedule row's `title` with a lowercase first letter, `<scope>` the
+row's first `area` entry, and `chore:` alone when `area` is empty. The title never links an item to its schedule row; the
+[recurring marker](#recurring-marker) does.
+
+### Recurring marker
+
+A recurring item's body carries one line, on its own, that names its schedule row's `id`:
+
+```text
+<!-- recurring-schedule id=<id> -->
+```
+
+An item matches a row when it carries the resolved `recurring-maintenance` label
+([`label-taxonomy.md`](label-taxonomy.md) "Canonical roles") **and** its body has that line with
+the row's `id`, exactly. Never match by title: a title edit cannot break the link, and a row whose
+title is a prefix of another's cannot claim the other's item. `track add --recurring` writes the
+line; the `due`, `recheck`, `done`, `audit` and `setup` flows and `work`'s candidate discovery read
+it. The line must appear alone on its line; the same text inside a sentence is not a marker. An
+open recurring item with no marker matches no row: report it for retitling and a marker, never
+guess its row from the title.
 
 ## Body
 
