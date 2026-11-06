@@ -37,7 +37,7 @@ const toView = (context: SessionContextUsage): LiveView | null => {
   }
 }
 
-// Each refresh takes a number; one that resolves after a newer one started writes nothing.
+// Each refresh takes a number, and one that resolves after a newer one started writes nothing.
 let latest = 0
 
 const refresh = async ($: EngineInterface) => {
