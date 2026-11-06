@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 60 independent scripts; `disableWorkflows` is true in .claude/settings.json\nshape: sections",
+      "why": "names the switch, suggests nothing"
+    },
+    {
+      "answer": "verdict: subagent\nreason: workflows are off by disableWorkflows: true\nshape: sections",
+      "why": "value true"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 60 scripts; drops to subagent because disableWorkflows is true\nshape: sections",
+      "why": "drops names the downgrade, not a suggestion"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 60 independent scripts; disableWorkflows is true, so the verdict drop to subagent stands\nshape: sections",
+      "why": "drop after the switch name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: 60 scripts; workflows are off\nshape: sections\n\nSet disableWorkflows to false to get a workflow.",
+      "why": "suggests false"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: sections\n\nRemove disableWorkflows from .claude/settings.json and rerun.",
+      "why": "suggests removing"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: sections\n\nRe-enable workflows and this becomes a workflow.",
+      "why": "suggests re-enabling"
+    }
+  ]
+}

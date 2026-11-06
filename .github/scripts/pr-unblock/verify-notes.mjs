@@ -345,7 +345,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     if (await findStaleNotes({ api: client, verdict, appId, log })) {
       appendFileSync(env.GITHUB_OUTPUT, `pass-head-sha=${verdict.head}\n`);
     }
-  } else if (await postNotes({ api: client, verdict, appId, humanGatedLabel: () => humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"), log })) {
+  } else if (await postNotes({ api: client, verdict, appId, humanGatedLabel: () => humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml"), log })) {
     appendFileSync(env.GITHUB_OUTPUT, `pr-number=${verdict.pr}\nhead-sha=${verdict.head}\n`);
   }
   return 0;

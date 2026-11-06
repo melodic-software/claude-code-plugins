@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Omit `model`; pass `effort: \"medium\"`.\n\n```json\n{\"single\":{\"model\":\"inherit\",\"omit_model\":true}}\n```",
+      "why": "JSON key is exempt"
+    },
+    {
+      "answer": "A fan-out worker would get model: opus; this single one omits model.",
+      "why": "fan-out mention"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Agent({ model: \"fable\", effort: \"medium\" })",
+      "why": "passes fable"
+    },
+    {
+      "answer": "Set model: inherit and effort: medium.",
+      "why": "inherit as a value"
+    }
+  ]
+}

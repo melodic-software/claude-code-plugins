@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/.claude/plugins/multi-agent/reference/config.md"
+          }
+        }
+      ],
+      "why": "config.md"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "user settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/etc/claude-code/managed-settings.json"
+          }
+        }
+      ],
+      "why": "managed settings"
+    }
+  ]
+}

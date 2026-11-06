@@ -48,7 +48,7 @@ const issueOf = (overrides = {}) => ({
   user: { id: HUMAN },
   type: { name: "Task" },
   sub_issues_summary: { total: 0, completed: 0, percent_completed: 0 },
-  labels: [{ name: READY }, { name: "work-class: mechanical" }],
+  labels: [{ name: READY }],
   ...overrides,
 });
 // Authors and editors as GraphQL answers them, for the trusted-spec criterion.
@@ -59,7 +59,6 @@ const written = (author, { body = BODY, editor = null, lastEditedAt = editor ? "
 // The issue's text as a listed human wrote it, unedited.
 const humanSpec = (issue, comments = []) => ({ ...written(USER(HUMAN), { body: issue.body }), comments });
 const VERDICT = {
-  workClass: "work-class: mechanical",
   dimensions: { size: "small", complexity: "low", uncertainty: "known" },
 };
 const facts = (overrides = {}) => ({
@@ -167,21 +166,21 @@ describe("decide", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
 
-  // Owner decision Q85 (#9668): the work class gates nothing.
-  test("admits a structural class, a class outside `classes` and no class", () => {
-    for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
-      assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
+  // Work classes are retired: an old class label on the issue decides nothing.
+  test("admits an issue whatever retired work-class label it carries", () => {
+    for (const name of ["work-class: structural", "work-class: anything-goes"]) {
+      assert.deepEqual(decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name }] }) })), { verdict: "admit", reasons: [] }, name);
     }
   });
 
   const LEGACY_UNTRUSTED = "work-class: untrusted-provenance";
   // The hold is a constant of decide, so no rules file loadRules accepts
-  // lifts it, one whose `classes` names the class included.
+  // lifts it, one with a stale `classes` key naming the class included.
   test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
     const dir = tempDir("admit-rules-");
     const widened = [
-      { ...RULES, classes: [...RULES.classes, LEGACY_UNTRUSTED] },
-      { ...RULES, classes: [LEGACY_UNTRUSTED], "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
+      { ...RULES, classes: [LEGACY_UNTRUSTED] },
+      { ...RULES, "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
     ];
     widened.forEach((content, index) => {
       const path = join(dir, `rules-${index}.json`);

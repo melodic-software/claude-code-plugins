@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified, so a person checks it first.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted\\nBlocked by: none\\n\\nThe spec is quoted from an outside author nobody has identified, so a person checks it first.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\"}",
       "why": "the verdict step reads this comment"
     }
   ],
   "fail": [
     {
-      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted\\nBlocked by: none\", \"needs_human\": true, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: untrusted\\nBlocked by: none\", \"needs_human\": true, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\"}",
       "why": "an escalated run posts only the fixed note, so the flag is lost"
     },
     {

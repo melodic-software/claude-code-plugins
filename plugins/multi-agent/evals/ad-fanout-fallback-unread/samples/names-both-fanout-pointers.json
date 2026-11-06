@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Unread: https://code.claude.com/docs/en/workflows#cost and https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unread: https://code.claude.com/docs/en/workflows#cost",
+      "why": "one pointer"
+    },
+    {
+      "answer": "Both fanout sources are unread.",
+      "why": "neither named"
+    }
+  ]
+}

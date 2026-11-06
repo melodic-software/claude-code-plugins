@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: single\nreason: one small edit in one function, a single dependent chain that fits this context",
+      "why": "dependent chain"
+    },
+    {
+      "answer": "verdict: single\nreason: a 30-line function; the rename and its uses depend on each other",
+      "why": "depend"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: single\nreason: one small rename in one 30-line function",
+      "why": "size only"
+    },
+    {
+      "answer": "verdict: single\nreason: small and independent",
+      "why": "independent"
+    },
+    {
+      "answer": "verdict: single\nreason: one edit with no dependencies",
+      "why": "negated dependency"
+    },
+    {
+      "answer": "verdict: single\nreason: a small edit that doesn't depend on anything",
+      "why": "contracted negation"
+    }
+  ]
+}

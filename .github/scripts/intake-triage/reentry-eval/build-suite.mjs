@@ -32,10 +32,6 @@ const REPOSITORY = "melodic-software/claude-code-plugins";
 const REPO_LABELS = [
   "needs-triage",
   "agent-ready",
-  "work-class: scoped",
-  "work-class: mechanical",
-  "work-class: structural",
-  "work-class: read-only",
   "provenance: untrusted",
 ];
 const ISSUE_TYPES = ["Bug", "Task", "Feature"];

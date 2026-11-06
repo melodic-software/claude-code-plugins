@@ -42,7 +42,7 @@
 // per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
 // recorded.
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
@@ -55,6 +55,7 @@ import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeReco
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
+import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -750,7 +751,7 @@ export async function loadBaseLimits(env) {
 export function baseHumanGatedLabel(env) {
   let text = null;
   try {
-    text = readFileSync(`${env.BASE_PATH || ".base"}/.work-item-tracker.json`, "utf8");
+    text = trackerBindingText(`${env.BASE_PATH || ".base"}/${TRACKER_BINDING_PATH}`);
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
@@ -881,7 +882,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   try {
     gateLabel = baseHumanGatedLabel(env);
   } catch (error) {
-    log(`::warning::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); it holds every PR it is on`);
+    log(`::warning::cannot read the human-gated label from the base tracker binding (${error.message}); it holds every PR it is on`);
   }
   const gate = { gateLabel, appSenderId };
   const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record, ...gate });
@@ -912,7 +913,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       ownerIds = [...loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
-      log(`::error::cannot read the base trusted-actors list or the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted PR gets fix-ci`);
+      log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);
       ownersHeld = "base trusted-actors list or tracker config unreadable";
     }
   }

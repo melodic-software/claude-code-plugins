@@ -5,7 +5,7 @@
 #
 # On a pull_request event, contract-only runs included, ci-status fails while
 # the pull request carries the human-gated label the base commit's
-# .work-item-tracker.json names (default `needs-human`), read from the base
+# docs/conventions/work-items.yaml binds (default `needs-human`), read from the base
 # commit's sparse checkout; the labels are read live from the API.
 # The error names the reason from the newest review-lane hold comment, and says
 # that removing the label approves. It fails closed when it cannot tell.
@@ -82,7 +82,7 @@ checkout="$(awk '$0 == "      - name: Check out the base commit'"'"'s hold confi
 for line in $'\n        id: base_config\n' 'continue-on-error: true' \
   "if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.hold_ref.outputs.sha != '' }}" \
   'ref: ${{ steps.hold_ref.outputs.sha }}' \
-  'persist-credentials: false' '/.work-item-tracker.json' '/.github/standards/trusted-actors/trusted-actors.json' \
+  'persist-credentials: false' '/docs/conventions/work-items.yaml' '/.github/standards/trusted-actors/trusted-actors.json' \
   'sparse-checkout-cone-mode: false' 'path: base-config'; do
   if [[ "$checkout" == *"$line"* ]]; then ok "the base checkout carries '${line//$'\n'/}'"; else fail "the base checkout lost '${line//$'\n'/}'"; fi
 done
@@ -190,8 +190,9 @@ else
   fail "ci-status gained a gate that could skip the hold: '$gate'"
 fi
 
-# The base commit's config is a fixture directory: STUB_TRACKER is its
-# .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
+# The base commit's config is a fixture directory: STUB_TRACKER is the
+# `tracker` value of its docs/conventions/work-items.yaml (no file when
+# unset), and STUB_CHECKOUT_FAILED leaves
 # BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
 # arguments. A labels read fails its first STUB_FAILS calls, then
 # answers STUB_LABELS (comma separated) as the API's label list. A comments
@@ -245,7 +246,7 @@ expect() {
   : >"$TMP_ROOT/output"
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
-  [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
+  [[ -z "${STUB_TRACKER+set}" ]] || { mkdir -p "$TMP_ROOT/base-config/docs/conventions" && printf 'tracker: %s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/docs/conventions/work-items.yaml"; }
   # The base's merge-holds.mjs: this tree's, STUB_MODULE_TEXT in its place, or
   # none with STUB_NO_MODULE.
   if [[ -z "${STUB_NO_MODULE:-}" ]]; then
@@ -409,12 +410,12 @@ expect "needs-human does not hold when the tracker names another label" 0 1 "nee
 export STUB_TRACKER='{not json'
 expect "an invalid tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
 export STUB_TRACKER="$CUSTOM" STUB_CHECKOUT_FAILED=1
-expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not read .work-item-tracker.json at $BASE; re-run this run."
+expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not read docs/conventions/work-items.yaml at $BASE; re-run this run."
 unset STUB_TRACKER STUB_CHECKOUT_FAILED
 export STUB_TRACKER=''
 expect "an empty tracker config falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
-export STUB_TRACKER='   '
-expect "a whitespace-only tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":[1]}}}'
+expect "a non-string tracker label falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  owner-call "}}}'
 expect "the tracker's label is trimmed" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  "}}}'
@@ -422,7 +423,7 @@ expect "a blank tracker label falls back to needs-human" 1 1 "needs-human" 0 "ca
 # The rule is the base's merge-holds.mjs humanGatedLabel: a base that cannot
 # judge fails closed before any read.
 export STUB_TRACKER="$CUSTOM" STUB_NO_MODULE=1
-expect "a base with no merge-holds.mjs fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE with its merge-holds.mjs"
+expect "a base with no merge-holds.mjs fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE with its merge-holds.mjs"
 unset STUB_NO_MODULE
 export STUB_MODULE_TEXT='export const other = 1;'
 expect "a base module without humanGatedLabel fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"

@@ -166,7 +166,7 @@
 //                       come from
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
-//   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
+//   TRACKER_CONFIG      the base tracker binding, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied
 //                       paths and the limits
@@ -190,7 +190,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
-import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
@@ -1636,7 +1636,7 @@ export function decide({
 function humanLabelFrom(path) {
   let config;
   try {
-    config = JSON.parse(readFileSync(path, "utf8"));
+    config = JSON.parse(trackerBindingText(path));
   } catch (error) {
     if (error.code === "ENOENT") {
       return "needs-human";
@@ -2426,7 +2426,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       return 0;
     }
     if (dimensionSkip) {
-      const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+      const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
       const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
       const plan = routeStop(dimensionSkip, { outcome: stopped(""), issueNumber, branch: "", humanLabel, runUrl, runId }, { why: DIMENSION_STEPS[dimensionSkip] });
       await finishStop(github, repo, plan, {
@@ -2563,7 +2563,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
         })
       : 0;
-    const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
     // Only a pushback reads the comments; a failed read leaves the link out.
     const unmarked =
       !unreported && outcome?.exit === "pushback"

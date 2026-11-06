@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.8] - 2026-11-06
+
+### Changed
+
+- The assess, audit-defaults, route and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). New cases: `as-disabled-switch-downgrade` (a `disableWorkflows` project setting downgrades a workflow verdict to subagent, with the switch on the reason line and no suggestion to unset it), `as-race-best-one-no-rule` ("keep the best one" is not a selection rule, so the race waits for one), `ad-fanout-fallback-unread` (with no Workflow tool and no network, the fanout audit runs the main-thread fallback, marks both sources unread, proposes no change and never proposes turning the guard off), `ro-all-fable-args-roles` (under Fable the orchestrator, worker and verifier fan-out variants name opus and every inherit reads `inherit: omit the model option`), `ro-rejected-model-id-layer-below` (a full model id in the personal override is reported from the notes as rejected, with the layer below supplying the model), `ro-mechanical-workload-picked` (a table reformat is routed as the mechanical workload, sonnet for both variants, with the opt-out key named), `ro-all-sonnet-cap-note` (the JSON keeps its efforts, the hard-cap line follows the role lines, and no settings file is read), `ro-agent-dispatch-single-variant` (an Agent dispatch with no named type omits `model` and passes the single variant's effort) and `su-apply-team-preview-asks` (a team-layer apply previews without `--write`, names `docs/conventions/multi-agent.yaml` and asks for a yes). Existing cases gain graders: `as-forty-files-no-workflow-tool` (availability script run, item count on the reason line, no workflow, write or edit), `as-small-task-single` (size and dependency shape on the reason line), `ro-unknown-role-stops` (no layer file written), `setup-check-shows-role-map-and-ignore-gap` (`session=opus` passed, inherit wording) and `su-apply-guard-off-confirms` (pricing or costs page linked, no price figure, local layer offered). `ro-worker-mechanical-fable`'s worker line takes any basis word, since the resolver's basis for that worker now reads judgment. The full-audit and repo-mode launches stay out: an eval run has no Workflow tool and no network.
+
 ## [2.0.7] - 2026-11-05
 
 ### Added

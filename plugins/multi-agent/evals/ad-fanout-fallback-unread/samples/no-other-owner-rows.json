@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| fanout | model | opus | unread |",
+      "why": "fanout only"
+    },
+    {
+      "answer": "| owner | key |\n| fanout | frontier | fable | unread | worker roles are out of scope |",
+      "why": "role word later in a row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fanout | model | opus | unread |\n| worker | effort | medium | unread |",
+      "why": "worker row"
+    },
+    {
+      "answer": "| `verifier` | effort | high | unread |",
+      "why": "code-span owner"
+    }
+  ]
+}

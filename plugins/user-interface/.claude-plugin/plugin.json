@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.16.5",
+  "version": "0.17.0",
   "license": "MIT",
   "keywords": [
     "user-interface",
@@ -25,7 +25,7 @@
     "account_tools_enabled": {
       "type": "boolean",
       "title": "Account-bound tools",
-      "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) is tested; the rest stay deferred.",
+      "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) and Figma are tested; the rest stay deferred.",
       "default": true
     },
     "css_browser_target": {

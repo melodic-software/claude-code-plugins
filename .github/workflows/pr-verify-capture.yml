@@ -1087,10 +1087,14 @@ jobs:
       # checkout, where a relative .base/ or head path names files the pull
       # request controls. The plugin skills name absolute paths, since
       # run-claude-cli resolves each plugin-dirs entry to one, and the
-      # control skill makes <skill-dir> absolute. drive's affected_features.py
-      # stays refused: its --out write follows a symlink the head or the
-      # sandbox can plant, into a .base script these rules run. Affected is
-      # then blocked and run-e2e drives what the scenario names. A head copy
+      # control skill makes <skill-dir> absolute. drive's affected_features.py,
+      # which run-e2e needs to find what to drive, runs from main by absolute
+      # path under python3 -I; it replaces any link left at its affected.json
+      # rather than writing through it, so a link the head or the sandbox
+      # plants cannot redirect the write into a .base script these rules run
+      # (a hard link from the sandbox into .base fails anyway: they are
+      # separate mounts, https://man7.org/linux/man-pages/man2/link.2.html
+      # EXDEV). A head copy
       # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
@@ -1164,6 +1168,7 @@ jobs:
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh" --user *)
+            Bash(python3 -I ${{ github.workspace }}/.base/plugins/app-control/scripts/affected_features.py *)
             Bash(claude plugin list --json)
             Bash(cmp *)
             Skill(testing:run-e2e *)

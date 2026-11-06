@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/assess/scripts/workflow-availability.sh"
+          }
+        }
+      ],
+      "why": "script only"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Workflow",
+          "input": {
+            "name": "audit",
+            "args": {}
+          }
+        }
+      ],
+      "why": "launched a workflow"
+    }
+  ]
+}

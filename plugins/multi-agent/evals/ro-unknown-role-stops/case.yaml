@@ -22,3 +22,11 @@ graders:
     input_match: 'route\.sh(?:[^"\\]|\\.)*?\b(?:orchestrator|worker|verifier|retrieval|all)\b'
     min: 0
     max: 0
+  - name: 'no-team-layer-file'
+    type: 'file_exists'
+    path: 'docs/conventions/multi-agent.yaml'
+    exists: false
+  - name: 'no-local-layer-file'
+    type: 'file_exists'
+    path: '.claude/multi-agent.local.yaml'
+    exists: false
