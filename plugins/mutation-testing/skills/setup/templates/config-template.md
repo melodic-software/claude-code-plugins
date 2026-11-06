@@ -71,6 +71,13 @@ max-mutants: <n>
 # test project, with `{tests}` replaced by that project and a class filter.
 # Other runners that only filter by name (Maven `-Dtest`) cannot use it.
 test-command: <command containing {tests}>
+
+# Optional. How much independent checking the audit runs: off | light | standard
+# | strict, default standard. light and off skip the Phase 4 triage subagent and
+# report every survivor unclassified. Read from the default branch only, so a
+# branch cannot lower it; verification_skills.audit beats it. Levels:
+# docs/contracts/verification-level/README.md in the marketplace repository.
+verification: standard
 ```
 
 There is no key listing test files. `audit --exercised` asks the `testing` plugin's scanner which

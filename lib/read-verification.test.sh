@@ -75,6 +75,14 @@ g -C "$repo" push -q origin main
 assert_eq "a non-default convention home is read from its pointer line" \
   "verification: strict (team/conv/verification.yaml verification $(at "$repo"))" "$(run "$repo")"
 
+assert_eq "--file reads the fixed path and ignores the convention home" \
+  "verification: off ($F verification $(at "$repo"))" \
+  "$(CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill confirm --file "$F")"
+
+assert_eq "--file outside the repository is refused" \
+  "verification: standard (default; --file '../x.yaml' is not a repository-relative .yaml path)" \
+  "$(CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill confirm --file ../x.yaml)"
+
 repo=$(fixture skill $'verification: light\nverification_skills:\n  confirm: strict\n  measure: off\n')
 assert_eq "a skill entry beats the plugin value" \
   "verification: strict ($F verification_skills.confirm $(at "$repo"))" "$(run "$repo")"
