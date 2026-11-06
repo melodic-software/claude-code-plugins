@@ -1154,6 +1154,7 @@ jobs:
             Bash(git -C ${{ github.workspace }}/head ls-remote --symref origin HEAD)
             Bash(git -C ${{ github.workspace }}/head fetch origin main)
             Bash(git -C ${{ github.workspace }}/head fetch origin 'main')
+            Bash(git -C ${{ github.workspace }}/head rev-parse --verify --end-of-options 'refs/remotes/origin/main^{commit}')
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh e2e *)
             Bash(bash "${{ github.workspace }}/.base/plugins/testing/scripts/resolve-config.sh" e2e *)
             Bash(bash ${{ github.workspace }}/.base/plugins/testing/scripts/check-browser-driver.sh --user *)

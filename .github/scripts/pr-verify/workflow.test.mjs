@@ -1730,7 +1730,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "worktree list --porcelain",
   ];
   // run-e2e's network git reads of the default branch (context/e2e.md:37-38), exact.
-  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'");
+  git.push("ls-remote --symref origin HEAD", "fetch origin main", "fetch origin 'main'", "rev-parse --verify --end-of-options 'refs/remotes/origin/main^{commit}'");
   const gitRules = HEADS.flatMap((head) => git.map((command) => `Bash(git -C ${head} ${command})`));
   // The other commands the skills name, from main's checkout only: run-e2e's
   // config and browser-driver scripts (SKILL.md:198-200, quoted as written
