@@ -39,6 +39,7 @@
 .github/scripts/pr-run-activity-read
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
+.github/scripts/recurring-schedule
 .github/scripts/security-outside-actor
 .github/scripts/upstream-apply-changelog
 .github/scripts/work-unblock

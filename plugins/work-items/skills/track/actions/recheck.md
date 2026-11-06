@@ -40,7 +40,7 @@ EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
 
 Refuse to advance `last_checked`/`next_due` or close the associated issue when the helper exits `2` (`needs-confirmation`) or `1` (`unmet`). Surface the printed prompt inline instead.
 
-1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today. If it's already in the future, the recurring-issues automation has already advanced it and re-advancing would skip a cycle.
+1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today. If it's already in the future, an earlier recheck this cycle already advanced it (the recurring-issues automation only files items and never edits the schedule), and re-advancing would skip a cycle.
 
 Cadence-to-days values: the Cadence Duration Table in [`add.md`](add.md#cadence-duration-table).
 
@@ -50,7 +50,7 @@ Re-read the current file from disk immediately before writing (the schedule is s
 
 - Set `last_checked` to today's date (always)
 - If `next_due <= today`: set `next_due` to today + cadence days
-- If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
+- If `next_due > today`: leave `next_due` unchanged (already advanced this cycle)
 
 1. **Close the associated item** (if one exists). Search for open items with the resolved
    recurring-maintenance label (adapter: "List items", `--label <resolved recurring-maintenance
@@ -68,5 +68,5 @@ Re-read the current file from disk immediately before writing (the schedule is s
 
 - Cadence is a minimum interval. On-demand rechecks are always valid.
 - The recurring-issues automation will create a new item when `next_due` arrives.
-- If the schedule file was recently updated by the workflow's PR, pull latest first.
+- If another PR recently updated the schedule file, pull latest first.
 - The schedule file edit is a working-tree change. It gets committed and pushed with the PR for the work that triggered the recheck. If rechecking without other changes, commit from your feature branch and open a PR: `git add .github/recurring-schedule.json && git commit -m "chore: advance recurring schedule for <item>"` (never commit directly to main).
