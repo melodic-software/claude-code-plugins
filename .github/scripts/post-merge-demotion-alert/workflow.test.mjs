@@ -254,6 +254,21 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   assert.equal(admits({ event_name: "workflow_dispatch", repository: "o/r", wr: {} }, C, F), true, "a dispatch always runs");
 });
 
+// label-paths labels pull requests, which GITHUB_TOKEN refuses with
+// issues: write alone (403 "Resource not accessible by integration" on
+// runs 42251673382 and 42254486336), so it holds pull-requests: write.
+test("label-paths can label pull requests and runs no model", () => {
+  const labeler = text.slice(text.indexOf("\n  label-paths:\n"));
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(labeler)[1];
+  assert.deepEqual(Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]])), {
+    contents: "read",
+    issues: "write",
+    "pull-requests": "write",
+  });
+  const steps = labeler.slice(0, labeler.indexOf("\n  close-cleared:\n") > 0 ? labeler.indexOf("\n  close-cleared:\n") : undefined);
+  assert.doesNotMatch(steps, /claude-code-action|request-lane-token|create-github-app-token|secrets\./);
+});
+
 // The close-cleared job runs on any completed scheduled full run on this
 // repository's main, whatever it concluded, and holds only actions: read,
 // contents: read, issues: write and pull-requests: read (babysit_lift.py
