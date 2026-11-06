@@ -1,48 +1,42 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/ws/package.json"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/ws/package.json\"}}]}}",
+      "why": "Read of a repo manifest"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/ws/packages/ledger-client/package.json"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/ws/packages/ledger-client/package.json\"}}]}}",
+      "why": "Read of the second package's manifest"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"for f in README.md package.json docs/operations.md packages/ledger-client/README.md packages/ledger-client/package.json src/config.js src/server.js test/config.test.js; do echo \\\"=== $f\\\"; cat $f; done; head -15 docs/archive/2021-migration.md\"}}]}}",
+      "why": "smoke-1 run: repo files read with a shell loop of cat"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Glob",
-          "input": {
-            "pattern": "**/*"
-          }
-        }
-      ],
-      "why": "no Read"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*\"}}]}}",
+      "why": "listing only, nothing read"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/p/plugins/codebase-health/README.md"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/p/plugins/codebase-health/README.md\"}}]}}",
       "why": "the plugin's README, not the repo's"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Read\",\"input\":{\"file_path\":\"/p/plugins/codebase-health/skills/setup/templates/config-template.md\"}}]}}",
+      "why": "smoke-1 run: the plugin's own template"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git ls-files | head -100; echo ---; ls -la . .claude 2>&1; echo ---; git check-ignore -v .claude/codebase-health.md; echo \\\"ignore-rc=$?\\\"; cat .gitignore 2>&1; ls ~/.claude/codebase-health.md 2>&1\"}}]}}",
+      "why": "smoke-1 run: config and ignore probes, no repo file read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat /p/plugins/codebase-health/README.md\"}}]}}",
+      "why": "near miss: shell read of the plugin's README"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"ls docs/ packages/\"}}]}}",
+      "why": "near miss: repo directories listed, nothing read"
     }
   ]
 }

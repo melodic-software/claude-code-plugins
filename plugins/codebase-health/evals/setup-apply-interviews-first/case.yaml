@@ -4,16 +4,14 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: explores-repo
-    type: tool_used
-    tool: 'Read'
-    input_match: '"file_path":"(?![^"]*/codebase-health/)(?:[^"\\]|\\.)*?(?:package\.json|README\.md|packages/|docs/)'
-    min: 1
+    type: regex
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{\s*\\?"file_path\\?":\s*\\?"(?![^"\\]*/codebase-health/)(?:[^"\\]|\\.)*?(?:package\.json|README\.md|packages/|docs/)|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?=(?:[^"\\]|\\.){0,800}?\b(?:cat|head|tail|sed|awk|less|more|nl|bat)\b)(?:[^"\\]|\\.){0,800}?(?:(?<=[\s''=])|(?<=\\"))(?![^\s"\\]*/codebase-health/)[^\s"\\;|&]*?(?:package\.json|README\.md|packages/|docs/)'
+    target: trace
     arm: 'both'
   - name: asks-with-recommendation
-    type: regex
-    pattern: '^(?=[\s\S]*\brecommend\w*)(?=[\s\S]*\bdocumentation\b)(?=[\s\S]*\?)'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'The expectation, verbatim: "Interviews the user per dimension with a recommendation, rather than writing blind." The skill line it rests on, verbatim: "Present each dimension''s drafted globs with a recommendation; let the user accept, edit, or remove the dimension." Pass when the reply presents drafted sources for the documentation dimension together with the option it recommends, and asks the user before anything is written. Fail when it asks with no recommended option, recommends without asking, or says the config was already written.'
+    focus: last_message
   - name: no-config-write
     type: tool_used
     tool: 'Write'

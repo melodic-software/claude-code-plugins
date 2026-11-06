@@ -5,7 +5,7 @@ context:
 graders:
   - name: reports-config-absent
     type: regex
-    pattern: '\b(?:no|found no)[ \t]+(?:tracked |team |audit )?`?(?:\.claude/)?codebase-health\.md`?[ \t]+(?:config(?:uration)?[ \t]+)?(?:file[ \t]+)?(?:was[ \t]+|is[ \t]+)?(?:found|present|exists)\b|codebase-health(?:\.local)?\.md`?[ \t]*(?::|is|was)?[ \t]*(?:not found|absent|missing|does not exist|doesn''t exist|is not present|isn''t present|no such file)\b|\bno (?:tracked |team |audit |codebase-health )?config(?:uration)?(?: file)? (?:was |is )?(?:found|present|exists)\b|\b(?:config(?:uration)?|codebase-health\.md`?)[ \t]+(?:is[ \t]+|was[ \t]+)?(?:absent|missing)\b'
+    pattern: '\b(?:no|found no)[ \t]+(?:tracked |team |audit )?`?(?:\.claude/)?codebase-health\.md`?[ \t]+(?:config(?:uration)?[ \t]+)?(?:file[ \t]+)?(?:was[ \t]+|is[ \t]+)?(?:found|present|exists)\b|codebase-health(?:\.local)?\.md`?[ \t]*(?::|is|was)?[ \t]*(?:not found|absent|missing|does not exist|doesn''t exist|is not present|isn''t present|no such file)\b|\bno (?:tracked |team |audit |codebase-health )?config(?:uration)?(?: file)? (?:was |is )?(?:found|present|exists)\b|\b(?:config(?:uration)?|codebase-health\.md`?)[ \t]+(?:is[ \t]+|was[ \t]+)?(?:absent|missing)\b|\bno[ \t]+(?:tracked[ \t]+|team[ \t]+)?`?(?:\.claude/)?codebase-health\.md`?(?=[ \t]*(?:[,;:.)]|\n|$|(?:so|and|or|at|in|file|config)\b))|\bno[ \t]+(?:tracked|team|audit|codebase-health)[ \t]+config(?:uration)?(?:[ \t]+file)?(?=[ \t]*(?:\*\*)?[ \t]*(?:[,;:.)]|\n|$|(?:so|and|at|in)\b))'
     flags: 'i'
     target: last_message
   - name: config-lookup-first

@@ -4,10 +4,9 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: reads-existing
-    type: tool_used
-    tool: 'Read'
-    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.claude/codebase-health\.md"'
-    min: 1
+    type: regex
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{\s*\\?"file_path\\?":\s*\\?"(?:[^"\\]|\\.)*?\.claude/codebase-health\.md\\?"|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,800}?\b(?:cat|head|tail|sed(?![ \t]+-\w*i)|awk|less|more|nl|bat)\b(?:[^"\\;|&]|\\[^n])*?\.claude/codebase-health\.md\b'
+    target: trace
     arm: 'both'
   - name: summarizes-baseline
     type: regex
