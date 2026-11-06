@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/STYLE.md",
+            "old_string": "a",
+            "new_string": "b",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "STYLE.md"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/style.json",
+            "old_string": "1.4758",
+            "new_string": "1.43",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "narrowed the band"
+    }
+  ]
+}

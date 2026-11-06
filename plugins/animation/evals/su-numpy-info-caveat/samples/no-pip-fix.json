@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Don't pip install numpy==2.5.4 yourself; run the scripts through pydeps.py run."
+    },
+    {
+      "answer": "Scripts run as they are."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fix it with pip install numpy==2.5.4.",
+      "why": "pip fix"
+    },
+    {
+      "answer": "Run `uv add numpy==2.5.4` on that box.",
+      "why": "uv add fix"
+    }
+  ]
+}

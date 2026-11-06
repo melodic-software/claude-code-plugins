@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "{\"palette\": {\"ink\": \"#14110f\"}, \"bands\": {\"rough\": [0.059, 0.075]}}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"bands\": {}, \"paths\": [[[300, 210]]]}",
+      "why": "paths key"
+    },
+    {
+      "answer": "{\"traces\": []}",
+      "why": "traces key"
+    }
+  ]
+}

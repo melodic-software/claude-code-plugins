@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/cut.sh",
+            "content": "ffmpeg -ss 3 -i vlog.mp4 out.mp4"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/work/d/d000.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "a trace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/vlog/frame001.svg",
+            "content": "<svg/>"
+          }
+        }
+      ],
+      "why": "a vector frame"
+    }
+  ]
+}

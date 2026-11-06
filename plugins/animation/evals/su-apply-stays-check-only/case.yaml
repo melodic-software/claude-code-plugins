@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: su-apply-stays-check-only
+graders:
+  - name: runs-prereq
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=\S*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?(?:[^\s"''\\]*/)?prereq\.py\\?["'']?(?![\w.-])(?!\s+(?:--help|-h)\b)'
+    min: 1
+  - name: no-install
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?(?:\\\"|'')?(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?(?:\s|\\\\\\n)+)*(?:install|reinstall|add|upgrade|i)\b|pacman\s+-S|npx(?:\s|\\\\\\n)+(?:-{1,2}[\w-]+(?:\s|\\\\\\n)+)*playwright(?:-core)?(?:@\S+)?(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+add\b|go(?:\s|\\\\\\n)+install\b|uv(?:\s|\\\\\\n)+(?:tool|pip)(?:\s|\\\\\\n)+install\b|(?:mise|asdf|rtx|aqua)(?:\s|\\\\\\n)+(?:install|use|upgrade|up|plugin\s+add)\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:curl|wget)\b(?:[^\"\\]|\\.)*?\|\s*(?:sudo(?:\s+-\S+)*\s+)?(?:bash|dash|zsh|sh)\b|(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\\"|'')?\$\(\s*(?:curl|wget)\b|python[\d.]*(?:\.exe)?(?:\\\"|'')?\s+(?:\\\"|'')?[^\s\"]*pydeps\.py(?:\\\"|'')?\s+install\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: says-check-only
+    type: regex
+    pattern: '\b(?:check[- ]only|read[- ]only check|has no (?:`?apply`?|install(?:er)?|write) (?:action|step|path|mode)?|(?:there is|there[’'']s) no (?:`?apply`?|install)\b|(?:won[’'']t|will not|do(?:n[’'']t| not)|can(?:not|[’'']t)|does not|doesn[’'']t)\s+(?:\w+\s+){0,2}?install\w*\b(?![^\n.]{0,40}\b(?:yet|until|unless|once you|without your)\b)|install(?:s|ing)? nothing\b|(?:left|leaves?) (?:it |them |installs? |the installs? )?(?:to|up to) (?:you|the operator)\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-remedy
+    type: regex
+    pattern: '\b(?:SessionStart hook|start a new (?:Claude Code )?session|pydeps\.py\W{0,3}install|install ffmpeg|install Node\.js|playwright_core option|nodejs\.org|ffmpeg\.org)\b'
+    flags: 'i'
+    target: 'last_message'

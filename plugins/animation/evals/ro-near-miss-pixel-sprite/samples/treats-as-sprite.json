@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Lay the hop out as 6 frames in one row, export from Aseprite, and load it as SpriteFrames."
+    },
+    {
+      "answer": "RPG Maker wants 3 columns by 4 rows, one row per direction."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your pixel-art slime sprite sheet idea.",
+      "why": "only the prompt's words"
+    },
+    {
+      "answer": "I can't make images in this session.",
+      "why": "no sprite layout at all"
+    }
+  ]
+}

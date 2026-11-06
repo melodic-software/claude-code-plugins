@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| numpy | FAIL | numpy not installed | start a new Claude Code session, whose SessionStart hook installs the packages |"
+    },
+    {
+      "answer": "| ffmpeg | PASS | /usr/bin/ffmpeg | - |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| numpy | FAIL | numpy not installed | - |",
+      "why": "remedy dropped"
+    },
+    {
+      "answer": "| numpy | FAIL | numpy not installed |",
+      "why": "remedy column dropped"
+    }
+  ]
+}

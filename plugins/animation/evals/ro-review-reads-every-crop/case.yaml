@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: ro-review-reads-every-crop
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-crop-d012
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?out/full/crops/d012\.png"'
+    min: 1
+    arm: 'both'
+  - name: reads-crop-d040
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?out/full/crops/d040\.png"'
+    min: 1
+    arm: 'both'
+  - name: reads-crop-d045
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?out/full/crops/d045\.png"'
+    min: 1
+    arm: 'both'
+  - name: reads-crop-d050
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?out/full/crops/d050\.png"'
+    min: 1
+    arm: 'both'
+  - name: no-downscale-or-gif
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:convert|magick|mogrify)\b(?:[^"\\]|\\.)*?-(?:resize|scale|thumbnail|sample)\b|\bsips\b(?:[^"\\]|\\.)*?-[zZ]\b|\bffmpeg\b(?:[^"\\]|\\.)*?(?:scale=|\.gif\b)|\.thumbnail\(|\.resize\(|\bgifsicle\b|\.gif\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-gif-read
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.gif"'
+    min: 0
+    max: 0
+    arm: 'both'

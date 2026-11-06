@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: su-numpy-info-caveat
+graders:
+  - name: info-not-fail
+    type: regex
+    pattern: '\bnumpy\b[^\n.]{0,60}?(?<!not )(?<!not a )(?<!n[’'']t )(?<!n[’'']t a )(?<!not as )(?<!not as a )(?<!rather than )(?<!rather than a )(?<!instead of )(?<!instead of a )(?<!never )(?<!no )(?<!not reported as )(?<!not reported as a )(?<!n[’'']t reported as )(?<!n[’'']t reported as a )\bFAIL(?:s|ed)?\b|(?<!not )(?<!not a )(?<!n[’'']t )(?<!n[’'']t a )(?<!not as )(?<!not as a )(?<!rather than )(?<!rather than a )(?<!instead of )(?<!instead of a )(?<!never )(?<!no )(?<!not reported as )(?<!not reported as a )(?<!n[’'']t reported as )(?<!n[’'']t reported as a )\bFAIL(?:s|ed)?\b[^\n.]{0,60}\bnumpy\b'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: stats-may-differ
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bstatistic\w*\b[^\n.]{0,80}\b(?:may|might|can|could|will)\b[^\n.]{0,20}\b(?:differ|drift|change|vary|deviate|not match)\w*|\b(?:may|might|can|could)\b[^\n.]{0,20}\b(?:differ|drift|vary|deviate)\w*[^\n.]{0,80}\bstatistic))(?=[\s\S]*\bregression\b)(?=[\s\S]*\bpack\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: points-at-pydeps-run
+    type: regex
+    pattern: '\bpydeps\.py\W{0,3}run\b'
+    target: 'last_message'
+  - name: no-pip-fix
+    type: regex
+    pattern: '(?:^|[.!?]\s+|\n)(?!(?:[^\n.!?]|[.!?](?!\s))*\b(?:don[’'']t|do not|never|instead of|rather than|no need to|avoid|without|shouldn[’'']t|should not)\b)(?:[^\n.!?]|[.!?](?!\s))*(?:\b(?:pip3?|uv pip|python3? -m pip)\s+install\b|\buv\s+add\b)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

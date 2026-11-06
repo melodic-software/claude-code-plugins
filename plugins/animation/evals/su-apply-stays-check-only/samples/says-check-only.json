@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "setup is check-only: there is no apply, so I won't install anything."
+    },
+    {
+      "answer": "Installs are left to you; the Python packages come from the SessionStart hook."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Installing the missing packages now.",
+      "why": "installs"
+    },
+    {
+      "answer": "I won't install them until you confirm.",
+      "why": "deferral, not a refusal"
+    },
+    {
+      "answer": "Running apply.",
+      "why": "runs an apply"
+    }
+  ]
+}

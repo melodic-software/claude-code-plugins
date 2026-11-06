@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=\"${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/scripts\"; python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py\" run --data-dir \"${CLAUDE_PLUGIN_DATA}\" -- \"$R/extract.py\" roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bare python, no pydeps"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run -- /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --data-dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py roto/ink-short --apply",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no --video"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/plugins/animation/scripts/pydeps.py run --data-dir \"/sb/config/plugins/data/animation-inline\" -- /p/plugins/animation/skills/rotoscope/scripts/extract.py work --video clips/ink-short.mp4",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "another work dir"
+    }
+  ]
+}

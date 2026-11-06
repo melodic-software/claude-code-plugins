@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "numpy FAIL: start a new Claude Code session, whose SessionStart hook installs the packages."
+    },
+    {
+      "answer": "chromium FAIL: set the playwright_core option to the playwright-core directory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Some rows failed.",
+      "why": "no remedy"
+    },
+    {
+      "answer": "Run apply to fix it.",
+      "why": "invented remedy"
+    }
+  ]
+}
