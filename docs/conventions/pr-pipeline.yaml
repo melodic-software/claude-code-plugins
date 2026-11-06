@@ -522,7 +522,9 @@ activities:
     # merge queue at the head it checked. No model. .github/workflows/pr-merge.yml
     # runs it for each candidate PR. On its schedule the same token also takes
     # off a needs-human the lanes App set for a pr-unblock escalation whose
-    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs).
+    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs),
+    # and a do-not-merge held only for eval evidence once a listed human's
+    # no-loss record names the head (.github/scripts/pr-merge/release-eval-hold.mjs).
     script: plugins/source-control/scripts/source-control-babysit-merge
     args: --unattended --authority pr-merge --merge
     effect: merge
