@@ -73,7 +73,12 @@ command in `ready.surfaces`) and each `observed` text reads `[redacted]`. `repor
 
 Run after the last capture: scan the sidecars and set each capture's `mask`, then write the two
 public reports and scan them, then give `report.json` its `publishable` list. Each later rewrite
-of the report, cleanup's included, rewrites the public reports and scans them again. It decides what may
+of the report, cleanup's included, rewrites the public reports and scans them again, with the
+values this run already resolved when it still holds them in memory; it resolves the sources again
+only when it does not. A `values:` source that resolves only while the app runs, such as one that
+asks the running session, fails once cleanup has stopped it. On a rewrite, such a failure
+unpublishes both public reports. Each capture keeps the `mask` and `publishable` the first
+post-check gave it when its sidecar has not changed since that scan. The post-check decides what may
 leave the machine; the run directory stays whole for the caller to read locally. It fails closed:
 whatever it cannot show clean is not publishable.
 

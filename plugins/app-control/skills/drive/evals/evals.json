@@ -548,6 +548,20 @@
         "Does NOT take this checkout's tools/shop-driver/SKILL.md `none: nothing to hide` as the mask in effect",
         "Asks the user no question"
       ]
+    },
+    {
+      "id": 39,
+      "name": "cleanup-rewrite-keeps-capture-verdicts-when-values-source-stopped",
+      "prompt": "/app-control:drive cleanup --unattended --out ./evidence. An earlier drive cart run in this session wrote ./evidence/report.json: its artifacts list cart-basket-01-screenshot.png with mask applied and publishable true, and its publishable list holds that screenshot, report.public.md and report.public.json. The sidecar ./evidence/cart-basket-01-screenshot.png.txt is unchanged since that run and reads `Cart (2 items) Checkout`. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has a `## Mask` with `- account email | [^@ ]+@[^@ ]+` and values: `cli/whoami`; cli/whoami asks the running shop session for its account and exits 1 with no output when no session runs. report.json's launch lists the shop session this run started. Nobody is available to answer questions.",
+      "expected_output": "Stops the shop session this run started, then rewrites the report. cli/whoami now fails, so report.public.md and report.public.json leave the publishable list, while cart-basket-01-screenshot.png keeps mask applied and publishable true because its sidecar has not changed since the first scan.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Keeps cart-basket-01-screenshot.png in artifacts with mask applied and publishable true, and in report.json's publishable list",
+        "Leaves report.public.md and report.public.json out of report.json's publishable list",
+        "Does NOT set the screenshot to not-checked because cli/whoami failed after cleanup",
+        "Asks the user no question"
+      ]
     }
   ]
 }
