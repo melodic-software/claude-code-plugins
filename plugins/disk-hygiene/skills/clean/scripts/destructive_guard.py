@@ -3325,7 +3325,7 @@ def _snapshot_location(snapshot_path: str) -> str:
 _HANDOFF_APPLY_ASK_GENERIC_REASON = (
     "disk-hygiene is ready to re-verify and remove the approved paths of one "
     "tier. Confirm this final mutation prompt only if it matches the tier and "
-    "paths the preview just showed."
+    "paths the report just showed."
 )
 
 
@@ -3364,7 +3364,7 @@ def _handoff_ask_reason(command: str) -> str:
             + "\n".join(f"- {_display_text(path)}" for path in paths)
             + f"\nA path that is not clear when its turn comes is skipped.{loss} "
             "Confirm this final mutation prompt only if it matches the tier and "
-            "paths the preview just showed."
+            "paths the report just showed."
         )
     except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
         return _HANDOFF_APPLY_ASK_GENERIC_REASON

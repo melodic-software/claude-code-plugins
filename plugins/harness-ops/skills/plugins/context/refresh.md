@@ -1,4 +1,4 @@
-# Refresh: re-fetch the user-scope fleet with its configuration unchanged
+# Refresh and clean: re-fetch the user-scope fleet with its configuration unchanged
 
 `<skill-dir>/scripts/reset-refresh.sh` is an operator-run script. The skill does not run it in a
 session, because it refuses to run while a `claude` process is running. Run it yourself from a
@@ -7,6 +7,7 @@ terminal after every Claude Code session on the machine is closed:
 ```bash
 bash "<skill-dir>/scripts/reset-refresh.sh" preview
 bash "<skill-dir>/scripts/reset-refresh.sh" refresh [--journal-root <dir>]
+bash "<skill-dir>/scripts/reset-refresh.sh" clean [--journal-root <dir>]
 ```
 
 ## What each mode does
@@ -15,7 +16,9 @@ bash "<skill-dir>/scripts/reset-refresh.sh" refresh [--journal-root <dir>]
   marketplace's clone under `~/.claude/plugins/marketplaces/`, the entry count, `temp_git_*` count
   and size of `~/.claude/plugins/cache/`, and how many user-scope ids `refresh` would reinstall. It
   also counts the ids with a project or local record, whose cache moves but which `refresh` does
-  not reinstall.
+  not reinstall. It then prints the entry count and size of `~/.claude/plugins/data/`, which `clean`
+  also discards, and names any earlier `~/.claude/plugins.bak-*` backup, which makes `clean`
+  refuse.
 - **`refresh`** moves those clones and `cache/` into a run directory, then runs
   `claude plugin marketplace update <name>` for each marketplace in `known_marketplaces.json`. It
   then runs `claude plugin install <id> --scope user` for each user-scope install record, one at a
@@ -56,6 +59,47 @@ bash "<skill-dir>/scripts/reset-refresh.sh" refresh [--journal-root <dir>]
 - **What the snapshots leave out.** The marketplaces are refreshed before the installs, so a
   reinstall can land a newer version. The install snapshot holds id and scope only, so a newer
   version is not a difference.
+
+## Clean
+
+`clean` runs everything `refresh` does, with these differences:
+
+- **What it discards.** `data/` moves aside with `cache/` and the clones. Every plugin whose
+  `data/` entry is discarded sets itself up again on first use, such as a Python environment or an
+  MCP server.
+- **The backup.** It moves those parts into `~/.claude/plugins.bak-<ts>`, a sibling of
+  `plugins/`, not into the run directory. `clean` never deletes a backup. After a passing run, you
+  remove it yourself, for example with `/disk-hygiene:clean`. It refuses to start while any
+  `plugins.bak-*` exists, so at most one backup is kept.
+- **No autonomous runs.** It refuses unless stdin is a terminal. That is in addition to the
+  `refresh` refusals.
+- **Installs that display a command.** Each install runs with `--json`. When the result shows a
+  marketplace-declared command instead of running it, `clean` prints that command and asks. A yes
+  re-runs the install with `--accept-command <sha256>` from that result. A no counts as a failure.
+  It never passes `-y`.
+- **More comparisons.**
+  - The snapshots also hold every project and local install record, compared in full, so a run
+    that changed one fails.
+  - Byte copies of user `settings.json`, and of each existing project's `.claude/settings.json`
+    and `.claude/settings.local.json`, are compared with `cmp`.
+  - The probe below found that the CLI can reorder settings keys. When it does, `cmp` reports a
+    difference that the sorted `enabledPlugins` compare does not.
+- **Move-back.** On any CLI failure or difference, it moves the rebuilt `cache/`, `data/` and
+  clones into `<run_dir>/rebuilt/`, then moves the backup's parts back and removes the emptied
+  backup. The move-back writes no state or settings file: a difference the CLI made in one is
+  reported, and is still there afterwards. The snapshots stay in the run directory. Exit 1.
+- **The report on a pass.**
+  - The backup's path and size.
+  - The `data/` entries whose setup reruns.
+  - The `chezmoi managed` files under `~/.claude/plugins`, when `chezmoi` is installed. Re-apply
+    them afterwards.
+  - An instruction to restart Claude Code.
+
+  The run's snapshot and settings copies are deleted, and `journal.log` stays.
+
+The `--accept-command` behavior `clean` relies on is in the Plugin commands reference,
+[Accept a displayed install command](https://code.claude.com/docs/en/plugins/cli-reference#accept-a-displayed-install-command).
+As of 2026-11-05. Recheck when that section or the `--json` result's `shownCommand` changes.
 
 ## Enable state after a reinstall
 
