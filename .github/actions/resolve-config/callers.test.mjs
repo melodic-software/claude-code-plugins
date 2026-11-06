@@ -2146,16 +2146,48 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 // which only a call of a ci-workflows reusable with a fallback job may pass
 // (intake-triage.yml and pr-review-cli.yml from v0.65.12, ci-workflows#890),
 // or a job that runs the fallback leg itself, passing it to run-claude-cli as
-// fallback-token or to the read runner as its third call's
-// fallback-claude-code-oauth-token. Any job may ask only whether it is set.
+// fallback-token, to the read runner as its third call's
+// fallback-claude-code-oauth-token, or to a `claude plugin eval` leg's eval
+// and probe steps, and no other step, as CLAUDE_CODE_OAUTH_TOKEN; or a call of
+// the eval pass workflow, which runs that leg. Any job may ask only whether it
+// is set.
 const FALLBACK_SECRET = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@main$/;
+const EVAL_PASS_REUSABLE = "./.github/workflows/eval-hill-climb-pass.yml";
 const FALLBACK_VALUE = `\${{ secrets.${FALLBACK_SECRET} }}`;
+// A plugin eval leg's claude steps: the `claude plugin eval` run, and the
+// policy probe (step id `probe`, a `claude -p`) in a job that runs one.
+const EVAL_RUN = /^\s*claude plugin eval /m;
+const isEvalLegStep = (step, job) =>
+  isLauncherStep(step, "claude-cli") &&
+  (EVAL_RUN.test(step.run) || (step.id === "probe" && /^\s*claude -p /m.test(step.run) && (job.steps ?? []).some((s) => EVAL_RUN.test(String(s.run ?? "")))));
+// The fallback token reaches only a plugin eval leg's claude steps, as their
+// CLAUDE_CODE_OAUTH_TOKEN; any other step that reads it disqualifies the job.
+const evalLegReadsFallback = (job) => {
+  const readers = (job.steps ?? []).filter((step) => claudeReads(withoutPresenceChecks(step)).includes(FALLBACK_SECRET));
+  return readers.length > 0 && readers.every((step) => isEvalLegStep(step, job) && step.env?.CLAUDE_CODE_OAUTH_TOKEN === FALLBACK_VALUE);
+};
 const readsFallback = (job) =>
   (FALLBACK_REUSABLE.test(String(job.uses ?? "")) && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
+  (job.uses === EVAL_PASS_REUSABLE && job.secrets?.[FALLBACK_SECRET] === FALLBACK_VALUE) ||
   (job.steps ?? []).some((step) => isLauncherStep(step, "run-claude-cli") && step.with?.["fallback-token"] === FALLBACK_VALUE) ||
+  evalLegReadsFallback(job) ||
   (job.uses === READ_RUNNER && job.with?.fallback === "fallback" && job.secrets?.["fallback-claude-code-oauth-token"] === FALLBACK_VALUE) ||
   (claudeReads(job).includes(FALLBACK_SECRET) && !claudeReads(withoutPresenceChecks(job)).includes(FALLBACK_SECRET));
+test("the fallback token is allowed only in a plugin eval leg's eval and probe steps", () => {
+  const token = { CLAUDE_CODE_OAUTH_TOKEN: FALLBACK_VALUE };
+  const evalStep = { name: "Run the pass", env: token, run: "set -e\nclaude plugin eval x --json r.json" };
+  const probe = { name: "Probe", id: "probe", env: token, run: 'claude -p "probe" --output-format stream-json' };
+  const other = { name: "Ask", env: token, run: 'claude -p "summarize the diff"' };
+  const presence = { name: "Check", env: { P: `\${{ secrets.${FALLBACK_SECRET} != '' }}` }, run: "true" };
+  assert.equal(readsFallback({ steps: [presence, probe, evalStep] }), true, "an eval leg");
+  assert.equal(readsFallback({ steps: [evalStep] }), true, "an eval leg with no probe");
+  assert.equal(readsFallback({ steps: [other] }), false, "a claude -p step that runs no eval");
+  assert.equal(readsFallback({ steps: [probe] }), false, "a probe in a job that runs no eval");
+  assert.equal(readsFallback({ steps: [probe, evalStep, other] }), false, "an eval leg with another step on the token");
+  assert.equal(readsFallback({ steps: [{ ...evalStep, env: { ANY_NAME: FALLBACK_VALUE } }] }), false, "the token under another name");
+});
+
 test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
   const jobs = claudeSecretJobs();
   for (const { role, lane, key } of catalogLanes()) {
@@ -2179,11 +2211,23 @@ test("every catalog lane reads only its role's secrets, and every role: it passe
   }
 });
 
-test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
+// The maintenance role's `claude plugin eval` lanes take its key too (owner
+// decision Q2 on #13586): plugin eval runs on the credential in the
+// environment, ANTHROPIC_API_KEY for a Console key
+// (code.claude.com/docs/en/plugin-evals, "Run evals in CI").
+test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli or is a plugin eval leg", () => {
   const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
   const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some(isApiKey));
   assert.ok(keyed.length > 0);
-  for (const [key] of keyed) assert.equal(lanes.get(key)?.launcher, "run-claude-cli", key);
+  for (const [key, { job }] of keyed) {
+    const launcher = lanes.get(key)?.launcher;
+    if (launcher === "claude-cli") {
+      const evalRun = (job.steps ?? []).some((step) => isLauncherStep(step, "claude-cli") && /^\s*claude plugin eval /m.test(step.run));
+      assert.ok(evalRun || job.uses === EVAL_PASS_REUSABLE, `${key} reads a key but runs no claude plugin eval`);
+    } else {
+      assert.equal(launcher, "run-claude-cli", key);
+    }
+  }
 });
 
 test("a Claude credential reaches only the launcher step of its catalog lane", () => {
@@ -9113,15 +9157,131 @@ test("maintenance-tidy-code-upkeep.yml: the sweep runs key, subscription and fal
   for (const id of ["model-subscription", "model-fallback"]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
 });
 
+// The maintenance role's `claude plugin eval` lanes run key, subscription and
+// fallback legs, one credential per job, each the key leg's steps but for the
+// credential, the leg its handoff judge names, the key's credit-stop marker
+// and the leg record's credential and fallback reason. A key reaches the CLI
+// as ANTHROPIC_API_KEY only inside the claude step, LANE_API_KEY unset first,
+// so CLAUDE_CODE_SUBPROCESS_ENV_SCRUB strips it from Bash subprocesses.
+const EVAL_LEG_CREDENTIALS = {
+  key: ["LANE_API_KEY", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"],
+  subscription: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"],
+  fallback: ["CLAUDE_CODE_OAUTH_TOKEN", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"],
+};
+const CLASSIFIER_PIN = "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6";
+for (const [file, gateId, [keyId, subId, fbId], marker] of [
+  ["eval-hill-climb-pass.yml", "gate", ["pass", "pass-subscription", "pass-fallback"], "key-credit-stop-maintenance-measure-skill-edit.yml-pass"],
+  ["eval-browser-dispatch.yml", "eval-key-credit", ["eval", "eval-subscription", "eval-fallback"], "key-credit-stop-eval-browser-dispatch.yml-eval"],
+]) {
+  test(`${file}: the eval runs key, subscription and fallback legs, each with one credential`, () => {
+    const { jobs } = workflow(file);
+    const legs = { key: keyId, subscription: subId, fallback: fbId };
+    for (const [leg, id] of Object.entries(legs)) {
+      const steps = jobs[id].steps;
+      const launchers = steps.filter((s) => isLauncherStep(s, "claude-cli"));
+      assert.ok(launchers.some((s) => /^\s*claude plugin eval /m.test(s.run)), `${id} runs the eval`);
+      const [name, value] = EVAL_LEG_CREDENTIALS[leg];
+      for (const step of launchers) {
+        assert.equal(step.env[name], value, `${id} ${step.name}`);
+        assert.deepEqual(stepSecrets(step), [value.match(/secrets\.(\w+)/)[1]], `${id} ${step.name} holds one credential`);
+        const firstClaude = step.run.search(/^\s*claude\s/m);
+        assert.ok(step.run.indexOf("unset LANE_API_KEY") < firstClaude, `${id} ${step.name} unsets LANE_API_KEY before claude runs`);
+        assert.match(step.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, /^(?:"?1"?|\$\{\{ .+ \}\})$/, `${id} ${step.name} scrubs Bash subprocesses`);
+      }
+      assert.equal(steps.find((s) => s.id === "judge").env.LEG, leg, id);
+      // A leg whose credential is empty, or whose key the gate skipped, runs
+      // nothing past its credential check: every later step but the budget
+      // log has a condition, and the first ones read `run`.
+      const after = steps.slice(steps.findIndex((s) => s.id === "credential") + 1);
+      assert.deepEqual(after.filter((s) => s.if === undefined || s.if === "always()").map((s) => s.name).filter((n) => n !== "Log the API budget at the end"), [], id);
+      assert.match(after[0].if, /^steps\.credential\.outputs\.run == 'true'/, id);
+      // A classifier that cannot run stops the leg red, never as a handoff.
+      for (const step of steps.filter((s) => /plugin-eval\/eval-handoff\.mjs/.test(String(s.run ?? "")))) {
+        assert.match(step.run, /eval-handoff\.mjs\) \|\|\n\s+\{ echo "::error::the handoff classifier failed[^"]*"; exit 1; \}/, `${id} ${step.name}`);
+      }
+      const checkout = steps.find((s) => s.with?.repository === "melodic-software/ci-workflows");
+      assert.equal(checkout.with.ref, CLASSIFIER_PIN, `${id} reads the classifier at the run-claude-cli pin`);
+      assert.equal(checkout.with["persist-credentials"], false);
+      assert.ok(!jobs[id].permissions || !Object.values(jobs[id].permissions).includes("write"), `${id} holds no write grant`);
+      const record = steps.find((s) => s.name === "Record the leg");
+      assert.equal(record.with.credential, value.match(/secrets\.(\w+)/)[1], id);
+      assert.equal(record.with["execution-file"], "${{ steps.judge.outputs.leg-result }}", id);
+    }
+    // The run-claude-cli pin the classifier checkout follows is the one this repository runs.
+    assert.match(read("../../workflows/maintenance-measure-skill-edit.yml"), new RegExp(`run-claude-cli@${CLASSIFIER_PIN} `));
+
+    const shape = (id) =>
+      jobs[id].steps
+        .filter((s) => !["credential", "credit-marker", "credit-marker-scan", "credit-marker-upload"].includes(s.id))
+        .map((s) => {
+          const copy = structuredClone(s);
+          for (const k of ["LANE_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "LEG"]) delete copy.env?.[k];
+          if (copy.name === "Record the leg") for (const k of ["credential", "fallback-reason"]) delete copy.with[k];
+          return copy;
+        });
+    assert.deepEqual(shape(subId), shape(keyId));
+    assert.deepEqual(shape(fbId), shape(keyId));
+    assert.deepEqual(Object.keys(jobs[subId].outputs), Object.keys(jobs[keyId].outputs));
+
+    const ctx = (over) => ({
+      [`needs.${gateId}.result`]: "success",
+      [`needs.${gateId}.outputs.skip-key`]: "",
+      "github.event_name": "workflow_dispatch",
+      "github.ref": "refs/heads/main",
+      "github.event.repository.default_branch": "main",
+      "github.event.label.name": "",
+      "github.event.pull_request.head.repo.full_name": "",
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.pull_request.draft": false,
+      ...over,
+    });
+    const keyIf = jobs[keyId].if.replaceAll("format('refs/heads/{0}', github.event.repository.default_branch)", "'refs/heads/main'");
+    assert.equal(evaluate(keyIf, ctx({})), true);
+    assert.equal(evaluate(keyIf, ctx({ [`needs.${gateId}.result`]: "failure" })), false);
+    const sub = (over) =>
+      evaluate(jobs[subId].if, ctx({ [`needs.${keyId}.outputs.handoff`]: "", [`needs.${keyId}.outputs.credential-present`]: "true", ...over }));
+    assert.equal(sub({ [`needs.${keyId}.outputs.handoff`]: "true" }), true, "a handed-off key");
+    assert.equal(sub({ [`needs.${keyId}.outputs.credential-present`]: "false" }), true, "an empty key");
+    assert.equal(sub({ [`needs.${gateId}.outputs.skip-key`]: "true" }), true, "a credit-stopped key");
+    assert.equal(sub({ [`needs.${keyId}.outputs.handoff`]: "false" }), false, "a key leg that finished");
+    assert.equal(sub({}), false, "a key leg that failed before its judge");
+    const fb = (handoff, present, ready) =>
+      evaluate(jobs[fbId].if, {
+        [`needs.${subId}.outputs.handoff`]: handoff,
+        [`needs.${subId}.outputs.credential-present`]: present,
+        [`needs.${subId}.outputs.fallback-ready`]: ready,
+      });
+    assert.equal(fb("true", "true", "true"), true);
+    assert.equal(fb("", "false", "true"), true, "an empty subscription token hands to the fallback leg");
+    assert.equal(fb("", "false", "false"), false, "the fallback leg starts only when its token is set");
+    assert.equal(fb("true", "true", "false"), false);
+    assert.equal(fb("false", "true", "true"), false);
+    assert.equal(
+      jobs[subId].steps.find((s) => s.name === "Record the leg").with["fallback-reason"],
+      `\${{ needs.${keyId}.outputs.handoff-reason || needs.${gateId}.outputs.skip-key == 'true' && 'credit-stop' || needs.${keyId}.outputs.credential-present == 'false' && 'no-key' || '' }}`,
+    );
+    assert.equal(jobs[fbId].steps.find((s) => s.name === "Record the leg").with["fallback-reason"], `\${{ needs.${subId}.outputs.handoff-reason || 'no-key' }}`);
+
+    // The gate reads markers with actions: read and nothing else; only the key leg uploads one.
+    assert.deepEqual(jobs[gateId].permissions, { actions: "read" });
+    assert.equal(claudeReads(withoutPresenceChecks(jobs[gateId])).length, 0, "the gate reads no Claude credential");
+    const credit = jobs[gateId].steps.find((s) => s.id === "credit");
+    assert.equal(credit.with["key-job"], keyId);
+    assert.equal(credit.with["probe-minutes"], "0");
+    const upload = jobs[keyId].steps.find((s) => s.id === "credit-marker-upload");
+    assert.equal(upload.with.name, marker);
+    assert.equal(upload["continue-on-error"], true);
+    assert.match(jobs[keyId].steps.find((s) => s.id === "credit-marker").if, new RegExp(`'${marker.replaceAll(".", "\\.")}' && steps\\.judge\\.outputs\\.handoff-reason == 'credit-stop'`));
+    for (const id of [subId, fbId]) assert.doesNotMatch(JSON.stringify(jobs[id]), /key-credit-stop/, id);
+    assert.equal(JSON.parse(read("../../artifact-retention.json")).families[marker]?.["retention-days"], 1, `${marker} has a retention row`);
+  });
+}
+
 // Every job that runs a run-claude-cli leg writes that leg's lane-outcome
 // record (report-lane-outcome with a lane-id): the record carries the leg's
 // credential, outcome, handoff and durationMs, which lane telemetry
 // aggregates per leg (#13586).
-const RECORDLESS_LEGS = new Set([
-  // The maintenance role's proposal pass, open on #13586 with that role's
-  // missing key; its lane record comes with its legs.
-  "maintenance-measure-skill-edit.yml propose",
-]);
+const RECORDLESS_LEGS = new Set([]);
 test("every run-claude-cli job writes a lane record for its leg", () => {
   const missing = [];
   for (const file of workflowFiles()) {
@@ -9262,18 +9422,11 @@ function missingLegs(catalog, launched) {
   }
   return missing;
 }
-const EVAL_REASON = "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY), and claude plugin eval runs outside run-claude-cli, so it has no handoff to a fallback leg (#13586)";
 // Lanes that cannot take every leg yet (#13586): each names the exact legs it
 // waives and why. The test fails when an exempt lane lacks a leg its entry
 // does not name, or runs a leg its entry waives, so an entry never covers
 // more than it says and goes once its lane gains the leg.
 const LEG_EXEMPTIONS = {
-  "eval-browser-dispatch.yml maintenance eval": { legs: ["key", "fallback"], reason: EVAL_REASON },
-  "eval-hill-climb-pass.yml maintenance pass": { legs: ["key", "fallback"], reason: EVAL_REASON },
-  "maintenance-measure-skill-edit.yml maintenance pass-a": { legs: ["key", "fallback"], reason: EVAL_REASON },
-  "maintenance-measure-skill-edit.yml maintenance pass-a2": { legs: ["key", "fallback"], reason: EVAL_REASON },
-  "maintenance-measure-skill-edit.yml maintenance pass-b": { legs: ["key", "fallback"], reason: EVAL_REASON },
-  "maintenance-measure-skill-edit.yml maintenance propose": { legs: ["key"], reason: "the maintenance role holds no API key (keyed false, no MAINTENANCE_CLAUDE_API_KEY) (#13586)" },
   "post-merge-test-mutation.yml automations audit": {
     legs: ["key", "fallback"],
     reason: "it runs on claude-code-action, which takes no API key here (only run-claude-cli does) and has no handoff to a fallback leg; both wait on the audit's move to run-claude-cli (#13586)",

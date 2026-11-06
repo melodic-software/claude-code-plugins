@@ -39,8 +39,15 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
       const writer = file === "maintenance-measure-skill-edit.yml" && Object.hasOwn(WRITERS, name);
       const permissions = block.match(/\n {4}permissions:\n((?: {6}.+\n)+)/)?.[1] ?? "";
       const keys = [...permissions.matchAll(/^ {6}([a-z-]+): (\w+)/gm)].map(([, key, level]) => `${key}: ${level}`);
-      // The gate also reads this run's re-runner (check-trusted-trigger).
-      const reads = name === "gate" ? ["contents: read", "actions: read"] : ["contents: read"];
+      // The gate also reads this run's re-runner (check-trusted-trigger); a
+      // key-credit gate reads only the credit-stop markers, and a pass's
+      // caller grants its pass workflow's gate that read.
+      const creditGate = name === "propose-key-credit" || (file === "eval-hill-climb-pass.yml" && name === "gate");
+      const reads = creditGate
+        ? ["actions: read"]
+        : name === "gate" || /^pass-(?:a|a2|b)$/.test(name)
+          ? ["contents: read", "actions: read"]
+          : ["contents: read"];
       assert.deepEqual(keys, writer ? ["contents: read", "id-token: write"] : reads, `${file} ${name}`);
       const mints = [...code(block).matchAll(/request-lane-token[^]*?\n {10}activity: ([a-z-]+)\n/g)].map(([, activity]) => activity);
       assert.deepEqual(mints, writer ? [WRITERS[name]] : [], `${file} ${name} mints`);
@@ -125,19 +132,34 @@ test("every ci-workflows action is pinned to one full commit", () => {
   assert.ok(pins.length >= 2);
   // report-lane-outcome is pinned where every lane pins it; the rest at one commit.
   for (const pin of pins) assert.ok(["b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 b8bdd7f 2026-11-04", "6b9c640bf209c0c7e76f1111c5d18c96707348a2 6b9c640 2026-11-02"].includes(pin), pin);
+  // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
+  const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
+  assert.deepEqual(classifier, Array(3).fill("b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 b8bdd7f 2026-11-04"));
 });
 
-test("the model steps are read-only, on the maintenance token then the fallback token, and frame what they read as data", () => {
-  assert.equal(main.match(/run-claude-cli@/g).length, 2);
+test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {
+  assert.equal(main.match(/run-claude-cli@/g).length, 3);
   assert.doesNotMatch(pass, /run-claude-cli@/);
   const propose = jobs(main).propose;
+  const key = step(propose, "Propose the edit on the API key");
   const leg = step(propose, "Propose the edit");
   const fallback = step(propose, "Propose the edit on the fallback token");
+  assert.match(key, /api-key: \$\{\{ secrets\.MAINTENANCE_CLAUDE_API_KEY \}\}\n/);
+  assert.match(key, /if: steps\.prompt\.outcome == 'success' && steps\.key\.outputs\.key == 'true'\n/);
   assert.match(leg, /subscription-token: \$\{\{ secrets\.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
+  // The subscription leg runs after the key leg hands off or does not run.
+  assert.match(leg, /&& \(steps\.run-key\.outcome == 'skipped' \|\| steps\.run-key\.outputs\.handoff == 'true'\)\n/);
   assert.match(fallback, /fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}\n/);
   // The fallback leg runs after the subscription leg hands off or finds its token empty, with the fallback token set.
-  assert.match(fallback, /steps\.credential\.outputs\.fallback-ready == 'true'\n\s+&& \(steps\.run\.outputs\.handoff == 'true' \|\| steps\.credential\.outputs\.present != 'true'\)/);
-  for (const model of [leg, fallback]) {
+  assert.match(
+    fallback,
+    /steps\.credential\.outputs\.fallback-ready == 'true'\n\s+&& \(steps\.run\.outputs\.handoff == 'true'\n\s+\|\| steps\.credential\.outputs\.present != 'true' && \(steps\.run-key\.outcome == 'skipped' \|\| steps\.run-key\.outputs\.handoff == 'true'\)\)/,
+  );
+  // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
+  assert.match(step(propose, "Check the API key"), /SKIP_KEY: \$\{\{ needs\.propose-key-credit\.outputs\.skip-key \}\}/);
+  assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-maintenance-measure-skill-edit\.yml-propose' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
+  assert.match(jobs(main)["propose-key-credit"], /key-job: propose\n/);
+  for (const model of [key, leg, fallback]) {
     assert.match(model, /role: maintenance\n/);
     assert.match(model, /permission-mode: dontAsk\n/);
     assert.match(model, /tools: \|\n {12}Read\n {12}Grep\n {12}Glob\n {10}allowed-tools:/);
