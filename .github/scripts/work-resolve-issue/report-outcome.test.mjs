@@ -113,6 +113,12 @@ function decideDone(overrides = {}) {
   });
 }
 
+
+// main's Work status write, recorded among a fake's calls in call order.
+const statusInto = (calls) => async (number, state) => {
+  calls.push({ method: "STATUS", path: `/issues/${number}`, body: { state } });
+};
+
 test("a missing outcome file reads as stopped", () => {
   withDir({}, (dir) => {
     assert.equal(readOutcome(join(dir, "work-outcome.json")).exit, "stopped");
@@ -1189,7 +1195,8 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 // issue drops agent-ready and status: ready and parks at status: confirmed
 // with the reason, as admission parks the same refusal: the lanes App's
 // admission comment first (intake-reenter lifts status: confirmed only beside
-// it), then the labels, then the lane's outcome comment.
+// it), then Work status confirmed, then the label removals and the lane's
+// outcome comment.
 for (const [reason, step] of [
   ["research-first", "plan or research the approach"],
   ["probe-first", "run a probe or spike first"],
@@ -1204,13 +1211,14 @@ for (const [reason, step] of [
         ["DELETE", /\/issues\/77\/labels\//, 200, []],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
-      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch }), 0);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch, setStatus: statusInto(calls) }), 0);
       const writes = calls.filter((c) => c.method !== "GET");
-      const [admission, labels, ...rest] = writes;
+      const [admission, status, ...rest] = writes;
       assert.equal(admission.method, "POST");
       assert.ok(admission.body.body.startsWith("<!-- intake-triage admission -->\nNot admitted to the issue lane: "), admission.body.body);
       assert.ok(admission.body.body.includes(`\`${reason}\``) && admission.body.body.includes(step), admission.body.body);
-      assert.deepEqual(labels.body, { labels: ["status: confirmed"] });
+      assert.deepEqual(status, { method: "STATUS", path: "/issues/77", body: { state: "confirmed" } });
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "no status label is added");
       const removed = rest.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
       assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
       const comment = rest.at(-1).body.body;
@@ -1224,65 +1232,41 @@ for (const [reason, step] of [
   });
 }
 
-// Each stop's label edits reach the Work status field through mirrorStatus,
-// from the labels read before them, once the edits are done.
-test("main mirrors a park's label edits into the Work status field after they land", async () => {
+// The field is the state: a write that fails stops the stop before any label
+// comes off, as a failed label add did, so a re-run finds agent-ready still on.
+test("main fails a park whose Work status write fails, leaving every label on", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
       ["GET", /\/issues\/77\/comments/, 200, []],
       ["GET", /\/issues\/77\/events/, 200, []],
-      ["POST", /\/issues\/77\/labels$/, 200, []],
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    const mirrored = [];
-    const mirrorStatus = async (number, change) => mirrored.push([number, change, calls.filter((c) => c.method === "DELETE").length]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, mirrorStatus }), 0);
-    assert.deepEqual(mirrored, [[77, { had: ISSUE[2].labels, add: ["status: confirmed"], remove: ["agent-ready", "status: ready", "admission-deferred"] }, 3]]);
+    const setStatus = async () => {
+      throw new Error("#77's Work status field was not set to `confirmed`: HTTP 502");
+    };
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, setStatus }), 1);
+    assert.ok(!calls.some((c) => c.method === "DELETE"), JSON.stringify(calls));
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/comments") && c.body.body.startsWith("<!-- work-resolve-issue outcome=")));
   });
 });
 
-// A removal that fails other than 404 leaves its label on, so the mirror keeps
-// it; a 404 is a label already off.
-test("main mirrors only the removals that landed: a 500 keeps its label, a 404 counts as removed", async () => {
+// Only a hold and a park have a Work status state; an outside-author stop
+// removes agent-ready and writes none.
+test("main's outside-author stop writes no Work status", async () => {
   await withDir({}, async (dir) => {
-    const { fetch } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
-      ["GET", /\/issues\/77\/comments/, 200, []],
-      ["GET", /\/issues\/77\/events/, 200, []],
-      ["POST", /\/issues\/77\/labels$/, 200, []],
-      ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 500, {}],
-      ["DELETE", /\/issues\/77\/labels\/admission-deferred$/, 404, {}],
-      ["DELETE", /\/issues\/77\/labels\//, 200, []],
-      ["POST", /\/issues\/77\/comments$/, 201, {}],
-    ]);
-    const mirrored = [];
-    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, sleep: async () => {}, mirrorStatus }), 0);
-    assert.deepEqual(mirrored, [[77, { had: ISSUE[2].labels, add: ["status: confirmed"], remove: ["agent-ready", "admission-deferred"] }]]);
-  });
-});
-
-// The outside-author stop reads no issue for its plan, so the mirror starts
-// from a fresh read of the issue's labels.
-test("main mirrors an outside-author stop's agent-ready removal from a fresh read of the issue's labels", async () => {
-  await withDir({}, async (dir) => {
-    const labels = [{ name: "agent-ready" }, { name: "priority: high" }];
-    const { fetch } = fakeFetch([
+    const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, []],
-      ["GET", /\/issues\/77$/, 200, { number: 77, labels }],
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    const mirrored = [];
-    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, mirrorStatus }), 0);
-    assert.deepEqual(mirrored, [[77, { had: labels, add: [], remove: ["agent-ready"] }]]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, setStatus: statusInto(calls) }), 0);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "DELETE"]);
   });
 });
 
-test("main mirrors a close's queue and state label removals into the Work status field", async () => {
+test("main's close strips its queue and state labels and writes no Work status", async () => {
   const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
   const labels = [{ name: "agent-ready" }, { name: "status: confirmed" }, { name: "work-class: read-only" }];
   await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
@@ -1294,15 +1278,11 @@ test("main mirrors a close's queue and state label removals into the Work status
       ["POST", /\/issues\/77\/comments$/, 201, {}],
       ["PATCH", /\/issues\/77$/, 200, {}],
     ]);
-    const mirrored = [];
-    const mirrorStatus = async (number, change) => mirrored.push([number, change]);
-    assert.equal(await main({ env: env(dir), fetch, mirrorStatus }), 0);
+    assert.equal(await main({ env: env(dir), fetch, setStatus: statusInto(calls) }), 0);
     assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"));
-    // The hand-back step of a close edits no label, so its mirror changes nothing.
-    assert.deepEqual(mirrored, [
-      [77, { had: labels, add: [], remove: [] }],
-      [77, { had: labels, remove: ["agent-ready", "status: confirmed"] }],
-    ]);
+    assert.ok(!calls.some((c) => c.method === "STATUS"));
+    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+    assert.deepEqual(removed, ["agent-ready", "status: confirmed"]);
   });
 });
 
@@ -1413,8 +1393,9 @@ test("main on a second pushback naming a security risk holds it as security-risk
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
-    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, setStatus: statusInto(calls) }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-human" });
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.includes("work-items:escalation"), comment);
     assert.equal(parseReason(comment).reason, "security", comment);
@@ -1619,8 +1600,8 @@ test("main on done with apply-issue-patch's escalation reason hands the issue ba
 // scan-refused-<attempt>.txt marker instead. The
 // hand-back names the refusal, not a missing outcome file; the marker's text
 // picks one fixed sentence and never reaches the comment.
-// `labels` is the label the route adds: none for a retry, needs-human for a hold.
-async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success", attempt = "1", lane = null, labels = [] } = {}) {
+// `states` is the Work status the route writes: none for a retry, needs-human for a hold.
+async function scanRefusedComment({ outcome = null, marker = null, name = "scan-refused-1.txt", read = "success", attempt = "1", lane = null, states = [] } = {}) {
   const dir = tempDir("outcome-");
   try {
     if (lane) {
@@ -1642,8 +1623,9 @@ async function scanRefusedComment({ outcome = null, marker = null, name = "scan-
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), GITHUB_RUN_ATTEMPT: attempt, SCAN_REFUSED_DIR: refusedDir, SCAN_REFUSED_READ: read }, fetch }), 0);
-    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels"))?.body.labels ?? [], labels);
+    assert.equal(await main({ env: { ...env(dir), GITHUB_RUN_ATTEMPT: attempt, SCAN_REFUSED_DIR: refusedDir, SCAN_REFUSED_READ: read }, fetch, setStatus: statusInto(calls) }), 0);
+    assert.deepEqual(calls.filter((c) => c.method === "STATUS").map((c) => c.body.state), states);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     assert.ok(!calls.some((c) => c.path.endsWith("/pulls")));
     return calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
   } finally {
@@ -1669,13 +1651,13 @@ test("a scan refusal outranks a lane.json issue-file class in the hand-back", as
 
 // Any other refusal may be a credential shape, so a person decides it.
 test("main hands back a run whose scan refused any other output naming the scan refusal", async () => {
-  const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt", attempt: "2", labels: ["needs-human"] });
+  const comment = await scanRefusedComment({ marker: "output", name: "scan-refused-2-rung-up.txt", attempt: "2", states: ["needs-human"] });
   assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
   assert.doesNotMatch(comment, /no readable outcome file|262144|too-large/);
 });
 
 test("a forged scan refusal marker's text never reaches the hand-back", async () => {
-  const comment = await scanRefusedComment({ marker: "patch @someone #1 https://evil.example", labels: ["needs-human"] });
+  const comment = await scanRefusedComment({ marker: "patch @someone #1 https://evil.example", states: ["needs-human"] });
   assert.ok(comment.includes("The scan job refused the run's output, so nothing was published. The run's log names why."), comment);
   assert.doesNotMatch(comment, /someone|evil|262144|too-large/);
 });
@@ -1698,7 +1680,7 @@ test("with no readable run attempt no refusal marker is read", async () => {
 });
 
 test("a readable outcome wins over a scan refusal marker", async () => {
-  const comment = await scanRefusedComment({ outcome: { exit: "stopped", reason: "design-change: The issue names no file." }, marker: "patch", labels: ["needs-human"] });
+  const comment = await scanRefusedComment({ outcome: { exit: "stopped", reason: "design-change: The issue names no file." }, marker: "patch", states: ["needs-human"] });
   assert.ok(comment.includes("The issue names no file."), comment);
   assert.doesNotMatch(comment, /262144|scan job refused/i);
 });
@@ -4302,10 +4284,10 @@ test("main on a pushback whose work-outcome.json names cause cost-risk holds it 
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, setStatus: statusInto(calls) }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseReason(comment).reason, "cost", comment);
-    assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "adds the human-gated label");
+    assert.ok(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-human"), "sets Work status needs-human");
   });
 });
 
@@ -4321,7 +4303,8 @@ const DECISION_BODY = "**Decision recorded.** Change only the README.";
 const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
 const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue outcome=redispatch run=99 -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
-async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"], mirrorStatus } = {}) {
+// `states` lists the Work status writes; `statusOf` is main's field reader.
+async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"], statusOf } = {}) {
   const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
   let result;
   await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
@@ -4334,28 +4317,41 @@ async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which f
       ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, mirrorStatus }), 0);
+    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, setStatus: statusInto(calls), statusOf }), 0);
     const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
     const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-    result = { posted, labeled, removed, redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")) };
+    const states = calls.filter((c) => c.method === "STATUS").map((c) => c.body.state);
+    result = { posted, labeled, removed, states, redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")) };
   });
   return result;
 }
 
 test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission", async () => {
-  const { posted, labeled, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
+  const { posted, labeled, states, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
+  assert.deepEqual(states, []);
   assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
   assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
   assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
 });
 
-test("a late-record redispatch mirrors its status: ready and agent-ready adds into the Work status field", async () => {
-  const mirrored = [];
-  const mirrorStatus = async (number, change) => mirrored.push([number, change]);
-  const { redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })], { labels: ["agent-ready"], mirrorStatus });
-  assert.equal(redispatches.length, 1);
-  assert.deepEqual(mirrored, [[77, { had: [{ name: "agent-ready" }], add: ["status: ready", "agent-ready"] }]]);
+// A hold that exists only on the Work status field holds, and so does a
+// field read that fails.
+test("a hold on the Work status field alone, or an unread field, takes the hold over a late decision", async () => {
+  const decision = [late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })];
+  for (const [name, statusOf] of [
+    ["needs-human on the field", async (number, names) => [...names, "needs-human"]],
+    ["needs-reporter-info on the field", async (number, names) => [...names, "status: needs-info"]],
+    ["an unread field", async () => {
+      throw new Error("#77's Work status could not be read: HTTP 502");
+    }],
+  ]) {
+    const { redispatches, labeled, states } = await runLateRecord(decision, { statusOf });
+    assert.deepEqual(redispatches, [], name);
+    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
+  }
+  const queue = await runLateRecord(decision, { statusOf: async (number, names) => names.filter((n) => n !== "status: ready") });
+  assert.equal(queue.redispatches.length, 1, "a field with no hold re-dispatches");
 });
 
 test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
@@ -4373,17 +4369,17 @@ test("a late comment that is no decision, or is not a listed human's own, or pre
     "a decision posted before the agent-ready add": [late(5, OWNER_ID, DECISION_BODY, { at: "2026-10-01T23:59:59Z" })],
   };
   for (const [name, comments] of Object.entries(cases)) {
-    const { redispatches, labeled } = await runLateRecord(comments);
+    const { redispatches, labeled, states } = await runLateRecord(comments);
     assert.deepEqual(redispatches, [], name);
-    assert.deepEqual(labeled, [["needs-human"]], name);
+    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
   }
 });
 
 // A security stop reaches a person first, whatever was posted since.
 test("a security-risk hold takes the hold even with a listed human's late decision", async () => {
-  const { redispatches, labeled } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
+  const { redispatches, labeled, states } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
   assert.deepEqual(redispatches, []);
-  assert.deepEqual(labeled, [["needs-human"]]);
+  assert.deepEqual([labeled, states], [[], ["needs-human"]]);
 });
 
 test("a redispatch record whose label move did not land is finished without a second record; one the App's re-add followed is done", async () => {
@@ -4394,7 +4390,7 @@ test("a redispatch record whose label move did not land is finished without a se
   const appAdd = readyAdd(2, { id: 337595936, login: BOT }, "2026-10-02T01:00:01Z");
   const finished = await runLateRecord(comments, { events: [OWNER_ADD, appAdd] });
   assert.deepEqual(finished.redispatches, []);
-  assert.deepEqual(finished.labeled, [["needs-human"]]);
+  assert.deepEqual([finished.labeled, finished.states], [[], ["needs-human"]]);
 });
 
 // Each label call after the agent-ready DELETE can fail; a re-run of the
@@ -4409,7 +4405,7 @@ test("a redispatch move stopped after the App removed agent-ready is finished on
   assert.deepEqual(resumed.labeled, [["status: ready"], ["agent-ready"]]);
   const person = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: OWNER_ID, login: "kyle-sexton" })], labels: ["status: ready"] });
   assert.deepEqual(person.redispatches, []);
-  assert.deepEqual(person.labeled, [["needs-human"]]);
+  assert.deepEqual([person.labeled, person.states], [[], ["needs-human"]]);
 });
 
 // The stopped run may have committed to its lane branch; the record's outcome
@@ -5126,9 +5122,8 @@ test("main hands a run to a person when COLLECT_REFUSED is exactly true, and ret
         ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
-      assert.equal(await main({ env: { ...env(dir), COLLECT_REFUSED: value }, fetch }), 0);
-      const label = calls.find((c) => c.method === "POST" && c.path.endsWith("/labels"));
-      assert.equal(label?.body.labels[0] === "needs-human", held, value);
+      assert.equal(await main({ env: { ...env(dir), COLLECT_REFUSED: value }, fetch, setStatus: statusInto(calls) }), 0);
+      assert.equal(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-human"), held, value);
       assert.equal(calls.some((c) => c.method === "DELETE"), held, value);
     });
   }
@@ -5647,12 +5642,21 @@ test("refireStale re-fires a stale run's issue at once with work-unblock's re-fi
   assert.deepEqual(calls.at(-1).body, { labels: ["agent-ready"] });
 });
 
-test("refireStale mirrors its agent-ready re-add into the Work status field after the label moves", async () => {
-  const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
-  const mirrored = [];
-  const mirror = async (number, change) => mirrored.push([number, change, writes(calls).length]);
-  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, mirror }), /^re-fired/);
-  assert.deepEqual(mirrored, [[77, { had: [{ name: "agent-ready" }, { name: "work-class: read-only" }], add: ["agent-ready"] }, 3]]);
+test("refireStale skips an issue a hold on the Work status field alone holds, and one whose field cannot be read", async () => {
+  for (const [statusOf, why] of [
+    [async (number, names) => [...names, "needs-human"], "skipped: held by needs-human"],
+    [async (number, names) => [...names, "status: needs-decision"], "skipped: held by status: needs-decision"],
+    [async () => {
+      throw new Error("#77's Work status could not be read: HTTP 502");
+    }, "skipped: the Work status could not be read"],
+  ]) {
+    const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
+    assert.equal(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf }), why);
+    assert.deepEqual(writes(calls), [], why);
+  }
+  const { fetch } = staleFetch({ labels: ["agent-ready", "status: confirmed"] });
+  const queue = async (number, names) => names.filter((n) => n !== "status: confirmed").concat("needs-triage");
+  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: queue }), /^re-fired/);
 });
 
 test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since a person or a report", async () => {

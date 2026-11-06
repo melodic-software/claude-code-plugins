@@ -147,7 +147,7 @@ const fieldRun = (labels, fields) =>
   });
 
 test("a field that mirrors the labels changes no answer", async () => {
-  const sets = [["needs-human"], ["agent-ready"], ["status: ready"], ["status: needs-decision"], [], ["needs-triage"], ["needs-spec"], ["needs-owner-decision"], ["admission-deferred"], ["priority: high"]];
+  const sets = [["needs-human"], ["agent-ready"], ["status: ready"], ["status: needs-decision"], [], ["needs-triage"], ["needs-spec"], ["admission-deferred"], ["priority: high"]];
   for (const labels of sets) {
     const byLabels = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 });
     const mirrored = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, statusOf: mirroredStatusOf, sleep: noSleep, attempts: 1 });
@@ -155,9 +155,20 @@ test("a field that mirrors the labels changes no answer", async () => {
   }
 });
 
-test("run lets the Work status field decide an issue with no status label", async () => {
-  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged" });
-  assert.deepEqual(await fieldRun(["needs-triage"], { 7: { state: "agent-ready" } }), { skip: "false", reason: "no-status" });
+// needs-owner-decision is a state whose first label is `status: needs-decision`,
+// so the field reading it gives the issue a status the bare label does not.
+test("a needs-owner-decision field counts as the status the bare label lacks", async () => {
+  const labels = ["needs-owner-decision"];
+  assert.deepEqual(await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 }), { skip: "false", reason: "no-status" });
+  assert.deepEqual(await fieldRun(labels, { 7: { state: "needs-owner-decision" } }), { skip: "true", reason: "born-triaged" });
+});
+
+// agent-ready stays with its label: the field reading it adds no status.
+test("run lets the Work status field decide an issue's status, but not agent-ready", async () => {
+  assert.deepEqual(await fieldRun([], { 7: { state: "ready" } }), { skip: "true", reason: "born-triaged" });
+  assert.deepEqual(await fieldRun(["needs-triage"], { 7: { state: "confirmed" } }), { skip: "true", reason: "born-triaged" });
+  assert.deepEqual(await fieldRun(["status: ready"], { 7: { state: "needs-triage" } }), { skip: "false", reason: "no-status" });
+  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "false", reason: "no-status" });
 });
 
 test("a hold the Work status field adds still counts as the status", async () => {
@@ -176,7 +187,7 @@ test("run reads the Work status field again on each attempt", async () => {
   const result = await run({
     fetchIssue: async () => {
       calls += 1;
-      if (calls === 2) fields[7] = { state: "agent-ready" };
+      if (calls === 2) fields[7] = { state: "ready" };
       return issue({ labels: [] });
     },
     list: LIST,

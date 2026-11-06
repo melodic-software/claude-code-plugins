@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
-import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
+import { BLOCKER_READS, isHeld, main, readLaneWip, STATUS_READS, wipStatus } from "./check-wip-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../resolve-config/read-status.mjs";
@@ -609,6 +609,7 @@ const BASE_FILES = [
   "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
   ".github/standards/github-actions-conventions/vocabulary.json",
   ".github/CODEOWNERS",
+  ".github/standards/trusted-actors/trusted-actors.json",
 ];
 async function runMain(answers, extraEnv = {}, config) {
   const dir = tempDir("check-wip-cap-");
@@ -627,7 +628,8 @@ async function runMain(answers, extraEnv = {}, config) {
   writeFileSync(summary, "");
   const logs = [];
   const { github, paths } = searchApi(answers);
-  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github, now: NOW, log: (line) => logs.push(line) });
+  // The Work status reads answer an unset field and stay out of `paths`.
+  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: withFields(github), now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
   return { capped: value("capped"), held: value("held"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), output: text, summary: readFileSync(summary, "utf8"), logs, paths };
@@ -890,7 +892,9 @@ const queuedIssues = (n) => Array.from({ length: n }, (_, i) => ({ number: 500 +
 
 test("pause reads make exactly two searches however many issues are queued", async () => {
   const lanePrs = [pr({ number: 1, body: "edited by a person" }), pr({ number: 2, body: "Closes #500" })];
-  for (const n of [0, 19, 40]) {
+  // At most STATUS_READS queued issues: past it the field read fails and the
+  // full read leaves the queued count unread.
+  for (const n of [0, 19, STATUS_READS]) {
     const answers = { open: lanePrs, merged: 24, admitted: 9, queued: queuedIssues(n), heads: { 1: "work-resolve-issue/issue-501-1-1" } };
     const full = await runMain(answers, {}, pastConfig());
     const paused = await runMain(answers, { WIP_READS: "pause" }, pastConfig());
