@@ -35,6 +35,7 @@ record bundle or beside the markdown record they explain
 | Path | Who writes it | What it holds |
 |---|---|---|
 | `scene.py` | you | one `Scene` subclass |
+| `beats.txt` | you | the beat plan, one line per beat |
 | `strings.json` | you, only for untrusted text | on-screen strings the scene loads |
 | `narration/script.txt` | you, when narrated | the words spoken, one paragraph per beat |
 | `narration/narration.wav`, `narration/words.json` | `/speech:narrate` | the audio and each word's start and end |
@@ -43,7 +44,8 @@ record bundle or beside the markdown record they explain
 ## Loop
 
 1. Plan three to six beats, one idea each, under a minute in total. A beat is something the viewer
-   sees change, not a sentence to read.
+   sees change, not a sentence to read. Write the plan to `<dir>/beats.txt`, one line per beat
+   saying what the viewer sees.
 2. Narrate, when you can. Narration is available when `/speech:narrate` is in this session's skill
    list.
    - Write `<dir>/narration/script.txt`: one paragraph per beat, a blank line between paragraphs,
@@ -92,9 +94,9 @@ record bundle or beside the markdown record they explain
    and copy its line into the report
    ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
    - At standard or strict, dispatch a fresh-context subagent with the paths to
-     `<dir>/final/report.json`, its frames and `narration/script.txt` (the beat plan when silent),
-     never your notes on them. It returns each frame with a defect from step 5's list, or a beat
-     that does not show what its paragraph says. A returned defect sends you back to step 4.
+     `<dir>/final/report.json`, its frames and `<dir>/beats.txt`, plus `narration/script.txt`
+     when narrated, never your notes on them. It returns each frame with a defect from step 5's
+     list, or a beat that does not show what its line or paragraph says. A returned defect sends you back to step 4.
    - Under `light`, and `off`, which acts as `light` here, dispatch no subagent and never give that
      verdict yourself in its place: the report writes `verification: skipped (<level>)` and says
      the frames were not independently judged. `render.py`'s checks run at every level.
