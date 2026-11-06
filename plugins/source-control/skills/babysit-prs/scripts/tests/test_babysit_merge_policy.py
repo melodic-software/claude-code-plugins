@@ -5802,7 +5802,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_a_listed_app_is_adopted_with_no_idle_wait(self) -> None:
         # Owner decision 2026-10-22: a trusted App's PR (the release App's)
         # is adopted at once; only a person may still be working on theirs.
-        app = {"login": "melodic-plugin-release[bot]", "id": 337859524, "type": "Bot"}
+        app = {"login": "melodic-release[bot]", "id": 337859524, "type": "Bot"}
         fresh = owner_pr(user=app)
         self.assertIsNone(
             self.refusal(
@@ -6277,7 +6277,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         # the spec the same run wrote: it needs a closing issue. The release
         # App's script-written body does not (adoption.spec-from-body-apps).
         release = {
-            "login": "melodic-plugin-release[bot]",
+            "login": "melodic-release[bot]",
             "id": 337859524,
             "type": "Bot",
         }
@@ -7024,7 +7024,7 @@ class ForeignPaths(unittest.TestCase):
         # author and signature alone, the weaker case.
         app = owner_pr(
             user={
-                "login": "melodic-plugin-release[bot]",
+                "login": "melodic-release[bot]",
                 "id": 337859524,
                 "type": "Bot",
             }
