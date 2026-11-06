@@ -549,12 +549,14 @@ Only the workflow header's account of the resolver changed: no step was made to 
   and it re-runs a green one only when the job ran `Note the hold` with a `held:` notice
   (`faultHeld`, `reconcile.mjs:750`). A step held green any other way would end that re-run unseen.
   After the write starts, a red run is held for a person, so a head is never judged twice
-  (`reconcile.mjs:738`). wake-pr-merge already holds: a failed read dispatches anyway and a failed
-  dispatch warns, and pr-merge's schedule arms the PR (`pr-verify.yml:5804`). The trigger gate turns
-  a read fault into `proceed=false` with reason `no-pr` (`check-trusted-trigger.mjs:663`, `:687`),
-  the same reason as a run with no PR, so the job skips every later step and ends green with no
-  notice and no re-run. The workflow cannot tell that fault from a real refusal, so the
-  gate's script row below records it.
+  (`reconcile.mjs:738`). wake-pr-merge cannot fail the run (`continue-on-error`): a failed read dispatches
+  anyway and a failed dispatch warns, and pr-merge's schedule arms the PR (`pr-verify.yml:5804`). A
+  rate limit past the guard's budget still prints the gh wrapper's `::error::` there, since the
+  step sets no `API_BUDGET_HOLD` (`api-budget.bash:409`). The trigger gate turns a read fault into
+  `proceed=false` with reason `no-pr` (`check-trusted-trigger.mjs:663`, `:687`) or, for an actor
+  read, `untrusted-actor` or `untrusted-rerunner` (`readOrRefuse`, `:704`), the reasons a real
+  refusal gets, so the job skips every later step and ends green with no notice and no re-run. The
+  workflow cannot tell that fault from a real refusal, so the gate's script row below records it.
 - **pr-verify, element 3.** It is the kept re-run alone. The next pr-require-checks completion is
   the only other start, and a run held again at attempt 2 waits for it.
 
@@ -572,7 +574,7 @@ The other script rows below are still open.
 | pr-review, pr-review-security | 1, 6 | workflow | `.github/workflows/pr-review-main.yml`: retry the judged-head pre-filter's reads, and read the trusted PR text once per run for both lanes, which changes what the model reads |
 | pr-review, pr-review-security | 1, 2, 6 | larger | the hosted review's own reads, in `melodic-software/ci-workflows` `pr-review-cli.yml` |
 | pr-verify | 2 | kept | `.github/workflows/pr-verify.yml` keeps its non-resolver reads red: the reconciler re-runs a red run whose verdict write never started, and sees a green hold only through `Note the hold` and a `held:` notice (`reconcile.mjs` `faultHeld`) (see above) |
-| pr-verify | 2 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (a read fault stops with `no-pr`, the reason a run with no PR gets, so pr-verify ends green with no notice and no re-run; a separate fault reason the workflow can mark with `Note the hold`, plus a pr-verify entry in `signals.mjs` `HOLD_LANES`, would make it a counted hold) |
+| pr-verify | 2 | script | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs` (a read fault stops with `no-pr` or an `untrusted-*` reason, the reasons a real refusal gets, so pr-verify ends green with no notice and no re-run; a separate fault reason the workflow can mark with `Note the hold`, plus a pr-verify entry in `signals.mjs` `HOLD_LANES`, would make it a counted hold) |
 | pr-require-checks | 1, 2, 3, 4, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
 | pr-unblock | 3, 4 | script | `.github/scripts/pr-unblock/limit-stop.mjs` (a stop where a model turn may have run still counts toward the cap), `escalation-routes.json` (`feedback-publish-failed` still files a failing status: withholding it strands the head, since only a workflow-modified refusal is sent again, `feedback-dispatch.mjs` `sweepRefused`); part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, the lane's parallel reads, the dispatchers' failed reads, and the cap's count of fault stops whose model never started |
 | pr-unblock | 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
