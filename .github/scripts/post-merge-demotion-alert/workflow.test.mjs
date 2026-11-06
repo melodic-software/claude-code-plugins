@@ -265,7 +265,8 @@ test("label-paths can label pull requests and runs no model", () => {
     issues: "write",
     "pull-requests": "write",
   });
-  const steps = labeler.slice(0, labeler.indexOf("\n  close-cleared:\n") > 0 ? labeler.indexOf("\n  close-cleared:\n") : undefined);
+  const next = labeler.slice(1).search(/\n  [a-z][a-z-]*:\n/);
+  const steps = next < 0 ? labeler : labeler.slice(0, next + 1);
   assert.doesNotMatch(steps, /claude-code-action|request-lane-token|create-github-app-token|secrets\./);
 });
 
