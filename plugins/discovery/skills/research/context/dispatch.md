@@ -105,6 +105,13 @@ against a run that produced none):
    `pass` covers. Under `publish` the verifier grades every accepted claim and the full loop runs:
    one rework round and one re-verify ("Effort, source breadth" in `SKILL.md`).
 
+   **The verification level.** `SKILL.md` resolves it before this dispatch. `standard` is this
+   section. Under `light`, and `off`, which acts as `light` here, dispatch no verifier and write
+   `verification: skipped (<level>)` ([`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
+   "The sibling verifier, stated once"). `strict` grades as `publish` does at every evidence use and
+   budget: no `Claims:` line, and a FAIL row gets its one rework round and one re-verify, even at
+   `Budget: low` or under `internal`.
+
    **Brief it on restatements.** Row 12 reaches every place the artifact restates an accepted
    claim: the Summary, the Settled list and the rest of the handoff, catalog and table cells, and
    sidecar abstracts. The restatement check ("The restatement and eligibility checks" below)

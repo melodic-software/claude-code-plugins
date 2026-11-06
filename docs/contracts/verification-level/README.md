@@ -75,3 +75,8 @@ A skill that is itself the independent check when invoked does not read the leve
 |---|---|
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
+| `/discovery:research`, `/discovery:explore`, `/discovery:trace-intent` | the sibling verifier (parent contract, "The sibling verifier, stated once"); `strict` widens research's grading to every row and claim |
+| `/discipline:do-your-research`, `/discipline:recheck-against-upstream`, `/discipline:sweep-all` | the fresh-context re-derivation (shared method, step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
+| `/education:quiz-me` | the fresh-context answer-key pass |
+| `/planning:plan` | the plan-reviewer dispatch in Step 3 |
+| `/session-flow:orchestrate`, `/session-flow:workflow` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, which `strict` always dispatches |

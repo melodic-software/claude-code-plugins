@@ -13,7 +13,10 @@ on why outcome verification sits after the simplify pass.
    No PR without evidence the changes work
 2. **Review.** Self-review the full diff (`git diff HEAD` catches staged + unstaged) against the
    repo's conventions, or dispatch a fresh-context reviewer. Resolve blocking findings before
-   proceeding
+   proceeding. The `verification` level SKILL.md resolved decides the reviewer: `strict` always
+   dispatches it, `light` and `off` never do and the report notes `verification: skipped
+   (<level>)`; the self-review stays at every level. Step 7's outcome verification reads its
+   own level
 3. **Stage surgically.** `git add <path>` for specific files, never `git add -A` or `git add .`
    (risk of including secrets, build artifacts, or unrelated changes)
 4. **Simplify.** Pass over the changed code for reuse, clarity, and unnecessary complexity, then

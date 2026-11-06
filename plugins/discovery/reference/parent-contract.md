@@ -886,6 +886,15 @@ artifact with its own failure and ship it. The one exception is research at `Bud
 with the failed rows named, and the result is presented with that caveat (`skills/research/SKILL.md`,
 "Effort, source breadth").
 
+**The verification level.** Before the post-dispatch boundary, each family's SKILL.md resolves
+the plugin's `verification` level with its copy of `lib/read-verification.sh --plugin discovery
+--skill <research|explore|trace-intent>`, and the parent reports its line
+([levels](../../../docs/contracts/verification-level/README.md)). `standard` is this section. Under
+`light`, and `off`, which acts as `light` here, dispatch no verifier and never grade its criterion
+yourself in its place: write `verification: skipped (<level>)` over `pending` and tell the user the
+handoff is unverified. A skipped value is terminal, like `skipped (cost)`: a resuming session reads
+it as the level's choice and does not dispatch on it. `strict` is research's only (its SKILL.md).
+
 **When no verifier can be dispatched.** The `Agent` tool is denied, the session is at the nesting
 limit, or the invoking context is itself a subagent with no spawn: write
 `verification: unverified (none, <YYYY-MM-DD>)`, add the reason as a numbered gap in the index, and
@@ -903,6 +912,8 @@ write `general-purpose` as the worker.
 | `pass (research-verifier, <date>)` | `pass` | The verifier passed every criterion it was briefed on. A pass keeps each claim's `single source` flag: the parent presents the flag with the claim and carries it into any record an edit rests on. |
 | `fail rows <n>[,<n>…] (research-verifier, <date>)` | `fail` | The verifier failed those rows, named as it returned them. `explore` and `trace-intent` have no rows: they write `fail (general-purpose, <date>)` and the failed claims stay in the verifier's return. |
 | `skipped (cost)` | outside the shape | Research only. The parent chose not to pay for a verifier: no worker, no date. |
+| `skipped (light)` | outside the shape | All three families. The default branch's `verification` level is `light`, so no verifier ran: no worker, no date. |
+| `skipped (off)` | outside the shape | All three families. As `skipped (light)`, for the level `off`. |
 | `unverified (none, <date>)` | `unverified` | No verifier could be dispatched, in all three families. The index carries a numbered gap. |
 | `pending` | outside the shape | The producer's first write. Valid only until the post-dispatch boundary closes. |
 

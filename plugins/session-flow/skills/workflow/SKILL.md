@@ -62,7 +62,7 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 |----------|------|--------|
 | *(none)* | **Default** | Show compact stage overview + detect current position + suggest next stage |
 | `steps` | **Steps** | Load `context/steps.md`, full stage definitions |
-| `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist |
+| `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist; first run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow` and report its line, the level step 2 reads |
 | `wrap-up` | **Wrap-up** | Load `context/wrap-up.md`, end-of-session checklist |
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution from a written spec |
