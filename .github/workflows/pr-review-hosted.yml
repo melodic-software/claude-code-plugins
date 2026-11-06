@@ -253,8 +253,8 @@ jobs:
       publish: comments
       lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
       # The key's credit window every model lane reads (callers.test.mjs
-      # KEY_CREDIT_WINDOW); the reusable's own default would ignore the var.
-      key-credit-window-hours: ${{ fromJSON(vars.KEY_CREDIT_WINDOW_HOURS || '1') }}
+      # KEY_CREDIT_WINDOW_REUSABLE); empty runs the reusable's 1-hour default.
+      key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
       # Empty unless resolve-model succeeded, so a failed job's partial output
       # never reaches the review.
       model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
