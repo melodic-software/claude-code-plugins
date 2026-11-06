@@ -3,7 +3,8 @@
 #
 # Self-contained and cwd-independent; it changes only its own mktemp dir.
 # Expected values come from the key contract in plugins/docs-hygiene/reference/config.md:
-# compress_articles takes keep or cut, and the file is
+# compress_articles takes keep or cut, compress_revert_below_pct a whole number
+# from 0 to 100 with default 3, and the file is
 # docs/conventions/docs-hygiene.yaml at the repository root.
 # test-scope: plugins/docs-hygiene/lib/resolve-convention-home.sh
 set -uo pipefail
@@ -174,6 +175,18 @@ check_case 'a parse error on another line' $'compress_articles: cut\nother: "ope
 check_case 'an unknown key beside a valid value' $'compress_articles: cut\nverbosity: high\n' 'PASS compress_articles: cut'
 check_case 'an unknown key beside a valid value' $'compress_articles: cut\nverbosity: high\n' 'WARN docs/conventions/docs-hygiene.yaml: key verbosity is not in the schema'
 
+# compress_revert_below_pct: a whole number from 0 to 100, default 3.
+repo="$(repo_new)"
+run "$repo" compress_revert_below_pct=5
+expect 'the revert threshold is written and reads back as 5' test "$CODE" -eq 0 -a "$(bash "$READER" "$repo/$REL" compress_revert_below_pct)" = 5
+run "$repo" --yes compress_revert_below_pct=0
+expect '0, which turns the auto-revert off, is accepted' test "$CODE" -eq 0 -a "$(bash "$READER" "$repo/$REL" compress_revert_below_pct)" = 0
+for v in 101 -1 2.5 three; do
+  run "$(repo_new)" compress_revert_below_pct="$v"
+  expect "a revert threshold of $v exits 1" test "$CODE" -eq 1
+done
+check_case 'a revert threshold above 100' $'compress_revert_below_pct: 101\n' 'WARN compress_revert_below_pct: dropped from docs/conventions/docs-hygiene.yaml; resolves to its default, 3, not to userConfig'
+
 # CRLF line endings are kept and the key is updated in place; a file that mixes
 # CRLF and LF is refused in one line and left as it was.
 repo="$(repo_new)"
@@ -272,7 +285,7 @@ if [[ "$OUT" == INFO*absent* ]]; then ok '--check reports the file absent'; else
 mkdir -p "$repo/docs/conventions"
 printf 'compress_articles: keep\n' >"$repo/$REL"
 run "$repo" --check
-expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$(grep -v '^INFO .*no provenance recorded' <<<"$OUT")" = $'PASS compress_articles: keep\nPASS verification: (unset)\nPASS verification_skills: (unset)'
+expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$(grep -v '^INFO .*no provenance recorded' <<<"$OUT")" = $'PASS compress_articles: keep\nPASS compress_revert_below_pct: (unset)\nPASS verification: (unset)\nPASS verification_skills: (unset)'
 expect '--check on a file with no record prints one INFO line' test "$(grep -c '^INFO .*no provenance recorded' <<<"$OUT")" -eq 1
 expect '--check writes nothing' test "$(cat "$repo/$REL")" = 'compress_articles: keep'
 
