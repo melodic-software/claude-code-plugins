@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: already-built-disconnected-scan-behavior-present
-description: 'Behavior-present variant of already-built-disconnected-scan whose prompt also states the already-built-but-disconnected scan heuristic. Run it with --ablation none (one arm); the pair discriminates when this case passes ranked-ahead-of-greenfield and the original fails it'
+description: 'Behavior-present variant of already-built-disconnected-scan whose prompt also states the already-built-but-disconnected scan heuristic. Run it with --ablation none (one arm); the pair discriminates when this case passes ranked-ahead-of-greenfield and the original fails it. In a two-arm run it is a ceiling control: the scan hint is in the prompt, so the without-arm reaches the ceiling and the case measures no gain'
 tags: [find, disconnected-scan, behavior-present]
 expected_outcome: 'The answer names the unused exportRowsToCsv import, the false adminBulkExport flag gating POST /admin/orders/export, and the never-read export_audit table, ranks the disconnected export ahead of the new export service in docs/bulk-export-plan.md, and edits nothing.'
 context:
@@ -13,7 +13,7 @@ execution:
 graders:
   - name: dead-import-exportRowsToCsv
     type: regex
-    pattern: '(?=[\s\S]*routes\.js)(?=[\s\S]*csv-exporter\.js)[\s\S]*?(?:exportRowsToCsv[^\n]{0,240}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))|(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))[^\n]{0,160}?exportRowsToCsv)'
+    pattern: '(?=[\s\S]*routes\.js)[\s\S]*?(?:exportRowsToCsv[^\n]{0,240}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))|(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))[^\n]{0,160}?exportRowsToCsv)'
     flags: 'i'
     arm: both
   - name: dark-flag-adminBulkExport

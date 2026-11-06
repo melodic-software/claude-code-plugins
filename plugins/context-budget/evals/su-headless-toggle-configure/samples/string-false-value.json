@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "{\"settings_write_ask_enabled\": \"false\"}",
+      "why": "string"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"settings_write_ask_enabled\": false}",
+      "why": "boolean"
+    }
+  ]
+}

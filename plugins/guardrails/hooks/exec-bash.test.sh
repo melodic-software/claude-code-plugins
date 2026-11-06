@@ -207,8 +207,19 @@ while IFS= read -r row; do
     [[ "$second" == "--fail-closed" ]] || fail "guard row does not pass --fail-closed: $second"
     third=$(jq -r '.args[2]' <<<"$row")
     [[ "$third" == "--require-verdict" ]] || fail "guard row does not pass --require-verdict: $third"
-    fourth=$(jq -r '.args[3]' <<<"$row")
-    [[ "$fourth" == *"/hooks/run-guards.sh" ]] || fail "args[3] is not run-guards.sh: $fourth"
+    # --bps-seed LIB may sit between the switches and the script; the
+    # script must then pass --bps-seeded, the only cue it trusts the seed by.
+    at=3
+    [[ "$(jq -r '.args[3]' <<<"$row")" == "--bps-seed" ]] && at=5
+    fourth=$(jq -r ".args[$at]" <<<"$row")
+    [[ "$fourth" == *"/hooks/run-guards.sh" ]] || fail "args[$at] is not run-guards.sh: $fourth"
+    if ((at == 5)); then
+      [[ "$(jq -r '.args[4]' <<<"$row")" == *"/hooks/hook-utils.sh" ]] || fail "--bps-seed does not name hook-utils.sh"
+      [[ "$(jq -r '.args[6]' <<<"$row")" == "--bps-seeded" ]] || fail "a --bps-seed row's run-guards.sh lacks --bps-seeded"
+      [[ "$(jq -r '._matcher' <<<"$row")" == "Bash|PowerShell" ]] || fail "--bps-seed on a row other than Bash|PowerShell"
+    else
+      jq -e '(.args | index("--bps-seeded")) == null' <<<"$row" >/dev/null || fail "--bps-seeded without --bps-seed"
+    fi
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
