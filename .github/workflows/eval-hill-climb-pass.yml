@@ -23,8 +23,9 @@ name: eval-hill-climb-pass
 # credit stop or a 401 or 402, the subscription leg, when the fallback token
 # is set, also on a limit stop; an empty credential hands off too. A leg that
 # hands off uploads nothing, so the pass's outputs are the one leg that
-# finished. The gate job skips the key after a recent credit stop
-# (ci-workflows check-key-credit).
+# finished. Each leg's credential and the leg after it come from ci-workflows
+# select-model-credential; the gate job's start call skips the key after a
+# recent credit stop.
 #
 # The pass uploads only what eval-browser-dispatch.yml uploads, its result
 # (per-case scores and grader verdicts), with summarize.mjs's summary (its
@@ -92,35 +93,38 @@ on:
 permissions: {}
 
 jobs:
-  # The key's credit gate (ci-workflows check-key-credit, gate.cjs: one
-  # artifact-list call for the marker the key leg uploads after a credit
-  # stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset)
-  # starts the pass on the subscription, with no refused key attempt first.
-  # No secret, no model, no checkout; every failure runs the key (skip-key
-  # empty). Probing is off.
+  # The key's credit gate (ci-workflows select-model-credential, its start
+  # call: check-key-credit's one artifact-list call for the marker the key leg
+  # uploads after a credit stop). A credit stop inside the window names the
+  # subscription leg, and the pass starts on the subscription, with no
+  # refused key attempt first. No secret, no model, no checkout; every
+  # failure runs the key. Probing is off.
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
       marker: ${{ steps.credit.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: pass
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -146,10 +150,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -183,25 +185,20 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass: the key is set and the
+      # gate did not name the subscription leg.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.gate.outputs.skip-key }}
-        run: |
-          run=$PRESENT
-          if [ "$SKIP_KEY" = true ]; then
-            run=false
-            echo "::notice::the credit gate skipped MAINTENANCE_CLAUDE_API_KEY; pass-subscription runs the pass"
-          elif [ "$PRESENT" != true ]; then
-            echo "::warning::MAINTENANCE_CLAUDE_API_KEY is empty; pass-subscription runs the pass"
-          fi
-          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.gate.outputs.next-leg }}
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -210,7 +207,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -230,7 +227,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -244,7 +241,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -252,7 +249,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -287,13 +284,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -303,7 +300,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -325,7 +322,7 @@ jobs:
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -543,18 +540,33 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ""
 
+      # The leg the next job runs, from this job's credential decision and
+      # the leg's handoff (select-model-credential). !cancelled(), as the
+      # next job's own if: is, so a step that failed after a handoff or an
+      # empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+
   # The subscription leg: the key leg's steps on a fresh runner, on the
   # maintenance role's subscription token alone, with no credit-stop marker.
   # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop,
-  # or a 401 or 402 hands off to pass-fallback, and so does an empty token.
-  # hill-climb-workflow.test.mjs holds its steps equal to the key leg's but
-  # for the credential and the leg record's fallback reason.
+  # or a 401 or 402 hands off to pass-fallback, and so does an empty token;
+  # with both tokens empty the job fails. callers.test.mjs holds its steps
+  # equal to the key leg's but for the credential, that stop and the leg
+  # record's fallback reason.
   pass-subscription:
     needs: [gate, pass]
     if: >-
       ${{ !cancelled() && needs.gate.result == 'success'
-      && (needs.pass.outputs.handoff == 'true' || needs.pass.outputs.credential-present == 'false'
-      || needs.gate.outputs.skip-key == 'true') }}
+      && (needs.pass.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -563,10 +575,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -600,25 +610,28 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.pass.outputs.next-reason || needs.gate.outputs.next-reason }}
+
+      # With both tokens empty no leg can run the pass, so the job fails.
+      - name: Stop when no token is set
+        id: no-credential
+        if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" != true ]; then
-              echo "::error::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so no case runs"
-              exit 1
-            fi
-            echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; pass-fallback runs the pass"
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so no case runs"
+          exit 1
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -627,7 +640,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -647,7 +660,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -661,7 +674,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -669,7 +682,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -704,13 +717,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -720,7 +733,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -742,7 +755,7 @@ jobs:
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -921,16 +934,29 @@ jobs:
           credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ needs.pass.outputs.handoff-reason || needs.gate.outputs.skip-key == 'true' && 'credit-stop' || needs.pass.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      # The leg the next job runs, from this job's credential decision and
+      # the leg's handoff (select-model-credential). !cancelled(), as the
+      # next job's own if: is, so a step that failed after a handoff or an
+      # empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
   # The fallback leg: the same steps on the central fallback token, after
   # the subscription leg handed off or found its token empty, and only when
   # the fallback token is set. It is the last leg and never hands off.
   pass-fallback:
     needs: [gate, pass-subscription]
-    if: >-
-      ${{ !cancelled() && needs.pass-subscription.outputs.fallback-ready == 'true'
-      && (needs.pass-subscription.outputs.handoff == 'true' || needs.pass-subscription.outputs.credential-present == 'false') }}
+    if: ${{ !cancelled() && needs.pass-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -939,10 +965,6 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -976,21 +998,20 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass. The job starts only when
+      # the subscription leg saw the fallback token set.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so no case runs"
-            exit 1
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: maintenance
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.pass-subscription.outputs.next-reason }}
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -999,7 +1020,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -1019,7 +1040,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -1033,7 +1054,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -1041,7 +1062,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1076,13 +1097,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -1092,7 +1113,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -1114,7 +1135,7 @@ jobs:
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1293,4 +1314,4 @@ jobs:
           credential: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ needs.pass-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}

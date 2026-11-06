@@ -13,7 +13,7 @@ name: post-merge-test-mutation
 # Jobs:
 # - prep: no model. Checks the kill switch and reads the range artifact.
 # - key-credit: no model, no secret. Skips a chain's key after a recent
-#   credit stop (ci-workflows check-key-credit).
+#   credit stop (ci-workflows select-model-credential's start call).
 # - generate, generate-subscription, generate-fallback: the model returns the
 #   mutants for the lines the push changed (/mutation-testing:audit
 #   --phase generate), on the automations API key, then its subscription
@@ -149,12 +149,12 @@ jobs:
           tokens: github-token
           outside: ${{ steps.download-range.outcome != 'skipped' && 'download-range:actions/runs/artifacts' || '' }}
 
-  # The key's credit gate for both chains (ci-workflows check-key-credit,
-  # gate.cjs: one artifact-list call per chain for the marker its key leg
-  # uploads after a credit stop). A credit stop inside
-  # vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset) starts that chain on the
-  # subscription. No secret, no model, no checkout; every failure runs the key
-  # (skip empty). Probing is off.
+  # The key's credit gate for both chains (ci-workflows select-model-credential,
+  # its start call: check-key-credit's one artifact-list call per chain for the
+  # marker its key leg uploads after a credit stop). A credit stop inside the
+  # window names the subscription leg, and that chain's key leg runs nothing.
+  # No secret, no model, no checkout; every failure runs the key. Probing is
+  # off.
   key-credit:
     needs: prep
     if: needs.prep.outputs.proceed == 'true'
@@ -163,25 +163,29 @@ jobs:
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-generate-key: ${{ steps.credit-generate.outputs.skip-key }}
+      generate-next-leg: ${{ steps.credit-generate.outputs.next-leg }}
+      generate-next-reason: ${{ steps.credit-generate.outputs.next-reason }}
       generate-marker: ${{ steps.credit-generate.outputs.marker }}
-      skip-triage-key: ${{ steps.credit-triage.outputs.skip-key }}
+      triage-next-leg: ${{ steps.credit-triage.outputs.next-leg }}
+      triage-next-reason: ${{ steps.credit-triage.outputs.next-reason }}
       triage-marker: ${{ steps.credit-triage.outputs.marker }}
     steps:
       - name: Read the generate key's credit history
         id: credit-generate
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: generate
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped generate key leg
-        if: steps.credit-generate.outputs.skip-key == 'true'
+        if: steps.credit-generate.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -196,16 +200,18 @@ jobs:
         id: credit-triage
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: triage
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped triage key leg
-        if: steps.credit-triage.outputs.skip-key == 'true'
+        if: steps.credit-triage.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -231,10 +237,8 @@ jobs:
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -302,27 +306,21 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.key-credit.outputs.skip-generate-key }}
-        run: |
-          run=$PRESENT
-          if [ "$SKIP_KEY" = true ]; then
-            run=false
-            echo "::notice::the credit gate skipped AUTOMATIONS_CLAUDE_API_KEY; generate-subscription runs the generate leg"
-          elif [ "$PRESENT" != true ]; then
-            echo "::warning::AUTOMATIONS_CLAUDE_API_KEY is empty; generate-subscription runs the generate leg"
-          fi
-          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.key-credit.outputs.generate-next-leg }}
 
       # The plugin loads from a read-only copy of main's under the workspace,
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -532,6 +530,21 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -549,18 +562,15 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && (needs.generate.outputs.handoff == 'true' || needs.generate.outputs.credential-present == 'false'
-      || needs.key-credit.outputs.skip-generate-key == 'true') }}
+      && (needs.generate.outputs.next-leg == 'subscription' || needs.key-credit.outputs.generate-next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -628,28 +638,30 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.generate.outputs.next-reason || needs.key-credit.outputs.generate-next-reason }}
+
+      # With neither token set no leg can run, and the job fails.
+      - name: Fail when no token is set
+        id: no-token
+        if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN is empty; generate-fallback runs the generate leg"
-            else
-              echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so nothing is audited"
-              exit 1
-            fi
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so nothing is audited"
+          exit 1
 
       # The plugin loads from a read-only copy of main's under the workspace,
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -768,7 +780,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.generate.outputs.handoff-reason || needs.key-credit.outputs.skip-generate-key == 'true' && 'credit-stop' || needs.generate.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
       # that hands nothing on is a designed stop, not a defect: the run ends
@@ -825,6 +837,21 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -841,18 +868,13 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.generate-subscription.outputs.fallback-ready == 'true'
-      && (needs.generate-subscription.outputs.handoff == 'true' || needs.generate-subscription.outputs.credential-present == 'false') }}
+      && needs.generate-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -920,23 +942,29 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: automations
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.generate-subscription.outputs.next-reason }}
+
+      # With the fallback token empty no leg runs, and the job fails.
+      - name: Fail when no token is set
+        id: no-token
+        if: steps.credential.outputs.present != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so nothing is audited"
-            exit 1
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so nothing is audited"
+          exit 1
 
       # The plugin loads from a read-only copy of main's under the workspace,
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -1054,7 +1082,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.generate-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
       # that hands nothing on is a designed stop, not a defect: the run ends
@@ -1291,10 +1319,8 @@ jobs:
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -1362,24 +1388,18 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.key-credit.outputs.skip-triage-key }}
-        run: |
-          run=$PRESENT
-          if [ "$SKIP_KEY" = true ]; then
-            run=false
-            echo "::notice::the credit gate skipped AUTOMATIONS_CLAUDE_API_KEY; triage-subscription runs the triage leg"
-          elif [ "$PRESENT" != true ]; then
-            echo "::warning::AUTOMATIONS_CLAUDE_API_KEY is empty; triage-subscription runs the triage leg"
-          fi
-          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.key-credit.outputs.triage-next-leg }}
 
       - name: Download the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.mutate.outputs.artifact-id }}
@@ -1388,7 +1408,7 @@ jobs:
       # The mutate job's file, by the SHA-256 it recorded, staged in the
       # workspace, the one tree run-claude-cli reads.
       - name: Check the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           FILE: ${{ runner.temp }}/executed/executed.json
           WANT: ${{ needs.mutate.outputs.sha256 }}
@@ -1409,7 +1429,7 @@ jobs:
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -1621,6 +1641,21 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1638,18 +1673,15 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && (needs.triage.outputs.handoff == 'true' || needs.triage.outputs.credential-present == 'false'
-      || needs.key-credit.outputs.skip-triage-key == 'true') }}
+      && (needs.triage.outputs.next-leg == 'subscription' || needs.key-credit.outputs.triage-next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -1717,25 +1749,27 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.triage.outputs.next-reason || needs.key-credit.outputs.triage-next-reason }}
+
+      # With neither token set no leg can run, and the job fails.
+      - name: Fail when no token is set
+        id: no-token
+        if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN is empty; triage-fallback runs the triage leg"
-            else
-              echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so nothing is audited"
-              exit 1
-            fi
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so nothing is audited"
+          exit 1
 
       - name: Download the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.mutate.outputs.artifact-id }}
@@ -1744,7 +1778,7 @@ jobs:
       # The mutate job's file, by the SHA-256 it recorded, staged in the
       # workspace, the one tree run-claude-cli reads.
       - name: Check the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           FILE: ${{ runner.temp }}/executed/executed.json
           WANT: ${{ needs.mutate.outputs.sha256 }}
@@ -1765,7 +1799,7 @@ jobs:
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -1886,7 +1920,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.triage.outputs.handoff-reason || needs.key-credit.outputs.skip-triage-key == 'true' && 'credit-stop' || needs.triage.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
       # that hands nothing on is a designed stop, not a defect: the run ends
@@ -1943,6 +1977,21 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). !cancelled(), as
+      # the next job's own if: is, so a step that failed after a handoff or
+      # an empty credential still hands on, as the job outputs did before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1959,18 +2008,13 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && needs.triage-subscription.outputs.fallback-ready == 'true'
-      && (needs.triage-subscription.outputs.handoff == 'true' || needs.triage-subscription.outputs.credential-present == 'false') }}
+      && needs.triage-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
     permissions:
       contents: read # check out the pushed head; nothing in this job writes
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
       stop-class: ${{ steps.stop.outputs.class }}
       mode: ${{ steps.target.outputs.mode }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
@@ -2038,20 +2082,26 @@ jobs:
           output-path: ${{ runner.temp }}/mutation-models.json
 
       # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: automations
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.triage-subscription.outputs.next-reason }}
+
+      # With the fallback token empty no leg runs, and the job fails.
+      - name: Fail when no token is set
+        id: no-token
+        if: steps.credential.outputs.present != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so nothing is audited"
-            exit 1
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so nothing is audited"
+          exit 1
 
       - name: Download the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.mutate.outputs.artifact-id }}
@@ -2060,7 +2110,7 @@ jobs:
       # The mutate job's file, by the SHA-256 it recorded, staged in the
       # workspace, the one tree run-claude-cli reads.
       - name: Check the executed mutants
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           FILE: ${{ runner.temp }}/executed/executed.json
           WANT: ${{ needs.mutate.outputs.sha256 }}
@@ -2081,7 +2131,7 @@ jobs:
       # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           HEAD_SHA: ${{ needs.prep.outputs.after }}
           DIFF_TARGET: ${{ steps.target.outputs.target }}
@@ -2201,7 +2251,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.triage-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
       # that hands nothing on is a designed stop, not a defect: the run ends

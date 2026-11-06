@@ -225,8 +225,17 @@ read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 # Triggers beyond its own directory for a package in the outside list: the
 # workflows and shared files its tests read.
 declare -A OUTSIDE_TRIGGERS=(
-  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml"
+  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/scripts/lib/"
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
+  [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"
+  [.github/scripts/upstream-apply-changelog]=".github/workflows/upstream-apply-changelog.yml .github/scripts/lib/"
+  [.github/scripts/pr-review-main]=".github/workflows/pr-review-main.yml .github/scripts/lib/"
+  [.github/scripts/pr-merge-risk]=".github/workflows/pr-rate-merge-risk.yml .github/scripts/lib/"
+  [.github/scripts/post-merge-test-mutation]=".github/workflows/post-merge-test-mutation.yml .github/scripts/lib/"
+  [.github/scripts/plugin-eval]=".github/workflows/eval-browser-dispatch.yml .github/workflows/eval-hill-climb-pass.yml .github/workflows/maintenance-measure-skill-edit.yml .github/scripts/lib/"
+  [.github/scripts/maintenance-audit-lane-runs]=".github/workflows/maintenance-audit-lane-runs.yml .github/scripts/lib/"
+  [.github/scripts/maintenance-measure-skill-edit]=".github/workflows/maintenance-measure-skill-edit.yml .github/scripts/lib/"
+  [.github/scripts/maintenance-tidy-code-upkeep]=".github/workflows/maintenance-tidy-code-upkeep.yml .github/scripts/lib/"
   [scripts/lane-transcripts]=".github/workflows/"
 )
 

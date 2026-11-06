@@ -20,7 +20,8 @@ name: pr-rate-merge-risk
 # FALLBACK_CLAUDE_CODE_OAUTH_TOKEN, each starting only after the one before
 # handed off (a credit stop, a 401 or 402, and on the subscription leg a limit
 # stop) or found its credential empty, and the key leg skipped while its
-# credit stop is recent (check-key-credit). Each later job repeats every step
+# credit stop is recent (ci-workflows select-model-credential, which picks
+# each job's credential and the leg after it). Each later job repeats every step
 # from a fresh checkout, so the gates and the hardening run again; one job per
 # run rates. Under dontAsk the model reads the data directory and the review
 # plugin's read-only copy in .lane, nothing else, and gets no Bash, edit,
@@ -78,10 +79,8 @@ jobs:
       pull-requests: read # the PR, its comments and closing issues
       actions: read # the upstream run, and ratings already uploaded
     outputs:
-      handoff: ${{ steps.rate.outputs.handoff }}
-      handoff-reason: ${{ steps.rate.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -242,30 +241,35 @@ jobs:
           echo "model=$model" >>"$GITHUB_OUTPUT"
           echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
 
-      # Whether the key is still out of credit: a rate-merge-risk credit stop
-      # in this workflow inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1
-      # hour unset) skips this job's key leg, and rate-merge-risk-subscription
-      # rates the head (ci-workflows check-key-credit, gate.cjs: one
+      # Whether the key runs: it is set, and a rate-merge-risk credit stop in
+      # this workflow is not inside the window (select-model-credential's key
+      # call with key-job, reading check-key-credit's history inline: one
       # artifact-list call for the `marker` this job uploads after a credit
-      # stop). It runs only for a head the resolver would rate, so a run that
-      # skips there spends no call. Probing is off. Every failure runs the key:
-      # skip-key is then empty.
-      - name: Read the key's credit history
-        id: credit
+      # stop). A held key hands the head to rate-merge-risk-subscription. It
+      # runs only for a head the resolver would rate, so a run that skips
+      # there spends no call. Probing is off. Only whether the secret is set
+      # reaches it, never its value; every failure of the read runs the key.
+      # `present` is whether this leg runs the model.
+      - name: Check the credential
+        id: credential
         if: steps.checker.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: key
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           key-job: rate-merge-risk
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         id: credit-skip
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credential.outputs.key-skipped == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -276,28 +280,10 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-      # Only whether the secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
-      - name: Check the credential
-        id: credential
-        if: steps.checker.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ steps.credit.outputs.skip-key }}
-        run: |
-          run=$PRESENT
-          if [ "$SKIP_KEY" = true ]; then
-            run=false
-            echo "::notice::the credit gate skipped PR_VERIFY_CLAUDE_API_KEY; rate-merge-risk-subscription rates this head"
-          elif [ "$PRESENT" != true ]; then
-            echo "::warning::PR_VERIFY_CLAUDE_API_KEY is empty; rate-merge-risk-subscription rates this head"
-          fi
-          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
-
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -306,11 +292,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -319,7 +305,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -442,13 +428,13 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # Read by the next runs' credit gate (Read the key's credit history):
-      # the artifact its `marker` output names (check-key-credit gate.cjs
+      # Read by the next runs' credit gate (Check the credential): the
+      # artifact its `marker` output names (check-key-credit gate.cjs
       # markerName), uploaded only after the key leg's credit-stop handoff.
       # The name is written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-rate-merge-risk.yml-rate-merge-risk' && steps.rate.outputs.handoff-reason == 'credit-stop'
+        if: always() && steps.credential.outputs.marker == 'key-credit-stop-pr-rate-merge-risk.yml-rate-merge-risk' && steps.rate.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -509,6 +495,20 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). It has no if:, so
+      # it names a leg only when every step before it passed, and the next
+      # job also needs this one's success, as before.
+      - name: Pick the next leg
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.rate.outputs.handoff }}
+          handoff-reason: ${{ steps.rate.outputs.handoff-reason }}
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -521,7 +521,7 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.run == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1
@@ -542,9 +542,7 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.rate-merge-risk.result == 'success'
-      && (needs.rate-merge-risk.outputs.handoff == 'true'
-      || needs.rate-merge-risk.outputs.credential-present == 'false'
-      || needs.rate-merge-risk.outputs.skip-key == 'true')
+      && needs.rate-merge-risk.outputs.next-leg == 'subscription'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     cache-mode: read
@@ -553,10 +551,8 @@ jobs:
       pull-requests: read # the PR, its comments and closing issues
       actions: read # the upstream run, and ratings already uploaded
     outputs:
-      handoff: ${{ steps.rate.outputs.handoff }}
-      handoff-reason: ${{ steps.rate.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -717,28 +713,23 @@ jobs:
           echo "model=$model" >>"$GITHUB_OUTPUT"
           echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # Only whether each secret is set reaches this step, never its value.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         if: steps.checker.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN is empty; rate-merge-risk-fallback rates this head"
-            else
-              echo "::warning::PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; this head gets no rating."
-            fi
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.rate-merge-risk.outputs.next-reason }}
 
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -747,11 +738,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -760,7 +751,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -871,7 +862,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.rate.outputs.lane-class }}
           handoff: ${{ steps.rate.outputs.handoff }}
-          fallback-reason: ${{ needs.rate-merge-risk.outputs.handoff-reason || needs.rate-merge-risk.outputs.skip-key == 'true' && 'credit-stop' || needs.rate-merge-risk.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -916,6 +907,20 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). It has no if:, so
+      # it names a leg only when every step before it passed, and the next
+      # job also needs this one's success, as before.
+      - name: Pick the next leg
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.rate.outputs.handoff }}
+          handoff-reason: ${{ steps.rate.outputs.handoff-reason }}
+
       - name: Log the API budget
         if: always()
         continue-on-error: true
@@ -928,7 +933,7 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.run == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1
@@ -945,9 +950,7 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.rate-merge-risk-subscription.result == 'success'
-      && needs.rate-merge-risk-subscription.outputs.fallback-ready == 'true'
-      && (needs.rate-merge-risk-subscription.outputs.handoff == 'true'
-      || needs.rate-merge-risk-subscription.outputs.credential-present == 'false')
+      && needs.rate-merge-risk-subscription.outputs.next-leg == 'fallback'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     cache-mode: read
@@ -1115,21 +1118,22 @@ jobs:
           echo "model=$model" >>"$GITHUB_OUTPUT"
           echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
 
-      # Only whether the secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the model.
+      # Only whether the secret is set reaches this step, never its value.
+      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         if: steps.checker.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          [ "$PRESENT" = true ] || echo "::warning::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; this head gets no rating."
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: pr-verify
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.rate-merge-risk-subscription.outputs.next-reason }}
 
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
       - name: Stage the review plugin
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           mkdir -p .lane/plugins
           cp -R .base/plugins/review .lane/plugins/review
@@ -1138,11 +1142,11 @@ jobs:
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: true
@@ -1151,7 +1155,7 @@ jobs:
       # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           PROMPT_FILE: ${{ runner.temp }}/merge-risk-prompt.md
@@ -1261,7 +1265,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.rate.outputs.lane-class }}
           handoff: ${{ steps.rate.outputs.handoff }}
-          fallback-reason: ${{ needs.rate-merge-risk-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -1318,7 +1322,7 @@ jobs:
       # failures count; a handoff is no failure, since the next leg rates. The
       # arm still records `unrated` and goes on.
       - name: Fail without a rating
-        if: always() && steps.credential.outputs.run == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
+        if: always() && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
           echo "::error::the rating left nothing for this head; the arm records it unrated"
           exit 1
