@@ -290,6 +290,8 @@ test("a model allowlist of several models and a max_tokens ceiling", async () =>
   }
   assert.equal(up.seen.length, before);
   // count_tokens takes no max_tokens, but its model is still checked.
+  // Pointer: https://platform.claude.com/docs/en/api/messages-count-tokens (Body parameters)
+  // As of: 2026-11-06. Recheck trigger: that section adds max_tokens.
   assert.equal((await call(socket, { url: "/v1/messages/count_tokens", body: countBody({ model: "model-title" }) })).status, 200);
   assertRefused(await call(socket, { url: "/v1/messages/count_tokens", body: countBody({ model: "model-other" }) }), 403, "permission_error");
 });
@@ -348,8 +350,10 @@ test("content allowlist: block types outside the list and any source other than 
 });
 
 test("usage is summed without double counting message_start and the cumulative message_delta", async () => {
-  // Token counts from the streaming doc's own examples
-  // (https://platform.claude.com/docs/en/build-with-claude/streaming).
+  // Token counts from the streaming doc's own example streams; message_delta
+  // usage is cumulative.
+  // Pointer: https://platform.claude.com/docs/en/build-with-claude/streaming#event-types
+  // As of: 2026-11-06. Recheck trigger: that section changes what message_delta usage holds.
   const streams = [
     [sse("message_start", { message: { usage: { input_tokens: 25, output_tokens: 1 } } }), sse("ping", {}), sse("message_delta", { usage: { output_tokens: 15 } }), sse("message_stop", {})],
     [sse("message_start", { message: { usage: { input_tokens: 2679, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 3 } } }),
@@ -637,7 +641,9 @@ test("past the cap the refusal is a 429 spend limit with x-should-retry false", 
   assert.equal((await call(socket, { body: message() })).status, 200);
   const res = await call(socket, { body: message() });
   assertRefused(res, 429, "rate_limit_error");
-  // The documented spend-limit wording (errors#spend-limit-reached).
+  // The documented spend-limit wording.
+  // Pointer: https://code.claude.com/docs/en/errors#spend-limit-reached
+  // As of: 2026-11-06. Recheck trigger: that section changes the message wording.
   assert.match(JSON.parse(res.body).error.message, /^spend limit reached/);
   assert.equal(up.seen.length, 1);
 });

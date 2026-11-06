@@ -63,7 +63,7 @@ const SOURCE_TYPES = Object.freeze(["base64", "text", "content"]);
 const MAX_NAMED_BETAS = 10;
 // Body fields the count_tokens preflight forwards.
 // Pointer: https://platform.claude.com/docs/en/api/messages-count-tokens (Body parameters)
-// As of: 2026-11-05. Recheck trigger: that section adds or removes a parameter.
+// As of: 2026-11-06. Recheck trigger: that section adds or removes a parameter.
 const COUNT_TOKENS_FIELDS = Object.freeze(["messages", "model", "cache_control", "output_config", "speed", "system", "thinking", "tool_choice", "tools"]);
 // Counted toward the cap. Cache reads and writes are counted in full: the cap
 // is a token count, not a price (our decision).
@@ -159,7 +159,7 @@ export function createBudget(cap) {
 // value replaces an earlier one field by field; message_start and
 // message_delta are never added together.
 // Pointer: https://platform.claude.com/docs/en/build-with-claude/streaming#event-types
-// As of: 2026-11-05. Recheck trigger: that section changes what message_delta usage holds.
+// As of: 2026-11-06. Recheck trigger: that section changes what message_delta usage holds.
 export function createUsageMeter(streaming) {
   const usage = {};
   let seen = false;
