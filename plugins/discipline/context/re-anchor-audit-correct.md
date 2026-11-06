@@ -49,7 +49,8 @@ Run these in order. Skip a step only when its input is genuinely absent
    fresh-context subagent (blind to the reasoning that produced the drift)
    instead of self-checking in the context that produced it. A self-check
    in the same context is weak by construction. The `verification` level the
-   invoking SKILL.md resolved governs this subagent: under `light`, and
+   invoking SKILL.md resolved, when it resolves one, governs this subagent; a
+   corrector that resolves no level keeps the subagent as above. Under `light`, and
    `off`, which acts as `light` here, dispatch none and do not self-check in
    its place; report the finding open with `verification: skipped (<level>)`. Prefer a cross-vendor
    advisor for that re-derivation **when one is installed and set up**.

@@ -108,7 +108,7 @@ against a run that produced none):
    **The verification level.** `SKILL.md` resolves it before this dispatch. `standard` is this
    section. Under `light`, and `off`, which acts as `light` here, dispatch no verifier and write
    `verification: skipped (<level>)` ([`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
-   "The sibling verifier, stated once"). `strict` grades as `publish` does at every evidence use and
+   "The sibling verifier, stated once"). `strict` rules out `skipped (cost)` and grades as `publish` does at every evidence use and
    budget: no `Claims:` line, and a FAIL row gets its one rework round and one re-verify, even at
    `Budget: low` or under `internal`.
 

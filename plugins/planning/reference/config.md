@@ -142,7 +142,7 @@ plan_panel_rubric:
 Three interview keys and one plan key resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
-`docs/conventions/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
+`<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
 `answer_audit_rounds`, `wayfind_suggest_questions` and `plan_stress_test` have no `userConfig`
 option, so they skip that layer.
 
@@ -209,7 +209,7 @@ heading means no team probe topics.
 
 ## Interview page keys
 
-The `interview_page.*` keys sit under one `interview_page` object in `docs/conventions/planning.yaml` and
+The `interview_page.*` keys sit under one `interview_page` object in `<home>/planning.yaml` and
 `<home>/planning.local.yaml`, `<home>` resolved as in "Convention-home keys", and have no
 user-config option. They keep the names the page's Settings tab shows (`undoSeconds`,
 `frontierLock`), so a value moves between the files, a `--user-settings` file and the data dir's

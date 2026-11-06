@@ -62,12 +62,14 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 |----------|------|--------|
 | *(none)* | **Default** | Show compact stage overview + detect current position + suggest next stage |
 | `steps` | **Steps** | Load `context/steps.md`, full stage definitions |
-| `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist; first run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow --file docs/conventions/session-flow.yaml` and report its line, the level step 2 reads |
+| `pre-pr` | **Pre-PR** | Load `context/pre-pr.md`, pre-PR sequence checklist; the verification level below applies |
 | `wrap-up` | **Wrap-up** | Load `context/wrap-up.md`, end-of-session checklist |
 | `philosophy` | **Philosophy** | Load `context/philosophy.md`, depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md`, stage-by-stage execution from a written spec |
 | `continue` | **Continuation** | Load `context/continuation.md`, end-of-phase continuation-mechanism router; recommend one mechanism, do not execute it |
 | `continue auto` | **Continuation (autonomous)** | The `continue` mode plus its one modifier. Consume the second token before dispatching, or this row is unreachable and `auto` silently degrades to suggest-only. Same router, plus the per-invocation license to EXECUTE the mechanism it routes to. Authorizes this invocation only, never a standing mode, and never a substitute for a routed skill's own hard gate |
+
+**The verification level, on every route into `context/pre-pr.md`** (this `pre-pr` row, `wrap-up`'s pre-PR step, or a sibling plugin that routes here): before its step 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow --file docs/conventions/session-flow.yaml` once in the session and report its line; step 2 reads that level.
 
 ## Default mode (no arguments)
 

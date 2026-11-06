@@ -151,7 +151,7 @@ out.
 - **Recheck trigger**: that section changes whether a fork's Agent tool can spawn.
 
 **Depth**, resolved once before enumerating: the invocation argument (`tiered`
-or `full`) wins; otherwise the configured default,
+or `full`) wins, except that a `strict` verification level resolves `full` ahead of it; otherwise the configured default,
 `${user_config.research_deep_verification}`; otherwise `tiered`. An empty
 value, a surviving literal `${user_config.…}` token, and any unrecognized
 string all mean `tiered`; never error on a bad value.
