@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-11-06
+
+### Added
+
+- `/user-interface:design` can now route to Figma (`figma@claude-plugins-official`) for typography and color, design systems, and design-tool handoff: its three routes are confirmed after a signed-in onboarding test.
+
 ## [0.16.5] - 2026-11-06
 
 ### Fixed

@@ -194,8 +194,9 @@ local command**. The gap is discoverability, not a missing runner, because every
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.58.0 (`5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c`), the pin in
-  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-21: the `contract-only` default is unchanged.
+- **As of:** `ci-workflows` `2476d5dde8979eab34374150b7e4b0a2b99f4e88`, the pin in
+  `.github/workflows/pr-require-checks.yml`, re-verified on 2026-11-06: no file under
+  `.github/actions/check-machine-paths/` changed since the 2026-10-21 check at `5e18f3d6`.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract, its scan or its exemptions, which `scripts/check-affected.sh` repeats.
 
