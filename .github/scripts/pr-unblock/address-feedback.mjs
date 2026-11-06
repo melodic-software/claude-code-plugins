@@ -48,6 +48,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
+import { trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
@@ -599,11 +600,12 @@ export const reviewFixers = ({ reviewComments, trustedHumans = new Set(), permis
   });
 
 // The base's human-gated role label: config.role_labels["human-gated"] of
-// .work-item-tracker.json, needs-human when the file or entry is absent.
+// the tracker binding at `path` (merge-holds.mjs trackerBindingText),
+// needs-human when the file or entry is absent.
 export function humanGatedLabelFrom(path) {
   let config;
   try {
-    config = JSON.parse(readFileSync(path, "utf8"));
+    config = JSON.parse(trackerBindingText(path));
   } catch (error) {
     if (error.code === "ENOENT") {
       return "needs-human";
@@ -1799,7 +1801,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
       reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
-      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
+      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),

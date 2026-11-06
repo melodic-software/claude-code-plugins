@@ -473,8 +473,8 @@ before the model turn: a person who comments, or a hold that lands, while the ru
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
 
-On a PR carrying the human-gated role label (`needs-human` unless the base's
-`.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
+On a PR carrying the human-gated role label (`needs-human` unless the base's tracker binding in
+`docs/conventions/work-items.yaml` names another), `address-feedback` works a thread only when it carries
 a fix request, after the lane's escalation when there is one. Without such a
 thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
 stays held; with one, the write runner lifts only the human-gated hold for that run, and
@@ -1737,7 +1737,7 @@ except six:
   date is not idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting
   and the list read at the default branch head,
   and that no hold applies to: the `do-not-merge` label, the
-  tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
+  tracker's human-gated role label as `docs/conventions/work-items.yaml` binds it, or a hold line in
   the body. Its activity is the newest of its opening, the head's arrival (the newest GitHub
   Actions check suite for the head commit on its branch, since a commit's dates are its
   pusher's; a `pull_request` workflow run that a label or title edit starts adds such a suite, so
@@ -2961,7 +2961,7 @@ false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
 rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
-`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+the tracker binding in `docs/conventions/work-items.yaml` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
@@ -3097,7 +3097,7 @@ No ruleset requires a review check (github-iac ADR 0017); ci-status, the one req
 them on every `pull_request` run, contract-only runs included:
 
 - **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
-  unless the base's `.work-item-tracker.json` names another). Removing it approves.
+  unless the base's `docs/conventions/work-items.yaml` binding names another). Removing it approves.
 - **Only a trusted person lifts a review-lane hold.** A hold is the newest hold comment or the
   newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
   so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
@@ -3879,8 +3879,8 @@ person opened. A PR is adopted when all of these hold:
 
 - an account on the trusted-actor list opened it, a person or an App, matched by numeric id;
 - it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
-  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
-  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  `needs-human` or human-gated label (`tracker.config.role_labels["human-gated"]` in the base
+  `docs/conventions/work-items.yaml`, as pr-merge resolves it; a file yq cannot read holds every
   owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
   two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline

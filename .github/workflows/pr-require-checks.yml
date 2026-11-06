@@ -1016,7 +1016,9 @@ jobs:
           if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] && git fetch --no-tags --depth=1 origin "$BASE_SHA" && mkdir -p "$dir" &&
             git show "$BASE_SHA:.github/scripts/pr-merge/merge-holds.mjs" >"$dir/merge-holds.mjs" &&
             git show "$BASE_SHA:.github/actions/log-api-budget/api-budget.bash" >"$dir/api-budget.bash"; then
-            git show "$BASE_SHA:.work-item-tracker.json" >"$dir/tracker.json" 2>/dev/null || rm -f "$dir/tracker.json"
+            if git show "$BASE_SHA:docs/conventions/work-items.yaml" >"$dir/work-items.yaml" 2>/dev/null; then
+              yq -o=json -I=0 '.tracker' "$dir/work-items.yaml" >"$dir/tracker.json" || echo unreadable >"$dir/tracker.json"
+            fi
             echo "ok=true" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::the base commit '$BASE_SHA' could not be read; ci-status judges the holds."
@@ -5283,7 +5285,7 @@ jobs:
           path: base-config
           persist-credentials: false
           sparse-checkout: |
-            /.work-item-tracker.json
+            /docs/conventions/work-items.yaml
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
@@ -5413,8 +5415,8 @@ jobs:
           repo=$GITHUB_REPOSITORY
           [ -d "$BASE_CONFIG" ] || keep "the tracker config is unreadable"
           tracker=
-          if [ -e "$BASE_CONFIG/.work-item-tracker.json" ]; then
-            tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json") || keep "the tracker config is unreadable"
+          if [ -e "$BASE_CONFIG/docs/conventions/work-items.yaml" ]; then
+            tracker=$(yq -o=json -I=0 '.tracker' "$BASE_CONFIG/docs/conventions/work-items.yaml") || keep "the tracker config is invalid"
           fi
           label=needs-human
           if [ -n "$tracker" ]; then
@@ -5682,7 +5684,8 @@ jobs:
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
-      # is the base commit's .work-item-tracker.json role_labels.human-gated
+      # is the base commit's docs/conventions/work-items.yaml
+      # tracker.config.role_labels.human-gated
       # (default `needs-human`), resolved by the base checkout's merge-holds.mjs
       # humanGatedLabel as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
@@ -5712,8 +5715,13 @@ jobs:
             exit 1
           fi
           tracker=
-          if [ ! -d "$BASE_CONFIG" ] || { [ -e "$BASE_CONFIG/.work-item-tracker.json" ] && ! tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json"); }; then
-            echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
+          if [ ! -d "$BASE_CONFIG" ]; then
+            echo "::error::could not read docs/conventions/work-items.yaml at $BASE_SHA; re-run this run."
+            exit 1
+          fi
+          # The binding is the `tracker` mapping; `null` when the file binds none.
+          if [ -e "$BASE_CONFIG/docs/conventions/work-items.yaml" ] && ! tracker=$(yq -o=json -I=0 '.tracker' "$BASE_CONFIG/docs/conventions/work-items.yaml"); then
+            echo "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE_SHA"
             exit 1
           fi
           # The base module's humanGatedLabel; an empty tracker config names none.
@@ -5727,7 +5735,7 @@ jobs:
               throw new Error("no verdict");
             }
             console.log(label);' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") && [ -n "$human_gated" ] || {
-            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            echo "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE_SHA with its merge-holds.mjs"
             exit 1
           }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
@@ -5964,8 +5972,13 @@ jobs:
             exit 1
           fi
           tracker=
-          if [ ! -d "$BASE_CONFIG" ] || { [ -e "$BASE_CONFIG/.work-item-tracker.json" ] && ! tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json"); }; then
-            echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
+          if [ ! -d "$BASE_CONFIG" ]; then
+            echo "::error::could not read docs/conventions/work-items.yaml at $BASE_SHA; re-run this run."
+            exit 1
+          fi
+          # The binding is the `tracker` mapping; `null` when the file binds none.
+          if [ -e "$BASE_CONFIG/docs/conventions/work-items.yaml" ] && ! tracker=$(yq -o=json -I=0 '.tracker' "$BASE_CONFIG/docs/conventions/work-items.yaml"); then
+            echo "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE_SHA"
             exit 1
           fi
           module=$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs
@@ -5992,7 +6005,7 @@ jobs:
               console.log(mode === "label" ? out : JSON.stringify(out));' "$@"
           }
           human_gated=$(label_holds label "$module") && [ -n "$human_gated" ] || {
-            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            echo "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE_SHA with its merge-holds.mjs"
             exit 1
           }
           # One GraphQL read answers the pull request's live labels and, for

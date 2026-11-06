@@ -182,7 +182,7 @@ for (const [name, run] of [
           THREAD_FILE: join(dir, "threads.json"),
           RUN_FILE: join(dir, "run.json"),
           TRUSTED_ACTORS: join(ROOT, ".github/standards/trusted-actors/trusted-actors.json"),
-          TRACKER_CONFIG: join(ROOT, ".work-item-tracker.json"),
+          TRACKER_CONFIG: join(ROOT, "docs/conventions/work-items.yaml"),
           DEPENDENCY_FILE: join(dir, "dependency.json"),
           CONTEXT_RUN_FILE: join(dir, "run.json"),
           DEPENDABOT_CONFIG: join(ROOT, ".github/dependabot.yml"),

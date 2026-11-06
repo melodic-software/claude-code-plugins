@@ -22,6 +22,8 @@ import { dirname, join, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { parse as parseYaml } from "../../../lib/yaml-subset.mjs";
+
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EMISSION = join(
   SCRIPT_DIR,
@@ -33,6 +35,13 @@ const DEFAULT_EMISSION = join(
 );
 
 const SCHEMA_VERSION = 1;
+
+// The tracker binding: the `tracker` mapping of the default convention home's
+// work-items.yaml, else the legacy repo-root JSON file the work-items seam
+// still reads for a repository not yet migrated (its CONTRACT.md "Setup
+// (binding file)").
+const TRACKER_YAML = "docs/conventions/work-items.yaml";
+const TRACKER_LEGACY = ".work-item-tracker.json";
 
 const DEPENDENCY_MANIFESTS = [
   "package.json",
@@ -205,9 +214,34 @@ function declarationFor(binding, surface, identity, need) {
   return matches[0] ?? null;
 }
 
+// The binding file that binds the tracker and its read: the YAML file when it
+// sets a `tracker` key (or does not parse, so the error is its own), else the
+// legacy JSON file.
+function readTrackerBinding(repoRoot) {
+  let text = null;
+  try {
+    text = readFileSync(join(repoRoot, ...TRACKER_YAML.split("/")), "utf8");
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") {
+      return { path: TRACKER_YAML, read: { ok: false, reason: "unreadable", detail: String(error?.message ?? error) } };
+    }
+  }
+  if (text !== null) {
+    let doc;
+    try {
+      doc = parseYaml(text);
+    } catch (error) {
+      return { path: TRACKER_YAML, read: { ok: false, reason: "unreadable", detail: String(error.message ?? error) } };
+    }
+    if (doc && typeof doc === "object" && !Array.isArray(doc) && Object.hasOwn(doc, "tracker")) {
+      return { path: TRACKER_YAML, read: { ok: true, value: doc.tracker } };
+    }
+  }
+  return { path: TRACKER_LEGACY, read: readJson(join(repoRoot, TRACKER_LEGACY)) };
+}
+
 function probeTracker(repoRoot) {
-  const bindingPath = join(repoRoot, ".work-item-tracker.json");
-  const bindingRead = readJson(bindingPath);
+  const { path: bindingRel, read: bindingRead } = readTrackerBinding(repoRoot);
   if (!bindingRead.ok) {
     return {
       result: "absent",
@@ -216,7 +250,7 @@ function probeTracker(repoRoot) {
         kind: "probe",
         probe_class: "repo-file",
         seam: "work-item-tracker",
-        path: ".work-item-tracker.json",
+        path: bindingRel,
         detail: bindingRead.reason,
       },
     };
@@ -230,7 +264,7 @@ function probeTracker(repoRoot) {
         kind: "probe",
         probe_class: "repo-file",
         seam: "work-item-tracker",
-        path: ".work-item-tracker.json",
+        path: bindingRel,
         detail: "provider missing",
       },
     };
@@ -265,7 +299,7 @@ function probeTracker(repoRoot) {
       kind: "probe",
       probe_class: "repo-file",
       seam: "work-item-tracker",
-      path: `.work-item-tracker.json+${capsRel}`,
+      path: `${bindingRel}+${capsRel}`,
     },
   };
 }
