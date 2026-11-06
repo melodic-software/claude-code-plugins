@@ -1084,7 +1084,7 @@ models:
       - { id: 300690090, login: "melodic-ci-runner-host[bot]" }
       - { id: 302525172, login: "melodic-ci-runner-observer[bot]" }
       - { id: 315045210, login: "melodic-claude-lanes-repin[bot]" }
-      - { id: 337859524, login: "melodic-plugin-release[bot]" }
+      - { id: 337859524, login: "melodic-release[bot]" }
     options:
       "84879216": needs-triage
       "84879217": needs-reporter-info
