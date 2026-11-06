@@ -9,7 +9,7 @@ graders:
     target: last_message
   - name: reports-violation
     type: regex
-    pattern: '(?<!no )(?<!not )(?<!zero )(?<!0 )(?<!without )\b(?:does not conform|doesn[''’]t conform|non-?conform\w*|violations?|invalid|fails? (?:the )?schema|FAIL(?:ED|S)?)\b'
+    pattern: '(?<!no )(?<!not )(?<!n[''’]t )(?<!zero )(?<!0 )(?<!without )\b(?:does not conform|doesn[''’]t conform|non-?conform\w*|violations?|invalid|fails? (?:the )?schema|FAIL(?:ED|S)?)\b'
     flags: 'i'
     target: last_message
   - name: no-eval-run

@@ -3,6 +3,11 @@ name: ck-broken-ref-hand-verify
 context:
   scaffold_script: scaffold.sh
 graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'skill-quality:check'
+    arm: with-only
   - name: quotes-fail-line
     type: regex
     pattern: 'FAIL: broken skill-internal ref: reference/big-picture\.md'

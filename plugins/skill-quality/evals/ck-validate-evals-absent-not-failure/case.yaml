@@ -5,7 +5,7 @@ context:
 graders:
   - name: reports-absent
     type: regex
-    pattern: '\b(?:ships?|has|carries|contains)\s+no\b[^\n.]{0,40}\bevals?\b|\bno\s+(?:skill-creator\s+)?(?:evals/)?evals?\.json\b|\bevals?(?:/evals)?\.json\b[^\n.]{0,40}\b(?:absent|missing|not found|does not exist|doesn[''’]t exist|not present)\b'
+    pattern: '\bno\s+skill-creator\s+(?:evals?\s+)?file\b|\b(?:ships?|has|carries|contains)\s+no\b[^\n.]{0,40}\bevals?\b|\bno\s+(?:skill-creator\s+)?(?:evals/)?evals?\.json\b|\bevals?(?:/evals)?\.json\b[^\n.]{0,40}\b(?:absent|missing|not found|does not exist|doesn[''’]t exist|not present)\b'
     flags: 'i'
     target: last_message
   - name: not-a-failure

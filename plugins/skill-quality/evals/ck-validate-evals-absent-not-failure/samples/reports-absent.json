@@ -1,12 +1,14 @@
 {
   "pass": [
-    { "answer": "my-skill ships no skill-creator evals file (not a failure).", "why": "hub wording" },
+    { "answer": "my-skill ships no skill-creator file (not a failure).", "why": "hub wording, check SKILL.md:142-143" },
+    { "answer": "my-skill ships no skill-creator evals file (not a failure).", "why": "hub wording with 'evals'" },
     { "answer": "There is no evals/evals.json under my-skill.", "why": "no evals.json" },
     { "answer": "`.claude/skills/my-skill/evals/evals.json` does not exist.", "why": "path then absent" }
   ],
   "fail": [
     { "answer": "FAIL: evals[0].prompt is required.", "why": "a schema finding, no absence" },
     { "answer": "my-skill has evals; all cases conform.", "why": "says there are evals" },
+    { "answer": "my-skill ships a skill-creator file; it conforms.", "why": "near miss: hub words without 'no'" },
     { "answer": "/skill-quality:check validate-evals my-skill", "why": "echoes the prompt" }
   ]
 }

@@ -8,6 +8,9 @@
     { "answer": "my-skill/evals/evals.json conforms to the bundled schema.", "why": "says it conforms" },
     { "answer": "No violations; evals.json conforms.", "why": "negated violations" },
     { "answer": "0 violations found, the file is not invalid.", "why": "zero count, negated invalid" },
+    { "answer": "my-skill/evals/evals.json doesn't fail the schema.", "why": "review near miss: n't before fails the schema" },
+    { "answer": "Validation didn't fail.", "why": "review near miss: n't before fail" },
+    { "answer": "Validation didn’t fail.", "why": "curly apostrophe" },
     { "answer": "/skill-quality:check validate-evals my-skill", "why": "echoes the prompt" }
   ]
 }

@@ -5,7 +5,7 @@ context:
 graders:
   - name: counts-two-skills
     type: regex
-    pattern: '\b(?:2|two)\b[^\n]{0,40}\bskills?\b|\bskills?\b[^\n]{0,40}\b(?:2|two)\b'
+    pattern: 'packages/agent/skills\b[^\n]{0,80}?(?<!rung )(?<!rung #)\b(?:2|two)\b[^\n]{0,20}\b(?:skills?|SKILL\.md)\b|(?<!rung )(?<!rung #)\b(?:2|two)\s+(?:child\s+)?(?:skills?|`?SKILL\.md`?\s+files?)\b[^\n]{0,60}packages/agent/skills'
     flags: 'i'
     target: last_message
   - name: no-ask
