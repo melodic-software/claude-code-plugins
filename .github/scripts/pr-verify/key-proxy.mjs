@@ -335,6 +335,9 @@ export const CHECKS = Object.freeze([
   },
   async function cap(ctx) {
     if (ctx.path === COUNT_TOKENS) return null;
+    // Its max_tokens alone already passes the cap: refused before the preflight,
+    // so a spent budget makes no further upstream call (our decision).
+    if (ctx.budget.committed + ctx.budget.reserved + ctx.body.max_tokens > ctx.budget.cap) return spendLimit("per-job token cap");
     const pre = await ctx.preflight(ctx);
     // A failure the client would retry against the API itself (a 429 or a
     // 5xx, relayed as sent; no answer, as a retryable 502) goes back to the

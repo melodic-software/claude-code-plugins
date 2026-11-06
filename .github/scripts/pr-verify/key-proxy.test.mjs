@@ -714,6 +714,22 @@ test("past the cap the refusal is a 429 spend limit with x-should-retry false", 
   assert.equal(up.seen.length, 1);
 });
 
+test("a request whose max_tokens alone passes the spent cap is refused before any count_tokens preflight", async () => {
+  const up = await stubUpstream(okJson({ input_tokens: 475, output_tokens: 475 }), { countTokens: 10 });
+  const { socket, budget } = await startProxy(up, { tokenCap: 1000, maxTokensCeiling: 100 });
+  // Reserves 10 + 100, then commits 475 + 475 = 950.
+  assert.equal((await call(socket, { body: message() })).status, 200);
+  assert.equal(budget.committed, 950);
+  assert.equal(up.counts.length, 1);
+  // 950 + 100 = 1050 > 1000: refused with no upstream call at all.
+  assertRefused(await call(socket, { body: message({ max_tokens: 100 }) }), 429, "rate_limit_error");
+  assert.equal(up.counts.length, 1);
+  // 950 + 50 = 1000 is not past the cap, so the preflight runs; 950 + 10 + 50 = 1010 then is.
+  assertRefused(await call(socket, { body: message({ max_tokens: 50 }) }), 429, "rate_limit_error");
+  assert.equal(up.counts.length, 2);
+  assert.equal(up.seen.length, 1);
+});
+
 // Runs the script as the workflow will.
 function spawnProxy(args, stdin) {
   const child = spawn(process.execPath, [SCRIPT, ...args], { stdio: ["pipe", "pipe", "pipe"], env: { PATH: process.env.PATH } });
