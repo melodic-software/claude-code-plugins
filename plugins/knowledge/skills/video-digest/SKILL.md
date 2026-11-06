@@ -182,7 +182,10 @@ model in `context/watch-pipeline.md`)
   item 8.4 is the interview handoff, `recommendations/interview.md`, offering `/planning:interview`
 - **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
   exit 0, then (with a corpus target configured) `watch/relayout-slice.js` before `close`, which
-  removes the media it copies, then `watch/watch-state.js close <slice-dir>` closes the slice
+  removes the media it copies, then `watch/watch-state.js close <slice-dir>` closes the slice.
+  Item 9.4 first resolves its level with
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin knowledge --skill video-digest`
+  (`context/quality-gates.md`, "Structural vs vision fidelity")
 
 **Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
 the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`

@@ -81,7 +81,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 Host verify scripts prove **traceability and shape** (JSON valid, batch files on disk, semantic filename policy, promotion-map parity). They do **not** prove subagents opened contact sheets or that filenames match on-screen content.
 
-**Vision fidelity spot-check (required before reporting the slice as vision-complete):** The context that produced the slice does not check its own vision claims. First run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin knowledge --skill video-digest` and copy its line into the checklist's Resume notes ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+**Vision fidelity spot-check (required before reporting the slice as vision-complete):** The context that produced the slice does not check its own vision claims. First run the plugin's `lib/read-verification.sh --plugin knowledge --skill video-digest` (the full command is in SKILL.md, Phase 9) and copy its line into the checklist's Resume notes ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 
 - At standard or strict, dispatch a fresh-context subagent with the slice path and nothing from
   this session's reasoning. It spot-checks ≥10 synthesis PNG images (name ↔ content) and ≥3
