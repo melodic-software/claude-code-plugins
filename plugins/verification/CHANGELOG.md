@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.2] - 2026-11-06
+
+### Fixed
+
+- `/verification:confirm` reads the `verification` level from `docs/conventions/verification.yaml`, beside `proof_level`, through `read-verification.sh --file`, whatever convention home the repository binds.
+
 ## [0.20.1] - 2026-11-06
 
 ### Changed
