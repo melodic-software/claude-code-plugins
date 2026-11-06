@@ -9773,10 +9773,6 @@ const LEG_EXEMPTIONS = {
     reason:
       "the capture runs on the key alone and records blocked otherwise (owner decision Q5): its driven Claude Code reaches the API only through a key proxy we run, and a subscription token may not be routed through one, so the lane never takes these legs (#12232)",
   },
-  "pr-rate-merge-risk.yml pr-verify rate-merge-risk": {
-    legs: ["subscription", "fallback"],
-    reason: "a report-only rating (#13657, owner decision Q57): a key-leg stop records the Merge-Risk line unrated, which a subscription or fallback leg would not change for any merge (#13586)",
-  },
 };
 // The issues an exemption may name: the full-chain tracker, or the capture's permanent key-only decision.
 const EXEMPTION_ISSUE = /\(#(?:13586|12232)\)$/;
@@ -9840,6 +9836,103 @@ test("the leg check fails a lane that lacks a leg and passes one that has all th
     [...missingLegs(catalog([lane("run", ["R_CLAUDE_API_KEY"]), lane("other-subscription", ["R_CLAUDE_CODE_OAUTH_TOKEN"]), lane("other-fallback", [FALLBACK_SECRET])]))].map(([key]) => key),
     ["w.yml r run", "w.yml r other"],
   );
+});
+
+// --- the key's credit window and gate: one setting for every model lane ---
+
+// The hours a key's credit stop keeps later runs off the key: the org
+// variable KEY_CREDIT_WINDOW_HOURS, else KEY_CREDIT_DEFAULT_HOURS. Every
+// check-key-credit step takes it as window-hours, and every call of a
+// ci-workflows reusable that gates its own key takes it as
+// key-credit-window-hours (a number input, so fromJSON), so the variable
+// reaches every lane and the unset default is this one constant.
+const KEY_CREDIT_DEFAULT_HOURS = "1";
+const KEY_CREDIT_WINDOW = `\${{ vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}' }}`;
+const KEY_CREDIT_WINDOW_NUMBER = `\${{ fromJSON(vars.KEY_CREDIT_WINDOW_HOURS || '${KEY_CREDIT_DEFAULT_HOURS}') }}`;
+// The ci-workflows reusables whose own key job reads check-key-credit.
+const GATED_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/(?:intake-triage|pr-review-cli)\.yml@/;
+const isCreditGate = (step) => String(step?.uses ?? "").includes("/check-key-credit@");
+function creditWindowProblems(files, load, readText) {
+  const problems = [];
+  for (const file of files) {
+    for (const [id, job] of Object.entries(load(file).jobs ?? {})) {
+      const passed = job?.with?.["key-credit-window-hours"];
+      if (GATED_REUSABLE.test(String(job?.uses ?? "")) && passed !== KEY_CREDIT_WINDOW_NUMBER) problems.push(`${file} ${id} passes key-credit-window-hours ${passed}`);
+      for (const step of (job?.steps ?? []).filter(isCreditGate)) {
+        if (step.with?.["window-hours"] !== KEY_CREDIT_WINDOW) problems.push(`${file} ${id} ${step.name}: window-hours ${step.with?.["window-hours"]}`);
+      }
+    }
+    // Any other read of the variable, such as a notice naming the window, uses the same text.
+    for (const [read] of readText(file).matchAll(/\$\{\{[^}]*vars\.KEY_CREDIT_WINDOW_HOURS[^}]*\}\}/g)) {
+      if (read !== KEY_CREDIT_WINDOW && read !== KEY_CREDIT_WINDOW_NUMBER) problems.push(`${file} reads ${read}`);
+    }
+  }
+  return problems;
+}
+// A lane's key leg is gated when its job runs check-key-credit, reads the
+// skip-key of a needed job that runs it, is the read runner's first call
+// (broker-check gates the key-credit-job it names), or calls a reusable that
+// gates its own key: a ci-workflows one or the eval pass.
+function keyLegGate(doc, id, job) {
+  if (GATED_REUSABLE.test(String(job.uses ?? "")) || job.uses === EVAL_PASS_REUSABLE) return "reusable";
+  if (job.uses === READ_RUNNER) return job.with?.["key-credit-job"] === id ? "read-runner" : null;
+  if ((job.steps ?? []).some(isCreditGate)) return "in-job";
+  const text = JSON.stringify(job);
+  const gated = [job.needs ?? []].flat().some((need) => {
+    const gateJob = doc.jobs?.[need] ?? {};
+    const gateIds = (gateJob.steps ?? []).filter(isCreditGate).map((step) => step.id);
+    // The needed job's outputs that carry a gate step's skip-key.
+    const skips = Object.entries(gateJob.outputs ?? {}).filter(([, value]) => gateIds.some((gateId) => String(value).includes(`steps.${gateId}.outputs.skip-key`)));
+    return skips.some(([name]) => text.includes(`needs.${need}.outputs.${name}`));
+  });
+  return gated ? "needs" : null;
+}
+
+test("every check-key-credit step and gated reusable call reads the one credit window", () => {
+  const files = workflowFiles();
+  assert.deepEqual(creditWindowProblems(files, workflow, (file) => read(`../../workflows/${file}`)), []);
+  const gates = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).flatMap((job) => (job?.steps ?? []).filter(isCreditGate)));
+  assert.ok(gates.length >= 15, `found ${gates.length} check-key-credit steps`);
+  const calls = files.flatMap((file) => Object.values(workflow(file).jobs ?? {}).filter((job) => GATED_REUSABLE.test(String(job?.uses ?? ""))));
+  assert.equal(calls.length, 3, "the code review, security review and intake triage calls");
+});
+
+test("the credit window check names a drifted default, a missing input and a stray read", () => {
+  const gate = (hours) => ({ name: "Read the key's credit history", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": "j", "window-hours": hours } });
+  const call = (hours) => ({ uses: "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main", with: hours === undefined ? {} : { "key-credit-window-hours": hours } });
+  const check = (jobs, text = "") => creditWindowProblems(["f.yml"], () => ({ jobs }), () => text);
+  assert.deepEqual(check({ g: { steps: [gate(KEY_CREDIT_WINDOW)] }, r: call(KEY_CREDIT_WINDOW_NUMBER) }, `${KEY_CREDIT_WINDOW}\n${KEY_CREDIT_WINDOW_NUMBER}`), []);
+  assert.deepEqual(check({ g: { steps: [gate("${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}")] } }), ["f.yml g Read the key's credit history: window-hours ${{ vars.KEY_CREDIT_WINDOW_HOURS || '6' }}"]);
+  assert.deepEqual(check({ g: { steps: [gate("6")] } }), ["f.yml g Read the key's credit history: window-hours 6"], "a literal ignores the variable");
+  assert.deepEqual(check({ r: call(undefined) }), ["f.yml r passes key-credit-window-hours undefined"], "the reusable's own default ignores the variable");
+  assert.deepEqual(check({}, "WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}"), ["f.yml reads ${{ vars.KEY_CREDIT_WINDOW_HOURS }}"]);
+});
+
+test("every catalog lane's key leg runs behind the key's credit gate", () => {
+  const jobs = claudeSecretJobs();
+  const ungated = [];
+  for (const { role, lane, key } of catalogLanes()) {
+    if (!lane.currentSecrets.includes(role.keySecret)) continue;
+    const { doc, job } = jobs.get(key);
+    if (keyLegGate(doc, lane.id, job) === null) ungated.push(key);
+  }
+  assert.deepEqual(ungated, []);
+});
+
+test("the key-leg gate check accepts each gate shape and names a lane with none", () => {
+  const credit = (keyJob) => ({ id: "credit", uses: "melodic-software/ci-workflows/.github/actions/check-key-credit@abc", with: { "key-job": keyJob } });
+  const gate = { outputs: { "skip-key": "${{ steps.credit.outputs.skip-key }}", marker: "${{ steps.credit.outputs.marker }}" }, steps: [credit("model")] };
+  const doc = { jobs: { gate, plain: { outputs: { "skip-key": "${{ steps.x.outputs.skip-key }}" }, steps: [{ id: "x", run: "true" }] } } };
+  assert.equal(keyLegGate(doc, "model", { needs: ["gate"], if: "needs.gate.outputs.marker != ''", steps: [] }), null, "an output other than the skip");
+  const reads = (need) => ({ needs: [need], if: `needs.${need}.outputs.skip-key != 'true'`, steps: [] });
+  assert.equal(keyLegGate(doc, "model", reads("gate")), "needs");
+  assert.equal(keyLegGate(doc, "model", { needs: ["gate"], steps: [] }), null, "a gate whose skip the key leg never reads");
+  assert.equal(keyLegGate(doc, "model", reads("plain")), null, "a needed job that runs no gate");
+  assert.equal(keyLegGate(doc, "model", { steps: [] }), null, "no gate at all");
+  assert.equal(keyLegGate(doc, "model", { steps: [credit("model")] }), "in-job");
+  assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: { "key-credit-job": "fix-ci" } }), "read-runner");
+  assert.equal(keyLegGate(doc, "fix-ci", { uses: READ_RUNNER, with: {} }), null, "a first call that names no key job");
+  assert.equal(keyLegGate(doc, "x", { uses: "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main" }), "reusable");
 });
 
 test("a credential passed outside the launcher step is caught", () => {

@@ -50,14 +50,42 @@ test("no pull request code is checked out, and every script and local action is 
   for (const [, script] of text.matchAll(/node (\S+\.mjs)/g)) assert.match(script, /^\.base\//, script);
 });
 
-test("the API key reaches only the presence check and the rating step", () => {
+// The key, subscription and fallback legs, each on one credential.
+const LEGS = {
+  "Rate the pull request": "api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}",
+  "Rate the pull request on the subscription": "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}",
+  "Rate the pull request on the fallback token": "fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}",
+};
+
+test("each credential reaches only its presence check and its own leg", () => {
   const holders = [...steps].filter(([, block]) => /secrets\./.test(block)).map(([name]) => name);
-  assert.deepEqual(holders, ["Check the credential", "Rate the pull request"]);
-  assert.match(step("Check the credential"), /PRESENT: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}/);
-  assert.equal([...text.matchAll(/secrets\.[A-Z_]+/g)].map(([name]) => name).filter((name) => name !== "secrets.PR_VERIFY_CLAUDE_API_KEY").length, 0);
+  assert.deepEqual(holders, ["Check the API key", "Check the credential", ...Object.keys(LEGS)]);
+  assert.match(step("Check the API key"), /KEY: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}/);
+  assert.match(step("Check the credential"), /TOKEN: \$\{\{ secrets\.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n {10}FALLBACK: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n/);
+  for (const [name, credential] of Object.entries(LEGS)) {
+    assert.deepEqual([...step(name).matchAll(/secrets\.[A-Z_]+/g)].map(([ref]) => ref), [credential.match(/secrets\.[A-Z_]+/)[0]], name);
+    assert.ok(step(name).includes(`\n          ${credential}\n`), name);
+  }
+});
+
+test("the subscription leg follows a key handoff or skip, and the fallback leg a subscription handoff or empty token", () => {
+  assert.match(step("Read the key's credit history"), /key-job: rate-merge-risk\n {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}\n/);
+  assert.match(step("Rate the pull request"), /if: steps\.prompt\.outcome == 'success' && steps\.credential\.outputs\.key == 'true'\n/);
+  assert.match(step("Rate the pull request on the subscription"), /&& \(steps\.rate\.outcome == 'skipped' \|\| steps\.rate\.outputs\.handoff == 'true'\)\n/);
+  assert.match(step("Rate the pull request on the fallback token"), /&& \(steps\.rate-subscription\.outputs\.handoff == 'true'\n\s+\|\| steps\.credential\.outputs\.token != 'true' && \(steps\.rate\.outcome == 'skipped' \|\| steps\.rate\.outputs\.handoff == 'true'\)\)\n/);
+  // Only the key leg's credit stop writes the marker the gate reads.
+  assert.match(step("Write the key's credit-stop marker"), /'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'\n/);
+  assert.match(step("Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
 });
 
 test("the rating runs under dontAsk on the data directory and the review plugin's copy alone", () => {
+  // Each leg is the key leg's step but for its name, id, condition and credential.
+  const shape = (name) =>
+    step(name)
+      .replace(/^ {6}- name: .+\n {8}id: .+\n {8}if: (?:>-\n(?: {10}.+\n)+|.+\n)/, "")
+      .replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): .+(?=\n)/g, "")
+      .replace(/\n+\s*(?:#.*\n\s*)*$/, "");
+  for (const name of Object.keys(LEGS)) assert.equal(shape(name), shape("Rate the pull request"), name);
   const rate = step("Rate the pull request");
   assert.match(rate, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
   assert.match(rate, /permission-mode: dontAsk\n/);

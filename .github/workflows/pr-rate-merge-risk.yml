@@ -13,9 +13,10 @@ name: pr-rate-merge-risk
 # pr-verify's: no pull request code runs here; every script and local action
 # comes from the main checkout in .base; the job token can only read; the
 # model runs on ci-workflows' run-claude-cli under its managed settings and
-# runner isolation, as the pr-verify role on PR_VERIFY_CLAUDE_API_KEY (owner
-# decision Q2), key leg only: a handoff, a credit stop or any failure leaves
-# no rating. Under dontAsk the model reads the data directory and the review
+# runner isolation, as the pr-verify role (owner decision Q2) on every model
+# lane's chain: PR_VERIFY_CLAUDE_API_KEY, then PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN
+# on a handoff, then FALLBACK_CLAUDE_CODE_OAUTH_TOKEN, with the key's credit
+# gate first; a leg that fails without a handoff leaves no rating. Under dontAsk the model reads the data directory and the review
 # plugin's read-only copy in .lane, nothing else, and gets no Bash, edit,
 # write or web tool. The model's result is untrusted: write-rating.mjs checks
 # its shape, recomputes max and demote, and takes the model ids from the
@@ -60,7 +61,8 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Three 25-minute legs at most, after the setup steps.
+    timeout-minutes: 90
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and closing issues
@@ -225,19 +227,75 @@ jobs:
           echo "model=$model" >>"$GITHUB_OUTPUT"
           echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
 
-      # Only whether the secret is set leaves this step, never its value.
-      - name: Check the credential
-        id: credential
+      # Whether the key is still out of credit (ci-workflows check-key-credit,
+      # gate.cjs: one artifact-list call for the marker the key leg uploads
+      # after a credit stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS
+      # (1 hour unset) starts the rating on the subscription, with no refused
+      # key attempt first. Probing is off; every failure runs the key.
+      - name: Read the key's credit history
+        id: credit
+        if: steps.checker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        with:
+          key-job: rate-merge-risk
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          probe-minutes: "0"
+
+      # Which legs can run, never a secret's value. The key runs unless it is
+      # empty or the credit gate skipped it; key-reason says why the rating
+      # starts on the subscription.
+      - name: Check the API key
+        id: key
         if: steps.checker.outcome == 'success'
         env:
-          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          KEY: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          SKIP_KEY: ${{ steps.credit.outputs.skip-key }}
         run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::PR_VERIFY_CLAUDE_API_KEY is empty; this head gets no rating."
-            echo "present=false" >>"$GITHUB_OUTPUT"
+          key=$KEY
+          reason=""
+          if [ "$SKIP_KEY" = true ]; then
+            key=false
+            reason=credit-stop
+          elif [ "$KEY" != true ]; then
+            echo "::warning::PR_VERIFY_CLAUDE_API_KEY is empty; the subscription leg rates"
+            reason=no-key
           fi
+          { echo "key=$key"; echo "key-reason=$reason"; } >>"$GITHUB_OUTPUT"
+
+      # The subscription and fallback tokens' presence, and whether any leg
+      # can rate.
+      - name: Check the credential
+        id: credential
+        if: steps.key.outcome == 'success'
+        env:
+          KEY: ${{ steps.key.outputs.key }}
+          KEY_REASON: ${{ steps.key.outputs.key-reason }}
+          TOKEN: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          FALLBACK: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          present=false
+          if [ "$KEY" = true ] || [ "$TOKEN" = true ] || [ "$FALLBACK" = true ]; then
+            present=true
+          else
+            echo "::warning::no Claude credential is usable; this head gets no rating."
+          fi
+          { echo "key=$KEY"; echo "key-reason=$KEY_REASON"; echo "token=$TOKEN"; echo "fallback=$FALLBACK"; echo "present=$present"; } >>"$GITHUB_OUTPUT"
+
+      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # handed off, so leg counts before and after the gate compare.
+      - name: Report the skipped key leg
+        if: steps.credit.outputs.skip-key == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: skipped
+          lane: pr-merge-risk
+          lane-id: pr-merge-risk
+          credential: PR_VERIFY_CLAUDE_API_KEY
+          known-failure-class: credit-stop
+          handoff: "true"
 
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
@@ -303,7 +361,7 @@ jobs:
       # model may share its job with the upload: the job token can only read.
       - name: Rate the pull request
         id: rate
-        if: steps.prompt.outcome == 'success'
+        if: steps.prompt.outcome == 'success' && steps.credential.outputs.key == 'true'
         continue-on-error: true
         timeout-minutes: 25
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -356,8 +414,20 @@ jobs:
           json-schema-file: ${{ runner.temp }}/merge-risk-schema.json
           leg-timeout-minutes: "20"
 
-      # One lane record per run: outcome, class, durationMs, costUsd and
-      # models, under lane pr-merge-risk, the cost per merge's baseline.
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.rate.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.rate.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
+      # One lane record per leg: outcome, class, handoff, fallback reason,
+      # durationMs, costUsd and models, under lane pr-merge-risk, the cost per
+      # merge's baseline.
       - name: Report the rating's outcome
         if: steps.rate.outcome == 'success' || steps.rate.outcome == 'failure'
         continue-on-error: true
@@ -371,30 +441,241 @@ jobs:
           step-started-at: ${{ steps.prompt.outputs.started-at }}
           step-timeout-minutes: 25
           credential: ${{ steps.rate.outputs.credential }}
+          handoff: ${{ steps.rate.outputs.handoff }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.rate.outputs.lane-class }}
+          fallback-reason: ""
+
+      # The subscription leg: when the key leg handed off (a credit stop, or a
+      # 401 or 402) or did not run (an empty key, or one the credit gate
+      # skipped). It may hand off to the fallback leg once that token is set.
+      - name: Rate the pull request on the subscription
+        id: rate-subscription
+        if: steps.prompt.outcome == 'success' && steps.credential.outputs.token == 'true' && (steps.rate.outcome == 'skipped' || steps.rate.outputs.handoff == 'true')
+        continue-on-error: true
+        timeout-minutes: 25
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          CLAUDE_CODE_SUBAGENT_MODEL: ${{ steps.checker.outputs.model }}
+          CLAUDE_CODE_SUBAGENT_MODEL_FORCE: ${{ steps.checker.outputs.force }}
+        with:
+          lane: pr-merge-risk
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/merge-risk-prompt.md
+          preamble: >-
+            You run unattended; return only the result the schema asks for;
+            never quote a credential.
+          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-ready: ${{ steps.credential.outputs.fallback }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Skill
+            Agent
+          allowed-tools: |
+            Read(./merge-risk-data/**)
+            Read(./.lane/plugins/review/**)
+            Skill(review:merge-risk *)
+            Agent
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(~/.config/**)
+            Read(~/.git-credentials)
+            Read(~/.claude/**)
+            Read(//proc/**)
+            Read(//sys/**)
+            Read(//etc/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/review
+          json-schema-file: ${{ runner.temp }}/merge-risk-schema.json
+          leg-timeout-minutes: "20"
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
-      - name: Upload the sealed transcript
-        if: always() && steps.rate.outputs.execution-file != ''
+      - name: Upload the sealed transcript on the subscription
+        if: always() && steps.rate-subscription.outputs.execution-file != ''
         continue-on-error: true
         uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
         with:
-          execution-file: ${{ steps.rate.outputs.execution-file }}
+          execution-file: ${{ steps.rate-subscription.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}
+          job-id: ${{ github.job }}-subscription
 
+      # One lane record per leg: outcome, class, handoff, fallback reason,
+      # durationMs, costUsd and models, under lane pr-merge-risk, the cost per
+      # merge's baseline.
+      - name: Report the rating's outcome on the subscription
+        if: steps.rate-subscription.outcome == 'success' || steps.rate-subscription.outcome == 'failure'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.rate-subscription.outcome }}
+          execution-file: ${{ steps.rate-subscription.outputs.execution-file }}
+          log-file: ${{ steps.rate-subscription.outputs.log-file }}
+          lane: pr-merge-risk
+          lane-id: pr-merge-risk
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 25
+          credential: ${{ steps.rate-subscription.outputs.credential }}
+          handoff: ${{ steps.rate-subscription.outputs.handoff }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.rate-subscription.outputs.lane-class }}
+          fallback-reason: ${{ steps.rate.outputs.handoff-reason || steps.credential.outputs.key-reason }}
+
+      # The fallback leg, on the central fallback token: when the subscription
+      # leg handed off (a limit stop, a credit stop, or a 401 or 402), or its
+      # token is empty and the key leg handed off or did not run.
+      - name: Rate the pull request on the fallback token
+        id: rate-fallback
+        if: >-
+          steps.prompt.outcome == 'success' && steps.credential.outputs.fallback == 'true'
+          && (steps.rate-subscription.outputs.handoff == 'true'
+          || steps.credential.outputs.token != 'true' && (steps.rate.outcome == 'skipped' || steps.rate.outputs.handoff == 'true'))
+        continue-on-error: true
+        timeout-minutes: 25
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          CLAUDE_CODE_SUBAGENT_MODEL: ${{ steps.checker.outputs.model }}
+          CLAUDE_CODE_SUBAGENT_MODEL_FORCE: ${{ steps.checker.outputs.force }}
+        with:
+          lane: pr-merge-risk
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/merge-risk-prompt.md
+          preamble: >-
+            You run unattended; return only the result the schema asks for;
+            never quote a credential.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Skill
+            Agent
+          allowed-tools: |
+            Read(./merge-risk-data/**)
+            Read(./.lane/plugins/review/**)
+            Skill(review:merge-risk *)
+            Agent
+          disallowed-tools: |
+            Read(./.base/**)
+            Read(/${{ runner.temp }}/**)
+            Read(~/.config/**)
+            Read(~/.git-credentials)
+            Read(~/.claude/**)
+            Read(//proc/**)
+            Read(//sys/**)
+            Read(//etc/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            mcp__*
+          plugin-dirs: |
+            .lane/plugins/review
+          json-schema-file: ${{ runner.temp }}/merge-risk-schema.json
+          leg-timeout-minutes: "20"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript on the fallback token
+        if: always() && steps.rate-fallback.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.rate-fallback.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-fallback
+
+      # One lane record per leg: outcome, class, handoff, fallback reason,
+      # durationMs, costUsd and models, under lane pr-merge-risk, the cost per
+      # merge's baseline.
+      - name: Report the rating's outcome on the fallback token
+        if: steps.rate-fallback.outcome == 'success' || steps.rate-fallback.outcome == 'failure'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
+        with:
+          outcome: ${{ steps.rate-fallback.outcome }}
+          execution-file: ${{ steps.rate-fallback.outputs.execution-file }}
+          log-file: ${{ steps.rate-fallback.outputs.log-file }}
+          lane: pr-merge-risk
+          lane-id: pr-merge-risk
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 25
+          credential: ${{ steps.rate-fallback.outputs.credential }}
+          handoff: ${{ steps.rate-fallback.outputs.handoff }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.rate-fallback.outputs.lane-class }}
+          fallback-reason: ${{ steps.rate-subscription.outputs.handoff-reason || 'no-key' }}
+
+      # Read by the next runs' credit gate (the "Read the key's credit
+      # history" step): the artifact its `marker` output names (check-key-credit
+      # gate.cjs markerName), uploaded only after the key leg's credit-stop
+      # handoff. The name is written out so its retention row claims it.
+      - name: Write the key's credit-stop marker
+        id: credit-marker
+        if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-rate-merge-risk.yml-rate-merge-risk' && steps.rate.outputs.handoff-reason == 'credit-stop'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
+          mkdir -p "$RUNNER_TEMP/key-credit-stop"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
+
+      - name: Scan the key's credit-stop marker for credentials
+        id: credit-marker-scan
+        if: always() && steps.credit-marker.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+
+      - name: Upload the key's credit-stop marker
+        id: credit-marker-upload
+        if: (always() && steps.credit-marker.outcome == 'success') && steps.credit-marker-scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: key-credit-stop-pr-rate-merge-risk.yml-rate-merge-risk
+          path: ${{ runner.temp }}/key-credit-stop/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      # The rating from the one leg with structured output.
       - name: Write the rating
         id: rating
-        if: ${{ !cancelled() && steps.rate.outcome == 'success' && steps.rate.outputs.structured-output-file != '' }}
+        if: ${{ !cancelled() && ((steps.rate.outcome == 'success' && steps.rate.outputs.structured-output-file != '') || (steps.rate-subscription.outcome == 'success' && steps.rate-subscription.outputs.structured-output-file != '') || (steps.rate-fallback.outcome == 'success' && steps.rate-fallback.outputs.structured-output-file != '')) }}
         env:
-          OUTPUT_FILE: ${{ steps.rate.outputs.structured-output-file }}
-          EXECUTION_FILE: ${{ steps.rate.outputs.execution-file }}
+          OUTPUT_FILE: ${{ (steps.rate-fallback.outcome == 'success' && steps.rate-fallback.outputs.structured-output-file != '') && steps.rate-fallback.outputs.structured-output-file || (steps.rate-subscription.outcome == 'success' && steps.rate-subscription.outputs.structured-output-file != '') && steps.rate-subscription.outputs.structured-output-file || steps.rate.outputs.structured-output-file }}
+          EXECUTION_FILE: ${{ (steps.rate-fallback.outcome == 'success' && steps.rate-fallback.outputs.structured-output-file != '') && steps.rate-fallback.outputs.execution-file || (steps.rate-subscription.outcome == 'success' && steps.rate-subscription.outputs.structured-output-file != '') && steps.rate-subscription.outputs.execution-file || steps.rate.outputs.execution-file }}
           PLUGIN_MANIFEST: .base/plugins/review/.claude-plugin/plugin.json
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-          CLI_VERSION: ${{ steps.rate.outputs.cli-version }}
+          CLI_VERSION: ${{ (steps.rate-fallback.outcome == 'success' && steps.rate-fallback.outputs.structured-output-file != '') && steps.rate-fallback.outputs.cli-version || (steps.rate-subscription.outcome == 'success' && steps.rate-subscription.outputs.structured-output-file != '') && steps.rate-subscription.outputs.cli-version || steps.rate.outputs.cli-version }}
           STARTED_AT: ${{ steps.prompt.outputs.started-at }}
           OUT_DIR: ${{ runner.temp }}/merge-risk-rating
         run: node .base/.github/scripts/pr-merge-risk/write-rating.mjs
