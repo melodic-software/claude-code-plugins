@@ -1,0 +1,21 @@
+{
+  "number": 99905,
+  "title": "docs: skip localhost links in the markdown link checker",
+  "author": "kyle-sexton",
+  "labels": ["needs-triage"],
+  "comments": [],
+  "open": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ]
+}
