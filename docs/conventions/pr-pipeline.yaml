@@ -945,6 +945,13 @@ models:
       role: worker
       workload: mechanical
       max-turns: 75
+    # The merge-risk rater at the review lanes' model and effort, with its
+    # checker subagent on the same model.
+    merge-risk:
+      model: opus
+      effort: high
+      subagent-model: opus
+      max-turns: 40
   default-profile: standard
   routes:
     # Resolves code conflicts, a fix on code like address-feedback's.
@@ -956,6 +963,10 @@ models:
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
+    # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
+    # through subagent-model its blind checker's model; the checker's effort
+    # stays its agent file's pin (owner decision Q1).
+    merge-risk: merge-risk
     review-code: pr-review
     review-security: pr-review
     # Also intake-triage.yml's refine-issue pass on a thin issue.
@@ -1584,6 +1595,14 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
+      # The arm path's Merge-Risk line, and the rating job's scripts that hand
+      # untrusted pull request text to a credentialed model run (#13657).
+      - glob: ".github/scripts/pr-merge/merge-risk-line.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge-risk/input.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge-risk/write-rating.mjs"
+        class: gate
       - glob: ".github/actions/report-check-run/posting-run.mjs"
         class: gate
       - glob: "scripts/sync-hold-floor.py"
@@ -1711,6 +1730,8 @@ merge:
       - glob: ".github/workflows/pr-feedback-dispatch.yml"
         class: gate
       - glob: ".github/workflows/pr-merge.yml"
+        class: gate
+      - glob: ".github/workflows/pr-rate-merge-risk.yml"
         class: gate
       - glob: ".github/workflows/pr-refine.yml"
         class: gate

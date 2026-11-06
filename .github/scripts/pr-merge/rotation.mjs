@@ -72,10 +72,11 @@ const API_BUDGET_LIB = fileURLToPath(new URL("../../actions/log-api-budget/api-b
 // the rate guard refuses it while a stop holds. Plain gh when that file cannot
 // be read. The wrapper keeps the stderr it starts with as its error copy, so
 // only the source line's stderr is silenced.
-export function countedGh(args, { token, env = process.env, stdout = "ignore" } = {}) {
+export function countedGh(args, { token, env = process.env, stdout = "ignore", timeout } = {}) {
   execFileSync("bash", ["-c", '. "$0" 2>/dev/null && api_budget_wrap_gh "${API_BUDGET_TOKEN:-}"; gh "$@"', API_BUDGET_LIB, ...args], {
     env: { ...env, GH_TOKEN: token },
     stdio: ["ignore", stdout, "inherit"],
+    ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }),
   });
 }
 
@@ -97,7 +98,8 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
 // An artifact's file `file`, fetched once per artifact id from its archive
 // endpoint. Unlike `gh run download -n`, it lists none of the run's artifacts
 // again, so a caller that already holds the id spends one request, not two.
-export function ghDownloadArtifact({ repo, token, dir, name, file, env }) {
+// `timeout` (ms) caps the fetch and the unzip each, killing either past it.
+export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout }) {
   const archives = new Map();
   return (artifactId) => {
     const key = String(artifactId);
@@ -105,13 +107,13 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env }) {
       const archive = join(mkdtempSync(join(dir, `${name}-`)), "artifact.zip");
       const fd = openSync(archive, "w");
       try {
-        countedGh(["api", `repos/${repo}/actions/artifacts/${key}/zip`], { token, env, stdout: fd });
+        countedGh(["api", `repos/${repo}/actions/artifacts/${key}/zip`], { token, env, stdout: fd, timeout });
       } finally {
         closeSync(fd);
       }
       archives.set(key, archive);
     }
-    return execFileSync("unzip", ["-p", archives.get(key), file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return execFileSync("unzip", ["-p", archives.get(key), file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
   };
 }
 
