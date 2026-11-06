@@ -86,7 +86,9 @@ one line per check, detail lines indented under it:
                       received, and a Bash pipeline of cat, head, wc, grep and
                       sed -n reading only there, with no redirect, other
                       operator or unquoted expansion, after any opening
-                      NAME=value commands whose names it expands; with
+                      NAME=value commands whose names it expands, each value
+                      a path there, and one opening cd there; several such
+                      pipelines may be joined by ; or &&; with
                       --own-copy-search-warns, so is a Read, Grep or
                       Glob aimed only at or under the plugin copy the run's
                       init line lists as loaded (a suite.root or suite.plugins
@@ -267,6 +269,15 @@ GREP_VALUE_FLAGS = {"e": False, "f": True}  # flag -> its value is a path
 GREP_LONG_FLAGS = {"--regexp": "e", "--file": "f"}
 END_OF_FLAGS = "--"
 PIPE = "|"
+# A tool-results read may run as reads joined by these, after one opening `cd`.
+SEQUENCE_OPS, CD = (";", "&&"), "cd"
+# Opening assignments a tool-results read may not make: each changes how the shell
+# or a reader finds files or programs, or what it prints.
+ENV_SENSITIVE = frozenset(
+    "PATH IFS CDPATH HOME ENV PWD OLDPWD SHELLOPTS GLOBIGNORE PS4 POSIXLY_CORRECT"
+    " TMPDIR LANG LANGUAGE NLSPATH TZ".split()
+)
+ENV_SENSITIVE_PREFIXES = ("LD_", "LC_", "GREP_", "BASH", "DYLD_")
 NUMBER = re.compile(r"\A[-+]?\d+\Z")
 # The only sed scripts that qualify: print a line, a range or a /regex/ match.
 SED_ADDRESS = r"(?:\d+|\$|/[^/\\]*/)"
@@ -1592,14 +1603,60 @@ def only_reads(command):
     return bool(segments) and all(bash_read_paths(joined(s)) is not None for s in segments)
 
 
-def bash_read_paths(command):
+def bash_sequence_reads(command):
+    """The paths a Bash command reads, for own_results_denial: after opening
+    assignments (inline_assignments) and at most one `cd <rooted dir>`, one or more
+    bash_read_paths pipelines joined only by ; or &&, a relative operand resolved
+    against the cd directory. The tuple also holds every assignment value and the
+    cd target, so each must lie where the reads do. None for an ENV_SENSITIVE
+    name, a value that is not a plain rooted path, any other operator, a cd with
+    a flag or more than one operand, a cd not first, or no read after it."""
+    resolved = inline_assignments(command) if isinstance(command, str) else None
+    if resolved is None:
+        return bash_read_paths(command)
+    names, items = resolved
+    if any(n in ENV_SENSITIVE or n.startswith(ENV_SENSITIVE_PREFIXES) for n in names):
+        return None
+    if not all(plain(v) for v in names.values()):
+        return None
+    segments, current = [], []
+    for kind, text in items + [("op", None)]:
+        if kind == "op" and text != PIPE:
+            if text not in SEQUENCE_OPS + (None,) or not current:
+                return None
+            segments.append(current)
+            current = []
+        else:
+            current.append((kind, text))
+    if len(segments) == 1 and not names:
+        return bash_read_paths(command)
+    paths, cwd = list(names.values()), None
+    first = segments[0]
+    if first[0] == ("word", CD):
+        if len(first) != 2 or first[1][0] != "word" or not plain(first[1][1]):
+            return None
+        cwd = posixpath.normpath(first[1][1])
+        paths += [first[1][1], cwd]
+        segments = segments[1:]
+    if not segments:
+        return None
+    for segment in segments:
+        found = bash_read_paths(joined(segment), cwd=cwd)
+        if found is None:
+            return None
+        paths += found
+    return tuple(paths)
+
+
+def bash_read_paths(command, cwd=None):
     """The path operands of a Bash command that only reads: a pipeline of
     BASH_READERS commands, each with only its listed flags (a grep also with
     GREP_VALUE_FLAGS, GREP_LONG_FLAGS and --), sed with -n and a
     SED_PRINT script, after any opening assignments it then expands
-    (inline_assignments). None for any other command, a redirect or other
-    operator, command substitution, an UNQUOTED_EXPANSION character outside
-    quotes, a path UNRESOLVED matches, or no path at all."""
+    (inline_assignments). A relative path joins cwd when one is given. None for
+    any other command, a redirect or other operator, command substitution, an
+    UNQUOTED_EXPANSION character outside quotes, a path UNRESOLVED matches, or no
+    path at all."""
     resolved = inline_assignments(command) if isinstance(command, str) else None
     if resolved and resolved[0]:
         command = joined(resolved[1])
@@ -1622,7 +1679,7 @@ def bash_read_paths(command):
                 return None
             segment.append(word)
             continue
-        found = segment_read_paths(segment)
+        found = segment_read_paths(segment, cwd=cwd)
         if found is None:
             return None
         paths += found
@@ -1630,7 +1687,7 @@ def bash_read_paths(command):
     return tuple(paths) if paths else None
 
 
-def segment_read_paths(words):
+def segment_read_paths(words, cwd=None):
     """The path operands of one pipeline segment, per bash_read_paths, or None."""
     if not words or words[0] not in BASH_READERS:
         return None
@@ -1639,10 +1696,20 @@ def segment_read_paths(words):
     seen, operands, paths = set(), [], []
     rest = iter(words[1:])
 
+    def resolve(word):
+        """word as a plain rooted path, a relative one joined to cwd, else None.
+        A tilde or - word is never joined: the shell expands one, a reader takes
+        the other as its input."""
+        if cwd and word and not rooted(word) and word != "-" and not word.startswith("~"):
+            word = posixpath.join(cwd, word)
+        return word if plain(word) else None
+
     def take(flag, value):
         """Record a -e or -f value; False when it is missing or an unplain file."""
         seen.add(flag)
-        if value is None or (GREP_VALUE_FLAGS[flag] and not plain(value)):
+        if GREP_VALUE_FLAGS[flag] and value is not None:
+            value = resolve(value)
+        if value is None:
             return False
         if GREP_VALUE_FLAGS[flag]:
             paths.append(value)
@@ -1678,7 +1745,8 @@ def segment_read_paths(words):
         if not operands:
             return None
         script, operands = operands[0], operands[1:]
-    if not all(plain(word) for word in operands):
+    operands = [resolve(word) for word in operands]
+    if None in operands:
         return None
     if words[0] == "sed" and ("n" not in seen or not SED_PRINT.match(script)):
         return None
@@ -1706,7 +1774,7 @@ def denials(run):
     path-less Glob's pattern root (glob_root) or None, the tool's name, the
     tool_use_id, the (tool, target) pair that names the same call in another run,
     the paths it only reads: a Read, Grep or Glob's paths, a read-only Bash
-    pipeline's path operands (bash_read_paths), else None)."""
+    command's paths (bash_sequence_reads), else None)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -1735,7 +1803,7 @@ def denials(run):
         else:
             paths = (path if isinstance(path, str) else None,)
         if name == BASH_TOOL:
-            reads = bash_read_paths(tool_input.get(BASH_COMMAND))
+            reads = bash_sequence_reads(tool_input.get(BASH_COMMAND))
         else:
             reads = paths if name in TOOL_RESULTS_READERS else None
         out.append(
@@ -2006,8 +2074,8 @@ def allowed_bash_paths(run, denied_id):
 
 
 def own_results_denial(run, denial):
-    """True when the denial is a Read, Grep or Glob, or a read-only Bash pipeline
-    (bash_read_paths), whose every target path is under the run's own
+    """True when the denial is a Read, Grep or Glob, or a read-only Bash command
+    (bash_sequence_reads), whose every target path is under the run's own
     config/projects/<project>/<session>/tool-results/. Claude Code writes a large
     tool result there and the model reads it back; the run's permission settings
     deny its config directory, so the read is denied whatever the case does. It
