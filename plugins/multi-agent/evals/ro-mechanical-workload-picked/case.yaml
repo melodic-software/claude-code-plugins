@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: 'ro-mechanical-workload-picked'
+graders:
+  - name: 'invoked-route'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:multi-agent:)?route"'
+    min: 1
+    arm: 'with-only'
+  - name: 'ran-route-mechanical'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?route\.sh)(?=(?:[^"\\]|\\.)*?[ \t]worker\b)(?=(?:[^"\\]|\\.)*?[ \t]mechanical\b)'
+    min: 1
+    arm: 'with-only'
+  - name: 'no-code-workload'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'route\.sh(?:[^"\\]|\\.)*?[ \t]code\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'worker-line-sonnet'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single sonnet @ medium; fanout sonnet @ medium\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'names-opt-out-key'
+    type: 'regex'
+    pattern: 'roles\.worker\.workloads\.mechanical\.model\b[`*]*\s*[:=]\s*[`*]*inherit\b'
+    target: 'last_message'

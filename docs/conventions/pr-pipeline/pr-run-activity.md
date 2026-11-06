@@ -653,8 +653,8 @@ persists no credentials, so a `read` script cannot push. A leaf that sets `check
 the trusted base checkout at `.base`, credentials not persisted, and gets `TRUSTED_ACTORS` as a
 `review-replies` script does. The write file also exports its
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
-`report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
-to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
+`report-escalation` leaf reads, and `TRACKER_CONFIG`, the `tracker` mapping of the base's
+`docs/conventions/work-items.yaml` copied as JSON to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
 (or its recorded absence) before the script runs. It exports `APP_SENDER_ID` and
 `ESCALATION_REASON_FILE`, and with `review-replies` `FEEDBACK_REPLIES_DIR` and `TRUSTED_ACTORS`
 ([prepare: review-threads](#prepare-review-threads)).

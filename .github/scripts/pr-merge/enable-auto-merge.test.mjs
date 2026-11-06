@@ -89,7 +89,7 @@ const ENV = {
   KILL_SWITCH: "proceed",
   REPORT_ONLY: "false",
   LANES_BOT_LOGIN: "melodic-automation-lanes[bot]",
-  TRACKER_CONFIG: "/nonexistent/.work-item-tracker.json",
+  TRACKER_CONFIG: "/nonexistent/work-items.yaml",
   RESOLVED_CONFIG: fileURLToPath(new URL("./fixtures/enable-auto-merge-resolved.json", import.meta.url)),
 };
 

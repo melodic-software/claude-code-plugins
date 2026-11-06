@@ -1759,9 +1759,9 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const scriptRules = [`${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
     [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
   );
-  // drive's Affected script stays refused: its --out write follows a symlink the head or the sandbox can plant.
+  // drive's Affected step (app-control drive SKILL.md:150), isolated, main's copy only; the script replaces a link at its output rather than writing through it.
   const affected = `${WS}/.base/plugins/app-control/scripts/affected_features.py`;
-  const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
+  const otherRules = [...scriptRules, `Bash(python3 -I ${affected} *)`, "Bash(claude plugin list --json)", "Bash(cmp *)"];
   assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules, ...otherRules].sort());
   const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
   // What the control skill and run-e2e run passes.
@@ -1775,6 +1775,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     `git -C ${WS}/head fetch origin 'main'`,
     `bash "${WS}/.base/plugins/testing/scripts/resolve-config.sh" e2e --user 'e2e_driver=auto' --user 'reuse_running_instance=auto'`,
     `bash "${WS}/.base/plugins/testing/scripts/check-browser-driver.sh" --user 'browser_driver=playwright'`,
+    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
     "claude plugin list --json",
     "cmp /tmp/before.diff /tmp/after.diff",
   ]) assert.ok(allowed(command), command);
@@ -1785,7 +1786,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "wget https://example.com",
     "python3 -c 'print(1)'",
     "python -c 'print(1)'",
-    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
+    `python3 ${affected} --out /tmp/x`,
     "python3 -I head/plugins/app-control/scripts/affected_features.py --out /tmp/x",
     `python3 -I ${WS}/head/plugins/app-control/scripts/affected_features.py --out /tmp/x`,
     "bash -c 'curl https://example.com'",

@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.2] - 2026-11-06
+
+### Fixed
+
+- run distill's progress-key script and `unzip -l` as single Bash calls
+
+  The progress-key command and the EPUB entry listing each run alone, and the
+  plugin data state and EPUB cache are checked with Glob or Read, so no command
+  chains a listing of the plugin data directory with other commands.
+
 ## [1.3.1] - 2026-11-06
 
 ### Fixed

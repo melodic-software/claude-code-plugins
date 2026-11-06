@@ -90,8 +90,8 @@ when this pass must stop instead of guessing.
    `empty`). Exit `1` names a value it cannot copy (a null, an empty object, a list of mappings);
    `3` an `OVERRIDE` path that no `.gitignore` rule covers or that the index holds; `4` a repository
    where no home applies or whose pointer is broken. Each writes nothing and is a finding to report. The JSON files
-   stay where they are, unchanged: babysit-prs, the autonomy plugin's resolve-prerequisites, and the
-   work, triage, attend-queue and track preflights still read only them. Say so, and say that a later
+   stay where they are, unchanged: older installed plugin versions and the repository's own tooling
+   may still read only them. Say so, and say that a later
    binding edit lands only in the YAML file. Then treat the copy as the current binding. If neither
    file binds the repository, say so and continue to the interview.
 2. **Choose the provider**, recommendation first. One line each below; the selection detail,

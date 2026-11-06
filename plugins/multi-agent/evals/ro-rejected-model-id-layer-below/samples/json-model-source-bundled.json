@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"inherit\",\"effort\":\"medium\"},\"fanout\":{\"model\":\"inherit\",\"effort\":\"medium\"},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"}}}}\n```",
+      "why": "bundled source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"inherit\"},\"fanout\":{\"model\":\"inherit\"},\"source\":{\"model\":\"personal-override\",\"effort\":\"bundled\"}}}}\n```",
+      "why": "override as source"
+    },
+    {
+      "answer": "The model comes from the bundled defaults.",
+      "why": "no JSON"
+    }
+  ]
+}

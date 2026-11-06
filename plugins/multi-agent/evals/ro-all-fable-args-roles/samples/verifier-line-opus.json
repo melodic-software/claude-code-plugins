@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verifier: single inherit: omit the model option @ high; fanout opus @ high (basis: model judgment, fanout model unrecorded, effort upstream)",
+      "why": "contract line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verifier: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high",
+      "why": "fanout inherit"
+    },
+    {
+      "answer": "verifier: single opus @ high; fanout opus @ high",
+      "why": "single names opus"
+    }
+  ]
+}
