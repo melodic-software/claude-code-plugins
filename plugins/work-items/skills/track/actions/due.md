@@ -37,10 +37,12 @@ fi
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
 
 1. **Cross-reference with open items.** For each due recurring item, check if one already exists
-   (adapter: "List items", `--label <resolved recurring-maintenance label>`, bare read). Match against
-   the FULL expected title `[Maintenance] {schedule item title}`, never by the bare `[Maintenance]`
-   prefix alone (that would let any recurring item satisfy every due row), and never by a
-   prefix/substring of the title (a shorter title would spuriously match a longer item).
+   (adapter: "List items", `--label <resolved recurring-maintenance label>`, with bodies, bare
+   read). An item matches the row whose `id` its body's `<!-- recurring-schedule id=<id> -->` line
+   names, exactly, never by title
+   ([`reference/issue-conventions.md`](../../../reference/issue-conventions.md)
+   "Recurring marker"). List an open labeled item with no marker under the orphaned entries as
+   `unlinked: #<n>`, never matched to a row.
 
 1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 
@@ -64,6 +66,7 @@ fi
 
 **Orphaned entries** (in schedule but no matching item):
 - {id}: {title} -- create item or remove entry
+- unlinked: #{number} -- add its recurring-schedule marker
 ```
 
 If nothing is due: "All recurring items are current. Next due: **{item}** on **{date}**."

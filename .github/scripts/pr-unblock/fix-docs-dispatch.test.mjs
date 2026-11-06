@@ -227,7 +227,7 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
   const pulls = [
     pr(20, { author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP } }),
     pr(21, { author: { __typename: "Bot", login: "dependabot", databaseId: DEPENDABOT } }),
-    pr(22, { author: { __typename: "Bot", login: "melodic-plugin-release", databaseId: RELEASE_APP } }),
+    pr(22, { author: { __typename: "Bot", login: "melodic-release", databaseId: RELEASE_APP } }),
     pr(23, { author: { __typename: "Bot", login: "melodic-standards-sync", databaseId: STANDARDS_SYNC_APP } }),
     pr(24, { author: { __typename: "Bot", login: "claude", databaseId: 209825114 } }),
     pr(25),
