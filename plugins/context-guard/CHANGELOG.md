@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.7] - 2026-11-06
+
+### Changed
+
+- Shared `hook-utils.sh` synced where this plugin carries it: an opt-in shfmt parse memo that only the guardrails Bash dispatcher turns on (#6634); no change to this plugin's behavior.
+
 ## [3.0.6] - 2026-11-05
 
 ### Fixed
