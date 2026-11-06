@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Candidates from the live list: Agent, Bash, Edit, Glob, Grep, LSP, Monitor, Read, Skill, ToolSearch, Write.",
+      "why": "full list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Candidates: Bash, Edit, Read, Write, WebFetch.",
+      "why": "memorized inventory"
+    },
+    {
+      "answer": "Candidates: LSP, Bash, Edit.",
+      "why": "Monitor left out"
+    }
+  ]
+}
