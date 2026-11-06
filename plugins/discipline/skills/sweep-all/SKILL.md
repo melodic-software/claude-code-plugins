@@ -78,7 +78,7 @@ rank-ordered single correction pass, and the consolidated report. Do not begin s
 preflight's output alone. Session-start digest mode never reaches it.
 
 Before step 4, resolve the verification level once with
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill sweep-all` and
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill sweep-all --file docs/conventions/discipline.yaml` and
 report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 It governs step 4's fresh-context escalation only: `light` and `off` skip that subagent as the
 shared method doc says, and the fork audit is unaffected.

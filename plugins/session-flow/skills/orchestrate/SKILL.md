@@ -204,7 +204,7 @@ To choose between a workflow and subagents, and the model and effort each spawn 
 section changes how a subagent's model is chosen; record: `context/sources.md`, "Priming addendum:
 model and effort routing").
 Resolve the repository's verification level once with
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill orchestrate`
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill orchestrate --file docs/conventions/session-flow.yaml`
 and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 It governs imperative 3 in this session: under `light`, and `off`, which acts as `light` here,
 hand nothing to a verifier and never self-audit in its place; write `verification: skipped

@@ -59,7 +59,7 @@ never used in its place. An invalid value never stops the run.
 | `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | retired: no effect. The page offers one theme choice, the canonical chrome's System/Light/Dark toggle, so no session or team setting sets its accent; a file that still sets the key stays valid | none |
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once; `[]` shows prototype questions as text | `[screenshot, snapshot]` | same: which prototype views guests get | repository file over default |
 | `shared_session_open_browser` | `true`, `false` | `true` | same: opens the owner's page in the browser at start | user config over default |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | `/planning:plan` Step 3: the plan-reviewer dispatch, through `lib/read-verification.sh` | repository file `<home>/planning.yaml` only (`docs/conventions` unless the repository binds another convention home), read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | `/planning:plan` Step 3: the plan-reviewer dispatch, through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 
 `phase_order` values, in phase order:
 
@@ -142,7 +142,7 @@ plan_panel_rubric:
 Three interview keys and one plan key resolve through the bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
-`<home>/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
+`docs/conventions/planning.yaml`, then the personal file `<home>/planning.local.yaml`.
 `answer_audit_rounds`, `wayfind_suggest_questions` and `plan_stress_test` have no `userConfig`
 option, so they skip that layer.
 
@@ -209,7 +209,7 @@ heading means no team probe topics.
 
 ## Interview page keys
 
-The `interview_page.*` keys sit under one `interview_page` object in `<home>/planning.yaml` and
+The `interview_page.*` keys sit under one `interview_page` object in `docs/conventions/planning.yaml` and
 `<home>/planning.local.yaml`, `<home>` resolved as in "Convention-home keys", and have no
 user-config option. They keep the names the page's Settings tab shows (`undoSeconds`,
 `frontierLock`), so a value moves between the files, a `--user-settings` file and the data dir's

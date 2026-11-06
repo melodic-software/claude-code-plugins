@@ -65,7 +65,7 @@ Agent({
 
 **Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line, and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **Skipping the verifier for cost**, write `verification: skipped (cost)`; never leave `pending` after this boundary. First run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill research` and report its line; dispatch.md ("The verification level") says what each level does. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **Skipping the verifier for cost**, write `verification: skipped (cost)`; never leave `pending` after this boundary. First run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill research --file docs/conventions/discovery.yaml` and report its line; dispatch.md ("The verification level") says what each level does. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 

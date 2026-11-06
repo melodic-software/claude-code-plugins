@@ -45,7 +45,7 @@ flags), written into the dispatch prompt as the labeled template in the
 [parent contract](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), and owns the **post-dispatch
 boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier for tier
 assignment, and writing that verdict back into the index. Before that verifier, run
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill trace-intent` and
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill trace-intent --file docs/conventions/discovery.yaml` and
 report its line: `light` and `off` skip it and write `verification: skipped (<level>)`, per the
 parent contract's "The sibling verifier, stated once".
 

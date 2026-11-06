@@ -888,7 +888,7 @@ with the failed rows named, and the result is presented with that caveat (`skill
 
 **The verification level.** Before the post-dispatch boundary, each family's SKILL.md resolves
 the plugin's `verification` level with its copy of `lib/read-verification.sh --plugin discovery
---skill <research|explore|trace-intent>`, and the parent reports its line
+--skill <research|explore|trace-intent> --file docs/conventions/discovery.yaml`, and the parent reports its line
 ([levels](../../../docs/contracts/verification-level/README.md)). `standard` is this section. Under
 `light`, and `off`, which acts as `light` here, dispatch no verifier and never grade its criterion
 yourself in its place: write `verification: skipped (<level>)` over `pending` and tell the user the

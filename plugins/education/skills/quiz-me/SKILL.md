@@ -86,7 +86,7 @@ builder. With Node missing, write the markdown fallback and say the page was not
   the artifact supports rather than what its author remembers meaning. Without a fresh sub-agent
   surface, re-derive the key from the artifact alone before embedding it. The verification level
   governs that pass: resolve it once with
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin education --skill quiz-me` and
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin education --skill quiz-me --file docs/conventions/education.yaml` and
   report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
   Under `light`, and `off`, which acts as `light` here, run no fresh-context pass and no
   re-derivation in its place: the key keeps the authored answers and carries
