@@ -65,6 +65,14 @@ the optional MCP servers above. Generated state (session archives, run history, 
 baselines) is written to the plugin's own persistent data directory (`${CLAUDE_PLUGIN_DATA}`), never
 into your project tree.
 
+A repository can commit `event-storming.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/event-storming.schema.json`](schemas/event-storming.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/event-storming:simulation` dispatches its fresh-context rubric scorer: `light` and `off` skip it and leave every criterion `unscored`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).
