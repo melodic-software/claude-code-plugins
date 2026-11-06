@@ -85,9 +85,9 @@ needs no Miro, so a missing Process Modeling board is surfaced as the missing pr
 **Flow:**
 
 1. **Setup.** MCP preflight (Miro availability per "Miro availability & graceful degradation" above), domain research (3+ web-research searches. Perplexity MCP if present, else `WebSearch`; default domain "Developer Conference"), persona setup (4-7 personas, three-zone DEEP/GREY/PRETEND knowledge, 5 shared focal moments). Session lifecycle (ID, dirs, teardown) and preflight detail: `@./reference/agentic-simulation.md` "Session lifecycle".
-2. **Big Picture** (always first). Run every workshop phase in order (Chaotic Exploration → Enforce Timeline → People & Systems → Explicit Walk-through → Reverse Narrative → [optional] Add the Money / Value Exploration → Problems & Opportunities → Arrow Voting → Wrapping Up) per `@./reference/agentic-simulation.md` "Round-Based Orchestration", taking a visual-verification screenshot at each transition; then run the post-workshop visual check (Ch. 9) and score against the Big Picture rubric.
+2. **Big Picture** (always first). Run every workshop phase in order (Chaotic Exploration → Enforce Timeline → People & Systems → Explicit Walk-through → Reverse Narrative → [optional] Add the Money / Value Exploration → Problems & Opportunities → Arrow Voting → Wrapping Up) per `@./reference/agentic-simulation.md` "Round-Based Orchestration", taking a visual-verification screenshot at each transition; then run the post-workshop visual check (Ch. 9) and have the board scored against the Big Picture rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3).
 3. **Post-workshop analysis + interactive progression.** Run bounded-context discovery (architect's homework, not a workshop phase. See `--discover-bcs` below), present the arrow-voting winner and discovered BCs, then use AskUserQuestion to let the user pick the next BC to Process Model, then Design-Level, repeating per BC. **Never auto-advance formats. The user chooses each step.**
-4. **Evaluation & codification.** Score all boards against the full rubric, compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines, run the retrospective protocol (`@./reference/simulation-evaluation.md`), update the run-state store with version metrics / board URLs / findings, present the version comparison, and clean up old boards with user approval.
+4. **Evaluation & codification.** Have all boards scored against the full rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3); the context that ran the simulation never scores it. Then compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines, run the retrospective protocol (`@./reference/simulation-evaluation.md`), update the run-state store with version metrics / board URLs / findings, present the version comparison, and clean up old boards with user approval.
 
 Throughout, maintain an **exploration map** (Big Picture URL, all BCs explored + unexplored, per-BC Process Modeling and Design-Level board URLs) on the Big Picture board as a cyan sticky and in the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`). Layout detail in `@./reference/agentic-simulation.md`.
 
@@ -101,7 +101,7 @@ When invoked with `--process-model` or `--design-level`, run a single format aga
 2. If a BC name is given, extract relevant events from the BP board for that context
 3. If a board URL is given, read it directly
 4. Execute Process Modeling with 3-pass technique on the selected scope
-5. Score against PM rubric
+5. Have the board scored against the PM rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3)
 6. Ask user if they want to continue to Design-Level
 
 **`--design-level [board-url-or-bc-name]`:**
@@ -110,14 +110,14 @@ When invoked with `--process-model` or `--design-level`, run a single format aga
 2. If no prior Process Modeling board exists for the BC, surface the missing prerequisite and offer to run `--process-model` first. Never fabricate a process model or aggregates from scratch
 3. Extract the process model (events, commands, policies)
 4. Execute Design-Level with Blank Aggregates technique
-5. Score against DL rubric
+5. Have the board scored against the DL rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3)
 6. Update the exploration map with the new aggregate information
 
 ## Running an Evaluation (`--evaluate`)
 
 When invoked with `--evaluate`, run the iteration workflow against existing boards WITHOUT re-running the simulation. Use this to re-score boards, compare versions, or verify that fixes improved quality.
 
-**Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, score against rubric, compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines.
+**Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, have it scored against the rubric in a fresh context (`simulation-evaluation.md` "How to Run an Evaluation", step 3), compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines.
 
 ## Bounded Context Discovery Protocol (`--discover-bcs`)
 
