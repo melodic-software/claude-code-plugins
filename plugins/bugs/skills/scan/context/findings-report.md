@@ -49,7 +49,7 @@ when the gate proposed a check that did not run.
 
 **Severity**: <low | medium | high | critical>
 **Suggested fix location**: `<file path>` `<function or class>` (no patch)
-**Evidence**: reproduced | verified-by-reading
+**Evidence**: reproduced | verified-by-reading | unverified
 **Lens**: <lens id, e.g. lens-2 boundary/edge-case>
 **Scope**: in-lane | out-of-lane (via `<scoped path>`)
 **Proposed check**: `<exact command>`, not run: <unattended | declined | unanswered | could not run>
@@ -84,7 +84,9 @@ when the gate proposed a check that did not run.
 Rules:
 
 - A finding without a verbatim evidence quote does not go in the report. There is no "needs
-  confirmation" tier for scan findings. The gate already decided.
+  confirmation" tier for scan findings. The gate already decided. The one exception is
+  `unverified`, written only when a `light` or `off` verification level skipped the gate
+  (SKILL.md Step 4); the run metadata then carries `verification: skipped (<level>)`.
 - `reproduced` findings state the command the person approved and what it showed.
   `verified-by-reading` findings state why no check ran: no cheap check existed, the run was
   unattended, or the person declined it. A proposed check that did not run is listed with its
