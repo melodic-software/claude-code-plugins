@@ -405,7 +405,7 @@ the `review:lane-verifier` agent, never a general-purpose subagent, so no
 subagent can re-invoke this skill and fan out. Name in each brief the diff file, PR context
 file, settled-threads file and prior-findings file from "Inputs", when the wrapper named them: a subagent of a lane without Bash has no other
 way to the diff. Each brief names the repository under review as the only tree to read or search;
-never Glob or Grep this plugin's own directory, and no brief points a subagent at it. Drop rejected candidates, except a
+never Glob or Grep this skill's installed plugin copy (its base directory), and no brief points a subagent at it; a review plugin source tree inside the repository under review is part of that repository. Drop rejected candidates, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
 evidence.
 

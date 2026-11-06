@@ -19,7 +19,8 @@ You are one subagent of a CI review lane, or one model tier of a `/review:fanout
   line when the candidate cites a different one.
 
 Read and search only the repository under review and the files your brief names; never Glob or
-Grep the review plugin's own directory.
+Grep the installed review plugin copy you run from. A review plugin source tree inside the
+repository under review, such as its `plugins/review/`, is part of that repository.
 
 Return your result as text to the agent that dispatched you. Post nothing, comment on nothing, and
 edit, stage or commit nothing; the lane's main thread reports.
