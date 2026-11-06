@@ -2684,6 +2684,14 @@ test("pull_request_target dispatcher: a recorded commit off the default branch r
   assert.deepEqual(await targetDispatched({ github }), STOPPED("untrusted-actor"));
 });
 
+test("pull_request_target dispatcher: a push-form record naming a short commit refuses even where that commit is on main", async () => {
+  const github = fakeGitHub({
+    ...targetRoutes({ dispatcher: { status: "completed" }, artifacts: targetRecord(`pr-unblock-dispatched-4444444-${SELF_RUN_ID}`) }),
+    [`GET /repos/${REPOSITORY}/compare/4444444...${TIP_SHA}`]: { status: "ahead" },
+  });
+  assert.deepEqual(await targetDispatched({ github }), STOPPED("untrusted-actor"));
+});
+
 test("pull_request_target dispatcher: a pr-unblock.yml run refuses, whatever dispatched-workflow says", async () => {
   const github = fakeGitHub({ ...targetRoutes(), [selfRoute]: fixture("api-run-self.json") });
   assert.deepEqual(await targetDispatched({ github, dispatchedWorkflow: DISPATCHED_WORKFLOW }), STOPPED("untrusted-actor"));
