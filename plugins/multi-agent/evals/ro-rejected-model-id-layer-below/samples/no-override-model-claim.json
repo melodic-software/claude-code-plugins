@@ -7,6 +7,22 @@
     {
       "answer": "worker: single inherit: omit the model option @ medium; fanout inherit: omit the model option @ medium",
       "why": "inherit"
+    },
+    {
+      "answer": "Your override uses claude-opus-5-5, which is rejected",
+      "why": "the override, not the worker, uses the id"
+    },
+    {
+      "answer": "Your `.claude/multi-agent.local.yaml` uses `claude-opus-5-5`, a full model id, so the resolver rejects it and the layer below supplies the model.",
+      "why": "the user's file is the subject"
+    },
+    {
+      "answer": "the worker never uses claude-opus-5-5",
+      "why": "never negation"
+    },
+    {
+      "answer": "The worker isn't running on claude-opus-5-5; the bundled model applies.",
+      "why": "n't negation with running"
     }
   ],
   "fail": [
@@ -17,6 +33,14 @@
     {
       "answer": "worker: single claude-opus-5-5 @ medium; fanout claude-opus-5-5 @ medium",
       "why": "role line with the id"
+    },
+    {
+      "answer": "For research work the worker now runs on `claude-opus-5-5`.",
+      "why": "worker runs on the id, code span"
+    },
+    {
+      "answer": "The worker role resolved to claude-opus-5-5 from your override.",
+      "why": "past-tense resolve claim"
     }
   ]
 }

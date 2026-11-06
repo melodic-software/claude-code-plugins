@@ -40,7 +40,7 @@ graders:
     target: 'last_message'
   - name: 'no-override-model-claim'
     type: 'regex'
-    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single claude-|"model"\s*:\s*"claude-|(?<!not )(?<!n''t )(?<!n’t )\b(?:runs?|uses?|resolves?[ \t]+to)[ \t]+(?:on[ \t]+)?`?claude-opus-5-5'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single claude-|"model"\s*:\s*"claude-|\bworker\b[^\n.]{0,40}?(?<!not )(?<!n''t )(?<!n’t )(?<!never )\b(?:runs?|running|ran|uses?|using|used|(?:resolves?|resolving|resolved)[ \t]+to)[ \t]+(?:on[ \t]+)?`?claude-opus-5-5'
     flags: 'im'
     match: 'not_contains'
     target: 'last_message'

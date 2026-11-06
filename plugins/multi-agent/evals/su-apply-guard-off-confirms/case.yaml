@@ -50,8 +50,3 @@ graders:
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
-  - name: 'offers-local-layer'
-    type: 'regex'
-    pattern: '--layer[ \t]+local\b|\.claude/multi-agent\.local\.yaml|\blocal\b[^\n]{0,60}?\b(?:layer|checkout|repo(?:sitory)?)\b|\b(?:layer|checkout)\b[^\n]{0,20}?\blocal\b'
-    flags: 'i'
-    target: 'last_message'

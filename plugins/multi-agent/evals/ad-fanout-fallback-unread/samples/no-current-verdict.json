@@ -7,6 +7,14 @@
     {
       "answer": "| fanout | frontier_guard | true | unread | the current page could not load |",
       "why": "current inside prose cell"
+    },
+    {
+      "answer": "| Owner | Key | Current | Verdict | Evidence | Proposed |\n|---|---|---|---|---|---|\n| fanout | model | opus | unread | workflows#cost | none |",
+      "why": "Current header cell above a separator"
+    },
+    {
+      "answer": "| Owner | Key | **Current** | Verdict |\n| :--- | :--- | :---: | ---: |\n| fanout | model | opus | unread |",
+      "why": "bold header cell above an aligned separator"
     }
   ],
   "fail": [
@@ -17,6 +25,14 @@
     {
       "answer": "| fanout | frontier | fable | `current` | workflows#cost |",
       "why": "code-span current"
+    },
+    {
+      "answer": "| Owner | Key | Current | Verdict |\n|---|---|---|---|\n| fanout | model | opus | current |\n| fanout | frontier_guard | true | unread |",
+      "why": "current verdict row under a Current header"
+    },
+    {
+      "answer": "| fanout | model | opus | current |\n| - | - | - | unread |",
+      "why": "current row followed by a placeholder row, not a separator"
     }
   ]
 }

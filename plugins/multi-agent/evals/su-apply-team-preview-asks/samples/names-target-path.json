@@ -3,6 +3,18 @@
     {
       "answer": "would write: docs/conventions/multi-agent.yaml (team layer)",
       "why": "path"
+    },
+    {
+      "answer": "```\nwould write: /opt/eval/ws/docs/conventions/multi-agent.yaml (team layer)\n--- a/docs/conventions/multi-agent.yaml\n+++ b/docs/conventions/multi-agent.yaml\n```",
+      "why": "absolute path as setup.sh prints it"
+    },
+    {
+      "answer": "**Would write:** `docs/conventions/multi-agent.yaml`",
+      "why": "bold label, code-span path"
+    },
+    {
+      "answer": "**Proposed change.** I chose the `team` layer because you want this for everyone on the repo. It creates `docs/conventions/multi-agent.yaml`, which is shared with everyone who clones the repository:",
+      "why": "measured smoke-1 reply: create verb before the path"
     }
   ],
   "fail": [
@@ -13,6 +25,18 @@
     {
       "answer": "It writes the team file.",
       "why": "no path"
+    },
+    {
+      "answer": "- team (`docs/conventions/multi-agent.yaml`): absent",
+      "why": "layers row from the before map, no preview"
+    },
+    {
+      "answer": "- team (`docs/conventions/multi-agent.yaml`): absent\nwould write: /opt/eval/ws/.claude/multi-agent.local.yaml (local layer)",
+      "why": "team path only in the layers row, preview names another layer"
+    },
+    {
+      "answer": "- `team`: `docs/conventions/multi-agent.yaml`, shared with everyone who clones the repository",
+      "why": "layer option relayed with no write or create verb"
     }
   ]
 }

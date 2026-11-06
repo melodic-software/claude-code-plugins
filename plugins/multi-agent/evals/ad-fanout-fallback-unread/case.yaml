@@ -32,7 +32,7 @@ graders:
     target: 'last_message'
   - name: 'no-current-verdict'
     type: 'regex'
-    pattern: '^[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[`*]*current[`*]*[ \t]*\|'
+    pattern: '^[ \t]*\|(?:[^\n|]*\|)*?[ \t]*[`*]*current[`*]*[ \t]*\|(?![^\n]*\n[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$)'
     flags: 'im'
     match: 'not_contains'
     target: 'last_message'
