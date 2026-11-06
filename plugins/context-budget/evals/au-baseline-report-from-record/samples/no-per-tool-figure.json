@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "System tools: 9,874 tokens. Per-tool costs need an attribution run; none is measured yet.",
+      "why": "no per-tool figure"
+    },
+    {
+      "answer": "Candidates: LSP, Monitor, Bash.",
+      "why": "names only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Bash | ~1,200 tokens |",
+      "why": "per-tool estimate"
+    },
+    {
+      "answer": "LSP probably costs about 800 tokens.",
+      "why": "invented per-tool figure"
+    }
+  ]
+}

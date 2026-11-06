@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Claude Code CLI (build box) | INFO | two installs resolve |",
+      "why": "row"
+    },
+    {
+      "answer": "INFO: both installs resolve; the audit asks which to pin.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Claude Code CLI | FAIL | two installs |",
+      "why": "FAIL"
+    },
+    {
+      "answer": "Two installs resolve.",
+      "why": "no verdict"
+    }
+  ]
+}

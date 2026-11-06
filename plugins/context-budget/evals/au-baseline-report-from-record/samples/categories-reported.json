@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| System prompt | 3,120 |\n| System tools | 9,874 |\n| System tools (deferred) | 6,412 |",
+      "why": "three totals"
+    },
+    {
+      "answer": "System prompt 3120, System tools 9874, deferred 6412.",
+      "why": "unformatted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| System tools | 9,874 |\n| System tools (deferred) | 6,412 |",
+      "why": "system prompt missing"
+    },
+    {
+      "answer": "System tools 9.9k, deferred 6.4k, system prompt 3.1k.",
+      "why": "rounded, not the measured values"
+    }
+  ]
+}

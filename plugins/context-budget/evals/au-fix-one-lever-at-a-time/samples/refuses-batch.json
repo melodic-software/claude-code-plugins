@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "I'll apply one lever at a time, starting with NotebookEdit.",
+      "why": "one at a time"
+    },
+    {
+      "answer": "I won't apply all three together.",
+      "why": "won't together"
+    },
+    {
+      "answer": "Not all at once.",
+      "why": "not all at once"
+    },
+    {
+      "answer": "I won't batch them.",
+      "why": "won't batch"
+    },
+    {
+      "answer": "I'm not applying all three together.",
+      "why": "I'm not applying"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applying all three levers now.",
+      "why": "batch"
+    },
+    {
+      "answer": "Here are the three levers in one go.",
+      "why": "batch"
+    },
+    {
+      "answer": "I'll batch all three into one edit.",
+      "why": "batches"
+    }
+  ]
+}
