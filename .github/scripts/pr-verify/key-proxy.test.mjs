@@ -69,10 +69,10 @@ const okJson = (usage = { input_tokens: 1, output_tokens: 1 }) => (_req, _body, 
   res.end(JSON.stringify({ type: "message", content: [], usage }));
 };
 
-async function startProxy(upstream, overrides = {}) {
+async function startProxy(upstream, overrides = {}, options = {}) {
   const config = loadConfig({ ...BASE_CONFIG, ...overrides }, upstream.url);
   const logs = [];
-  const { server, budget } = createProxy({ key: KEY, config, log: (e) => logs.push(e) });
+  const { server, budget } = createProxy({ key: KEY, config, log: (e) => logs.push(e), ...options });
   servers.push(server);
   const socket = path.join(tempDir("kp-"), "p.sock");
   await new Promise((r) => server.listen(socket, r));
@@ -808,4 +808,107 @@ test("the script exits non-zero on a missing key or a bad config", async () => {
   writeFileSync(noTimeout, JSON.stringify({ ...BASE_CONFIG, upstreamTimeoutMs: undefined }));
   assert.equal(await spawnProxy(["--socket", path.join(dir, "d.sock"), "--config", noTimeout], KEY).exited, 2);
   assert.equal(await spawnProxy(["--config", good], KEY).exited, 2);
+});
+
+// The loopback listener the capture's driver legs use: a client key in place
+// of the real one, required on every request.
+const CLIENT_KEY = `ccd-outer-${"c".repeat(32)}`;
+
+test("a client key admits only requests carrying it: a wrong, missing or real key is refused 401 before anything goes upstream", async () => {
+  const up = await stubUpstream(okJson());
+  const { socket, logs } = await startProxy(up, {}, { clientKey: CLIENT_KEY });
+  const refused = [{}, { "x-api-key": "ccd-outer-wrong" }, { "x-api-key": KEY }, { "x-api-key": `${CLIENT_KEY}x` }, { authorization: `Bearer ${CLIENT_KEY}` }];
+  for (const headers of refused) assertRefused(await call(socket, { headers, body: message() }), 401, "authentication_error");
+  assertRefused(await call(socket, { url: "/v1/messages/count_tokens", body: countBody() }), 401, "authentication_error");
+  assert.equal(up.seen.length + up.counts.length, 0);
+  assert.equal(logs.filter((l) => l.status === 401).length, refused.length + 1);
+
+  const ok = await call(socket, { headers: { "x-api-key": CLIENT_KEY }, body: message() });
+  assert.equal(ok.status, 200);
+  assert.equal(up.seen.length, 1);
+  assert.equal(up.seen[0].headers["x-api-key"], KEY);
+  assert.ok(!JSON.stringify(logs).includes(CLIENT_KEY), "client key logged");
+});
+
+test("a client key equal to the held key, or empty, is refused at construction", () => {
+  const config = loadConfig(BASE_CONFIG, "http://127.0.0.1:1");
+  assert.throws(() => createProxy({ key: KEY, config, clientKey: KEY }), /clientKey/);
+  assert.throws(() => createProxy({ key: KEY, config, clientKey: "" }), /clientKey/);
+});
+
+test("relayPreflightErrors relays a 400 or 401 preflight answer as sent, where the default proxy refuses it 403", async () => {
+  const credit = '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}';
+  const auth = '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}';
+  for (const [status, body] of [[400, credit], [401, auth]]) {
+    const up = await stubUpstream(okJson(), { countTokens: (res) => res.writeHead(status, { "content-type": "application/json", "request-id": "req_1" }).end(body) });
+    const relaying = await startProxy(up, {}, { relayPreflightErrors: true });
+    const relayed = await call(relaying.socket, { body: message() });
+    assert.equal(relayed.status, status);
+    assert.equal(relayed.body, body);
+    assert.equal(relayed.headers["request-id"], "req_1");
+    assert.equal(relaying.budget.reserved, 0);
+
+    const plain = await startProxy(up);
+    assertRefused(await call(plain.socket, { body: message() }), 403, "permission_error");
+    assert.equal(up.seen.length, 0);
+  }
+});
+
+// A free loopback port: bound once, then released for the script to take.
+async function freePort() {
+  const s = http.createServer();
+  await new Promise((r) => s.listen(0, "127.0.0.1", r));
+  const { port } = s.address();
+  await new Promise((r) => s.close(r));
+  return port;
+}
+
+function callPort(port, { headers = {}, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/v1/messages", headers: { "content-type": "application/json", ...headers } }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.on("error", reject);
+    req.end(JSON.stringify(body));
+  });
+}
+
+test("with --listen the script serves a loopback port that needs the client key from stdin, and the socket still needs none", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream(okJson());
+  const dir = tempDir("kp-");
+  const config = path.join(dir, "config.json");
+  writeFileSync(config, JSON.stringify(BASE_CONFIG));
+  const socket = path.join(dir, "p.sock");
+  const port = await freePort();
+  const p = spawnProxy(["--socket", socket, "--config", config, "--upstream", up.url, "--listen", String(port)], `${KEY}\n${CLIENT_KEY}\n`);
+  try {
+    await until(() => p.out.stderr.includes(`"listening":"127.0.0.1:${port}"`));
+    assert.equal((await callPort(port, { body: message() })).status, 401);
+    assert.equal((await callPort(port, { headers: { "x-api-key": KEY }, body: message() })).status, 401);
+    assert.equal(up.seen.length, 0);
+    assert.equal((await callPort(port, { headers: { "x-api-key": CLIENT_KEY }, body: message() })).status, 200);
+    assert.equal((await call(socket, { body: message() })).status, 200);
+    assert.equal(up.seen.length, 2);
+    assert.ok(up.seen.every((s) => s.headers["x-api-key"] === KEY));
+    await until(() => p.out.stderr.split("\n").filter((l) => l.includes('"status":200')).length === 2);
+  } finally {
+    p.child.kill("SIGTERM");
+    await p.exited;
+  }
+  const lines = p.out.stderr.split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((e) => e.status !== undefined);
+  assert.deepEqual(lines.map((e) => `${e.listener} ${e.status}`), ["loopback 401", "loopback 401", "loopback 200", "socket 200"]);
+  for (const k of [KEY, CLIENT_KEY]) assert.ok(!p.out.stderr.includes(k) && !p.out.stdout.includes(k), "a key logged");
+  assert.ok(!p.child.spawnargs.some((a) => a.includes(CLIENT_KEY)));
+});
+
+test("--listen without a second stdin line, or with the key repeated there, exits 2", { timeout: 10_000 }, async () => {
+  const dir = tempDir("kp-");
+  const config = path.join(dir, "config.json");
+  writeFileSync(config, JSON.stringify(BASE_CONFIG));
+  const port = String(await freePort());
+  assert.equal(await spawnProxy(["--socket", path.join(dir, "a.sock"), "--config", config, "--listen", port], `${KEY}\n`).exited, 2);
+  assert.equal(await spawnProxy(["--socket", path.join(dir, "b.sock"), "--config", config, "--listen", port], `${KEY}\n${KEY}\n`).exited, 2);
+  assert.equal(await spawnProxy(["--socket", path.join(dir, "c.sock"), "--config", config, "--listen", "0"], `${KEY}\n${CLIENT_KEY}\n`).exited, 2);
 });
