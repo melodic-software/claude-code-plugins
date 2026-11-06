@@ -3,10 +3,11 @@ name: distill-target-name-slugified
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: slug-skill-named
-    type: regex
-    pattern: '(?:^|[\s`''"(\[<])(?![^\s`''"()\[\]<>]*\.\.)(?:[^\s`''"()\[\]<>]*/)?\.claude/skills/outside-notes(?![\w-]|\.\w)'
-    target: last_message
+  - name: slug-skill-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?![^"]*\.\.)(?:[^"]*/)?\.claude/skills/outside-notes/SKILL\.md"'
+    min: 1
   - name: no-traversal-write
     type: tool_used
     tool: Write
