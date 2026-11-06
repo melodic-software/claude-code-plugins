@@ -197,14 +197,16 @@ test("an unreadable base tracker config holds adopted owner PRs only, and no ado
   assert.deepEqual(await run(without, [ciFixPull(63)], [], "{not json"), { code: 0, dispatched: ["40", "63"] });
 });
 
-test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {
-  const pulls = [docsPull(61), docsPull(62), docsPull(63)];
-  assert.match(LIVE, /^ {2}fix-docs-per-run: 0$/m, "the live config turns CI fix-docs off (#7576, D100)");
-  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40"] });
-  const two = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 2");
-  assert.deepEqual(await run(two, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
-  const one = LIVE.replace(/^ {2}fix-docs-per-run: 0$/m, "  fix-docs-per-run: 1");
+test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches, and a work-resolve-issue PR is skipped", async () => {
+  // The lanes App's PR on a lane branch tidied in its own run (#13717 issuecomment-6692723687).
+  const lanePull = { ...docsPull(60), author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP }, headRefName: "work-resolve-issue/issue-12-345-1" };
+  const pulls = [lanePull, docsPull(61), docsPull(62), docsPull(63)];
+  assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config turns CI fix-docs on at 2 a run (#13717)");
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
+  const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
   assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
+  const off = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 0");
+  assert.deepEqual(await run(off, [], pulls), { code: 0, dispatched: ["40"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

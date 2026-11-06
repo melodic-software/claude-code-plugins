@@ -5,6 +5,9 @@
 // lane fix-docs ran in before), the owner's call to tidy every PR but
 // Dependabot's, the release App's and the standards-sync App's, and once per
 // PR, as pr-refine.yml's old trigger ran it when a PR opened or turned ready.
+// work-resolve-issue's PRs, the lanes App's on a lane branch
+// (work-resolve-issue/issue-<n>-<run>-<attempt>), are skipped: they tidied in
+// their own run (#13717 issuecomment-6692723687).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -229,6 +232,27 @@ test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the 
     pr(25),
   ];
   assert.deepEqual(numbers((await run({ pages: [pulls] })).api), ["20", "24"]);
+});
+
+const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP };
+
+test("a work-resolve-issue PR (the lanes App's, on a lane branch) is skipped; the App's other PRs and a person's lane-named branch are not", async () => {
+  const pulls = [
+    pr(30, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-12-345-1" }),
+    pr(31, { author: LANES_BOT, headRefName: "chore/x" }),
+    pr(32, { headRefName: "work-resolve-issue/issue-12-345-1" }),
+    pr(33, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-1-x" }),
+  ];
+  const { api, record } = await run({ pages: [pulls] }, { appSenderId: LANES_APP, maxDispatch: 5 });
+  assert.deepEqual(numbers(api), ["31", "32", "33"]);
+  assert.equal(isHandled(record, CHECK, pr(30).headRefOid), false, "a skipped lane PR is not recorded as handled");
+});
+
+test("without a valid lanes App id no PR is skipped as a work-resolve-issue PR", async () => {
+  for (const appSenderId of [undefined, Number.NaN, "337595936"]) {
+    const pulls = [pr(34, { author: LANES_BOT, headRefName: "work-resolve-issue/issue-12-345-1" })];
+    assert.deepEqual(numbers((await run({ pages: [pulls] }, { appSenderId })).api), ["34"], String(appSenderId));
+  }
 });
 
 test("an excluded account is matched by id, not login, and a PR whose author has no id is not dispatched", async () => {

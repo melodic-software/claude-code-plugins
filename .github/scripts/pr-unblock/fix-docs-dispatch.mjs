@@ -3,8 +3,9 @@
 // file, carries no hold label (the human-gated one only when a lane escalation
 // put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
 // either lane fix-docs has run in, whoever opened it except the accounts in
-// excludedAuthorIds. It runs from the same dispatcher run as dispatch.mjs
-// (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
+// excludedAuthorIds, and is not a work-resolve-issue PR (the lanes App's, on a
+// lane branch), which tidied in its own run. It runs from the same dispatcher
+// run as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
 // they check a resolve-conflicts dispatch.
 //
 // Once per PR, when it is first seen ready, not after each push. The listing is
@@ -47,6 +48,7 @@
 // is gone does.
 
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
@@ -103,7 +105,7 @@ export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: In
 
 // Why a listed PR is not a candidate, or "" when it is one.
 // The human-gated gateLabel is left to dispatchDocsFixes's prHold read.
-export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null }) {
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -113,6 +115,12 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
   }
   if (excludedAuthorIds.includes(author)) {
     return "opened by an excluded account";
+  }
+  // work-resolve-issue tidies its own change in its run (its `tidy` key,
+  // #8485). Both terms: the App's other PRs never tidied, and anyone can name
+  // a branch. author is a safe integer, so an unset or malformed id skips none.
+  if (author === appSenderId && laneBranchIssue(node.headRefName) !== null) {
+    return "a work-resolve-issue PR, tidied in its own run";
   }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name) && label?.name !== gateLabel)) {
     return "held";
@@ -244,7 +252,7 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel });
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId });
       if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {

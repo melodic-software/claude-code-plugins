@@ -775,9 +775,9 @@ test("live config: a Refine pass missing its order or group, or one off the refi
   }
 });
 
-test("live config: CI fix-docs is off, fix-docs-per-run 0 (#7576, D100)", () => {
+test("live config: CI fix-docs is on, fix-docs-per-run 2 (#13717 issuecomment-6692723687)", () => {
   const { limits } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
-  assert.equal(limits["fix-docs-per-run"], 0);
+  assert.equal(limits["fix-docs-per-run"], 2);
 });
 
 test("live config: fix-docs does not apply to a draft PR", () => {
