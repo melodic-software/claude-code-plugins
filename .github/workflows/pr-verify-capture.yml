@@ -51,8 +51,9 @@ name: pr-verify-capture
 # which head code could have changed; the capture is untrusted data to its
 # only reader, and nothing here can write.
 #
-# The credit gate (ci-workflows check-key-credit) skips the key while its
-# last credit stop is inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset).
+# The credit gate (ci-workflows select-model-credential, reading
+# check-key-credit's history) skips the key while its last credit stop is
+# inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset).
 # The capture job uploads the gate's credit-stop marker after its probe's
 # credit stop, and the probing marker when the gate names this run the
 # probe; both before the head checkout, from this run's own evidence. A
@@ -120,10 +121,8 @@ jobs:
       actions: read # the upstream run, and verdicts already uploaded
     # For capture-subscription's `if`, each compared there to a fixed string.
     outputs:
-      handoff: ${{ steps.probe.outputs.handoff }}
-      handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     # npm's fetch bound and flags for "Install the driven Claude Code"'s npm
     # ci, from main's checkout.
     env:
@@ -250,27 +249,41 @@ jobs:
             exit 1
           fi
 
-      # Whether the key is still out of credit: a credit stop of this job's
-      # probe inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1 hour unset)
-      # skips the key, and capture-subscription captures. One artifact-list
-      # call for the `marker` this job uploads after that stop, and a second
-      # for the probing marker once the stop is past the window but still
-      # kept (ci-workflows check-key-credit gate.cjs). Every failure runs the
-      # key: skip-key is then empty.
+      # Whether the key is still out of credit (select-model-credential's
+      # start call: check-key-credit's artifact-list read for the `marker`
+      # this job uploads after a credit stop). Its own step, under
+      # continue-on-error and a 2-minute limit, so a read that fails or hangs
+      # leaves next-leg empty and the key runs. It runs only where the key
+      # call below does, so a run that skips there spends no call.
       - name: Read the key's credit history
         id: credit
         if: steps.agree.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: capture
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
+
+      # Whether the key runs: it is set, and the read above did not hold it
+      # off (selected). Only whether the secret is set reaches the action,
+      # never its value.
+      - name: Check the credential
+        id: credential
+        if: steps.agree.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: pr-verify
+          credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          selected: ${{ steps.credit.outputs.next-leg }}
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credential.outputs.key-skipped == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -284,29 +297,13 @@ jobs:
       # The verify-pr route's model, turns and effort, as the judge's.
       - name: Resolve the capture's model
         id: models
-        if: steps.agree.outcome == 'success' && steps.credit.outputs.skip-key != 'true'
+        if: steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-capture-models.json
-
-      # Only whether the secret is set leaves this step, never its value. An
-      # empty key hands the capture to capture-subscription.
-      - name: Check the credential
-        id: credential
-        if: steps.agree.outcome == 'success' && steps.credit.outputs.skip-key != 'true'
-        env:
-          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
-          SECRET_NAME: PR_VERIFY_CLAUDE_API_KEY
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty; this job captures nothing."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
 
       # Read by the next runs' gates: the probing marker the gate names
       # (gate.cjs probeName) when this run tries the key first after a credit
@@ -1024,6 +1021,21 @@ jobs:
           rm -f -- "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link" "$GITHUB_WORKSPACE/capture-run/probe-write-link"
           echo "::notice::the reach probe found nothing head code or the driver's file tools can read"
 
+      # The leg capture-subscription runs, from this job's credential decision
+      # and its probe's handoff (select-model-credential), before any head
+      # code. It has no if:, so it names a leg only when every step before it
+      # passed, and capture-subscription also needs this job's success, as
+      # before.
+      - name: Pick the next leg
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
+
       # persist-credentials false keeps the job token out of .git/config. The
       # whole history, so run-e2e can diff from the base.
       - name: Check out the pull request head
@@ -1431,9 +1443,7 @@ jobs:
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.capture.result == 'success'
-      && (needs.capture.outputs.handoff == 'true'
-      || needs.capture.outputs.credential-present == 'false'
-      || needs.capture.outputs.skip-key == 'true')
+      && needs.capture.outputs.next-leg == 'subscription'
     runs-on: ubuntu-24.04
     # Its gates take a minute or two; find-capture.mjs WAIT_MS waits five
     # minutes past this.
@@ -1445,7 +1455,7 @@ jobs:
       actions: read # the upstream run, and verdicts already uploaded
     # Why this leg runs, for its notice.
     env:
-      LEG_FALLBACK_REASON: ${{ needs.capture.outputs.handoff-reason || needs.capture.outputs.credential-present == 'false' && 'no-key' || needs.capture.outputs.skip-key == 'true' && 'credit-stop' || '' }}
+      LEG_FALLBACK_REASON: ${{ needs.capture.outputs.next-reason }}
     steps:
       - name: Resolve main's tip
         id: tip
