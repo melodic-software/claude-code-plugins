@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.10.0] - 2026-11-06
+
+### Added
+
+- The `/work-items:work` bug path keeps step 2's inspection read-only, and a fresh-context subagent confirms each reproduction capture shows the named broken state; a capture it does not confirm counts as a run that did not reproduce.
+- A `verification` level (`off`, `light`, `standard`, `strict`) and per-skill `verification_skills` in `docs/conventions/work-items.yaml`, read from the default branch by `lib/read-verification.sh --file docs/conventions/work-items.yaml` and validated by `schemas/work-items.schema.json`. Under `light` and `off`, the capture check dispatches no subagent and records `verification: skipped (<level>)`.
+- Eval cases `wk-bug-report-shape-edited-in-place`, `wk-bug-light-skips-capture-check` and `wk-bug-report-ignores-foreign-marker`.
+
+- A seven-condition fix gate on `/work-items:work`'s bug path, under `bug_path.fix_gate` in `docs/conventions/work-items.yaml`, read from the default branch. `confirmed_repro`, `evidence_reviewed`, `no_fix_artifact`, `no_human_claim` and `root_cause_evidenced` are floors that stay on (a `false` is named and ignored); `before_after_runnable` defaults on; `budget_minutes` (90) and `scope` bound the fix. A failing condition stops the run with no fix and no PR, naming the condition.
+
+- `filing_posture` (`manual-only`, the default, or `allowed`) is now a work-items key in
+  `docs/conventions/work-items.yaml`, repository layer only: the team policy for a scanner's
+  explicit filing argument such as `/bugs:scan --track`. It moved from the bugs plugin.
+- An eval case for "no ticket when unsure": `track add` for an unreproduced signal that
+  near-matches an open item files nothing and records it there as seen again.
+
+### Changed
+
+- Skills refer to the legacy untrusted label by the `WIT_LEGACY_UNTRUSTED_LABEL` constant in `tools/work-item-tracker/lib/labels.sh` instead of writing out the string. They now link to `reference/label-taxonomy.md`, which links the class-labels reference. The frontier floor, the provenance-removal hold and the attended-queue flip rules still read the legacy label. The skill eval data no longer uses the dropped class labels.
+
+- The bug path's report comment (first line `<!-- work-items:investigation outcome=<outcome> desired=cause-named -->`) now covers both modes, not only `investigate`, and is edited in place through the adapter's comment edit rather than followed by a second comment. The run edits it by the id it kept, or finds it by its first line among comments authored by its own write identity only; it never edits another author's comment. In full mode the report posts before the dispatch, and a run whose brief has no Root cause field records the new outcome `cause-unconfirmed`. It adds a status line rewritten at each later step, the repro count and surface, a test-gap line, an instruction to the fixing agent, and the item's report quoted as data.
+
 ## [11.9.1] - 2026-11-06
 
 ### Fixed
