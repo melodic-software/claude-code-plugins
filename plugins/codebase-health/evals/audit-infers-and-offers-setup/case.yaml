@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: audit-infers-and-offers-setup
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reports-config-absent
+    type: regex
+    pattern: '\b(?:no|found no)[ \t]+(?:tracked |team |audit )?`?(?:\.claude/)?codebase-health\.md`?[ \t]+(?:config(?:uration)?[ \t]+)?(?:file[ \t]+)?(?:was[ \t]+|is[ \t]+)?(?:found|present|exists)\b|codebase-health(?:\.local)?\.md`?[ \t]*(?::|is|was)?[ \t]*(?:not found|absent|missing|does not exist|doesn''t exist|is not present|isn''t present|no such file)\b|\bno (?:tracked |team |audit |codebase-health )?config(?:uration)?(?: file)? (?:was |is )?(?:found|present|exists)\b|\b(?:config(?:uration)?|codebase-health\.md`?)[ \t]+(?:is[ \t]+|was[ \t]+)?(?:absent|missing)\b'
+    flags: 'i'
+    target: last_message
+  - name: config-lookup-first
+    type: llm
+    criteria: 'Before the first Agent call that dispatches discovery (or, when no Agent call is made, before the final reply lists the audited targets), the trace shows the run looking for the codebase-health config: a Read, Glob or Grep call, or a Bash command such as ls, test, find or cat, that names codebase-health.md or lists the .claude directory. It fails when no such lookup appears, or when it appears only after discovery was dispatched.'
+    focus: trace
+  - name: offers-setup
+    type: regex
+    pattern: '/?codebase-health:setup\b'
+    target: last_message
+  - name: no-config-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-hardcoded-layout
+    type: llm
+    criteria: 'The documentation the reply says it audited comes from what this repository holds: README.md is its only documentation file and it has no docs/ directory. The reply does not present a fixed layout from some other repository (for example a docs/ tree, plugins/*/skills pages, ADR folders or .claude/rules files) as files it audited or as this repository''s layout. Naming docs/**/*.md only as a default glob that matched nothing passes.'
+    focus: last_message

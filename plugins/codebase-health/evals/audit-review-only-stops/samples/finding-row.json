@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | README says `npm run serve` starts the dev server, but package.json has no `serve` script | Read `package.json:9-12` |",
+      "why": "exact table row"
+    },
+    {
+      "answer": "## 1. error: README.md:9\n\nThe README tells you to run `npm run serve`, but package.json defines only `start` and `test`.",
+      "why": "hash heading then prose"
+    },
+    {
+      "answer": "**README.md (line 9)**: `npm run serve` is missing from package.json scripts (only start and test exist).",
+      "why": "bold heading with line in parens"
+    },
+    {
+      "answer": "- `README.md` L9 — error, doc-drift: the `serve` script does not exist; package.json has `start`.",
+      "why": "list item with L form"
+    },
+    {
+      "answer": "| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | error | doc-drift | `README.md:9` | No `serve` script in package.json | Read `package.json:9-12` |",
+      "why": "terse row, negation before serve"
+    },
+    {
+      "answer": "README.md:9 says `npm run serve`; package.json defines `start` and `test`.",
+      "why": "contrast by naming the defined scripts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Verified non-issues\n\n- README.md:9 `npm run serve` matches package.json scripts",
+      "why": "serve claim listed as verified"
+    },
+    {
+      "answer": "| 1 | error | doc-drift | `package.json:9` | no `serve` script | Read README |",
+      "why": "finding attached to package.json, not README line"
+    },
+    {
+      "answer": "README.md:11 claims tests live in test/, but no test file is missing anything.",
+      "why": "wrong claim, no serve"
+    },
+    {
+      "answer": "The README's `npm run serve` line is missing from package.json.",
+      "why": "no README line number"
+    }
+  ]
+}

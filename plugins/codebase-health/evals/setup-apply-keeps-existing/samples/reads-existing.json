@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.claude/codebase-health.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/setup/templates/config-template.md"
+          }
+        }
+      ],
+      "why": "the template only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.claude/codebase-health.local.md"
+          }
+        }
+      ],
+      "why": "the override only"
+    }
+  ]
+}

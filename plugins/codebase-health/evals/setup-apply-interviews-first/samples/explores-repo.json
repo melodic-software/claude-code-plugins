@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/package.json"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/packages/ledger-client/package.json"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*"
+          }
+        }
+      ],
+      "why": "no Read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/plugins/codebase-health/README.md"
+          }
+        }
+      ],
+      "why": "the plugin's README, not the repo's"
+    }
+  ]
+}

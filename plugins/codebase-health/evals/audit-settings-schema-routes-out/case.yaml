@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: audit-settings-schema-routes-out
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-owner-lane
+    type: regex
+    pattern: 'harness-config:audit\b(?!-)'
+    flags: 'i'
+    target: last_message
+  - name: reports-uncovered
+    type: regex
+    pattern: '\bout of (?:(?:this|the|my) (?:skill''s |audit''s )?)?scope\b|\boutside (?:(?:of )?(?:this|the|my) )?(?:skill''s |audit''s )?(?:scope|lane|remit)\b|\b(?:un|not |isn''t |is not )covered\b|\bbelongs? (?:to|in) (?:a |another |the )?(?:different |separate |adjacent )?(?:lane|skill|plugin|/?harness-config)\b|\bowned by\b|\b(?:another|a different|a separate|an adjacent) (?:lane|skill)\b|\bnot (?:something )?(?:this|the) (?:skill|audit) (?:checks|covers|verifies|owns)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-available-claim
+    type: regex
+    pattern: '(?<!\bif )(?<!\bif the )(?<!\bwhen )(?<!\bwhen the )(?<!\bonce )(?<!\bonce the )(?<!\bwhether )(?<!\bwhether the )(?<!\bunless )(?<!\bunless the )\bharness-config\b(?:(?!\b(?:if|when|once|unless|whether)\b)[^\n.]){0,60}?\b(?:is|''s|are) (?:installed|available|loaded|enabled)\b|(?<!\bif )(?<!\bwhen )\byou have\b[^\n.]{0,40}?\bharness-config\b[^\n.]{0,40}?\b(?:installed|enabled)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-harness-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?harness-config:'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-settings-fanout
+    type: tool_used
+    tool: 'Agent'
+    input_match: 'settings(?:\.local)?\.json|\.mcp\.json'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-settings-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-settings-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'

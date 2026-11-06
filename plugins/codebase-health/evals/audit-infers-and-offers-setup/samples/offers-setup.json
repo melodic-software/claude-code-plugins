@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Run /codebase-health:setup apply to persist these targets."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the setup skill to persist these targets.",
+      "why": "skill not named"
+    },
+    {
+      "answer": "Persist them in .claude/codebase-health.md yourself.",
+      "why": "no setup offer"
+    }
+  ]
+}

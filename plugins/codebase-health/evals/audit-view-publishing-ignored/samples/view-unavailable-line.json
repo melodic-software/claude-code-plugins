@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "view: auto (plugin default)\nThe optional view is unavailable: visualization:visualize is not installed."
+    },
+    {
+      "answer": "visualization:visualize isn't installed, so there is no rendered view."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: auto (plugin default)",
+      "why": "no unavailable line"
+    },
+    {
+      "answer": "The implementation plugin is not installed.",
+      "why": "another plugin"
+    }
+  ]
+}

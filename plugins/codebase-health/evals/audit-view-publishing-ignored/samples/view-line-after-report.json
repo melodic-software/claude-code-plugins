@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n\nview: auto (plugin default)",
+      "why": "line after the report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: auto (plugin default)\n\n### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n",
+      "why": "line before the report"
+    },
+    {
+      "answer": "### Verified non-issues\n- Node 20 or newer: `engines.node` is `>=20` (Read `package.json:5`)\n- Port 3000 unless PORT is set (Read `src/config.js:1`)\n\n",
+      "why": "no resolver line"
+    }
+  ]
+}

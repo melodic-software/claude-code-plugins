@@ -1,0 +1,10 @@
+---
+description: "setup apply with no config on a repo whose targets need the user. setup is user-invoked only (disable-model-invocation: true), so the case starts with its slash command and carries no Skill grader. setup SKILL.md lines 60-72: explore the repo to draft each dimension's sources before asking; lines 73-75: interview one decision at a time, each dimension's drafted globs with a recommendation; line 79: write the config only after that. Lines 52-53 let apply proceed without asking where the repo makes the values unambiguous, so the fixture makes them ambiguous: a second package under packages/ (is it a source root of its own?) and an archived docs page beside a current one (audit it or not?). explores-repo grades a Read of a repo file; asks-with-recommendation a reply that recommends, names the documentation dimension and asks; no-config-write, no-config-edit and config-not-created that no config is written in this turn; no-plugin-dir-write that nothing is written into the plugin or plugin data directory (setup SKILL.md lines 103-104). AskUserQuestion is left out so the ask lands in the reply text. Writes under the workspace .claude/ are denied in an eval run, so a run that writes anyway shows as a denied Write. Needs --scaffold --allow-tools Bash Write Edit."
+tags: [codebase-health, setup, outcome, interview, no-network]
+max_turns: 30
+timeout_seconds: 900
+allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit]
+expected_outcome: "The run reads the repo's files, then the reply presents drafted sources for the documentation dimension with a recommendation and asks the user to accept or change them. No .claude/codebase-health.md is written or edited, and nothing is written into the plugin directory."
+---
+
+/codebase-health:setup apply

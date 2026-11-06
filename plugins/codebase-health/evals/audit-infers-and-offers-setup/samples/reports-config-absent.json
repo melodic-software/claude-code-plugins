@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "No `.claude/codebase-health.md` config was found, so I inferred the targets from the repo."
+    },
+    {
+      "answer": "Config: `.claude/codebase-health.md` not found; inferred README.md."
+    },
+    {
+      "answer": "No tracked config found; inferred README.md as the documentation set."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved `.claude/codebase-health.md`: documentation lists README.md.",
+      "why": "config present"
+    },
+    {
+      "answer": "Targets: README.md.",
+      "why": "no config lookup stated"
+    },
+    {
+      "answer": "### Config-gap observations\nNo gaps worth adding to `.claude/codebase-health.md`.",
+      "why": "the config-gap section"
+    },
+    {
+      "answer": "Config-gap observations: `src/` is missing from `.claude/codebase-health.md`.",
+      "why": "the config-gap section"
+    }
+  ]
+}

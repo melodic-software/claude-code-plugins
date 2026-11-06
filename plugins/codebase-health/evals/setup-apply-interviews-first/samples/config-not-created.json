@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "notes.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/codebase-health.md"
+      ],
+      "why": "config created"
+    }
+  ]
+}

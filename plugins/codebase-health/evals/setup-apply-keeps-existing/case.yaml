@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: setup-apply-keeps-existing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-existing
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.claude/codebase-health\.md"'
+    min: 1
+    arm: 'both'
+  - name: summarizes-baseline
+    type: regex
+    pattern: '^(?=[\s\S]*\bapi-contracts\b)(?=[\s\S]*\bdocumentation\b)'
+    flags: 'i'
+    target: last_message
+  - name: proposes-against-baseline
+    type: llm
+    criteria: 'The reply treats the existing .claude/codebase-health.md as the baseline: it summarizes what the file holds now (its documentation and api-contracts dimensions) and proposes changes against it, such as fixing or dropping the docs/**/*.md glob that matches no files, while keeping the api-contracts dimension unless the user confirms removing it. It fails if it presents a fresh config that replaces the file wholesale, drops api-contracts without asking, or says it already wrote or overwrote the file.'
+    focus: last_message
+  - name: no-config-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?codebase-health(?:\.local)?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: config-kept
+    type: regex
+    pattern: '^## api-contracts$'
+    flags: 'm'
+    target: { source: file, path: .claude/codebase-health.md }
+  - name: no-plugin-dir-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:/codebase-health/(?:skills|lib|evals|\.claude-plugin)/|/plugins/data/)'
+    min: 0
+    max: 0
+    arm: 'both'
