@@ -44,6 +44,8 @@ for the repository to delete.
 | `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
 | `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance` (matches per 1000 words; density rules also need at least 3 matches) |
 | `rule_allowed_paths` | map of rule slug to glob list | Files that decline that one rule |
+| `verification` | `off`, `light`, `standard`, `strict` | How much independent checking `/ai-slop:audit` runs; team file only, read from the default branch by `lib/read-verification.sh`, never by `--show-config` ([levels](../../../../docs/contracts/verification-level/README.md)) |
+| `verification_skills` | map of skill name to level | A per-skill `verification` level that beats the plugin value; same reader and layer |
 
 Record the rationale for a choice as a YAML comment above the key: a config that disables a rule
 without recording why is the drift this skill exists to catch. A legacy JSON file carries it as a
