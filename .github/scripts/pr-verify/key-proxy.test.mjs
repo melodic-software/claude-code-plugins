@@ -327,7 +327,7 @@ test("content allowlist: block types outside the list and any source other than 
   const { socket } = await startProxy(up);
   const base64 = { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } };
   const nested = { type: "tool_result", tool_use_id: "toolu_1", content: [{ type: "text", text: "see" }, base64] };
-  // tool_use input carries JSON `type` values that are not block types.
+  // The proxy does not walk tool_use input, so a `type` key there is not checked.
   const toolUse = { type: "tool_use", id: "toolu_1", name: "Write", input: { type: "url", source: { type: "url" } } };
   const textDoc = { type: "document", source: { type: "text", media_type: "text/plain", data: "d" } };
   const allowed = message({ messages: [{ role: "assistant", content: [toolUse] }, { role: "user", content: [nested, textDoc] }], system: [{ type: "text", text: "s" }] });

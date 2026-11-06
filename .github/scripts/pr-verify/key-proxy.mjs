@@ -218,8 +218,9 @@ export function createUsageMeter(streaming) {
 
 // Content blocks in messages and system, walked at every depth through a
 // block's `content` and a content-type source's `content` (the nesting this
-// proxy checks, our decision). tool_use input and tool schemas are not
-// walked: their `type` strings are JSON values, not block types.
+// proxy checks, our decision). We do not walk tool_use input or tool schemas:
+// we treat them as data the model or tool definition supplies, and checking
+// their `type` keys as block types would refuse ordinary JSON (our decision).
 function contentRefusal(content, config) {
   const stack = [content];
   while (stack.length) {
@@ -518,8 +519,8 @@ export function createProxy({ key, config, log = () => {} }) {
     });
 
     // No response byte relayed yet: a retryable answer either way. Once the
-    // body was fully written upstream, generation may have run (a
-    // non-streaming response sends nothing until it ends), and Claude Code
+    // body was fully written upstream, we assume generation may have run and
+    // be billed even though no response byte came back (our decision), and Claude Code
     // resends a retryable failure, so the full reservation is committed;
     // it is released only when the connection failed before the body was
     // written (our decision). Bytes relayed: drop the client and commit as
