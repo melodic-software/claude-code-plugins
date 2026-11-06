@@ -675,7 +675,7 @@ row 2 cites its head.
   fails still only fails to vouch, so a later refusal keeps its reason.
 - `Note the hold` now follows the gate in each pr-verify job (`.github/workflows/pr-verify.yml:233`)
   and runs on the resolver's `held` or the gate's `read-fault`. For the gate it prints the
-  `::notice title=pr-verify::held: ` line `reconcile.mjs` `heldNoted` reads, so the reconciler
+  `::notice title=pr-verify::held:` line `reconcile.mjs` `heldNoted` reads, so the reconciler
   re-runs the run once, and attempt 2 checks the trigger again from scratch. A rate-guard stop still
   fails the gate step red, as a gate must, and the reconciler re-runs that red run as before.
 - Signal 13 counts both pr-verify holds (`signals.mjs` `HOLD_LANES`, `:429`), with the fixed reasons
