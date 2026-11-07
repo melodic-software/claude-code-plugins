@@ -405,6 +405,34 @@ scenario none none merge-lane-pending green
 run "an empty ignore list judges the merge lane's check" 'gh pr merge 42 --squash' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=
 assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
 
+# --- 3a. hold labels ------------------------------------------------------------
+# Owner sessions queued pull requests that already carried pr-verify-failed
+# (#13883, #13705, #13708, #13791); the merge group then failed on that label.
+# labeled <names...>: an otherwise mergeable PR carrying these labels.
+labeled() {
+  scenario none none green green
+  jq -c --args '.labels = [$ARGS.positional[] | {name: .}]' "$@" <"$FIX/pr.json" >"$FIX/pr.next" &&
+    mv "$FIX/pr.next" "$FIX/pr.json"
+}
+ENQUEUE_LITERAL='gh api graphql -F id=PR_kwDOabc -F head=abc123 -f query='"'"'mutation($id: ID!, $head: GitObjectID!) { enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) { mergeQueueEntry { position } } }'"'"''
+labeled pr-verify-failed
+run "a pr-verify-failed PR is held from an auto-merge" 'gh pr merge 42 -R acme/widgets --auto --match-head-commit abc123' 2
+assert_contains "pr-verify-failed -> names the label" "$ERR" "Hold labels: pr-verify-failed."
+labeled pr-verify-failed
+run "a pr-verify-failed PR is held from an enqueue mutation" "$ENQUEUE_LITERAL" 2
+assert_contains "enqueue -> names the label" "$ERR" "Hold labels: pr-verify-failed."
+labeled "Do-Not-Merge" "security: outside-actor"
+run "hold labels match without case" 'gh pr merge 42 --squash' 2
+assert_contains "names both hold labels" "$ERR" "Hold labels: Do-Not-Merge, security: outside-actor."
+labeled merge-path:owner-agent enhancement
+run "a PR with only other labels merges" 'gh pr merge 42 -R acme/widgets --auto' 0
+assert_eq "other labels -> no stderr" "" "$ERR"
+labeled do-not-merge
+run "an empty hold list holds on no label" 'gh pr merge 42 --squash' 0 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=
+labeled hold-me
+run "a configured hold label holds" 'gh pr merge 42 --squash' 2 "CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=a, hold-me"
+assert_contains "configured label -> named" "$ERR" "Hold labels: hold-me."
+
 # --- 3b. a PR that changes a workflow or action definition file ---------------
 # Modeled on ci-workflows#951: both review lanes failed because they ran the
 # base branch's broken copy of the action the PR fixes, and ci-status, the one
