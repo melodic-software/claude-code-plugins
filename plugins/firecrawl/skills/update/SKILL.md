@@ -69,10 +69,8 @@ Nothing destructive happens without explicit approval. Four guarantees:
    write.
 3. **Rollback path.** `upstream.md` records the *previous* CLI version before each upgrade. If a new
    version breaks something, the rollback is one line: `npm install -g firecrawl-cli@<previous-version>`;
-   when something else owns the `firecrawl` command, update that owner's pin instead. A global
-   install updates itself in the background, so run `firecrawl update --disable-auto` before that
-   reinstall, or use `firecrawl update --rollback`, which restores the previous release and turns
-   automatic updates off. Revert the
+   when something else owns the `firecrawl` command, update that owner's pin instead. Run
+   `firecrawl update --disable-auto` first so the CLI does not update itself back. Revert the
    plugin PR for skill-content changes.
 4. **Post-install verification.** After `npm install -g`, the flow re-runs `firecrawl --status` and
    diffs `firecrawl --help` against the pre-install snapshot. A removed command or auth failure is

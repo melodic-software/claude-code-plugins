@@ -32,7 +32,8 @@ Read when running the update action. The update model, preservation invariants, 
                    firecrawl command, update.sh refuses: update that owner's pin instead
                    a declined Gate 1 skips step 5 and still reaches steps 6 and 7
 5. Execute npm     scripts/update.sh --apply: refuses behind another owner, otherwise runs
-                   npm install -g firecrawl-cli@latest, requires npm latest after it, and
+                   npm install -g firecrawl-cli@latest, requires npm latest after it,
+                   runs firecrawl update --disable-auto (no background self-update), and
                    records the CLI version and rollback target in upstream.md, keeping the
                    recorded upstream SHA
                    firecrawl --status           → verify post-install
