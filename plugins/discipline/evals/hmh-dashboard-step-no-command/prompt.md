@@ -4,7 +4,7 @@ tags: [discipline, hold-my-hand, outcome, no-network]
 max_turns: 8
 timeout_seconds: 300
 allowed_tools: [Skill, Read]
-expected_outcome: "A phase whose dashboard step names the exact control and where it is, states the observable result, and invents no CLI command for it."
+expected_outcome: "A phase whose dashboard step states the observable result and invents no CLI command for it (naming the exact control is held on #8635: the prompt names no vendor)."
 ---
 
 hold my hand. The next thing needed is rotating the deploy key in the vendor's web dashboard, which only I can reach.
