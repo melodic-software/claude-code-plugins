@@ -114,6 +114,8 @@ async function gate({
   dispatchedWorkflow,
   requireKind,
   appLabel,
+  appFieldId,
+  appFieldOption,
   reconcilerWorkflow,
   ciStatusRerunWorkflow,
   runAttempt = "1",
@@ -166,6 +168,8 @@ async function gate({
       ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
       ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
       ...(appLabel === undefined ? {} : { APP_LABEL: appLabel }),
+      ...(appFieldId === undefined ? {} : { APP_FIELD_ID: appFieldId }),
+      ...(appFieldOption === undefined ? {} : { APP_FIELD_OPTION: appFieldOption }),
       ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
       ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
@@ -1638,6 +1642,84 @@ test("app-label:outside issues, the App sender still stops with bot-actor", asyn
   const { outputs, calls } = await appLabel({ eventName: "workflow_dispatch" });
   assert.deepEqual(outputs, STOPPED("bot-actor"));
   assert.deepEqual(calls, []);
+});
+
+// app-field-id and app-field-option: the lanes App setting that one field to
+// that one option in issue mode starts the lane, as work-resolve-issue's Work
+// status field (48484079) set to agent-ready (84879220) does.
+function appField({ fieldId = 48484079, optionId = 84879220, sender = LANES_APP, issue = { number: 7 }, ...rest } = {}) {
+  const github = fakeGitHub({});
+  return gate({
+    eventName: "issues",
+    event: {
+      action: "field_added",
+      issue,
+      issue_field: { id: fieldId },
+      issue_field_value: { option: { id: optionId } },
+      sender,
+      repository: { full_name: REPOSITORY },
+    },
+    github,
+    requirePr: "false",
+    requireKind: "human",
+    deniedActorIds: "337595936",
+    lanesAppId: "337595936",
+    appFieldId: "48484079",
+    appFieldOption: "84879220",
+    triggeringActor: "melodic-automation-lanes[bot]",
+    ...rest,
+  }).then((outputs) => ({ outputs, calls: github.calls }));
+}
+
+test("app-field: the App setting the field to the option proceeds and reads only its own run", async () => {
+  const { outputs, calls } = await appField();
+  assert.deepEqual(outputs, ACTORS_OK);
+  assert.deepEqual(calls, [OWN_ROUTE]);
+});
+
+test("app-field: the App setting another field or another option stops with bot-actor and reads nothing", async () => {
+  for (const [name, args] of [
+    ["another field", { fieldId: 1 }],
+    ["another option", { optionId: 86380002 }],
+    ["no option", { optionId: null }],
+  ]) {
+    const { outputs, calls } = await appField(args);
+    assert.deepEqual(outputs, STOPPED("bot-actor"), name);
+    assert.deepEqual(calls, [], name);
+  }
+});
+
+test("app-field: one input of the pair alone keeps the App's field event stopped with bot-actor", async () => {
+  for (const [name, args] of [
+    ["no option input", { appFieldOption: "" }],
+    ["no field input", { appFieldId: "" }],
+    ["a malformed option input", { appFieldOption: "84879220 1" }],
+  ]) {
+    const { outputs, calls } = await appField(args);
+    assert.deepEqual(outputs, STOPPED("bot-actor"), name);
+    assert.deepEqual(calls, [], name);
+  }
+});
+
+test("app-field: a listed human re-running the App's field run proceeds; an unlisted one stops", async () => {
+  assert.deepEqual((await appField({ triggeringActor: "kyle-sexton" })).outputs, ACTORS_OK);
+  assert.deepEqual((await appField({ triggeringActor: "stranger" })).outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("app-field: an App field event with no issue number stops with untrusted-actor", async () => {
+  const { outputs } = await appField({ issue: {} });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("app-field: the App's agent-ready label stops with bot-actor when only the field pair is set", async () => {
+  const { outputs, calls } = await appLabel({ appLabel: undefined, appFieldId: "48484079", appFieldOption: "84879220" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+  assert.deepEqual(calls, []);
+});
+
+test("app-field: a listed human's field write proceeds on the sender; a stranger's stops", async () => {
+  assert.deepEqual((await appField({ sender: KYLE, triggeringActor: "kyle-sexton" })).outputs, ACTORS_OK);
+  assert.deepEqual((await appField({ sender: STRANGER, triggeringActor: "stranger" })).outputs, STOPPED("untrusted-actor"));
 });
 
 test("require-pr: a value other than true or false stops with no-pr, even for a valid PR", async () => {
