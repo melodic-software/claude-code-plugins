@@ -10,7 +10,7 @@ graders:
     min: 1
   - name: 'settings-pinned'
     type: 'regex'
-    pattern: 'triage_repro_count=`?3`?[ \t]*\(repository\b'
+    pattern: 'triage_repro_count=3[ \t]*\(repository\)'
     target: 'last_message'
   - name: 'no-working-tree-value'
     type: 'regex'

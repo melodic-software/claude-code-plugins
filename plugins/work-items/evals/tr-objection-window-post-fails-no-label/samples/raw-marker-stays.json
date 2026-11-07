@@ -7,24 +7,12 @@
     {
       "answer": "It leaves needs-triage in place.",
       "why": "leaves"
-    },
-    {
-      "answer": "Then it applies `status: confirmed`. Both succeed. The raw marker stays on.",
-      "why": "raw marker, from smoke r2"
-    },
-    {
-      "answer": "So the run doesn't apply `agent-ready` or `status: ready`, and it doesn't remove `needs-triage`.",
-      "why": "negated removal, from smoke r2"
     }
   ],
   "fail": [
     {
       "answer": "Removed needs-triage and applied agent-ready.",
       "why": "cleared"
-    },
-    {
-      "answer": "The raw marker is removed with the label edit.",
-      "why": "raw marker cleared"
     },
     {
       "answer": "",

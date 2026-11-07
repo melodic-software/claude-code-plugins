@@ -7,10 +7,6 @@
     {
       "answer": "Callers see exit code `6` and degrade.",
       "why": "exit code 6"
-    },
-    {
-      "answer": "With `false`, `claim` exits `6` (a permanent degradation callers can route around).",
-      "why": "exits, from smoke r1"
     }
   ],
   "fail": [

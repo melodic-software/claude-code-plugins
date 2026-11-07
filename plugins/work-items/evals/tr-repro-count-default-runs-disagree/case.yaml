@@ -3,7 +3,7 @@ name: tr-repro-count-default-runs-disagree
 graders:
   - name: 'settings-repro'
     type: 'regex'
-    pattern: 'triage_repro_count=`?2`?[ \t]*\(default\b'
+    pattern: 'triage_repro_count=2[ \t]*\(default\)'
     target: 'last_message'
   - name: 'needs-info'
     type: 'regex'

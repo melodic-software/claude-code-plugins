@@ -3,7 +3,7 @@ name: tr-briefed-outcome-clears-raw-marker
 graders:
   - name: 'clears-raw-marker'
     type: 'regex'
-    pattern: '(?:remov|clear|drop|replac|swap)\w*[^\n]{0,60}(?:needs-triage|raw[ \t-]+marker)|(?:needs-triage|raw[ \t-]+marker)[^\n]{0,60}(?:remov|clear|drop|replac|swap|off\b|gone)'
+    pattern: '(?:remov|clear|drop|replac)\w*[^\n]{0,60}needs-triage|needs-triage[^\n]{0,60}(?:remov|clear|drop|replac|off\b|gone)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

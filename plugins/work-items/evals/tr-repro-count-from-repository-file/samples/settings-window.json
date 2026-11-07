@@ -5,10 +5,6 @@
       "why": "the settings line"
     },
     {
-      "answer": "Settings: `triage_objection_window_hours=0` (default, read from `origin/main`)",
-      "why": "code span and a note, from smoke b2"
-    },
-    {
       "answer": "Settings: triage_repro_count=2 (default), triage_objection_window_hours=0 (default)",
       "why": "in the full line"
     }

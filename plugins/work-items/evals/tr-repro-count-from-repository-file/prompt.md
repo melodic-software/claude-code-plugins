@@ -1,5 +1,5 @@
 ---
-description: 'Legacy triage 16. With the repository''s docs/conventions/work-items.yaml holding only triage_repro_count: 4, the run reads it through the bundled parse-concern-value.sh, reports triage_repro_count=4 (repository) and triage_objection_window_hours=0 (default), and reproduces four separate times before confirming. The week-number bug reproduces offline; no tracker is bound, so the item is given in the prompt. reads-through-parser and ran-repro read the Bash calls; settings-repro, settings-window and reproduced-4-of-4 read the reply. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+description: 'Legacy triage 16. With the repository''s docs/conventions/work-items.yaml holding only triage_repro_count: 4, the run reads it through the bundled parse-concern-value.sh, reports triage_repro_count=4 (repository) and triage_objection_window_hours=0 (default), and reproduces four separate times before confirming. The week-number bug reproduces offline; no tracker is bound, so the item is given in the prompt. reads-through-parser and four-runs read the Bash calls; settings-repro and settings-window read the reply. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
 tags: [triage, settings, repro-bar]
 max_turns: 30
 timeout_seconds: 720

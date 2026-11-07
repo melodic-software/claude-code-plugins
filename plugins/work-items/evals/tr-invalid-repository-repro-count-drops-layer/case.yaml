@@ -3,7 +3,7 @@ name: tr-invalid-repository-repro-count-drops-layer
 graders:
   - name: 'settings-repro'
     type: 'regex'
-    pattern: 'triage_repro_count=`?2`?[ \t]*\(default\b'
+    pattern: 'triage_repro_count=2[ \t]*\(default\)'
     target: 'last_message'
   - name: 'names-invalid'
     type: 'regex'
