@@ -4,7 +4,7 @@ description: 'Legacy run-e2e 10 (worst-case-network-injection). Treats worst-cas
 tags: [testing, run-e2e, no-network]
 expected_outcome: 'Treats worst-case as the action, injects data at the network boundary rather than editing markup, reports what broke, decisions and what held up, and names the zoom check as an approximation.'
 execution:
-  prompt: '/testing:run-e2e worst-case the member list on the team settings page. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Write the worst-case report outline and how the data is injected, then stop.'
+  prompt: '/testing:run-e2e worst-case the member list on the team settings page. Do not read the repository (this skill''s own files are fine to read), launch, install or run anything; treat these as facts and each step as already run with the result given. Write the worst-case report outline and how the data is injected, then stop.'
   allowed_tools: [Read, Glob, Grep]
   max_turns: 10
   timeout_seconds: 300
