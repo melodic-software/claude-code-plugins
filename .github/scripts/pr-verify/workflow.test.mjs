@@ -2538,16 +2538,41 @@ test("the screenshot font is installed before isolation and checked for U+23F8",
   // Runner probe run 42224592725: without it the rasterizer refuses U+23F8 and no screenshot is written.
   assert.ok(capIndex("Install the screenshot font") < capIndex(ISOLATE));
   const script = scriptOf(capStep("Install the screenshot font"));
-  assert.match(script, /apt-get install -y --no-install-recommends fonts-noto-core/);
+  assert.match(script, /apt-get "\$\{apt\[@\]\}" install -y -qq --no-install-recommends fonts-noto-core/);
   assert.match(script, /fc-list ':charset=23f8'/);
   // An emoji font also has U+23F8, so only Symbols 2's own file skips the install.
   assert.match(script, /if ! grep -q NotoSansSymbols2 <<<"\$fonts"; then/);
   assert.match(script, /exit 1/);
 });
 
+test("every screenshot font apt call is bounded so all attempts fit the step timeout", () => {
+  // Capture run 42319348838: an unbounded apt-get held the step to its 5-minute timeout (a passing run takes about 20 s).
+  const step = capStep("Install the screenshot font");
+  const script = scriptOf(step);
+  const budget = Number(/^ {8}timeout-minutes: (\d+)$/m.exec(step)[1]) * 60;
+  const lines = script.split("\n");
+  const seconds = (line) => {
+    const value = /^\s*timeout (\d+) sudo /.exec(line)?.[1];
+    assert.ok(value, `runs under timeout: ${line.trim()}`);
+    return Number(value);
+  };
+  const calls = lines.filter((line) => /sudo .*apt-get .*\b(update|install)\b/.test(line));
+  assert.equal(calls.length, 2, "one update and one install call");
+  const perAttempt = calls.reduce((sum, line) => sum + seconds(line), 0);
+  const repair = lines.filter((line) => /sudo .*dpkg --configure -a/.test(line)).reduce((sum, line) => sum + seconds(line), 0);
+  const attempts = Number(/for i in ((?:\d+ ?)+); do/.exec(script)?.[1].trim().split(" ").length);
+  assert.ok(attempts >= 2, "a stalled attempt is retried");
+  const worst = attempts * perAttempt + (attempts - 1) * (5 + repair);
+  assert.ok(worst < budget, `attempts, sleeps and repairs take ${worst}s, under ${budget}s`);
+  assert.match(script, /DPkg::Lock::Timeout=\d+/, "a held dpkg lock is waited on for a bounded time");
+  // sudo resets the environment, so the no-prompt settings must ride in through env on every apt-get call.
+  assert.match(script, /quiet=\(env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a\)/);
+  for (const line of calls) assert.match(line, /sudo "\$\{quiet\[@\]\}" apt-get /, line.trim());
+});
+
 test("the screenshot font check passes on any font fc-list reports for U+23F8 and fails on none", () => {
   // Capture run 42230112786 failed on a family-name match the runner's fc-list did not print.
-  const check = scriptOf(capStep("Install the screenshot font")).split("\n").filter((line) => !/apt-get/.test(line)).join("\n");
+  const check = scriptOf(capStep("Install the screenshot font")).split("\n").filter((line) => !/apt|dpkg|sleep|quiet=|^\s*(for |done$|\[ "\$i")/.test(line)).join("\n");
   const dir = tempDir("font-check-");
   const fcList = path.join(dir, "fc-list");
   const run = (output) => {
