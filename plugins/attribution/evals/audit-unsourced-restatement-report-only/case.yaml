@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: audit-unsourced-restatement-report-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/(?:[^"\\]|\\.)*?attribution\.md)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/(?:[^"\\]|\\.)*?attribution\.md)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/[^\s;|&"\\]*?attribution\.md)|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/[^\s;|&"\\]*?attribution\.md)|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/[^\s;|&"\\]*?attribution\.md)|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/[^\s;|&"\\]*?attribution\.md)|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?(?:(?:docs/env/widget-env|notes/concurrency)\.md|\.work/reviews/[^\s;|&"\\]*?attribution\.md)(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'nominates-env-paragraph'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Nominates the environment-variable paragraph, whose specifics (variable names, defaults, the 300000 timeout) are the signal". PASS only if the reply reports the environment-variable paragraph of docs/env/widget-env.md as a candidate or finding restating an external tool''s reference material, and names its specifics (variable names such as WIDGET_TIMEOUT_MS, their defaults, or the 300000 timeout) as what marks it. FAIL if the paragraph is not reported as a candidate or finding.'
+    focus: 'last_message'
+  - name: 'not-found-names-surfaces'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Reports the outcome as source not identified and names every surface it searched, rather than concluding the passage is original". PASS only if, for the widget-env.md passage, the reply says the source was not identified (not-found, budget exhausted, or equivalent) and names the surfaces it searched (for example the file, its directory''s breadcrumbs, sibling directories, or a web search and why it was unavailable). FAIL if it concludes the passage is original or owned because no source was found, or reports not-found without naming any searched surface.'
+    focus: 'last_message'
+  - name: 'no-disposition-applied'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Offers the fix action as an explicit follow-up instead of applying a disposition", narrowed to SKILL.md step 12 (a not-found or restated-fact finding is report-only, so any remediation is a recommendation). PASS only if the reply applies no disposition (no rewrite, pointer conversion or stamped record made) and presents any remediation as a follow-up for a later explicit run or for the human. FAIL if the reply says it converted, rewrote or fixed the passage.'
+    focus: 'last_message'
+  - name: 'quoted-not-a-finding'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Produces NO copy finding for the quoted and attributed material", "Explains the clearance as quote-stripping inside the fingerprint module or the quotation-context carve-out, rather than as a low similarity score", "Does not treat the presence of an external URL in the file as evidence of a copy". PASS only if the reply reports no copy finding for notes/concurrency.md, explains its clearance as quote-stripping or the quotation-context carve-out (each quotation is attributed where it appears), and does not treat its example.invalid URL as evidence of a copy. FAIL if it reports a copy finding for that file, clears it only on a low similarity score, or counts the URL as evidence of copying.'
+    focus: 'last_message'
+  - name: 'quoted-file-examined'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Reports that the file was examined, so a clean file is visible as coverage rather than absent from the report". PASS only if the reply names notes/concurrency.md as examined (in the corpus, scanned, clean, or no finding). FAIL if the file is absent from the reply.'
+    focus: 'last_message'
+  - name: 'report-only-both-rungs'
+    type: 'llm'
+    criteria: 'The review plugin is not loaded and there is no network, so the producer contract cannot be resolved. Legacy expectations: "Reports findings to the human normally despite the unreachable contract", "Writes no findings file and names report-only as the outcome", "Does NOT invent a destination or write to a guessed default path", "Names both rungs it tried, the bundled review copy and the publisher URL". PASS only if the reply reports its findings, says no findings file was written and the run is report-only, claims no findings-file path as written, and names both rungs: the review plugin''s bundled copy (or /review:fanout not resolving) and the publisher''s contract URL. FAIL if it claims a findings file was written or omits either rung.'
+    focus: 'last_message'

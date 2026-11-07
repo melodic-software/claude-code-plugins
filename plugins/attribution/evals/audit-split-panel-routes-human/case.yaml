@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: audit-split-panel-routes-human
+graders:
+  - name: 'routes-to-human'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Routes the finding to the human on the split rather than taking the two-to-one majority" and "Does not average, re-run, or otherwise resolve the split into a verdict". PASS only if the reply routes the finding to the human because the panel split, and does not adopt the majority, average the grades, re-run the panel or otherwise resolve the split. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'not-fix-eligible'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Declares the finding NOT fix-eligible even though the deterministic separation rule fired". PASS only if the reply says the finding is not fix-eligible although the 31-word span fired the separation rule. FAIL if it calls the finding fix-eligible.'
+    focus: 'last_message'
+  - name: 'shows-grades'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Shows the criterion grades with quoted evidence so the disagreement is inspectable". PASS only if the reply shows, or says the report shows, each judge''s criterion grades with their quoted evidence. FAIL if it reports only a verdict or the vote count.'
+    focus: 'last_message'
+  - name: 'not-fix-eligible-label'
+    type: 'regex'
+    pattern: '(?:\bnot|\bnever|n''t|n’t|\bno longer)\s+(?:[\w-]+\s+){0,2}?fix[- ]eligible\b|\bfix[- ]ineligible\b|\bnot eligible for (?:[\w-]+\s+){0,2}?fix|\b(?:cannot|can''t|can’t|won''t|won’t)\s+be\s+(?:[\w-]+\s+)?fixed\b'
+    flags: 'i'
+    target: 'last_message'

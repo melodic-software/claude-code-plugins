@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "docs/retry-policy.md: `attribution/audit/rule-stamp-expired` (IMPORTANT): Verified 2024-03-04, 180-day window, 793 days over.",
+      "why": "rule id beside the finding"
+    },
+    {
+      "answer": "| docs/retry-policy.md | 2024-03-04 | attribution/audit/rule-stamp-expired |",
+      "why": "table cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "docs/retry-policy.md has an expired stamp (Verified 2024-03-04, 793 days past the 180-day window).",
+      "why": "describes the finding generically"
+    },
+    {
+      "answer": "docs/retry-policy.md: rule-stamp-expired, 793 days over.",
+      "why": "short id without the plugin and skill prefix"
+    },
+    {
+      "answer": "docs/retry-policy.md: attribution/audit/rule-restated-upstream-fact",
+      "why": "another rule id"
+    }
+  ]
+}

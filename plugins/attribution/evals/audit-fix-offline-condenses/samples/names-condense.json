@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Disposition: `condense-to-stamped-record`. A bare `convert-to-pointer` fails here: the subagent reads the file with no network.",
+      "why": "chosen, pointer rejected"
+    },
+    {
+      "answer": "The offline-load-bearing rule selects condense-to-stamped-record over a pointer whatever the containment score.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Disposition: `convert-to-pointer`, with a link to the source section.",
+      "why": "pointer chosen"
+    },
+    {
+      "answer": "Disposition: condense it to a stamped record with a pointer and an as-of date.",
+      "why": "described, disposition id not named"
+    },
+    {
+      "answer": "Disposition: convert-to-pointer rather than condense-to-stamped-record, since the source is linkable.",
+      "why": "condense named only as the rejected option"
+    },
+    {
+      "answer": "Disposition: `convert-to-pointer` rather than `condense-to-stamped-record`, since the source is linkable.",
+      "why": "backticked id as the rejected option"
+    }
+  ]
+}

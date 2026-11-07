@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL attribution-r004: `.claude/attribution.local.json` is a retired personal override.",
+      "why": "label before the id"
+    },
+    {
+      "answer": "| attribution-r004 | .claude/attribution.local.json | migrate | FAIL |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "WARN attribution-r004: `.claude/attribution.local.json` is retired.",
+      "why": "reported as WARN"
+    },
+    {
+      "answer": "FAIL attribution-r003: `.claude/attribution.json` is retired.",
+      "why": "the team-layer record, not r004"
+    },
+    {
+      "answer": "attribution-r004: `.claude/attribution.local.json` should be carried into the local YAML.",
+      "why": "no severity label"
+    }
+  ]
+}

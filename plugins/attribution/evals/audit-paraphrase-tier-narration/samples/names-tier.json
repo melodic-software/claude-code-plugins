@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Tier: `llm-suspected`. Unanimity does not raise it; tiers map from evidence by fixed rule.",
+      "why": "tier named"
+    },
+    {
+      "answer": "It lands at llm-suspected rather than fingerprint-confirmed, because a paraphrase leaves no lexical evidence.",
+      "why": "tier with its contrast"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Tier: `fingerprint-confirmed`, since all three judges agreed.",
+      "why": "raised on unanimity"
+    },
+    {
+      "answer": "Tier: fingerprint-confirmed rather than llm-suspected, given the unanimous panel.",
+      "why": "llm-suspected named only as the rejected tier"
+    },
+    {
+      "answer": "It is not llm-suspected; the unanimous panel confirms it.",
+      "why": "negated"
+    },
+    {
+      "answer": "Tier: `fingerprint-confirmed` rather than `llm-suspected`, given the unanimous panel.",
+      "why": "backticked id as the rejected tier"
+    },
+    {
+      "answer": "It isn’t `llm-suspected`: all three judges agree.",
+      "why": "curly-apostrophe negation of a backticked id"
+    }
+  ]
+}

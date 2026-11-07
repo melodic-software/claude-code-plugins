@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: setup-override-checks-gitignore
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'check-ignore-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit(?:\s+-C\s+\S+)?\s+check-ignore\b(?:[^"\\]|\\.)*?attribution\.local\.ya?ml'
+    min: 1
+    arm: 'with-only'
+  - name: 'says-would-be-tracked'
+    type: 'llm'
+    criteria: 'Legacy expectations: "States that the personal override would be tracked when the check fails" and "Does not write the personal override until the operator chooses". PASS only if the reply says docs/conventions/attribution.local.yaml is not gitignored, so it would be tracked, and asks the operator how to proceed (or offers choices) instead of reporting it written. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'no-shell-write-override'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-user-global'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Never writes the user-global ~/.claude/attribution.json". PASS if no tool call in the trace writes ~/.claude/attribution.json (or $HOME/.claude/attribution.json) and the reply does not offer it as the place for this value. FAIL otherwise.'
+    focus: 'trace'

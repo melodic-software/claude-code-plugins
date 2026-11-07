@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: setup-json-override-asks-before-carry
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'r004-is-fail'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Reports attribution-r004 as FAIL". PASS only if the reply reports the retired .claude/attribution.local.json (attribution-r004) at FAIL severity. FAIL if it reports it as WARN, INFO or PASS, or not at all.'
+    focus: 'last_message'
+  - name: 'r004-fail-label'
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*(?:attribution-r004|\.claude/attribution\.local\.json)[^\n]*(?:\n[^\n]*)?\b(?:FAIL|Fail)\b|^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*\b(?:FAIL|Fail)\b[^\n]*(?:attribution-r004|\.claude/attribution\.local\.json)'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'asks-before-carry'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Keeps judge_samples at 5 in docs/conventions/attribution.local.yaml rather than overwriting it with the JSON file''s 3" and "Asks the operator before carrying trigger_less_stamp_check, since it was not in effect". PASS only if no write in the trace sets judge_samples to 3 or adds trigger_less_stamp_check to docs/conventions/attribution.local.yaml, and the reply names trigger_less_stamp_check as the key the YAML lacks and asks the operator whether to carry it. FAIL otherwise.'
+    focus: 'trace'
+  - name: 'no-clean'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*)?(?:sudo[ \t]+)?(?:xargs[ \t]+)?(?:(?:/\S*/)?(?:rm|mv|unlink|shred)|git(?:[ \t]+-C[ \t]+\S+)?[ \t]+(?:rm|mv))\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:(?:provenance|attribution)(?:\.local)?\.json|\.claude(?:/\*[^\s"\\]*|/?(?=[\s"\\])))|(?:[^"\\]|\\.)*?(?<=\s)--clean\b|(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*)?find\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:(?:provenance|attribution)(?:\.local)?\.json|\.claude(?:/\*[^\s"\\]*|/?(?=[\s"\\])))(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:-delete\b|-exec[ \t]+rm\b))'
+    min: 0
+    max: 0
+    arm: 'both'

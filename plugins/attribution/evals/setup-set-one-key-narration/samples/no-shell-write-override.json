@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugin/skills/audit/scripts/check-stamps.sh\" --show-config 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/^stamp_expiry_days: .*/stamp_expiry_days: 90/' docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "per-key edit of the team layer, which the legacy case allows"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the personal override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -q docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ignore check on the override"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'stamp_expiry_days: 90\\n' >> docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "appends the key to the personal override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/^stamp_expiry_days: .*/stamp_expiry_days: 90/' docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i on the personal override, the closest wrong layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/eval/new.yaml | tee docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee into the personal override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/eval/new.yaml /opt/eval/ws/docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies over the personal override"
+    }
+  ]
+}

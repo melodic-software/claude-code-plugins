@@ -1,0 +1,274 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/lib/check-retirements.sh\" --manifest \"/opt/p/retirements.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "detection without --clean"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the retired file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq . .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "parses the retired file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f \"/ws/.claude/attribution.json\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "existence test"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lists the directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -- .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads its history"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files .claude | grep -n attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lists it as tracked"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .claude/attribution.json /tmp/run/before.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies it out, leaving it in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'rm ' .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the word rm inside a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/p/skills/audit/scripts/check-stamps.sh\" --show-config 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -f /ws/.claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rm -f by absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd .claude && rm attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rm after cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -rf .claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "removes the directory holding it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .claude/*.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "removes it by glob"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv .claude/attribution.json /tmp/run/old.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rm .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git rm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/ws\" rm -q .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git -C rm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv .claude/attribution.json docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "unlink .claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unlink"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find .claude -name attribution.json -delete",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "find -delete"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/lib/check-retirements.sh\" --manifest \"/opt/p/retirements.yaml\" --clean attribution-r00x --i-migrated",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the skill's own clean flow"
+    }
+  ]
+}
