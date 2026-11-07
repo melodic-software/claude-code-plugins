@@ -85,7 +85,7 @@ const EVENTS = {
 
 export function pipelineEvent(eventName, payload) {
   if (eventName === "issues") {
-    return payload.action === "labeled" ? "labeled" : null;
+    return payload.action === "labeled" || payload.action === "field_added" ? payload.action : null;
   }
   if (eventName === "pull_request") {
     if (payload.action === "opened") {
