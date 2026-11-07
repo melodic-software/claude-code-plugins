@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "written_against: discipline@0.25.1\nlever_scope: non-trivial\nprovenance:\n  lever_scope: chosen (default deterministic)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lever_scope: deterministic\n"
+    },
+    {
+      "answer": "provenance:\n  lever_scope: non-trivial\n",
+      "why": "nested, not the key"
+    }
+  ]
+}

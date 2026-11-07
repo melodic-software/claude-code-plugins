@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "notes/plan.md"
+          }
+        }
+      ],
+      "why": "a read only"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "tools/rewrite.py",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "wrote a file"
+    }
+  ]
+}

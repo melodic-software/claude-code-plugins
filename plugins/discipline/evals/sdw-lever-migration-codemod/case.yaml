@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: sdw-lever-migration-codemod
+graders:
+  - name: scope-default
+    type: regex
+    pattern: 'lever_scope[`*]*\s*[:=][`*\s]*deterministic[`*]*\s*\([^)\n]*\bdefault\b'
+    flags: 'i'
+    target: last_message
+  - name: answers-build
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*build-a-lever\b'
+    flags: 'i'
+    target: last_message
+  - name: names-codemod
+    type: regex
+    pattern: '\b(?:codemods?|jscodeshift|ast-grep|ts-morph|comby|semgrep|language[- ]server|tsserver|IDE rename|structural (?:search|rewrite|replace))\b'
+    flags: 'i'
+    target: last_message
+  - name: pilot-one-site
+    type: regex
+    pattern: '\bpilot\w*\b|\b(?:first|one) (?:site|call site|fixture|file)\b[\s\S]{0,200}?\b(?:before|then)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: tool-order
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Answers build-a-lever and names an established codemod or structural-rewrite tool before any written script", "Orders the options: established tool, then a written script, then hand edits" and "States the pilot on one site before the rest".'
+    focus: last_message

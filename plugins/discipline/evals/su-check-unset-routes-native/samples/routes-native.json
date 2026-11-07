@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "To change an option, run `/plugin configure discipline@<marketplace>`."
+    },
+    {
+      "answer": "Headless: `claude plugin configure discipline@melodic --values-stdin < values.json`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit pluginConfigs in ~/.claude/settings.json."
+    },
+    {
+      "answer": "Run /plugin to reconfigure."
+    }
+  ]
+}

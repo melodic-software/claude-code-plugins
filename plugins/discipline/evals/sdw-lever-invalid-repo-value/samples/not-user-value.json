@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "lever_scope: deterministic (default)"
+    },
+    {
+      "answer": "lever_scope: deterministic (default; docs/conventions/discipline.yaml lever_scope: always is invalid)\n\nI did not use your option's value. The user option's lever_scope: non-trivial is a lower layer and never stands in for an invalid repository value.",
+      "why": "names the user's value in a later sentence, not on the report line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lever_scope: non-trivial (user option)"
+    },
+    {
+      "answer": "answer: edit-by-hand\n- `lever_scope: non-trivial` (user option)",
+      "why": "a list-item report line"
+    }
+  ]
+}

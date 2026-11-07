@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "lever_scope: deterministic (docs/conventions/discipline.yaml)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lever_scope: non-trivial (user option)"
+    },
+    {
+      "answer": "lever_scope: deterministic (default)",
+      "why": "wrong layer"
+    }
+  ]
+}
