@@ -28,3 +28,8 @@ graders:
     type: regex
     pattern: '\braise[ \t]+TypeError\b'
     target: { source: file, path: src/util.py }
+  - name: boundary-kept-explained
+    type: regex
+    pattern: '^(?=[^\n]*\b(?:TypeError|isinstance|type check|boundary check|input (?:check|validation)|guard)\b)(?=[^\n]*\b(?:kept|keep|keeps|left|leave|leaves|preserve[sd]?|preserving|retain\w*|stays?|untouched|unchanged)\b)(?=[^\n]*\b(?:because|since|boundary|error handling|guards?|callers?|invalid input|contract|validates?|validated|validation)\b)'
+    flags: 'mi'
+    target: last_message

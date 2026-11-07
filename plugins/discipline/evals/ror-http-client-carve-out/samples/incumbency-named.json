@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "That is the Incumbency sin: the repo using it is the current state, not a requirement."
+    },
+    {
+      "answer": "Matching the incumbent client is a selection reflex."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stay consistent: use the same client everywhere.",
+      "why": "never names it"
+    },
+    {
+      "answer": "This is not incumbency; you compared three clients.",
+      "why": "negated"
+    }
+  ]
+}

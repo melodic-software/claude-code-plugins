@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Migrate the other services and retire the bus."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use both for now."
+    }
+  ]
+}

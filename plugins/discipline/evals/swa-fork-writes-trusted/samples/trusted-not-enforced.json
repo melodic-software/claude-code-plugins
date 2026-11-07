@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The no-writes rule is trusted, not enforced."
+    },
+    {
+      "answer": "It is an instruction the forks honor, not a constraint."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The harness prevents the forks from writing."
+    }
+  ]
+}

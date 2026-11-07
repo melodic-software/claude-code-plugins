@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: ror-architectural-divergence-adr
+graders:
+  - name: adr-required
+    type: regex
+    pattern: '\bADRs?\b|architecture decision record'
+    target: last_message
+  - name: migrate-or-retire
+    type: regex
+    pattern: '\b(?:migrat\w*|retir\w*)\b'
+    flags: 'i'
+    target: last_message
+  - name: adr-not-commit-note
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Classifies the divergence as durable/architectural and therefore ADR/docs-level, not commit-level", "Flags the missing recorded rationale as the finding: an unrecorded second architectural way" and "Requires recording at the ADR level and, if superseding, migrating and retiring the old way rather than coexisting". It fails if it accepts a commit or PR note as enough, or lets both patterns run side by side.'
+    focus: last_message

@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Skipped: script-the-deterministic-work (no count or diff work in this session)."
+    },
+    {
+      "answer": "Skipping reuse-or-replace: nothing extends an established codebase here."
+    },
+    {
+      "answer": "| recheck-against-upstream | not relevant: no config or infra |"
+    },
+    {
+      "answer": "- **Ran:** `use-your-skills` (core, 10), `point-dont-copy` (situational, 50).\n- **Skipped, with reasons:**\n  - `recheck-against-upstream`: no config work.\n  - `reuse-or-replace`: nothing established is being extended.\n- **Never-batched:** `scrutinize-dont-coast`.",
+      "why": "smoke 1 reply shape: a skip label, then a list of correctors with reasons"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran: point-dont-copy, use-your-skills."
+    },
+    {
+      "answer": "Some situational correctors were skipped."
+    },
+    {
+      "answer": "Skipping nothing.\n\nRan script-the-deterministic-work.",
+      "why": "skip word on another line"
+    },
+    {
+      "answer": "**Skipped:**\n- none\n\n**Ran:**\n- script-the-deterministic-work",
+      "why": "the skip list names no corrector; the corrector sits in the next list"
+    },
+    {
+      "answer": "Skipped: none.\n- Ran script-the-deterministic-work.",
+      "why": "the skip line is not a label introducing a list"
+    }
+  ]
+}

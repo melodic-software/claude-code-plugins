@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ]
+}

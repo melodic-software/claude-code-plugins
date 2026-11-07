@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Gather evidence with /discipline:do-your-research."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do some research first.",
+      "why": "not the skill"
+    }
+  ]
+}

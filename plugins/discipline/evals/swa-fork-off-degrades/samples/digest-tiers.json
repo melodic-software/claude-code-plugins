@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy. Never-batched: scrutinize-dont-coast."
+    },
+    {
+      "answer": "| core | situational | `never` |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy."
+    },
+    {
+      "answer": "Core: use-your-skills. Never-batched: scrutinize-dont-coast.",
+      "why": "no situational tier"
+    }
+  ]
+}

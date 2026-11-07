@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Kept the `raise TypeError` check: it is boundary error handling, so cutting it would trade correctness for a line."
+    },
+    {
+      "answer": "- The isinstance guard stays because callers can pass a non-list."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Removed legacy_mode and the dead else branch."
+    },
+    {
+      "answer": "Kept the TypeError check."
+    },
+    {
+      "answer": "Kept the TypeError check.\nBecause of style."
+    }
+  ]
+}
