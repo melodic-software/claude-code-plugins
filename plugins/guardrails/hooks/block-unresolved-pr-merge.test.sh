@@ -429,6 +429,18 @@ run "a PR with only other labels merges" 'gh pr merge 42 -R acme/widgets --auto'
 assert_eq "other labels -> no stderr" "" "$ERR"
 labeled do-not-merge
 run "an empty hold list holds on no label" 'gh pr merge 42 --squash' 0 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=
+labeled pr-verify-failed
+rm "$FIX/reviews.json"
+run "a hold label refuses even when the reviews read fails" 'gh pr merge 42 --squash' 2
+assert_contains "failed reviews read -> names the label" "$ERR" "Hold labels: pr-verify-failed."
+labeled pr-verify-failed
+rm "$FIX/checks.json"
+run "a hold label refuses even when the check-runs read fails" 'gh pr merge 42 --auto' 2
+assert_contains "failed check-runs read -> names the label" "$ERR" "Hold labels: pr-verify-failed."
+labeled
+rm "$FIX/reviews.json"
+run "with no hold label a failed reviews read still fails open" 'gh pr merge 42 --squash' 0
+assert_contains "no label, failed read -> runs unchecked" "$OUT" "will run unchecked"
 labeled hold-me
 run "a configured hold label holds" 'gh pr merge 42 --squash' 2 "CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=a, hold-me"
 assert_contains "configured label -> named" "$ERR" "Hold labels: hold-me."

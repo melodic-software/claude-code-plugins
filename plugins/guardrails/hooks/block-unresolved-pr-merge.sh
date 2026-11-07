@@ -27,7 +27,8 @@
 # WHAT BLOCKS, read over REST so it works where GraphQL is refused:
 #   - a hold label on the PR (merge_guard_hold_labels, matched without case),
 #     for every merge path, auto-merge and merge-queue requests included: a
-#     queued PR that carries one fails its merge group
+#     queued PR that carries one fails its merge group. It refuses right after
+#     the PR read, so a later read that fails open cannot let the merge run
 #   - an unresolved review thread, outdated ones included (thread resolution
 #     has no plain REST route: GraphQL `reviewThreads` where it is served, else
 #     the Claude Code cloud route `pulls/{n}/ccr/review_threads`; a
@@ -936,6 +937,16 @@ read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$_bupm_prline"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0
 [[ -n "$_bupm_full" && "$_bupm_full" != null ]] && BUPM_REPO="$_bupm_full"
+# A hold label refuses here, before a later read can fail open.
+if [[ -n "$_bupm_holds" ]]; then
+  {
+    printf 'BLOCKED: %s#%s carries a hold label, so this merge is refused (--admin and --auto included).\n' "$BUPM_REPO" "$BUPM_NUM"
+    printf 'Hold labels: %s. Merge once the hold ends and the label is removed.\n' "$_bupm_holds"
+    printf 'Only the user can turn this guard off (block_unresolved_pr_merge_enabled).\n'
+  } >&2
+  emit_tel "blocked" "$BUPM_FORM-hold-label"
+  exit 2
+fi
 
 # Reviewers whose latest decisive review requests changes. The three jq bodies
 # below are jq programs, not shell text.
@@ -1165,7 +1176,7 @@ _bupm_threads="$BUPM_OUT"
 _bupm_nonreq_line=""
 [[ -n "$_bupm_nonreq" ]] &&
   _bupm_nonreq_line="Failing checks that the base branch's rules do not require (not blocking, because this PR changes a workflow or action definition file and each one's run loaded the base branch's copy of this repository's workflows, so it may not run the fix yet): $_bupm_nonreq"
-if [[ -z "$_bupm_holds" && -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
+if [[ -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
   if [[ -n "$_bupm_nonreq_line" ]]; then
     _bupm_msg="guardrails block-unresolved-pr-merge: ${BUPM_REPO}#${BUPM_NUM} is allowed to merge. $_bupm_nonreq_line. Check that each one fails only because it ran the base branch's copy of the workflow or action this PR fixes."
     hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
@@ -1178,8 +1189,6 @@ fi
 
 {
   printf 'BLOCKED: %s#%s is not ready to merge, so this merge is refused (--admin and --auto included).\n' "$BUPM_REPO" "$BUPM_NUM"
-  [[ -n "$_bupm_holds" ]] &&
-    printf 'Hold labels: %s. Merge once the hold ends and the label is removed.\n' "$_bupm_holds"
   if [[ -n "$_bupm_threads" ]]; then
     # The quoted text is a reviewer's comment, carried with the untrusted-content
     # spine. Ten lines at most.
