@@ -65,6 +65,18 @@
         }
       ],
       "why": "near miss: keeps a customer name and email"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/work/triage-plugin/evals/double-charge/prompt.md",
+            "content": "Dana says she was charged twice; card 4417."
+          }
+        }
+      ],
+      "why": "near miss: keeps a first name and the card digits"
     }
   ]
 }
