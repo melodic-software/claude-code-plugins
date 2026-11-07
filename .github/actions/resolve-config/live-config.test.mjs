@@ -3,6 +3,7 @@
 // contract (applies-when of resolve-conflicts, the report-escalation leaf) and
 // the README's skip reasons, not from resolver output.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -916,4 +917,16 @@ test("live config: models.issue-status bot-setters are github-actions[bot] and t
 
 test("live config: models.issue-status field-events-since loads as the S2a cutover time", () => {
   assert.equal(PLAN_CONFIG.models["issue-status"]["field-events-since"], "2026-11-07T12:00:00Z");
+});
+
+// The merge lane reads this file through the source-control YAML subset
+// (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
+// the lane off with config-parse-error.
+test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () => {
+  const awk = fileURLToPath(new URL("../../../plugins/source-control/lib/yaml-subset.awk", import.meta.url));
+  const config = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
+  const errors = execFileSync("awk", ["-f", awk, config], { encoding: "utf8" })
+    .split("\n")
+    .filter((line) => line.startsWith("error\t"));
+  assert.deepEqual(errors, []);
 });

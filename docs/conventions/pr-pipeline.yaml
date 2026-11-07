@@ -1081,14 +1081,22 @@ models:
   issue-status:
     field-id: 48484079
     bot-setters:
-      - { id: 41898282, login: "github-actions[bot]" }
-      - { id: 300666570, login: "melodic-standards-sync[bot]" }
-      - { id: 288071998, login: "melodic-ai[bot]" }
-      - { id: 296023097, login: "melodic-software-github-iac[bot]" }
-      - { id: 300690090, login: "melodic-ci-runner-host[bot]" }
-      - { id: 302525172, login: "melodic-ci-runner-observer[bot]" }
-      - { id: 315045210, login: "melodic-claude-lanes-repin[bot]" }
-      - { id: 337859524, login: "melodic-release[bot]" }
+      - id: 41898282
+        login: "github-actions[bot]"
+      - id: 300666570
+        login: "melodic-standards-sync[bot]"
+      - id: 288071998
+        login: "melodic-ai[bot]"
+      - id: 296023097
+        login: "melodic-software-github-iac[bot]"
+      - id: 300690090
+        login: "melodic-ci-runner-host[bot]"
+      - id: 302525172
+        login: "melodic-ci-runner-observer[bot]"
+      - id: 315045210
+        login: "melodic-claude-lanes-repin[bot]"
+      - id: 337859524
+        login: "melodic-release[bot]"
     # Bot field events before this time are label mirrors and never count as history.
     field-events-since: "2026-11-07T12:00:00Z"
     options:
