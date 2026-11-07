@@ -548,7 +548,9 @@ test("the Work status field decides an issue with no status label; a field agent
   assert.deepEqual(writes(parked.calls), []);
   const ready = oneDependent({ labels: [] });
   assert.equal(await main({ env: envFor(), ...withStatus(ready, { 20: { state: "agent-ready" } }), writer: ready.writer }), 0);
-  assert.deepEqual(writes(ready.calls), ["SET 20 agent-ready"]);
+  // The field already reads agent-ready (read-status folds it in), so the
+  // issue is admitted and nothing is written again.
+  assert.deepEqual(writes(ready.calls), []);
   assert.ok(!ready.calls.some((call) => call.includes("/labels")), "no agent-ready label re-add");
 });
 
@@ -5123,7 +5125,9 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
   const set = `POST /repos/${REPO}/issues/30/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: STATUS_CONFIG["field-id"], value: "agent-ready" }] })}`;
   assert.deepEqual(await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)]), [cleared, set], "the field is cleared, then set to agent-ready");
   assert.deepEqual(await restartOf("needs-owner-decision", [fieldEvent(GRAPH_OWNER, "needs-owner-decision", null, 1)]), [], "a person's hold: no clear and no set");
-  assert.ok(logs.includes("label-unblocked: #30 left as is: a person's Work status needs-owner-decision holds it"), logs.join("\n"));
+  assert.ok(logs.includes("label-unblocked: #30 left as is: its Work status is now needs-owner-decision"), logs.join("\n"));
+  // A person moved it off agent-ready (not a hold) after the listing: still no clear and no set.
+  assert.deepEqual(await restartOf("confirmed", [fieldEvent(GRAPH_OWNER, "confirmed", null, 1)]), [], "moved off agent-ready: no clear and no set");
 });
 
 // Owner decision Q85 (#9668): the work class gates nothing, so a class an

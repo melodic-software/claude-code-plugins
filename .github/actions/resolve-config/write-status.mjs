@@ -128,14 +128,20 @@ export async function statusWriter({ env, github, repository }) {
   };
   // Restarts the issue lane: clears the field, then sets agent-ready with no
   // skip, so GitHub sends the field_added that starts a run. A hold a listed
-  // human set stops it (`{outcome: "held"}`).
-  const restart = async (number) => {
+  // human set stops it (`{outcome: "held"}`); so does a trusted state outside
+  // `from` (the states the caller restarts from, null for unset), since a
+  // person may have moved the issue off agent-ready after the caller's read
+  // (`{outcome: "moved"}`). With no `from`, any state but a hold restarts.
+  const restart = async (number, { from } = {}) => {
     if (failure) {
       throw failure;
     }
     const now = await readField(number);
     if (now.personHold) {
       return { outcome: "held", state: now.state };
+    }
+    if (Array.isArray(from) && !from.includes(now.state ?? null)) {
+      return { outcome: "moved", state: now.state };
     }
     try {
       await github("DELETE", `/repos/${repository}/issues/${number}/issue-field-values/${config["field-id"]}`, undefined, FIELD_API);

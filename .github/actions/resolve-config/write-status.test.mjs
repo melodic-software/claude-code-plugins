@@ -137,6 +137,19 @@ test("statusWriter restart treats a 404 clear as nothing set, and stops on a per
   assert.equal(hold.posts().length, 0);
 });
 
+test("statusWriter restart from agent-ready leaves a field a person moved elsewhere", async () => {
+  // A listed human moved the issue to confirmed after the caller's listing.
+  const moved = fieldWorld(Number(Object.keys(CONFIG.options).find((id) => CONFIG.options[id] === "confirmed")), 153232337);
+  const calls = [];
+  const github = async (method, path, body) => {
+    calls.push(method);
+    return moved.github(method, path, body);
+  };
+  assert.deepEqual(await (await writerOver(github)).restart(7, { from: ["agent-ready"] }), { outcome: "moved", state: "confirmed" });
+  assert.ok(!calls.includes("DELETE"));
+  assert.equal(moved.posts().length, 0);
+});
+
 test("statusWriter leaveAgentReady writes only while the trusted field reads agent-ready", async () => {
   const human = 153232337;
   const ready = fieldWorld(84879220, human);

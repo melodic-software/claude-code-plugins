@@ -2318,12 +2318,14 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
     }
     // A failed restart would leave the issue out of the lane with nothing
     // saying so, so it is tried twice and then named; a second try re-reads
-    // the field, so a half-done first one is finished.
-    const restart = () => writer.restart(number);
+    // the field, so a half-done first one (cleared, not set) is finished. A
+    // person who moved the issue off agent-ready since the listing wins.
     try {
-      const restarted = await restart().catch(restart);
-      if (restarted?.outcome === "held") {
-        console.log(`label-unblocked: #${number} left as is: a person's Work status ${restarted.state} holds it`);
+      const restarted = await writer
+        .restart(number, { from: [LABEL] })
+        .catch(() => writer.restart(number, { from: [LABEL, null] }));
+      if (restarted?.outcome === "held" || restarted?.outcome === "moved") {
+        console.log(`label-unblocked: #${number} left as is: its Work status is now ${restarted.state ?? "unset"}`);
         continue;
       }
       const why = infra ? "re-fired on a backoff" : stall === "breaker" ? "re-fired after a kill-switch refusal" : refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";

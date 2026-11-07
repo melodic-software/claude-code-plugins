@@ -2412,7 +2412,8 @@ export function workStatusField({ github, repository, config, reader, fieldEvent
       if ((await state(number)) !== from) {
         return false;
       }
-      return (await restart(Number(number)))?.outcome !== "held";
+      const outcome = (await restart(Number(number), { from: from === null ? undefined : [from] }))?.outcome;
+      return outcome !== "held" && outcome !== "moved";
     },
   };
 }
