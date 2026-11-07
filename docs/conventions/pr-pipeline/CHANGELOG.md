@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [9.5.0] - 2026-11-07
+
+### Changed
+
+- An issue's Work status is read from and written to the Work status field; status labels no longer decide it, though a hold label still holds on top of it. `write-status.mjs` drops the label mirror (`statusMirror`, `labelsAfter`, `writeStatus`), and `check-born-triaged` fails when resolve-config's dependencies do not install.
+
+### Fixed
+
+- The hill-climb lane's draft pull request body no longer cuts a pass summary in half. A summary longer than 24000 characters is now cut at its last whitespace inside the cap, before the existing `(cut at 24000 characters; ...)` line; one token longer than the cap is still cut at the cap, never inside a surrogate pair.
+
 ## [9.4.0] - 2026-11-07
 
 ### Added
