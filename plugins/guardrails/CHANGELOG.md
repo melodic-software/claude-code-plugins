@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-07
+
+### Added
+
+- **block-unresolved-pr-merge**: a pull request that carries a hold label (`do-not-merge`, `pr-verify-failed` or `security: outside-actor`, matched without case) can no longer be merged, armed for auto-merge or enqueued through any merge path the guard covers. These are the labels the merge queue fails a group on, and the guard refuses as soon as it reads the pull request, so a later read that fails open cannot let the merge through. Sessions had queued pull requests already labeled `pr-verify-failed`, and each one failed its merge group.
+
 ## [2.0.3] - 2026-11-06
 
 ### Changed
