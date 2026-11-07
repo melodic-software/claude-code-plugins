@@ -50,6 +50,10 @@ axe = "axe"
 # claude-code-plugins kindle-dedrm, provisioning. Rewriting it to "caliber"
 # would break both the package id and the command names.
 calibre = "calibre"
+# Canva, the design platform, and its `canva@claude-plugins-official` Claude Code
+# plugin: claude-code-plugins user-interface routing and its eval cases. The
+# en-us dictionary corrects it to "canvas", which would break the plugin id.
+canva = "canva"
 
 [default.extend-identifiers]
 # Win32 APPBARDATA variable ($abd): dotfiles set-windows-prefs (taskbar auto-hide).
