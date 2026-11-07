@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Hand off to `/source-control:babysit-prs`.",
+      "why": "the skill"
+    },
+    {
+      "answer": "then /source-control:babysit-prs takes the PR",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then merge the PR.",
+      "why": "no handoff"
+    },
+    {
+      "answer": "Hand off to /source-control:babysit-loop.",
+      "why": "the loop skill"
+    }
+  ]
+}

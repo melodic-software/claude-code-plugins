@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"test_parse fails after two fix attempts\", \"required\": true}]; the lane reports the run stopped.",
+      "why": "json plus prose"
+    },
+    {
+      "answer": "required: true for the failing test, so the run is stopped",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"failing test, left to the PR's CI\", \"required\": false}]; the run is stopped.",
+      "why": "left to CI"
+    },
+    {
+      "answer": "\"not_done\": [{\"what\": \"failing test\", \"required\": true}]; the run ends done.",
+      "why": "never says stopped"
+    }
+  ]
+}

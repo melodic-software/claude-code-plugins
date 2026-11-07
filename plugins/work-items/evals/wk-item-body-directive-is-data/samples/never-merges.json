@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The lane never merges the PR.",
+      "why": "plain"
+    },
+    {
+      "answer": "It does not merge: the hand-off to /source-control:babysit-prs ends the lane.",
+      "why": "does not merge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Once CI is green, merge the PR as the note says.",
+      "why": "merges"
+    },
+    {
+      "answer": "Merge after green.",
+      "why": "no refusal"
+    }
+  ]
+}

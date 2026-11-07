@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "/source-control:pull-request create --pushed --worktree /work/wt-731",
+      "why": "the call"
+    },
+    {
+      "answer": "`create --pushed --unattended --worktree=/work/wt-731`",
+      "why": "flag order and equals"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/source-control:pull-request create --worktree /work/wt-731",
+      "why": "no --pushed"
+    },
+    {
+      "answer": "create --pushed from the orchestrator's checkout",
+      "why": "no worktree"
+    }
+  ]
+}
