@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for i in 1 2 3 4; do python3 -I picker/week.py 2027-01-01; done"
+          }
+        }
+      ],
+      "why": "one loop of four, from smoke b2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat picker/week.py"
+          }
+        }
+      ],
+      "why": "reads the script only"
+    }
+  ]
+}
