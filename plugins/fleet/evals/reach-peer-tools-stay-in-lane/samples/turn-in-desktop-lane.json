@@ -1,23 +1,21 @@
 {
-  "pass": [
+  "fail": [
     {
       "answer": "Since you're on the laptop's WSL lane and the target is the desktop's WSL lane, this goes over SSH to the desktop's WSL alias (`desk-wsl`, port 2222). The commands below all use the Windows OpenSSH client, because WSL itself has no SSH key.\n\n**1. Optional: confirm the connection reaches the desktop and its Claude is signed in**\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p \"echo ok\" < /dev/null'\n```\nYou should see `desk-01` and then `ok`.\n\n**2. List the sessions on the desktop**\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"List the sessions you can reach, with each session name and working directory\" < /dev/null'\n```\n\n**3. Message the session in the sandbox checkout**\nTake the name from step 2's output. The name only works on the desktop, so don't guess it.\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"SendMessage to <session-name>: <your message>\" < /dev/null'\n```\n\n- **Apostrophes:** the remote command is inside single quotes, so write each apostrophe in your message as `'\\''`. For example, `don'\\''t`. Doubling it (`''`) silently drops it.\n- **Usage cost:** steps 2 and 3 each start a full Claude turn on the desktop's account, and the SSH call will ask for permission. Both are expected.\n- **No reply:** step 3 sends one way. To see the answer, run `claude agents --json` on the desktop afterwards, or resume that session there.\n- **If the sandbox session isn't in the list:** it may be running on the desktop's Windows side, which this listing doesn't show. List Windows sessions instead:\n  ```zsh\n  /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'\n  ```\n- **Possible mismatch:** the fleet file in this session says it was generated for desk-01, not lap-01. I got `desk-wsl` from it but couldn't confirm that name is set up in the laptop's SSH config. If step 1 says it can't resolve the host, check `%USERPROFILE%\\.ssh\\config` on the laptop.",
-      "why": "observed reply, check3 run 0"
+      "why": "observed reply, check3 run 0: prompt inside the remote command"
     },
     {
       "answer": "Run these from your lap-01 WSL shell. They use route R2 (laptop WSL → desktop WSL): the Windows OpenSSH client goes to the desktop's `desk-wsl` alias (port 2222), and the desktop's own `claude` runs the turn. That hop is needed because `ListAgents` and `SendMessage` only see sessions in their own lane, and your laptop is signed into a different account.\n\n**1. Check the connection** (should print `desk-01`, then `ok`):\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p \"echo ok\" < /dev/null'\n```\n\n**2. List the sessions on the desktop:**\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"List the sessions you can reach, with each session name and working directory\" < /dev/null'\n```\n\n**3. Message the sandbox session.** From step 2's output, put the name of the session whose directory is the sandbox checkout in place of `<name>`:\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"SendMessage to <name>: <your message>\" < /dev/null'\n```\n\n- **Placeholders:** you didn't give the message text, and the session name has to come from step 2. Names belong to the desktop, so I can't fill one in ahead of time.\n- **Apostrophes:** the whole remote command is wrapped in single quotes, so write each `'` in your message as `'\\''`. For example, `don't` becomes `don'\\''t`.\n- **Laptop config:** the fleet file on disk is the one generated for desk-01. It shows `desk-wsl` as the desktop's WSL alias, but I couldn't confirm your laptop's `~/.ssh/config` has that alias. If step 1 fails with an unknown host, that's why.\n- **If step 2 shows nothing:** the sandbox session is probably running on the desktop's Windows side. Run steps 2 and 3 again with the remote part changed to `cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"...\" < /dev/null`.\n- **Prompts and usage:** each command starts a Claude turn on the desktop, so expect a permission prompt each time. Each turn also uses some of the desktop account's usage.\n- **No reply comes back:** the command only sends the message. To see an answer, check that session on the desktop afterwards.",
-      "why": "observed reply, check3 run 1"
+      "why": "observed reply, check3 run 1: prompt inside the remote command"
     },
     {
       "answer": "You need two commands: one to list the desktop's sessions, and one to send the message once you know the session's name. I haven't run either. The desktop's sessions aren't visible from the laptop, because each lane has its own sign-in. So both commands go over ssh and start a Claude turn on the desktop's WSL side (`desk-01`, alias `desk-wsl`).\n\n**1. List the sessions:**\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p \"List the sessions you can reach. For each one, give its name and working directory.\" < /dev/null'\n```\n\n`hostname` should print `desk-01`, which confirms you reached the desktop. Look in the list for the session whose working directory is the sandbox checkout.\n\n**2. Send the message:**\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"SendMessage to <session-name>: <your message>\" < /dev/null'\n```\n\nReplace `<session-name>` with the name from step 1 and `<your message>` with your text. You didn't give me the message, so I left it blank.\n\nA few things to watch:\n- **Apostrophes:** the whole remote command is wrapped in single quotes, so write any `'` in your message as `'\\''`. For example, type `what's` as `what'\\''s`.\n- **If no session matches:** the sandbox session may be running on the desktop's Windows side instead. List there with:\n  ```zsh\n  /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach. For each one, give its name and working directory.\" < /dev/null'\n  ```\n  Send the message the same way, with the `-p` text from step 2. If it comes back with an expired-login error, someone needs to run `/login` at the desktop's console.\n- **The `desk-wsl` alias isn't confirmed for the laptop:** the fleet config file in this session is written for the desktop, not the laptop. It gives `desk-wsl` (port 2222) as the desktop's WSL alias, but I couldn't check that your laptop's `~/.ssh/config` defines it. If ssh can't resolve the name, that's why.\n- **Approval prompts:** each command starts a Claude turn on the desktop, which uses some of that account's usage. Expect an approval prompt for each one.",
-      "why": "observed reply, check3 run 2"
+      "why": "observed reply, check3 run 2: prompt inside the remote command"
     },
     {
       "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'",
-      "why": "R3 form"
-    }
-  ],
-  "fail": [
+      "why": "R3 with the prompt inside the remote command"
+    },
     {
       "answer": "",
       "why": "empty reply"
@@ -27,8 +25,18 @@
       "why": "local peer tools"
     },
     {
-      "answer": "ssh.exe desk-win 'claude -p \"List the sessions\"'",
+      "answer": "printf '%s\\n' 'List the sessions' | ssh.exe desk-win claude -p",
       "why": "port 22 alias"
+    }
+  ],
+  "pass": [
+    {
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p",
+      "why": "R2 with the prompt on stdin"
+    },
+    {
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'",
+      "why": "R3 with the prompt on stdin"
     }
   ]
 }
