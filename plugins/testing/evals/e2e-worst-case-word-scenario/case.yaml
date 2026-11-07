@@ -4,7 +4,7 @@ description: 'Legacy run-e2e 15 (scenario-starting-with-worst-case-word). Does n
 tags: [testing, run-e2e, no-network]
 expected_outcome: 'Does not run the worst-case action and treats worst-case-scenario checkout flow with an expired card as an ordinary scenario.'
 execution:
-  prompt: '/testing:run-e2e worst-case-scenario checkout flow with an expired card Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what kind of run this is and what it drives, then stop.'
+  prompt: '/testing:run-e2e worst-case-scenario checkout flow with an expired card. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what kind of run this is and what it drives, then stop.'
   allowed_tools: [Read, Glob, Grep]
   max_turns: 10
   timeout_seconds: 300
@@ -16,4 +16,4 @@ graders:
     target: last_message
   - name: meets-expectations
     type: llm
-    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e worst-case-scenario checkout flow with an expired card PASS only if the reply satisfies every legacy expectation: "The worst-case action is not run" "The text is treated as an ordinary scenario". FAIL if any point is missing or contradicted.'
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e worst-case-scenario checkout flow with an expired card. PASS only if the reply satisfies every legacy expectation: "The worst-case action is not run" "The text is treated as an ordinary scenario". FAIL if any point is missing or contradicted.'
