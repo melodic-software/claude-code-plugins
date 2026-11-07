@@ -8,10 +8,9 @@ graders:
     min: 1
     arm: 'with-only'
   - name: window-14d
-    type: regex
-    pattern: '\b14[ \t]*-?[ \t]*(?:d|days?)\b|\bfourteen[ \t-]+days?\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: "Legacy expectation: 'The window resolves to roughly 14 days (interpreting 'last two weeks' / the --since default) rather than a 1-day or 30-day window'. PASS only if the window the reply shows or plans spans about 14 days, stated as a day count or as a start and end date about 14 days apart. FAIL if it shows no window, or a window of about 1 day, 7 days, 30 days or any other length."
+    focus: last_message
   - name: markdown-output
     type: llm
     criteria: "Legacy expectation: 'Output is a markdown briefing, not a PPTX or HTML slide deck'. The user gave no --format. PASS only if the reply produces or plans a markdown briefing (for example a confirmation step naming markdown as the output format, or a markdown briefing itself). FAIL if it produces, plans or starts a PPTX deck, slides or an HTML page, or names slides or HTML as the output format."

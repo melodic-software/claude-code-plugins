@@ -25,10 +25,9 @@ graders:
     match: not_contains
     target: last_message
   - name: atlas-item-cited
-    type: regex
-    pattern: 'northwind\.example/blog/atlas-2(?![\w/-])[\s\S]{0,300}?(?:\b2026-10-27\b|\bOct(?:ober)?\.? 27\b)|(?:\b2026-10-27\b|\bOct(?:ober)?\.? 27\b)[\s\S]{0,300}?northwind\.example/blog/atlas-2(?![\w/-])'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: "SKILL.md quality gate: 'Every factual item has a source URL and date.' PASS only if the briefing's Atlas 2 general-availability item gives its source URL northwind.example/blog/atlas-2 and its date 2026-10-27 (any date format) as part of that item. FAIL if either is missing, or the URL or date shown for that item is a different one."
+    focus: last_message
   - name: source-states
     type: llm
     criteria: "The three sources are the Northwind blog export (in-window posts), the Contoso feed (its request timed out with 0 bytes) and the Fabrikam changelog (read in full, every entry before 2026-10-20). Legacy expectations: 'Every source in the output carries exactly one state of data, empty, or unreadable'; 'The disabled RSS feed is shown as unreadable, with the failure cause, and is never described as empty, quiet, or having no news'; 'The vendor blog is shown as data and the GitHub releases page as empty (read in full, nothing in the window)'. Here the feed is Contoso and the read-in-full source is the Fabrikam changelog. PASS only if the briefing gives each of the three sources exactly one of the states data, empty or unreadable, with Northwind as data, Fabrikam as empty and Contoso as unreadable with its cause (timed out), and never calls Contoso empty, quiet or without news. FAIL otherwise."
