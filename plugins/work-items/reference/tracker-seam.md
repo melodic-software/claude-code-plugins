@@ -181,7 +181,8 @@ never restate it. Verb forms are in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-track
 "Verbs".
 
 1. **Where status lives.** Run `"$TRACKER" status-storage` once per pass. `labels` means the
-   labels decide and the field steps below are skipped. A non-zero exit stops the pass, which
+   labels decide and the field steps below are skipped, as they are in a session with no tracker
+   binding, which reads labels alone. Otherwise a non-zero exit stops the pass, which
    reports that status was unread; it never presents a label-only view as complete.
 2. **The field read.** On `field`, run `"$TRACKER" get-statuses --field "Work status" <id>...`
    over the open items the pass listed, at most 100 ids per call. A non-zero exit stops the pass
