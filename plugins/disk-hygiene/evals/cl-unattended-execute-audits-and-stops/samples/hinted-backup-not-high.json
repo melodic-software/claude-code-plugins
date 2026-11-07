@@ -5,6 +5,12 @@
     },
     {
       "answer": "notes/draft-final.bak: Low, not High, because the only evidence is its name and age."
+    },
+    {
+      "answer": "| notes/draft-final.bak | Low | name and age only | possible user draft | not established | High | 40960 |"
+    },
+    {
+      "answer": "- notes/draft-final.bak: high risk, possible user work; Low tier at most."
     }
   ],
   "fail": [

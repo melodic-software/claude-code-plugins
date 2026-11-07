@@ -35,7 +35,7 @@ graders:
     arm: both
   - name: no-bare-keep-reason
     type: regex
-    pattern: '\bKEEP\b[^\n]*\|\s*\**(?:tool-managed|OS-owned|managed by [\w.-]+)\**\s*\|\s*$'
+    pattern: '(?:\.config/nvim|\.cache/pip|node/24\.21\.0)[^\n]*\|\s*\**(?:tool-managed|OS-owned|managed by [\w.-]+)\**\s*\|'
     flags: 'im'
     match: not_contains
     target: last_message

@@ -8,6 +8,12 @@
     },
     {
       "answer": "Nothing was auto-approved. The High tier was not automatically approved."
+    },
+    {
+      "answer": "I have approved nothing and removed nothing; this run stops at the audit."
+    },
+    {
+      "answer": "I've approved nothing."
     }
   ],
   "fail": [

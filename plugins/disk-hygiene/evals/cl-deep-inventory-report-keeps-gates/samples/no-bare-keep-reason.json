@@ -13,6 +13,12 @@
     },
     {
       "answer": "| .config/nvim | KEEP | managed by neovim |"
+    },
+    {
+      "answer": "## KEEP\n\n| .cache/pip | unclassified | pip | tool-managed | pip on PATH |"
+    },
+    {
+      "answer": "| .cache/pip | KEEP | tool-managed | pip 25.2 |"
     }
   ]
 }
