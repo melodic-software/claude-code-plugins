@@ -34,8 +34,9 @@ script written in the session.
    - `discovery`: `/discovery:blindspot` runs the resolver itself and delivers by its JSON line; the
      skill's own steps replace steps 3 and 5.
    - `architecture`, `debugging`: run the resolver with the `--lane` its section names. `--option` takes
-     this plugin's `medium` option as the calling skill states it; add `--argument` only when the reader
-     named a medium in the request:
+     this plugin's `medium` option as the calling skill states it, or `""` when that reads empty or as an
+     unsubstituted placeholder; never put a `${user_config.*}` string in a shell command. Add
+     `--argument` only when the reader named a medium in the request:
 
      ```bash
      node "<plugin-root>/lib/view-settings.mjs" resolve --lane <lane> --option "<medium option>" [--argument terminal|file|artifact]
@@ -94,8 +95,9 @@ node "<plugin-root>/scripts/build-view.mjs" plan --record "<PLAN.md path>" --opt
   JSON
   ```
 
-- `--option` takes this plugin's `medium` option as the calling skill states it. Add
-  `--argument "<medium>"` only when the reader named a medium in the request.
+- `--option` takes this plugin's `medium` option as the calling skill states it, or `""` when that
+  reads empty or as an unsubstituted placeholder; never put a `${user_config.*}` string in a shell
+  command. Add `--argument "<medium>"` only when the reader named a medium in the request.
 - `--visibility` is the visibility of the repository the record draws on
   (`gh repo view --json visibility -q .visibility`), or `NONE` when it draws on none. Left out, the
   shipped default stays local.
@@ -227,7 +229,9 @@ keeps it out of this record.
 
 The interview's read-only decision table, the PRD pitch view and the design topology view are written
 by the session, not the builder, and are only ever local files. Before writing one, run the shared medium
-resolver, passing a medium the reader names in the request as `--argument`, and print its notice lines:
+resolver, passing a medium the reader names in the request as `--argument`, and print its notice lines.
+`<medium option>` is this plugin's `medium` option as the calling skill states it, or `""` when that
+reads empty or as an unsubstituted placeholder; never put a `${user_config.*}` string in a shell command:
 
 ```bash
 node "<plugin-root>/lib/view-settings.mjs" resolve --lane planning --option "<medium option>" [--argument "<medium>"]

@@ -20,10 +20,10 @@ A request for the risk rating alone goes to `/review:merge-risk`.
 
 ## 1. Decide whether to run
 
-Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide:
+Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. It holds only this run's inputs, never the page, so remove it with `rm -rf -- <dir>` (the literal path) when the run ends at any step, after the reader is done with a connected view. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide. `<option>` is this plugin's `medium` option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read each option value from this text; never put a `${user_config.*}` string in a shell command:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "${user_config.medium}" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --option "<option>" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
 ```
 
 - `--requested` when the reader asked for the digest. That is the explicit tier, so the action is `build`.

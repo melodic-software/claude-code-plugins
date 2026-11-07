@@ -138,8 +138,9 @@ JSON data. Never hand-write the page or add script to it. A scheduled run or CI 
 only, and so does a resolved medium that builds no page. `context/view.md` writes this skill's
 directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, the plugin root as `<plugin-root>`, which
 is `${CLAUDE_PLUGIN_ROOT}`, the plugin data dir as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`,
-and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`; put those
-values in place of the placeholders before running a command.
+and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`, or `""`
+when that reads empty or as an unsubstituted placeholder; never put a `${user_config.*}` string in a
+shell command. Put those values in place of the placeholders before running a command.
 
 ## Degraded sections
 

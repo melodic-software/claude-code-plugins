@@ -76,11 +76,13 @@ For a long card list, offer an interactive view in one sentence (cards filterabl
 for each that was news, a copy-out of the reaction). The page is never written beside the cards,
 which stay the record. When the reader accepts:
 
-1. Resolve the medium through the shared resolver. Add `--argument "<medium>"` only when the reader
-   named a medium in the request:
+1. Resolve the medium through the shared resolver. `<option>` is this plugin's `medium` option,
+   `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder.
+   Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+   Add `--argument "<medium>"` only when the reader named a medium in the request:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane discovery:blindspot --option "${user_config.medium}"
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane discovery:blindspot --option "<option>"
    ```
 
    Take the medium from its JSON line only, never from a rendered-views settings file. The step is

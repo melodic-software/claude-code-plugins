@@ -74,8 +74,12 @@ store: write no script and no `<x-embed>`. The title in `deck.json` is plain tex
 escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `class`, `style` and
 `alt`, and images uploaded this session.
 
+`<option>` is this plugin's `medium` option, `${user_config.medium}`; pass `""` when that reads
+empty or as an unsubstituted placeholder. Read each option value from this text; never put a
+`${user_config.*}` string in a shell command.
+
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument <medium>]
+"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "<option>" [--argument <medium>]
 ```
 
 Pass the real path of the folder, not one through a symlink. Pass `--argument <medium>`, `<medium>`

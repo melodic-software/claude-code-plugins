@@ -163,7 +163,8 @@ End every run with this block, in this order:
 After the report, offer an interactive view of `data-model.json` in one sentence. The markdown and
 the record stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs data`,
 never hand-written; the shared medium resolver decides the destination, with this plugin's `medium`
-option `${user_config.medium}`, and its report line is printed. Procedure:
+option `${user_config.medium}` (`""` when that reads empty or as an unsubstituted
+placeholder; never put a `${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do

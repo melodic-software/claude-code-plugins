@@ -363,7 +363,8 @@ verify-on-revisit, not stored metadata:
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
 the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`, and this plugin's `medium`
-option as `<medium option>`, which is `${user_config.medium}`. Put those values in place of the
+option as `<medium option>`, which is `${user_config.medium}`, or `""` when that reads empty or as
+an unsubstituted placeholder; never put a `${user_config.*}` string in a shell command. Put those values in place of the
 placeholders before running a command or writing them into a brief.
 Those files arrive through the Read tool, and we do not rely on a `${…}` token in them being
 substituted or expanded on the way to the Bash tool.
