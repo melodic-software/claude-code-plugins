@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".claude/ecosystems/bash.yaml"],
+      "why": "in the repository"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["ecosystems/bash.yaml"],
+      "why": "outside .claude/"
+    },
+    {
+      "answer": [".claude/ecosystems/bash.local.yaml"],
+      "why": "only the personal override"
+    }
+  ]
+}

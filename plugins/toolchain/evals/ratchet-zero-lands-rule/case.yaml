@@ -27,3 +27,6 @@ graders:
     pattern: 'ratchet\.py'
     match: not_contains
     target: { source: file, path: .github/workflows/ci.yml }
+  - name: meets-legacy-ratchet-3
+    type: llm
+    criteria: 'The run ratchets the no-console rule, which is off and counts zero violations (legacy ratchet 3 used ruff B006 at 0; the rule is the same). It meets the legacy expectations: "Turns the rule on in the linter configuration so a violation fails the build" "Writes no ceilings file entry and runs no ratchet.py add" "Reports that the rule landed with no ceiling".'

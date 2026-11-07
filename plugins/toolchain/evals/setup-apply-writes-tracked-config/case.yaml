@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: setup-apply-writes-tracked-config
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: wrote-bash-yaml
+    type: file_exists
+    path: .claude/ecosystems/bash.yaml
+  - name: reports-untracked
+    type: regex
+    pattern: '(?<!\bnot )\buntracked\b|\bcommit it\b|\bnot (?:yet )?(?:tracked|committed)\b'
+    flags: i
+    target: last_message
+  - name: offers-local-override
+    type: regex
+    pattern: '\.local\.yaml\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:setup apply` asking for a sensible default ecosystem config in a repository of shell scripts. It meets the legacy expectations: "Writes ecosystem files only under the consumer''s tracked `$REPO_ROOT/.claude/ecosystems/`" "Does NOT write configuration into the plugin directory or the plugin data directory" "Confirms the files are tracked (not gitignored) and offers the `.local.yaml` personal override / user-global convention". A freshly written file is untracked until committed, so reporting it as written but untracked, to be committed, satisfies the tracked-not-ignored check.'

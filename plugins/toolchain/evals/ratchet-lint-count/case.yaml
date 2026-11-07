@@ -36,3 +36,6 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: meets-legacy-ratchet-1
+    type: llm
+    criteria: 'The run ratchets an in-house no-console check with 14 violations across 7 files, no baseline and no autofix, where `build` is the required job (legacy ratchet 1 used no-raw-sql, 37 violations and a `verify` job; read those as 14 and `build`). It meets the legacy expectations: "Runs ratchet.py add with --per-file, so each file keeps its own measured ceiling rather than one total of 37" "Proposes .ratchets.json at the repository root and passes --file .ratchets.json to add and check" "Puts the check step inside the `verify` job, the required check" "Commits, pushes and merges nothing; the Output block ends awaiting human approval".'

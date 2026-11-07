@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ln-no-changes-points-to-all
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: used-merge-base
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+(?:-C\s+\S+\s+)?merge-base\b'
+    arm: both
+  - name: no-changes-found
+    type: regex
+    pattern: 'No changes found'
+    flags: i
+    target: last_message
+  - name: points-to-lint-all
+    type: regex
+    pattern: '/toolchain:lint all\b'
+    target: last_message
+  - name: nothing-ran
+    type: file_exists
+    path: .calls.log
+    exists: false
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is bare `/toolchain:lint` on a clean tree with no branch diff against the default branch. It meets the legacy expectations: "Falls back to the branch diff before concluding there is nothing to lint" "Reports ''No changes found'' and suggests `/toolchain:lint all` or `/toolchain:lint <ecosystem>` when both detection paths are empty and no filter was given" "Does not silently run every ecosystem when no changes and no filter are present".'

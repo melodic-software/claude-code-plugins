@@ -26,3 +26,6 @@ graders:
     tool: Bash
     input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*|(?:command\s+-v|which|type|hash)\s+(?:-\S+\s+)*\\?["'']?)zzlint-not-installed'
     arm: both
+  - name: meets-legacy-check-2
+    type: llm
+    criteria: 'The run checks a repository whose tracked bash.yaml lints through zzlint-not-installed, a tool on no PATH (legacy check 2 used python with uv missing; the rule is the same). It meets the legacy expectations: "Reports the ecosystem as `skip` (with the install-hint) rather than `FAIL` when the required tool is absent from PATH" "Distinguishes a missing-tool skip from an actual build/test/lint failure" "Does not treat the absent tool as a red build".'

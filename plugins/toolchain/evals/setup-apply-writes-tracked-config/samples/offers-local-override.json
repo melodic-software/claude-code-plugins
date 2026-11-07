@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Personal per-key overrides go in `.claude/ecosystems/bash.local.yaml`; add `.claude/**/*.local.*` to .gitignore.",
+      "why": "names the override file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `.claude/**/*.local.*` to .gitignore.",
+      "why": "only the ignore line, no override file"
+    }
+  ]
+}

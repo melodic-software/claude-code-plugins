@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "[rules]\nno-legacy-typing = \"error\"\n",
+      "why": "error"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[rules]\nno-legacy-typing = \"warn\"\n",
+      "why": "warn"
+    },
+    {
+      "answer": "[rules]\n# no-legacy-typing = \"error\"\nno-legacy-typing = \"off\"\n",
+      "why": "error only in a comment"
+    }
+  ]
+}
