@@ -85,7 +85,8 @@ done
 command -v jq >/dev/null 2>&1 || die "jq is required"
 FIXTURE="${UPSTREAM_DRIFT_FIXTURE_DIR:-}"
 if [[ -z "$FIXTURE" ]]; then
-  command -v gh >/dev/null 2>&1 || die "gh is required (or set UPSTREAM_DRIFT_FIXTURE_DIR)"
+  # type -P: on a runner `gh` is also the api-budget wrapper function.
+  type -P gh >/dev/null 2>&1 || die "gh is required (or set UPSTREAM_DRIFT_FIXTURE_DIR)"
 fi
 
 SHA_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
