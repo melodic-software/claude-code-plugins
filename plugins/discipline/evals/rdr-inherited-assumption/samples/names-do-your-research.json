@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The lookup itself is /discipline:do-your-research's axis."
+    },
+    {
+      "answer": "Hand the capability lookup to the do-your-research skill; this corrector owns the inherited assumption."
+    },
+    {
+      "answer": "Acquiring that evidence is discipline:do-your-research territory."
+    },
+    {
+      "answer": "Whether the library supports it is do-your-research's external-evidence axis; this corrector owns the incumbency question."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do your own reading of the docs.",
+      "why": "not the skill"
+    },
+    {
+      "answer": "Go do your research on the library first.",
+      "why": "the plain phrase, not the skill"
+    },
+    {
+      "answer": "You'll need to do your research on whether the library supports it, then pick a skill.",
+      "why": "the plain phrase with skill elsewhere in the sentence"
+    }
+  ]
+}

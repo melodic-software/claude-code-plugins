@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "view: terminal (retired ~/.claude/rendered-views.md)\nnotice: ...",
+      "why": "printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: terminal (userConfig)",
+      "why": "wrong decider"
+    },
+    {
+      "answer": "The view stays in the terminal.",
+      "why": "paraphrased"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

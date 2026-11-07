@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "globs: [\"*.cs\", \"*.csproj\", \"*.sln\"]\ntest-cmd: 'dotnet test \"Cart.sln\" --no-build --filter \"Category!=Slow\"'\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "globs: [\"*.cs\", \"*.csproj\", \"*.sln\"]\ntest-cmd: 'dotnet test \"<solution-or-project-file>\" --no-build'\n",
+      "why": "overwritten with the bundled default"
+    }
+  ]
+}

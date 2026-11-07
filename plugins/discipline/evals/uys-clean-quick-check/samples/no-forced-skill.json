@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:do-your-research"
+          }
+        }
+      ]
+    }
+  ]
+}

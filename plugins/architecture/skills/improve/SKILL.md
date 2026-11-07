@@ -8,7 +8,7 @@ metadata:
   summary: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix
 ---
 
-**Arguments.** `[deepening|boundaries|conventions] [--medium <value>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`.
+**Arguments.** `[deepening|boundaries|conventions] [--medium <value>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
 
 ## Repository context. Gather first
 

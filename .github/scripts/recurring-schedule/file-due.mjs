@@ -26,7 +26,7 @@ export const cadenceLabel = (cadence) => `cadence: ${cadence}`;
 // A line of its own (issue-conventions.md "Recurring marker"). The shared
 // definition is .github/scripts/intake-triage/admit.mjs SCHEDULE_MARKER, which
 // does not export it; keep this copy identical.
-const SCHEDULE_MARKER = /^<!-- recurring-schedule id=(\S+) -->\r?$/gm;
+export const SCHEDULE_MARKER = /^<!-- recurring-schedule id=(\S+) -->\r?$/gm;
 export const scheduleIds = (body) => [...new Set([...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((m) => m[1]))];
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: ror-http-client-carve-out
+graders:
+  - name: routes-pick-for-the-problem
+    type: regex
+    pattern: 'pick[- ]for[- ]the[- ]problem'
+    flags: 'i'
+    target: last_message
+  - name: incumbency-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )\bincumben(?:cy|t)\b'
+    flags: 'i'
+    target: last_message
+  - name: declines-consistency-ratification
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Identifies the decision as tool/dependency selection, outside this skill''s scope", "Routes to /discipline:pick-for-the-problem rather than approving on consistency grounds" and "Notes that matching the incumbent tool is a selection sin there, not a consistency win". It fails if it approves adding the same client because it keeps the codebase consistent.'
+    focus: last_message

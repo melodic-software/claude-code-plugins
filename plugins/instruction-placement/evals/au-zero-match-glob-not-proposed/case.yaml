@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: au-zero-match-glob-not-proposed
+graders:
+  - name: 'zero-match-rust'
+    type: 'regex'
+    pattern: '^(?=[^\n]*(?:\.rs\b|\brust\b))(?=[^\n]*(?:\bzero[- ]match\w*|\b0 (?:tracked )?(?:files?|matches)\b|\bmatches (?:0|zero|no) (?:tracked )?files?\b|\bmatch count:?\s*`?0\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the Rust section. PASS only if it satisfies every point: (1) Runs glob validation before proposing a destination; (2) Does NOT propose a path-scoped rule whose glob matches zero tracked files; (3) Reports the zero-match result explicitly with its match count; (4) Raises staleness as the likely underlying issue rather than silently dropping the candidate. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

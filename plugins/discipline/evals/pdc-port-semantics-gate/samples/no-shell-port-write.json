@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat vendor/ratelimit/limiter.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls packages/services/src 2>/dev/null"
+          }
+        }
+      ],
+      "why": "reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > notes/semantics-map.md <<'EOF'\nmap\nEOF"
+          }
+        }
+      ],
+      "why": "map file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp packages/services/package.json /opt/eval/pkg.json"
+          }
+        }
+      ],
+      "why": "json is not a port file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > packages/services/src/limiter.ts <<'EOF'\nexport class TokenBucket {}\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd packages/services\ncp ../../vendor/ratelimit/limiter.py src/limiter.ts"
+          }
+        }
+      ],
+      "why": "cp after newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' | tee packages/services/src/limiter.ts"
+          }
+        }
+      ],
+      "why": "tee"
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.8] - 2026-11-07
+
+### Fixed
+
+- `/adhd:clarify`'s medium resolver command takes `--option "<option>"` in place of the `${user_config.medium}` token, and the skill passes `""` when the `medium` option reads empty or unsubstituted, so a model no longer copies the token into the shell call ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
 ## [0.10.7] - 2026-11-07
 
 ### Changed

@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: dyr-unbacked-timeout-and-path
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: reanchor-first
+    type: llm
+    criteria: 'Legacy expectation: "Re-anchors the research/verification discipline as active for the rest of the task before auditing". PASS only if the reply states, before its findings, that research and verification discipline now governs the work (one line is enough). FAIL if it goes straight to findings or never says so.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: located-findings
+    type: llm
+    criteria: 'Legacy expectation: "Names the unverified default and the unverified path as concrete, located findings, not a generic apology". PASS only if the reply names both specifics as findings: the 30-second connection-timeout default and the config/app.yaml path, each tied to the earlier claim. FAIL if it only apologizes in general terms or names one of the two.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: checks-workspace
+    type: regex
+    pattern: '"name":"(?:Read|Grep|Glob)","input":\{[^\n]*?(?:settings\.py|config\.py|client\.toml|TIMEOUT|[Tt]imeout|CONFIG_PATH|"path":"[^"]*client)'
+    target: 'trace'
+  - name: timeout-corrected
+    type: regex
+    pattern: '(?<![\d.])10[ \t-]*(?:s\b|secs?\b|seconds?\b)|DEFAULT_CONNECT_TIMEOUT\b[^\n]{0,20}(?<![\d.])10\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: path-corrected
+    type: regex
+    pattern: '\bconf/client\.toml\b'
+    target: 'last_message'
+  - name: no-reassert
+    type: llm
+    criteria: 'Legacy expectation: "Does not simply re-assert the remembered values as if confirmed". PASS only if the reply does not present 30 seconds as the connection-timeout default or config/app.yaml as the config path as confirmed facts; quoting them as the old, wrong claims is fine. FAIL if either is restated as confirmed.'
+    focus: 'last_message'
+    arm: 'both'

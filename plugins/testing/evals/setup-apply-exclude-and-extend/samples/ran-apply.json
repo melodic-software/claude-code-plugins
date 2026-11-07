@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/p/skills/setup/scripts/setup.sh\" apply --exclude 'legacy/**' --extend js-vitest.files='*.it.ts'" } }
+      ],
+      "why": "apply ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/p/skills/setup/scripts/setup.sh\" check" } }
+      ],
+      "why": "check only"
+    }
+  ]
+}

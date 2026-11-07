@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1 of 3 human-gated items fail the label test and carry a recommendation",
+      "why": "count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "2 of 3 human-gated items fail the label test",
+      "why": "counts the publish"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

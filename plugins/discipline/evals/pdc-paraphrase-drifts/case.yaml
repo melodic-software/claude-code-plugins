@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: pdc-paraphrase-drifts
+graders:
+  - name: paraphrase-drift-named
+    type: regex
+    pattern: '\b(?:paraphras\w*|reword\w*|restates?|restated|restating|restatement|own words)\b[^\n]{0,200}\b(?:drifts?|drifting|stale|second copy|just as|the same way|as much as|same as)\b|\b(?:drifts?|drifting|stale)\b[^\n]{0,120}\b(?:paraphras\w*|reword\w*)\b'
+    flags: 'i'
+    target: last_message
+  - name: copies-corrected
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Flags both the verbatim-pasted reference and the reworded paraphrase as duplication findings", "States that a reworded paraphrase drifts the same as a verbatim copy" and "Corrects forward by replacing the copied content with a pointer/citation to the owning source". The ''Running locally'' section is the project''s own and stays. It fails if either the config table or the retry section is left as content, or if the correction keeps the restated facts beside the pointer.'
+    focus: last_message

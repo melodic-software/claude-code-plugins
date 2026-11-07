@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.2] - 2026-11-07
+
+### Fixed
+
+- `/review:explain-change`'s `digest-policy.mjs` command takes `--option "<option>"` in place of the `${user_config.medium}` token, and the skill passes `""` when the `medium` option reads empty or unsubstituted ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
+## [8.1.1] - 2026-11-07
+
+### Fixed
+
+- state the hand-back size in four agents and the research brief
+
 ## [8.1.0] - 2026-11-07
 
 ### Added

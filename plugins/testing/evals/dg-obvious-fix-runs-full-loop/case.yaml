@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: dg-obvious-fix-runs-full-loop
+description: 'Legacy diagnose 2. A failing test with a fix the user calls obvious routes to context/loop.md and keeps the whole loop: reproduce with a failing test first, isolate the root cause, a minimal fix, retest, then the regression pass. The prompt names the skill, since natural phrasing alone did not load it. skill-fired and read-loop read the tool calls; meets-expected-output (llm) quotes the legacy expected output, the case''s only criterion. Read-only tools, graded on the reply.'
+tags: [testing, diagnose, loop, no-network]
+expected_outcome: 'Reads context/loop.md and lays out reproduce, isolate, fix, retest and regression without skipping a step for the obvious fix.'
+execution:
+  prompt: 'The test I wrote is failing. I think the fix is obvious, let me just change the code. Use the `testing:diagnose` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?diagnose"'
+  - name: read-loop
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/diagnose/context/loop\.md"'
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The user said their test is failing and the fix is obvious, so they will just change the code. PASS only if the run matches the legacy expected output: "Routes to context/loop.md (test failure + fix intent). Enforces the full feedback loop: reproduce (write failing test first), isolate (root cause, not symptom), fix (minimal change), retest (original test must pass), regression (all affected tests). Does not skip steps even if the fix seems obvious." FAIL if any part is missing or contradicted.'

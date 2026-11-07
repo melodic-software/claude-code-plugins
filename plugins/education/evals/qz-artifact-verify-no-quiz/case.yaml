@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: qz-artifact-verify-no-quiz
+description: "Boundary: asking whether a change works and does what was intended is artifact verification, whose object is the code, so no comprehension quiz is generated for it"
+tags: [education, quiz-me, boundary, scaffold]
+expected_outcome: "The reply treats the request as checking the slugify change itself (behavior, edge cases, tests) and produces no report, quiz or answer key."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Can you verify this change actually works and does what we intended before I merge?"
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-quiz
+    type: regex
+    pattern: '^#{1,6}\s*(?:\d+[.)]?\s*)?(?:comprehension )?quiz\b|\banswer key\b|\bquiz at the bottom\b'
+    flags: 'mi'
+    match: 'not_contains'
+    target: last_message
+  - name: artifact-not-human
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Recognizes the request as artifact verification (object = the artifact) rather than a comprehension check of the human" and "Preserves the boundary: quiz-me verifies the human''s comprehension, not whether the artifact is correct". PASS if the reply works on whether the slugify change is correct (its behavior on accented titles and edge hyphens, tests or checks to run, or a verdict on the code), or names that artifact verification is a different job from a comprehension quiz. FAIL if the reply turns the request into a quiz or report testing the user''s understanding. Example PASS: "The new slugify strips accents with NFKD and trims edge hyphens; ''Crème brûlée!'' now gives ''creme-brulee''. One gap: an all-symbol title returns an empty slug." Example FAIL: "Here is a short quiz to check you understand the change: Q1. Why does slugify call normalize?"'

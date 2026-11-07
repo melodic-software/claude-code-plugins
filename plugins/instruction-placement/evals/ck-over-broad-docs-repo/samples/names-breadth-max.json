@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Raise the ceiling with `--breadth-max 95` rather than live with the warning.",
+      "why": "flag form"
+    },
+    {
+      "answer": "Set `breadth_max` to 95 in the plugin config.",
+      "why": "config key form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Narrow the glob to `docs/**/*.md`.",
+      "why": "narrows instead"
+    },
+    {
+      "answer": "You can raise the breadth threshold if you like.",
+      "why": "no concrete lever"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

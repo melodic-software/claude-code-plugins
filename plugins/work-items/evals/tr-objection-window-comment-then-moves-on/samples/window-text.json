@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Objection window until 2026-10-06T09:00:00Z. Triage made this item autonomous-eligible.",
+      "why": "text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Objection window: 24 hours.",
+      "why": "no end time"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

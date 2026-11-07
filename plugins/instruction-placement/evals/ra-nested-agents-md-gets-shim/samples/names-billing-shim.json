@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "2. Create `src/billing/CLAUDE.md` containing `@AGENTS.md`.",
+      "why": "step"
+    },
+    {
+      "answer": "Shim: src/billing/CLAUDE.md -> @AGENTS.md (the root CLAUDE.md is read instead of the AGENTS.md).",
+      "why": "arrow form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created `src/billing/AGENTS.md` with the Billing module section.",
+      "why": "AGENTS.md alone"
+    },
+    {
+      "answer": "Add `@AGENTS.md` to the root CLAUDE.md.",
+      "why": "wrong file"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

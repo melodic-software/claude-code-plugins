@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy. Never-batched: scrutinize-dont-coast."
+    },
+    {
+      "answer": "| core | situational | `never` |"
+    },
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy.\nNever — scrutinize-dont-coast.",
+      "why": "em dash separator, as the sibling tiers-reported grader accepts"
+    },
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy.\nNever – scrutinize-dont-coast.",
+      "why": "en dash separator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy."
+    },
+    {
+      "answer": "Core: use-your-skills. Never-batched: scrutinize-dont-coast.",
+      "why": "no situational tier"
+    },
+    {
+      "answer": "Core: use-your-skills. Situational: point-dont-copy. Never mind the rest.",
+      "why": "never used as a word, not as the third tier"
+    }
+  ]
+}

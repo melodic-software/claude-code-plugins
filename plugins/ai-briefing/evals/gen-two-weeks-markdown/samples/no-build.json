@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CLAUDE_PLUGIN_DATA=\"/opt/eval/data\" node \"/opt/eval/plugin/lib/view-settings.mjs\" resolve --lane ai-briefing:generate --option \"\""
+          }
+        }
+      ],
+      "why": "the step 1 medium resolver, not the build"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CLAUDE_PLUGIN_DATA=\"/opt/eval/data\" AI_BRIEFING_PROFILE=\"default\" node \"/opt/eval/data/runtime/build/run.js\""
+          }
+        }
+      ],
+      "why": "launched the build pipeline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /opt/eval/plugin/skills/generate/output/build"
+          }
+        }
+      ],
+      "why": "touched the build tree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/eval/build\nnode run.js --format slides"
+          }
+        }
+      ],
+      "why": "run.js after a newline"
+    }
+  ]
+}

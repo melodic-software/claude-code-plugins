@@ -1,5 +1,39 @@
 # Changelog for the PR pipeline convention
 
+## [9.9.0] - 2026-11-07
+
+### Changed
+
+- Intake admission posts an admission record (a new lanes-App comment with the sha256 of the issue title and body it admitted) before it sets the Work status to agent-ready. The issue lane freezes a run's text at the newest admission record or a listed human's agent-ready Work status set, at or before the event that started the run, instead of at an agent-ready label event, and refuses a run whose title or body no longer matches the record's hashes.
+
+- The Work status field decides agent-ready like any other queue state: a trusted field state of
+  agent-ready reads as the `agent-ready` label, and any other state drops a stale one.
+- resolve-issue starts on the Work status `field_added` event, and resolve-config folds the
+  trusted field into the issue's labels, so a field-only admission matches `labels: [agent-ready]`
+  and a field hold matches `labels-absent`.
+- The WIP cap check lists queued issues from the Work status listing, not the `agent-ready` label.
+- sync-status no longer writes agent-ready to the field when a person adds the label.
+- `.github/scripts/lib/admission-record.mjs` joins the hold floor.
+
+## [9.8.0] - 2026-11-07
+
+### Added
+
+- pr-verify judges a pull request that closes a recurring-schedule issue against that issue's
+  schedule row. When `maintenance-file-recurring-issues.yml` filed the issue (github-actions[bot])
+  and its body has exactly one `<!-- recurring-schedule id=<id> -->` line, resolve-pr takes the
+  spec from that row of main's `.github/recurring-schedule.json`, built with the filer's own title
+  and body, and marks the entry `source` `recurring-schedule`. The issue's own text stays out of
+  the spec. An unknown id, a missing or repeated marker line, or any other author leaves the issue
+  with no trusted spec, as before. The merge gate applies the same rule, so the lanes merge such a
+  pass.
+
+## [9.7.2] - 2026-11-07
+
+### Fixed
+
+- `intake-reenter` no longer adds `needs-triage` when a listed human releases a Work status hold. It claims the release with a comment marked with the field event that left the hold, so a re-run of that release dispatches nothing and a later release on the same issue dispatches again; a failed run deletes the comment and leaves Work status as written.
+
 ## [9.7.1] - 2026-11-07
 
 ### Fixed

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "explain writes into a workspace, and you have none yet. Do you want to start one with `/education:teach topic javascript-closures`, or a codebase workspace?",
+      "why": "asks whether to start one"
+    },
+    {
+      "answer": "No active Workspace found. Should I start a Topic workspace for closures first?",
+      "why": "case-insensitive"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A closure is a function that keeps access to the variables of the scope it was created in.",
+      "why": "teaches with no workspace and no question"
+    },
+    {
+      "answer": "I created the closures topic workspace and wrote the lesson.",
+      "why": "invents a workspace without asking"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

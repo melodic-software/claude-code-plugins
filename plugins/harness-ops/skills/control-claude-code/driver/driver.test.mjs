@@ -961,12 +961,40 @@ const fixture = (name) => readFileSync(join(HERE, 'fixtures', name), 'utf8').rep
 const MASKS = driver.readMasks(readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8'));
 const VALUES = ['user@example.com', 'Example Org'];
 
-/** Terminal cells for screen text, one per code point, default colors. */
-function toCells(text) {
+/** Terminal cells for screen text, one per code point, default colors; `cols` pads each row with blanks. */
+function toCells(text, cols = 0) {
   return text.split('\n').flatMap((line, y) =>
-    Array.from(line).map((char, x) => ({ x, y, char, fg: 'default', bg: 'default', bold: false, link: '', link_id: '' })),
+    Array.from(line.padEnd(cols)).map((char, x) => ({ x, y, char, fg: 'default', bg: 'default', bold: false, link: '', link_id: '' })),
   );
 }
+
+const COLS = 40;
+const maskRow = (row, values = [], cols = COLS) => driver.maskCells(toCells(row, cols), MASKS, values).text;
+
+test('two plan names mask to the same row: the stars run to the row end, so their count shows no length', () => {
+  const ultra = maskRow('Opus 5.5 · Claude Ultra');
+  assert.equal(ultra, maskRow('Opus 5.5 · Claude Max'));
+  assert.equal(ultra, `Opus 5.5 · ${'*'.repeat(COLS - 11)}`);
+});
+
+test('a bordered pane row masks the plan only up to its border, and keeps the border', () => {
+  assert.equal(maskRow('│ Opus 5.5 · Claude Max  │ Tips', [], 0), '│ Opus 5.5 · ************│ Tips');
+  assert.equal(maskRow('│ Opus 5.5 · Claude Ultra│ Tips', [], 0), '│ Opus 5.5 · ************│ Tips');
+});
+
+test('the usage notice masks from its first match to the row end, so nothing after it marks where the values end', () => {
+  const row = "You've used 85% of your weekly limit · resets Nov 9 at 3am · /usage-credits to keep using Claude";
+  assert.equal(maskRow(row, [], 0), `You've used ${'*'.repeat(row.length - 12)}`);
+});
+
+test('an email value in a bordered row masks to the border and keeps it', () => {
+  assert.equal(maskRow('│ Email: kim@example.org    │ ok │', ['kim@example.org'], 0), '│ Email: *******************│ ok │');
+});
+
+test('a row shorter than the screen is masked to the screen width maskCells is given', () => {
+  const { text } = driver.maskCells(toCells('Opus 5.5 · Claude Max'), MASKS, [], COLS);
+  assert.equal(text, `Opus 5.5 · ${'*'.repeat(COLS - 11)}`);
+});
 
 test('the status screen keeps its labels and loses the account, session, cwd and usage values', () => {
   const { text } = driver.maskCells(toCells(fixture('status-screen.txt')), MASKS, VALUES);
@@ -992,6 +1020,16 @@ test('the startup banner keeps the model and loses the plan tier', () => {
   }
 });
 
+test('the banner loses any plan name after "· Claude", through its segment end, and keeps every other row', () => {
+  const mask = (row) => driver.maskCells(toCells(row), MASKS, []).text;
+  assert.equal(mask('Sonnet 5.5 · Claude Max'), 'Sonnet 5.5 · **********');
+  assert.equal(mask('Haiku 5.5 ·  Claude Pro   '), 'Haiku 5.5 ·  *************');
+  assert.equal(mask('│ Opus 5.5 · Claude Ultra │ Tips │'), '│ Opus 5.5 · *************│ Tips │');
+  for (const kept of ['Opus 5.5 · API Usage Billing', 'Default (Opus 5.5 · Best for everyday, complex tasks)', 'keep using Claude Code']) {
+    assert.equal(mask(kept), kept);
+  }
+});
+
 test('the key-auth status screen has no account to hide and still loses its session id and cwd', () => {
   const { text } = driver.maskCells(toCells(fixture('status-key-auth-screen.txt')), MASKS, []);
   for (const absent of ['@', 'Email:', 'Organization:', 'Login method:', '00000000-0000', '/home/<user>/project']) {
@@ -1008,14 +1046,14 @@ test('the key-auth status screen has no account to hide and still loses its sess
   }
 });
 
-test('a value wrapped across rows and split by a border is masked; the rest of the row is not', () => {
+test('a value wrapped across rows and split by a border is masked to each segment end; the next segment is not', () => {
   const { text } = driver.maskCells(toCells('│ team: Example\n│ Org │ ok'), MASKS, ['Example Org']);
-  assert.equal(text, '│ team: *******\n│ *** │ ok');
+  assert.equal(text, '│ team: *******\n│ ****│ ok');
 });
 
-test('a home path outside the cwd line is masked to its end', () => {
+test('a home path outside the cwd line is masked through the row end', () => {
   const { text } = driver.maskCells(toCells('see /home/<user>/x here'), MASKS, []);
-  assert.equal(text, 'see ************** here');
+  assert.equal(text, `see ${'*'.repeat(19)}`);
 });
 
 test('a masked cell loses its colors and attributes, so a colored meter shows no level', () => {

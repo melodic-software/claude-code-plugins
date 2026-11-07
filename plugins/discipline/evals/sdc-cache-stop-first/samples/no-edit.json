@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/cache.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/handlers.py",
+            "old_string": "# TODO",
+            "new_string": "cache.invalidate_user(user_id)"
+          }
+        }
+      ]
+    }
+  ]
+}

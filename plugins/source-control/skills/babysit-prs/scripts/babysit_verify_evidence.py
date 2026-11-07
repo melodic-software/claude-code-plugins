@@ -90,7 +90,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   written, and last edited if ever, by a User on the trusted list's humans
   (the pull request's author among them), or is a sub-issue the lanes App
   filed in a size split whose body counts as its parent's text
-  (`split_child_body`), else `verify:untrusted-spec`. A
+  (`split_child_body`), or is an issue github-actions[bot] filed whose one
+  recurring-schedule marker names one row of the default branch's schedule
+  (`recurring_row`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -678,6 +680,18 @@ RELINK_QUERY = (
 )
 # Admission's rules, whose `task-list` is the prefix a split copies by.
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
+# The recurring schedule, and the issue body and author `recurring_row`
+# reads (resolve-pr.mjs recurringSpec).
+RECURRING_SCHEDULE_PATH = ".github/recurring-schedule.json"
+RECURRING_ISSUE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){body author{...actor}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+# github-actions[bot], which maintenance-file-recurring-issues.yml files as.
+ACTIONS_BOT_ID = 41898282
+# file-due.mjs SCHEDULE_MARKER.
+SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
 # admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
 REFINE_MARKER = "<!-- intake-triage refinement -->"
 SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
@@ -728,6 +742,35 @@ def ticked_forms(line: str, task_list: str) -> list[str]:
     indent = line[: len(line) - len(rest)]
     text = rest[len(task_list) :]
     return [indent + task_list.replace("[ ]", box, 1) + text for box in ("[x]", "[X]")]
+
+
+def recurring_row(issue: Any, schedule: Any) -> bool:
+    """resolve-pr.mjs recurringSpec: whether `issue` (as `RECURRING_ISSUE_QUERY`
+    reads it) is one github-actions[bot] filed whose body has exactly one
+    marker line naming exactly one titled row of `schedule`, the default
+    branch's. The spec is that row's text, never the issue's, so an edit can
+    only point the marker at another reviewed row on the default branch
+    (hardening candidate: also require an unedited issue). Pure."""
+    issue = json_object(issue)
+    author = json_object(issue.get("author"))
+    body = issue.get("body")
+    marks = SCHEDULE_MARKER_RE.findall(body) if isinstance(body, str) else []
+    if (
+        author.get("__typename") != "Bot"
+        or author.get("databaseId") != ACTIONS_BOT_ID
+        or len(marks) != 1
+    ):
+        return False
+    rows = [
+        row
+        for row in map(json_object, json_array(json_object(schedule).get("items")))
+        if row.get("id") == marks[0]
+    ]
+    return (
+        len(rows) == 1
+        and isinstance(rows[0].get("title"), str)
+        and rows[0]["title"] != ""
+    )
 
 
 def split_child_body(
@@ -1373,6 +1416,15 @@ class Reader:
     # when each read behind it was taken, noted again on every answer
     # (`run_cache.note`).
     _split_children: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
+        default_factory=dict
+    )
+    # The default branch's recurring schedule (`_schedule`), once read.
+    _schedule_value: Any = None
+    _schedule_read: bool = False
+    _schedule_at: datetime | None = None
+    # Whether each recurring issue judged counts (`_recurring`), with when
+    # each read behind it was taken.
+    _recurring_issues: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
     # Each pull request's RELINK_QUERY answer, or {} for a failed read.
@@ -2558,6 +2610,63 @@ class Reader:
             run_cache.note(at)
         return counts
 
+    def _schedule(self) -> Any:
+        """The recurring schedule at the repository's default branch, as
+        resolve-pr.mjs reads it from main's checkout, never the pull
+        request's base or head, shared by the run's gate processes. A failed
+        read raises `_Unreadable`."""
+        if not self._schedule_read:
+            try:
+                default = merge_policy._default_branch(self.repo, shared=True)
+            except merge_policy.PolicyReadError as exc:
+                raise _Unreadable(str(exc)) from exc
+            key = f"{self.repo}@{default}"
+            shared = run_cache.get_dated("recurring-schedule", key, run_cache.MAX_AGE)
+            if shared is not None:
+                self._schedule_value, at = shared
+            else:
+                at = run_cache.now()
+                tip = self._tip(default)
+                self._schedule_value = _read(
+                    [
+                        "api",
+                        "-H",
+                        "Accept: application/vnd.github.raw",
+                        f"repos/{self.repo}/contents/{RECURRING_SCHEDULE_PATH}?ref={tip}",
+                    ],
+                    "recurring schedule",
+                )
+                run_cache.put("recurring-schedule", key, self._schedule_value, at)
+            self._schedule_read = True
+            self._schedule_at = at
+        if self._schedule_at is not None:
+            run_cache.note(self._schedule_at)
+        return self._schedule_value
+
+    def _recurring(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which github-actions[bot]
+        wrote, names its one schedule row (`recurring_row`), read once per
+        Reader. A failed read raises `_Unreadable` (`verify:unreadable`)."""
+        number = issue.get("number")
+        if (
+            type(number) is not int
+            or issue.get("author_type") != "Bot"
+            or issue.get("author_id") != ACTIONS_BOT_ID
+        ):
+            return False
+        if number not in self._recurring_issues:
+            with run_cache.track() as taken:
+                run_cache.note(run_cache.now())
+                node = self._graphql(
+                    RECURRING_ISSUE_QUERY, number, "recurring issue", env=self._env()
+                ).get("issue")
+                counts = recurring_row(node, self._schedule())
+            self._recurring_issues[number] = (counts, tuple(taken))
+        counts, read_at = self._recurring_issues[number]
+        for at in read_at:
+            run_cache.note(at)
+        return counts
+
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
         twin): a User on the trusted list's humans, the PR author included.
@@ -2594,7 +2703,8 @@ class Reader:
     def _trusted_spec(self, record: dict[str, Any]) -> bool:
         """Every linked issue was written, and its body last edited if ever,
         by a User on the trusted list's humans (`_trusted_actor`), or is a
-        size split's sub-issue whose body counts (`_split_child`)."""
+        size split's sub-issue whose body counts (`_split_child`), or a
+        recurring issue naming its schedule row (`_recurring`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -2610,6 +2720,7 @@ class Reader:
                 and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
             )
             or self._split_child(issue)
+            or self._recurring(issue)
             for issue in issues
         )
 
@@ -5075,9 +5186,10 @@ def capped_close(
     issue carried it (one that did not is recorded and not restarted); the pull
     request closes, so a closed one never leaves its issue without
     `agent-ready`. An issue that already had `attempts` fresh attempts
-    (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
-    (and, with `issue_status`, its Work status field at `confirmed`) with
-    `status: ready` and `agent-ready` off, before the close. A pull
+    (`merge.verify-cap-attempts`) is parked instead, before the close: with
+    `issue_status`, its Work status field at `confirmed` and no status label
+    written; without, `status: confirmed` with `status: ready` off; either
+    way `agent-ready` off. A pull
     request not open at `head`, not the lanes App's, or carrying a hold label
     (`holds`) is left alone, and so is one whose issue link the pr-merge lane
     does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
@@ -5313,7 +5425,14 @@ def capped_close(
                 ],
                 f"#{issue} record",
             )
-        if labels == "park":
+        if labels == "park" and issue_status is not None:
+            # A repository that keeps Work status in the field gets the field
+            # alone, before any label comes off (report-outcome.mjs
+            # applyHandBack); a write that does not land raises.
+            postmerge.set_issue_status(
+                repo, issue, issue_status, STATUS_FIELD_CONFIRMED
+            )
+        elif labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
                 f"#{issue} {STATUS_CONFIRMED}",
@@ -5328,13 +5447,6 @@ def capped_close(
                 f"#{issue} {STATUS_READY}",
                 missing_ok=True,
             )
-            if issue_status is not None:
-                _gh_write(
-                    merge_policy.issue_status_write(
-                        repo, issue, issue_status.field_id, STATUS_FIELD_CONFIRMED
-                    ),
-                    f"#{issue} Work status {STATUS_FIELD_CONFIRMED}",
-                )
         if labels == "none":
             continue
         if labels != "add":

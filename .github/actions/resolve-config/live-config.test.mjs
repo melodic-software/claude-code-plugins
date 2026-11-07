@@ -449,15 +449,16 @@ test("live config: review-dependency holds no write token; its push job may only
   assert.deepEqual(verdict.needs, ["review-dependency", "apply-dependency-patch"]);
 });
 
-// An agent-ready label event on an issue.
+// Work status set to agent-ready on an issue: resolve-config folds the
+// trusted field into the labels, so agent-ready reads as a label.
 const ISSUE = {
-  event: "labeled",
+  event: "field_added",
   labels: ["agent-ready"],
 };
 
-// Owner decision 2026-10-17: the agent-ready label alone admits the issue;
-// no marker comment and no work-class label admits or refuses it.
-test("live config: resolve-issue starts on the agent-ready label alone, whatever its work-class label", () => {
+// Owner decision 2026-10-17: agent-ready alone admits the issue; no marker
+// comment and no work-class label admits or refuses it.
+test("live config: resolve-issue starts on agent-ready alone, whatever its work-class label", () => {
   for (const labels of [
     ["agent-ready"],
     ["agent-ready", "work-class: read-only"],
@@ -483,15 +484,14 @@ test("live config: resolve-issue starts nothing once agent-ready is gone from th
 });
 
 // No go-live cutoff: an issue labeled agent-ready at any time starts a run.
-test("live config: resolve-issue starts on an agent-ready label event, with no label-time cutoff", () => {
+test("live config: resolve-issue starts on a Work status field event, with no label-time cutoff", () => {
   assert.equal(selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }).applies, true);
 });
 
-test("live config: resolve-issue still needs the agent-ready label event", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, event: "dispatch" }),
-    "not-applicable",
-  );
+test("live config: resolve-issue needs the Work status field event, not a label event", () => {
+  for (const event of ["dispatch", "labeled"]) {
+    assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, event }), "not-applicable", event);
+  }
 });
 
 // The run must pass the fragment format check and CI's changed-skills gate

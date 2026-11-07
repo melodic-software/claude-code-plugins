@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/discipline.yaml lever_scope: always is invalid; that layer is dropped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/conventions/discipline.yaml holds always.",
+      "why": "never called invalid"
+    },
+    {
+      "answer": "The repository value is invalid.",
+      "why": "value and file unnamed"
+    }
+  ]
+}

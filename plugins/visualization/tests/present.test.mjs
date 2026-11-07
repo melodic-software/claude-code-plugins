@@ -289,7 +289,9 @@ describe("skill contract", () => {
     assert.match(skill, /this plugin's `medium` option set to `artifact`/);
   });
   test("the script, not the model, resolves the layers; a team layer cannot publish", () => {
-    assert.match(skill, /--option "\$\{user_config\.medium\}"/);
+    assert.match(skill, /--option "<option>"/);
+    assert.match(skill, /`<option>` is this plugin's `medium`\s+option, `\$\{user_config\.medium\}`/);
+    assert.doesNotMatch(skill, /--option "\$\{user_config\./);
     assert.doesNotMatch(skill, /--explicit/);
     assert.match(skill, /never publishes from the\s+team/);
   });

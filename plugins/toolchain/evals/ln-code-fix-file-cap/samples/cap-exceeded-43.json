@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "file-cap exceeded (43 > 40; pass --all-files to override)",
+      "why": "the skill's line"
+    },
+    {
+      "answer": "**File-cap exceeded:** `43 > 40`; pass --all-files to override.",
+      "why": "bold label and code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file-cap exceeded (40 files max; pass --all-files to override)",
+      "why": "names only the threshold"
+    },
+    {
+      "answer": "file-cap exceeded (430 > 40)",
+      "why": "a different count"
+    }
+  ]
+}

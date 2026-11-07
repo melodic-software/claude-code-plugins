@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "from typing import Dict, List\n\ndef orders_1(rows: list[int], index: dict[str, int]) -> list[int]:\n    return rows\n",
+      "why": "rewritten (the unused import is not a violation)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from typing import Dict, List\n\ndef orders_1(rows: list[int], index: Dict[str, int]) -> list[int]:\n    return rows\n",
+      "why": "one violation left"
+    }
+  ]
+}

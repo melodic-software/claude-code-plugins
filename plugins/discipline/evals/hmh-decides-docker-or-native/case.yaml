@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: hmh-decides-docker-or-native
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?hold-my-hand"'
+    min: 1
+    arm: 'with-only'
+  - name: decides-not-menu
+    type: llm
+    criteria: 'Legacy expectation: "Decides between the two options instead of presenting them as a menu". PASS only if the reply picks Docker or the native install itself. FAIL if it lays out both as options for the user to choose between, or asks the user which they prefer.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: decision-one-line
+    type: regex
+    pattern: '^[^\n]*\b(?:Docker|native)\b[^\n]*\b(?:because|since|as it|as the|so that|so the)\b[^\n]*$'
+    flags: 'mi'
+    target: 'last_message'
+  - name: full-sentences
+    type: llm
+    criteria: 'Legacy expectation: "Keeps step text in full sentences despite the active terse/compression mode". PASS only if every step is a complete sentence with its articles, conjunctions and prepositions intact. FAIL if steps are compressed into fragments such as "dl pkg, extract, run cfg".'
+    focus: 'last_message'
+    arm: 'both'
+  - name: one-question-max
+    type: regex
+    pattern: '\?[*_)"”\x27]*[ \t]*(?:\n|$)[\s\S]*\?[*_)"”\x27]*[ \t]*(?:\n|$)'
+    match: 'not_contains'
+    target: 'last_message'

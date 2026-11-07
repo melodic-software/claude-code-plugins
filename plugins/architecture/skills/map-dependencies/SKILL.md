@@ -215,7 +215,8 @@ says it aggregated to directory level.
 After the report, offer an interactive view of `dependency-graph.json` in one sentence. The markdown and the
 record stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs dependencies`,
 never hand-written; the shared medium resolver decides the destination, with this plugin's `medium`
-option `${user_config.medium}`, and its report line is printed. Procedure:
+option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put a
+`${user_config.*}` string in a shell command), and its report line is printed. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do

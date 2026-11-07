@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Depth: full (from the invocation argument; it overrides the configured default)."
+    },
+    {
+      "answer": "You passed `full` as the argument, so every item goes to a subagent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Depth: full (configured default).",
+      "why": "wrong source"
+    },
+    {
+      "answer": "Depth: full.",
+      "why": "depth without its source"
+    }
+  ]
+}

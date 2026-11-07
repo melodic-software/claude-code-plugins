@@ -124,10 +124,12 @@ and deliver the record.
 ## Step 4. Deliver the view
 
 Run the shared medium resolver. When the reader named a medium in the request, add
-`--argument <medium>`, `<medium>` being that word:
+`--argument <medium>`, `<medium>` being that word. `<option>` is this plugin's `medium` option,
+`${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read
+each option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane education:illustrate --option "${user_config.medium}"
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane education:illustrate --option "<option>"
 ```
 
 It prints one JSON line, then the report line naming the medium and the fact that decided it, then

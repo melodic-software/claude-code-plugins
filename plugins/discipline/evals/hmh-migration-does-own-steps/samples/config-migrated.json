@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "orders_db:\n  host: db-new.internal\n  port: 6432\n  sslmode: require\n  pool_size: 10\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "orders_db:\n  host: db-old.internal\n  port: 5432\n  sslmode: prefer\n  pool_size: 10\n",
+      "why": "untouched"
+    },
+    {
+      "answer": "orders_db:\n  host: db-new.internal\n  port: 6432\n  sslmode: prefer\n",
+      "why": "sslmode not set"
+    }
+  ]
+}

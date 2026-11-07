@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "@given(st.integers(min_value=0))\ndef test_round_trip(seconds):\n    assert parse_duration(format_duration(seconds)) == seconds\n",
+      "why": "no formatter arithmetic"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.integers(min_value=0))\ndef test_format(seconds):\n    hours, rest = divmod(seconds, 3600)\n    assert format_duration(seconds).startswith(f\"{hours}h\")\n",
+      "why": "rebuilds the expected string with divmod"
+    },
+    {
+      "answer": "def test_format(seconds):\n    assert format_duration(seconds) == f\"{seconds // 3600}h\"\n",
+      "why": "rebuilds it with floor division"
+    }
+  ]
+}

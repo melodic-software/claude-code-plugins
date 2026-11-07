@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: il-eli5-incident
+description: "An 'explain like I'm five' about an incident selects illustrate's zero-knowledge preset, reads the writeup and the log to rebuild the sequence, then draws small one-idea diagrams with plain words first and service names in parentheses"
+tags: [education, illustrate, outcome, preset, incident, scaffold]
+expected_outcome: "The writeup and the log are read; the printed record walks the outage cause (a config deploy shrinking the database pool from 50 to 5, requests waiting, retries piling on, the rollback) across several small diagrams, each with a one-line caption, with names such as payments-api or PAYMENTS_DB_POOL_MAX only in parentheses after plain words."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "explain like I'm five: what caused the checkout outage last Thursday? The writeup is incidents/2026-10-29-checkout-outage.md and the logs are in logs/checkout-2026-10-29.log. This run cannot write files or run scripts, so print the complete markdown record in your reply instead of building it."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 14
+  timeout_seconds: 600
+graders:
+  - name: read-writeup
+    type: tool_used
+    tool: Read
+    input_match: 'checkout-outage\.md'
+    min: 1
+  - name: grounded-in-logs
+    type: llm
+    focus: trace
+    criteria: 'Expectation: "Runs the incident grounding pass (writeup and logs, sequence reconstructed) before drawing". PASS if the run read both incidents/2026-10-29-checkout-outage.md and logs/checkout-2026-10-29.log (with Read or Grep) before printing the record, and the record''s diagrams follow the sequence those files give: the 14:02 config deploy setting the pool to 5, requests waiting for a connection, checkout timeouts and retries, the 14:41 rollback. FAIL if the log was never read, or the record''s sequence contradicts the files or adds a cause they do not give.'
+  - name: zero-knowledge-shape
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Treats the ELI5 phrasing as the zero-knowledge preset", "Produces diagrams at one idea each with a one-line takeaway caption, not a prose summary" and "Demotes identifiers into parentheses behind plain-words descriptions rather than making unseen names the subject". PASS if the record has two or more small diagrams (mermaid blocks or their text form), each carrying one idea and a one-line caption, and every real name (payments-api, checkout-web, PAYMENTS_DB_POOL_MAX, acquireConnection) appears only in parentheses after a plain-words phrase, never as the subject of a sentence. FAIL if the answer is a prose summary with no diagrams, one diagram carries the whole story, or a sentence leads with an identifier. Example PASS caption: "The shop''s payment helper (payments-api) got only 5 phone lines instead of 50." Example FAIL: "PAYMENTS_DB_POOL_MAX was set to 5, exhausting acquireConnection()."'

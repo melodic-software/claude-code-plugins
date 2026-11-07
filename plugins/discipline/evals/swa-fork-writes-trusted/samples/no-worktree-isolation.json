@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "audit",
+            "prompt": "audit",
+            "subagent_type": "fork",
+            "isolation": "worktree"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Pilot: edit the first class by hand, run the codemod on a clean copy of it, and diff the two."
+    },
+    {
+      "answer": "Edit one file by hand, run the script on a clean copy, then diff the results before the rest."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the codemod across all sites, then review the diff.",
+      "why": "no hand-edited pilot"
+    },
+    {
+      "answer": "Edit the first class by hand and move on.",
+      "why": "no diff"
+    }
+  ]
+}

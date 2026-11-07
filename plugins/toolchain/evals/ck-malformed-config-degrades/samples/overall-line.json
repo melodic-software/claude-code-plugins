@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| dotnet | skip (tool missing: dotnet) | skip (tool missing: dotnet) | skip (tool missing: dotnet) | INCOMPLETE |\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; dotnet: skip (tool missing: dotnet))",
+      "why": "inference met a missing tool"
+    },
+    {
+      "answer": "**Overall:** PASS (1 of 1 ecosystems passed)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stopped: the consumer file .claude/ecosystems/dotnet.yaml is malformed. Fix it and re-run.",
+      "why": "hard stop, no verdict"
+    },
+    {
+      "answer": "Overall: STOPPED (malformed .claude/ecosystems/dotnet.yaml)",
+      "why": "stopped verdict"
+    }
+  ]
+}

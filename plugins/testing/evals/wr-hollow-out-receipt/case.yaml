@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: wr-hollow-out-receipt
+description: 'Legacy write 8. The per-cycle checklist run on a buildReceipt test whose only assertion reads the order the test built: the hollow-out item fails, since a buildReceipt that returns nothing still passes, and the fix captures the receipt buildReceipt returns and asserts on its lines. skill-fired reads the Skill calls, asserts-on-receipt the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, write, per-cycle-checklist, hollow-out, no-network]
+expected_outcome: 'Says the test passes when buildReceipt returns nothing because it asserts on the order it built, and rewrites it to assert on the receipt buildReceipt returns.'
+execution:
+  prompt: "I just went green on this cycle for buildReceipt. Run the per-cycle checklist on the test before I refactor:\n\nimport { buildReceipt } from './receipt';\n\ntest('a receipt lists every order line', () => {\n  const order = { id: 'A17', lines: [{ sku: 'TEA', qty: 2 }, { sku: 'MUG', qty: 1 }] };\n  buildReceipt(order);\n  expect(order.lines).toHaveLength(2);\n});"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: asserts-on-receipt
+    type: regex
+    pattern: '\b(?:const|let)\s+(\w+)\s*=\s*buildReceipt\(\s*order\s*\)[\s\S]{0,400}?\bexpect\(\s*\1\b|\bexpect\(\s*buildReceipt\(\s*order\s*\)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for the per-cycle checklist on a buildReceipt test that calls buildReceipt(order) and then asserts expect(order.lines).toHaveLength(2). PASS only if the reply meets every legacy expectation: "Says the test keeps passing when buildReceipt returns nothing" "Notes that the assertion checks the order the test built rather than any receipt" "Suggests asserting on the receipt buildReceipt returns". FAIL if any point is missing or contradicted.'

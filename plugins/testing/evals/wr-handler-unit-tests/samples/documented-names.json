@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def test_handle_returns_id_when_name_is_new(repo):\n    assert handle(cmd, repo) == 'item-1'\n\n\ndef test_handle_raises_when_name_is_blank(repo):\n    ...\n\n\ndef test_handle_raises_duplicate_when_name_exists(repo):\n    ...\n",
+      "why": "three tests in the documented pattern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_handle_returns_id(repo):\n    ...\n\n\ndef test_blank_name(repo):\n    ...\n\n\ndef test_duplicate(repo):\n    ...\n",
+      "why": "the ecosystem's idiom, not the documented pattern"
+    },
+    {
+      "answer": "def test_handle_returns_id_when_name_is_new(repo):\n    ...\n\n\ndef test_handle_raises_when_name_is_blank(repo):\n    ...\n",
+      "why": "only two documented-pattern tests"
+    }
+  ]
+}

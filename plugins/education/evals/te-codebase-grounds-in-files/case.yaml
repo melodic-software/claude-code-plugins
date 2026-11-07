@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: te-codebase-grounds-in-files
+description: "A codebase lesson on the repo's hook scripts grounds its claims in repo files read this turn (tier 0) and dispatches no research subagent for them, even with the Agent tool available"
+tags: [education, teach, outcome, codebase, grounding, scaffold]
+expected_outcome: "The hook files are read; no Agent subagent is dispatched; the first concept taught (how run-hook.sh runs hooks/pre-commit.d/ steps in name order and stops at the first failure) cites those files rather than general knowledge of git hooks."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach codebase hooks-system, teach me how this repo's hook scripts work. Goal: change one hook safely. Success looks like explaining what runs on a commit and adding a check without breaking the others. Constraint: about 30 minutes a day. This run cannot write files, so skip creating the workspace and teach me the first concept in your reply."
+  allowed_tools: [Skill, Read, Glob, Grep, Agent]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: reads-hook-files
+    type: tool_used
+    tool: Read
+    input_match: 'hooks/(?:run-hook\.sh|hooks\.conf|pre-commit)'
+    min: 1
+  - name: no-research-dispatch
+    type: tool_used
+    tool: Agent
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-recall-claims
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Grounds codebase-mode lesson claims in repo files Read this turn (tier 0), without dispatching a research subagent for them" and "Never asserts a lesson-driving claim from parametric recall at any tier: the ladder decides which fetch, never whether". The repo''s hooks: hooks/pre-commit execs hooks/run-hook.sh pre-commit; run-hook.sh exits early unless the event is listed in hooks/hooks.conf, then runs each executable in hooks/pre-commit.d/ in name order and stops at the first non-zero exit; the steps are 10-no-debug-prints.sh and 20-json-valid.sh. PASS if the lesson''s claims about how this repo''s hooks work match those files and name them. FAIL if the lesson teaches git hooks in general terms that these files do not show (for example a .husky directory, lint-staged, or hooks running in parallel) as how this repo works, or makes claims about the files that contradict them.'

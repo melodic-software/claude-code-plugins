@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The decision: stream the rows to the file. Do not build the file in memory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We ship the fix."
+    },
+    {
+      "answer": "The decision is to build the file in memory."
+    }
+  ]
+}

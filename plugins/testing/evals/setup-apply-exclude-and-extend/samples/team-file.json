@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "tdd_refactor_step: off\npaths:\n  exclude: ['legacy/**']\nextend:\n  js-vitest:\n    files: ['*.it.ts']\n",
+      "why": "both answers and the kept key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "paths:\n  exclude: ['legacy/**']\nextend:\n  js-vitest:\n    files: ['*.it.ts']\n",
+      "why": "dropped tdd_refactor_step"
+    },
+    {
+      "answer": "tdd_refactor_step: off\npaths:\n  exclude: ['legacy/**']\n",
+      "why": "no *.it.ts extension"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"diagrams\":[{\"kind\":\"hub\",\"center\":\"Dave Grohl\",\"branches\":[\"Scream\",\"Nirvana\",\"Probot\",\"Them Crooked Vultures\"],\"text\":[\"Nirvana: drums, 1990 to 1994\"]},{\"kind\":\"timeline\",\"points\":[{\"when\":\"1995\",\"label\":\"Foo Fighters\"}]}]}\n```",
+      "why": "hub plus album timeline"
+    },
+    {
+      "answer": "```json\n{ \"kind\" : \"hub\", \"center\": \"Dave Grohl\" }\n```",
+      "why": "spaced colon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"kind\":\"compare\",\"columns\":[{\"heading\":\"Scream\",\"items\":[\"1986\"]},{\"heading\":\"Nirvana\",\"items\":[\"1990\"]}]}\n```",
+      "why": "compare instead of hub"
+    },
+    {
+      "answer": "```json\n{\"kind\":\"flow\",\"steps\":[\"Scream\",\"Nirvana\",\"Foo Fighters\"]}\n```",
+      "why": "flow instead of hub"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

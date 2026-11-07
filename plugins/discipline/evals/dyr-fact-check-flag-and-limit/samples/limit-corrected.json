@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "The free tier allows 1,000 requests per day (docs/limits.md:3), not 100."
+    },
+    {
+      "answer": "Free tier: 1000 calls a day."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The free tier allows 100 requests a day.",
+      "why": "old claim"
+    },
+    {
+      "answer": "The paid tier allows 50,000 requests a day.",
+      "why": "the other tier's limit"
+    },
+    {
+      "answer": "Retry after 1,000 ms.",
+      "why": "unrelated number"
+    }
+  ]
+}

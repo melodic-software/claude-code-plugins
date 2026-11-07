@@ -71,6 +71,8 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 
 **The verification level, on every route into `context/pre-pr.md`** (this `pre-pr` row, `wrap-up`'s pre-PR step, or a sibling plugin that routes here): before its step 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin session-flow --skill workflow --file docs/conventions/session-flow.yaml` once in the session and report its line; step 2 reads that level.
 
+**The retro offer, on the `wrap-up` route**: `retro_offer` is `${user_config.retro_offer}`. A surviving literal placeholder, or any value other than `off`, means `offer`. `off`: `context/wrap-up.md` offers no retro.
+
 ## Default mode (no arguments)
 
 ### 1. Show the workflow at a glance

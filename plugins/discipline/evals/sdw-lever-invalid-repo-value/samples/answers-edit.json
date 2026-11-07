@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "lever_scope: deterministic (default)\nanswer: edit-by-hand\nreason: x"
+    },
+    {
+      "answer": "**answer:** `edit-by-hand`",
+      "why": "markdown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lever_scope: deterministic (default)\nanswer: build-a-lever\nreason: x",
+      "why": "the other answer"
+    },
+    {
+      "answer": "I would lean toward edit-by-hand here.",
+      "why": "no answer line"
+    }
+  ]
+}

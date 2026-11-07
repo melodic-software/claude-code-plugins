@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"diagrams\":[{\"heading\":\"REST and GraphQL on three points\",\"kind\":\"compare\",\"columns\":[{\"heading\":\"REST\",\"items\":[\"HTTP caches work\",\"Fixed fields per URL\",\"OpenAPI tools\"]},{\"heading\":\"GraphQL\",\"items\":[\"Client cache needed\",\"Exact fields per query\",\"Typed schema tools\"]}]}]}\n```",
+      "why": "compact JSON"
+    },
+    {
+      "answer": "```json\n{ \"kind\" : \"compare\", \"columns\": [] }\n```",
+      "why": "spaced colon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"kind\":\"hub\",\"center\":\"Mobile API\",\"branches\":[\"REST\",\"GraphQL\"]}\n```",
+      "why": "options as hub branches"
+    },
+    {
+      "answer": "REST and GraphQL compare on caching, fetching and tooling.",
+      "why": "the word compare in prose, no model kind"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

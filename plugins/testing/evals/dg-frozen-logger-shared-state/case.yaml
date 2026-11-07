@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: dg-frozen-logger-shared-state
+description: 'Legacy diagnose 1. A "logger is frozen / already initialized" failure routes to context/investigate.md, is named a process-global singleton or shared-state collision rather than a transient error, and is not answered with a retry; the fixture mechanism waits on the project''s own convention. The prompt names the skill, since natural phrasing alone did not load it. skill-fired and read-investigate read the tool calls; meets-expected-output (llm) quotes the legacy expected output, the case''s only criterion. Read-only tools, graded on the reply.'
+tags: [testing, diagnose, shared-state, no-network]
+expected_outcome: 'Reads context/investigate.md, names the shared-state root cause, inspects or asks for the fixture convention before committing to a mechanism, and does not suggest retrying.'
+execution:
+  prompt: 'A test run failed with a ''logger is frozen / already initialized'' error Use the `testing:diagnose` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?diagnose"'
+  - name: read-investigate
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/diagnose/context/investigate\.md"'
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The user reported a test run that failed with a "logger is frozen / already initialized" error. PASS only if the run matches the legacy expected output: "Routes to context/investigate.md. Immediately recognizes the symptom as a process-global singleton / shared-state collision rather than a transient error. Explains the shared-state root cause, then inspects the project''s fixture layout or asks for its documented fixture convention before committing to a specific mechanism (e.g. asserting that multiple fixture instances are needed when a shared-collection fixture is required, or vice versa). Does NOT suggest retrying." FAIL if any part is missing or contradicted.'

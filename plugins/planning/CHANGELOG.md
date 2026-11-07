@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.2] - 2026-11-07
+
+### Fixed
+
+- `/planning:plan`, `/planning:brainstorm`, `/planning:design`, `/planning:prd` and `/planning:interview` pass `""` as the `medium` option when it reads empty or unsubstituted, and never put a `${user_config.*}` string in a shell command ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
 ## [2.13.1] - 2026-11-06
 
 ### Fixed

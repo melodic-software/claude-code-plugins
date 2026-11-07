@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ex-feynman-gap-surfaces
+description: "Asked to explain simply a proof whose steps cannot be put in plain words without hand-waving, explain re-reads the proof and names the part it cannot yet reduce instead of restating the jargon confidently"
+tags: [education, explain, outcome, feynman-gap, scaffold]
+expected_outcome: "proof.md is read; the reply explains what it can plainly, names the specific step it cannot reduce (for example Getzler rescaling or the heat-kernel asymptotics) and why, and does not present a reworded copy of the jargon as a plain explanation."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:explain simply why the proof sketch of the Atiyah-Singer index theorem in proof.md works"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: read-proof
+    type: tool_used
+    tool: Read
+    input_match: 'proof\.md'
+    min: 1
+  - name: names-gap
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Runs the plain-language pass as a comprehension self-test, not a rewording service" and "When jargon cannot be shed, surfaces the specific gap honestly instead of papering over it with a confident restatement of the same jargon". proof.md has four steps: McKean-Singer (index as a difference of heat traces), the small-time heat-kernel expansion, Getzler rescaling, and the A-hat times Chern character integral. PASS if the reply names at least one specific step it cannot put in plain words without hand-waving and says why, while explaining plainly what it can (for example that the index counts solutions minus obstructions, and that the proof computes it a second way). FAIL if every step is restated in the same jargon with a confident tone and no gap is named, or if the reply only says the topic is hard without naming a step. Example PASS: "Steps 1 and 2 I can put in plain words. Step 3, Getzler rescaling, I cannot yet reduce without hand-waving: it is a change of scale that makes most terms vanish, and I cannot say why only the A-hat term survives without the algebra." Example FAIL: "Simply put, the heat kernel''s asymptotic expansion localizes the supertrace, Getzler rescaling picks out the A-hat genus, and the index equals the integral."'

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "typescript check src/cart.ts\nbash check scripts/release.sh\n",
+      "why": "both checks"
+    },
+    {
+      "answer": "bash check scripts/release.sh\ntypescript check src/cart.ts\n",
+      "why": "other order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "typescript check src/cart.ts\n",
+      "why": "bash not detected"
+    }
+  ]
+}

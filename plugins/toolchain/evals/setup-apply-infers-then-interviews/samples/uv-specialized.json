@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**python** (api/pyproject.toml, api/uv.lock)\n- test-cmd: `uv run pytest -x -q`\n- check-cmd: `uv run ruff check <files> && uv run ruff format --check <files>`\n\nRecommendation: accept. Accept, edit or skip?",
+      "why": "uv-specialized draft"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**python**\n- test-cmd: `pytest -x -q`\n- check-cmd: `ruff check <files>`\n\nAccept, edit or skip?",
+      "why": "plain commands despite uv.lock"
+    }
+  ]
+}

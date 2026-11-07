@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "CAP says that during a network partition a replicated store must give up either availability or linearizability (every read seeing the latest completed write). PACELC extends it: else, when there is no partition, you trade latency against consistency.\n\nWant the plain version?",
+      "why": "linearizability and PACELC"
+    },
+    {
+      "answer": "Real version: pick CP and you serve quorum reads that fail during a split; pick AP and you accept eventual consistency.",
+      "why": "quorum and eventual consistency"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Imagine three friends keeping one shopping list by text message. If the texts stop getting through, each friend either stops adding items or keeps adding and risks a mismatched list.\n\nThat's the plain version, want the high-school one?",
+      "why": "rung-1 analogy only"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The CAP theorem names consistency, availability and partition tolerance; you can have two of the three.",
+      "why": "only the theorem's own words"
+    }
+  ]
+}

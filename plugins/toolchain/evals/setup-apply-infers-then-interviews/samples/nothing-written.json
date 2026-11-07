@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written before acceptance"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".claude/ecosystems/python.yaml"],
+      "why": "wrote a draft nobody accepted"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| unlabeled | #31 | ... |\n| unlabeled | #32 | ... |\n\nItem #900 is lane telemetry and is excluded.",
+      "why": "excluded outside the table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| raw marker | #900 | Lane telemetry: work-loop |\n| unlabeled | #31 | ... |",
+      "why": "bucketed"
+    }
+  ]
+}

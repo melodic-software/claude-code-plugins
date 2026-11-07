@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Lint Results\n\n| Ecosystem | Lint | Format | Status |\n|---|---|---|---|\n| typescript | pass | — | PASS |\n| bash | pass | pass | PASS |\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "both rows"
+    },
+    {
+      "answer": "| Ecosystem | Lint | Status |\n|---|---|---|\n| `bash` | pass | PASS |\n| `typescript` | pass | PASS |",
+      "why": "code-span names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Ecosystem | Lint | Status |\n|---|---|---|\n| typescript | pass | PASS |\n\nbash also passed.",
+      "why": "bash only in prose"
+    }
+  ]
+}

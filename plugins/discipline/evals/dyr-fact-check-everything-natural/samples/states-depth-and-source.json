@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Depth: tiered (default; the configured research_deep_verification value is empty)."
+    },
+    {
+      "answer": "No argument was given, so the configured value applies: full."
+    },
+    {
+      "answer": "Ran at tiered depth: no argument was given and the configured value is an unexpanded token."
+    },
+    {
+      "answer": "With no argument, depth resolved to **tiered** by the fallback."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Depth: tiered (from the argument).",
+      "why": "no argument was given"
+    },
+    {
+      "answer": "Depth: tiered.",
+      "why": "depth without its source"
+    },
+    {
+      "answer": "## Full ledger: deployment config, version pins, rollout plan",
+      "why": "full and config name the ledger and its subject, not a depth"
+    },
+    {
+      "answer": "Full ledger for the deployment config.",
+      "why": "no depth stated"
+    },
+    {
+      "answer": "Full inventory below; by default every claim gets a row.",
+      "why": "full and default without a depth"
+    }
+  ]
+}

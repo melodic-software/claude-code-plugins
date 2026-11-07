@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Category 2: a deliberate divergence backed by ADR 0007."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is a gap: upgrade pg."
+    },
+    {
+      "answer": "This is not deliberate.",
+      "why": "negated"
+    }
+  ]
+}

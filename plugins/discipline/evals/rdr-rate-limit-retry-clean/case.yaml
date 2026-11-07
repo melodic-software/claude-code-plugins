@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: rdr-rate-limit-retry-clean
+graders:
+  - name: confirms-live-rationale
+    type: regex
+    pattern: '(?:^|(?<=[.!?])[ \t]+)(?!(?:[^\n.!?]|\.(?=\w))*?(?:\b(?:not|never|cannot|nobody|lacks?|lacking|without|unclear|unknown|questionable|outdated|stale|no longer)\b|n[''’]t\b|\bno\b(?! (?:changes?|churn|action|objections?)\b)|(?<!\bno )(?<!nothing to )\b(?:chang(?:e|es|ed|ing)|switch(?:es|ed|ing)?|replac(?:e|es|ed|ing)|rework\w*|revis(?:e|es|ed|ing)|tweak\w*|adjust\w*|re-?tun(?:e|es|ed|ing)|increase|reduce|lower|raise|bump|shorten|lengthen|instead|but|however|although|though|except|should|recommend\w*|suggest\w*|propos\w*)\b))(?:[^\n.!?]|\.(?=\w))*?(?:\b(?:retry|retries|backoff|back-off|policy|rationale|choice|convention|rate[- ]limit\w*)\b(?:[^\n.!?]|\.(?=\w))*?\b(?:confirm(?:s|ed|ing)?|(?<!\bas it )stands|holds|is justified|justified|keep(?:s|ing)?|kept|still (?:valid|sound|applies))\b|\b(?:confirm(?:s|ed|ing)?|(?<!\bas it )stands|holds|is justified|justified|keep(?:s|ing)?|kept|still (?:valid|sound|applies))\b(?:[^\n.!?]|\.(?=\w))*?\b(?:retry|retries|backoff|back-off|policy|rationale|choice|convention|rate[- ]limit\w*)\b|\b(?:live|stated|real|valid|sound|documented|genuine|concrete)\b(?:[^\n.!?]|\.(?=\w)){0,30}\b(?:rationale|reason|purpose|justification)\b|\bclean\b(?![- ]?up\b))'
+    flags: 'im'
+    target: last_message
+  - name: no-churn
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Recognizes the inherited choice has a live rationale and confirms it", "Does NOT overturn or churn a well-justified convention just because it was interrogated" and "Reports clean rather than fabricating a first-principles objection". It fails if it recommends changing the retry count or backoff, or invents an objection to it.'
+    focus: last_message

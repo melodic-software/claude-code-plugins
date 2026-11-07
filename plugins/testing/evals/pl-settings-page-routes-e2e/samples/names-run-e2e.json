@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": "Then `/testing:run-e2e` to drive /settings in a browser.", "why": "names the skill" }
+  ],
+  "fail": [
+    { "answer": "Then run the Playwright suite against /settings.", "why": "no skill named" }
+  ]
+}

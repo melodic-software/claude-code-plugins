@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 tools/lint.py --rule no-legacy-typing --fix" } }
+      ],
+      "why": "codemod only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --per-file --break-glass off --name no-legacy-typing --field violations --command 'python3 tools/lint.py --rule no-legacy-typing --per-file' --goal 'x'" } }
+      ],
+      "why": "a ceiling for a mechanical fix"
+    }
+  ]
+}

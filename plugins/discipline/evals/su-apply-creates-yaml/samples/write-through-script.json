@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\" lever_scope=non-trivial",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'lever_scope: non-trivial\\n' > docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

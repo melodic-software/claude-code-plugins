@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Orders service\n\nRun the tests with `pytest`.\n",
+      "why": "the scaffolded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Orders service\n\nRun the tests with `pytest`.\n\nWrite tests that can fail: see docs/conventions/testing.md.\n",
+      "why": "line appended"
+    },
+    {
+      "answer": "# Orders service\n\nRun the tests with `pytest`.\nWrite tests that can fail.\n",
+      "why": "line inserted before the end"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "SWEEP-ALL: DEGRADED (fork-unavailable)\n\nNo audits ran and no corrections were applied."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**SWEEP-ALL: DEGRADED (fork-unavailable)**"
+    },
+    {
+      "answer": "Fork mode is off.\nSWEEP-ALL: DEGRADED (fork-unavailable)"
+    },
+    {
+      "answer": "SWEEP-ALL: DEGRADED (forks unavailable)"
+    }
+  ]
+}

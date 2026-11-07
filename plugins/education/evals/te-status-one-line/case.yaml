@@ -34,3 +34,7 @@ graders:
     flags: 'i'
     match: 'not_contains'
     target: last_message
+  - name: superseded-age-not-due
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not flag a workspace as due-for-review solely on the age of a superseded record". The only old record is learning-records/0000-self-reported-joins.md (marked superseded, last touched 2025-01-15); the two active records are recent. PASS if the sql-joins line does not flag the workspace as due for review, or flags it for a reason other than the superseded record''s age. FAIL if it flags sql-joins as due for review because of the 0000 record or its January 2025 date. Example PASS: "topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due". Example FAIL: "topic | sql-joins | 3 | LEFT JOIN | 2025-01-15 | due for review (last record 22 months old)".'

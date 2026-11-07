@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Index: none yet in AGENTS.md. That is the starting state, not a defect.",
+      "why": "none yet"
+    },
+    {
+      "answer": "No index block exists yet; `render-index.sh write` would target the root AGENTS.md.",
+      "why": "no index"
+    },
+    {
+      "answer": "No index yet, which is not the same as UNREACHABLE: AGENTS.md is imported and read.",
+      "why": "names the distinction on the same line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Index target AGENTS.md: UNREACHABLE.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "The index is absent, so the target is unreachable.",
+      "why": "conflates absent with unreachable"
+    },
+    {
+      "answer": "Everything is configured.",
+      "why": "silent on the index"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Find what is wrong with the recent output.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ]
+}

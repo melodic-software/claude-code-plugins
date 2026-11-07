@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash tools/run.sh dotnet test" } },
+        { "tool": "Bash", "input": { "command": "command -v dotnet" } }
+      ],
+      "why": "the consumer wrapper names dotnet only as an argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "dotnet test \"Cart.sln\" --no-build" } }
+      ],
+      "why": "the bundled test-cmd"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "cd /w && dotnet build src/Cart/Cart.csproj" } }
+      ],
+      "why": "bundled build after a separator"
+    }
+  ]
+}

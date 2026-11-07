@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: pfp-redis-habit
+graders:
+  - name: habit-sin-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )\bhabit(?:ual|s)?\b'
+    flags: 'i'
+    target: last_message
+  - name: ladder-walked
+    type: regex
+    pattern: '^(?=[\s\S]*\bnative\b)(?=[\s\S]*\b(?:third[- ]party|vetted)\b)'
+    flags: 'i'
+    target: last_message
+  - name: rederived-and-surveyed
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Names the choice as a selection sin (habit) rather than accepting it", "Re-derives from the actual problem before evaluating candidates" and "Surveys the field and walks the native > authoritative > vetted-third-party ladder". It fails if it ratifies Redis on the strength of the habit, weighs candidates before stating or asking what is stored between requests and what that data needs, or names only one candidate.'
+    focus: last_message

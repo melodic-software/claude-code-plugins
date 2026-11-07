@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Check: a Hypothesis property test over malformed rows, then a fresh-context review via /discipline:scrutinize-dont-coast.",
+      "why": "names the pointer"
+    },
+    {
+      "answer": "Fresh-context review: `/discipline:scrutinize-dont-coast`.",
+      "why": "in code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Then have a reviewer who did not write the fix scrutinize it with fresh eyes.",
+      "why": "restates the review without pointing at the skill"
+    },
+    {
+      "answer": "Run /discipline:scrutinize afterwards.",
+      "why": "wrong skill name"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Consolidate the blurb into one source and point both docs at it."
+    },
+    {
+      "answer": "1. Pick the owner. That is the doc whose subject the policy is, or a dedicated policy doc if neither fits.\n2. Keep the blurb there and replace the other copy with a one-line pointer. Put the pointer at the sentence that defers to the policy, and link to a stable heading or anchor.",
+      "why": "smoke 1 reply: SKILL.md line 91 wording, replace the copy with a pointer to its owner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Keep both copies in sync by hand."
+    },
+    {
+      "answer": "Consolidate later.",
+      "why": "no pointer"
+    },
+    {
+      "answer": "Replace the other copy with a fresh copy of the blurb so the two match again.",
+      "why": "near miss: replaces a copy with a copy, no pointer"
+    },
+    {
+      "answer": "Don't replace the other copy with a pointer yet; wait for a third.",
+      "why": "near miss: negated"
+    }
+  ]
+}

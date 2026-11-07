@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify replicas",
+            "prompt": "Check gateway/deploy/values.yaml for replicaCount."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/gateway/deploy/values.yaml"
+          }
+        }
+      ],
+      "why": "inline check only"
+    }
+  ]
+}

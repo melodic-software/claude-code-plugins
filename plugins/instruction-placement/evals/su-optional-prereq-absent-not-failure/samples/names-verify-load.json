@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Only `verify-load.sh`, the empirical load probe, degrades.",
+      "why": "code span"
+    },
+    {
+      "answer": "Affected: verify-load.sh. Every static gate still runs.",
+      "why": "bare"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The empirical load probe will not run here.",
+      "why": "script not named"
+    },
+    {
+      "answer": "Install the CLI and jq, then rerun setup.",
+      "why": "offers install"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
