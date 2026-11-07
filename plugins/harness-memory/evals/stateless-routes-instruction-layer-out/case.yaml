@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'transcripts-out-of-scope'
     type: 'regex'
-    pattern: '\b(?:transcripts?|chat history|history)\b[^\n]{0,120}?\b(?:out of scope|not in scope|outside (?:this|the|my)|(?:won''t|will not|doesn''t|does not|can''t|cannot|not) (?:touch|delete|clear|cover|handle|remove)|cleanupPeriodDays|claude purge)|\b(?:out of scope|cleanupPeriodDays)\b[^\n]{0,120}?\btranscripts?\b'
+    pattern: '\b(?:transcripts?|chat history|history)\b[^\n]{0,120}?(?:\n[^\n]{0,80}?)?\b(?:out of scope|not in scope|outside (?:this|the|my)|(?:won''t|will not|doesn''t|does not|can''t|cannot|not) (?:touch|delete|clear|cover|handle|remove)|cleanupPeriodDays|claude purge)|\b(?:out of scope|cleanupPeriodDays)\b[^\n]{0,120}?\btranscripts?\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

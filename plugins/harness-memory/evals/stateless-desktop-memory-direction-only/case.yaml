@@ -3,7 +3,7 @@ name: stateless-desktop-memory-direction-only
 graders:
   - name: 'server-side'
     type: 'regex'
-    pattern: '\bserver[\s-]side\b|\b(?:stored|lives?|kept|held) (?:on|in|with) (?:Anthropic''s servers|your (?:Claude )?account|the account)\b|\baccount[\s-](?:level|side|wide) (?:store|memory)\b'
+    pattern: '\bserver[\s-]side\b|\b(?:stored|lives?|kept|held) (?:on|in|with) (?:Anthropic''s servers|your (?:Claude(?:\.ai)? |claude\.ai )?account|the account)\b|\baccount[\s-](?:level|side|wide) (?:store|memory)\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

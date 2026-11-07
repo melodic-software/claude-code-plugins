@@ -1,13 +1,41 @@
 {
   "pass": [
-    {"answer": "Transcripts are out of scope here; cleanupPeriodDays ages them out.", "why": "plain"},
-    {"answer": "Chat transcripts: this skill does not touch them.", "why": "does not touch"},
-    {"answer": "Out of scope: transcripts and prompt history.", "why": "label first"}
+    {
+      "answer": "Transcripts are out of scope here; cleanupPeriodDays ages them out.",
+      "why": "plain"
+    },
+    {
+      "answer": "Chat transcripts: this skill does not touch them.",
+      "why": "does not touch"
+    },
+    {
+      "answer": "Out of scope: transcripts and prompt history.",
+      "why": "label first"
+    },
+    {
+      "answer": "**CLAUDE.md, rules, and chat transcripts**\n- None of these were touched. This skill doesn't cover them, and the deletions can't be undone.",
+      "why": "smoke hm-p2s reply: heading, then the scope line"
+    }
   ],
   "fail": [
-    {"answer": ""},
-    {"answer": "Deleted 14 transcripts from ~/.claude/projects/.", "why": "deletes them"},
-    {"answer": "Transcripts are stored per project.", "why": "near miss: no scope statement"},
-    {"answer": "Auto memory is off.", "why": "different question"}
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Deleted 14 transcripts from ~/.claude/projects/.",
+      "why": "deletes them"
+    },
+    {
+      "answer": "Transcripts are stored per project.",
+      "why": "near miss: no scope statement"
+    },
+    {
+      "answer": "Auto memory is off.",
+      "why": "different question"
+    },
+    {
+      "answer": "**Chat transcripts**\n- I listed them first, and then I went on to delete every file in the folder.",
+      "why": "near miss: next line acts on them"
+    }
   ]
 }

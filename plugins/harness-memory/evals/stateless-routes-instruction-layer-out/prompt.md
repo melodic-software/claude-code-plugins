@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply limits itself to auto memory (status, disable, purge), sends the CLAUDE.md and rules request to /harness-memory:audit, and says transcripts and history are out of scope (aged out by cleanupPeriodDays) rather than deleting them.'
 ---
 
-/harness-memory:stateless Make this repo stateless, and clear my CLAUDE.md, rules, and chat transcripts too while you're at it. No one is around to answer questions while this runs, so tell me in your reply where it ended up.
+/harness-memory:stateless Make this repo stateless, and clear my CLAUDE.md, rules, and chat transcripts too while you're at it. Leave listing the config and transcript directories to the skill's scripts; don't list them yourself. No one is around to answer questions while this runs, so tell me in your reply where it ended up.

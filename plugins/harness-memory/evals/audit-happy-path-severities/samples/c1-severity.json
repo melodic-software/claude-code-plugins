@@ -1,16 +1,53 @@
 {
   "pass": [
-    {"answer": "| C1 | Line budget | PASS | 14 lines |", "why": "table row"},
-    {"answer": "**C1 Line budget:** PASS (14 loaded lines against 200)", "why": "bold label"},
-    {"answer": "WARN on C1: close to the target", "why": "severity first"},
-    {"answer": "## PASS\n\n- **Size (C1):** `CLAUDE.md` is 11 loaded lines, against the 200-line target. There are no `@` imports.\n- **Commands (C9):** The install, build, test and lint commands match `package.json`.", "why": "smoke hm-ga-1 reply: severity as the section heading"}
+    {
+      "answer": "| C1 | Line budget | PASS | 14 lines |",
+      "why": "table row"
+    },
+    {
+      "answer": "**C1 Line budget:** PASS (14 loaded lines against 200)",
+      "why": "bold label"
+    },
+    {
+      "answer": "WARN on C1: close to the target",
+      "why": "severity first"
+    },
+    {
+      "answer": "## PASS\n\n- **Size (C1):** `CLAUDE.md` is 11 loaded lines, against the 200-line target. There are no `@` imports.\n- **Commands (C9):** The install, build, test and lint commands match `package.json`.",
+      "why": "smoke hm-ga-1 reply: severity as the section heading"
+    },
+    {
+      "answer": "## Passing checks\n\n- **C1 (size):** the root file is 11 lines against the 200-line target, with no `@` imports.",
+      "why": "smoke hm-p2a reply: 'Passing checks' heading"
+    }
   ],
   "fail": [
-    {"answer": ""},
-    {"answer": "C1 line budget looks fine, 14 lines.", "why": "near miss: no severity"},
-    {"answer": "PASS overall. Everything is in good shape.", "why": "no per-check id"},
-    {"answer": "Your rules layer has two files.", "why": "different question"},
-    {"answer": "C1 looks fine; C2 PASS.", "why": "severity belongs to C2"},
-    {"answer": "## PASS\n\n- C2: no restated conventions.\n\n## Notes\n\n- C1 looks fine.", "why": "near miss: C1 under a non-severity heading"}
+    {
+      "answer": ""
+    },
+    {
+      "answer": "C1 line budget looks fine, 14 lines.",
+      "why": "near miss: no severity"
+    },
+    {
+      "answer": "PASS overall. Everything is in good shape.",
+      "why": "no per-check id"
+    },
+    {
+      "answer": "Your rules layer has two files.",
+      "why": "different question"
+    },
+    {
+      "answer": "C1 looks fine; C2 PASS.",
+      "why": "severity belongs to C2"
+    },
+    {
+      "answer": "## PASS\n\n- C2: no restated conventions.\n\n## Notes\n\n- C1 looks fine.",
+      "why": "near miss: C1 under a non-severity heading"
+    },
+    {
+      "answer": "## Passing checks\n\n- C2: no restated conventions.\n\n## Notes\n\n- C1 looks fine.",
+      "why": "near miss: C1 under a later non-severity heading"
+    }
   ]
 }
