@@ -13,7 +13,7 @@ expected_outcome: 'The reply confirms over-broad is a warning, not a failure: br
 
 ```text
 PATTERN  .claude/rules/prose.md  **/*.md  1  880  over-broad
-PATTERN  .claude/rules/site.md  site/**/*.ts  1  64  valid
+PATTERN  .claude/rules/site.md  site/**/*.ts  1  64  ok
 SUMMARY  1000  2  0  1  PASS
 ```
 

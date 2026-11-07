@@ -13,12 +13,12 @@ expected_outcome: 'The reply reports each failing pattern with its rule file, pa
 
 ```text
 PATTERN  .claude/rules/api.md  src/api/**/*.ts  1  0  zero-match
-PATTERN  .claude/rules/ui.md  src/ui/[widgets/**/*.tsx  1  0  bad-bracket
-PATTERN  .claude/rules/i18n.md  locales/{en,de,fr,es,it,pt,nl,sv,pl,cs}/{a,b,c,d,e,f,g,h,i,j}/{1,2,3,4,5,6,7,8,9,0}/*.json  1000  0  over-budget
-PATTERN  .claude/rules/sql.md  db/**/*.sql  1  37  valid
+PATTERN  .claude/rules/i18n.md  locales/{en,de,fr,es,it,pt,nl,sv,pl,cs,ja}/{a,b,c,d,e,f,g,h,i,j}/{1,2,3,4,5,6,7,8,9,0}/*.json  0  0  over-budget
+PATTERN  .claude/rules/sql.md  db/**/*.sql  1  37  ok
+PATTERN  .claude/rules/ui.md  src/ui/[widgets/**/*.tsx  0  0  bad-bracket
 SUMMARY  412  4  3  0  FAIL
 ```
 
-The repository's API code lives under `packages/api/`. `render-index.sh check` on the root `AGENTS.md` exits 0.
+The repository's API code lives under `packages/api/`. `render-index.sh check --file AGENTS.md` exits 0.
 
 Treat the state above as what this run's reads and scripts return. The repository is not checked out in this session, so run nothing against it: say what the run does, in order, and give its report.

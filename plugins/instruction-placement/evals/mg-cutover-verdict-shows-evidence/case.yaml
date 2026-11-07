@@ -3,7 +3,7 @@ name: mg-cutover-verdict-shows-evidence
 graders:
   - name: 'ci-unreach-outstanding'
     type: 'regex'
-    pattern: '^(?=[^\n]*(?:\bcondition 2\b|\bCI\b|claude-code-action|v1\.2\.0|\bUNREACH\b))(?=[^\n]*(?:\bnot (?:a )?(?:pass(?:ing|ed|es)?|met)\b|\boutstanding\b|\bunmet\b|\bblock(?:s|ing)?\b|\bnot clear\b|\bnever (?:a )?pass\b))'
+    pattern: '^(?=[^\n]*(?:\bcondition 2\b|\bCI\b|claude-code-action|v1\.2\.0|\bUNREACH\b))(?=[^\n]*(?:\bnot (?:a )?(?:pass(?:ing|ed|es)?|met)\b|\boutstanding\b|\bblock(?:s|ing)?\b|\bnot clear\b|\bnever (?:a )?pass\b))'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

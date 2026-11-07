@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The gate cannot measure here (not a git repository), so it exits non-zero.",
+      "answer": "The gate cannot measure here (glob-tools.sh is missing), so it exits non-zero.",
       "why": "non-zero"
     },
     {
@@ -21,6 +21,10 @@
     {
       "answer": "Nothing to check here, all good.",
       "why": "silent pass"
+    },
+    {
+      "answer": "glob-tools.sh exited 127, but last month's audit shows every glob healthy, so the gate passes.",
+      "why": "echoes the stated exit 127, then passes on the old artifact"
     },
     {
       "answer": ""

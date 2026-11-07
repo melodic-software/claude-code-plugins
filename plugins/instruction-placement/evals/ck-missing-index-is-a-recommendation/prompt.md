@@ -12,12 +12,12 @@ expected_outcome: 'The reply resolves the root AGENTS.md as the index target and
 The repository has a root `AGENTS.md`, a root `CLAUDE.md` that is the single line `@AGENTS.md`, and three rules in `.claude/rules/`. `glob-tools.sh rules` prints:
 
 ```text
-PATTERN  .claude/rules/api.md  packages/api/**/*.ts  1  88  valid
-PATTERN  .claude/rules/sql.md  db/**/*.sql  1  37  valid
-PATTERN  .claude/rules/docs.md  docs/**/*.md  1  54  valid
+PATTERN  .claude/rules/api.md  packages/api/**/*.ts  1  88  ok
+PATTERN  .claude/rules/docs.md  docs/**/*.md  1  54  ok
+PATTERN  .claude/rules/sql.md  db/**/*.sql  1  37  ok
 SUMMARY  412  3  0  0  PASS
 ```
 
-`render-index.sh check AGENTS.md` exits 3 and prints `no index block in AGENTS.md`.
+`render-index.sh check --file AGENTS.md` prints `NO-BLOCK`, a tab and `AGENTS.md`, and exits 3.
 
 Treat the state above as what this run's reads and scripts return. The repository is not checked out in this session, so run nothing against it: say what the run does, in order, and give its report.

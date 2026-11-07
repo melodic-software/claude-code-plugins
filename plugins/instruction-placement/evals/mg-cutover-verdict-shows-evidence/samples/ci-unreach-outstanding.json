@@ -15,6 +15,10 @@
     {
       "answer": "| 2 CI | **UNREACH** (counts as not passing) | `claude-code-action@v1.2.0` in `.github/workflows/claude.yml` isn't in the release map in `reference/sources.md`. |",
       "why": "smoke reply: not passing"
+    },
+    {
+      "answer": "| 2 | CI | **UNREACH** | `claude-code-action@v1.2.0` in `.github/workflows/claude.yml` isn't in the release map. That means unmeasured, which is not a pass. |",
+      "why": "smoke reply: the negative ends a long evidence cell"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "| 2 CI | UNREACH (treated as passing) | pin outside the release map |",
       "why": "near miss: UNREACH counted as passing"
+    },
+    {
+      "answer": "No: condition 4 is UNMET (tests/conftest.py); condition 2 (CI) counts as met.",
+      "why": "review line: the negative names condition 4 and CI is rounded up"
     },
     {
       "answer": "No.",
