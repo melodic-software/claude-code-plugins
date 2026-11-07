@@ -107,9 +107,9 @@ def _base_env() -> dict[str, str]:
 
 @functools.lru_cache(maxsize=1)
 def _save_point_module():
-    """Import the script as a module. The suite tests the CLI; this is for the
-    one assertion the CLI cannot express, since whether the parser reads an
-    entry as superseded is internal state rather than output."""
+    """Import the script as a module. The suite tests the CLI; this is for
+    assertions the CLI cannot express, such as whether the parser reads an
+    entry as superseded, or a size verdict on a file other checks would fail."""
     spec = importlib.util.spec_from_file_location("save_point_under_test", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -2719,17 +2719,38 @@ def test_shape3_hot_file_over_the_byte_cap_fails(tmp_path):
 
 
 def test_shape3_core_plus_carried_over_the_cap_is_unvalidated_not_cut(tmp_path):
+    sp = _save_point_module()
     repo = make_repo(tmp_path)
     hop1 = s3_hop(repo, tmp_path)
-    edit(hop1, "\nrepo: ", f"\nnote: {'x' * HOT_CAP}\nrepo: ")
+    edit(
+        hop1,
+        "## Standing preferences\n",
+        f"| {'x' * HOT_CAP} |\n\n## Standing preferences\n",
+    )
+    level, message = sp._size_finding(sp.parse_doc(hop1), "h1.md")
+    assert level == "UNVALIDATED", message
+    assert (
+        "core plus carried content" in message
+        and "do not cut written sections" in message
+    )
+
+
+@pytest.mark.parametrize(
+    "where", ["frontmatter", "preamble"], ids=["extra-key", "before-first-heading"]
+)
+def test_shape3_writer_text_outside_sections_counts_as_written(tmp_path, where):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    pad = "x" * HOT_CAP
+    if where == "frontmatter":
+        edit(hop1, "\nrepo: ", f"\nnote: {pad}\nrepo: ")
+    else:
+        edit(hop1, "\n## Original goal\n", f"\n{pad}\n\n## Original goal\n")
     result = strict(hop1)
-    assert result.returncode == 0, out(result)
-    assert "FAIL" not in out(result), out(result)
-    assert "core plus carried content" in out(result), out(result)
-    assert "do not cut written sections" in out(result), out(result)
-    assert out(result).strip().splitlines()[-1].startswith("validate: UNVALIDATED")
-    emitted = run("emit", str(hop1))
-    assert emitted.returncode == 0 and "UNVALIDATED" in err(emitted), err(emitted)
+    assert result.returncode == 1, out(result)
+    assert "FAIL: size:" in out(result) and "UNVALIDATED" not in out(result), out(
+        result
+    )
 
 
 def test_shape3_core_alone_over_the_cap_is_unvalidated_and_still_emits(tmp_path):

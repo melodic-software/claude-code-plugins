@@ -132,6 +132,23 @@ RULE_ID_RE = re.compile(r"^\[R(\d+)\]\s*")
 RETIRED_RULES = "Retired rules"
 # Sections `new` writes and the writer cannot shorten (frontmatter aside).
 CARRIED_3 = ("Prior sessions", "Resume prompt")
+# The frontmatter keys `new` writes; any other line, and text before the first
+# heading, counts as written.
+FRONTMATTER_KEYS_3 = (
+    "type",
+    "handoff_shape",
+    "date",
+    "topic",
+    "session_id",
+    "transcript",
+    "previous_handoff",
+    "chain_root",
+    "hop",
+    "archive",
+    "archive_from",
+    "next_rule_id",
+    "repo",
+)
 # Shape 3 keeps the predecessor's last rows only; older rows live in hop files.
 PRIOR_ROWS_KEPT = 3
 ARCHIVE_DIR = "archive"
@@ -1370,10 +1387,13 @@ def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
     """Size, core, carried (frontmatter and the sections `new` writes) and
     written non-core bytes."""
     size, core = _cap_state(doc)
-    written = _section_bytes(
-        doc, tuple(n for n, _, _ in doc.sections if n not in CORE_3 + CARRIED_3)
+    fence = sum(
+        len(line.encode("utf-8")) + 1
+        for line in doc.lines[: doc.body_start]
+        if line.strip() == "---" or line.split(":", 1)[0] in FRONTMATTER_KEYS_3
     )
-    return size, core, size - core - written, written
+    carried = fence + _section_bytes(doc, CARRIED_3)
+    return size, core, carried, size - core - carried
 
 
 def _size_text(core: int, carried: int, written: int) -> str:
