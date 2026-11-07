@@ -1,5 +1,5 @@
-// Expected values come from the behaviour issue #13717 sets for the hosted
-// review callers: review waits for this head's Refine; a head that moved is
+// Expected values come from the owner's rule for the hosted review callers
+// (docs/conventions/pr-pipeline/README.md): review waits for this head's Refine; a head that moved is
 // skipped (its push starts its own review); every other outcome, a failed
 // read included, reviews. Run and artifact shapes follow the REST docs for
 // workflow runs and artifacts; the record name is the one
