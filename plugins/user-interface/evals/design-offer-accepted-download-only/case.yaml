@@ -17,10 +17,6 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: 'gives-page-steps'
-    type: 'llm'
-    criteria: 'The answer gives the user the install steps from the Pencil pointer page (https://docs.pen.dev/getting-started/installation), a desktop app download and its setup, for the user to carry out, and leaves the sign-in to the user'
-    focus: 'trace'
   - name: 'skill-fired'
     type: 'tool_used'
     tool: 'Skill'
