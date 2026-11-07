@@ -6,7 +6,10 @@ the plugin's `userConfig` option of the same name and per repository in
 [`schemas/session-flow.schema.json`](../schemas/session-flow.schema.json). No `~/.claude` file,
 `.claude/` file or personal override sets these keys. `/session-flow:setup apply` writes the repository
 file after validating it against the schema; `/session-flow:setup check` validates it. The observer and `audit_sessions_*` options are
-`userConfig` only; the README's Options reference lists them.
+`userConfig` only; the README's Options reference lists them. So are `cloud_route` (`offer` or
+`off`, default `offer`: under `off`, `/session-flow:workflow continue` never mentions a cloud
+session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
+`/session-flow:workflow wrap-up` offers no retrospective).
 
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
