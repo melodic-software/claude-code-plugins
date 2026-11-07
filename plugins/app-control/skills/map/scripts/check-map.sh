@@ -29,7 +29,9 @@
 #                      A kubectl get that names an object exits 1 when it is missing: not a listing
 #   mask-missing       the hub's `## Capture` names `screenshot` or `video` on a row whose tool is
 #                      not `none`, and its `## Mask` holds no unfenced `- <label> | <regex>` line
-#                      and no `none: <reason>` line
+#                      and no `none: <reason>` line; when the hub's `## Mask` is only the hand-off
+#                      line, the target the `Driving tool:` line names is checked instead, and a
+#                      target that cannot be read is a finding
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -353,10 +355,54 @@ image_kinds="$(section_lines "$dir/SKILL.md" Capture fenced |
   { grep -viE '(:|\|)[[:space:]]*none[[:space:]]*\|?[[:space:]]*$' || true; } |
   { grep -oiwE 'screenshots?|videos?' || true; } |
   tr '[:upper:]' '[:lower:]' | sed 's/s$//' | LC_ALL=C sort -u | awk 'NR > 1 { printf ", " } { printf "%s", $0 }')"
+# The contract's "The Mask section" fixes the hand-off line and how its target resolves.
+# shellcheck disable=SC2016 # the backticks are the Markdown code-span delimiter, not a substitution
+HAND_OFF='The driving tool'\''s `## Mask`.'
+mask_body() { section_lines "$1" Mask | sed 's/[[:space:]]*$//' | { grep -v '^[[:space:]]*$' || true; }; }
+# Sets `target` (relative to the root) and `target_file`, or `unreadable` with the reason.
+resolve_mask_target() {
+  local p real file="" masks=0 body=""
+  target="" target_file="" unreadable=""
+  # shellcheck disable=SC2016 # the backticks are the Markdown code-span delimiter, not a substitution
+  p="$(unfenced "$dir/SKILL.md" | awk '/^Driving tool:/ { on = 1 } on && !NF { exit } on' |
+    { grep -oE '`[^`]+`' || true; } | tr -d '`' | { grep -E '^[^/[:space:]][^[:space:]]*\.md$' || true; } | sed -n 1p)"
+  if [[ -z "$p" ]]; then
+    unreadable="the Driving tool line names no .md path"
+    return
+  fi
+  target="$p"
+  real="$(cd "$root/$(dirname "$p")" 2>/dev/null && pwd -P)" || real=""
+  if [[ -n "$real" && -f "$real/$(basename "$p")" ]]; then
+    file="$real/$(basename "$p")"
+    masks="$(h2s "$file" | { grep -cx 'Mask' || true; })"
+    body="$(mask_body "$file")"
+  fi
+  if [[ "/$p/" == */../* || -L "$root/$p" || (-n "$real" && "$real" != "$root_real" && "$real" != "$root_real"/*) ]]; then
+    unreadable="$p leaves the project root"
+  elif [[ -z "$file" ]]; then
+    unreadable="$p does not exist"
+  elif [[ "$masks" == 0 ]]; then
+    unreadable="$p has no ## Mask"
+  elif [[ "$body" == "$HAND_OFF" ]]; then
+    unreadable="$p hands off again"
+  else
+    target_file="$file"
+  fi
+}
 if [[ -n "$image_kinds" ]]; then
-  mask_lines="$(section_lines "$dir/SKILL.md" Mask |
-    { grep -cE '^[[:space:]]*(-[[:space:]]+[^|]*[^|[:space:]][^|]*\|[[:space:]]*[^[:space:]]|none:[[:space:]]*[^[:space:]])' || true; })"
-  [[ "$mask_lines" != 0 ]] || finding mask-missing SKILL.md "## Capture records $image_kinds with no ## Mask line"
+  mask_file="$dir/SKILL.md" mask_where=""
+  hub_mask="$(mask_body "$dir/SKILL.md")"
+  if [[ "$hub_mask" == "$HAND_OFF" ]]; then
+    resolve_mask_target
+    mask_file="$target_file" mask_where=" in $target"
+  fi
+  if [[ -z "$mask_file" ]]; then
+    finding mask-missing SKILL.md "## Mask hands off to a target that cannot be read: $unreadable"
+  else
+    mask_lines="$(section_lines "$mask_file" Mask |
+      { grep -cE '^[[:space:]]*(-[[:space:]]+[^|]*[^|[:space:]][^|]*\|[[:space:]]*[^[:space:]]|none:[[:space:]]*[^[:space:]])' || true; })"
+    [[ "$mask_lines" != 0 ]] || finding mask-missing SKILL.md "## Capture records $image_kinds with no ## Mask line$mask_where"
+  fi
 fi
 
 exit 0

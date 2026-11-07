@@ -54,6 +54,7 @@ For a job. One object with these fields:
 | `secrets_mark` | A list with one entry per raw capture, plus `report.md` and `report.json` once they hold a command line: `path`, `mark` (`may hold secrets; do not commit`) and `unignored_in_git_tree` (`true` when the run directory sits in a git working tree and is not ignored); an empty list when the run wrote no raw capture and recorded no command line |
 | `capture_count` | The number of captures the run wrote, of every kind, sidecars not counted |
 | `artifacts` | One entry per capture: `path`, `kind`, `mask` (`applied`, `none-declared`, `not-checked` or `hit`, per [Mask post-check](#mask-post-check)) and `publishable` (`true` or `false`) |
+| `values_none` | One entry per `values:` source that printed `none: <reason>` ([Mask post-check](#mask-post-check)): `source` and `reason`; an empty list when none did |
 | `publishable` | The paths safe to upload: each capture whose `publishable` is `true`, then `report.public.md` and `report.public.json` when the post-check passed them; an empty list when none passed |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
 | `blocked` | Each step that needed a person or a grant, with its reason and the narrowest grant |
@@ -76,11 +77,19 @@ of the report, cleanup's included, rewrites the public reports and scans them ag
 leave the machine; the run directory stays whole for the caller to read locally. It fails closed:
 whatever it cannot show clean is not publishable.
 
-1. **Values.** Resolve each source on the hub's `## Mask` `values:` line: a config field through
-   the Config layers, a `cli/` command run read-only, its stdout one value per line. Hold the
-   values in memory and never write one to any file, the report included. A source that fails or
-   yields no value leaves every capture `not-checked` and both public reports unpublished.
-2. **Scan.** Scan each `screenshot` and `video` sidecar, `report.public.md` and
+1. **Mask in effect.** The hub's own `## Mask`, or, when its only line is the hand-off line, the
+   target's, found as the control-skill contract's "The Mask section" says, under the same
+   `--trusted-root` as the hub. A target that cannot be read leaves every capture `not-checked` and
+   both public reports unpublished.
+2. **Values.** Resolve each source on the `values:` line of the Mask in effect, against the
+   control skill that holds it: a config field through the Config layers, a `cli/` command run
+   read-only, its stdout one value per line. A `cli/` source whose stdout is exactly one line
+   `none: <reason>`, with a reason, and that exits 0 resolves with no values; record it in
+   `values_none`. Hold the values in memory and never write one to any file, the report included.
+   Any other source that fails or yields no value, such as a non-zero exit, empty output, or a
+   `none:` line with any other line beside it, leaves every capture `not-checked` and both public
+   reports unpublished.
+3. **Scan.** Scan each `screenshot` and `video` sidecar, `report.public.md` and
    `report.public.json`. First delete box-drawing characters (U+2500 to U+257F), then join line
    wraps by deleting each line break with the whitespace around it. A hit is either:
    - a value found in the text, ignoring case, whitespace and `|` in both, so a value wrapped
@@ -90,16 +99,16 @@ whatever it cannot show clean is not publishable.
      `apikey` or `api_key`, then an optional quote, `=` or `:` and an optional quote, then a value
      of 8 or more characters, none of them whitespace, `*` or `•`; or a PEM private key header
      (`-----BEGIN`, then `PRIVATE KEY-----`).
-3. **Mask state.** Each capture's `mask`:
+4. **Mask state.** Each capture's `mask`:
    - `hit`: the scan of its sidecar found a hit;
-   - `applied`: the hub's `## Mask` has mask lines, the sidecar is not empty and was modified after
+   - `applied`: the Mask in effect has mask lines, the sidecar is not empty and was modified after
      this capture's command started (one left by an earlier run in the directory does not count),
      and the scan found nothing;
-   - `none-declared`: the same, with `## Mask` reading `none: <reason>`;
+   - `none-declared`: the same, with the Mask in effect reading `none: <reason>`;
    - `not-checked`: anything else, such as a run with no control skill, a hub with no `## Mask`
-     line, a missing, empty or older sidecar, a `values:` source that did not resolve, or a kind
-     other than `screenshot` and `video`.
-4. **Publishable.** A capture is publishable only when it is a `screenshot` or `video`, its `mask`
+     line, a hand-off target that cannot be read, a missing, empty or older sidecar, a `values:`
+     source that did not resolve, or a kind other than `screenshot` and `video`.
+5. **Publishable.** A capture is publishable only when it is a `screenshot` or `video`, its `mask`
    is `applied` or `none-declared`, and it has no `secrets_mark` entry. For a video, its sidecar
    holds every frame's text, so it passes only when every frame does. A public report is
    publishable when its scan found nothing and every `values:` source resolved. A raw capture, a
