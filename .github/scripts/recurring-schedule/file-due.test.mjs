@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { fileDue, main, scheduleIds } from "./file-due.mjs";
+import { fileDue, HELD, main, scheduleIds } from "./file-due.mjs";
 
 const REPO = "o/r";
 const TODAY = "2026-11-06";
@@ -71,25 +71,31 @@ test("a row with an area takes it as the title scope, and next_due equal to toda
   assert.equal(api.state.posts[0].title, "chore(work-items): review CI pins");
 });
 
-test("a precondition prompt is in the body, with the operator line only when confirmation is required", async () => {
+test("a precondition prompt that needs no confirmation is in the body", async () => {
   const prompt = "A model release must have occurred since last_checked.";
-  const confirmed = fakeApi();
-  await fileDue({
-    schedule: { items: [row({ precondition: { id: "p", prompt, requires_operator_confirmation: true } })] },
-    today: TODAY,
-    call: confirmed.call,
-    repo: REPO,
-    wait: noWait,
-  });
-  assert.ok(
-    confirmed.state.posts[0].body.endsWith(
-      `Check each pinned action.\n\n## Precondition\n\n${prompt}\n\nAn operator confirms this precondition before work starts.\n\n<!-- recurring-schedule id=ci-pins -->`,
-    ),
-    confirmed.state.posts[0].body,
-  );
-  const plain = fakeApi();
-  await fileDue({ schedule: { items: [row({ precondition: { id: "p", prompt } })] }, today: TODAY, call: plain.call, repo: REPO, wait: noWait });
-  assert.ok(plain.state.posts[0].body.endsWith(`## Precondition\n\n${prompt}\n\n<!-- recurring-schedule id=ci-pins -->`), plain.state.posts[0].body);
+  for (const precondition of [{ id: "p", prompt }, { id: "p", prompt, requires_operator_confirmation: false }]) {
+    const api = fakeApi();
+    await fileDue({ schedule: { items: [row({ precondition })] }, today: TODAY, call: api.call, repo: REPO, wait: noWait });
+    assert.ok(api.state.posts[0].body.endsWith(`Check each pinned action.\n\n## Precondition\n\n${prompt}\n\n<!-- recurring-schedule id=ci-pins -->`), api.state.posts[0].body);
+  }
+});
+
+test("a due row that needs an operator's confirmation is held with no API call", async () => {
+  const api = fakeApi();
+  const calls = [];
+  const call = async (...args) => (calls.push(args), api.call(...args));
+  const held = row({ precondition: { id: "p", prompt: "x", requires_operator_confirmation: true } });
+  const results = await fileDue({ schedule: { items: [held] }, today: TODAY, call, repo: REPO, wait: noWait });
+  assert.deepEqual(results, [{ id: "ci-pins", next_due: "2026-11-01", due: true, outcome: "held", reason: HELD }]);
+  assert.deepEqual(calls, []);
+});
+
+test("a held row beside a fileable row files only the fileable one", async () => {
+  const api = fakeApi();
+  const held = row({ id: "ablation", precondition: { id: "p", prompt: "x", requires_operator_confirmation: true } });
+  const results = await fileDue({ schedule: { items: [held, row()] }, today: TODAY, call: api.call, repo: REPO, wait: noWait });
+  assert.deepEqual(results.map((r) => [r.id, r.outcome]), [["ablation", "held"], ["ci-pins", "filed"]]);
+  assert.deepEqual(api.state.posts.map((p) => p.title), ["chore: review CI pins"]);
 });
 
 test("an open recurring issue whose body marker names the row covers it, and nothing is filed", async () => {
@@ -196,7 +202,12 @@ async function withSchedule(items, fn) {
 
 test("main writes the step summary counts, one line per row, and exits 1 on a failed write", async () => {
   await withSchedule(
-    [row(), row({ id: "covered-row", title: "Covered" }), row({ id: "later", next_due: "2026-12-01" })],
+    [
+      row(),
+      row({ id: "covered-row", title: "Covered" }),
+      row({ id: "later", next_due: "2026-12-01" }),
+      row({ id: "held-row", precondition: { id: "p", prompt: "x", requires_operator_confirmation: true } }),
+    ],
     async (dir) => {
       const api = fakeApi({ failPost: true, issues: [{ number: 3, labels: ["recurring"], body: "<!-- recurring-schedule id=covered-row -->" }] });
       const lines = [];
@@ -209,12 +220,14 @@ test("main writes the step summary counts, one line per row, and exits 1 on a fa
       });
       assert.equal(code, 1);
       const summary = readFileSync(join(dir, "summary.md"), "utf8");
-      assert.match(summary, /\| 3 \| 2 \| 0 \| 1 \| 1 \| 1 \|/);
+      assert.match(summary, /\| 4 \| 3 \| 0 \| 1 \| 1 \| 1 \| 1 \|/);
       assert.match(summary, /- covered `covered-row` by #3/);
+      assert.match(summary, /- held `held-row`: needs an operator's confirmation/);
       assert.match(summary, /- failed `ci-pins`: POST \/repos\/o\/r\/issues: HTTP 502/);
       const rows = lines.filter((l) => l.startsWith("file-due {")).map((l) => JSON.parse(l.slice("file-due ".length)));
       assert.deepEqual(rows.map((r) => [r.today, r.id, r.outcome]), [
         [TODAY, "later", "not-due"],
+        [TODAY, "held-row", "held"],
         [TODAY, "ci-pins", "failed"],
         [TODAY, "covered-row", "covered"],
       ]);
@@ -229,7 +242,7 @@ test("main exits 0 and counts a filed row when every write succeeds", async () =
     const code = await main({ argv: [join(dir, "schedule.json")], env: { TODAY, REPOSITORY: REPO, GITHUB_STEP_SUMMARY: join(dir, "summary.md") }, call: api.call, log: () => {}, wait: noWait });
     assert.equal(code, 0);
     const summary = readFileSync(join(dir, "summary.md"), "utf8");
-    assert.match(summary, /\| 1 \| 1 \| 1 \| 0 \| 0 \| 0 \|/);
+    assert.match(summary, /\| 1 \| 1 \| 1 \| 0 \| 0 \| 0 \| 0 \|/);
     assert.match(summary, /- filed #901 for `ci-pins`/);
   });
 });
