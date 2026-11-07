@@ -53,6 +53,8 @@ import {
   trustedLabeler,
   unmarkedAnswer,
   waitedPull,
+  humanSince,
+  workStatusField,
 } from "./report-outcome.mjs";
 import { closeStop, parentDone } from "../lib/done-evidence.mjs";
 import { finishedParent, patchCapStopped } from "../intake-triage/admit.mjs";
@@ -65,6 +67,7 @@ import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 // The real Work status reader (read-status.mjs statusReader) over field reads
 // that `fields` answers (read-status.fixtures.mjs withFields); it makes no
 // other call.
+const fieldReaderOver = (github) => statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
 const fieldReader = (fields) => {
   const github = withFields(async (method, path) => {
     throw new Error(`unexpected ${method} ${path}`);
@@ -73,6 +76,7 @@ const fieldReader = (fields) => {
 };
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { ADMISSION_RECORD_MARKER, recordBody } from "../lib/admission-record.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 // The first line of every hand-back comment: the attended queue's escalation
@@ -610,7 +614,6 @@ test("a done outcome with an empty not_done and a failing runner check is stoppe
   assert.equal(plan.action, "retry");
   assert.equal(plan.stop, "check-failed");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.includes("- scripts/check-changelog-fragments.sh --check failed (exit 1)"), plan.comment);
   assert.ok(plan.comment.includes(`Partial work is on the branch \`${BRANCH}\``), plan.comment);
   assert.ok(!plan.comment.startsWith(ESC), plan.comment);
@@ -796,7 +799,6 @@ test("a run whose patch collector refused goes to a person, whatever its outcome
     const plan = decide({ ...base, ...args });
     assert.equal(plan.stop, "collect-refused", name);
     assert.equal(plan.status, "needs-human", name);
-    assert.deepEqual(plan.removeLabels, ["agent-ready"], name);
     assert.match(plan.comment, /\.npmrc/, name);
   }
 });
@@ -860,7 +862,6 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
   });
   assert.equal(plan.action, "hand-back");
   assert.equal(plan.status, "needs-human");
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.match(plan.comment, /Which file\?/);
 });
 
@@ -894,7 +895,6 @@ test("a pushback without cause intent goes back through intake instead of reachi
     const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", cause, title: "", summary: "" } });
     assert.equal(plan.action, "intake", String(cause));
     assert.equal(plan.stop, "pushback-means", String(cause));
-    assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"], String(cause));
     assert.ok(!(plan.status === "needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
     assert.equal(parseReason(plan.comment), null, plan.comment);
   }
@@ -1085,7 +1085,6 @@ test("a run that stopped with patch-protected-path goes to host-run naming the r
   assert.equal(plan.action, "host-run");
   assert.equal(plan.exit, "host-run");
   assert.deepEqual(plan.addLabels, ["host-run"]);
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=host-run run=123 -->"), plan.comment);
   assert.ok(plan.comment.includes("The run stopped early (`patch-protected-path`): its change needs a path the issue lane may not push"), plan.comment);
   assert.ok(plan.comment.includes("ci.yml needs a new step"), plan.comment);
@@ -1104,10 +1103,9 @@ test("a held stop removes agent-ready and names the branch that holds partial wo
     humanLabel: "needs-human",
   });
   assert.equal(plan.status, "needs-human");
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
   assert.match(plan.comment, /A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh\./);
-  assert.ok(plan.comment.includes("set Work status to needs-triage (clearing the `needs-human` hold) and add `agent-ready` again"), plan.comment);
+  assert.ok(plan.comment.includes("set Work status to agent-ready again (clearing the `needs-human` hold)"), plan.comment);
 });
 
 // main against a fake GitHub API: the calls it makes are the lane's effect on
@@ -1234,7 +1232,7 @@ for (const [reason, step] of [
       assert.deepEqual(status, { method: "STATUS", path: "/issues/77", body: { state: "confirmed" } });
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), "no status label is added");
       const removed = rest.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-      assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
+      assert.deepEqual(removed, []);
       const comment = rest.at(-1).body.body;
       assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=parked run=123 -->\n"), comment);
       assert.ok(comment.includes(`\`${reason}\``) && comment.includes(step), comment);
@@ -1304,14 +1302,14 @@ test("main's outside-author stop leaves agent-ready for needs-triage", async () 
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
     assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, setStatus: async () => assert.fail("no state of its own"), leaveAgentReady: statusInto(calls) }), 0);
-    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS", "DELETE"]);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS"], "the field moves; no label comes off");
     assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-triage" });
   });
 });
 
-test("main's close strips its queue and state labels and writes no Work status", async () => {
+test("main's close removes only host-run of its labels and writes no Work status", async () => {
   const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
-  const labels = [{ name: "agent-ready" }, { name: "status: confirmed" }, { name: "work-class: read-only" }];
+  const labels = [{ name: "agent-ready" }, { name: "status: confirmed" }, { name: "host-run" }, { name: "work-class: read-only" }];
   await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, 200, { ...ISSUE[2], labels }],
@@ -1325,7 +1323,7 @@ test("main's close strips its queue and state labels and writes no Work status",
     assert.ok(calls.some((c) => c.method === "PATCH" && c.body?.state === "closed"));
     assert.ok(!calls.some((c) => c.method === "STATUS"));
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-    assert.deepEqual(removed, ["agent-ready", "status: confirmed"]);
+    assert.deepEqual(removed, ["host-run"]);
   });
 });
 
@@ -1367,9 +1365,9 @@ test("main on a split-required dimension skip sends the issue back through intak
     assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-    assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
+    assert.deepEqual(removed, [], "no status label is written");
     const writes = calls.filter((c) => c.method !== "GET");
-    assert.deepEqual(writes.map((c) => c.method), ["POST", "STATUS", "DELETE", "DELETE", "DELETE"], "the field leaves agent-ready after the comment, before any label comes off");
+    assert.deepEqual(writes.map((c) => c.method), ["POST", "STATUS"], "the field leaves agent-ready after the comment");
     assert.deepEqual(writes[1].body, { state: "needs-triage" });
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=intake run=123 -->\n"), comment);
@@ -1394,8 +1392,8 @@ test("main fails a split-required skip that intake already sent back once, to no
     ]);
     assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-    assert.deepEqual(removed, ["agent-ready"]);
-    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS", "DELETE"]);
+    assert.deepEqual(removed, []);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS"]);
     assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-triage" });
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
@@ -1556,7 +1554,7 @@ test("main closes a report-delivered stop the same after a security or a plain e
 // An issue whose author is outside the trusted list stops at the admit job;
 // report-skip says so on the issue and takes agent-ready off, with no
 // needs-human: a listed human re-files the work, and a retry stops again.
-test("main on an outside-author stop removes agent-ready and posts one comment telling a listed human to re-file", async () => {
+test("main on an outside-author stop moves agent-ready to needs-triage and posts one comment telling a listed human to re-file", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, []],
@@ -1565,16 +1563,17 @@ test("main on an outside-author stop removes agent-ready and posts one comment t
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
-    assert.deepEqual(calls.filter((c) => c.method === "DELETE").map((c) => c.path.split("/labels/")[1]), ["agent-ready"]);
+    assert.ok(!calls.some((c) => c.method === "DELETE"), "no label comes off");
+    assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-triage" });
     const comments = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments"));
     assert.equal(comments.length, 1);
     const comment = comments[0].body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "outside-author");
     assert.match(comment, /trusted/);
     assert.match(comment, /re-file/);
-    assert.ok(!comment.includes("add `agent-ready` again"), comment);
+    assert.ok(!comment.includes("agent-ready again"), comment);
   });
 });
 
@@ -1633,9 +1632,9 @@ test("main on an outside-author stop posts no second comment when the lanes App 
         ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
-      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
       assert.equal(calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).length, posts, login);
-      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")), login);
+      assert.ok(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-triage"), login);
     });
   }
 });
@@ -2196,7 +2195,6 @@ test("a limit-stopped run is limited: one marker comment, agent-ready kept, no l
   });
   assert.equal(plan.action, "limited");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 -->\n"));
 });
 
@@ -2287,7 +2285,6 @@ test("a pushback stays a pushback even on a limit-stopped run", () => {
     limit: { resets: null },
   });
   assert.equal(plan.status, "needs-human");
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
 });
 
 test("the limited marker reads back with its reset and run", () => {
@@ -2507,7 +2504,6 @@ test("a run at its turn cap with a restart left keeps agent-ready and names the 
   const plan = capped();
   assert.equal(plan.action, "turn-cap");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /turn cap 75 reached/);
   assert.ok(plan.comment.includes(BRANCH));
@@ -2519,7 +2515,6 @@ test("a run at its turn cap with no restart left fails, naming the cap, never ne
     const plan = capped(overrides);
     assert.equal(plan.action, "fail");
     assert.deepEqual(plan.addLabels, []);
-    assert.deepEqual(plan.removeLabels, ["agent-ready"]);
     assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=failed run=555 -->\n"), plan.comment);
     assert.match(plan.comment, /`turn-cap-spent`/);
     assert.match(plan.comment, /turn cap 75 reached/);
@@ -2602,7 +2597,6 @@ test("a run whose issue only listed accounts changed after agent-ready goes back
   });
   assert.equal(plan.action, "intake");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"]);
   assert.match(plan.comment, /^<!-- work-resolve-issue outcome=intake -->/);
   assert.match(plan.comment, /each change by a listed account/);
   assert.match(plan.comment, /sends it back through intake triage, and it waits on no decision from a person/);
@@ -2674,7 +2668,6 @@ test("a leg timeout with no outcome of its own restarts from its branch like a t
   const plan = capped({ turnCap: timedOut });
   assert.equal(plan.action, "turn-cap");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /its time ran out \(the launcher's leg timeout\)/);
   assert.ok(plan.comment.includes(BRANCH));
@@ -2684,7 +2677,10 @@ test("a leg timeout with no outcome of its own restarts from its branch like a t
   assert.equal(spent.action, "fail", "with its restarts used it stops, visibly, with no label");
 });
 
-test("restarts count the App's turn-cap markers since a person last added agent-ready, not this run's", () => {
+// A Work status field event as resolve-config.mjs fieldEvents shapes it.
+const fieldSet = (actorId, at, { to = "agent-ready", actorType = actorId === 337595936 ? "Bot" : "User", removed = false, field = "48484079" } = {}) => ({ field, removed, actorId, actorLogin: "x", actorType, at, from: null, to: removed ? null : to });
+
+test("restarts count the App's turn-cap markers since a listed human last set Work status agent-ready, not this run's", async () => {
   const marker = (run, at, login = "melodic-automation-lanes[bot]") => ({
     user: { login },
     body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->`,
@@ -2697,13 +2693,19 @@ test("restarts count the App's turn-cap markers since a person last added agent-
     marker("555", "2026-10-17T05:00:00Z"),
   ];
   const events = [
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "kyle-sexton", id: 153232337 }, created_at: "2026-10-17T02:00:00Z" },
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "melodic-automation-lanes[bot]", id: 1 }, created_at: "2026-10-17T03:30:00Z" },
-    // An unlisted triager's re-add resets nothing.
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "triager", id: 42 }, created_at: "2026-10-17T03:45:00Z" },
+    fieldSet(153232337, "2026-10-17T02:00:00Z"),
+    // The App's restart and an unlisted triager's set reset nothing, nor does
+    // a listed human's set of another state or field.
+    fieldSet(337595936, "2026-10-17T03:30:00Z"),
+    fieldSet(42, "2026-10-17T03:45:00Z"),
+    fieldSet(153232337, "2026-10-17T03:50:00Z", { to: "needs-human" }),
+    fieldSet(153232337, "2026-10-17T03:55:00Z", { field: "1" }),
   ];
   const humans = new Set([153232337]);
-  assert.equal(countTurnCapRestarts({ comments, events, bot: "melodic-automation-lanes[bot]", humans, runId: "555" }), 1);
+  const since = await humanSince(events, "48484079", humans);
+  assert.equal(since, Date.parse("2026-10-17T02:00:00Z"));
+  assert.equal(countTurnCapRestarts({ comments, since, bot: "melodic-automation-lanes[bot]", runId: "555" }), 1);
+  assert.equal(await humanSince(events, null, humans), Number.NEGATIVE_INFINITY, "an unset field counts every marker");
 });
 
 const CAPPED_LANE = JSON.stringify({ branch: BRANCH, class: "max-turns", resets: "", "max-turns": "75" });
@@ -2757,7 +2759,7 @@ test("main fails a spent turn cap after an earlier security intake marker", asyn
   });
 });
 
-test("main at the turn cap with no restarts configured removes agent-ready and adds no label", async () => {
+test("main at the turn cap with no restarts configured fails to needs-triage and writes no label", async () => {
   await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
@@ -2767,9 +2769,10 @@ test("main at the turn cap with no restarts configured removes agent-ready and a
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(await main({ env: env(dir), fetch, leaveAgentReady: statusInto(calls) }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
-    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+    assert.ok(!calls.some((c) => c.method === "DELETE"));
+    assert.ok(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-triage"));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "failed");
     assert.match(comment, /turn cap 75 reached/);
@@ -3897,7 +3900,6 @@ test("a funding stop keeps agent-ready, adds no label and leaves a funding marke
   const plan = decideFunding({ funding: { regain: Date.parse("2026-11-01T00:00:00Z") } });
   assert.equal(plan.action, "funding");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=funding resets=2026-11-01T00:00:00Z run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /funding/);
   assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: "funding", resets: Date.parse("2026-11-01T00:00:00Z"), run: "555", onResumed: false });
@@ -4315,7 +4317,7 @@ test("a pushback links the unmarked comment, shows the decision line, and its re
   const linked = decide({ ...plain, outcome: pushback, unmarked: commentUrl(2) }).comment;
   assert.ok(linked.includes(`The newest comment from a listed maintainer, ${commentUrl(2)}, does not start with \`**Decision recorded.**\``), linked);
   assert.ok(linked.includes("\n```\n**Decision recorded.** <answer>\n```\n"), linked);
-  const retry = "To retry, answer the question in a comment whose first line is `**Decision recorded.**`, then set Work status to needs-triage (clearing the `needs-human` hold) and add `agent-ready` again.";
+  const retry = "To retry, answer the question in a comment whose first line is `**Decision recorded.**`, then set Work status to agent-ready again (clearing the `needs-human` hold).";
   assert.ok(linked.endsWith(retry), linked);
   const unlinked = decide({ ...plain, outcome: pushback }).comment;
   assert.ok(!unlinked.includes("newest comment") && unlinked.endsWith(retry), unlinked);
@@ -4340,7 +4342,7 @@ test("main on a pushback reads the issue's comments and links the owner's unmark
       assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
       assert.equal(comment.includes(commentUrl(2)), linked, comment);
-      assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then set Work status to needs-triage \(clearing the `needs-human` hold\)/);
+      assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then set Work status to agent-ready again \(clearing the `needs-human` hold\)/);
     });
   }
 });
@@ -4366,65 +4368,100 @@ test("main on a pushback whose work-outcome.json names cause cost-risk holds it 
 
 // Ledger L7: write-issue.mjs leaves out a record posted after the run's
 // admission, so a pushback hold would wait on an answer the issue already
-// has. The answer re-dispatches the lane once, with a fresh admission; any
-// other late comment takes the hold as before.
+// has. The answer re-dispatches the lane once, with a fresh admission record
+// and the App's restart of the Work status field; any other late comment
+// takes the hold as before.
 const ADDED = "2026-10-02T00:00:00Z";
 const LATE = "2026-10-02T01:00:00Z";
+const APP_ID = 337595936;
 const late = (id, userId, body, { at = LATE, type = "User", login = "someone", app = null } = {}) =>
   issueComment(id, userId, body, { user: { id: userId, type, login }, created_at: at, updated_at: at, performed_via_github_app: app });
 const DECISION_BODY = "**Decision recorded.** Change only the README.";
-const readyAdd = (id, actor, at) => ({ id, event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
-const OWNER_ADD = readyAdd(1, { id: OWNER_ID, login: "kyle-sexton" }, ADDED);
-const redispatchRecord = (id, names, at = LATE) => late(id, 337595936, `<!-- work-resolve-issue outcome=redispatch run=99 -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
-// `states` lists the Work status writes; `statusOf` is main's field reader.
-async function runLateRecord(comments, { events = [OWNER_ADD], reason = "Which file?", labels = ["agent-ready", "status: ready"], statusOf } = {}) {
+const OWNER_SET = fieldSet(OWNER_ID, ADDED);
+const redispatchRecord = (id, names, at = LATE, run = "99") =>
+  late(id, APP_ID, `<!-- work-resolve-issue outcome=redispatch run=${run} -->\n<!-- work-resolve-issue redispatch comment=${names} -->\nre-dispatched`, { at, type: "Bot", login: BOT });
+const ISSUE_TEXT = { title: "Fix the README", body: "Done when: the README says so." };
+// A Work status field (report-outcome.mjs workStatusField's shape) whose
+// trusted state and events are given; each restart goes into `calls`.
+const fakeField = ({ state = "agent-ready", events = [], calls = [], restarted = true } = {}) => ({
+  id: "48484079",
+  state: async () => {
+    if (state instanceof Error) throw state;
+    return state;
+  },
+  events: async () => events,
+  restart: async (number, from) => {
+    calls.push({ method: "RESTART", path: `/issues/${number}`, body: { from } });
+    return restarted;
+  },
+});
+// `states` lists the Work status writes, `restarts` the field restarts'
+// expected states, `records` the admission records posted; `statusOf` is
+// main's field reader.
+async function runLateRecord(comments, { fieldEvents = [OWNER_SET], reason = "Which file?", state = "agent-ready", statusOf, recordStatus = 201 } = {}) {
   const pushback = JSON.stringify({ exit: "pushback", reason, cause: "intent", title: "", summary: "" });
   let result;
   await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
-    const { fetch, calls } = fakeFetch([
+    const routes = [
       ["GET", /\/issues\/77\/comments$/, 200, comments],
-      ["GET", /\/issues\/77\/events$/, 200, events],
-      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", labels: labels.map((name) => ({ name })) }],
-      ["POST", /\/issues\/77\/labels$/, 200, []],
-      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
-      ["DELETE", /\/issues\/77\/labels\/status%3A%20ready$/, 200, []],
+      ["GET", /\/issues\/77$/, 200, { number: 77, state: "open", ...ISSUE_TEXT, labels: [{ name: "agent-ready" }] }],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
-    ]);
-    assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, setStatus: statusInto(calls), statusOf }), 0);
+    ];
+    const { fetch: inner, calls } = fakeFetch(routes);
+    // The admission record's post answers `recordStatus`.
+    const fetch = async (url, init = {}) =>
+      String(init.body ?? "").includes(ADMISSION_RECORD_MARKER) && recordStatus !== 201
+        ? (calls.push({ method: "POST", path: new URL(url).pathname, body: JSON.parse(init.body) }), { ok: false, status: recordStatus, json: async () => ({}), text: async () => "" })
+        : inner(url, init);
+    const field = fakeField({ state, events: fieldEvents, calls });
+    const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch, setStatus: statusInto(calls), statusOf, field });
     const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).map((c) => c.body.body);
-    const labeled = calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body.labels);
-    const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
-    const states = calls.filter((c) => c.method === "STATUS").map((c) => c.body.state);
-    result = { posted, labeled, removed, states, redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")) };
+    result = {
+      code,
+      posted,
+      labeled: calls.filter((c) => c.path.includes("/labels")).map((c) => `${c.method} ${c.path}`),
+      states: calls.filter((c) => c.method === "STATUS").map((c) => c.body.state),
+      restarts: calls.filter((c) => c.method === "RESTART").map((c) => c.body.from),
+      records: posted.filter((body) => body.startsWith(ADMISSION_RECORD_MARKER)),
+      redispatches: posted.filter((body) => body.includes("<!-- work-resolve-issue redispatch comment=")),
+    };
   });
   return result;
 }
 
-test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission", async () => {
-  const { posted, labeled, states, redispatches } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
+test("a listed human's decision posted after admission re-dispatches a pushback hold exactly once, with a fresh admission record", async () => {
+  const { posted, labeled, states, redispatches, records, restarts } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })]);
   assert.deepEqual(states, []);
-  assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`]);
-  assert.equal(posted.length, 1, "no hand-back comment beside the redispatch record");
-  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]], "no needs-human, and status: ready lands between the agent-ready moves");
+  assert.deepEqual(redispatches, [`<!-- work-resolve-issue outcome=redispatch run=123 -->\n<!-- work-resolve-issue redispatch comment=5 -->\nA record this run did not read was posted after its admission: ${commentUrl(5)}. The run's report-outcome posted a fresh admission record and set the Work status field to agent-ready again, so a fresh run admits the issue as it stands now and reads it.`]);
+  // The record carries the sha256 of the title and body this run read.
+  assert.deepEqual(records, [recordBody({ actorId: APP_ID, ...ISSUE_TEXT })]);
+  assert.equal(posted.length, 2, "the redispatch record, then the admission record, and no hand-back comment");
+  assert.ok(posted[0].includes("redispatch comment=5") && posted[1] === records[0], "the redispatch record goes first");
+  assert.deepEqual(restarts, ["agent-ready"], "the App restarts the field from agent-ready");
+  assert.deepEqual(labeled, [], "no label is written");
+});
+
+test("a redispatch whose admission record fails to post restarts nothing", async () => {
+  const run = await runLateRecord([late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })], { recordStatus: 502 });
+  assert.equal(run.code, 1, "the failed post fails the job");
+  assert.deepEqual(run.restarts, []);
 });
 
 // A hold that exists only on the Work status field holds, and so does a
-// field read that fails.
-test("a hold on the Work status field alone, or an unread field, takes the hold over a late decision", async () => {
+// field read that fails, or a field no longer at agent-ready.
+test("a hold on the Work status field alone, an unread field, or a field off agent-ready takes the hold over a late decision", async () => {
   const decision = [late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })];
-  for (const [name, statusOf] of [
-    ["needs-human on the field", async (number, names) => [...names, "needs-human"]],
-    ["needs-reporter-info on the field", async (number, names) => [...names, "status: needs-info"]],
-    ["an unread field", async () => {
-      throw new Error("#77's Work status could not be read: HTTP 502");
-    }],
+  for (const [name, options] of [
+    ["needs-human on the field", { statusOf: async (number, names) => [...names, "needs-human"] }],
+    ["needs-reporter-info on the field", { statusOf: async (number, names) => [...names, "status: needs-info"] }],
+    ["an unread field", { statusOf: async () => { throw new Error("#77's Work status could not be read: HTTP 502"); } }],
+    ["an unread state", { state: new Error("HTTP 502") }],
+    ["the field at ready", { state: "ready" }],
   ]) {
-    const { redispatches, labeled, states } = await runLateRecord(decision, { statusOf });
+    const { redispatches, restarts, states } = await runLateRecord(decision, options);
     assert.deepEqual(redispatches, [], name);
-    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
+    assert.deepEqual([restarts, states], [[], ["needs-human"]], name);
   }
-  const queue = await runLateRecord(decision, { statusOf: async (number, names) => names.filter((n) => n !== "status: ready") });
-  assert.equal(queue.redispatches.length, 1, "a field with no hold re-dispatches");
 });
 
 test("the real Work status reader holds a late decision on a field-only hold or an unread field, and re-dispatches on a field with none", async () => {
@@ -4434,19 +4471,19 @@ test("the real Work status reader holds a late decision on a field-only hold or 
     ["needs-reporter-info on the field", { 77: { state: "needs-reporter-info" } }],
     ["an unread field", { 77: new Error("HTTP 502") }],
   ]) {
-    const { redispatches, labeled, states } = await runLateRecord(decision, { statusOf: fieldReader(fields) });
+    const { redispatches, restarts, states } = await runLateRecord(decision, { statusOf: fieldReader(fields) });
     assert.deepEqual(redispatches, [], name);
-    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
+    assert.deepEqual([restarts, states], [[], ["needs-human"]], name);
   }
-  const ready = await runLateRecord(decision, { statusOf: fieldReader({ 77: { state: "ready" } }) });
+  const ready = await runLateRecord(decision, { statusOf: fieldReader({ 77: { state: "agent-ready" } }) });
   assert.equal(ready.redispatches.length, 1, "a field with no hold re-dispatches");
 });
 
 test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
-  const refinement = late(6, 337595936, "<!-- intake-triage refinement -->\nDone when: the README says so.", { type: "Bot", login: BOT });
-  const { redispatches, labeled } = await runLateRecord([refinement]);
+  const refinement = late(6, APP_ID, "<!-- intake-triage refinement -->\nDone when: the README says so.", { type: "Bot", login: BOT });
+  const { redispatches, restarts } = await runLateRecord([refinement]);
   assert.equal(redispatches.length, 1);
-  assert.deepEqual(labeled, [["status: ready"], ["agent-ready"]]);
+  assert.deepEqual(restarts, ["agent-ready"]);
 });
 
 test("a late comment that is no decision, or is not a listed human's own, or predates admission, takes the hold", async () => {
@@ -4454,46 +4491,61 @@ test("a late comment that is no decision, or is not a listed human's own, or pre
     "a listed human's comment without the decision line": [late(5, OWNER_ID, "Change only the README.")],
     "an unlisted account's decision line": [late(5, 999, DECISION_BODY)],
     "a listed human's decision posted through an App": [late(5, OWNER_ID, DECISION_BODY, { app: { id: 1 } })],
-    "a decision posted before the agent-ready add": [late(5, OWNER_ID, DECISION_BODY, { at: "2026-10-01T23:59:59Z" })],
+    "a decision posted before the person's agent-ready set": [late(5, OWNER_ID, DECISION_BODY, { at: "2026-10-01T23:59:59Z" })],
   };
   for (const [name, comments] of Object.entries(cases)) {
-    const { redispatches, labeled, states } = await runLateRecord(comments);
+    const { redispatches, restarts, states } = await runLateRecord(comments);
     assert.deepEqual(redispatches, [], name);
-    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
+    assert.deepEqual([restarts, states], [[], ["needs-human"]], name);
   }
+});
+
+// The admission is the newest App record or listed human's agent-ready set:
+// an App restart's set and a stranger's set never move it past the answer.
+test("the admission a late decision is read against is the newest App record or listed human's set, never an App restart", async () => {
+  const decision = late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" });
+  const restart = await runLateRecord([decision], { fieldEvents: [OWNER_SET, fieldSet(APP_ID, "2026-10-02T02:00:00Z"), fieldSet(42, "2026-10-02T02:00:00Z")] });
+  assert.equal(restart.redispatches.length, 1, "an App restart after the answer is no admission");
+  const record = late(7, APP_ID, recordBody({ actorId: APP_ID, ...ISSUE_TEXT }), { at: "2026-10-02T02:00:00Z", type: "Bot", login: BOT });
+  const recorded = await runLateRecord([decision, record]);
+  assert.deepEqual([recorded.redispatches, recorded.states], [[], ["needs-human"]], "a record after the answer admitted it");
+  const none = await runLateRecord([decision], { fieldEvents: [] });
+  assert.deepEqual([none.redispatches, none.states], [[], ["needs-human"]], "no admission found takes the hold");
 });
 
 // A security stop reaches a person first, whatever was posted since.
 test("a security-risk hold takes the hold even with a listed human's late decision", async () => {
-  const { redispatches, labeled, states } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
+  const { redispatches, restarts, states } = await runLateRecord([late(5, OWNER_ID, DECISION_BODY)], { reason: "security-risk: the change prints a token." });
   assert.deepEqual(redispatches, []);
-  assert.deepEqual([labeled, states], [[], ["needs-human"]]);
+  assert.deepEqual([restarts, states], [[], ["needs-human"]]);
 });
 
-test("a redispatch record whose label move did not land is finished without a second record; one the App's re-add followed is done", async () => {
-  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
-  const unfinished = await runLateRecord(comments);
-  assert.equal(unfinished.posted.length, 0, "no second record and no hand-back comment");
-  assert.deepEqual(unfinished.labeled, [["status: ready"], ["agent-ready"]]);
-  const appAdd = readyAdd(2, { id: 337595936, login: BOT }, "2026-10-02T01:00:01Z");
-  const finished = await runLateRecord(comments, { events: [OWNER_ADD, appAdd] });
-  assert.deepEqual(finished.redispatches, []);
-  assert.deepEqual([finished.labeled, finished.states], [[], ["needs-human"]]);
+// A re-run of this run's report finds its own redispatch record (run=123)
+// and finishes what is missing, never posting it again or taking the hold;
+// another run's record is read like any App comment.
+test("a re-run finishes this run's redispatch: the record once, then the restart; a landed restart is done", async () => {
+  const decision = late(5, OWNER_ID, DECISION_BODY);
+  const own = redispatchRecord(6, 5, LATE, "123");
+  const unrecorded = await runLateRecord([decision, own]);
+  assert.deepEqual(unrecorded.redispatches, [], "no second redispatch record");
+  assert.equal(unrecorded.records.length, 1, "the admission record the first attempt did not post");
+  assert.deepEqual([unrecorded.restarts, unrecorded.states], [["agent-ready"], []]);
+  const record = late(7, APP_ID, recordBody({ actorId: APP_ID, ...ISSUE_TEXT }), { at: "2026-10-02T01:00:01Z", type: "Bot", login: BOT });
+  const recorded = await runLateRecord([decision, own, record]);
+  assert.deepEqual([recorded.posted, recorded.restarts, recorded.states], [[], ["agent-ready"], []], "the field write the first attempt lost");
+  const landed = await runLateRecord([decision, own, record], { fieldEvents: [OWNER_SET, fieldSet(APP_ID, "2026-10-02T01:00:02Z")] });
+  assert.deepEqual([landed.posted, landed.restarts, landed.states], [[], [], []], "its restart landed: nothing left to do, and no hold");
 });
 
-// Each label call after the agent-ready DELETE can fail; a re-run of the
-// report then finds agent-ready off by the App's own hand and finishes the
-// move, while a person's removal still takes the hold.
-test("a redispatch move stopped after the App removed agent-ready is finished on a re-run; a person's removal takes the hold", async () => {
-  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5)];
-  const unlabel = (actor) => ({ id: 3, event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: "2026-10-02T01:00:01Z" });
-  const resumed = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: 337595936, login: BOT })], labels: ["status: ready"] });
-  assert.equal(resumed.posted.length, 0, "no second record and no hand-back comment");
-  assert.deepEqual(resumed.removed, ["status: ready"], "agent-ready is already off, so only status: ready is removed");
-  assert.deepEqual(resumed.labeled, [["status: ready"], ["agent-ready"]]);
-  const person = await runLateRecord(comments, { events: [OWNER_ADD, unlabel({ id: OWNER_ID, login: "kyle-sexton" })], labels: ["status: ready"] });
-  assert.deepEqual(person.redispatches, []);
-  assert.deepEqual([person.labeled, person.states], [[], ["needs-human"]]);
+// The App's removal landed and its set did not: the re-run sets agent-ready
+// on the unset field, while a person's removal takes the hold.
+test("a redispatch stopped after the App removed the field value is finished on a re-run; a person's removal takes the hold", async () => {
+  const comments = [late(5, OWNER_ID, DECISION_BODY), redispatchRecord(6, 5, LATE, "123"), late(7, APP_ID, recordBody({ actorId: APP_ID, ...ISSUE_TEXT }), { at: LATE, type: "Bot", login: BOT })];
+  const removal = (actorId) => fieldSet(actorId, "2026-10-02T01:00:02Z", { removed: true });
+  const resumed = await runLateRecord(comments, { state: null, fieldEvents: [OWNER_SET, removal(APP_ID)] });
+  assert.deepEqual([resumed.posted, resumed.restarts, resumed.states], [[], [null], []]);
+  const person = await runLateRecord(comments, { state: null, fieldEvents: [OWNER_SET, removal(OWNER_ID)] });
+  assert.deepEqual([person.restarts, person.states], [[], ["needs-human"]]);
 });
 
 // The stopped run may have committed to its lane branch; the record's outcome
@@ -4540,7 +4592,6 @@ test("route hold: a run's intent, design, security or cost code goes to a person
     assert.equal(plan.action, "hand-back", code);
     assert.equal(plan.stop, code);
     assert.equal(plan.status, "needs-human", code);
-    assert.deepEqual(plan.removeLabels, ["agent-ready"], code);
     assert.ok(plan.comment.startsWith(ESC), code);
   }
 });
@@ -4550,11 +4601,10 @@ test("route host-run: a run's host-only code adds host-run, removes agent-ready 
   const plan = stoppedPlan("host-only: the work needs the Claude Code 2.1.296 native bundle on a host");
   assert.equal(plan.action, "host-run");
   assert.deepEqual(plan.addLabels, ["host-run"]);
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=host-run run=555 -->\n"), plan.comment);
   assert.ok(!plan.comment.includes("needs-human"), plan.comment);
   assert.match(plan.comment, /2\.1\.296 native bundle/);
-  assert.match(plan.comment, /remove `host-run` and add `agent-ready` again/);
+  assert.match(plan.comment, /remove `host-run` and set Work status to agent-ready again/);
   assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
 });
 
@@ -4565,11 +4615,10 @@ test("route attended: a run's manual-external code adds attended, removes agent-
   assert.equal(plan.action, "attended");
   assert.equal(plan.stop, "manual-external");
   assert.deepEqual(plan.addLabels, ["attended"]);
-  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=attended run=555 -->\n"), plan.comment);
   assert.ok(!plan.comment.includes("needs-human"), plan.comment);
   assert.match(plan.comment, /a DNS change at the registrar/);
-  assert.match(plan.comment, /removes `attended` and adds `agent-ready` again/);
+  assert.match(plan.comment, /removes `attended` and sets Work status to agent-ready again/);
   assert.ok(RESUMABLE.has(parseOutcomeMarker(plan.comment).outcome));
 });
 
@@ -4577,7 +4626,6 @@ test("route retry: a crash keeps agent-ready, names the branch and counts toward
   const plan = decide({ outcome: readOutcome("/nonexistent/work-outcome.json"), issueNumber: 77, issueLabels: [], branch: BRANCH, changedFiles: [], runId: "555" });
   assert.equal(plan.action, "retry");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=retry run=555 -->\n"), plan.comment);
   assert.ok(plan.comment.includes(BRANCH), plan.comment);
   assert.ok(RESUMABLE.has("retry"), "the next run continues the branch");
@@ -4591,7 +4639,6 @@ test("route fail: a retry past limits.stop-retries removes agent-ready and adds 
     const spent = capRetries(plan, retries, { "stop-retries": cap });
     assert.equal(spent.action, "fail", `${retries} of ${cap}`);
     assert.deepEqual(spent.addLabels, []);
-    assert.deepEqual(spent.removeLabels, ["agent-ready"]);
     assert.ok(spent.comment.startsWith("<!-- work-resolve-issue outcome=failed run=555 -->\n"), spent.comment);
     assert.match(spent.comment, /`outcome-unread`/);
     assert.match(spent.comment, /limits\.stop-retries/);
@@ -4608,12 +4655,10 @@ test("a stop with no code retries once, then fails, and never goes to a person",
   assert.equal(plan.stop, "stopped");
   assert.equal(plan.action, "retry");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.match(plan.comment, /retry 1 of 1/);
   const spent = capRetries(plan, 1, { "stop-retries": 2 });
   assert.equal(spent.action, "fail");
   assert.deepEqual(spent.addLabels, []);
-  assert.deepEqual(spent.removeLabels, ["agent-ready"]);
   assert.ok(!spent.comment.includes("work-items:escalation"), spent.comment);
   assert.equal(capRetries(plan, 0, { "stop-retries": 0 }).action, "fail", "the lane-wide cap still bounds it");
 });
@@ -4625,7 +4670,6 @@ test("route wait: a blocked-by-pr code keeps agent-ready and names the pull requ
   assert.equal(plan.action, "wait");
   assert.equal(plan.pr, "10743");
   assert.deepEqual(plan.addLabels, []);
-  assert.deepEqual(plan.removeLabels, []);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=wait pr=10743 run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /once #10743 merges or closes/);
   assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: "wait", resets: null, run: "555", onResumed: false, pr: "10743" });
@@ -4643,7 +4687,6 @@ test("route intake: a blocked-by-issue code sends the issue back through intake,
   assert.equal(plan.action, "intake");
   assert.equal(plan.after, "13187");
   assert.equal(plan.pr, undefined, "the marker names no pull request");
-  assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"]);
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=intake run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /^It must land after #13187: intake triage records #13187 on its `Blocked by:` line/m);
   assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
@@ -4656,7 +4699,6 @@ test("route close: already-done and report-delivered close the issue as complete
     const plan = stoppedPlan(reason, { issueLabels: ["agent-ready", "work-class: read-only"], branch: "" });
     assert.equal(plan.action, "close", reason);
     assert.deepEqual(plan.addLabels, []);
-    assert.deepEqual(plan.removeLabels, ["agent-ready"]);
     assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=closed run=555 -->\n"), plan.comment);
     assert.match(plan.comment, /closes the issue as completed/);
     assert.ok(plan.comment.includes(reason), plan.comment);
@@ -4761,7 +4803,6 @@ test("main closes an already-done issue only when its cited commit is on the def
   });
   assert.equal(done.code, 0);
   assert.deepEqual(done.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
-  assert.ok(done.calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
   const unproven = await stopRun({
     reason: "already-done: both items are on main at abb359be",
     routes: [["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }], ["GET", /\/compare\/abb359be\.\.\.main$/, 200, { status: "diverged" }], tiedCommit],
@@ -5037,73 +5078,37 @@ test("main posts a delivered report and closes the issue", async () => {
   assert.deepEqual(run.calls.find((c) => c.method === "PATCH").body, { state: "closed", state_reason: "completed" });
 });
 
-// The App's close starts no work-unblock close run, so the queue labels the
-// issue carries come off before the close, agent-ready last.
+// A close writes no status label: the issue closes, then host-run comes off
+// (after the close, so a failed close never leaves an open issue without its
+// state); attended stays, and so does every status label.
 const withLabels = (...names) => ({ ...ISSUE[2], labels: names.map((name) => ({ name })) });
 const labelWrites = (calls) => calls.filter((c) => c.method === "DELETE" || c.method === "PATCH").map((c) => `${c.method} ${c.path.replace(/^.*\/issues\/77/, "")}`);
-test("main's close removes the queue labels the issue carries, before the close and agent-ready last", async () => {
+test("main's close writes no status label and removes host-run after the close, keeping attended", async () => {
   const reason = "report-delivered: the audit found three stale rows";
-  const run = await stopRun({ reason, routes: [], issue: withLabels("status: ready", "admission-deferred", "agent-ready", "priority: low") });
+  const run = await stopRun({ reason, routes: [], issue: withLabels("status: ready", "admission-deferred", "status: confirmed", "host-run", "attended", "agent-ready") });
   assert.equal(run.code, 0);
-  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/admission-deferred", "DELETE /labels/agent-ready", "PATCH "]);
-  // None on the issue: the close is the only write.
+  assert.deepEqual(labelWrites(run.calls), ["PATCH ", "DELETE /labels/host-run"]);
   const bare = await stopRun({ reason, routes: [], issue: withLabels("priority: low") });
   assert.equal(bare.code, 0);
   assert.deepEqual(labelWrites(bare.calls), ["PATCH "]);
-  // A label already gone (404) counts as removed.
-  const gone = await stopRun({ reason, routes: [["DELETE", /\/labels\/status%3A%20ready$/, 404, {}]], issue: withLabels("status: ready", "agent-ready") });
-  assert.equal(gone.code, 0);
-  assert.deepEqual(labelWrites(gone.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
 });
 
-// The state labels come off only after the close, so a failed close never
-// leaves an open issue without its state; attended stays.
-test("main's close removes the state labels after the close and keeps attended", async () => {
-  const run = await stopRun({
-    reason: "report-delivered: the audit found three stale rows",
-    routes: [],
-    issue: withLabels("status: confirmed", "host-run", "attended", "agent-ready"),
-  });
+// A verified-done parent closes through the same route.
+test("main's verified-done close writes no status label", async () => {
+  const run = await stopRun({ reason: VERIFIED, extraEnv: { VERIFY_CLOSE: "80,81" }, issue: withLabels("status: ready", "agent-ready"), routes: [subs(doneSub(80), doneSub(81))] });
   assert.equal(run.code, 0);
-  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/agent-ready", "PATCH ", "DELETE /labels/status%3A%20confirmed", "DELETE /labels/host-run"]);
+  assert.deepEqual(labelWrites(run.calls), ["PATCH "]);
 });
 
-// A label DELETE is idempotent, so a 5xx is resent (three tries in all); one
-// that keeps failing fails the run before the close: the issue stays open with
-// agent-ready, for work-unblock's sweep.
-const FAILED_STRIP = Array(3).fill("DELETE /labels/status%3A%20ready");
-test("main's close resends a failed queue-label removal, then leaves the issue open", async () => {
-  const run = await stopRun({
-    reason: "report-delivered: the audit found three stale rows",
-    routes: [["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]],
-    issue: withLabels("status: ready", "agent-ready"),
-  });
-  assert.notEqual(run.code, 0);
-  assert.deepEqual(labelWrites(run.calls), FAILED_STRIP);
-});
-
-// A verified-done parent closes through the same route, so its queue labels
-// come off first too, and a failed removal leaves it open.
-test("main's verified-done close removes the queue labels before the close, and stays open when one fails", async () => {
-  const opts = { reason: VERIFIED, extraEnv: { VERIFY_CLOSE: "80,81" }, issue: withLabels("status: ready", "agent-ready") };
-  const run = await stopRun({ ...opts, routes: [subs(doneSub(80), doneSub(81))] });
-  assert.equal(run.code, 0);
-  assert.deepEqual(labelWrites(run.calls), ["DELETE /labels/status%3A%20ready", "DELETE /labels/agent-ready", "PATCH "]);
-  const failed = await stopRun({ ...opts, routes: [subs(doneSub(80), doneSub(81)), ["DELETE", /\/labels\/status%3A%20ready$/, 502, {}]] });
-  assert.notEqual(failed.code, 0);
-  assert.deepEqual(labelWrites(failed.calls), FAILED_STRIP);
-});
-
-test("retries count the App's retry markers since a listed human last added agent-ready, not this run's", () => {
+test("retries count the App's retry markers since a listed human last set Work status agent-ready, not this run's", () => {
   const marker = (outcome, run, at) => ({ user: { login: "melodic-automation-lanes[bot]" }, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->`, created_at: at });
   const comments = [marker("retry", "1", "2026-10-17T01:00:00Z"), marker("retry", "2", "2026-10-17T03:00:00Z"), marker("turn-cap", "3", "2026-10-17T04:00:00Z"), marker("retry", "555", "2026-10-17T05:00:00Z")];
-  const events = [{ event: "labeled", label: { name: "agent-ready" }, actor: { login: "kyle-sexton", id: 153232337 }, created_at: "2026-10-17T02:00:00Z" }];
-  const args = { comments, events, bot: "melodic-automation-lanes[bot]", humans: new Set([153232337]), runId: "555" };
+  const args = { comments, since: Date.parse("2026-10-17T02:00:00Z"), bot: "melodic-automation-lanes[bot]", runId: "555" };
   assert.equal(countRestarts({ ...args, outcome: "retry" }), 1);
   assert.equal(countRestarts({ ...args, outcome: "turn-cap" }), 1);
 });
 
-test("main fails a crashed run whose retries are spent: agent-ready off, no label, no person", async () => {
+test("main fails a crashed run whose retries are spent: Work status to needs-triage, no label, no person", async () => {
   const earlier = (run, at) => ({ user: { login: "melodic-automation-lanes[bot]" }, body: `<!-- work-resolve-issue outcome=retry run=${run} -->`, created_at: at });
   await withAsyncDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
@@ -5113,9 +5118,10 @@ test("main fails a crashed run whose retries are spent: agent-ready off, no labe
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(await main({ env: env(dir), fetch, leaveAgentReady: statusInto(calls) }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), JSON.stringify(calls));
-    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+    assert.ok(!calls.some((c) => c.method === "DELETE"));
+    assert.ok(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-triage"));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "failed");
   });
@@ -5212,7 +5218,7 @@ test("main hands a run to a person when COLLECT_REFUSED is exactly true, and ret
       ]);
       assert.equal(await main({ env: { ...env(dir), COLLECT_REFUSED: value }, fetch, setStatus: statusInto(calls) }), 0);
       assert.equal(calls.some((c) => c.method === "STATUS" && c.body.state === "needs-human"), held, value);
-      assert.equal(calls.some((c) => c.method === "DELETE"), held, value);
+      assert.ok(!calls.some((c) => c.method === "DELETE"), value);
     });
   }
 });
@@ -5681,12 +5687,13 @@ test("main opens no PR when the closing PRs cannot be read", async () => {
 // any model turn (workflow-stale): report-outcome re-fires the issue at once
 // on main's files, with work-unblock's re-fire record, so the sweep's restart
 // accounting reads it as its own, and backs off to the sweep past
-// limits.limit-stops-per-issue re-fires since a person last added agent-ready
-// or a run last reported.
+// limits.limit-stops-per-issue re-fires since the issue's admission or a run
+// last reported.
 const STALE_BOT = "melodic-automation-lanes[bot]";
+const STALE_APP = 337595936;
 const MAIN_BLOBS = ["a".repeat(40), "b".repeat(40)];
 const RUN_SHA = "c".repeat(40);
-const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["agent-ready"], state = "open", events, comments = [], deleteStatus = 200 } = {}) => {
+const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = [], state = "open", comments = [] } = {}) => {
   const calls = [];
   const fetch = async (url, init = {}) => {
     const method = init.method ?? "GET";
@@ -5699,12 +5706,8 @@ const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["ag
       return ok({ sha: (searchParams.get("ref") === "main" ? MAIN_BLOBS : runBlobs)[index] });
     }
     if (method === "GET" && /\/issues\/77$/.test(pathname)) return ok({ number: 77, state, labels: labels.map((name) => ({ name })) });
-    if (method === "GET" && /\/issues\/77\/events$/.test(pathname)) {
-      return ok(events ?? [{ event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" }]);
-    }
     if (method === "GET" && /\/issues\/77\/comments$/.test(pathname)) return ok(comments);
-    if (method === "DELETE" && deleteStatus !== 200) return { ok: false, status: deleteStatus, json: async () => ({}), text: async () => "" };
-    if (method === "POST" || method === "DELETE") return ok({}, method === "POST" ? 201 : 200);
+    if (method === "POST") return ok({}, 201);
     return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
   };
   return { fetch, calls };
@@ -5714,20 +5717,23 @@ const staleGitHub = (fetch) => async (method, path, body) => {
   if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
   return response.json();
 };
-const refire = (fetch, limits = LIMIT_DEFAULTS) =>
-  refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits });
+// A listed human (id 1) set agent-ready at 10:00, the admission.
+const HUMAN_SET = fieldSet(1, "2026-11-01T10:00:00Z");
+const staleField = (calls, { state = "agent-ready", events = [HUMAN_SET], restarted = true } = {}) => fakeField({ state, events, calls, restarted });
+const refire = ({ fetch, calls }, limits = LIMIT_DEFAULTS, field = staleField(calls), statusOf) =>
+  refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, appId: STALE_APP, humans: new Set([1]), limits, field, ...(statusOf && { statusOf }) });
 const writes = (calls) => calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path.replace("/repos/o/r/issues/77", "")}`);
 const record = (at, body = `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} -->\nre-fired`) => ({ user: { login: STALE_BOT }, created_at: at, body });
 
-test("refireStale re-fires a stale run's issue at once with work-unblock's re-fire record, then the label moves", async () => {
-  const { fetch, calls } = staleFetch();
-  assert.match(await refire(fetch), /^re-fired on workflow files a{40}-b{40}$/);
-  assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready", "POST /labels"]);
-  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+test("refireStale re-fires a stale run's issue at once with work-unblock's re-fire record, then the field restart", async () => {
+  const run = staleFetch();
+  assert.match(await refire(run), /^re-fired on workflow files a{40}-b{40}$/);
+  assert.deepEqual(writes(run.calls), ["POST /comments", "RESTART /issues/77"]);
+  const comment = run.calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
   assert.equal(REFIRED.exec(comment)?.[1], MAIN_BLOBS.join("-"), "the sweep parses it as its own re-fire record on main's key");
   assert.equal(REFIRED.exec(comment)?.[2], undefined, "no breaker tag");
   assert.equal(parseOutcomeMarker(comment), null, "a re-fire is no lane outcome, so stop-retries never counts it");
-  assert.deepEqual(calls.at(-1).body, { labels: ["agent-ready"] });
+  assert.deepEqual(run.calls.at(-1).body, { from: "agent-ready" });
 });
 
 test("refireStale skips an issue a hold on the Work status field alone holds, and one whose field cannot be read", async () => {
@@ -5738,96 +5744,93 @@ test("refireStale skips an issue a hold on the Work status field alone holds, an
       throw new Error("#77's Work status could not be read: HTTP 502");
     }, "skipped: the Work status could not be read"],
   ]) {
-    const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
-    assert.equal(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf }), why);
-    assert.deepEqual(writes(calls), [], why);
+    const run = staleFetch({ labels: ["work-class: read-only"] });
+    assert.equal(await refire(run, LIMIT_DEFAULTS, staleField(run.calls), statusOf), why);
+    assert.deepEqual(writes(run.calls), [], why);
   }
-  const { fetch } = staleFetch({ labels: ["agent-ready", "status: confirmed"] });
-  const queue = async (number, names) => names.filter((n) => n !== "status: confirmed").concat("needs-triage");
-  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: queue }), /^re-fired/);
+  const unread = staleFetch();
+  assert.equal(await refire(unread, LIMIT_DEFAULTS, staleField(unread.calls, { state: new Error("HTTP 502") })), "skipped: the Work status could not be read");
+  assert.deepEqual(writes(unread.calls), []);
 });
 
-test("refireStale reads holds through the real Work status reader: a field-only hold or an unread field skips, a field queue state re-fires", async () => {
+test("refireStale reads holds through the real Work status reader: a field-only hold or an unread field skips", async () => {
   for (const [fields, why] of [
     [{ 77: { state: "needs-human" } }, "skipped: held by needs-human"],
     [{ 77: { state: "needs-owner-decision" } }, "skipped: held by status: needs-decision"],
     [{ 77: new Error("HTTP 502") }, "skipped: the Work status could not be read"],
   ]) {
-    const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
-    assert.equal(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: fieldReader(fields) }), why);
-    assert.deepEqual(writes(calls), [], why);
+    const run = staleFetch({ labels: ["work-class: read-only"] });
+    assert.equal(await refire(run, LIMIT_DEFAULTS, staleField(run.calls), fieldReader(fields)), why);
+    assert.deepEqual(writes(run.calls), [], why);
   }
-  const { fetch } = staleFetch({ labels: ["agent-ready", "status: confirmed"] });
-  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: fieldReader({ 77: { state: "needs-triage" } }) }), /^re-fired/);
 });
 
-test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since a person or a report", async () => {
+test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since the admission or a report", async () => {
   const two = [record("2026-11-01T10:30:00Z"), record("2026-11-01T11:00:00Z")];
-  // The App's own re-adds after each record.
-  const events = [
-    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" },
-    { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: "2026-11-01T11:00:01Z" },
-    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: "2026-11-01T11:00:02Z" },
-  ];
-  const spent = staleFetch({ comments: two, events });
-  assert.match(await refire(spent.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^skipped: 2 re-fires/);
+  // The App's own restarts after each record.
+  const events = [HUMAN_SET, fieldSet(STALE_APP, "2026-11-01T10:30:02Z"), fieldSet(STALE_APP, "2026-11-01T11:00:02Z")];
+  const spent = staleFetch({ comments: two });
+  assert.match(await refire(spent, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(spent.calls, { events })), /^skipped: 2 re-fires/);
   assert.deepEqual(writes(spent.calls), []);
-  const left = staleFetch({ comments: two, events });
-  assert.match(await refire(left.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 3 }), /^re-fired/);
-  // A person's agent-ready, or a run that reported, after them resets the count.
-  const human = staleFetch({ comments: two, events: [...events, { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T12:00:00Z" }] });
-  assert.match(await refire(human.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
-  const reported = staleFetch({ comments: [...two, record("2026-11-01T11:30:00Z", "<!-- work-resolve-issue outcome=retry run=5 -->\nretry")], events });
-  assert.match(await refire(reported.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+  const left = staleFetch({ comments: two });
+  assert.match(await refire(left, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 3 }, staleField(left.calls, { events })), /^re-fired/);
+  // A listed human's agent-ready set, or a run that reported, after them resets the count; the App's own set does not.
+  const human = staleFetch({ comments: two });
+  assert.match(await refire(human, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(human.calls, { events: [...events, fieldSet(1, "2026-11-01T12:00:00Z")] })), /^re-fired/);
+  const app = staleFetch({ comments: two });
+  assert.match(await refire(app, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(app.calls, { events: [...events, fieldSet(STALE_APP, "2026-11-01T12:00:00Z")] })), /^skipped: 2 re-fires/);
+  const reported = staleFetch({ comments: [...two, record("2026-11-01T11:30:00Z", "<!-- work-resolve-issue outcome=retry run=5 -->\nretry")] });
+  assert.match(await refire(reported, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(reported.calls, { events })), /^re-fired/);
   // A breaker trip's record is the kill switch's, not a stale re-fire.
-  const breaker = staleFetch({ comments: [record("2026-11-01T10:30:00Z", `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} breaker -->\ntrip`), two[1]], events });
-  assert.match(await refire(breaker.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+  const breaker = staleFetch({ comments: [record("2026-11-01T10:30:00Z", `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} breaker -->\ntrip`), two[1]] });
+  assert.match(await refire(breaker, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }, staleField(breaker.calls, { events })), /^re-fired/);
 });
 
-// The record, the removal and the App's re-add land in the same second: the
-// re-add still finishes that record, so it counts toward the bound.
-test("refireStale counts a record whose App re-add shares its second", async () => {
+// The record and the App's set land in the same second: the set still
+// finishes that record, so it counts toward the bound.
+test("refireStale counts a record whose App set shares its second", async () => {
   const at = "2026-11-01T11:00:00Z";
-  const { fetch, calls } = staleFetch({
-    comments: [record(at)],
-    events: [
-      { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" },
-      { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: at },
-      { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: at },
-    ],
-  });
-  assert.match(await refire(fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }), /^skipped: 1 re-fires/);
-  assert.deepEqual(writes(calls), []);
+  const run = staleFetch({ comments: [record(at)] });
+  assert.match(await refire(run, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }, staleField(run.calls, { events: [HUMAN_SET, fieldSet(STALE_APP, at)] })), /^skipped: 1 re-fires/);
+  assert.deepEqual(writes(run.calls), []);
 });
 
-test("refireStale finishes a record whose label move did not land, without a second record", async () => {
-  const { fetch, calls } = staleFetch({ comments: [record("2026-11-01T11:00:00Z")] });
-  assert.match(await refire(fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }), /^re-fired/);
-  assert.deepEqual(writes(calls), ["DELETE /labels/agent-ready", "POST /labels"]);
+test("refireStale finishes a record whose restart did not land, without a second record", async () => {
+  const run = staleFetch({ comments: [record("2026-11-01T11:00:00Z")] });
+  assert.match(await refire(run, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }), /^re-fired/);
+  assert.deepEqual(writes(run.calls), ["RESTART /issues/77"]);
 });
 
-test("refireStale does nothing when the files match main's, or the issue is closed, held, or agent-ready is off", async () => {
-  for (const [why, options, reason] of [
-    ["files match", { runBlobs: MAIN_BLOBS }, /workflow files are main's/],
-    ["closed", { state: "closed" }, /closed or agent-ready is off/],
-    ["agent-ready off", { labels: [] }, /closed or agent-ready is off/],
-    ["held", { labels: ["agent-ready", "needs-human"] }, /held by needs-human/],
-    ["removed last", { events: [{ event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" }] }, /last removed/],
+test("refireStale does nothing when the files match main's, the issue is closed, held, off agent-ready, or never admitted", async () => {
+  for (const [why, options, field, reason] of [
+    ["files match", { runBlobs: MAIN_BLOBS }, {}, /workflow files are main's/],
+    ["closed", { state: "closed" }, {}, /the issue is closed/],
+    ["field at ready", {}, { state: "ready" }, /not agent-ready/],
+    ["field unset", {}, { state: null }, /not agent-ready/],
+    ["held", { labels: ["needs-human"] }, {}, /held by needs-human/],
+    ["no admission", {}, { events: [fieldSet(42, "2026-11-01T10:00:00Z")] }, /no admission record or listed human's agent-ready set/],
   ]) {
-    const { fetch, calls } = staleFetch(options);
-    assert.match(await refire(fetch), reason, why);
-    assert.deepEqual(writes(calls), [], why);
+    const run = staleFetch(options);
+    assert.match(await refire(run, LIMIT_DEFAULTS, staleField(run.calls, field)), reason, why);
+    assert.deepEqual(writes(run.calls), [], why);
   }
-  const { fetch, calls } = staleFetch();
-  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: "", bot: STALE_BOT, humans: new Set(), limits: LIMIT_DEFAULTS }), /names no workflow commit/);
-  assert.deepEqual(calls, []);
+  const run = staleFetch();
+  assert.match(await refireStale(staleGitHub(run.fetch), "/repos/o/r", 77, { workflowSha: "", bot: STALE_BOT, humans: new Set(), limits: LIMIT_DEFAULTS }), /names no workflow commit/);
+  assert.deepEqual(run.calls, []);
+});
+
+// The App's own admission record admits the issue as a listed human's set does.
+test("refireStale re-fires an issue the App's admission record admitted", async () => {
+  const admitted = { id: 3, user: { id: STALE_APP, login: STALE_BOT }, body: recordBody({ actorId: STALE_APP, title: "t", body: "b" }), created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" };
+  const run = staleFetch({ comments: [admitted] });
+  assert.match(await refire(run, LIMIT_DEFAULTS, staleField(run.calls, { events: [] })), /^re-fired/);
 });
 
 test("main on a workflow-stale stop re-fires through refireStale and reads no outcome", async () => {
   await withDir({ "trusted.json": JSON.stringify({ version: 1, actors: [{ kind: "human", id: 1 }] }) }, async (dir) => {
-    const { fetch, calls } = staleFetch();
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "workflow-stale", GITHUB_WORKFLOW_SHA: RUN_SHA, TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
-    assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready", "POST /labels"]);
+    const run = staleFetch();
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "workflow-stale", GITHUB_WORKFLOW_SHA: RUN_SHA, TRUSTED_ACTORS: join(dir, "trusted.json"), APP_SENDER_ID: String(STALE_APP) }, fetch: run.fetch, field: staleField(run.calls) }), 0);
+    assert.deepEqual(writes(run.calls), ["POST /comments", "RESTART /issues/77"]);
   });
   await withDir({}, async (dir) => {
     const { fetch } = staleFetch();
@@ -5840,29 +5843,45 @@ test("main on a workflow-stale stop re-fires through refireStale and reads no ou
 test("refireStale re-fires nothing on any of the lane's holds", async () => {
   assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance") && LANE_HOLDS.has("provenance: untrusted"));
   for (const hold of LANE_HOLDS) {
-    const { fetch, calls } = staleFetch({ labels: ["agent-ready", hold] });
-    assert.equal(await refire(fetch), `skipped: held by ${hold}`, hold);
-    assert.deepEqual(writes(calls), [], hold);
+    const run = staleFetch({ labels: [hold] });
+    assert.equal(await refire(run), `skipped: held by ${hold}`, hold);
+    assert.deepEqual(writes(run.calls), [], hold);
   }
 });
 
-// The App's re-add admits on its own, so it repeats only a listed human's or
-// the App's own agent-ready, as the sweep's trustedLabeler rule says.
-test("refireStale re-fires nothing when agent-ready was last added by neither a listed human nor the App", async () => {
-  const by = (actor) => staleFetch({ events: [{ event: "labeled", label: { name: "agent-ready" }, actor, created_at: "2026-11-01T10:00:00Z" }] });
-  const stranger = by({ id: 42, login: "stranger" });
-  assert.match(await refire(stranger.fetch), /neither a listed human nor the lanes App/);
-  assert.deepEqual(writes(stranger.calls), []);
-  const app = by({ id: 9, login: STALE_BOT });
-  assert.match(await refire(app.fetch), /^re-fired/, "the App's own label is repeated");
+// A person who changes the field between the read and the write wins.
+test("refireStale leaves a person's change standing when the restart finds the field moved", async () => {
+  const run = staleFetch();
+  assert.equal(await refire(run, LIMIT_DEFAULTS, staleField(run.calls, { restarted: false })), "skipped: the Work status changed before the re-fire");
+  assert.deepEqual(writes(run.calls), ["POST /comments", "RESTART /issues/77"]);
 });
 
-// A person who removes agent-ready between the read and the write wins: the
-// 404 ends the re-fire without adding the label back.
-test("refireStale leaves a person's removal standing when the DELETE answers 404", async () => {
-  const { fetch, calls } = staleFetch({ deleteStatus: 404 });
-  assert.equal(await refire(fetch), "skipped: agent-ready was removed before the re-fire");
-  assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready"]);
-  const failed = staleFetch({ deleteStatus: 500 });
-  await assert.rejects(refire(failed.fetch), /answered 500/, "any other failure fails the job");
+// workStatusField's restart reads the state again right before the writer's
+// restart (write-status.mjs statusWriter `restart`, stubbed here), and a moved
+// state or the writer's `held` answer is a person's change that stands.
+test("workStatusField's restart calls the writer's restart only while the state still reads `from`", async () => {
+  const run = async (fields, { from = "agent-ready", answer = { outcome: "written" } } = {}) => {
+    const restarted = [];
+    const github = withFields(async (method, path) => {
+      throw new Error(`unexpected ${method} ${path}`);
+    }, fields);
+    const field = workStatusField({
+      github,
+      repository: "o/r",
+      config: STATUS_CONFIG,
+      reader: fieldReaderOver(github),
+      fieldEvents: async () => [],
+      restart: async (number) => {
+        restarted.push(number);
+        return answer;
+      },
+    });
+    return { done: await field.restart(77, from), restarted };
+  };
+  assert.deepEqual(await run({ 77: { state: "agent-ready" } }), { done: true, restarted: [77] });
+  assert.deepEqual(await run({ 77: { state: "needs-human" } }), { done: false, restarted: [] }, "a hold set since the caller's read stands");
+  assert.deepEqual(await run({ 77: { state: "agent-ready" } }, { answer: { outcome: "held" } }), { done: false, restarted: [77] }, "the writer's held answer stands");
+  assert.deepEqual(await run({}, { from: null }), { done: true, restarted: [77] }, "an unset field the App's removal left is restarted");
+  assert.deepEqual(await run({}), { done: false, restarted: [] }, "an unset field is no agent-ready restart");
+  assert.equal(workStatusField({ config: null }).id, null, "no config reads nothing");
 });
