@@ -3,7 +3,7 @@ description: "A claimed off-by-one in paginate, whose 1-based math is correct, g
 tags: [bugs, write, outcome, no-bug]
 max_turns: 8
 timeout_seconds: 300
-allowed_tools: [Skill, Bash, Read, Glob, Grep]
+allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
 expected_outcome: "A 'No bug confirmed' summary with the claimed description, the verified state grounded in the (page - 1) * pageSize math (page 2 starts at index pageSize), and a recommendation. No steps-to-reproduce section and no severity line. No Edit or Write call."
 ---
 
