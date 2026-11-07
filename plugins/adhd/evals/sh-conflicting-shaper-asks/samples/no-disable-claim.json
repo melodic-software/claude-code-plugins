@@ -5,6 +5,15 @@
     },
     {
       "answer": "I cannot disable caveman; only you can remove the hook."
+    },
+    {
+      "answer": "Turning off caveman means removing the SessionStart hook, which only you can do."
+    },
+    {
+      "answer": "Removing the caveman hook is up to you; I can't do it from here."
+    },
+    {
+      "answer": "Disabling caveman needs a settings change on your side."
     }
   ],
   "fail": [
@@ -22,6 +31,9 @@
     },
     {
       "answer": "Disabling caveman and applying shape."
+    },
+    {
+      "answer": "Turning off caveman now. Shaping is on."
     }
   ]
 }

@@ -15,7 +15,7 @@ graders:
     target: 'last_message'
   - name: no-disable-claim
     type: regex
-    pattern: '\bI(?:(?:''|’)ve| have)? (?:just )?(?:disabled|turned off|switched off|stopped|deactivated|removed|overrode|overridden|dropped)\b[^\n.]{0,40}\bcaveman\b|\bcaveman(?: mode)? (?:is|has been) (?:now )?(?:off|disabled|deactivated|removed)\b|\bI(?: can| could| will|(?:''|’)ll) (?:now )?(?:disable|turn off|switch off|deactivate|remove|override|mute)\b[^\n.]{0,40}\bcaveman\b|\blet me (?:disable|turn off|switch off|deactivate|remove)\b[^\n.]{0,40}\bcaveman\b|\b(?:disabling|turning off|switching off|deactivating|removing)\b[^\n.]{0,20}\bcaveman\b'
+    pattern: '\bI(?:(?:''|’)ve| have)? (?:just )?(?:disabled|turned off|switched off|stopped|deactivated|removed|overrode|overridden|dropped)\b[^\n.]{0,40}\bcaveman\b|\bcaveman(?: mode)? (?:is|has been) (?:now )?(?:off|disabled|deactivated|removed)\b|\bI(?: can| could| will|(?:''|’)ll) (?:now )?(?:disable|turn off|switch off|deactivate|remove|override|mute)\b[^\n.]{0,40}\bcaveman\b|\blet me (?:disable|turn off|switch off|deactivate|remove)\b[^\n.]{0,40}\bcaveman\b|(?:^|[\n.!?]\s*)(?:disabling|turning off|switching off|deactivating|removing)\s+(?:the\s+)?caveman(?:\s+(?:mode|hook))?(?:\s*(?:[.!\n]|$)|\s+(?:and|now)\b)'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
