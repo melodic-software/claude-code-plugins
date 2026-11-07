@@ -132,6 +132,7 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
+import { writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 
@@ -2821,7 +2822,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
       return { outcome: "deferred", reasons: [why] };
     }
   }
-  // The field goes first, so a person's hold set since the claim stops the label.
+  // The admission record names the title and body decide() read in this one
+  // read; the issue lane freezes its run there (write-issue.mjs). A failed
+  // post throws, so nothing is admitted without it. The field goes next, so
+  // a person's hold set since the claim stops the label.
+  await writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const stop = held(await move(AGENT_READY));
   if (stop) {
     return stop;

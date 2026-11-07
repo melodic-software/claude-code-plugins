@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
+import { recordBody } from "../lib/admission-record.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -1813,11 +1814,13 @@ const go = (fake, options) => admit(goArgs(fake, options));
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 // A Work status write as `writes` lists it.
 const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
+// The admission record of issueOf()'s title and body, posted before the agent-ready write.
+const RECORD = `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) })}`;
 
 describe("admit", () => {
   // Under a cap the issue claims its place with a change of its Work status
   // to deferred before it takes agent-ready, which the field records too.
-  const CLAIMED = [STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`];
+  const CLAIMED = [STATUS("deferred"), RECORD, STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`];
 
   test("adds agent-ready when every criterion holds and the caps have room", async () => {
     const fake = fakeGitHub();
@@ -1875,7 +1878,8 @@ describe("admit", () => {
     const result = await admit({ ...goArgs(fake), github, setStatus: set });
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
     const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);
-    assert.deepEqual(posts, [`/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`], "no agent-ready label and no agent-ready field write");
+    // The record precedes the agent-ready write, so it stands; with no agent-ready, it starts nothing.
+    assert.deepEqual(posts, [`/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`, RECORD.replace("POST ", "")], "no agent-ready label and no agent-ready field write");
   });
 
   // Parallel apply-verdict runs for other issues read the same room: only
@@ -2239,7 +2243,7 @@ describe("admit", () => {
     const fake = fakeGitHub();
     const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
   test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
@@ -2570,7 +2574,7 @@ describe("admit() with the Work status field", () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
     const result = await admit({ ...withStatus(fake, { 7: { state: "deferred" } }), status: async () => ({ ...open, admission_room: 1 }) });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+    assert.deepEqual(writes(fake.calls), [STATUS("ready"), STATUS("deferred"), RECORD, STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
   test("a wait with no open pull request takes a field-only deferral back to ready", async () => {
