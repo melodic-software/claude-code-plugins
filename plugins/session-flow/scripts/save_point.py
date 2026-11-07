@@ -2749,6 +2749,8 @@ def cmd_amend(args: argparse.Namespace) -> int:
                 1,
                 f"'append' adds lines to {' or '.join(RETIRED_ENTRY_SECTIONS)} only (got {title!r})",
             )
+        if title not in doc.titles:
+            return _die(1, f"section {title!r} is not in {_posix(path)}")
     for key, n in floors.items():
         if key not in FLOOR_KEYS:
             return _die(

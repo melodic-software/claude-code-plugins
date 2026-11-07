@@ -3715,6 +3715,12 @@ def test_amend_rewrites_a_section_archives_the_old_body_and_emits(tmp_path):
         ),
         ({"append": {"Current rules": ["- [R3] x"]}}, None, 1, "'append' adds lines"),
         (
+            {"append": {"Direction changes": [LATE_TRAIL]}},
+            ("## Direction changes\n", ""),
+            1,
+            "is not in",
+        ),
+        (
             {"sections": {"Observations": "<!-- FILL: x — y -->"}},
             None,
             1,
@@ -3759,6 +3765,7 @@ def test_amend_rewrites_a_section_archives_the_old_body_and_emits(tmp_path):
         "other-frontmatter",
         "lower-floor",
         "append-elsewhere",
+        "append-absent",
         "fill-mark",
         "this-hop-id",
         "this-hop-unit",
@@ -3819,6 +3826,16 @@ def test_amend_keeps_a_fail_the_file_already_had(tmp_path):
     assert LATE_TRAIL + "\n" in hot.read_text(encoding="utf-8")
     assert "FAIL: Current rules: entry without a [R<n>] id" in out(result), out(result)
     assert "validate: FAIL" in out(result) and "Read @" in out(result), out(result)
+
+
+def test_amend_compares_fails_by_key_not_by_message_text(tmp_path):
+    rules = SHAPE3_VALUES["rules"] + "\n- A rule with no id."
+    hot, _ = amend_hop1(make_repo(tmp_path), tmp_path, {**ID_VALUES, "rules": rules})
+    reworded = SHAPE3_VALUES["rules"] + "\n- A reworded rule, still with no id."
+    result = amend(hot, tmp_path, {"sections": {"Current rules": reworded}})
+    assert result.returncode == 0, err(result)
+    assert "- A reworded rule, still with no id.\n" in hot.read_text(encoding="utf-8")
+    assert "entry without a [R<n>] id: 'A reworded rule" in out(result), out(result)
 
 
 def test_amend_never_blocks_on_size(tmp_path):
