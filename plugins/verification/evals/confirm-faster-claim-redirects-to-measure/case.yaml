@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: confirm-faster-claim-redirects-to-measure
+graders:
+  - name: 'names-measure'
+    type: 'regex'
+    pattern: '/?verification:measure'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-speedup-figure'
+    type: 'regex'
+    pattern: '\b\d+(?:\.\d+)?\s*(?:%|percent|x faster|times faster)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'redirect-no-claim'
+    type: 'llm'
+    criteria: 'The reply answers a request to prove a speed-up through /verification:confirm. It meets the legacy expectations: "Redirects performance/metrics improvement claims to /verification:measure rather than running them as /verification:confirm modes" "Does not claim or quantify an improvement from this skill''s own evidence" "Notes the baseline is captured at planning time and compared by /verification:measure".'
+    focus: 'last_message'

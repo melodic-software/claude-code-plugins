@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The API entry point is missing from run-e2e's report."
+    },
+    {
+      "answer": "No line for the API entry point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All entry points passed."
+    },
+    {
+      "answer": "The api was fine"
+    }
+  ]
+}

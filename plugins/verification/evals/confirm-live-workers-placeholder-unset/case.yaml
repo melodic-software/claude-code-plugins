@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-live-workers-placeholder-unset
+graders:
+  - name: 'report-line'
+    type: 'regex'
+    pattern: 'live_workers[`*_]*\s*:\s*[`*_]*1[`*_]*\s*\(default\)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'one-worker'
+    type: 'llm'
+    criteria: 'The reply resolves live_workers for a four-entry-point drive. It meets the legacy expectations: "Resolves live_workers to 1 with the default as the supplying layer" "Treats the unrendered ${user_config.live_workers} placeholder as unset, not as an invalid value" "Runs the live drive as a single worker covering every entry point".'
+    focus: 'last_message'

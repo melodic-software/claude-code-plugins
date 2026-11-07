@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-container-stand-in-steps
+graders:
+  - name: 'names-stand-in'
+    type: 'regex'
+    pattern: 'stand-?in|container instead of|in place of (?:a|the) (?:fresh )?(?:virtual )?machine'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'lists-three-steps'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\bPDF\b)(?=[\s\S]*export director)(?=[\s\S]*\bcron\b)(?=[\s\S]*unverified)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'stand-in-unverified'
+    type: 'llm'
+    criteria: 'The reply verifies a nightly export proven only in a container. It meets the legacy expectations: "It says the proof ran on a stand-in, a container instead of a fresh machine" "It lists the PDF library install, the export directory creation and the cron entry as steps the container did that the target will not" "It marks those steps unverified".'
+    focus: 'last_message'

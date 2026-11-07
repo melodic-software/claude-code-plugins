@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "That is `/verification:confirm` territory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Let me measure."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

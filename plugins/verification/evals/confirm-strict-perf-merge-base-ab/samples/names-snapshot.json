@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Run both arms through `/performance:snapshot`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Time the head once."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

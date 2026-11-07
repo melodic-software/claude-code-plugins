@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "No baseline captured, so I cannot quantify a change."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Complexity went down."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
