@@ -14,6 +14,21 @@
     },
     {
       "answer": "docs-naming-r001 is INFO, not FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is **INFO**, not **FAIL**"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, not `FAIL`"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, NOT FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is reported as INFO rather than FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO instead of FAIL, not as FAIL"
     }
   ],
   "fail": [
@@ -25,6 +40,15 @@
     },
     {
       "answer": "docs-naming-r001 is FAIL, not INFO"
+    },
+    {
+      "answer": "**docs-naming-r001**: **FAIL**"
+    },
+    {
+      "answer": "| `docs-naming-r001` | `FAIL` | migrate the old file |"
+    },
+    {
+      "answer": "docs-naming-r001 is reported as Fail."
     }
   ]
 }

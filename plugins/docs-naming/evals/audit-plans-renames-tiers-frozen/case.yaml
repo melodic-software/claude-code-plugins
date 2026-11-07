@@ -33,7 +33,7 @@ graders:
     arm: both
   - name: report-count-stated
     type: regex
-    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)\s+(?:sites?\s+)?(?:(?:are|is|will be)\s+)?(?:marked\s+)?(?:`?(?:report|frozen)`?\b|untouched\b|not (?:be )?(?:edited|rewritten|touched)\b|(?:left|stays?|remains?) (?:alone|as written|unchanged)\b|listed\b|never edited\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
+    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:sites?[*_`]*\s+)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report|frozen)\b|untouched\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as written|unchanged)\b|listed\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
     flags: 'i'
     target: last_message
     arm: both

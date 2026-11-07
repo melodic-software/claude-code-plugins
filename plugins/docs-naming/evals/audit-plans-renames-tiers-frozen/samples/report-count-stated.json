@@ -11,6 +11,18 @@
     },
     {
       "answer": "| Report sites | 4 |"
+    },
+    {
+      "answer": "4 sites will not be edited."
+    },
+    {
+      "answer": "4 sites won't be touched: CHANGELOG.md and the ADR's prose."
+    },
+    {
+      "answer": "**4 sites** will **NOT** be edited."
+    },
+    {
+      "answer": "**Four** `report` sites stay as written."
     }
   ],
   "fail": [
@@ -34,6 +46,9 @@
     },
     {
       "answer": "The released 1.4.0 CHANGELOG entry is left as written."
+    },
+    {
+      "answer": "4 sites will be edited."
     }
   ]
 }
