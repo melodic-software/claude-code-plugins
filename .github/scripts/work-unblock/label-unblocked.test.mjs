@@ -15,6 +15,7 @@ import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
+import { ADMISSION_RECORD_MARKER } from "../lib/admission-record.mjs";
 import {
   breakerComment,
   budgetLatch,
@@ -265,6 +266,9 @@ function world({
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
     }
+    if (method === "POST" && route.match(/\/issues\/\d+\/comments$/) && String(body?.body).startsWith(ADMISSION_RECORD_MARKER)) {
+      return {};
+    }
     if ((match = route.match(/\/issues\/(\d+)\/comments$/))) {
       return listed(comments[match[1]] ?? []);
     }
@@ -334,6 +338,10 @@ function world({
         return other;
       }
     }
+    // admit()'s one read of the issue text for the admission record.
+    if (method === "GET" && (match = route.match(new RegExp(`^${base}/(\\d+)$`)))) {
+      return { ...issue(Number(match[1])), title: `Issue ${match[1]}`, body: "The issue text." };
+    }
     // admit.mjs admissionFacts' visibility read: a private repository.
     if (method === "GET" && route === `/repos/${REPO}`) {
       return { visibility: "private" };
@@ -371,7 +379,9 @@ function envFor(event = {}, extra = {}) {
 }
 
 // The GraphQL closer read is a POST but writes nothing.
-const writes = (calls) => calls.filter((call) => !call.startsWith("GET ") && !call.startsWith("POST /graphql "));
+const isRecordPost = (call) => /^POST \S+\/issues\/\d+\/comments /.test(call) && call.includes(`"body":${JSON.stringify(ADMISSION_RECORD_MARKER).slice(0, -1)}`);
+// The admission record POST has its own test below, so it is not a write here.
+const writes = (calls) => calls.filter((call) => !call.startsWith("GET ") && !call.startsWith("POST /graphql ") && !isRecordPost(call));
 const closerReads = (calls, number) =>
   calls.filter((call) => call.startsWith("POST /graphql ") && call.includes(`"number":${number}`)).length;
 const labeled = (n) => `SET ${n} agent-ready`;
@@ -404,6 +414,21 @@ test("the last blocker closing adds agent-ready", async () => {
   const { github, calls } = oneDependent();
   assert.equal(await main({ env: envFor(), github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("an admission posts its record before the agent-ready write, and a failed record post admits nothing", async () => {
+  const recordAt = (calls) => calls.findIndex(isRecordPost);
+  const { github, calls } = oneDependent();
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.equal(calls.filter(isRecordPost).length, 1, "one record post");
+  assert.ok(calls.some((call) => call === `GET /repos/${REPO}/issues/20`), "the issue text is read");
+  assert.ok(recordAt(calls) >= 0 && recordAt(calls) < calls.indexOf(labeled(20)), "the record precedes the agent-ready write");
+
+  const failOn = (method, path, body) => method === "POST" && path.endsWith("/issues/20/comments") && String(body?.body).startsWith(ADMISSION_RECORD_MARKER);
+  const broken = world({ ...oneDependentWorld(), failOn });
+  assert.notEqual(await main({ env: envFor(), github: broken.github }), 0, "the failed post fails the run");
+  assert.ok(broken.calls.some(isRecordPost), "the record post was attempted");
+  assert.ok(!broken.calls.includes(labeled(20)), "no agent-ready write after a failed record");
 });
 
 test("the last blocker closing sets the Work status field to agent-ready and writes no agent-ready label", async () => {
@@ -1348,7 +1373,8 @@ test("the sweep reads an issue blocked by two swept closes once", async () => {
   });
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
-  assert.equal(calls.filter((call) => call === `GET /repos/${REPO}/issues/20`).length, 1);
+  // One fact read for both closes, plus admit()'s own read for the record.
+  assert.equal(calls.filter((call) => call === `GET /repos/${REPO}/issues/20`).length, 2);
   // Each close is judged once per run, as a swept source and as a blocker.
   for (const closed of [10, 11]) {
     assert.equal(closerReads(calls, closed), 1, closed);

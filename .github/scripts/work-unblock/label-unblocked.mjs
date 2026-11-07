@@ -314,6 +314,7 @@ import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsRea
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { HOLD_STATES, loadTrustedActors, readyWhileDeferred, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 const LABEL = "agent-ready";
@@ -846,8 +847,11 @@ function admissionGate(status) {
 // Admits a ready issue within the gate's room: its Work status set to
 // agent-ready, which starts the lane run, unless a person's hold kept it; past
 // the room, sets it deferred unless it already reads deferred (`deferred`). No
-// status label is written.
-async function admit({ number, gate, deferred, writer = NO_WRITER }) {
+// status label is written. The admission record (admission-record.mjs) names
+// the title and body of one read right before the field write, so the run's
+// text freeze (write-issue.mjs) has an anchor; a failed read or post throws,
+// and nothing is admitted without it.
+async function admit({ github, repo, number, gate, deferred, appId, writer = NO_WRITER }) {
   if (!(await gate.take())) {
     if (!deferred && (await heldOnSet(writer, number, "deferred"))) {
       return;
@@ -855,6 +859,8 @@ async function admit({ number, gate, deferred, writer = NO_WRITER }) {
     console.log(`label-unblocked: #${number} admission deferred: ${gate.why()}`);
     return;
   }
+  const issue = await github("GET", `/repos/${repo}/issues/${number}`);
+  await writeAdmissionRecord(github, repo, number, { actorId: appId, title: issue?.title, body: issue?.body ?? "" });
   if ((await writer.set(number, "agent-ready", { keepHold: true }))?.outcome === "held") {
     console.log(`label-unblocked: #${number} held by a person, not admitted`);
     return;
@@ -1016,7 +1022,7 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         const done = await doneBy(number);
         await (done.length > 0
           ? parkDone({ github, repo, number, had: labelNames(current), pulls: done, writer })
-          : admit({ github, repo, number, gate, deferred, had: labelNames(current), writer }));
+          : admit({ github, repo, number, gate, deferred, had: labelNames(current), appId, writer }));
       } else if (held || kept) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
       } else if (stale.length > 0) {
@@ -1229,7 +1235,7 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
   const reasons = decision.reasons.join("; ");
   if (decision.verdict === "admit") {
     console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
-    await admit({ github, repo, number, gate, deferred: true, had, writer });
+    await admit({ github, repo, number, gate, deferred: true, had, appId, writer });
   } else if (decision.verdict === "refuse") {
     // As intake's admit: needs-decision only when a person settles a reason;
     // any other refusal (a split, a merged Refs pull request, a manual
@@ -1356,7 +1362,7 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
         decided += 1;
       }
       if (decision.verdict === "admit") {
-        await admit({ github, repo, number, gate, deferred: false, had, writer });
+        await admit({ github, repo, number, gate, deferred: false, had, appId, writer });
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking state is the one write.
         const code = decisionReason(decision);
@@ -1448,7 +1454,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
         parked.push({ issue: current, lower });
         continue;
       }
-      await admit({ github, repo, number, gate, deferred, had: labelNames(current), writer });
+      await admit({ github, repo, number, gate, deferred, had: labelNames(current), appId, writer });
     } catch (error) {
       failed += failedFor(github, number, error);
     }
