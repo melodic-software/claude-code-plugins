@@ -1,3 +1,15 @@
+#!/usr/bin/env bash
+# Seeds a repository whose CLAUDE.md is the kind /init writes for a large
+# monorepo: a file inventory, framework docs and restated conventions around one
+# curated decision-record pointer and one first-run gotcha. Only CLAUDE.md is
+# seeded; the repository it describes is not.
+set -euo pipefail
+
+git init -q -b main
+git config user.name dev
+git config user.email dev@example.invalid
+
+cat >CLAUDE.md <<'MD'
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
@@ -257,3 +269,7 @@ ones during development are:
   the root `tsconfig.json` so project references keep building incrementally
 - The scheduler and notifier share no code directly; they communicate only through RabbitMQ
 - Prettier and ESLint run in CI, so formatting or lint drift fails the pipeline
+MD
+
+git add -A
+git commit -q -m "chore: initial commit"

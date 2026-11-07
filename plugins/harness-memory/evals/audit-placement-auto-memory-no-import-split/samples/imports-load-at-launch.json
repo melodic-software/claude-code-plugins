@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "An @path import does not reduce context: imported files load at launch.", "why": "plain"},
+    {"answer": "Splitting into imports saves nothing, since they are expanded at session start.", "why": "saves nothing"},
+    {"answer": "@infra-notes.md would still load in every session.", "why": "still load"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Good plan: split the Terraform half into @path imports to get under 200 lines.", "why": "endorses the split"},
+    {"answer": "Imports are a clean way to organize the file.", "why": "near miss: no load claim"},
+    {"answer": "C1 FAIL: 300 lines.", "why": "different point"}
+  ]
+}

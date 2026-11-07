@@ -166,12 +166,11 @@ plugins/harness-config/skills/*/SKILL.md
 plugins/harness-config/skills/*/context/*.md
 plugins/harness-config/skills/*/reference/*.md
 plugins/harness-config/skills/*/templates/*.md
-# The harness-memory plugin was purged whole, its audit eval fixture included.
+# The harness-memory plugin was purged whole.
 plugins/harness-memory/*.md
 plugins/harness-memory/skills/*/SKILL.md
 plugins/harness-memory/skills/*/context/*.md
 plugins/harness-memory/skills/*/reference/*.md
-plugins/harness-memory/skills/audit/evals/fixtures/*.md
 # The harness-ops plugin was purged whole, its changelog eval fixtures included.
 plugins/harness-ops/*.md
 plugins/harness-ops/skills/*/SKILL.md

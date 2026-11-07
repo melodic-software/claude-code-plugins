@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "The running log of build learnings belongs in auto memory, which Claude writes itself.", "why": "plain"},
+    {"answer": "C3: move the build notes to auto memory.", "why": "build notes"},
+    {"answer": "Auto-memory is where the things we figured out should live.", "why": "reversed order"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Keep the running log in CLAUDE.md but trim it to the last month.", "why": "stays in CLAUDE.md"},
+    {"answer": "Move the build learnings into a path-scoped rule.", "why": "near miss: wrong destination"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

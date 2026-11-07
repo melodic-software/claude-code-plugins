@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "It lives at ${CLAUDE_PLUGIN_DATA}/audit/<state-key>/last-audit.md.", "why": "variable"},
+    {"answer": "The report stays in the plugin's own data directory.", "why": "prose"},
+    {"answer": "Saved under the plugin data dir, not the repo.", "why": "short form"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Saved to docs/audit/health-report.md.", "why": "repo path"},
+    {"answer": "Saved to the .claude/ directory of the repo.", "why": "near miss: a repo directory"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: audit-line-budget-repo-exemption
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'repo-check-id'
+    type: 'regex'
+    pattern: '(?<![\w/.-])REPO(?:[-_][A-Z0-9]+)*(?![\w/-])(?!\.\w)'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the report of a harness-memory audit of this repository, whose CLAUDE.md has 260 visible lines and whose .claude/rules/instruction-budget.md exempts CLAUDE.md from the 200-line target. PASS only if it satisfies every point: (1) Output applies the C1 line-budget check against the 200-line target; (2) Output reads and honors the repo-declared exemption rather than reporting an unqualified FAIL; (3) The exemption / consumer-convention finding is surfaced under a REPO check-ID distinct from the doc-derived checks. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

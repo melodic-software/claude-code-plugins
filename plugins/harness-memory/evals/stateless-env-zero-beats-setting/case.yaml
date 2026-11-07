@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: stateless-env-zero-beats-setting
-description: "SKILL.md Precedence: a set CLAUDE_CODE_DISABLE_AUTO_MEMORY is authoritative, and 0 reports auto memory on even against autoMemoryEnabled false. The seed sets the env var to 0 in project settings, autoMemoryEnabled false in the higher-precedence local settings. Source: case 5 of the skill's legacy evals.json, rewritten for this format and made concrete. Hard because the operator says it is off, the setting says it is off from the higher scope, and the override sits in a lower one."
+description: "SKILL.md Precedence: a set CLAUDE_CODE_DISABLE_AUTO_MEMORY is authoritative, and 0 reports auto memory on even against autoMemoryEnabled false. The seed sets the env var to 0 in project settings, autoMemoryEnabled false in the higher-precedence local settings. Source: legacy stateless 5, rewritten for this format and made concrete. Hard because the operator says it is off, the setting says it is off from the higher scope, and the override sits in a lower one."
 tags: [stateless, harness-memory, hard]
 expected_outcome: "The reply reports auto memory on, names the env var at 0 as deciding it over autoMemoryEnabled false and calls out the disagreement; no settings file is changed."
 context:
