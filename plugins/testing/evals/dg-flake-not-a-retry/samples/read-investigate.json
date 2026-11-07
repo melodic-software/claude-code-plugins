@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/investigate.md" } }
+      ],
+      "why": "investigation path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/loop.md" } }
+      ],
+      "why": "jumped to the fix loop"
+    }
+  ]
+}

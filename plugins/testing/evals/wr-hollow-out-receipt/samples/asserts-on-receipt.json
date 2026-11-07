@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```ts\nconst receipt = buildReceipt(order);\nexpect(receipt.lines).toEqual([\n  { sku: 'TEA', qty: 2 },\n  { sku: 'MUG', qty: 1 },\n]);\n```",
+      "why": "captures and asserts on the receipt"
+    },
+    {
+      "answer": "expect(buildReceipt(order).lines.map((l) => l.sku)).toEqual(['TEA', 'MUG'])",
+      "why": "asserts on the returned value inline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```ts\nbuildReceipt(order);\nexpect(order.lines).toHaveLength(2);\n```",
+      "why": "still the order the test built"
+    },
+    {
+      "answer": "```ts\nconst receipt = buildReceipt(order);\nexpect(order.lines).toHaveLength(2);\n```",
+      "why": "captures the receipt but asserts on the order"
+    }
+  ]
+}

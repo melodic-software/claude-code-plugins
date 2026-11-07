@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The weakness is the oracle: `toBeDefined()` is `testing/audit/rule-weak-oracle`, and it passes for a row with the wrong email.",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The weakness is the oracle: toBeDefined() is a weak oracle that passes for wrong data.",
+      "why": "describes the shape, names no rule id"
+    }
+  ]
+}

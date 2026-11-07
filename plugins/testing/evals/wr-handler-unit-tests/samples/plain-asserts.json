@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "import pytest\n\n\ndef test_handle_raises_when_name_is_blank(repo):\n    with pytest.raises(ValueError):\n        handle(CreateTemplateItem('t1', '  '), repo)\n",
+      "why": "pytest with plain assert and raises"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import unittest\n\n\nclass HandleTests(unittest.TestCase):\n    def test_handle_raises_when_name_is_blank(self):\n        self.assertRaises(ValueError, handle, cmd, repo)\n",
+      "why": "unittest class, against the documented convention"
+    }
+  ]
+}
