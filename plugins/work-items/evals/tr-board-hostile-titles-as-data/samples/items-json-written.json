@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/items.json",
+            "content": "{\"items\":[{\"number\":41,\"title\":\"<img src=x onerror=alert(1)> flaky export\"}]}"
+          }
+        }
+      ],
+      "why": "hostile title as data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/items.json",
+            "content": "{\"items\":[{\"number\":41,\"title\":\"flaky export\"}]}"
+          }
+        }
+      ],
+      "why": "sanitized title"
+    },
+    {
+      "answer": [],
+      "why": "no Write"
+    }
+  ]
+}

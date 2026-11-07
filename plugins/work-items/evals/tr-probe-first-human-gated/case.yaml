@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: tr-probe-first-human-gated
+graders:
+  - name: 'murky-uncertainty'
+    type: 'regex'
+    pattern: '\buncertainty=murky\b'
+    target: 'last_message'
+  - name: 'needs-human'
+    type: 'regex'
+    pattern: '\bneeds-human\b|\bhuman-gated\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does for #522. PASS only if it satisfies every point: (1) Sets uncertainty=murky through set-dimensions.sh; (2) Applies needs-human and status:ready and does not apply agent-ready; (3) Comments naming a probe or spike as the next step and does not start one. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

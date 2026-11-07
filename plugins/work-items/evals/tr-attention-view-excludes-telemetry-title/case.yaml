@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: tr-attention-view-excludes-telemetry-title
+graders:
+  - name: 'lists-both-bugs'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*#31\b)[\s\S]*#32\b'
+    target: 'last_message'
+  - name: 'telemetry-not-listed'
+    type: 'regex'
+    pattern: '^[ \t]*\|[^\n]*#900\b'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:triage attention view shows. PASS only if it satisfies every point: (1) Excludes the Lane telemetry: <lane> issue from every attention-view bucket despite its raw marker; (2) Applies the exclusion to the listing before bucketing rather than bucketing it and explaining it away; (3) Does not relabel, comment on or close the telemetry issue; (4) Reports the two ordinary items normally, with no claim that the view is empty. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

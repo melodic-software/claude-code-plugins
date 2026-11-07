@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "One edit: +status:ready +agent-ready -needs-triage.",
+      "why": "label edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applies needs-human: the class label is missing.",
+      "why": "human-gated"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

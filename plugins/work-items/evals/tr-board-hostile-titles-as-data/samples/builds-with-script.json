@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/skills/triage/scripts/build-board.mjs --out /tmp/b/triage-board.html < /tmp/b/items.json"
+          }
+        }
+      ],
+      "why": "builder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/b/items.json"
+          }
+        }
+      ],
+      "why": "no build"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

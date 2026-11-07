@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| unlabeled | #413 | Ledger totals are off by one cent |\n\nItem #412 is the work lane's telemetry home and is excluded.",
+      "why": "excluded outside the table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| raw marker | #412 | Worker lane state (do not close) |",
+      "why": "bucketed"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**#64: Export job silently skips rows with a null tenant id**: the scope question below decides what the fix covers.",
+      "why": "number and title"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Posted: what scope do you need?",
+      "why": "no restatement"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: tr-restates-before-recommending
+graders:
+  - name: 'restates-item'
+    type: 'regex'
+    pattern: '#64\b[\s\S]{0,40}Export job silently skips rows'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'waits-for-direction'
+    type: 'regex'
+    pattern: '\?[ \t*_]*$|\bwait(?:s|ing)?\b[^\n]{0,40}\b(?:direction|go-ahead|confirm\w*|approval|answer|say-so)\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage says at the interactive direction gate for #64. PASS only if it satisfies every point: (1) Restates the item identity (number and one-line title) before presenting the recommendation; (2) States the decision being asked and the consequence of each option it presents before asking for direction; (3) Keeps the restatement rather than compressing it away; (4) Still waits for the operator''s explicit direction before mutating anything. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

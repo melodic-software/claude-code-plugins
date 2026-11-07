@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_repro_count=3 (repository), triage_objection_window_hours=0 (default)",
+      "why": "pinned value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=1 (repository)",
+      "why": "working tree value"
+    }
+  ]
+}
