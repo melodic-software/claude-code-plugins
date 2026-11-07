@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| 6 | Pricing tiers | unverifiable (worker failed twice; looked in gateway/docs/pricing.md) |"
+    },
+    {
+      "answer": "Unverifiable: the pricing-tier claim, after two failed dispatches."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| 6 | Pricing tiers | verified | pricing.md:5 |",
+      "why": "marked verified"
+    },
+    {
+      "answer": "Pricing tiers: corrected.\nToken lifetime: unverifiable.",
+      "why": "unverifiable on another row"
+    }
+  ]
+}

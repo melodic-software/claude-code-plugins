@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: dyr-conversation-start-posture
+graders:
+  - name: acknowledges-active
+    type: llm
+    criteria: 'Legacy expectation: "Acknowledges the discipline as active for the session". PASS only if the reply says research and verification discipline is now active or governs the session. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-invented-findings
+    type: llm
+    criteria: 'Legacy expectation: "Does NOT invent violations or audit findings when there is no prior work to audit". The conversation has no earlier turns. PASS only if the reply reports no findings, violations or corrections about earlier work. FAIL if it lists any finding, violation or correction.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: stops-after-reanchor
+    type: llm
+    criteria: 'Legacy expectation: "Stops after the re-anchor rather than producing a corrective report". PASS only if the reply ends after acknowledging the discipline (an offer to help or a one-line note that there is nothing to audit yet is fine). FAIL if it produces an audit report, a ledger, or a list of corrections.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-agent
+    type: tool_used
+    tool: 'Agent'
+    min: 0
+    max: 0
+    arm: 'both'

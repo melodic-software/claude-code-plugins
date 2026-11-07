@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Consumers of acme/shared-lint-action: billing-api (ubuntu-20.04, blocks v3) and web-portal."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Pin v3 everywhere; web-portal is ready.",
+      "why": "one consumer"
+    },
+    {
+      "answer": "All three repos use the action.",
+      "why": "no consumer named"
+    }
+  ]
+}

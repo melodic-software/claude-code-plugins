@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: dyr-clean-audit-no-invention
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: honest-clean
+    type: llm
+    criteria: 'Legacy expectation: "Reports an honest ''nothing to correct'' when the work already conforms". The user states every claim already meets the tier, corroboration and recency bar. PASS only if the reply says there is nothing to correct (a "clean (self-audit only)" label or a note that a fresh-context confirmation was or was not run is fine). FAIL if it reports corrections or casts doubt on the work without a specific reason.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-fabricated-findings
+    type: llm
+    criteria: 'Legacy expectation: "Does not fabricate findings to appear thorough". PASS only if every finding the reply reports (if any) points at something the user actually said. FAIL if it manufactures tier, corroboration or recency findings the stated facts rule out.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-rule-reprint
+    type: llm
+    criteria: 'Legacy expectation: "Does not paste or restate the discipline''s rule text as its output". PASS only if the reply is about this session''s work and does not reprint the research discipline''s rules (for example a bulleted restatement of "assert nothing you cannot source", "verify every concrete specific", "frame the problem first", the tier, corroboration and recency bar) as its body. A one-line statement that the discipline is active is fine. FAIL if the rules are restated as the output.'
+    focus: 'last_message'
+    arm: 'both'
