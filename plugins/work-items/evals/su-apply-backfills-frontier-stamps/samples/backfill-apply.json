@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "On acceptance, run `backfill-capability-tier-labels.sh apply`; it labels #31 and #34 (2 of 2).",
+      "why": "code span"
+    },
+    {
+      "answer": "Run \"$BACKFILL\" apply after the user accepts.",
+      "why": "the reference's variable form"
+    },
+    {
+      "answer": "The user accepts the offer, so I run the backfill `apply`. It labels both items.",
+      "why": "smoke reply shape the original grader rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run backfill-capability-tier-labels.sh check only and report #31 and #34 as candidates.",
+      "why": "near miss: check without the accepted apply"
+    },
+    {
+      "answer": "Leave #31 and #34 for triage to re-stamp.",
+      "why": "relies on triage"
+    }
+  ]
+}
