@@ -60,13 +60,9 @@ Agent({
   prompt: "Target: <the index= path the artifact gate printed>
            Rows: 4, 7, 12, 14
            Corroborators: <research_corroborators>
-           Claims: <under Evidence use: internal, the claim IDs a stated decision cites>
-           Return: your return block, under 4,096 bytes (aim for 3,400)"
+           Claims: <under Evidence use: internal, the claim IDs a stated decision cites>"
 })
 ```
-
-The researcher's dispatch prompt carries the same `Return:` line; both agents return a file pointer
-and a summary under that size.
 
 **Verification scales to the evidence use.** Under `Evidence use: internal`, the verifier grades rows 4, 7 and 12 only for the claims a stated decision cites, named on the `Claims:` line, and no rework round runs. Under `publish` the line is omitted and the full loop runs. Detail: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("Scale it to the evidence use").
 
@@ -208,7 +204,6 @@ Capability flags: nested spawning <available|unavailable>
 Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
 Research config: corroborators=<n> recency=<active>/<standard>/<guide>
-Return: your return block, under 4,096 bytes (aim for 3,400)
 ```
 
 At `Budget: low` the parent contract's "`Budget:` vocabulary" sets the `Turn budget:` value. `Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
