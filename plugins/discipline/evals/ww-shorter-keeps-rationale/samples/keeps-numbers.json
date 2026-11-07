@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "We stop after 5 retries. Each wait has full jitter. The upstream limit resets every 60 s. The gateway times out at 10 s."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We stop after 5 retries with jitter so we stay under the gateway timeout."
+    },
+    {
+      "answer": "Five retries keep us under 10 s. The budget resets every 60 s."
+    }
+  ]
+}

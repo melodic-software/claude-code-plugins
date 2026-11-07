@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "**Quantity (under-informing):** no step stops the 14 cluster before pg_upgrade."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The answer leaves out a backup.",
+      "why": "no axis"
+    },
+    {
+      "answer": "This is not a Quantity issue.",
+      "why": "negated"
+    }
+  ]
+}

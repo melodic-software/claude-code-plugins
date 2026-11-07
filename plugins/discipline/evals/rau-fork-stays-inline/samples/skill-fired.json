@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:recheck-against-upstream"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "recheck-against-upstream"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:reason-dont-recite"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ]
+    }
+  ]
+}

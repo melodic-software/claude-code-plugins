@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Relation (buried lede):** the yes sits in the last paragraph, under two paragraphs of history.",
+      "why": "names the axis"
+    },
+    {
+      "answer": "Relation: the packaging-tool aside is a tangent.",
+      "why": "axis label"
+    },
+    {
+      "answer": "The answer is buried, a relevance failure even though it is correct.",
+      "why": "relevance named as the failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The answer is buried at the bottom; I moved it to the top.",
+      "why": "finding without the axis"
+    },
+    {
+      "answer": "This is not a Relation problem; the draft is fine.",
+      "why": "negated"
+    },
+    {
+      "answer": "Our relation with Dana's team matters, so keep it polite.",
+      "why": "lowercase relation in another sense"
+    }
+  ]
+}

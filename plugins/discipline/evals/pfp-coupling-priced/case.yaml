@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: pfp-coupling-priced
+graders:
+  - name: coupling-costs-named
+    type: llm
+    criteria: 'The reply meets the legacy expectation "Weighs the dependency as a coupling point (abandonment, pricing, license, security, exit cost) at adoption time": it names each of those five costs as its own item the adoption decision weighs, exit cost being the cost of leaving or removing the dependency. It fails if any of the five is missing or only one word stands for two of them.'
+    focus: last_message
+  - name: research-not-recall
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Routes the load-bearing evaluation to research rather than judging maintenance/security from memory" and "Degrades to an explicit in-thread cited research pass when the research capability is not installed". In this run the discovery plugin is not installed and there is no network, so it passes when the reply routes to /discovery:research or says it will research the library''s current maintenance, license and security from primary sources it fetches and cites, and, where that cannot run here, withholds the adoption verdict as an open question naming the evidence that would settle it. It fails if it approves or rejects the dependency on recalled claims about maintenance, security or licensing.'
+    focus: last_message

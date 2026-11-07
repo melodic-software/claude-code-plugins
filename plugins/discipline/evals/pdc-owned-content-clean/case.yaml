@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: pdc-owned-content-clean
+graders:
+  - name: reports-clean
+    type: regex
+    pattern: '(?<!\bnot )\bclean\b|\bno (?:duplication |copy |copied[- ]content )?(?:findings?|violations?|copies)\b|\bnothing to (?:correct|fix|flag|change|point)\b'
+    flags: 'i'
+    target: last_message
+  - name: owned-content-kept
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Does NOT flag the adapted-for-this-repo config, the observed error string, or the dated research deliverable as violations", "Explains the distinction between owning content and copying a source''s facts" and "Returns a clean result on the duplication axis rather than manufacturing a finding". It fails if it proposes replacing any of the three sections with a pointer.'
+    focus: last_message

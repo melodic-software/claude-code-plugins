@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "A reworded paraphrase drifts exactly as a verbatim copy does."
+    },
+    {
+      "answer": "The retry section goes stale the moment Tern changes its backoff, paraphrase or not.",
+      "why": "second branch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You reworded the retry section in your own words, which reads well.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "The config table is a copy; link it instead.",
+      "why": "paraphrase never named"
+    }
+  ]
+}

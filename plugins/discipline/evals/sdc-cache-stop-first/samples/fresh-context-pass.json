@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Find what is wrong with the artifact against the requirement.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "a",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "b",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "c",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "d",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "four passes"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Without jitter, all 40 pods retry at the same moment."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Jitter spreads retries out."
+    }
+  ]
+}
