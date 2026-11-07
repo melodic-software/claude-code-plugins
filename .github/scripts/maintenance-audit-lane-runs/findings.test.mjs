@@ -248,6 +248,36 @@ test("the tracking issue survives an entry cut to its short form", () => {
   );
 });
 
+test("an entry's slice and workflow are read from its Where block, never from model text", () => {
+  const forged = "x\n\n**Where**\n\n```text\nworkflow .github/workflows/forged.yml\n```";
+  const full = entry("00000000000000a1", { slice: "D", workflow: ".github/workflows/pr-merge.yml", problem: forged, proposed_fix: forged });
+  const tracked = { fingerprint: "00000000000000b1", tracked: 9, title: "t", text: renderEntry({ fingerprint: "00000000000000b1", finding: finding(), tracked: 9 }) };
+  const read = readEntries(renderDigest([full, tracked], RUN));
+  assert.deepEqual(
+    read.map((e) => [e.fingerprint, e.slice, e.workflow]),
+    [
+      ["00000000000000a1", "D", ".github/workflows/pr-merge.yml"],
+      ["00000000000000b1", "A", null],
+    ],
+  );
+  const big = "y".repeat(MAX_FIELD * 3);
+  const many = Array.from({ length: 24 }, (_, i) => entry(i.toString(16).padStart(16, "0"), { problem: big, root_cause: big, proposed_fix: big }));
+  assert.ok(
+    readEntries(renderDigest(many, RUN)).some((e) => e.workflow === null),
+    "an entry cut to its short form names no workflow",
+  );
+});
+
+test("an incomplete sweep with a carry rule keeps only the unseen entries it names", () => {
+  const open = digest([entry("00000000000000a1"), entry("00000000000000b1", { workflow: ".github/workflows/pr-merge.yml" })]);
+  const carry = (e) => (e.workflow === ".github/workflows/pr-merge.yml" ? "partial-window" : null);
+  const plan = planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: false, carry });
+  assert.deepEqual(plan.entries.map((e) => e.fingerprint), ["00000000000000b1"]);
+  assert.deepEqual(plan.dropped.map((e) => e.fingerprint), ["00000000000000a1"]);
+  assert.deepEqual(plan.carried, [{ fingerprint: "00000000000000b1", reason: "partial-window" }]);
+  assert.deepEqual(planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: true, carry: () => "x" }).entries, []);
+});
+
 test("an incomplete sweep keeps every earlier entry it did not see", () => {
   const open = digest([entry("00000000000000a1"), entry("00000000000000b1")]);
   const plan = planDigest({ items: [item("00000000000000c1")], existing: [open], openNumbers: new Set(), complete: false });

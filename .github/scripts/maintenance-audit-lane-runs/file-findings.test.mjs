@@ -10,8 +10,9 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createBudget } from "./collect.mjs";
+import * as fileFindings from "./file-findings.mjs";
 import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
-import { planDigest } from "./findings.mjs";
+import { planDigest, renderDigest, renderEntry } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -269,6 +270,123 @@ test("prepareItems is not complete when the collector read part of a window or s
   assert.equal(run(), false);
   rmSync(status);
   assert.equal(run(), false);
+});
+
+// An earlier digest holding three entries the new sweep does not see: one
+// whose Where block names pr-verify-capture.yml, one naming pr-merge.yml,
+// and one tracked elsewhere, which has no Where block. The sweep is run
+// through prepareItems and planDigest as main() wires them.
+const CAPTURE = ".github/workflows/pr-verify-capture.yml";
+const MERGE = ".github/workflows/pr-merge.yml";
+const E_CAPTURE = "00000000000000e1";
+const E_MERGE = "00000000000000e2";
+const E_TRACKED = "00000000000000e3";
+const E_C = "00000000000000e4";
+function carrySweep(t, { status, units, findings }) {
+  const base = tempDir("lane-sweep-file-");
+  const dir = tempDir("lane-sweep-findings-");
+  const out = tempDir("lane-sweep-units-");
+  t.after(() => {
+    for (const d of [base, dir, out]) rmSync(d, { recursive: true, force: true });
+  });
+  const unitsDir = join(out, "units");
+  mkdirSync(unitsDir);
+  for (const unit of units) writeFileSync(join(unitsDir, `${unit.id}.json`), JSON.stringify(unit));
+  for (const [name, data] of Object.entries(findings)) {
+    mkdirSync(join(dir, name));
+    writeFileSync(join(dir, name, "findings.json"), typeof data === "string" ? data : JSON.stringify(data));
+  }
+  const statusPath = join(out, "collect-status.json");
+  if (status !== undefined) writeFileSync(statusPath, JSON.stringify(status));
+  const prepared = prepareItems({ findingsDir: dir, baseDir: base, unitsDir, statusPath });
+  const earlier = [
+    [E_CAPTURE, { slice: "A", workflow: CAPTURE, job: "capture" }, null],
+    [E_MERGE, { slice: "A", workflow: MERGE, job: "merge" }, null],
+    [E_TRACKED, { slice: "A", workflow: MERGE, job: "merge" }, 9000],
+    [E_C, { slice: "C", workflow: ".github/workflows/pr-ci.yml", job: "pr" }, null],
+  ].map(([fp, over, tracked]) => ({ fingerprint: fp, tracked, title: "t", text: renderEntry({ fingerprint: fp, finding: finding(over), tracked }) }));
+  const digestIssue = { number: 50, state: "open", state_reason: null, body: renderDigest(earlier, "https://run/0") };
+  const plan = planDigest({
+    items: prepared.items,
+    existing: [digestIssue],
+    openNumbers: new Set(),
+    complete: prepared.complete,
+    carry: prepared.carry,
+  });
+  return {
+    complete: prepared.complete,
+    kept: plan.entries.map((e) => e.fingerprint).sort(),
+    dropped: plan.dropped.map((e) => e.fingerprint).sort(),
+    reasons: Object.fromEntries((plan.carried ?? []).map((c) => [c.fingerprint, c.reason])),
+    plan,
+  };
+}
+const ciUnit = { id: "a1", slice: "A", workflow: ".github/workflows/pr-ci.yml" };
+const readA1 = { "findings-a1": { unit: "a1", findings: [] } };
+
+test("a partly read workflow carries only the unseen entries naming it; a fully read one drops", (t) => {
+  const sweep = carrySweep(t, {
+    status: { complete: false, truncated: null, partial: [MERGE] },
+    units: [ciUnit],
+    findings: readA1,
+  });
+  assert.equal(sweep.complete, false);
+  assert.ok(sweep.dropped.includes(E_CAPTURE), "the pr-verify-capture.yml entry drops: that workflow was read in full");
+  assert.ok(sweep.kept.includes(E_MERGE), "the pr-merge.yml entry carries: that workflow was read in part");
+  assert.ok(sweep.kept.includes(E_TRACKED), "an entry naming no workflow carries");
+  assert.deepEqual(sweep.kept, [E_MERGE, E_TRACKED]);
+  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_C]);
+  assert.deepEqual(sweep.reasons, { [E_MERGE]: "partial-window", [E_TRACKED]: "no-workflow" });
+  assert.equal(
+    fileFindings.carriedNote(sweep.plan.carried),
+    "2 earlier entries carried over: 1 partial-window, 1 no-workflow",
+  );
+});
+
+test("a collector that stopped early, or left no readable status, carries every unseen entry", (t) => {
+  const all = [E_CAPTURE, E_MERGE, E_TRACKED, E_C];
+  const stopped = carrySweep(t, {
+    status: { complete: false, truncated: "stopped at unit d2: call budget", partial: [MERGE] },
+    units: [ciUnit],
+    findings: readA1,
+  });
+  assert.deepEqual(stopped.kept, all);
+  assert.deepEqual(new Set(Object.values(stopped.reasons)), new Set(["collector-stopped"]));
+  const missing = carrySweep(t, { status: undefined, units: [ciUnit], findings: readA1 });
+  assert.deepEqual(missing.kept, all);
+  assert.deepEqual(new Set(Object.values(missing.reasons)), new Set(["collector-status-unreadable"]));
+});
+
+test("a unit whose findings were not read carries the unseen entries of its slice and workflow", (t) => {
+  const unparsable = { unit: "a2", findings: [], dropped: [{ index: null, reason: "unparsable" }] };
+  const sweep = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit, { id: "a2", slice: "A", workflow: CAPTURE }],
+    findings: { ...readA1, "findings-a2": unparsable },
+  });
+  assert.deepEqual(sweep.kept, [E_CAPTURE, E_TRACKED]);
+  assert.deepEqual(sweep.reasons, { [E_CAPTURE]: "unit-unread", [E_TRACKED]: "no-workflow" });
+
+  const unreadC = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit, { id: "c1", slice: "C" }],
+    findings: readA1,
+  });
+  assert.deepEqual(unreadC.kept, [E_TRACKED, E_C], "an unread C unit binds no workflow, so every C entry carries");
+
+  const unreadable = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit],
+    findings: { ...readA1, "findings-a2": "not json" },
+  });
+  assert.deepEqual(unreadable.kept, [E_CAPTURE, E_MERGE, E_TRACKED, E_C], "an unreadable findings file names no unit, so all carry");
+});
+
+test("a complete sweep drops every unseen entry, one naming no workflow included", (t) => {
+  const sweep = carrySweep(t, { status: { complete: true, truncated: null, partial: [] }, units: [ciUnit], findings: readA1 });
+  assert.equal(sweep.complete, true);
+  assert.deepEqual(sweep.kept, []);
+  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_MERGE, E_TRACKED, E_C]);
 });
 
 const FP = "0123456789abcdef";
