@@ -21,6 +21,14 @@
     {
       "answer": "## Caveats\n\n- Dropped the VendorCo item because a lawmaker is named.",
       "why": "dropped"
+    },
+    {
+      "answer": "## Policy and industry-wide\n\n- VendorCo procurement dispute (2026-06-21)\n\n## Caveats\n\n**Regulatory exception:** VendorCo kept although a lawmaker is quoted.",
+      "why": "a bold lead-in inside a caveat is not a section heading"
+    },
+    {
+      "answer": "**Legal & Regulatory**\n*No notable items.*\n\n**Policy and industry-wide**\n- VendorCo procurement dispute",
+      "why": "a later bold heading ends the legal section"
     }
   ]
 }

@@ -3,10 +3,6 @@
     {
       "answer": "## Legal & regulatory\n\n### HIGH\n\n- **VendorCo procurement dispute**: <https://newswire.example/vendorco-procurement-dispute> (2026-06-21)",
       "why": "partisan items absent"
-    },
-    {
-      "answer": "## Caveats\n\n- Dropped 2 partisan-only items (a candidate deepfake meme and a horse-race thread) under the apolitical filter.",
-      "why": "an exclusion note, not a listed item"
     }
   ],
   "fail": [
@@ -25,6 +21,14 @@
     {
       "answer": "- Thread on AI campaign tools, horse-race framing. Dropped items elsewhere are listed in caveats.",
       "why": "listed; the exclusion word sits in the next sentence of the same line"
+    },
+    {
+      "answer": "## Caveats\n\n- Dropped 2 partisan-only items (a candidate deepfake meme and a horse-race thread) under the apolitical filter.",
+      "why": "names a dropped item; legacy: they do not appear anywhere in the briefing"
+    },
+    {
+      "answer": "## Caveats\n\n- **Excluded by the apolitical filter:**\n  - Item 6, a deepfake meme of a candidate.",
+      "why": "names a dropped item in a nested caveat bullet (ab3 shape)"
     }
   ]
 }

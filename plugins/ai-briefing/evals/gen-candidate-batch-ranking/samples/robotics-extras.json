@@ -21,6 +21,14 @@
     {
       "answer": "## EXTRAS\n\n- Cobalt open weights 4.1\n\n## Other\n\n- Anchorpoint Unit-7 warehouse demo",
       "why": "robotics under Other, not EXTRAS"
+    },
+    {
+      "answer": "**Extras**\n*No notable items.*\n\n**Anchorpoint Dynamics**\n- Unit-7 warehouse pick-and-pack shift",
+      "why": "a later bold heading ends the EXTRAS section"
+    },
+    {
+      "answer": "## Anchorpoint Dynamics\n\n- Unit-7 warehouse shift\n\n## Caveats\n\n**Extras note:** Unit-7 could also sit in EXTRAS.",
+      "why": "a bold lead-in inside a caveat is not a section heading"
     }
   ]
 }
