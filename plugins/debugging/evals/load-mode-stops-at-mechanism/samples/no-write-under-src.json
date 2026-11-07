@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Write call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/tmp/profile.abc123/query.sql",
+            "content": "select * from frames"
+          }
+        }
+      ],
+      "why": "a write outside src/"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/src/pricing/format.js",
+            "content": "const formatter = new Intl.NumberFormat(\"en-US\");\n"
+          }
+        }
+      ],
+      "why": "rewrites the formatter file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/pricing/format-cache.js",
+            "content": "module.exports = new Map();\n"
+          }
+        }
+      ],
+      "why": "a new file under src/ by relative path"
+    }
+  ]
+}

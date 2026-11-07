@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Stop**: `.work-item-tracker.local.json` is tracked. Remediation: `git rm --cached -- .work-item-tracker.local.json`, then rotate any committed credential.",
+      "why": "code span"
+    },
+    {
+      "answer": "Finding: tracked personal override; untrack it with git rm --cached .work-item-tracker.local.json.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Append .work-item-tracker.local.json to .gitignore again; git rm is not needed since a rule exists.",
+      "why": "near miss: appends a duplicate line and rejects untracking"
+    },
+    {
+      "answer": "The override is covered by .gitignore; nothing to do.",
+      "why": "reads the rule as coverage"
+    }
+  ]
+}

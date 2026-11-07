@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: synthesize-proto-personas-labeled
+description: 'Legacy synthesize 2. With no research, personas are proto-personas labeled assumption-based, ending with Assumptions to test (synthesize SKILL.md 58 and 70-72). proto-label and assumptions-to-test grade the reply; legacy-synthesize-2 (llm) quotes both legacy expectations.'
+tags: [synthesize, personas, legacy]
+runs: 3
+expected_outcome: 'Proto-personas labeled assumption-based, each claim marked as an assumption, ending with an Assumptions to test list that says how to test each one.'
+execution:
+  prompt: 'We have no research yet. Write proto-personas for a meal-planning app for busy parents. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?synthesize"'
+    weight: 0.1
+  - name: 'proto-label'
+    type: 'regex'
+    pattern: 'proto-?personas?|assumption-based'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'assumptions-to-test'
+    type: 'regex'
+    pattern: '^\s*(?:#{1,6}\s*|\*\*)\s*Assumptions to test'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'legacy-synthesize-2'
+    type: 'llm'
+    criteria: 'The run writes personas for a meal-planning app with no research. It meets the legacy expectations: "The personas are labeled proto-personas or assumption-based" "The record ends with an Assumptions to test section".'
+    focus: 'last_message'

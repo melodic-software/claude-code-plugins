@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This is the drain-terminal state, so the lane stops.",
+      "why": "names the state"
+    },
+    {
+      "answer": "It stops cleanly; no ScheduleWakeup is called.",
+      "why": "no wakeup"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The drain is not complete, so ScheduleWakeup the next cycle in 20 minutes.",
+      "why": "keeps looping"
+    },
+    {
+      "answer": "Next: wakeup at 12:20.",
+      "why": "schedules"
+    }
+  ]
+}

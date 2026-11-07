@@ -4,7 +4,7 @@
 // whether the lane already reviewed an earlier head, which makes it blocking only.
 import { strict as assert } from "node:assert";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -12,6 +12,8 @@ import { after, describe, test } from "node:test";
 import {
   collect,
   isLanePost,
+  main,
+  readAfterFirstReview,
   render,
   touchesOriginal,
 } from "../lib/prior-findings.mjs";
@@ -237,5 +239,71 @@ describe("earlier reviews and blocking only", () => {
     assert.match(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /^- blocking only: yes$/mu);
     assert.match(render({ lane: LANE, findings: [], reviewed: 4, more: false }), /^- earlier heads this lane reviewed: 4$/mu);
     assert.doesNotMatch(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /cap/u);
+  });
+
+  test("with findings-after-first-review all, blocking only is no on every head", () => {
+    for (const reviewed of [0, 1, 4]) {
+      assert.match(render({ lane: LANE, findings: [], reviewed, more: false, afterFirstReview: "all" }), /^- blocking only: no$/mu);
+    }
+    assert.match(render({ lane: LANE, findings: [], reviewed: 1, more: false, afterFirstReview: "blocking-only" }), /^- blocking only: yes$/mu);
+  });
+
+  test("the setting is read from the loop block, else blocking-only", () => {
+    const loop = (line) => `merge:\n  rung: off\n\nloop:\n  review-rounds: 3\n  # a note\n${line}\n  fix-ci-rounds: 3\n`;
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: all")), "all");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: \"all\" # every finding")), "all");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: all").replaceAll("\n", "\r\n")), "all");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: blocking-only")), "blocking-only");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: everything")), "blocking-only");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: all-findings")), "blocking-only");
+    assert.equal(readAfterFirstReview(loop("")), "blocking-only");
+    assert.equal(readAfterFirstReview("lanes:\n  x:\n    findings-after-first-review: all\nloop:\n  review-rounds: 3\n"), "blocking-only");
+    assert.equal(readAfterFirstReview(""), "blocking-only");
+    assert.equal(readAfterFirstReview(undefined), "blocking-only");
+  });
+});
+
+describe("main reads the setting from CAP_CONFIG", () => {
+  const dir = mkdtempSync(join(tmpdir(), "prior-findings-main-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  // The lane reviewed an earlier head whole, so the default is blocking only.
+  const earlier = "a".repeat(40);
+  const summary = {
+    url: "https://example.test/c1",
+    body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${earlier} -->\n**${LANE}** reviewed \`${earlier}\`: read 2 of 2 changed file(s); 0 finding(s), done.`,
+    lastEditedAt: null,
+    editor: null,
+    author: BOT,
+  };
+  const page = (nodes) => ({ pageInfo: { hasNextPage: false }, nodes });
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: { repository: { pullRequest: { reviewThreads: page([]), reviews: page([]), comments: page([summary]) } } } }),
+  });
+  const blockingOnly = async (name, capConfig) => {
+    const output = join(dir, `${name}.md`);
+    const env = { REPOSITORY: "o/r", PR_NUMBER: "7", HEAD_SHA: "b".repeat(40), LANE, OUTPUT_PATH: output, GITHUB_TOKEN: "t" };
+    if (capConfig !== undefined) env.CAP_CONFIG = capConfig;
+    await main({ env, fetchImpl, git: () => "" });
+    const text = readFileSync(output, "utf8");
+    assert.match(text, /^- earlier heads this lane reviewed: 1$/mu);
+    return /^- blocking only: (yes|no)$/mu.exec(text)[1];
+  };
+  const config = (name, text) => {
+    const path = join(dir, name);
+    writeFileSync(path, text);
+    return path;
+  };
+
+  test("no CAP_CONFIG, an unreadable one, or no key: blocking only", async () => {
+    assert.equal(await blockingOnly("unset"), "yes");
+    assert.equal(await blockingOnly("missing", join(dir, "absent.yaml")), "yes");
+    assert.equal(await blockingOnly("nokey", config("nokey.yaml", "loop:\n  review-rounds: 3\n")), "yes");
+  });
+
+  test("blocking-only keeps blocking only; all turns it off", async () => {
+    assert.equal(await blockingOnly("blocking", config("blocking.yaml", "loop:\n  findings-after-first-review: blocking-only\n")), "yes");
+    assert.equal(await blockingOnly("all", config("all.yaml", "loop:\n  findings-after-first-review: all\n")), "no");
   });
 });

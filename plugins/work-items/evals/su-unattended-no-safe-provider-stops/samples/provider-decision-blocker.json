@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Blocker**: tracker binding needs a provider decision; run `/work-items:setup apply` with a user present.",
+      "why": "markdown"
+    },
+    {
+      "answer": "Stop here. The tracker binding needs a\nprovider decision, which no default can make.",
+      "why": "wrapped across a line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "gh is missing, so bind local-markdown with storage_dir .work-items as the provider default.",
+      "why": "near miss: guesses a provider"
+    },
+    {
+      "answer": "Stops: gh is not installed.",
+      "why": "names no blocker decision"
+    }
+  ]
+}

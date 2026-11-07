@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: confirm-build-question-no-trigger
+graders:
+  - name: 'no-confirm-skill'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill":"(?:verification:)?confirm"'
+    min: 0
+    max: 0
+    arm: 'both'

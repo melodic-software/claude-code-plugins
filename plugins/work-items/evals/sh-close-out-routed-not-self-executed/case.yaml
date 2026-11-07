@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-close-out-routed-not-self-executed
+graders:
+  - name: 'close-out-review-named'
+    type: 'regex'
+    pattern: '(?:planning:plan|quality-gate)[\s*_`]{0,6}close-out\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship session does with the stated state. PASS only if it satisfies every point: (1) Recognizes the all-sub-items-closed state as the close-out trigger rather than reporting nothing to do; (2) Routes the close ritual to /work-items:decompose''s container lifecycle (close-out review against the container body) instead of closing directly; (3) Composes presence-gated: names /planning:plan close-out and review machinery (such as /review:quality-gate close-out) when installed, with a manual acceptance-criteria pass as the fallback; (4) Does not close the container without the close-out review, and does not propose leaving a shipped container open as living documentation. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

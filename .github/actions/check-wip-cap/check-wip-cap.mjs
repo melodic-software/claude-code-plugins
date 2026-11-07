@@ -4,8 +4,8 @@
 // open ones, the ones merged in the rolling window, and the ones opened in it),
 // then the repository issues listing of open agent-ready issues, oldest first,
 // with pull requests and hold labels left out (the Work status field's state
-// adding a hold the labels lack, read-status.mjs, at most STATUS_READS
-// issues); and one pull request read per
+// adding a hold the labels lack, from one listing, listedStatusOf); and one
+// pull request read per
 // open lane PR whose first body line names no issue.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
@@ -59,7 +59,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
-import { statusReader } from "../resolve-config/read-status.mjs";
+import { loadTrustedActors, StatusReadError, statusLabels } from "../resolve-config/read-status.mjs";
 import { blockersOf, stillBlocking } from "../../scripts/intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS, resolveAdmission, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 import { laneBranchIssue } from "../../scripts/work-resolve-issue/report-outcome.mjs";
@@ -83,9 +83,35 @@ const PAGE = 100;
 const MAX_PAGES = 10;
 // The most blocker-list reads one check makes for queued issues.
 export const BLOCKER_READS = 30;
-// The most Work status field reads one check makes for listed issues; past
-// them an issue's labels decide.
-export const STATUS_READS = 30;
+
+// The Work status reader for a loop that can visit more issues than a
+// per-issue read limit (read-status.mjs statusReader's `limit`) allows: one
+// resolve-config.mjs issuesByStatus listing over every state (config.order),
+// read on first use, gives each issue's state to statusLabels, so no issue
+// past a limit is skipped. An unset models.issue-status leaves the names; a
+// failed listing makes every call throw StatusReadError.
+export function listedStatusOf({ env = {}, github, repository }) {
+  let listing;
+  const load = async () => {
+    const { issueStatusFromBase, issuesByStatus } = await import(new URL("../resolve-config/resolve-config.mjs", import.meta.url).href);
+    const config = issueStatusFromBase(env);
+    if (!config) {
+      return null;
+    }
+    const found = await issuesByStatus(github, repository, config.order, { config, trustedActors: loadTrustedActors(env) });
+    return { config, states: new Map(found.map((issue) => [issue.number, issue.state])) };
+  };
+  return async (number, names) => {
+    listing ??= load();
+    let read;
+    try {
+      read = await listing;
+    } catch (error) {
+      throw new StatusReadError(number, error);
+    }
+    return read ? statusLabels(read.states.get(Number(number)) ?? null, names, read.config) : names;
+  };
+}
 
 // A hold label matches in any case, as pr-merge's holdReason matches it; the
 // body line matches exactly.
@@ -110,7 +136,7 @@ const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 // none starts once `remaining()` (the last x-ratelimit-remaining seen) is 0 or less.
 // `pauseOnly` stops after the open listing and the merged count. `statusOf(number,
 // names)` gives a listed issue's label names with its Work status field's say
-// them (read-status.mjs statusReader); by default the labels as listed.
+// (listedStatusOf); by default the labels as listed.
 export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false, statusOf = async (number, names) => names }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
@@ -191,9 +217,14 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
         }
         for (const item of items.filter((entry) => !entry?.pull_request)) {
           // The listing names only agent-ready issues, so the label counts as
-          // on each one unless the field says otherwise.
+          // on each one unless the field says otherwise. An unreadable field
+          // counts as queued, which only slows admissions.
           const names = [...(item?.labels ?? []).map((label) => label?.name), "agent-ready"];
-          if (isQueued(await statusOf(Number(item?.number), names))) {
+          const queued = await statusOf(Number(item?.number), names).then(isQueued, (error) => {
+            if (error instanceof StatusReadError) return true;
+            throw error;
+          });
+          if (queued) {
             numbers.push(Number(item?.number));
           }
         }
@@ -380,7 +411,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const { limits, wip, configError } = await baseConfig(env.BASE_PATH || ".base", log);
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
-  const statusOf = statusReader({ env: { ...env, BASE_PATH: env.BASE_PATH || ".base" }, github, repository: repo, log, limit: STATUS_READS });
+  const statusOf = listedStatusOf({ env: { ...env, BASE_PATH: env.BASE_PATH || ".base" }, github, repository: repo });
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });

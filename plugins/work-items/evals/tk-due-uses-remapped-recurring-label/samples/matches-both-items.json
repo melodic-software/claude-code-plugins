@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| dependency-review | #1 |\n| ci-pins | #2 |",
+      "why": "both"
+    },
+    {
+      "answer": "ci-pins (#2) and dependency-review (#1) are due.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| dependency-review | #1 |\n| ci-pins | -- |",
+      "why": "one missing"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

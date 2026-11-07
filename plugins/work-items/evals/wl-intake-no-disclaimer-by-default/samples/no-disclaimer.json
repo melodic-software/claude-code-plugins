@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The sweep's comments carry no AI disclaimer.",
+      "why": "no"
+    },
+    {
+      "answer": "Comments are posted without the AI disclaimer prefix.",
+      "why": "without"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Each comment is prefixed with the AI disclaimer.",
+      "why": "adds it"
+    },
+    {
+      "answer": "ai_disclaimer: true",
+      "why": "resolves true"
+    },
+    {
+      "answer": "No layer sets it, so the sweep adds the AI disclaimer prefix",
+      "why": "review example: the negation is on the setting, not the prefix"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 2\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live_workers: 1\n"
+    },
+    {
+      "answer": "live_workers: 0\n"
+    }
+  ]
+}

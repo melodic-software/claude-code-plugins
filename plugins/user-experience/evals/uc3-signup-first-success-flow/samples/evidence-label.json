@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# User flow: sign-up\n\nEvidence: mixed\nAI use: drafted"
+    },
+    {
+      "answer": "**Evidence:** `assumption-based`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The evidence comes from docs/PRD.md."
+    },
+    {
+      "answer": "Evidence: see PRD"
+    }
+  ]
+}

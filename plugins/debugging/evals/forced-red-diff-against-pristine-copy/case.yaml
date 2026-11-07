@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: forced-red-diff-against-pristine-copy
+context:
+  scaffold_script: scaffold.sh

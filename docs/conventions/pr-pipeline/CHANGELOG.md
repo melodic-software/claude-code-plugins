@@ -1,5 +1,60 @@
 # Changelog for the PR pipeline convention
 
+## [9.7.1] - 2026-11-07
+
+### Fixed
+
+- "Check the probe" in the PR capture, and the subprocess scrub probe in `upstream-apply-changelog.yml`, now say the fence was not tested when the probe session made no Read call on a fenced path, instead of reporting the file tools as unfenced. `capture-probe.mjs reads` exits 3 for that case. Both still fail the job, and any Read that came back or got no answer is still reported as an open fence.
+
+## [9.7.0] - 2026-11-07
+
+### Added
+
+- `loop.findings-after-first-review` (`blocking-only`, the default, or `all`): what a CI review lane reports on a head after the first one it reviewed whole. The schema declares it and resolve-config emits it with its default.
+
+## [9.6.1] - 2026-11-07
+
+### Changed
+
+- The `pr-unblock` dispatcher's open pull request listing no longer reads the fields only `fix-docs`
+  uses: each pull request's files, line counts and head-commit signer. `fix-docs` still reads them
+  through its one-pull-request query.
+
+## [9.6.0] - 2026-11-07
+
+### Changed
+
+- CI `fix-docs` starts only on a pull request's own `pull_request_target` event, through
+  `pr-unblock-dispatch.yml`'s `refine` job. A push to `main`, the half-hourly tick and a hand run
+  of the dispatcher no longer dispatch it. A pull request the event run skips waits for its next
+  push, reopen or ready flip, and so does one whose hold label comes off. `limits.fix-docs-per-run`
+  still turns it off at `0`; any other value turns it on, since each event offers one pull request.
+
+### Fixed
+
+- A hosted review's `wait-refine` job no longer ends its wait on a head read that showed a moved
+  head when a second read shows this head again. At the start, and at every poll, such a read now
+  resumes the wait for this head's Refine instead of reviewing at once.
+
+## [9.5.0] - 2026-11-07
+
+### Changed
+
+- An issue's Work status is read from and written to the Work status field; status labels no longer decide it, though a hold label still holds on top of it. `write-status.mjs` drops the label mirror (`statusMirror`, `labelsAfter`, `writeStatus`), and `check-born-triaged` fails when resolve-config's dependencies do not install.
+
+### Fixed
+
+- The hill-climb lane's draft pull request body no longer cuts a pass summary in half. A summary longer than 24000 characters is now cut at its last whitespace inside the cap, before the existing `(cut at 24000 characters; ...)` line; one token longer than the cap is still cut at the cap, never inside a surrogate pair.
+
+## [9.4.0] - 2026-11-07
+
+### Added
+
+- The hosted review lanes wait for this head's Refine before reviewing: a `wait-refine` job waits
+  up to 40 minutes for the `pr-refine` run this head's `pull_request_target` dispatcher started,
+  skips the review when the head moved meanwhile (that push starts the new head's review), and
+  reviews on every other outcome, a failed read included.
+
 ## [9.3.0] - 2026-11-07
 
 ### Added

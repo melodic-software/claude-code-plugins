@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure"
+          }
+        }
+      ],
+      "why": "the job skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "structure"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "adhd:structure"
+          }
+        }
+      ],
+      "why": "same leaf name, another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure-x"
+          }
+        }
+      ],
+      "why": "longer name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "only the front door fired, not this job"
+    }
+  ]
+}

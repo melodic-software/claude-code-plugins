@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "No ScheduleWakeup is called.",
+      "why": "plain"
+    },
+    {
+      "answer": "ScheduleWakeup: not called (single pass).",
+      "why": "field form"
+    },
+    {
+      "answer": "The run ends without a ScheduleWakeup.",
+      "why": "without"
+    },
+    {
+      "answer": "Because of `--single-pass`, the run ends here and does not call `ScheduleWakeup`.",
+      "why": "the wb1b reply line: the call name in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ScheduleWakeup the next cycle to finish the other two.",
+      "why": "keeps looping"
+    },
+    {
+      "answer": "The drain is not complete, so ScheduleWakeup the next cycle.",
+      "why": "a negation before the call it makes"
+    },
+    {
+      "answer": "Then ScheduleWakeup in 15 minutes.",
+      "why": "schedules"
+    }
+  ]
+}

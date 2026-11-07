@@ -423,6 +423,8 @@ for (const [why, status, code, text, dims] of [
   ["a label given as a string", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "needs-human" } }, "invalid-config", "labels"],
   ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config", "options"],
   ["no field id", { options: STATUS.options, labels: STATUS.labels, order: STATUS.order }, "invalid-config", "field-id"],
+  ["a field-events-since with no time", { ...STATUS, "field-events-since": "2026-11-07" }, "invalid-config", "field-events-since"],
+  ["a field-events-since no calendar has", { ...STATUS, "field-events-since": "2026-13-01T00:00:00Z" }, "undefined-status", "field-events-since"],
 ]) {
   test(`issue-status: ${why} is rejected`, () => {
     assertStatusRejected(() => fixtureSlot(withModels(statusModels(status, dims))), code, text);

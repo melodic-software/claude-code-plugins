@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "### Existing behavior this leans on (out-of-diff couplings)"
+    },
+    {
+      "answer": "Out-of-diff couplings: none beyond str.split"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Evidence"
+    },
+    {
+      "answer": "No couplings."
+    }
+  ]
+}

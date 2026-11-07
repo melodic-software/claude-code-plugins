@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate"
+          }
+        }
+      ],
+      "why": "the job skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evaluate"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "adhd:evaluate"
+          }
+        }
+      ],
+      "why": "same leaf name, another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate-x"
+          }
+        }
+      ],
+      "why": "longer name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "only the front door fired, not this job"
+    }
+  ]
+}

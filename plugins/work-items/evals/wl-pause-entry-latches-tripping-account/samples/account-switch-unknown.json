@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "account-switch: unknown",
+      "why": "the line"
+    },
+    {
+      "answer": "`account-switch: unknown`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **account-switch:** `unknown`. No address or fingerprint is printed.",
+      "why": "the wb1a reply line its first smoke rejected: a bold label with the value in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "account-switch: resumed",
+      "why": "the other outcome"
+    },
+    {
+      "answer": "Account B's windows are unknown.",
+      "why": "no report line"
+    }
+  ]
+}

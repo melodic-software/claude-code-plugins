@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/conventions/user-experience.yaml",
+            "content": "version: 1\n"
+          }
+        }
+      ]
+    }
+  ]
+}

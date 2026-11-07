@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-stale-observation-ruled-out
+graders:
+  - name: 'names-observation-doubt'
+    type: 'regex'
+    pattern: 'stale (?:build|bundle|cache)|cached?|hard (?:reload|refresh)|wrong (?:port|instance|server)|old (?:build|instance|process)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'doubts-observation-first'
+    type: 'llm'
+    criteria: 'The reply handles a browser still showing the old cart total after a fix. It meets the legacy expectations: "Checks for a stale build, cached page or wrong instance before calling the fix failed" "Observes the total again by a second route before rendering the verdict". It fails if it concludes the fix failed, or renders NEEDS WORK against the fix, before that second observation.'
+    focus: 'last_message'

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "| dist/ staged | repo | /corrections:codify |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "add a rule to CLAUDE.md"
+    }
+  ]
+}

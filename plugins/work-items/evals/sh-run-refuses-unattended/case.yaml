@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-run-refuses-unattended
+graders:
+  - name: 'says-attended-only'
+    type: 'regex'
+    pattern: '\battended[\s*_`-]{1,4}only\b|\bno unattended mode\b|\bhas no unattended\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship run session does with the stated state. PASS only if it satisfies every point: (1) Stops before claiming any item; (2) Says run is attended only; (3) Performs no tracker mutation, dispatch or merge. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

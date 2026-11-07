@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-window-marker-not-first-line
+graders:
+  - name: 'no-window-line'
+    type: 'regex'
+    pattern: '^(?![\s\S]*objection window open:[\s*_`]{0,6}#?305\b)(?=[\s\S]*#305\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Ignores a marker that is not on the comment''s first line; (2) Does not skip #305 for an objection window; (3) Admits #305 through the rest of the admission gate. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

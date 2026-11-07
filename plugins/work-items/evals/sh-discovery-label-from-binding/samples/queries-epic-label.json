@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Fallback discovery queries open items with the label `epic` (from `config.container_label`), not work-map.",
+      "why": "label named with markdown"
+    },
+    {
+      "answer": "Query the tracker for open **epic**-labeled items whose body carries the shape line.",
+      "why": "epic before label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fallback discovery queries open items with the label `work-map`.",
+      "why": "near miss: hard-coded default label"
+    },
+    {
+      "answer": "No container pointer, so I list open items and ask which one to drive.",
+      "why": "no label resolved"
+    }
+  ]
+}

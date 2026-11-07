@@ -5,8 +5,8 @@ Single source of truth for everything in this marketplace derived from
 UI craft: animation, interface review, worst-case content, touch polish and prototyping. Provenance
 lives here and in plugin changelog fragments, never in skill files, where it is agent-facing noise.
 
-**Pinned upstream state:** `main@f1090bec277140d02ed202440185ad9d02ac1490` (committed
-2026-11-02T09:21:52Z). The repository has no tags or releases, so the pin is a commit. It
+**Pinned upstream state:** `main@c8a79627b59d72d764d6ab6f2c87c09a48169833` (committed
+2026-11-04T15:04:38Z). The repository has no tags or releases, so the pin is a commit. It
 installs through `npx skills add`; this marketplace takes none of that path and ships the content as
 its own plugin skills and references.
 
@@ -31,8 +31,8 @@ reauthored derivative: [`user-interface`](../../plugins/user-interface/LICENSE),
 [`testing`](../../plugins/testing/LICENSE), [`prototype`](../../plugins/prototype/LICENSE).
 
 - **Pointer**: re-audit by diffing upstream against the pin:
-  <https://github.com/emilkowalski/skills/compare/f1090bec277140d02ed202440185ad9d02ac1490...main>.
-- **As of**: 2026-11-02
+  <https://github.com/emilkowalski/skills/compare/c8a79627b59d72d764d6ab6f2c87c09a48169833...main>.
+- **As of**: 2026-11-07
 - **Recheck trigger**: the weekly drift check
   (`plugins/user-interface/scripts/check-emilkowalski-drift.sh`, run by
   `.github/workflows/maintenance-check-upstream-drift.yml`) reports a changed, removed or new file.
@@ -47,12 +47,14 @@ Blob SHAs are `git hash-object` values at the pin; the drift script pins the sam
 | Upstream path | Blob SHA at the pin | Ours | Relation | Taken / rejected |
 |---|---|---|---|---|
 | `LICENSE` | `57b46f1fd11dc62351ea548104a88aa3f659c11b` | Per-plugin `LICENSE` files (above) | Notice | **Taken:** the MIT notice. |
-| `README.md` | `eb13e61d196401244b3c2061f322943c42313078` | This record | Omitted | **Taken:** the skill list and license facts. **Rejected:** the `npx skills add` install line, which would update outside the marketplace, and the newsletter links. |
+| `README.md` | `e77e3dbb87c3349e323cbebd46d91fd7dbdc5b1b` | This record | Omitted | **Taken:** the skill list (now including `choreograph`) and license facts. **Rejected:** the `npx skills add` install line, which would update outside the marketplace, and the newsletter links. |
 | `.gitattributes` | `a0652a605e6b418261a2b4fb1ad82576be0c3b53` | none | Omitted | Repository plumbing. |
 | `.gitignore` | `e43b0f988953ae3a84b00331d0ccf5f7d51cb3cf` | none | Omitted | Repository plumbing. |
 | `.pl` | `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` | none | Omitted | An empty stray file. |
 | `performance-cheatsheet.md` | `15f73d24a3b0e8a44d96d16d996719565b3ab7d5` | `user-interface` `reference/animation/performance.md` | Absorbed | **Taken:** the property-cost and `will-change`-last rows, merged into the performance reference. **Rejected:** library-specific rows as rules (kept only as stack lookups at run time). |
 | `ui-cheatsheet.md` | `a5c803280b82f72dd11ed2136caaf0ea8c139a5c` | `user-interface` `reference/types/web/generic-defaults.md` section 10, `reference/types/web/layout-stability.md` section 7 | Partial | **Taken:** absolute dates after a week, `Intl.PluralRules`, `flex-shrink: 0` on an avatar. **Already covered:** the other eight rows. |
+| `skills/choreograph/SKILL.md` | `9fef0048d260be7bc05a909a03b52627bb3ccf37` | `user-interface` `reference/animation/catalog.md` `choreography`, `behaviors.md` `view-swap`; a step-6 pointer in `/user-interface:write-animation` | Absorbed (skill omitted) | **Taken:** a role for each moving element, a single entrance for a container, the per-pair relationship (together by default, then overlap, sequence or carry), stagger ordered by importance with treatment varied by role, one timing family per component, secondary motion hooked to the lead, timing scaled to how much changed, direction and all-at-once group exits, interruption of a multi-part sequence, idle attention loops, reduced motion that collapses the group, and the timeline written before code. It replaces the catalog's earlier line that sequenced clashing elements by default. **Already covered:** high-frequency surfaces skip stagger and stagger never blocks input (`should-it-animate`, `stagger`), larger marketing offsets (`section-entrance`), exits shorter than entrances (`duration`, `exit`), leaving elements releasing their slot (`group-exit`), untrusted repository content. **Rejected:** the stagger interval and total figures (the `animation.stagger_ms` config and `aiforui-course.md` govern), the attention-loop and resize-clamp numbers (no config key earns them yet), library calls as guidance (run-time lookups), and a standalone skill. |
+| `skills/choreograph/RECIPES.md` | `17936a9cfc3e26224c5b4555f5a239758718815c` | `user-interface` `behaviors.md` `group-exit` and `view-swap` | Partial | **Taken:** the library-free slot release for a leaving element, the resize-scaled content fade, direction reaching a leaving view, the small-container crossfade, the duplicate-view option for a dense morph, and the stable-key check. **Already covered:** the index-variable CSS stagger and its fill mode (`section-entrance`). **Rejected:** every code block as shipped code, and per-library APIs as rules, each a run-time lookup. |
 | `skills/emil-design-eng/SKILL.md` | `dc063c2a861922c1c9f2412b824b0862746304f5` | `user-interface` `reference/animation/` (catalog, behaviors, gestures) | Absorbed (skill omitted) | **Taken:** the animation decision framework, springs and interruptibility, transform origin, stagger, gesture handling and the debugging checklist. **Rejected:** the non-motion design rules the `design` skill already covers; framework-specific code as guidance. **Superseded in part:** the catalog's easing, exit, duration, stagger and reduced-motion wording follows `docs/upstream/aiforui-course.md`. |
 | `skills/animate/SKILL.md` | `2d3b63acc5e2afcbf54b5ba59792e69fa51bcb0d` | [`/user-interface:write-animation`](../../plugins/user-interface/skills/write-animation/SKILL.md) | Derived | **Taken:** the build sequence (decide whether to animate, then purpose, properties, curve, duration, origin, reduced motion), the hard rules and the feel check. **Changed:** project tokens first, stack detection and run-time lookup, CSS authoring delegated to `/user-interface:write-css`. |
 | `skills/animate/RECIPES.md` | `6744891261bdf0bb0473d77f2cc706f2d78b574e` | `user-interface` `reference/animation/behaviors.md` | Derived | **Taken:** each recipe's behavior (what moves, properties, curve, duration, origin, interruptibility, reduced-motion fallback) as a stack-neutral spec. **Rejected:** the CSS and JS blocks as shipped code; library-specific attributes. **Superseded in part:** component recipes added and re-timed per `docs/upstream/aiforui-course.md`. |

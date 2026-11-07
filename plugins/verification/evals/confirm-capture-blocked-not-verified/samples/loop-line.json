@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Evidence loop: 0/3"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Evidence loop: 1/3"
+    }
+  ]
+}

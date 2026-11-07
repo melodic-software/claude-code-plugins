@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-check-missing-provenance-label-fails
+graders:
+  - name: 'provenance-fail'
+    type: 'regex'
+    pattern: 'provenance[^\n]{0,160}\bFAILs?\b|\bFAILs?\b[^\n]{0,160}provenance'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Reports the provenance label probe as FAIL when provenance: untrusted is absent; (2) Names /work-items:setup apply or the label-as-code owner as remediation; (3) Does not create labels ad hoc; (4) Writes no file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

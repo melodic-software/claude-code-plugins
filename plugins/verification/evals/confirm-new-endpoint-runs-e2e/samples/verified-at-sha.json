@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verified_at_sha: 4f2c9e1"
+    },
+    {
+      "answer": "- `verified_at_sha`: `4f2c9e1`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verified at 4f2c9e1"
+    },
+    {
+      "answer": "verified_at_sha: <sha>"
+    }
+  ]
+}

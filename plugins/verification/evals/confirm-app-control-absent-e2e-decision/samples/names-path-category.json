@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "src/cart/total.ts is app source, so it matches e2e-app-runtime and /testing:run-e2e runs."
+    },
+    {
+      "answer": "It matches a runtime-affecting path."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "cart/total is a touched feature, so run-e2e runs."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

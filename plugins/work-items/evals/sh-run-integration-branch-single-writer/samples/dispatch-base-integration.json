@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Invoke `/implementation:implement-dispatch --items <list> --base origin/integration/340-search-rewrite`.",
+      "why": "remote-qualified base in a code span"
+    },
+    {
+      "answer": "dispatch with --base=integration/340-search-rewrite so each worktree is cut from the shared branch",
+      "why": "equals form, no remote"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Invoke `/implementation:implement-dispatch --items <list> --base origin/main`, then merge into integration/340-search-rewrite.",
+      "why": "near miss: dispatch on the default base"
+    },
+    {
+      "answer": "Invoke /implementation:implement-dispatch --items <list> on integration/340-search-rewrite.",
+      "why": "no --base argument"
+    }
+  ]
+}

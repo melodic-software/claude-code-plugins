@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"exit\": \"done\", \"summary\": \"Rows-only fix: one shared fixture caused every failing row.\"}",
+      "why": "json"
+    },
+    {
+      "answer": "exit: done",
+      "why": "prose field"
+    },
+    {
+      "answer": "- **exit:** `done`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"exit\": \"pushback\", \"cause\": \"intent\"}",
+      "why": "pushes back"
+    },
+    {
+      "answer": "The run finishes the fix.",
+      "why": "no exit field"
+    }
+  ]
+}

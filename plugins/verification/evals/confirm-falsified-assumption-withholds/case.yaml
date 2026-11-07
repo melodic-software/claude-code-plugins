@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-falsified-assumption-withholds
+graders:
+  - name: 'verdict-needs-work'
+    type: 'regex'
+    pattern: 'verdict\W{0,8}NEEDS WORK'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'barcode-falsified'
+    type: 'regex'
+    pattern: 'barcode[^\n]{0,120}falsified|falsified[^\n]{0,120}barcode'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'assumption-falsified'
+    type: 'llm'
+    criteria: 'The reply verifies a label-scan change against a Brief with two load-bearing assumptions. It meets the legacy expectations: "It reports the every-label-has-a-barcode assumption as falsified, citing the regional carrier''s labels printing with no barcode" "It does not report the orders-before-labels assumption as falsified" "It names the conflict with the user''s intent that nobody types a tracking number again" "The verdict is not CONFIRMED".'
+    focus: 'last_message'

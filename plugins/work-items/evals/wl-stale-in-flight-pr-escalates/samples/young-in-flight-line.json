@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "in flight: #321 (PR #452, draft, open 3d)",
+      "why": "the line"
+    },
+    {
+      "answer": "- `in flight: #321 (PR #452, draft, open 3d)`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **In flight:** `#321 (PR #452, draft, open 3d)`. It was not escalated and no labels changed.",
+      "why": "the wb1a reply line its first smoke rejected: a bold label with the value in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "stale in flight: #321 (PR #452, draft, open 3d) -> escalated",
+      "why": "escalated the young one"
+    },
+    {
+      "answer": "#321 is excluded (PR #452).",
+      "why": "no report line"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "First rule out a stale build or a cached page."
+    },
+    {
+      "answer": "It may be the wrong instance on port 5001."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The fix failed; NEEDS WORK."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

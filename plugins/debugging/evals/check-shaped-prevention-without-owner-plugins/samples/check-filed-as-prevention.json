@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Prevention\n\nA deterministic check would have caught this: a lint rule (or a test that greps billing/ for float() on amounts) failing on float arithmetic for money. Neither the corrections nor the session-flow plugin is installed, so it goes to the issue tracker as its own prevention finding:\n\n> **Ban float arithmetic on money with a lint rule.** billing/invoice.py rounded a float sum and lost a cent. Proposed only; not built in this run.",
+      "why": "check named, filed with the tracker, owner plugins only noted as absent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Prevention\n\nA lint rule would have caught the float math. Run /corrections:codify \"float math on money\" to propose it.",
+      "why": "routes to codify although it is not installed"
+    },
+    {
+      "answer": "## Prevention\n\nWe should be more careful with money types.",
+      "why": "no deterministic check, no destination"
+    }
+  ]
+}

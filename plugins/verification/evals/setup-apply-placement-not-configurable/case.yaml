@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: setup-apply-placement-not-configurable
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-memory-slice'
+    type: 'regex'
+    pattern: 'memory slice|\.work/(?:<slug>|\{slug\}|[\w-]+)/|<memory_dir>'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-apply-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?!(?:[^"\\]|\\.)*--check)(?:[^"\\]|\\.)*?(?:proof_level|live_workers)='
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-file'
+    type: 'file_exists'
+    path: 'docs/conventions/verification.yaml'
+    exists: false
+  - name: 'no-ignore-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.gitignore"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-ignore-shell-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:\\"|'')?[^\s;|&"''\\]*\.gitignore'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'nothing-to-persist'
+    type: 'llm'
+    criteria: 'The run answers a request to persist artifact directory settings. It meets the legacy expectations: "States that artifact placement has nothing to persist" "Names the memory slice as the placement and does not invent a configuration file".'
+    focus: 'trace'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: LIKELY PRESERVED**"
+    },
+    {
+      "answer": "Verdict: NOT VERIFIED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED"
+    }
+  ]
+}

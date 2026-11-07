@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "design fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "the prompt is a write-animation trigger phrase, so a direct call is the route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-css"
+          }
+        }
+      ],
+      "why": "write-css, not design"
+    }
+  ]
+}

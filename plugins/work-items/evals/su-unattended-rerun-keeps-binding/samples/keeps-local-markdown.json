@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Provider binding**: `local-markdown` (storage_dir `.work-items`) kept as-is; a working `gh` does not switch it.",
+      "why": "markdown"
+    },
+    {
+      "answer": "Keep the existing binding: local-markdown stays bound.",
+      "why": "verb first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "gh works, so re-bind from local-markdown to github with lease_ttl_hours 24.",
+      "why": "near miss: switches providers"
+    },
+    {
+      "answer": "Binds github, since gh is installed and authenticated.",
+      "why": "binds github"
+    }
+  ]
+}

@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { createBudget } from "./collect.mjs";
 import {
   checkClaim,
@@ -153,11 +153,12 @@ export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: 
 // The digest's author is github-actions[bot], outside the trusted list, so
 // the issue lane never works from it: a person who wants an entry worked
 // re-files it as a new issue. A stray agent-ready still comes off before the
-// PATCH (a 404 means it was not on the issue), and `mirrorStatus`
-// (write-status.mjs statusMirror) mirrors the removal into the Work status
-// field from the labels `existing` (listSweepIssues) read. The PATCH runs last and carries the entry-set fingerprint, so a
-// failed call before it leaves the old state and is retried on the next run.
-export async function writeDigest({ plan, call, repo, labels, runUrl, existing = [], mirrorStatus = async () => {}, wait = () => delay(1000) }) {
+// PATCH (a 404 means it was not on the issue), and `leaveAgentReady`
+// (write-status.mjs statusWriter) moves a Work status field still at
+// agent-ready to needs-triage. The PATCH runs last and carries the entry-set
+// fingerprint, so a failed call before it leaves the old state and is retried
+// on the next run.
+export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };
   if (!plan.action) return done;
   const body = renderDigest(plan.entries, runUrl);
@@ -185,7 +186,7 @@ export async function writeDigest({ plan, call, repo, labels, runUrl, existing =
     await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
       if (error.status !== 404) throw error;
     });
-    await mirrorStatus(number, { had: existing.find((issue) => issue.number === number)?.labels ?? [], remove: ["agent-ready"] });
+    await leaveAgentReady(number, "needs-triage");
     await wait();
     await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body });
     (plan.action === "reopen" ? done.reopened : done.updated).push(number);
@@ -252,8 +253,8 @@ async function main() {
   // The field write sends its own API version, which `call` cannot, so it
   // goes through its own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-  const mirrorStatus = await statusMirror({ env, github, repository: repo });
-  const done = await writeDigest({ plan, call, repo, labels, runUrl, existing, mirrorStatus });
+  const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
+  const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady });
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     "### Lane sweep digest",

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-tree-every-animation
+description: "Routine. A tree-scope motion audit over three stylesheets in two directories with many seeded defects: it covers every file, groups findings by severity and edits nothing. The handoff offer is not graded: SKILL.md offers /implementation:implement only when that plugin is installed, and a run loads only this plugin; no-edit and no-write grade that nothing is fixed instead."
+tags: [audit, tree, read-only, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit audits the animation in src/components/cards.css, src/components/sidebar.css and src/pages/home.css, groups the findings by severity, and makes no Edit or Write call"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Audit every animation in this codebase."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900

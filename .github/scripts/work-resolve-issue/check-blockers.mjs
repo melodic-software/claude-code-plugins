@@ -9,6 +9,10 @@
 //   outsider's text: `untrusted` and `outsider` are true, and
 //   work-resolve-issue.yml's report-skip removes agent-ready and comments that
 //   a listed human re-files the work as a new issue. No read past the issue's own.
+// The issue's events are its label events plus its Work status field
+// changes shaped as label events (read-status.mjs statusEvents), so a verdict
+// or admission written only to the field counts as one.
+//
 // - Then provenance, by admission's rule (admit.mjs untrustedHold): an issue
 //   carrying one of UNTRUSTED_LABELS, or whose newest removal of one
 //   was by neither a listed human nor the lanes App, does not run, for good:
@@ -41,6 +45,8 @@
 //   GITHUB_REPOSITORY    owner/repo
 //   ISSUE_NUMBER         the issue agent-ready was added to
 //   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
+//   BASE_PATH            the default branch's checkout (default `.base`),
+//                        whose models.issue-status the field read reads
 //   LANES_APP_ID         the lanes App bot's numeric user id
 //   RECHECK              `true` for the in-slot re-check above
 //   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
@@ -56,8 +62,9 @@
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, finishedParent, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -96,7 +103,7 @@ export async function main({ env = process.env, github, log = console.log, write
     if (!rechecked) {
       const issue = await client("GET", base);
       outsider = !authorAdmitted(issue, humans, appId);
-      const events = outsider ? [] : await paginate(client, `${base}/events`);
+      const events = outsider ? [] : await statusReader({ env, github: client, repository, log }).events(Number(number));
       const isApp = (actor) => actor?.id === appId;
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
       if (!outsider && !held) {

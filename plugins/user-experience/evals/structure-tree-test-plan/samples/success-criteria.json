@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Task | Correct destination |"
+    },
+    {
+      "answer": "The right answer is Billing > Invoices."
+    },
+    {
+      "answer": "Succeeds if they choose Users > Roles."
+    },
+    {
+      "answer": "Success criterion: lands on Billing > Invoices."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Task 1: You need last month's invoice. Where would you look?"
+    },
+    {
+      "answer": "Tasks: find invoices; add a user."
+    }
+  ]
+}

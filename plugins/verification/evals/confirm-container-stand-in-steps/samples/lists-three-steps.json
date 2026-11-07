@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Unverified on the target: PDF library install, export directory creation, cron entry."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unverified: PDF library, cron entry."
+    },
+    {
+      "answer": "PDF library, export directory, cron entry all verified."
+    }
+  ]
+}

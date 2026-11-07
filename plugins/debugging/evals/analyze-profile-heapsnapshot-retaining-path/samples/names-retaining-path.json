@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Retaining path: (GC roots) -> Window -> .sessionCache -> SessionCache -> .lastOrder -> 'order payload' (4096 bytes).",
+      "why": "full chain to the GC roots"
+    },
+    {
+      "answer": "SessionCache.lastOrder holds the string; Window.sessionCache holds the cache, and Window hangs off the GC root.",
+      "why": "prose chain, GC root singular"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "SessionCache.lastOrder holds the string, and Window.sessionCache holds the cache.",
+      "why": "stops short of the GC roots"
+    },
+    {
+      "answer": "The string is reachable from the GC roots through Window.",
+      "why": "no SessionCache.lastOrder"
+    }
+  ]
+}

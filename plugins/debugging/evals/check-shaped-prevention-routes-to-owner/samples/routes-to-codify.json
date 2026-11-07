@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Prevention: a banned-API lint rule would have caught this. Owner: `/corrections:codify \"handler called the banned datetime.utcnow()\"`.",
+      "why": "names /corrections:codify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Prevention: run /session-flow:retro to propose a check.",
+      "why": "routes to retro instead"
+    },
+    {
+      "answer": "Prevention: the corrections plugin could codify this.",
+      "why": "names the plugin, not the command"
+    }
+  ]
+}

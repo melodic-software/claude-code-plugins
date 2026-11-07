@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-drain-complete-stops
+graders:
+  - name: 'standing-would-continue'
+    type: 'regex'
+    pattern: '\bstanding\b[^\n]{0,200}\b(?:continue|continues|continued|continuing|ScheduleWakeup|keep\w*\s+looping|next cycle)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Uses the drain mode reference (reference/mode-drain.md), not the standing one; (2) Evaluates the drain exit against the cycle-start snapshot''s retained ids, not a live re-read; (3) Writes the final report and stops cleanly; (4) States that standing mode would have reported the outcome and continued looping; (5) Persists stop_mode=drain in the telemetry state block. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

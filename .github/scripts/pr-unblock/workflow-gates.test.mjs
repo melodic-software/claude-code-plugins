@@ -1036,7 +1036,7 @@ test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first pu
   assert.equal(runs("schedule", "1", "false"), false);
   // A skipped gate lets the dispatch step run; a checked one must proceed.
   const dispatches = (outcome, proceed = "", paced = "false", degraded = "false") =>
-    evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"), {
+    evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs"), {
       "steps.kill.outputs.proceed": "true",
       "steps.upstream.outputs.degraded": degraded,
       "steps.gate.outcome": outcome,
