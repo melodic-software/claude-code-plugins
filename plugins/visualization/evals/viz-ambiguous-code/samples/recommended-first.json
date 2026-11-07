@@ -9,6 +9,18 @@
     {
       "answer": "Which form do you want? 1. Call tree (recommended) 2. Types and signatures 3. File tree",
       "why": "a one-line menu with the recommended form first"
+    },
+    {
+      "answer": "Which form do you want: (1) a call tree (recommended), (2) types and signatures or (3) a file tree?",
+      "why": "parenthesized inline numbering, recommended first"
+    },
+    {
+      "answer": "Which view do you want?\n\n**1.** Call tree (recommended)\n**2.** Types and signatures\n**3.** File tree",
+      "why": "bold numbering, recommended first"
+    },
+    {
+      "answer": "Which view do you want?\n\n**1)** Call tree (recommended)\n**2)** Types and signatures",
+      "why": "bold paren numbering, recommended first"
     }
   ],
   "fail": [
@@ -29,6 +41,22 @@
     {
       "answer": "Which form do you want? 1. Types and signatures 2. Call tree (recommended) 3. File tree",
       "why": "a one-line menu with the recommended form second"
+    },
+    {
+      "answer": "Which form do you want: (1) types and signatures, (2) a call tree (recommended) or (3) a file tree?",
+      "why": "parenthesized inline numbering, recommended second"
+    },
+    {
+      "answer": "Which view do you want?\n\n**1.** Types and signatures\n**2.** Call tree (recommended)\n**3.** File tree",
+      "why": "bold numbering, recommended second"
+    },
+    {
+      "answer": "1. Types and signatures 2. Call tree (recommended) 3. File tree\n\nWhich one?",
+      "why": "a one-line menu at line start with the recommended form second"
+    },
+    {
+      "answer": "Which view do you want?\n\n(1) Types and signatures\n(2) Call tree (recommended)",
+      "why": "parenthesized numbering at line start, recommended second"
     }
   ]
 }

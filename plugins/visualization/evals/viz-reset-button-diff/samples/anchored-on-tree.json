@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n <SettingsPage>                 src/routes/settings.tsx\n ├── useSettings()              draft, saved, dirty\n+│   + resetToDefaults()\n ├── <SettingsForm>             src/routes/settings/form.tsx\n-└── <SaveButton>               packages/ui\n+├── <SaveButton>               packages/ui\n+└── <ResetButton>              packages/ui\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```diff\n+<ResetButton>\n+resetToDefaults()\n```",
+      "why": "no anchor line"
+    },
+    {
+      "answer": "```diff\n-└── <SaveButton>\n+├── <SaveButton>\n+└── <ResetButton>\n```",
+      "why": "only changed lines"
+    }
+  ]
+}

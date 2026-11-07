@@ -318,8 +318,9 @@ changes). An adapter that declares no `set-fields` key exits `6`.
 single-select issue field, so a caller such as planning's Work size can use a tracker's own size
 values. `--field` is the field's exact name or its numeric id; `--repo` picks the repository whose
 organization is read (default: the working directory's remote). It prints `{schema_version, field,
-options: [{id, name}]}`. A field the organization does not have, or one with no options, prints an
-empty `options` list and exits `0`; a caller that gets one falls back to its own defaults. Only the
+field_id, options: [{id, name}]}`, where `field_id` is the matched field's numeric id (the id
+`set-fields` takes) or `null` when the organization has no such field. A field the organization
+does not have, or one with no options, prints an empty `options` list and exits `0`; a caller that gets one falls back to its own defaults. Only the
 GitHub adapter implements it, from the same `GET /orgs/{org}/issue-fields` listing `set-fields`
 validates against (same `read:org` need). An adapter that declares no `get-field-options` key exits
 `6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
@@ -384,9 +385,11 @@ an item whose `status` is `needs-human`, `needs-owner-decision`, `needs-reporter
 `needs-spec`, and that carries none of those states' labels (`needs-human`,
 `status: needs-decision`, `needs-owner-decision`, `status: needs-info`, `needs-spec`), is held
 too, and the labels decide everything else, since labels are written first
-and reach the field afterwards. No setter is checked, because a value can only hold an item back. A status read that fails, or a `status-storage`
-read the provider did not answer, prints one warning on stderr and leaves the labels to
-decide; the frontier does not fail on it. The default frontier reads no status. The floor wins over the autonomous-eligible role label: an
+and reach the field afterwards. No setter is checked, because a value can only hold an item back. A `get-statuses` read that fails, or a `status-storage`
+read the provider did not answer, prints one line on stderr and exits with the adapter's code,
+with no envelope on stdout, so an autonomous caller reads nothing it cannot trust; an answer
+without a `statuses` object exits `1`. `labels` storage, and an adapter that declares no
+`get-statuses`, read no status and pass through. The default frontier reads no status. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
 worker from claiming and then escalating it once per lane pass. No other work class is
 floored, and neither is an item with no `work-class:` label: work class is not an admission

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n <SettingsPage>                 src/routes/settings.tsx\n ├── useSettings()              draft, saved, dirty\n+│   + resetToDefaults()\n ├── <SettingsForm>             src/routes/settings/form.tsx\n-└── <SaveButton>               packages/ui\n+├── <SaveButton>               packages/ui\n+└── <ResetButton>              packages/ui\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Opened /opt/eval/tmp/v/visualize.html"
+    }
+  ]
+}

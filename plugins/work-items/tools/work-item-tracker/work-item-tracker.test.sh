@@ -493,11 +493,17 @@ run_field_frontier labels "$FIELD_ALL" --autonomous
 assert_eq "label storage: the labels decide and no status is read" "#2,#5|0" "$(ids)|$(grep -c get-statuses "$FIELD_LOG")"
 
 run_field_frontier field fail --autonomous
-assert_eq "a failed status read leaves the labels to decide" "0|#2,#5" "$RC|$(ids)"
-assert_contains "a failed status read warns" "$ERR" "labels decide the frontier"
+assert_eq "a failed status read fails closed with the adapter's exit" "8" "$RC"
+assert_eq "a failed status read prints no envelope" "" "$OUT"
+assert_contains "a failed status read says so" "$ERR" "Work status values unread"
 
 run_field_frontier unreachable "$FIELD_ALL" --autonomous
-assert_eq "an unread status storage leaves the labels to decide" "0|#2,#5" "$RC|$(ids)"
+assert_eq "an unread status storage fails closed with the adapter's exit" "8" "$RC"
+assert_eq "an unread status storage prints no envelope" "" "$OUT"
+
+run_field_frontier field '"x"' --autonomous
+assert_eq "a malformed status answer exits 1" "1" "$RC"
+assert_eq "a malformed status answer prints no envelope" "" "$OUT"
 
 run_field_frontier field "$FIELD_ALL"
 assert_eq "the default frontier reads no status" "#1,#2,#3,#4,#5|" "$(ids)|$(cat "$FIELD_LOG")"

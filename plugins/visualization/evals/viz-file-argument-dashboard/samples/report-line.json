@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (argument)\n\nWrote the dashboard as a self-contained local file and opened it: /opt/eval/tmp/visualize-Ab12Cd/visualize.html\n\nNothing was published."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: file (team)\n\nWrote /opt/eval/tmp/v/visualize.html",
+      "why": "another source"
+    },
+    {
+      "answer": "Medium: file, from your argument.",
+      "why": "paraphrased, not the printed line"
+    }
+  ]
+}

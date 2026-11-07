@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "This code could be shown a few ways, and none clearly wins. Which do you want?\n\n1. **Call tree** (recommended): `PostalCarrier.quote` → `RateTable.services_for` and `RateTable.price`.\n2. **Types and signatures**: the classes and method signatures only.\n3. **File tree**: the three modules and what each one holds.\n\nReply with a number and I'll render it."
+    },
+    {
+      "answer": "Which view?\n\n1. Call tree (recommended)\n2. Types and signatures\n3. File tree\n4. Pseudocode",
+      "why": "four forms"
+    },
+    {
+      "answer": "1. **Call tree** (recommended): who calls whom.\n2. **Types and signatures**: just the type signatures.\n3. **File tree**: the three modules.\n4. **Pseudocode**: the quote logic.",
+      "why": "four forms, one restated in a second spelling"
+    },
+    {
+      "answer": "Which view? 1. Call tree (recommended): the call-tree from quote down. 2. Shallow file tree, a file tree of the modules. 3. Pseudo-code of the quote logic, or plain pseudocode. 4. Type signatures (types and signatures only)?",
+      "why": "four forms, each in two spellings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which view?\n\n1. Call tree (recommended)\n2. Types and signatures\n3. File tree\n4. Pseudocode\n5. Component tree",
+      "why": "five forms"
+    },
+    {
+      "answer": "Which view? Call tree (recommended), types and signatures, file tree, pseudocode, or the whole block?",
+      "why": "five forms inline"
+    },
+    {
+      "answer": "1. **Call tree** (recommended): who calls whom.\n2. **Types and signatures**: just the type signatures.\n3. **File tree**: the three modules.\n4. **Pseudocode**: the quote logic.\n5. **Diff**: against nothing.",
+      "why": "five forms, one restated in a second spelling"
+    }
+  ]
+}

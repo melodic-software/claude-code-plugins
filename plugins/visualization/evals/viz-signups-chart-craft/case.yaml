@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: viz-signups-chart-craft
+graders:
+  - name: chart-rendered
+    type: 'regex'
+    pattern: '[▁▂▃▄▅▆▇█▉▊▋▌▍▎▏■▪]{2,}|<svg\b'
+    target: 'last_message'
+  - name: craft-presence-gated
+    type: 'llm'
+    criteria: 'The run visualizes six monthly signup values. It meets the legacy expectations: "Selects a chart as the form for a quantitative trend"; "Routes chart craft to a chart-craft/dataviz capability presence-gated (invoke if installed; documented fallback otherwise)"; "Falls back to a simple default chart (inline SVG on a page, or Unicode bars in the terminal) when no craft capability is present, and says so". It passes when a chart is the form and either the trace shows a Skill call loading dataviz or another chart-craft skill for the craft, or, with no such call, the final reply gives a simple default chart and says the craft capability was unavailable. It fails when the answer is only a table or prose, or when a fallback chart comes with no craft Skill call and no statement that the craft capability was unavailable.'
+    focus: 'trace'
