@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\" lever_scope=deterministic",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\" --check 2>&1; cat docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a stderr redirect, then a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/discipline.yaml\nsed -i 's/x/y/' docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "write on the second line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/non-trivial/deterministic/' docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'lever_scope: deterministic\\n' > docs/conventions/discipline.yaml",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

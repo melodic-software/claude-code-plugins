@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: su-apply-shows-diff
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: shows-diff
+    type: regex
+    pattern: '^[ \t]*-[ \t]*lever_scope:[ \t]*non-trivial[ \t]*$[\s\S]*?^[ \t]*\+[ \t]*lever_scope:[ \t]*deterministic[ \t]*$'
+    flags: 'm'
+    target: last_message
+  - name: asks-confirm
+    type: regex
+    pattern: '\b(?:write|apply|proceed|go ahead|confirm|re-?run|make (?:the|this) change)\b[^\n?]{0,100}\?|\b(?:shall|should) I\b[^\n?]*\?|\b(?:want me to|do you want)\b[^\n?]*\?'
+    flags: 'i'
+    target: last_message
+  - name: no-yes
+    type: tool_used
+    tool: Bash
+    input_match: '--yes\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-decline
+    type: tool_used
+    tool: Bash
+    input_match: '--decline\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '>>?[ \t]*(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee[ \t]+(?:-a[ \t]+)?(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))sed\b(?:[^"\\;&|]|\\[^n])*?[ \t]-i(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|mv|truncate)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git[ \t]+(?:checkout|restore)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: file-unchanged
+    type: regex
+    pattern: '^# Owned by the platform team\.\nlever_scope:[ \t]*non-trivial[ \t]*\n?$'
+    target: { source: file, path: docs/conventions/discipline.yaml }
