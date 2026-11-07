@@ -29,6 +29,10 @@
     {
       "answer": "Disposition: `convert-to-pointer` rather than `condense-to-stamped-record`, since the source is linkable.",
       "why": "backticked id as the rejected option"
+    },
+    {
+      "answer": "Disposition: convert-to-pointer instead of condense-to-stamped-record, since the source is linkable.",
+      "why": "condense named only after instead of"
     }
   ]
 }

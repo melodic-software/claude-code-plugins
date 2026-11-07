@@ -19,7 +19,7 @@ graders:
     focus: 'last_message'
   - name: 'names-condense'
     type: 'regex'
-    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!than )(?<!not `)(?<!n''t `)(?<!n’t `)(?<!never `)(?<!than `)\bcondense-to-stamped-record\b'
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!than )(?<!of )(?<!over )(?<!using )(?<!not `)(?<!n''t `)(?<!n’t `)(?<!never `)(?<!than `)(?<!of `)(?<!over `)(?<!using `)\bcondense-to-stamped-record\b'
     target: 'last_message'
   - name: 'iso-date-form'
     type: 'regex'

@@ -33,6 +33,10 @@
     {
       "answer": "It isn’t `llm-suspected`: all three judges agree.",
       "why": "curly-apostrophe negation of a backticked id"
+    },
+    {
+      "answer": "Tier: fingerprint-confirmed instead of `llm-suspected`, given the unanimous panel.",
+      "why": "llm-suspected named only after instead of"
     }
   ]
 }

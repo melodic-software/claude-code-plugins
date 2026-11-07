@@ -15,5 +15,5 @@ graders:
     focus: 'last_message'
   - name: 'names-tier'
     type: 'regex'
-    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!than )(?<!not `)(?<!n''t `)(?<!n’t `)(?<!never `)(?<!than `)\bllm-suspected\b'
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!than )(?<!of )(?<!over )(?<!using )(?<!not `)(?<!n''t `)(?<!n’t `)(?<!never `)(?<!than `)(?<!of `)(?<!over `)(?<!using `)\bllm-suspected\b'
     target: 'last_message'
