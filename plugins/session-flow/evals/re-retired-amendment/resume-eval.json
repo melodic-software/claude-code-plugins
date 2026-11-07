@@ -1,0 +1,231 @@
+{
+  "name": "re-retired-amendment",
+  "tags": [
+    "resume-eval",
+    "design",
+    "shape-3"
+  ],
+  "kind": "design",
+  "maps_to": {
+    "criterion": "PLAN.md AC9 (#13847): a reader case whose answer exists only in a retired entry, reached through the AC5 retire pointer under Review before you continue.",
+    "decision": "ADR 0091 decisions 1-3: an entry that leaves the hot file is listed verbatim with its reason in that hop's file, and the hot file carries a pointer to each retire listing forward."
+  },
+  "description": "A four-hop shape-3 report-export predecessor. Hop 2 amended the goal to put refunds in a separate file; hop 3 retired that amendment and the hop-1 question on the refunds layout, and added the rule that replaced them. Why refunds stopped being a separate file, and what the question's options were, exist only in hop 3's file under its retire headings, which the hot file points at. The next action adds the refund column.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# report-export\n\nSynthetic lane repository for the resume eval.\n",
+      "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n\n\ndef write(path, rows):\n    with open(path, 'w', newline='', encoding='utf-8') as fh:\n        out = csv.writer(fh)\n        out.writerow(COLUMNS)\n        for row in rows:\n            out.writerow([row[c] for c in COLUMNS])\n",
+      "config/export.toml": "[export]\nschedule = \"monday 05:00\"\nbucket = \"reports\"\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "report-export",
+      "lane": "report-export",
+      "hops": 4,
+      "start": "2026-08-03T08:00:00Z",
+      "hop_minutes": 300,
+      "goal": "Ship the weekly finance report export: one CSV per account each Monday, in a layout the ledger loader reads without edits.",
+      "vision": "Finance closes the week from the export alone.",
+      "opening_ask": "Ship the weekly finance export: one CSV per account every Monday that the ledger loader takes as is.",
+      "injections": [
+        {
+          "id": "refunds-question",
+          "hop": 1,
+          "section": "open-questions",
+          "position": "first",
+          "text": "How should refunds appear in the export? Options: a separate refunds-<date>.csv beside each weekly file, or a signed refund_cents column in the weekly file; recommendation: the separate file; unblocks the refund work.",
+          "retire": {
+            "hop": 3,
+            "reason": "answered at hop 3: a signed refund_cents column in the weekly file, because the ledger loader double-counted refunds split across two files (#4318)"
+          },
+          "visible_in_reads": false
+        },
+        {
+          "id": "refunds-file-amendment",
+          "hop": 2,
+          "section": "amendment",
+          "text": "Write refunds to a separate refunds-<date>.csv beside each weekly file.",
+          "retire": {
+            "hop": 3,
+            "reason": "superseded at hop 3: the ledger loader double-counted refunds split across two files (#4318), so refunds became a signed column, now a Current rule"
+          },
+          "visible_in_reads": false
+        },
+        {
+          "id": "refunds-rule",
+          "hop": 3,
+          "section": "rules",
+          "text": "Refunds are a signed refund_cents column in the weekly CSV, never a separate file; amounts stay integer cents.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 4 against main at 6b1f0d4.",
+          "Where it stands: the weekly CSV ships without refunds; the loader accepts it.",
+          "Next: add the refund column, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: finance closes the week from the export alone.",
+          "- [x] one weekly CSV per account (export/weekly.py).",
+          "- [ ] refunds appear in the export (export/weekly.py)."
+        ],
+        "remaining": [
+          "1. Add refunds to the weekly export in export/weekly.py.",
+          "2. Open a PR with the change."
+        ],
+        "next": [
+          "Add refunds to the weekly export in export/weekly.py."
+        ],
+        "did": "shipped the weekly CSV without refunds and confirmed the ledger loader accepts it",
+        "left": "refunds not in the export and no PR yet"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff whole. The weekly CSV ships; refunds are the open item, as a signed refund_cents column in export/weekly.py per Current rules. Then a PR.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/export/weekly.py"
+          },
+          "result": "     1\timport csv\n     2\t\n     3\tCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n     4\t\n     5\t\n     6\tdef write(path, rows):\n     7\t    with open(path, 'w', newline='', encoding='utf-8') as fh:\n     8\t        out = csv.writer(fh)\n     9\t        out.writerow(COLUMNS)\n    10\t        for row in rows:\n    11\t            out.writerow([row[c] for c in COLUMNS])"
+        },
+        {
+          "role": "assistant",
+          "text": "export/weekly.py writes date, account, amount_cents and currency; the refund column is not there yet."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/report-export",
+      "responses": [
+        {
+          "match": "\\bpr create\\b",
+          "stdout": "https://github.com/example-org/report-export/pull/4326\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81600101, \"conclusion\": \"success\", \"workflowName\": \"ci-status\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff report-export",
+      "after": "/session-flow:handoff report-export",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "continuation-adds-refund-column",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "file_regex",
+        "path": "export/weekly.py",
+        "pattern": "refund_cents"
+      }
+    },
+    {
+      "id": "decision-no-refunds-file",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "edited_path_regex",
+            "pattern": "(?i)refunds[^/]*\\.(?:py|csv)$"
+          },
+          {
+            "kind": "file_regex",
+            "path": "export/weekly.py",
+            "pattern": "refunds-"
+          }
+        ]
+      },
+      "note": "The retired amendment's separate refunds file, written as a new module or CSV, or as a refunds-<date> path in the weekly writer."
+    },
+    {
+      "id": "recall-why-no-refunds-file",
+      "type": "recall",
+      "grade": "text",
+      "question": "Why are refunds not written to a separate file?",
+      "criteria": "PASS only if the answer says the ledger loader double-counted refunds when they were split across two files, so refunds became a signed column in the weekly CSV. FAIL otherwise, including an answer that cites only the current rule without the double-counting reason."
+    },
+    {
+      "id": "artifact-refunds-question",
+      "type": "artifact",
+      "grade": "text",
+      "question": "What were the options on the open question about how refunds appear in the export, and how was it answered?",
+      "criteria": "PASS only if the answer names both options (a separate refunds-<date>.csv file, or a signed refund_cents column in the weekly file) and says it was answered with the signed column. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state. Asking what to do next after the work is done is not one."
+    },
+    {
+      "id": "artifact-hot-file-points-at-retired",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "Retired entries: archive/\\S*h3-[0-9a-f]{8}\\.md § Retired (?:goal amendments|open questions)"
+      },
+      "note": "The written hot file carries hop 3's retire pointer forward, so the retired answer stays one targeted read away."
+    }
+  ]
+}

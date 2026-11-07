@@ -1,0 +1,294 @@
+{
+  "name": "re-writer-keeps-binding-amendment",
+  "tags": [
+    "resume-eval",
+    "design",
+    "shape-3"
+  ],
+  "kind": "design",
+  "maps_to": {
+    "criterion": "PLAN.md AC9 (#13847): a writer-judgment case with superseded, mixed and still-binding amendments; probes that the binding one stays and the reader acts on it.",
+    "decision": "ADR 0091 decision 1: every amendment still in force stays verbatim; a unit with any still-binding clause stays whole or is codified first; units are never split.",
+    "risk": "PLAN.md Risks: a writer retires a still-binding amendment (likelihood M, impact H)."
+  },
+  "description": "A five-hop shape-3 report-export predecessor whose Original goal holds seven amendments, none retired: three superseded by later ones (the report-<date>.csv naming, the 06:00 run, and the weekly/ path), one mixed (the weekly/ path, superseded, joined to a still-binding ban on the internal_account_id column), and one old hop-2 amendment that still binds (amounts as integer cents). The writer decides what to retire; the probes check that the written hot file keeps both binding clauses and that the reader adds refunds as integer cents without the internal id.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# report-export\n\nSynthetic lane repository for the resume eval.\n",
+      "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n\n\ndef write(path, rows):\n    with open(path, 'w', newline='', encoding='utf-8') as fh:\n        out = csv.writer(fh)\n        out.writerow(COLUMNS)\n        for row in rows:\n            out.writerow([row[c] for c in COLUMNS])\n",
+      "export/source.py": "ROW_KEYS = ['date', 'account', 'internal_account_id', 'amount_cents', 'refund_cents', 'currency']\n"
+    },
+    "predecessor": {
+      "shape": 3,
+      "topic": "report-export",
+      "lane": "report-export",
+      "hops": 5,
+      "start": "2026-08-10T08:00:00Z",
+      "hop_minutes": 300,
+      "goal": "Ship the weekly finance report export: one CSV per account each Monday, in a layout the ledger loader reads without edits.",
+      "vision": "Finance closes the week from the export alone.",
+      "opening_ask": "Ship the weekly finance export: one CSV per account every Monday that the ledger loader takes as is.",
+      "injections": [
+        {
+          "id": "old-naming",
+          "hop": 2,
+          "section": "amendment",
+          "text": "Name each export file report-<date>.csv.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "binding-cents",
+          "hop": 2,
+          "section": "amendment",
+          "text": "Write every amount as integer minor units (cents) in a *_cents column; never as a float or a decimal string.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "new-naming",
+          "hop": 3,
+          "section": "amendment",
+          "text": "Name each export file <account>-<date>.csv; this replaces the report-<date>.csv naming.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "mixed-path-and-id",
+          "hop": 3,
+          "section": "amendment",
+          "text": "Write the files under weekly/ in the reports bucket for now, and never include the internal_account_id column in any export.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "old-run-time",
+          "hop": 4,
+          "section": "amendment",
+          "text": "Run the export at 06:00 UTC on Mondays.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "new-path",
+          "hop": 4,
+          "section": "amendment",
+          "text": "Write the files under finance/weekly/ instead of weekly/.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "new-run-time",
+          "hop": 5,
+          "section": "amendment",
+          "text": "Run the export at 05:00 UTC on Mondays, before finance opens; this replaces the 06:00 run.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 5 against main at 3d8a2e6.",
+          "Where it stands: the weekly CSV ships and the ledger loader reads it; refunds are not in it yet.",
+          "Next: add refunds, governed by Remaining actions.",
+          "Read Current rules first."
+        ],
+        "criteria": [
+          "Why: finance closes the week from the export alone.",
+          "- [x] one CSV per account each Monday (export/weekly.py).",
+          "- [ ] refunds appear in the export (export/weekly.py)."
+        ],
+        "remaining": [
+          "1. Add refunds to the weekly export in export/weekly.py; the source rows (export/source.py) carry refund_cents and internal_account_id.",
+          "2. Open a PR with the change."
+        ],
+        "next": [
+          "Add refunds to the weekly export in export/weekly.py."
+        ],
+        "did": "shipped the weekly export and confirmed the ledger loader reads it",
+        "left": "refunds not in the export and no PR yet"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff whole. The weekly export ships; refunds are next, in export/weekly.py; then a PR.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/export/weekly.py"
+          },
+          "result": "     1\timport csv\n     2\t\n     3\tCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n     4\t\n     5\t\n     6\tdef write(path, rows):\n     7\t    with open(path, 'w', newline='', encoding='utf-8') as fh:\n     8\t        out = csv.writer(fh)\n     9\t        out.writerow(COLUMNS)\n    10\t        for row in rows:\n    11\t            out.writerow([row[c] for c in COLUMNS])"
+        },
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/export/source.py"
+          },
+          "result": "     1\tROW_KEYS = ['date', 'account', 'internal_account_id', 'amount_cents', 'refund_cents', 'currency']"
+        },
+        {
+          "role": "assistant",
+          "text": "export/weekly.py writes date, account, amount_cents and currency; the source rows also carry refund_cents and internal_account_id."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/report-export",
+      "responses": [
+        {
+          "match": "\\bpr create\\b",
+          "stdout": "https://github.com/example-org/report-export/pull/4341\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81700101, \"conclusion\": \"success\", \"workflowName\": \"ci-status\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff report-export",
+      "after": "/session-flow:handoff report-export",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "artifact-binding-amendment-kept",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "handoff_contains",
+            "text": "Write every amount as integer minor units (cents) in a *_cents column; never as a float or a decimal string."
+          },
+          {
+            "kind": "handoff_regex",
+            "pattern": "(?m)^- \\[R\\d+\\][^\\n]*integer minor units[^\\n]*never as a float"
+          }
+        ]
+      },
+      "note": "The hop-2 amendment still binds: it stays verbatim, or is codified as a rule first."
+    },
+    {
+      "id": "artifact-mixed-binding-clause-kept",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "handoff_contains",
+            "text": "never include the internal_account_id column in any export"
+          },
+          {
+            "kind": "handoff_regex",
+            "pattern": "(?m)^- \\[R\\d+\\][^\\n]*internal_account_id"
+          }
+        ]
+      },
+      "note": "The mixed hop-3 amendment's path clause is superseded and its id clause still binds: the unit stays whole, or the id clause is codified as a rule first."
+    },
+    {
+      "id": "continuation-adds-refund-cents",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "file_regex",
+        "path": "export/weekly.py",
+        "pattern": "refund\\w*_cents"
+      }
+    },
+    {
+      "id": "decision-no-float-refund",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "file_regex",
+        "path": "export/weekly.py",
+        "pattern": "/\\s*100(?:\\.0+)?\\b|\\bfloat\\(|\\bDecimal\\(|['\"]refund(?:_amount)?['\"]"
+      },
+      "note": "A refund written in major units or as a float or decimal breaks the binding hop-2 amendment."
+    },
+    {
+      "id": "decision-no-internal-id",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "file_regex",
+        "path": "export/weekly.py",
+        "pattern": "internal_account_id"
+      },
+      "note": "The binding clause of the mixed amendment."
+    },
+    {
+      "id": "recall-amount-format",
+      "type": "recall",
+      "grade": "text",
+      "question": "How must amounts be written in the export?",
+      "criteria": "PASS only if the answer says amounts are integer minor units (cents) in a *_cents column, never a float or a decimal string. FAIL otherwise."
+    },
+    {
+      "id": "artifact-path-name-schedule",
+      "type": "artifact",
+      "grade": "text",
+      "question": "Where are the export files written, how are they named, and when does the export run?",
+      "criteria": "PASS only if the answer gives finance/weekly/, <account>-<date>.csv naming, and 05:00 UTC on Mondays. FAIL otherwise, including an answer that gives weekly/ without finance/, report-<date>.csv, or 06:00."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state. Asking what to do next after the work is done is not one."
+    }
+  ]
+}

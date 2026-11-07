@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The options were a separate refunds-<date>.csv beside each weekly file or a signed refund_cents column in the weekly file; it was answered with the signed column.",
+      "why": "both options and the answer"
+    },
+    {
+      "answer": "Separate refunds file vs signed refund_cents column; settled on the column.",
+      "why": "short"
+    },
+    {
+      "answer": "[Q1] offered a separate refunds-<date>.csv or a signed refund_cents column in the weekly CSV. Answered at hop 3: the signed column, since the loader double-counted split refunds.",
+      "why": "with the reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It asked whether to add a refund_cents column; yes.",
+      "why": "one option"
+    },
+    {
+      "answer": "Options were a separate file or a column; the separate file won.",
+      "why": "wrong answer"
+    },
+    {
+      "answer": "It was answered at hop 3.",
+      "why": "no options"
+    }
+  ]
+}
