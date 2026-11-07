@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: se-apply-proposes-tool-writes-config
-description: 'Legacy setup 2. config-written and arid-record-written grade the two files, diff-target-from-origin-head the resolution, no-tool-install the ask-first rule; legacy-setup-2 (llm) quotes the legacy expectation. The prompt asks for the recommended answers because a case has one turn. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy setup 2. config-written grades the config file and arid-record-attempted the arid record''s Write call (the eval workspace''s .claude/ is read-only, so the call is denied and the file cannot be graded), diff-target-from-origin-head the resolution, no-tool-install the ask-first rule; legacy-setup-2 (llm) quotes the legacy expectation. The prompt asks for the recommended answers because a case has one turn. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [setup, scaffold, no-network, legacy]
 runs: 3
 expected_outcome: 'Check first, then apply: proposes a tool with its install command without installing, resolves the diff target from origin/HEAD, writes docs/conventions/mutation-testing.yaml and an empty .claude/mutation-testing-arid.md, re-verifies.'
@@ -15,9 +15,10 @@ graders:
   - name: 'config-written'
     type: 'file_exists'
     path: 'docs/conventions/mutation-testing.yaml'
-  - name: 'arid-record-written'
-    type: 'file_exists'
-    path: '.claude/mutation-testing-arid.md'
+  - name: 'arid-record-attempted'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '\.claude/mutation-testing-arid\.md'
   - name: 'diff-target-from-origin-head'
     type: 'tool_used'
     tool: 'Bash'

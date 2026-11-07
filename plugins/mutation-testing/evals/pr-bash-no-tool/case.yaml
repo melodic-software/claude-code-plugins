@@ -32,7 +32,7 @@ graders:
     focus: 'last_message'
   - name: 'req-revert-every-exit'
     type: 'llm'
-    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is guaranteed revert of the mutated source on every exit path, interrupts and failures included. FAIL if that requirement is missing or only implied.'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is guaranteed revert of the mutated source on every exit path, in any wording: a trap on EXIT, or restoration whether the run passes, fails, errors or is interrupted. FAIL if that requirement is missing or only implied.'
     focus: 'last_message'
   - name: 'req-cited-unkillable'
     type: 'llm'
