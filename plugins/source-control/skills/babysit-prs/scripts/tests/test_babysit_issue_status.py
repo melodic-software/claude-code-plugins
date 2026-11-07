@@ -820,11 +820,22 @@ class StatusGh(FakeGh):
         self.field_answer: Any = [
             {"issue_field_id": FIELD, "single_select_option": {"id": 86380005}}
         ]
+        # The PolicyIssueStatus answer for a record, or the HTTP status its
+        # read fails with.
+        self.work_status: Any = answer(None, None)
 
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[Any]:
         joined = " ".join(args)
+        if args[:2] == ["api", "graphql"] and "PolicyIssueStatus" in joined:
+            self.calls.append(list(args))
+            self.tokens.append(None)
+            if isinstance(self.work_status, int):
+                return completed(
+                    returncode=1, stderr=f"gh: Error (HTTP {self.work_status})"
+                )
+            return completed({"data": self.work_status})
         if f"contents/{policy.CONFIG_PATH}" in joined and "?ref=" not in joined:
             self.calls.append(list(args))
             self.tokens.append(None)
@@ -930,6 +941,61 @@ class TheDemotionRecord(CheckCase):
                 )
                 self.assertEqual(len(report["errors"]), 1)
                 self.assertIn("Work status not set", report["errors"][0])
+
+    def test_a_later_pass_retries_a_hold_only_while_the_field_is_unset(
+        self,
+    ) -> None:
+        # The first hold write fails; the record then exists, so a second pass
+        # over the same verdict takes the existing-record path.
+        person = setter(HUMAN_ID, "kyle-sexton", "User")
+        for name, work_status, want_hold, want_errors in (
+            ("unset", answer(None, None), True, 0),
+            ("set by a person", answer("needs-spec", person), False, 0),
+            (
+                "set by an uncounted account",
+                answer("ready", setter(3003, "drive-by", "User")),
+                False,
+                0,
+            ),
+            ("unreadable", 502, False, 1),
+        ):
+            with self.subTest(name):
+                self.setUp()
+                self.gh.pipeline = SMALL
+                self.gh.field_answer = 502
+                self.gh.merged = [identity_merge()]
+                self.all_green()
+                verdict = self.check(pinned=OTHER_SHA)
+                first = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
+                self.assertEqual(len(first["errors"]), 1)
+                create = self.creates()[-1]
+                body = next(a for a in create if a.startswith("body="))
+                self.gh.issues.append(
+                    {
+                        "number": 9001,
+                        "state": "open",
+                        "body": body.removeprefix("body="),
+                        "user": {"login": IDENTITY},
+                    }
+                )
+                self.gh.field_answer = [
+                    {"issue_field_id": FIELD, "single_select_option": {"id": 86380005}}
+                ]
+                self.gh.work_status = work_status
+                before = len(self.gh.writes())
+                report = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
+                later = self.gh.writes()[before:]
+                holds = [
+                    w for w in later if w[3] == f"repos/{PM_REPO}/issues/9001/issue-field-values"
+                ]
+                self.assertEqual(len(holds), 1 if want_hold else 0, later)
+                self.assertFalse(
+                    any(a.startswith("labels[]=") for w in later for a in w)
+                )
+                self.assertEqual(len(report["errors"]), want_errors, report["errors"])
+                if want_errors:
+                    self.assertIn("Work status", report["errors"][0])
+                self.assertEqual(report["issues"], [])
 
     def test_unconfigured_files_the_labeled_record_as_before(self) -> None:
         report = self.remediate()
