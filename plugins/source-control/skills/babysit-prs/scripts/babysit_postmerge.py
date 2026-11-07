@@ -779,17 +779,16 @@ def _merged_since(
     """Pull requests merged into `branch` at or after `since`. A merge updates
     the PR, so reading newest-updated first can stop at the first PR last
     updated before the floor. A PR updated mid-read jumps to page 1 and can
-    slip past the walk, so page 1 is read again afterwards: any merge there
-    the walk missed makes the history unreadable."""
+    slip past the walk, so page 1 is read again afterwards and any merge
+    there the walk missed is added: pages follow the update time, so a PR
+    the walk skipped can only have moved to the front."""
     found = _walk_merged(owner, name, branch, since)
     numbers = {pr.get("number") for pr in found}
     for pr in _merged_page(owner, name, branch, None)[0]:
         if _time(pr.get("updatedAt")) < since:
             break
         if _time(pr.get("mergedAt")) >= since and pr.get("number") not in numbers:
-            raise PostMergeReadError(
-                "merged pull requests: the history changed while it was read"
-            )
+            found.append(pr)
     return found
 
 
