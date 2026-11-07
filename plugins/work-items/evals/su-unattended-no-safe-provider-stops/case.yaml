@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-unattended-no-safe-provider-stops
+graders:
+  - name: 'provider-decision-blocker'
+    type: 'regex'
+    pattern: 'needs\s+a\s+provider\s+decision'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Does not guess a provider or invent config when no RECOMMENDED answer is safe; (2) Writes no tracker binding to work-items.yaml rather than binding a provider the repo did not choose; (3) Reports the blocker by name and gives the command to resolve it with a user present; (4) Distinguishes this from the seeding offer, which does have a safe default and is skipped silently. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

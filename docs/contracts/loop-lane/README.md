@@ -1421,7 +1421,7 @@ tracking surface.
 Lanes run on separate machines under separate Claude accounts, and the peer tools (`SendMessage`,
 `ListAgents`) reach only same-account sessions, so no session can message a lane on another
 machine. The attended operator, a human or an `attend-queue` session, steers a lane only through
-GitHub state the lane already reads: labels, claims, and the PR hold. No agent relays another
+GitHub state the lane already reads: labels, the Work status field, claims, and the PR hold. No agent relays another
 agent's summary; each lane's own telemetry comment is its report of record. The commands below take
 `R=<owner>/<repo>`.
 
@@ -1456,17 +1456,20 @@ behalf, it opens with the
 [AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md) when that file's setting
 resolves `true`; the operator's own words need none.
 
-`list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
-next cycle-start snapshot. The comment carries no machine marker, which is what marks the item
-operator-parked rather than lane-escalated (§2). Remove the label to return the item. Any assignee
-also keeps an item off the frontier, and an assignee with no lease comment is never reclaimed, but
-session-start reclaim unassigns the holder of an expired lane lease, which is you when the lanes
-share your GitHub login. Prefer the label, and never write a lease marker by hand: the tracker
+`list-frontier --autonomous` excludes that label whatever the item's Work status, so `work-loop`
+stops selecting the item from its next cycle-start snapshot. The comment carries no machine marker,
+which is what marks the item operator-parked rather than lane-escalated (§2). To return the item,
+remove the label, and when its Work status is a hold state (`needs-human`, `needs-owner-decision`,
+`needs-reporter-info`, `needs-spec`) set the field off it too: with no hold label left, that state
+still keeps the item off the frontier. Any assignee also keeps an item off the frontier, and an
+assignee with no lease comment is never reclaimed, but session-start reclaim unassigns the holder
+of an expired lane lease, which is you when the lanes share your GitHub login. Prefer the label,
+and never write a lease marker by hand: the tracker
 [CONTRACT](../../../plugins/work-items/tools/work-item-tracker/CONTRACT.md#lease-protocol) owns
 claims.
 
-Neither step recalls a worker already dispatched on the item: `/work-items:work` checks labels at
-selection, not after its claim. To keep that work from merging, hold its PR.
+Neither step recalls a worker already dispatched on the item: `/work-items:work` checks the
+frontier at selection, not after its claim. To keep that work from merging, hold its PR.
 
 **Hold a PR (merge lane).** `do-not-merge` is the only cross-lane hold, and
 [Cross-lane PR hold](#cross-lane-pr-hold) owns its rules. The commands, in the order that section

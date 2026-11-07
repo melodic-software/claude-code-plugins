@@ -3352,7 +3352,7 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-refine.yml plan: List the PR's changed files",
     "pr-review-hosted.yml wait-refine: Wait for this head's Refine",
     "pr-review-security-hosted.yml wait-refine: Wait for this head's Refine",
-    "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",

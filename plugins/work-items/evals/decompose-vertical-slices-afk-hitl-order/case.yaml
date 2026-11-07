@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-vertical-slices-afk-hitl-order
+graders:
+  - name: 'hitl-label'
+    type: 'regex'
+    pattern: 'needs-human'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Drafts VERTICAL tracer-bullet slices (each a complete end-to-end path through all layers), NOT horizontal single-layer slices ; (2) Classifies each vertical slice AFK (agent-ready label) vs HITL (needs-human label, the label list-frontier --autonomous honors to exclude an item from autonomous pickup; omitting agent-ready alone does NOT); prefers AFK, marks HITL only for genuine human-judgment / design-review / manual-QA needs ; (3) Presents the breakdown for approval with per-slice Type + Blocked-by + scope before creating anything ; (4) Publishes items in dependency order (blockers first) via work-item-tracker.sh create-item, recording dependencies as native --blocked-by edges ; (5) Does NOT close or modify the parent item. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Defaults taken: provider **github**, `lease_ttl_hours: 24`, role labels kept, seeding skipped.",
+      "why": "markdown summary"
+    },
+    {
+      "answer": "```yaml\ntracker:\n  schema_version: \"1.0\"\n  provider: github\n  config:\n    lease_ttl_hours: 24\n```",
+      "why": "binding shown as a YAML block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Asks which provider to bind: github (RECOMMENDED) or local-markdown, and which lease_ttl_hours to use.",
+      "why": "near miss: presents the question instead of resolving it"
+    },
+    {
+      "answer": "Binds github with lease_ttl_hours 12.",
+      "why": "wrong default"
+    }
+  ]
+}

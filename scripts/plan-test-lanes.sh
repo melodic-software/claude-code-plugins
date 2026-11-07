@@ -97,7 +97,7 @@ plugins/miro/server plugins/miro/
 plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
 plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh plugins/knowledge/vendor/node-launcher/ plugins/knowledge/scripts/
 plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh plugins/knowledge/vendor/node-launcher/ plugins/knowledge/scripts/
-.github/actions/resolve-config .github/actions/resolve-config/ .github/actions/seal-lane-output/ .github/actions/open-lane-output/ .github/lane-keys/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs"
+.github/actions/resolve-config .github/actions/resolve-config/ .github/actions/seal-lane-output/ .github/actions/open-lane-output/ .github/lane-keys/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs .github/workflows/"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
@@ -223,8 +223,15 @@ read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 
 # Triggers beyond its own directory for a package in the outside list: the
-# workflows and shared files its tests read.
+# workflows and shared files its tests read. A suite that lists
+# .github/workflows/ names no workflow, so the selector never reaches it from
+# one; its package takes the whole directory as a trigger.
 declare -A OUTSIDE_TRIGGERS=(
+  [.github/actions/check-signed-commits]=".github/workflows/"
+  [.github/actions/check-wip-cap]=".github/workflows/"
+  [.github/actions/log-api-budget]=".github/workflows/"
+  [.github/scripts/lib]=".github/workflows/"
+  [.github/scripts/pr-merge]=".github/workflows/"
   [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml .github/workflows/pr-verify-capture.yml .github/scripts/lib/"
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
   [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"

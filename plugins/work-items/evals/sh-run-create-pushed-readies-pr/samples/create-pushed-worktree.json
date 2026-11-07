@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Open it with `/source-control:pull-request create --pushed --worktree /work/wt-361`, which runs `ready --unattended` itself.",
+      "why": "code span"
+    },
+    {
+      "answer": "run create --pushed --worktree=/work/wt-361 at the strong tier",
+      "why": "equals form"
+    },
+    {
+      "answer": "`create --worktree /work/wt-361 --pushed` opens the PR and readies it.",
+      "why": "flags in the other order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open it with `/source-control:pull-request create --worktree /work/wt-361`, then run ready.",
+      "why": "near miss: no --pushed"
+    },
+    {
+      "answer": "Open it with create --pushed --worktree /work/wt-316.",
+      "why": "near miss: wrong worktree"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-rerun-preserves-existing-item-dates
+graders:
+  - name: 'overdue-row-preserved'
+    type: 'regex'
+    pattern: 'ci-pin-review[^\n.;,]{0,60}(?:(?:preserve[sd]?|preserving)|unchanged|as-is|as is|untouched|left alone|stays|keeps? (?:its|the)|kept)|(?:(?:preserve[sd]?|preserving)|unchanged|as-is|untouched|keeps?|kept)[^\n.;|]{0,60}ci-pin-review'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Preserves existing items'' last_checked and next_due unchanged (never advances the clock during setup); (2) Recomputes next_due only on an explicit reschedule or cadence change, and never sets last_checked to today for an existing item; (3) Seeds a new item''s last_checked to today and next_due to today plus the cadence duration (here lint-config-review, monthly: last_checked 2026-11-07, next_due 2026-12-07); (4) Does not drop an already-overdue item out of the due/work tiers by resetting its dates (here ci-pin-review keeps next_due 2026-09-29). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

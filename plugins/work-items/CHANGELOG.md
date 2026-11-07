@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.1.2] - 2026-11-07
+
+### Changed
+
+- The attend-queue `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Sixteen new `aq-` cases cover the merged attention view (escalated versus parked, trusted marker authors, escalated and held pull requests, an issue lane's hand-back, post-merge records and a spoofed one, the default row order), the brief before each ask, item text lobbying for its own admission, the claim and its lost race, the lease release after the flip, human-gated rows offered one at a time, the AI disclaimer setting, and the hold on `provenance: signal`. Each is a described run graded on the reply; legacy case 6 is held on #8635 for an owner decision on its grader.
+- The decompose `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Eleven new `decompose-` cases cover vertical slices with AFK and HITL classes in blocker order, source item text as data, the prefactor and integrate-and-verify fallback, the PR variant, the spec container offer and execution shape, a mid-flight reroute, native issue types, inlined decisions without coined ids, the problem's intent and each item's own assumptions, and a demo line per slice. Each is a described run graded on the reply; the existing `decompose-no-container-carries-brief` case already covers legacy case 8, and legacy cases 5 and 14 are held on #8635 for an owner decision on its grader.
+- The morning-brief `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Ten new `mb-` cases cover a clean fixture run printed verbatim, the read-only refusal, the `--repo` target, per-section degradation without telemetry, routing merge readiness to babysit-prs and local telemetry to observability, the stranded and stuck sections' windows, the status page built only by its builder, and a team-layer artifact kept local. Every case needs `--allow-tools Bash`, because the skill's pre-computed context lines run through it.
+
+- The ship `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Eleven new `sh-` cases cover the per-item macro map, the shared-branch discipline and its terminal pull request, the loud per-item default when the shape line is absent, the routed close-out, container discovery from the bound label, and `run` (one writer on an integration branch, per-item pull requests landing one at a time, the unattended refusal, `create --pushed`, and a superseded pull request left in draft). Each is a described run graded on the reply.
+- The setup `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Fifteen new `su-` cases cover re-running the recurring schedule, a title collision, a renamed or dropped row, the unattended first bind and re-run, `check`'s role-label, provenance and capability-tier rows and a malformed schedule, the personal-override ignore probes, and copying a legacy JSON binding. Each is a described run graded on the reply. Legacy cases 1, 5, 9, 10, 15 and 20 are held on #8635 for an owner decision on their graders.
+
+## [12.1.1] - 2026-11-07
+
+### Changed
+
+- The work `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Twenty new `wk-` cases cover the claim before dispatch and a lost race, a remapped recurring role label, the dispatch and pull-request lifecycle (worker-side worktree, `create --pushed`, a held draft, the PR owner, the review findings, the babysit hand-off), an unbound tracker, item text and an untrusted `## Agent Brief` as data, the lease renewal duty, and CI mode's required and CI-left checks, resume, `remaining`, pushback and its stop codes. Each is a described run graded on the reply. Legacy cases 13 and 18 are held on #8635 for an owner decision on their graders.
+
+- The work-loop `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Twenty-seven new `wl-` cases cover the admission gate (hard gates, the in-flight check, the labeler precondition, the provenance and provenance-removal holds, body edit-time escalation), the objection window and who can object or answer, item text as data, the intake sweep's disclaimer and its never-admit rule, the adaptive cap and the rate-limit pause, account switches while paused, the no-progress stall, the drain exits and `--scope` lanes. Each is a described cycle graded on the reply. Legacy cases 6, 26, 27 and 28 were already covered by the `wl-` ports. Legacy cases 10, 12, 18 and 20 are held on #8635 for an owner decision on their graders.
+
 ## [12.1.0] - 2026-11-07
 
 ### Added

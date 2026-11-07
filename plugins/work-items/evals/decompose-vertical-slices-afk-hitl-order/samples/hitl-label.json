@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Labels:** `area: teams,needs-human` (HITL: the design lead reviews the layout)",
+      "why": "label in a code span"
+    },
+    {
+      "answer": "Phase 3 slice is HITL, so it gets needs-human and no agent-ready.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Phase 3 is HITL, so I simply leave agent-ready off it.",
+      "why": "near miss: omits the autonomous label without setting the human-gated one"
+    },
+    {
+      "answer": "All three slices get agent-ready.",
+      "why": "no HITL label"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

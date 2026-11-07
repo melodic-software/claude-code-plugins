@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-discovery-label-from-binding
+graders:
+  - name: 'queries-epic-label'
+    type: 'regex'
+    pattern: '\blabel(?:ed|s)?\b[^\n]{0,60}["''`*]{0,2}epic\b|["''`*]{0,2}\bepic["''`*]{0,2}[^\n]{0,30}\blabel'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship session does with the stated state. PASS only if it satisfies every point: (1) Resolves the container label from the binding''s config.container_label (here "epic") for the fallback tracker query instead of hard-coding work-map; (2) Lists multiple matching containers and asks the user to pick rather than guessing (stated as what the run does when several open containers match); (3) On zero matches, routes to /work-items:decompose for container publishing instead of creating a container itself (stated as what the run does when none match). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

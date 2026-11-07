@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "2. Run `bash \"<plugin-root>/skills/setup/scripts/migrate-binding.sh\" --root \"$ROOT\"` and announce each line it prints (`binding: copied`, `override: copied`).",
+      "why": "code span"
+    },
+    {
+      "answer": "Then migrate-binding.sh copies both layers into the YAML files.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Copy the binding into docs/conventions/work-items.yaml by hand, then delete .work-item-tracker.json.",
+      "why": "near miss: copies the binding without the script and deletes the JSON"
+    },
+    {
+      "answer": "Binds github afresh with lease_ttl_hours 24 in docs/conventions/work-items.yaml.",
+      "why": "re-binds instead of copying"
+    }
+  ]
+}

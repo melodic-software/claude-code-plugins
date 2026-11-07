@@ -5,11 +5,13 @@ name: pr-refine
 # exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
-# workflow_dispatch only. fix-docs: pr-unblock-dispatch.yml sends one per
-# ready PR that changes a Markdown file and never had a fix-docs run, whoever
-# opened it except Dependabot, the release App and the standards-sync App,
-# and not for a work-resolve-issue PR tidied in its own run (within the tidy
-# cutoffs) (fix-docs-dispatch.mjs). It sets dispatcher-run-id; a trusted human may
+# workflow_dispatch only. fix-docs: pr-unblock-dispatch.yml's refine job sends
+# one, on the PR's own pull_request_target event, per ready PR that changes a
+# Markdown file and never had a fix-docs run, when the event's sender is the
+# lanes App or a listed human, except Dependabot, the release App and the standards-sync App, and not for a
+# work-resolve-issue PR tidied in its own run (within the tidy cutoffs)
+# (refine-event-dispatch.mjs over fix-docs-dispatch.mjs); the push and
+# scheduled dispatcher runs send none. It sets dispatcher-run-id; a trusted human may
 # dispatch with pr-number and activity alone. Every job trusts the default
 # branch tip, as the dispatcher runs from the tip.
 #

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-answer-without-disclaimer
+graders:
+  - name: 'disclaimer-false'
+    type: 'regex'
+    pattern: 'ai_disclaimer\b[^\n.]{0,40}\bfalse\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Resolves ai_disclaimer to false from the repository''s docs/conventions/work-items.yaml; (2) Writes the operator''s answer back as a comment on #612 with no AI disclaimer prefix; (3) Opens the answer comment with the decision (keep the trailing newline). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

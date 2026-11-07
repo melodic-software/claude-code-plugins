@@ -21,8 +21,9 @@
   step's reviews run only for a lane the CI review lanes do not cover healthily
   (`/source-control:pull-request`, review venue); this repository sets `pr_open_state: ready`
   (`docs/conventions/source-control.yaml`); `loop.review-rounds` is 3
-  (`docs/conventions/pr-pipeline.yaml`). This line records the decision; this record does not show
-  "blocking-only after the first review" implemented.
+  (`docs/conventions/pr-pipeline.yaml`). "Blocking-only after the first review" is implemented
+  ([#13163](https://github.com/melodic-software/claude-code-plugins/pull/13163)) and set by
+  `loop.findings-after-first-review` (default `blocking-only`, `docs/conventions/pr-pipeline.yaml`).
 
 ## Context
 
