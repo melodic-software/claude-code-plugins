@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: viz-checkout-flow-mermaid
+graders:
+  - name: mermaid-process
+    type: 'regex'
+    pattern: '```mermaid[ \t]*\n(?:[ \t]*(?:%%|---|title:|config:)[^\n]*\n)*[ \t]*(?:flowchart|graph|sequenceDiagram)\b(?=(?:(?!```)[\s\S])*?\breserv)(?=(?:(?!```)[\s\S])*?\breleas)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-page
+    type: 'regex'
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: source-not-picture
+    type: 'llm'
+    criteria: 'The reply visualizes a checkout flow. It meets the legacy expectations: "Treats a terminal mermaid fence as SOURCE, not an inline rendered diagram, and routes the rendered form to a page when a rendered picture is wanted" and "Does not restate diagram or chart craft". It fails if it calls the mermaid fence a rendered diagram, picture or image, or implies the terminal displays it as one; it also fails if it gives diagram or chart craft guidance such as colors, palette, layout or styling rules.'
+    focus: 'last_message'

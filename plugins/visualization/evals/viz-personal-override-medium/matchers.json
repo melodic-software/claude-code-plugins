@@ -1,0 +1,36 @@
+{
+  "resolver-ran": [
+    {
+      "use": "command_position"
+    },
+    "node(?:\\.exe)?",
+    {
+      "use": "token_argument"
+    },
+    "view-settings\\.mjs",
+    {
+      "use": "token_argument"
+    },
+    "\\bresolve\\b",
+    {
+      "use": "token_argument"
+    },
+    "--lane(?:\\s|=)+(?:\\\\\"|')?visualization:visualize\\b"
+  ],
+  "no-convention-shell-read": [
+    {
+      "use": "command_anywhere"
+    },
+    "rendered-views"
+  ],
+  "gate-ran": [
+    {
+      "use": "command_position"
+    },
+    "node(?:\\.exe)?",
+    {
+      "use": "token_argument"
+    },
+    "mermaid-gate\\.mjs"
+  ]
+}

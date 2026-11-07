@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d \\\"${TMPDIR:-/tmp}/visualize-XXXXXX\\\"); echo \\\"$d\\\"\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-Ab12Cd/visualize.html\",\"content\":\"<!doctype html><html><body><svg></svg></body></html>\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"view: file (argument)\\n\\nWrote the dashboard as a self-contained local file and opened it: /opt/eval/tmp/visualize-Ab12Cd/visualize.html\\n\\nNothing was published.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d \\\"${TMPDIR:-/tmp}/visualize-XXXXXX\\\") && cat > \\\"$d/visualize.html\\\" <<'EOF'\\n<!doctype html><html><body><svg></svg></body></html>\\nEOF\\necho \\\"$d\\\"\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"view: file (argument)\\n\\nWrote the dashboard as a self-contained local file and opened it: /opt/eval/tmp/visualize-Ab12Cd/visualize.html\\n\\nNothing was published.\"}]}}",
+      "why": "heredoc write in one Bash call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/dashboard.md\",\"content\":\"| Week | Releases |\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is a table.\"}]}}",
+      "why": "markdown, not a page"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"I wrote it to /opt/eval/tmp/v/visualize.html\"}]}}",
+      "why": "claimed in text, never written"
+    }
+  ]
+}

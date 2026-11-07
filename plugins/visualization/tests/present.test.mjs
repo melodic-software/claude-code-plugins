@@ -7,7 +7,7 @@ import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, delimiter, dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -311,13 +311,13 @@ describe("skill contract", () => {
 // The medium resolver owns the medium values, so no skill or eval in this plugin enumerates them.
 describe("no enumerated medium list in the plugin's skills or evals", () => {
   const SKILLS = join(PLUGIN, "skills");
-  /** Every markdown file under skills/, and each skill's evals/*.json. */
+  const EVALS = join(PLUGIN, "evals");
+  /** Every markdown file under skills/ and evals/: the skill text and each eval case's prompt. */
   function files(dir) {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) return files(path);
       if (entry.name.endsWith(".md")) return [path];
-      if (entry.name.endsWith(".json") && basename(dir) === "evals") return [path];
       return [];
     });
   }
@@ -325,10 +325,10 @@ describe("no enumerated medium list in the plugin's skills or evals", () => {
   // One line at a time: [ \t] never spans a line break.
   const list = new RegExp(`\\b${MEDIUM}[\`"']?(?:[ \\t]*(?:[|/,]|→|->)[ \\t]*|[ \\t]+or[ \\t]+)[\`"']?${MEDIUM}\\b`, "i");
   const tier = /terminal[ \t]*(?:→|->).*file[ \t]*(?:→|->).*artifact/i;
-  const found = files(SKILLS);
-  test("walks both skills' markdown and evals", () => {
-    for (const name of ["present/SKILL.md", "visualize/SKILL.md", "visualize/context/decision-matrix.md", "present/evals/evals.json", "visualize/evals/evals.json"]) {
-      assert.ok(found.includes(join(SKILLS, name)), name);
+  const found = [...files(SKILLS), ...files(EVALS)];
+  test("walks both skills' markdown and the eval prompts", () => {
+    for (const name of ["skills/present/SKILL.md", "skills/visualize/SKILL.md", "skills/visualize/context/decision-matrix.md", "evals/pres-outline-record/prompt.md", "evals/viz-file-argument-dashboard/prompt.md"]) {
+      assert.ok(found.includes(join(PLUGIN, name)), name);
     }
   });
   test("the patterns catch a pipe list and the tier line", () => {
@@ -338,7 +338,7 @@ describe("no enumerated medium list in the plugin's skills or evals", () => {
     assert.match("inline terminal → local HTML file → published Artifact", tier);
   });
   for (const path of found) {
-    test(path.slice(SKILLS.length + 1), () => {
+    test(path.slice(PLUGIN.length + 1), () => {
       const text = readFileSync(path, "utf8");
       assert.doesNotMatch(text, list);
       assert.doesNotMatch(text, tier);

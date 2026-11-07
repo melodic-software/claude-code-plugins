@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto) picks a page; the Artifact surface is not available here, so I wrote a local file instead: /opt/eval/tmp/visualize-Zx9/visualize.html\n\nThe page is self-contained: the charts are inline SVG with inline script for the tooltips, and the logo is a placeholder, so it makes no network request."
+    },
+    {
+      "answer": "Everything is inlined and the page works offline."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your dashboard: /opt/eval/tmp/v/visualize.html",
+      "why": "no statement"
+    },
+    {
+      "answer": "I used inline SVG for the charts.",
+      "why": "inline alone is not the claim"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: viz-dashboard-self-contained
+graders:
+  - name: page-written
+    type: 'regex'
+    pattern: '"name":\s*"Write",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"file_path":\s*"(?:[^"\\]|\\.)*?\.html?"|"name":\s*"Bash",\s*"input":\s*\{\s*"command":\s*"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:[ \t]+-a)?)[ \t]*(?:\\"|\'')?[^\s"\\;&|<>]*\.html?\b'
+    flags: 'i'
+    target: 'trace'
+  - name: no-remote-asset
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:\b(?:src|href)\s*=\s*(?:\\"|\'')?\s*(?:https?:)?//|\burl\(\s*(?:\\"|\'')?\s*(?:https?:)?//|@import\s+(?:url\(\s*)?(?:\\"|\'')?\s*(?:https?:)?//|\bfrom\s+(?:\\"|\'')\s*(?:https?:)?//|\bimport\(\s*(?:\\"|\'')\s*(?:https?:)?//|\bfetch\(\s*(?:\\"|\''|`)\s*https?://)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'
+  - name: no-linked-asset
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:<script\b(?:[^>"\\]|\\.)*?\bsrc\s*=|<link\b(?:[^>"\\]|\\.)*?\brel\s*=\s*(?:\\"|\'')?\s*stylesheet)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'
+  - name: says-self-contained
+    type: 'regex'
+    pattern: 'self[- ]contained|no network (?:calls?|requests?|access)|works offline|offline|makes? no (?:network |external )?(?:requests?|calls?)|no (?:external|remote|CDN) (?:requests?|calls?|dependenc\w*|librar\w*|assets?|resources?|scripts?)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-csp-hosts
+    type: 'regex'
+    pattern: 'cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

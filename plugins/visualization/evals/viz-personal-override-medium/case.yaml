@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: viz-personal-override-medium
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: resolver-ran
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?visualization:visualize\b'
+    min: 1
+    arm: 'with-only'
+  - name: no-convention-read
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-convention-shell-read
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: report-line-personal
+    type: 'regex'
+    pattern: 'view: file \(personal override\)'
+    target: 'last_message'
+  - name: not-default-decided
+    type: 'regex'
+    pattern: 'view: [^\n(]*\((?:userConfig|plugin default)\)'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: gate-ran
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?mermaid-gate\.mjs'
+    min: 1
+    arm: 'with-only'
+  - name: source-fence-notice
+    type: 'regex'
+    pattern: '^(?=[\s\S]*?```mermaid[ \t]*\n)(?=[\s\S]*?(?:unrendered|not rendered|isn''t rendered|is not rendered|won''t render|will not render|doesn''t render|does not render|cannot render|can''t render|couldn''t render|could not render|not be rendered|no (?:mermaid[- ]?)?renderer|source (?:is )?kept|kept (?:as|the) (?:mermaid )?source|mmdc is not installed|(?:mermaid[ \t]+)?source(?:[ \t]+(?:fence|code|text|only))?[^\n]{0,40}?(?:paste|render(?:s|ed)? (?:it )?(?:in|at|with|on))))'
+    flags: 'i'
+    target: 'last_message'

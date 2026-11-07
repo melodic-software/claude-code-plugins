@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize render this state machine as a diagram I can actually look at\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/order.mmd\",\"content\":\"stateDiagram-v2\\n  Pending --> Paid\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"node /opt/eval/plugins/visualization/lib/mermaid-gate.mjs --svg-dir /opt/eval/tmp/d /opt/eval/ws/order.mmd\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Shipped default (auto) picks a page for a rendered diagram, but no Artifact surface is available and the mermaid gate kept the source (mmdc is not installed), so this is the mermaid source, unrendered:\\n\\n```mermaid\\nstateDiagram-v2\\n  [*] --> Pending\\n  Pending --> Paid: payment\\n  Pending --> Cancelled: timeout\\n  Paid --> Shipped: dispatch\\n  Paid --> Refunded: refund request\\n  Shipped --> Delivered: delivery\\n  Delivered --> [*]\\n  Cancelled --> [*]\\n  Refunded --> [*]\\n```\\n\\nPaste it into a mermaid renderer to see the picture.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize render this state machine as a diagram I can actually look at\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-x/visualize.html\",\"content\":\"<!doctype html><html><body><svg viewBox=\\\"0 0 10 10\\\"></svg><a href=\\\"#top\\\">top</a></body></html>\"}}]}}",
+      "why": "a self-contained page with a local anchor"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize render this state machine as a diagram I can actually look at\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-x/visualize.html\",\"content\":\"<!doctype html><html><body><pre class=\\\"mermaid\\\">stateDiagram-v2\\n Pending --> Paid</pre><script src=\\\"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js\\\"></script></body></html>\"}}]}}",
+      "why": "CDN script"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize render this state machine as a diagram I can actually look at\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d); cat > \\\"$d/visualize.html\\\" <<'EOF'\\n<script type=\\\"module\\\">import mermaid from 'https://esm.sh/mermaid@11';</script>\\nEOF\"}}]}}",
+      "why": "ES module import from a remote URL in a heredoc"
+    }
+  ]
+}
