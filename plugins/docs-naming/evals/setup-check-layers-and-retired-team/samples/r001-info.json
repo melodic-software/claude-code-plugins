@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Retirement detection: docs-naming-r001 (.claude/docs-hygiene.json) is INFO, report-only."
+    },
+    {
+      "answer": "| retirements | INFO | docs-naming-r001: .claude/docs-hygiene.json |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Retirement detection: docs-naming-r001 is FAIL (migrate)."
+    },
+    {
+      "answer": "The old team file is reported as INFO."
+    }
+  ]
+}

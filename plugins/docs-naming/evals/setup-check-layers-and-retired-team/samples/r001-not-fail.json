@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs-naming-r001: INFO, report-only."
+    },
+    {
+      "answer": "Retirements: one report-only finding (docs-naming-r001). No FAIL rows in the table."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs-naming-r001: FAIL (migrate)."
+    },
+    {
+      "answer": "| retirements | FAIL | docs-naming-r001 |"
+    }
+  ]
+}

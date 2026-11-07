@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "4 report sites are listed and never edited: CHANGELOG.md lines 5 (twice) and 6, and the ADR's prose on line 3."
+    },
+    {
+      "answer": "Frozen: four sites stay as written."
+    },
+    {
+      "answer": "Report sites: 4."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CHANGELOG.md and the ADR prose are left as written."
+    },
+    {
+      "answer": "11 sites in total."
+    },
+    {
+      "answer": "2 review sites need a human."
+    }
+  ]
+}

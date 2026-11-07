@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/realign-file-names/scripts/apply-rename.sh --artifact /opt/eval/ws/.work/docs-hygiene/main/file-names.md --id FN-c60eb30e --root /opt/eval/ws --dry-run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/realign-file-names/scripts/apply-rename.sh --artifact /opt/eval/ws/.work/docs-hygiene/main/file-names.md --id FN-c60eb30e --root /opt/eval/ws"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/ws mv docs/CATALOG.md docs/catalog.md"
+          }
+        }
+      ]
+    }
+  ]
+}

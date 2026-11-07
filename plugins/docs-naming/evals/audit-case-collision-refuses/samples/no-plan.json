@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        ".work/.gitignore"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/docs-hygiene/main/file-names.md"
+      ]
+    }
+  ]
+}

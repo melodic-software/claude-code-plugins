@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/getting-started.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/CHANGELOG.md",
+            "old_string": "docs/CATALOG.md",
+            "new_string": "docs/catalog.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/index.md",
+            "old_string": "see CATALOG",
+            "new_string": "see catalog"
+          }
+        }
+      ]
+    }
+  ]
+}

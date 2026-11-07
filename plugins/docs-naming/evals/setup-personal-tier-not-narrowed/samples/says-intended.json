@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Not a bug: tiers is a policy-floor key."
+    },
+    {
+      "answer": "This is intended. A personal layer can only add tiers."
+    },
+    {
+      "answer": "That's expected: the team tier stays."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, that's a bug in the resolver."
+    },
+    {
+      "answer": "That looks like a merge-order problem; your file should win."
+    },
+    {
+      "answer": "That's not expected."
+    }
+  ]
+}

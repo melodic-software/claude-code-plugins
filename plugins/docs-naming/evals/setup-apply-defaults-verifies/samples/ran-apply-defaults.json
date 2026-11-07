@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/setup/scripts/setup-apply.sh --defaults"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/setup/scripts/setup-apply.sh rule=lower-kebab"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/setup/scripts/setup-check.sh"
+          }
+        }
+      ]
+    }
+  ]
+}

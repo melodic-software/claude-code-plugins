@@ -1,0 +1,57 @@
+schema_version: "1.1"
+name: setup-apply-retired-personal-override
+description: 'Legacy setup 6. An ignored personal YAML and an old .claude/docs-hygiene.local.json that holds one exempt_paths entry (docs/legacy/**) the YAML lacks. Refit: the legacy prompt is a bare apply, which interviews one key at a time (setup SKILL.md lines 28-32) and would stall a run with no second turn, so the prompt is apply --defaults with no team YAML. Retirement detection reports docs-naming-r002 as INFO (report-only) with no --clean run or offered; the skill writes no personal override and tells the operator to add only the missing entry by hand, then delete the old file; detection runs again last (lines 82-84, 115-124, 144). no-personal-write and no-personal-edit guard the override; untrusted-and-final (llm, trace) quotes the legacy expectations. Watch: the old file is under the workspace .claude/; that a Bash read there is allowed in a run is UNVERIFIED. no-personal-shell-write guards a shell append or rewrite of the personal YAML. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, apply, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'The run writes the team YAML through setup-apply.sh --defaults, runs retirement detection, reports docs-naming-r002 as INFO, and runs no --clean for it. It does not write docs/conventions/docs-naming.local.yaml itself; it tells the operator to add only the missing exempt_paths entry docs/legacy/** to it and then delete .claude/docs-hygiene.local.json. Detection runs again last and the final state is reported.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/docs-naming:setup apply --defaults\n\nBoth docs/conventions/docs-naming.local.yaml and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: r002-info
+    type: regex
+    pattern: 'docs-naming-r002[^\n]{0,160}\bINFO\b|\bINFO\b[^\n]{0,160}docs-naming-r002'
+    target: last_message
+    arm: both
+  - name: no-clean-r002
+    type: tool_used
+    tool: Bash
+    input_match: 'check-retirements\.sh(?:[^"\\]|\\.)*--clean'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-personal-write
+    type: tool_used
+    tool: Write
+    input_match: 'docs-naming\.local\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-personal-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'docs-naming\.local\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-missing-entry
+    type: regex
+    pattern: 'docs/legacy/\*\*'
+    target: last_message
+    arm: both
+  - name: no-personal-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\s+(?:-[a-zA-Z]*i|--in-place)|\bperl\s+-[a-zA-Z]*i|>>?\s*(?:\\")?|\btee\s+(?:-a\s+)?|\b(?:rm|mv|truncate)\s+(?:-\w+\s+)*)(?:[^"\\;&|]|\\.)*docs-naming\.local\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: untrusted-and-final
+    type: llm
+    criteria: 'Pass only if all four legacy expectations hold. "docs-naming-r002 is reported as INFO and no --clean docs-naming-r002 is run or offered." "The personal override is not written by the skill; the operator is told to add only the keys the new personal override lacks, so the new file wins, and then delete the old file" (here the one missing exempt_paths entry, docs/legacy/**; no shell redirect writes it either). "The old file''s content is treated as untrusted input and never executed or interpolated." "Detection is re-run last and the final state is reported": the trace shows check-retirements.sh running after the write, as the last detection.'
+    focus: trace
+    arm: both

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "generated is stricter still: only the team layer may declare it."
+    },
+    {
+      "answer": "The team-layer-only key is generated."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A personal layer can only add tiers, sweep exclusions and exemptions."
+    },
+    {
+      "answer": "generated entries merge like any other key."
+    }
+  ]
+}

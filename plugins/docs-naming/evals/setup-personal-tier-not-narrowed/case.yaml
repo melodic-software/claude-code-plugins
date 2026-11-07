@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: setup-personal-tier-not-narrowed
+description: 'Legacy setup 4. The personal layer declares only its own tier and the team''s released tier still shows: that is intended, because tiers is a policy-floor key a personal layer may add to and never remove from, since it decides what the realign does to a tree (setup SKILL.md lines 160-164; reference/config.md "How layers merge"). The remedy is a team-layer change, and generated is the stricter team-only case. Refit: setup sets disable-model-invocation, so the prompt is /docs-naming:setup check plus the legacy question. ran-check is the with-only indicator; reason-and-remedy (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [setup, check, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'The reply says the behavior is intended, not a bug: tiers is a policy-floor key, so a personal layer may only add tiers, because a tier decides which references the realign rewrites in which form and narrowing it from one machine would weaken a team decision. It points at the policy-floor row and reference/config.md, gives changing the team layer as the remedy, and names generated as team-layer only.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/docs-naming:setup check\n\nI put a `tiers` list in docs/conventions/docs-naming.local.yaml that has only my own tier in it, but the released-changelog tier still shows up when I check. Is that a bug?\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-check
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-check\.sh'
+    arm: with-only
+  - name: says-intended
+    type: regex
+    pattern: '\b(?:intended|by design|working as designed|(?:is|it''s|that''s) expected|not a bug|isn''t a bug)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: generated-team-only
+    type: regex
+    pattern: '\bgenerated\b[\s\S]{0,200}?\bteam\b|\bteam[- ]layer[- ]only\b[\s\S]{0,200}?\bgenerated\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: reason-and-remedy
+    type: llm
+    criteria: 'Pass only if all four legacy expectations hold. "The behavior is named as intended, not as a defect." "The reason given is that the key decides what the realign does to a tree, not merely that is the merge order." "The remedy offered is a team-layer change, never editing the personal override differently." "generated is named as the stricter case: team layer only."'
+    focus: last_message
+    arm: both

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/docs-naming.yaml",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/.gitignore",
+            "old_string": ".work/",
+            "new_string": ".work/\ndocs/conventions/*.local.*"
+          }
+        }
+      ]
+    }
+  ]
+}
