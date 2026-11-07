@@ -100,12 +100,6 @@
       "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check.",
       "default": "github-actions:merge"
     },
-    "merge_guard_hold_labels": {
-      "type": "string",
-      "title": "Block-unresolved-PR-merge hold labels",
-      "description": "Comma-separated label names that make block-unresolved-pr-merge refuse every merge of a pull request carrying one, auto-merge and merge-queue requests included; matched without case. The default holds do-not-merge, pr-verify-failed and security: outside-actor. Empty holds on no label.",
-      "default": "do-not-merge,pr-verify-failed,security: outside-actor"
-    },
     "block_fix_request_post_enabled": {
       "type": "boolean",
       "title": "Block-fix-request-post guard",

@@ -25,7 +25,8 @@
 #               pullNumber inputs. hooks.json registers that row.
 #
 # WHAT BLOCKS, read over REST so it works where GraphQL is refused:
-#   - a hold label on the PR (merge_guard_hold_labels, matched without case),
+#   - a hold label on the PR (do-not-merge, pr-verify-failed or
+#     security: outside-actor, matched without case),
 #     for every merge path, auto-merge and merge-queue requests included: a
 #     queued PR that carries one fails its merge group. It refuses right after
 #     the PR read, so a later read that fails open cannot let the merge run
@@ -182,9 +183,6 @@
 # `merge_guard_ignored_checks` (comma list of `<app slug>:<check name>`,
 # default `github-actions:merge`, the pr-merge lane's own job) names check runs
 # the guard never judges; set it empty to judge every check.
-# `merge_guard_hold_labels` (comma list of label names, default
-# `do-not-merge,pr-verify-failed,security: outside-actor`) names the labels
-# that hold a merge; set it empty to hold on none.
 #
 # BLOCKING: exits 2 with the list of what is unresolved.
 
@@ -921,10 +919,9 @@ fi
 
 [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "the pull request number could not be read"
 
-# Hold labels from merge_guard_hold_labels, lowercased: GitHub label names
-# compare without case. jq -c escapes each entry, so the array is a safe jq literal.
-_bupm_holdset="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS-do-not-merge,pr-verify-failed,security: outside-actor}" \
-  '$s | split(",") | map(gsub("^ +| +$"; "") | ascii_downcase | select(length > 0))')" || _bupm_holdset='[]'
+# Hold labels, lowercased since GitHub label names compare without case:
+# ci-status fails a merge group on each (pr-merge's HOLD_LABELS in enable-auto-merge.mjs).
+_bupm_holdset='["do-not-merge","pr-verify-failed","security: outside-actor"]'
 
 # The PR: open state, head commit, the canonical repo name, the base branch and,
 # after a unit separator, the hold labels it carries.

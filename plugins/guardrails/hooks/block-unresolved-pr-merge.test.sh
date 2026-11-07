@@ -427,8 +427,6 @@ assert_contains "names both hold labels" "$ERR" "Hold labels: Do-Not-Merge, secu
 labeled merge-path:owner-agent enhancement
 run "a PR with only other labels merges" 'gh pr merge 42 -R acme/widgets --auto' 0
 assert_eq "other labels -> no stderr" "" "$ERR"
-labeled do-not-merge
-run "an empty hold list holds on no label" 'gh pr merge 42 --squash' 0 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=
 labeled pr-verify-failed
 rm "$FIX/reviews.json"
 run "a hold label refuses even when the reviews read fails" 'gh pr merge 42 --squash' 2
@@ -441,9 +439,6 @@ labeled
 rm "$FIX/reviews.json"
 run "with no hold label a failed reviews read still fails open" 'gh pr merge 42 --squash' 0
 assert_contains "no label, failed read -> runs unchecked" "$OUT" "will run unchecked"
-labeled hold-me
-run "a configured hold label holds" 'gh pr merge 42 --squash' 2 "CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS=a, hold-me"
-assert_contains "configured label -> named" "$ERR" "Hold labels: hold-me."
 
 # --- 3b. a PR that changes a workflow or action definition file ---------------
 # Modeled on ci-workflows#951: both review lanes failed because they ran the
