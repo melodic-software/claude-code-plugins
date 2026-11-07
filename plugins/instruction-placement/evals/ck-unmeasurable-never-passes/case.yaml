@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ck-unmeasurable-never-passes
+graders:
+  - name: 'not-a-pass'
+    type: 'regex'
+    pattern: '\bnon-?zero\b|\bexit(?:s|ed)? (?:with )?(?:code |status )?[1-9]\b|\b(?:gate|verdict)\b[^\n]{0,30}\b(?:fail\w*|UNKNOWN|unmeasured|not (?:a )?pass\w*)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the check run does in a folder that is not a git checkout. PASS only if it satisfies every point: (1) Exits non-zero when it cannot measure, rather than passing; (2) States plainly what prevented the measurement; (3) Does not fall back to the findings artifact as evidence of health; (4) Does not fabricate a verdict. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

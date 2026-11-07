@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "A rule without `paths:` frontmatter loads at launch with the same priority as `.claude/CLAUDE.md`, so that move saves nothing.",
+      "why": "premise corrected in the skill's words"
+    },
+    {
+      "answer": "**Premise:** unscoped rules are always-loaded, so moving a section there only relocates its cost.",
+      "why": "bold label, always-loaded"
+    },
+    {
+      "answer": "Moving a section into `.claude/rules/` with no `paths:` glob saves nothing: it still loads every session.",
+      "why": "no paths, saves nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Moving the big sections into `.claude/rules/` makes AGENTS.md shorter and cuts the always-loaded budget.",
+      "why": "accepts the premise"
+    },
+    {
+      "answer": "Rules with `paths:` frontmatter load only when Claude reads a matching file.",
+      "why": "describes scoped rules, never the unscoped cost"
+    },
+    {
+      "answer": "Unscoped content: Build and test, Formatting.",
+      "why": "names unscoped sections without the cost"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

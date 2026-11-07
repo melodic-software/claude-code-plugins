@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "`**/*.rs` is zero-match: 0 tracked files, so I won't propose it.",
+      "why": "status and count"
+    },
+    {
+      "answer": "Rust modules: candidate glob `**/*.rs` matches 0 files.",
+      "why": "count only"
+    },
+    {
+      "answer": "| Rust modules | `**/*.rs` | match count: 0 | not proposed |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposed: `.claude/rules/rust.md` with `paths: [\"**/*.rs\"]`.",
+      "why": "proposes the rule"
+    },
+    {
+      "answer": "Rust modules -> `**/*.rs` (validated).",
+      "why": "claims validation with no count"
+    },
+    {
+      "answer": "The glob comes back zero-match.",
+      "why": "never ties it to the Rust section"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "A directly read AGENTS.md fires no `InstructionsLoaded` hook.",
+      "why": "hook named"
+    },
+    {
+      "answer": "You lose the InstructionsLoaded event for those files.",
+      "why": "event wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You lose observability of what loaded.",
+      "why": "no hook named"
+    },
+    {
+      "answer": "instructions loaded fine",
+      "why": "case and spacing differ"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

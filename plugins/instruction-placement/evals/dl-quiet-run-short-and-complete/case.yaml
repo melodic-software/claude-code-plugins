@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: dl-quiet-run-short-and-complete
+graders:
+  - name: 'nothing-moved'
+    type: 'regex'
+    pattern: '\bnothing (?:else )?(?:has )?moved\b|\bno movement\b|\bmoved:?[`*\s]{0,6}0\b|\b0 (?:items? )?moved\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'suppressed-two'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bsuppressed\b)(?=[^\n]*(?:\b2\b|\btwo\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the delta run reports for the stated state. PASS only if it satisfies every point: (1) Reports ''nothing moved'' briefly, with the window and the suppressed count; (2) Does not re-list standing or previously reported findings; (3) Does not pad a quiet run. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "`.claude/instruction-placement.md` is tracked: once you commit it, other worktrees stop seeing IP-004.",
+      "why": "commit tied to the file"
+    },
+    {
+      "answer": "Commit .claude/instruction-placement.md so the decline reaches every checkout.",
+      "why": "imperative"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote the entry to `~/.claude/instruction-placement.md`.",
+      "why": "user-global layer, no commit"
+    },
+    {
+      "answer": "Recorded IP-004 as declined in the findings artifact.",
+      "why": "artifact only"
+    },
+    {
+      "answer": "Entry for `.claude/instruction-placement.md` shown above; say yes to write it.",
+      "why": "never says it must be committed"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

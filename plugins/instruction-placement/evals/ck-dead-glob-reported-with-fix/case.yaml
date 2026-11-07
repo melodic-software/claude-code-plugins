@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: ck-dead-glob-reported-with-fix
+graders:
+  - name: 'api-zero-match-cause'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bapi\.md\b)(?=[^\n]*(?:\bmoved\b|\bdeleted\b|\bretir\w*|\bstale\b|\brenamed\b|\bcorrect (?:the )?(?:pattern|glob)\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'ui-bracket-fix'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bui\.md\b)(?=[^\n]*(?:\bescap\w*|\bclos(?:e|ing)\b|\\\[))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the check run does with the stated script output. PASS only if it satisfies every point: (1) Reports the rule file and pattern for each failure, not just a count; (2) Distinguishes zero-match, bad-bracket, and over-budget with different remedies; (3) States that these failures are silent in Claude Code; (4) Exits non-zero when any rule glob is invalid. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

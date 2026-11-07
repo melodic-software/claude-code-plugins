@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: dl-committed-decline-holds-fresh-worktree
+graders:
+  - name: 'suppressed-by-team-layer'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bsuppress\w*)(?=[^\n]*\bteam\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the delta run does in the fresh worktree. PASS only if it satisfies every point: (1) Honors the committed suppression entry even though this checkout has no baseline; (2) Names the tracked surface, not the baseline, as what carried the decline across checkouts; (3) Reports the suppression with its reason, date, and contributing layer; (4) Does not write the suppression surface. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

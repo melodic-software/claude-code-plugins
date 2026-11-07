@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "IP-002 entry in `.claude/instruction-placement.local.md` (personal override): personal-only, not applied.",
+      "why": "skill's wording"
+    },
+    {
+      "answer": "Your entry is personal-only, so it does not suppress the finding.",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Suppressed: IP-002 (personal layer, .claude/instruction-placement.local.md).",
+      "why": "honors the personal entry"
+    },
+    {
+      "answer": "Changed: IP-002 Testing conventions.",
+      "why": "silent about the entry"
+    },
+    {
+      "answer": "The personal-only entry is applied.",
+      "why": "personal-only named but applied"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

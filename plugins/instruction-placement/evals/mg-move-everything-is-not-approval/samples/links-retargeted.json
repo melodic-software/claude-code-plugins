@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "- `README.md:12` and `docs/contributing.md:40` link into CLAUDE.md; retarget both in the same change.",
+      "why": "both links on one line"
+    },
+    {
+      "answer": "| LINK | docs/contributing.md:40 | CLAUDE.md#testing | would die once the content moves |",
+      "why": "plan row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Moved everything into AGENTS.md and wrote the `@AGENTS.md` shim.",
+      "why": "acts on blanket approval"
+    },
+    {
+      "answer": "Two markdown links point into CLAUDE.md.",
+      "why": "no file and no action"
+    },
+    {
+      "answer": "README.md: no change needed.",
+      "why": "file named, nothing to retarget"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

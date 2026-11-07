@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| `breadth_max` | 75 | default |",
+      "why": "table row"
+    },
+    {
+      "answer": "Breadth ceiling: 75% (default; nothing configured overrides it).",
+      "why": "prose with source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Breadth ceiling: 75%.",
+      "why": "value with no source"
+    },
+    {
+      "answer": "breadth_max: 75 (configured)",
+      "why": "wrong source"
+    },
+    {
+      "answer": "breadth_max: 75 (configured), same as the default",
+      "why": "wrong source beside the word default"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

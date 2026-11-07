@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ra-stale-artifact-caught-before-edit
+graders:
+  - name: 'branch-mismatch'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bbranch)(?=[^\n]*(?:\bmismatch\w*|\bdiffer\w*|\bdoes(?:n''t| not) match\b|\bnot (?:the )?(?:current|this) branch\b|\bstop\w*))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the realign run does with the stated artifact. PASS only if it satisfies every point: (1) Checks branch frontmatter against the current branch before editing; (2) Verifies each finding''s source content still exists where cited; (3) Checks the recorded Claude Code version against the running one; (4) Stops or re-audits on a mismatch instead of editing stale line ranges. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

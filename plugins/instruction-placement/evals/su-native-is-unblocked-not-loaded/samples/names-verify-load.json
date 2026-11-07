@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Only `verify-load.sh` proves the file actually loaded.",
+      "why": "code span"
+    },
+    {
+      "answer": "For proof, run verify-load.sh --trigger AGENTS.md.",
+      "why": "command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The index is loaded.",
+      "why": "no proof named"
+    },
+    {
+      "answer": "Run the empirical load probe if you want proof.",
+      "why": "script not named"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

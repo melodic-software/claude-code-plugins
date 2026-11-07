@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "The gate cannot measure here (not a git repository), so it exits non-zero.",
+      "why": "non-zero"
+    },
+    {
+      "answer": "Verdict: UNKNOWN. Exit 1.",
+      "why": "verdict and exit code"
+    },
+    {
+      "answer": "**Gate:** fails closed; nothing was measured.",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Gate: PASS (last month's audit shows every glob valid).",
+      "why": "passes on the old artifact"
+    },
+    {
+      "answer": "Nothing to check here, all good.",
+      "why": "silent pass"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

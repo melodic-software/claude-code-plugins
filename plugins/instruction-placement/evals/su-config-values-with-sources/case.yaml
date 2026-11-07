@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-config-values-with-sources
+graders:
+  - name: 'breadth-75-default'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\b75\b)(?=[^\n]*\bdefault\b)(?![^\n]*\(configured\))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the setup check run reports. PASS only if it satisfies every point: (1) Reports each setting with its source, not only its value; (2) States that over-broad is advisory and does not fail the gate; (3) Names breadth_max as the specific lever; (4) Reports a default-valued setting with its source rather than omitting it. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

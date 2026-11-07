@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Suppressed: Deploy conventions (9c1e0b7a44d2f310), team layer, 2026-11-02, \"Ops reads this section during incidents\".",
+      "why": "label first"
+    },
+    {
+      "answer": "| Deploy conventions | team (tracked) | 2026-11-02 | suppressed |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "New: Deploy conventions (no baseline in this worktree).",
+      "why": "resurfaces the declined finding"
+    },
+    {
+      "answer": "Suppressed: Deploy conventions.",
+      "why": "no contributing layer"
+    },
+    {
+      "answer": "The team layer has one entry.",
+      "why": "layer named, no suppression"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

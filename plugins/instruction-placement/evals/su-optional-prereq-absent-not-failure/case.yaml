@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: su-optional-prereq-absent-not-failure
+graders:
+  - name: 'names-verify-load'
+    type: 'regex'
+    pattern: '\bverify-load\.sh\b'
+    target: 'last_message'
+  - name: 'optional-absent'
+    type: 'regex'
+    pattern: '\boptional\b[^\n]{0,40}\b(?:absent|not (?:installed|present|found|on PATH))\b|\b(?:absent|not (?:installed|present|found|on PATH))\b[^\n]{0,40}\boptional\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the setup check run reports in the container. PASS only if it satisfies every point: (1) Classifies the CLI and jq as optional, not missing; (2) Names verify-load.sh as the only affected surface; (3) Does not report a repository problem on this basis; (4) Offers no installation on the operator''s behalf. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

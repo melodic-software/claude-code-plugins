@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "**Index target: NATIVE.** Unblocked, not proven loaded.",
+      "why": "headline"
+    },
+    {
+      "answer": "`render-index.sh reachable --file AGENTS.md` -> NATIVE",
+      "why": "probe output"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Index target: UNREACHABLE. Add @AGENTS.md to a root CLAUDE.md.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "Claude Code reads AGENTS.md natively, so the index loads.",
+      "why": "claims a load, no verdict"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
