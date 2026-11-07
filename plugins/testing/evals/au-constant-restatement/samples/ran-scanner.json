@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugin/skills/audit/scripts/cant-fail-scan.sh"
+          }
+        }
+      ],
+      "why": "runs the bundled scanner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CANT_FAIL_SCAN_ROOT=. bash \"/opt/plugin/skills/audit/scripts/cant-fail-scan.sh\" --check; echo $?"
+          }
+        }
+      ],
+      "why": "quoted path with an env prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/plugin/skills/audit/scripts/cant-fail-scan.sh\"; echo \"exit=$?\""
+          }
+        }
+      ],
+      "why": "quoted path followed by a separator (the smoke run's shape)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "test/app.test.js"
+          }
+        }
+      ],
+      "why": "reads the tests instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/plugin/skills/audit/scripts/cant-fail-scan.sh"
+          }
+        }
+      ],
+      "why": "reads the script, never runs it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn expect test/ # then cant-fail-scan.sh later"
+          }
+        }
+      ],
+      "why": "names the script only in a comment"
+    }
+  ]
+}

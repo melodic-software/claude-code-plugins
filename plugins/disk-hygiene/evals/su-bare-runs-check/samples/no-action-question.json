@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| Python floor 3.11 | PASS |\n| Plugin registration | INFO |\n\nNo FAIL rows, so there is nothing for apply to point at."
+    },
+    {
+      "answer": "Ran the default check action. Run `/disk-hygiene:setup apply` for remediation pointers."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which action do you want, check or apply?"
+    },
+    {
+      "answer": "Should I run check or apply?"
+    },
+    {
+      "answer": "Do you want apply or check?"
+    }
+  ]
+}

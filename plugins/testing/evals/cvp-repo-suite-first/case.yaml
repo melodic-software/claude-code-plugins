@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: cvp-repo-suite-first
+description: 'Legacy check-visual-parity 4. The repository''s toHaveScreenshot spec covers two states and the parity contract lists a third. The reply runs the repository''s suite for the two and captures only the settings page itself. suite-then-manifest reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, route, no-network]
+expected_outcome: 'Runs the repository''s visual suite for the invoice list and editor and reports its verdict, and captures and compares only the settings page through this skill''s manifest and compare steps.'
+execution:
+  prompt: '/testing:check-visual-parity compare. Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The repository has tests/visual/invoices.spec.ts using Playwright''s toHaveScreenshot for the invoice list and invoice editor, and the parity contract also lists the settings page, which no spec covers. The README documents `npm run test:visual` for the visual suite, and /playwright:playwright is among the available skills. Say which route each state takes and the command each runs, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: suite-then-manifest
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bnpm run test:visual\b))(?=[\s\S]*(?:\bmanifest\b|visual-compare\.sh\s+compare\b))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is a visual-parity compare where the repository''s toHaveScreenshot spec covers the invoice list and editor and no spec covers the settings page. PASS only if the reply satisfies every legacy expectation: "Runs the repository''s toHaveScreenshot suite for the states it covers" "Captures and compares only the settings page itself" "Does not capture duplicate screenshots for the invoice list or editor". FAIL if any point is missing or contradicted.'

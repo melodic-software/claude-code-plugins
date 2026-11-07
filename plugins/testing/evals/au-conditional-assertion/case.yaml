@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-conditional-assertion
+description: 'Legacy audit 14. A Vitest loop over query rows and a Jest catch block. The scan reports rule-conditional-assertion for both; the reply proposes a length check before the loop and a throws assertion. Legacy expectation 3 (report-only, never gates --check) contradicts the current skill, which gates the rule, so it is not graded. skill-fired and ran-scanner read the tool calls, conditional-rule-and-repairs the reply; meets-expectations (llm) quotes expectations 1 and 2. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, conditional-assertion, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-conditional-assertion for the loop and the catch, and proposes a row-count check and a throws assertion.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'These two tests are green: one checks every row a query returns, the other checks the error inside a catch. Can they pass without checking anything? Use the `testing:audit` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
+  - name: conditional-rule-and-repairs
+    type: regex
+    pattern: '^(?=[\s\S]*(?:(?:testing/audit/)?rule-conditional-assertion))(?=[\s\S]*(?:(?:[Ll]ength\b|\bcount\b)))(?=[\s\S]*(?:\b(?:toThrow|rejects|throws)\b))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a test asserting every returned row and a test asserting an error inside a catch can pass without checking anything. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-conditional-assertion for the loop and for the catch" "Output proposes a length check before the loop and a throws assertion instead of the catch". FAIL if any point is missing or contradicted.'

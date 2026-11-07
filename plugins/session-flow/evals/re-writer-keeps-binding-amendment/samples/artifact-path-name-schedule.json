@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Under finance/weekly/, named <account>-<date>.csv, at 05:00 UTC on Mondays.",
+      "why": "full"
+    },
+    {
+      "answer": "Mondays 05:00 UTC; files are <account>-<date>.csv in finance/weekly/.",
+      "why": "reordered"
+    },
+    {
+      "answer": "finance/weekly/ (replacing weekly/), <account>-<date>.csv (replacing report-<date>.csv), and 05:00 UTC Monday (replacing 06:00).",
+      "why": "with supersession"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Under weekly/, named <account>-<date>.csv, at 05:00 UTC on Mondays.",
+      "why": "old path"
+    },
+    {
+      "answer": "Under finance/weekly/, named report-<date>.csv, at 05:00 UTC.",
+      "why": "old name"
+    },
+    {
+      "answer": "Under finance/weekly/, named <account>-<date>.csv, at 06:00 UTC on Mondays.",
+      "why": "old time"
+    }
+  ]
+}

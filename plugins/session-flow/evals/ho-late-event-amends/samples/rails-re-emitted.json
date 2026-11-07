@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "amend: validate exit 0\n\n`/clear`, then copy everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nRead @/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md and continue its remaining actions.\nNext: fix test_backoff_cap\n──────────────────────────────────────────────────────────\n",
+      "why": "amend's rails close the turn"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nRead @/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md and continue its remaining actions.\nNext: fix test_backoff_cap\n──────────────────────────────────────────────────────────\n\nOr: claude --resume 3b0f5c2e-7d41-4c9a-9a51-2f6e8d0c1a77\n",
+      "why": "rails with a below-rail note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Folded test_backoff_cap into the handoff with amend.",
+      "why": "amended, no rails"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n──────────────────────────────────────────────────────────\n──────────────────────────────────────────────────────────\n",
+      "why": "empty rails"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n──────────────────────────────────────────────────────────\nRead @/x.md\n",
+      "why": "one rail only"
+    }
+  ]
+}

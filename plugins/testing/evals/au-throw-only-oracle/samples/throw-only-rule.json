@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-throw-only-oracle`: only a throwing constructor fails these. Assert `Assert.Equal(\"gear\", widget.Name)`.",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle`: Assert.NotNull is weak.",
+      "why": "another rule"
+    }
+  ]
+}

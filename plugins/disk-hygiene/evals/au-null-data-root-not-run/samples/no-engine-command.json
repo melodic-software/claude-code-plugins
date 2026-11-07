@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The audit was not run: data_root is null, so no hygiene.py call was submitted."
+    },
+    {
+      "answer": "No engine call: the guard would deny any hygiene.py scan without a proven data root."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next: `\"/usr/bin/python3\" \".../hygiene.py\" scan --target /eval/work/scratch-audit --output /eval/data/runs/a1/snapshot.json --data-root /eval/data`"
+    },
+    {
+      "answer": "Run `hygiene.py\" scan --target /eval/work/scratch-audit` once the data root is set."
+    }
+  ]
+}

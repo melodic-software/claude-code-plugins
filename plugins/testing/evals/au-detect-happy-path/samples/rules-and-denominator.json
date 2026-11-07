@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| testing/audit/rule-zero-assertion | test/cant-fail-js.test.js:11 |\n| testing/audit/rule-recomputed-expectation | tests/test_cant_fail_py.py:12 |\n| testing/audit/rule-mock-only-oracle | Tests/CantFailTests.cs:21 |\n\nCoverage: 3 test files examined of 3, 11 test blocks parsed.",
+      "why": "all three ids and the denominator"
+    },
+    {
+      "answer": "`testing/audit/rule-zero-assertion` (3), `testing/audit/rule-recomputed-expectation` (5), `testing/audit/rule-mock-only-oracle` (3).\n\n**Test files:** 3 examined of 3 enumerated.",
+      "why": "bold label denominator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation and testing/audit/rule-mock-only-oracle each fired.",
+      "why": "findings alone, no denominator"
+    },
+    {
+      "answer": "rule-zero-assertion, rule-recomputed-expectation, rule-mock-only-oracle fired; 3 test files examined.",
+      "why": "unqualified ids"
+    }
+  ]
+}

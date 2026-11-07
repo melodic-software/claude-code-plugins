@@ -91,7 +91,8 @@ response, the save-point does not exist and STOP has not been reached.
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
   ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
   `chore(wip):` commit in "WIP commit on an explicit pause" below, made before the save-point is
-  written and never pushed
+  written and never pushed. An `amend` for an event that lands after emit ("Late events after
+  emit" below) is not further work: it repairs the save-point
 
 **Not authorization to continue (these all stop):**
 
@@ -162,6 +163,9 @@ instruction file holds them, one direction-change line per change (structure doc
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
 history. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
 state the rules still in force under Current rules from there, never from memory.
+
+A rule or preference leaves the hot file only when retired or promoted, listed with its reason
+under `## Retired rules` in this hop's file, never to meet the size cap.
 
 Carrying a rule forward re-checks any refusal or owner reservation it records against the
 structure doc's evidence and retry rule ("Constraints that must hold").
@@ -241,6 +245,25 @@ reason stated. Never a hand-written handoff file when the script could have run.
 This skill's delivery step is the engine's default exit: the rails resume prompt with the
 "`/clear`, then copy everything between the dashed lines" instruction above the top rail. The user
 types `/clear` and pastes; nothing is launched on their behalf.
+
+## Late events after emit
+
+After emit and until `/clear` or a successor `new`, check each task notification, Monitor event,
+peer message or subagent result against the handoff. When one changes a section (a criterion, a
+remaining action, Environment, an open question, `Next:`), fold it in with
+`save_point.py amend <file> --json <path>` (engine doc, `amend`); `amend --help` lists its keys.
+Write the JSON beside the handoff as `<same stem>.amend.json`; the `.slots.json` stays the record
+of the fill.
+Never hand-edit the file and never re-run `new` to fold an event in. An event that changes nothing
+needs no amend; say so in one line. `amend` prints the verdict and the new rails: end the turn on
+those rails, pasted verbatim, under the same output-order rule as the first emit. Amending is the
+only work the hard rule allows after emit; the task itself still stops.
+
+Retiring an entry is a relevance call, made through the `retire` list of `fill` before emit or of
+`amend` after it, never by deleting lines (structure doc, "Shape 3"). Every amendment that still
+binds stays. An amendment unit with any clause still binding stays whole, or that clause is first
+written as a rule `[R<n>]` and the unit retired with the reason `codified in [R<n>]`. A unit is
+never split.
 
 ## Post-write enforcement checklist
 

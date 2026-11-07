@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The audit was not run: the probe reported data_root null, and I will not guess a data root."
+    },
+    {
+      "answer": "No `--data-root` value exists to pass, so nothing runs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Try `--data-root /opt/eval/home/.claude/plugins/data/disk-hygiene` instead."
+    },
+    {
+      "answer": "Using the default: --data-root \"~/.claude/plugins/data/disk-hygiene-melodic\""
+    }
+  ]
+}

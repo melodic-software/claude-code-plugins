@@ -52,6 +52,25 @@ print("ok")
   status=1
 fi
 
+echo "== shape-3 filler ids its questions and decisions"
+if ! "$PY" -X utf8 -c '
+import sys, tempfile
+from pathlib import Path
+import hop_chain
+with tempfile.TemporaryDirectory() as tmp:
+    for shape, want in ((3, True), (2, False)):
+        newest = hop_chain.generate_chain(Path(tmp) / str(shape), 2, shape=shape)[-1]
+        text = newest.read_text(encoding="utf-8")
+        titles = ("Open questions", "Decisions in force") if shape == 3 else ("Open questions to investigate", "Decisions already settled")
+        for title, ref in zip(titles, ("[Q1]", "[D1]")):
+            body = text.split(f"## {title}\n", 1)[1].split("\n## ", 1)[0]
+            assert (f"- {ref} " in body) is want, (shape, title, body[:200])
+print("ok")
+'; then
+  echo "FAIL: shape-3 filler ids"
+  status=1
+fi
+
 echo "== hop_chain.py --dry-run"
 if ! "$PY" -X utf8 hop_chain.py --dry-run; then
   echo "FAIL: --dry-run self-test"

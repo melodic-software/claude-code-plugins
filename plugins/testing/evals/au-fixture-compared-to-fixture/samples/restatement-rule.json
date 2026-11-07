@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-constant-restatement`: draft and want are literals the test bound, and no code under test runs.",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-recomputed-expectation`: the two sides are the same.",
+      "why": "another rule"
+    }
+  ]
+}

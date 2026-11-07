@@ -1,0 +1,61 @@
+schema_version: "1.1"
+name: ho-late-event-amends
+description: 'Handoff late event: the session starts ./ci-wait.sh as a background command, which reports a failing test after a fixed 300-second delay, then runs /session-flow:handoff without waiting for it. The result lands after the rails are emitted; the session folds it in with save_point.py amend, never a hand edit or a second new, and ends on the re-emitted rails. A run where the result lands before emit, so its failing test is already in the fill slots, fails event-after-emit. A run needs --scaffold, --allow-tools Bash Write Edit, and a session UUID (amend exists on the full path only).'
+tags: [handoff, late-event, amend]
+plugins: ["../.."]
+expected_outcome: 'The run starts ./ci-wait.sh with run_in_background, writes the shape-3 save-point with the check recorded as still running, emits the railed resume prompt and ends its turn. When the check reports test_backoff_cap failing, the session runs save_point.py amend on the handoff (Completion criteria, Remaining actions, Environment or Next: now name the failure), runs new only once, and ends on the rails amend prints.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Start ./ci-wait.sh as a background command (run_in_background). It takes about five minutes and the handoff does not depend on it, so do not wait for it: record it as still running. Then run /session-flow:handoff file retry-backoff.'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ran-amend
+    type: tool_used
+    tool: Bash
+    input_match: 'save_point\.py(?:\\")?[ \t]+amend\b[^\n]*--json'
+    min: 1
+    arm: with-only
+  - name: no-hand-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*-handoff-[^"/]*\.md"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-hand-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*-handoff-[^"/]*\.md"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: amend-after-emit
+    type: tool_order
+    before:
+      tool: Bash
+      input_match: 'save_point\.py(?:\\")?[ \t]+emit\b'
+    after:
+      tool: Bash
+      input_match: 'save_point\.py(?:\\")?[ \t]+amend\b'
+    arm: with-only
+  - name: event-after-emit
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*"file_path":"[^"]*\.slots\.json")(?=.*test_backoff_cap)'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-second-new
+    type: tool_used
+    tool: Bash
+    input_match: 'save_point\.py(?:\\")?[ \t]+new\b'
+    min: 0
+    max: 1
+    arm: with-only
+  - name: rails-re-emitted
+    type: regex
+    pattern: '/clear`?,? then copy everything between the dashed lines[\s\S]*?\n[ \t]*─{10,}[ \t]*\n(?:(?![ \t]*─{10,})[^\n]*\n)*?[ \t]*(?!─)\S[^\n]*\n(?:(?![ \t]*─{10,})[^\n]*\n)*?[ \t]*─{10,}'
+    arm: with-only
