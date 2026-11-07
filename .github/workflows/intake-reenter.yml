@@ -34,8 +34,9 @@ name: intake-reenter
 # `field_removed` run reads the issue's field events, and when that person
 # made the newest ones (past this lane's own needs-triage write), on an open
 # issue with no status label but `needs-triage` and an admitted author, it
-# adds `needs-triage`, sets the field to needs-triage when the release emptied
-# it, and dispatches the same way.
+# posts a comment marked with the field event that left the hold (the claim a
+# re-run finds; deleted again when the run fails), sets the field to
+# needs-triage when the release emptied it, and dispatches the same way.
 #
 # Accepted exposure: only a trusted comment decides whether a re-entry
 # happens, and the triage run it starts passes the model only comments whose
@@ -108,7 +109,7 @@ jobs:
     timeout-minutes: 9
     permissions:
       contents: read # check out main
-      issues: write # read the issue and comments; edit its labels and Work status field
+      issues: write # read the issue and comments; edit its labels and Work status field; post and delete a release's claim comment
       actions: write # dispatch intake-triage.yml
     # Every comment on a parked issue and every removal above starts a
     # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
