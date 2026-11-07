@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: gen-two-weeks-markdown
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:ai-briefing:)?generate"'
+    min: 1
+    arm: 'with-only'
+  - name: window-14d
+    type: regex
+    pattern: '\b14[ \t]*-?[ \t]*(?:d|days?)\b|\bfourteen[ \t-]+days?\b'
+    flags: 'i'
+    target: last_message
+  - name: markdown-output
+    type: llm
+    criteria: "Legacy expectation: 'Output is a markdown briefing, not a PPTX or HTML slide deck'. The user gave no --format. PASS only if the reply produces or plans a markdown briefing (for example a confirmation step naming markdown as the output format, or a markdown briefing itself). FAIL if it produces, plans or starts a PPTX deck, slides or an HTML page, or names slides or HTML as the output format."
+    focus: last_message
+  - name: no-build
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'output[/\\]+build|build[/\\]+run\.js|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))run\.js\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-deck-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"[^"]*\.(?:pptx|html?)"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## EXTRAS (Robotics, science, and novel applications)\n\n- Anchorpoint Dynamics' Unit-7 humanoid completes a full warehouse shift. <https://blog.anchorpoint.example/unit-7-warehouse-shift>",
+      "why": "EXTRAS heading"
+    },
+    {
+      "answer": "**Extras**\n- Unit-7 warehouse pick-and-pack shift",
+      "why": "bold heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Anchorpoint Dynamics\n\n### MED\n\n- Unit-7 humanoid completes a warehouse shift.\n\n## EXTRAS\n\n*No notable items.*",
+      "why": "robotics in a provider bucket, EXTRAS empty"
+    },
+    {
+      "answer": "## EXTRAS\n\n- Cobalt open weights 4.1\n\n## Other\n\n- Anchorpoint Unit-7 warehouse demo",
+      "why": "robotics under Other, not EXTRAS"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Northwind Systems\n\n### HIGH\n\n- **Northwind IDE 4.1 ships inline Cloud Agent handoff**. Source: <https://blog.northwind.example/ide-4-1-handoff> (2026-06-23).",
+      "why": "tier heading then the item"
+    },
+    {
+      "answer": "**Northwind Systems**\n- HIGH: Northwind IDE 4.1 ships inline Cloud Agent handoff",
+      "why": "bold provider heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Northwind Systems\n\n*No notable items this window.*\n\n### HIGH\n\n- Northwind IDE 4.1 ships inline Cloud Agent handoff",
+      "why": "stale note kept above the item"
+    },
+    {
+      "answer": "## Northwind Systems\n\n*No notable items this window.*\n\n## Updates\n\n- Northwind IDE 4.1 ships inline Cloud Agent handoff",
+      "why": "item under a different section"
+    },
+    {
+      "answer": "- Northwind IDE 4.1 ships inline Cloud Agent handoff (Northwind Systems)",
+      "why": "no Northwind section"
+    }
+  ]
+}

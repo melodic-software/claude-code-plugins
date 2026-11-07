@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Legal & regulatory\n\n### HIGH\n\n- **VendorCo procurement dispute**: <https://newswire.example/vendorco-procurement-dispute> (2026-06-21)",
+      "why": "partisan items absent"
+    },
+    {
+      "answer": "## Caveats\n\n- Dropped 2 partisan-only items (a candidate deepfake meme and a horse-race thread) under the apolitical filter.",
+      "why": "an exclusion note, not a listed item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Other\n\n### LOW\n\n- A deepfake video of a political candidate circulates online. <https://newswire.example/deepfake-meme>",
+      "why": "partisan item listed"
+    },
+    {
+      "answer": "## Legal & regulatory\n\n- Partisan horse-race thread on AI campaign tools (2026-06-20)",
+      "why": "partisan item listed without its link"
+    },
+    {
+      "answer": "Sources: <https://newswire.example/partisan-horse-race>",
+      "why": "partisan source cited"
+    },
+    {
+      "answer": "- Thread on AI campaign tools, horse-race framing. Dropped items elsewhere are listed in caveats.",
+      "why": "listed; the exclusion word sits in the next sentence of the same line"
+    }
+  ]
+}
