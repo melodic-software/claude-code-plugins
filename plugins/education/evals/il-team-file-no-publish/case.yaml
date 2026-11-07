@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: il-team-file-no-publish
+description: "A team rendered-views.yaml saying medium: artifact never publishes: illustrate leaves the file to the shared resolver and prints its report line and its notice that a team file never publishes. A runner with CI set makes the resolver fall back to the terminal, so run this case outside CI"
+tags: [education, illustrate, outcome, medium, scaffold, no-network]
+expected_outcome: "Bash runs view-settings.mjs resolve --lane education:illustrate; the reply prints view: file (plugin default) and the notice that the team file's medium: artifact is ignored because a team file never publishes; the run never reads docs/conventions/rendered-views.yaml itself."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:illustrate how a bloom filter answers a membership query\n\nThe primary source for this topic is this excerpt I saved from Burton Bloom's 1970 paper and a databases textbook: \"A Bloom filter is a bit array of m bits, all zero at first, plus k hash functions. Adding an item sets the k bits its hashes point to. To ask whether an item is in the set, check its k bits: if any is zero, the item was never added; if all are one, it was probably added, because other items may have set those bits. So the filter can give false positives but never false negatives.\"\n\nThis run cannot write files, so skip the build and print the complete markdown record in your reply, then do Step 4 as written."
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+  max_turns: 12
+  timeout_seconds: 600
+graders:
+  - name: report-and-team-notice
+    type: regex
+    pattern: '^(?=[\s\S]*\bview:\s*file\s*\(plugin default\))(?=[\s\S]*\ba team file never publishes\b)'
+    target: last_message
+  - name: no-team-file-read
+    type: tool_used
+    tool: Read
+    input_match: 'rendered-views'
+    min: 0
+    max: 0
+    arm: both

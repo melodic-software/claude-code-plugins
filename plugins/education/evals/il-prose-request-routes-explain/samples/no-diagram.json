@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The dashboard reads from a copy of the database, like a notice board that someone updates a moment after the office changes. If you look right after paying, the board hasn't been updated yet.\n\nThat's the plain version, want the high-school one?",
+      "why": "plain prose"
+    },
+    {
+      "answer": "",
+      "why": "empty reply draws nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here it is as a picture:\n\n```mermaid\nflowchart LR\n  n1[\"Payment saved\"] --> n2[\"Copy updated later\"]\n```",
+      "why": "draws a mermaid diagram"
+    },
+    {
+      "answer": "flowchart TD\n  pay --> replica",
+      "why": "unfenced flowchart"
+    }
+  ]
+}

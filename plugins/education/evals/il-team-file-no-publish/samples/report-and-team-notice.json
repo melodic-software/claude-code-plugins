@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "...record...\n\nview: file (plugin default)\nnotice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored",
+      "why": "report line and notice as printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "...record...\n\nview: file (plugin default)",
+      "why": "notice dropped"
+    },
+    {
+      "answer": "notice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored",
+      "why": "report line dropped"
+    },
+    {
+      "answer": "view: artifact (team)\nPublished as a private Artifact.",
+      "why": "published on the team value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

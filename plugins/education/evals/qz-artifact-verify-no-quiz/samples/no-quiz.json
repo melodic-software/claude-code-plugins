@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Verification\n\nThe new slugify strips accents with NFKD and trims edge hyphens. 'Crème brûlée!' gives 'creme-brulee'. One gap: an all-symbol title returns an empty string.",
+      "why": "verifies the code"
+    },
+    {
+      "answer": "",
+      "why": "empty reply has no quiz"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Report: slugify fix\n\n## Context\n...\n\n## Quiz\n\nQ1. Why does slugify call normalize?",
+      "why": "generates a quiz"
+    },
+    {
+      "answer": "Here is a report with the answer key collapsed at the end.",
+      "why": "answer key"
+    },
+    {
+      "answer": "### 5. Quiz\nQ1. What does the regex replace?",
+      "why": "numbered quiz heading"
+    }
+  ]
+}

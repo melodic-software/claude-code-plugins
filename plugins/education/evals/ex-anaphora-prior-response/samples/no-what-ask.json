@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Think of a coat-check ticket. The first time you hand it over, you get your coat. Hand the same ticket over again and the attendant says it was already collected, instead of giving you a second coat.\n\nWhat it's actually doing: the app gives each purchase its own ticket (the idempotency key). If the card company is slow and the app asks again, the server sees the same ticket and hands back the first answer instead of charging again.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic idempotency` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "explains the prior answer"
+    },
+    {
+      "answer": "",
+      "why": "empty reply asks nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What would you like explained?",
+      "why": "re-prompts for a topic"
+    },
+    {
+      "answer": "Happy to help. Which part do you mean, the retry or the key?",
+      "why": "asks which part instead of explaining"
+    },
+    {
+      "answer": "Sure. What are you referring to exactly?",
+      "why": "asks for the referent"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: te-topic-opens-with-one-question
+description: "A new topic workspace opens in coach posture: teach runs the mission interview one question at a time before teaching, and does not lecture the deletion algorithm in its first turn"
+tags: [education, teach, outcome, coach, mission-interview]
+expected_outcome: "The reply asks one mission-interview question (why, goal or success) and waits, without explaining how binary-search-tree deletion works."
+execution:
+  prompt: "/education:teach topic binary-search-trees, I want to understand how deletion works. This run cannot write files."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-deletion-lecture
+    type: regex
+    pattern: '\b(?:in-?order\s+)?(?:successor|predecessor)\b|\btwo children\b|\bleaf node\b[^\n]{0,60}\bremove'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: one-mission-question-first
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Opens with ONE question and waits, rather than front-loading a full explanation", "Leads with questions before explanations, per coach-not-lecturer posture (the mission interview itself is one-question-at-a-time)", "For a new workspace, runs the mission interview (WHY / goal / success) before teaching" and "Does not open by lecturing content before the mission is established or prior state is loaded". PASS if the reply asks exactly one question, and it is a mission-interview question (why the learner wants this, the concrete goal, or what success looks like), after at most a short restatement of what the opening message already said. FAIL if it asks several questions at once, or teaches any part of BST deletion before the mission is settled. Example PASS: "You want to understand BST deletion. What is it for: an interview, a course, or code you are writing?" Example FAIL: "Deletion has three cases: a leaf, one child, and two children, where you swap in the in-order successor. Why are you learning this, and what does success look like?"'

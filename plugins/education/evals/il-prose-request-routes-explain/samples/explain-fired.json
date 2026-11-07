@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain"}}],
+      "why": "routed to explain"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:illustrate"}}, {"tool": "Skill", "input": {"skill": "education:explain"}}],
+      "why": "illustrate hands off to explain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "answered inline, no skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:illustrate"}}],
+      "why": "illustrate only"
+    }
+  ]
+}

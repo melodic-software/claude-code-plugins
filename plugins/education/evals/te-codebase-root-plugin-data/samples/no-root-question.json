@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This codebase workspace will live under the plugin data directory (${CLAUDE_PLUGIN_DATA}/<project-slug>/codebase/auth-flow/), not your Documents folder, since codebase lessons can embed snippets of a private repository. Before I create it: which part of the sign-in flow do you find hardest today?",
+      "why": "plugin data, rationale names Documents, mission question only"
+    },
+    {
+      "answer": "",
+      "why": "empty reply asks nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Where should your learning workspaces live? I'd suggest ~/Documents/Claude Learning.",
+      "why": "asks the root question"
+    },
+    {
+      "answer": "Which folder do you want this workspace in?",
+      "why": "asks where the workspace lives"
+    }
+  ]
+}

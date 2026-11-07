@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: ex-codebase-reads-files
+description: "With no discovery skills in the session, explaining a codebase subsystem reads its files directly and cites them, invokes no discovery skill, and states no design reason the code does not give"
+tags: [education, explain, outcome, codebase, scaffold]
+expected_outcome: "src/billing/retry-scheduler.js is read and cited; the explanation covers the 6, 24 and 72 hour retries and the uncollectible status after three; no discovery skill is invoked, and no reason for the long waits is claimed as fact."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:explain how our invoice retry scheduler works"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: reads-scheduler
+    type: tool_used
+    tool: Read
+    input_match: 'retry-scheduler\.js'
+    min: 1
+  - name: no-discovery-skill
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:discovery:)?(?:explore|trace-intent)"'
+    min: 0
+    max: 0
+    arm: both
+  - name: cites-and-no-invented-why
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Reads the scheduler''s source files this turn and cites at least one file it read" and "Makes no claim about why a design choice was made unless a file it read states the reason". The files are src/billing/retry-scheduler.js (retries 6, 24 and 72 hours after a failed charge, then marks the invoice uncollectible) and src/billing/charge-invoice.js; neither states why the delays are that long. PASS if the reply names at least one of those files and gives no reason for the delay lengths as fact (a hedged guess marked as a guess, or saying the code does not say why, passes). FAIL if no file is named, or the reply states a reason as fact, such as "it waits so the customer has time to update their card" with no hedge. Example PASS: "In src/billing/retry-scheduler.js a failed charge is retried after 6 hours, then 24, then 72; the code does not say why it waits that long." Example FAIL: "The scheduler waits long between tries to avoid card-network fraud flags."'

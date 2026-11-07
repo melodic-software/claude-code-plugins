@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "A predicate is like the filter on a mailing list: only the addresses that pass the rule get the newsletter.\n\nWhat it's actually doing: in a partial index, the predicate is the WHERE condition that decides which rows the index covers.",
+      "why": "'is like a' opener"
+    },
+    {
+      "answer": "Think of a library that keeps a separate shelf only for books on loan. The rule \"on loan\" is the predicate.",
+      "why": "think of opener"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A predicate is a boolean expression evaluated per row; in CREATE INDEX it appears in the WHERE clause and restricts the index to rows for which it is true.",
+      "why": "precise definition, no analogy"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Partial indexes, like other indexes, store a sorted copy of a column for the rows a WHERE condition selects.",
+      "why": "'like' used as 'such as'"
+    }
+  ]
+}

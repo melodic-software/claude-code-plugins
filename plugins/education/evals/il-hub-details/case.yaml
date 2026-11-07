@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: il-hub-details
+description: "Other bands that all hang off one person stay a hub even when each band has details: the details go in the hub diagram's text lines, not in compare columns, and any album diagram is a dated timeline"
+tags: [education, illustrate, outcome, diagram-kind, no-network]
+expected_outcome: "The printed JSON model draws Dave Grohl's other bands as one hub diagram with him at the center, puts band years or roles in that diagram's text lines, uses no compare diagram for them, and dates every point of any album timeline."
+execution:
+  prompt: "/education:illustrate the lead singer of the foo fighters\n\nThe primary source for this topic is this excerpt I saved from the band's official biography: \"Dave Grohl founded Foo Fighters in 1994 and is its lead singer. Before that he drummed for the hardcore band Scream (1986 to 1990) and for Nirvana (1990 to 1994). Alongside Foo Fighters he made the metal side project Probot (2004) and drummed for Them Crooked Vultures (2009). Foo Fighters albums: Foo Fighters (1995), The Colour and the Shape (1997), There Is Nothing Left to Lose (1999), One by One (2002), In Your Honor (2005), Echoes, Silence, Patience and Grace (2007), Wasting Light (2011), Sonic Highways (2014), Concrete and Gold (2017), Medicine at Midnight (2021), But Here We Are (2023).\"\n\nThis run cannot write files, run scripts or reach the web, so print the JSON model you would pass to the builder in a json code block, then the complete markdown record."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: hub-kind
+    type: regex
+    pattern: '"kind"\s*:\s*"hub"'
+    target: last_message
+  - name: details-and-albums
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "The diagram of the other bands has kind hub, not compare, flow or stack, with the singer as the center and each other band as a branch", "Any detail about a band beyond its name (years, role) appears in the hub diagram''s text lines, not in compare columns; a run that gives no per-band detail passes this check" and "If the run draws the band''s albums, that diagram has kind timeline and every point carries its date in when". PASS if the JSON model''s hub diagram has Dave Grohl as center and his other bands (such as Scream, Nirvana, Probot, Them Crooked Vultures) as branches, any years or roles for those bands sit in that diagram''s text lines, and any album diagram is kind timeline with a when on every point. FAIL if the bands are drawn as compare columns, a flow or a stack, the center is not Grohl, or an album diagram is not a timeline or has an undated point. Example PASS: {"kind":"hub","center":"Dave Grohl","branches":["Scream","Nirvana","Probot","Them Crooked Vultures"],"text":["Scream: drums, 1986 to 1990","Nirvana: drums, 1990 to 1994"]}. Example FAIL: {"kind":"compare","columns":[{"heading":"Nirvana","items":["drums","1990 to 1994"]},{"heading":"Probot","items":["2004"]}]}'

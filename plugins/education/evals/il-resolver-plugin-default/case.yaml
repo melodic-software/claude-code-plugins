@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: il-resolver-plugin-default
+description: "With no medium named, the medium option unset and no rendered-views file, illustrate runs the shared view-settings.mjs resolver and prints its report line naming the plugin default (view: file) instead of reading convention files itself. A runner with CI set makes the resolver fall back to the terminal, so run this case outside CI"
+tags: [education, illustrate, outcome, medium, no-network]
+expected_outcome: "Bash runs view-settings.mjs resolve --lane education:illustrate, and the reply prints its report line view: file (plugin default)."
+execution:
+  prompt: "/education:illustrate how a guitar amplifier shapes tone\n\nThe primary source for this topic is this excerpt I saved from an amplifier maker's technical guide: \"The preamp raises the guitar's weak signal; turning up its gain pushes the preamp tubes into clipping, which flattens the peaks of the waveform and adds harmonics heard as distortion. The tone stack (bass, middle, treble controls) is a passive filter that cuts chosen frequency bands. The power amp then drives the speaker, and the speaker cabinet itself rolls off frequencies above about 5 kHz.\"\n\nThis run cannot write files, so skip the build and print the complete markdown record in your reply, then do Step 4 as written."
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+  max_turns: 12
+  timeout_seconds: 600
+graders:
+  - name: report-line-plugin-default
+    type: regex
+    pattern: '\bview:\s*file\s*\(plugin default\)'
+    target: last_message
+  - name: resolver-not-self-read
+    type: llm
+    focus: trace
+    criteria: 'Expectation: "Resolves the medium with the shared view-settings.mjs resolver (resolve --lane education:illustrate), passing the plugin''s medium option, rather than reading rendered-views files itself". PASS if a Bash call runs lib/view-settings.mjs with resolve --lane education:illustrate and an --option argument, and the run does not read or search for rendered-views files itself (no Read, Glob or Grep of a rendered-views path) to decide the medium. FAIL if the resolver never runs, or the run decides the medium by reading rendered-views files on its own.'

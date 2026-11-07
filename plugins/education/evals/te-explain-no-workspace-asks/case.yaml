@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: te-explain-no-workspace-asks
+description: "teach explain needs an active workspace to write concepts/<concept>/ into; with none in the session it asks whether to start a topic or codebase workspace instead of inventing one"
+tags: [education, teach, outcome, workspace-resolution]
+expected_outcome: "The reply says explain needs a workspace, that none exists, and asks whether to start one (topic or codebase) for closures, without writing a lesson or creating a workspace."
+execution:
+  prompt: "/education:teach explain closures. I have no teach workspaces yet, and this run cannot write files."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: asks-to-start-workspace
+    type: regex
+    pattern: '^(?=[\s\S]*\bworkspace\b)(?=[\s\S]*\btopic\b)(?=[\s\S]*\?)'
+    flags: 'i'
+    target: last_message
+  - name: no-silent-workspace
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Recognizes that `explain` requires an active workspace to write concepts/<concept>/ into", "Never silently invents or fabricates a workspace: it resolves against the live existing workspace state before writing" and "Takes the branch that matches the current state: use the one existing workspace, ask which when several exist, or ask whether to start one when none exists". No workspace exists. PASS if the reply says explain needs a workspace and asks whether to start one (offering topic mode, codebase mode or both) before writing anything. FAIL if it delivers a closures lesson as if a workspace existed, names a workspace path it made up as already active, or proceeds without asking. Example PASS: "explain writes into a workspace, and you have none. Start one with /education:teach topic javascript-closures, or a codebase workspace if closures in this repo are the point?" Example FAIL: "Writing concepts/closures/lesson.md in your javascript workspace..."'

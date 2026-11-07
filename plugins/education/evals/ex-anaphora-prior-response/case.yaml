@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ex-anaphora-prior-response
+description: "A bare 'I don't get it.' after a dense assistant answer takes that answer as the object: explain re-reads it and drops its hardest part (the idempotency key) to plain words, without asking what to explain"
+tags: [education, explain, outcome, anaphora, history]
+expected_outcome: "The reply explains the previous assistant message's idempotency-key fix for the double charge in plain words, with an everyday analogy, and does not ask what the user wants explained."
+context:
+  history_file: history.jsonl
+execution:
+  prompt: "I don't get it."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: no-what-ask
+    type: regex
+    pattern: '\b(?:what|which)\b[^\n?]*\b(?:explain\w*|mean|referring|refer to|talking about|lost you|confus\w*)\b[^\n?]*\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: prior-response-is-object
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Treats the empty argument as anaphora: the object is the ASSISTANT''s previous output, not the user''s, and not a re-prompt for a topic" and "Re-reads the prior assistant message this turn rather than recalling or guessing what was said". The previous assistant message explained that the POST /charges handler is not idempotent, so a client retry after a gateway timeout charged twice, and proposed an Idempotency-Key header stored with the response under a unique index. PASS if the reply explains that message, in plainer words, and names at least one of its specific parts (the retry after a timeout, the double charge, or the idempotency key stored with the first response). FAIL if it explains something else, explains the user''s own words, or only asks what to explain. Example PASS: "Think of a coat-check ticket: the first time you hand it over you get your coat; hand the same ticket again and you get told it was already collected. The idempotency key is that ticket for a payment." Example FAIL: "Which part would you like me to explain?"'

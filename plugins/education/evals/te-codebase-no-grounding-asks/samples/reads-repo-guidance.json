@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "**/*"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/AGENTS.md"}}],
+      "why": "reads the agent guidance"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/README.md"}}],
+      "why": "README fallback"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no discovery"
+    },
+    {
+      "answer": [{"tool": "Grep", "input": {"pattern": "auth"}}],
+      "why": "searches but reads no guidance file"
+    }
+  ]
+}

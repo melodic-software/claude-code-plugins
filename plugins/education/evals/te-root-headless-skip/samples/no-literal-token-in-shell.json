@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/education/skills/teach/scripts/list-workspaces.sh\" --default-root"}}],
+      "why": "no placeholder in the command"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ls \"${user_config.workspace_root}\""}}],
+      "why": "pastes the unexpanded placeholder"
+    }
+  ]
+}
