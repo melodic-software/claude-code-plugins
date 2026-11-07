@@ -26,7 +26,9 @@ ERR="$scratch/plan.err"
 
 cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$repo/scripts/"
 : >"$repo/scripts/run-plugin-tests-serial.txt"
-printf 'plugins/knowledge/vendor/repo-analysis\n.github/scripts/pr-verify\nscripts/lane-transcripts\n' >"$repo/scripts/outside-node-packages.txt"
+printf '%s\n' plugins/knowledge/vendor/repo-analysis .github/actions/check-signed-commits .github/actions/check-wip-cap \
+  .github/actions/log-api-budget .github/scripts/lib .github/scripts/pr-merge .github/scripts/pr-verify \
+  scripts/lane-transcripts >"$repo/scripts/outside-node-packages.txt"
 printf 'plugins/fx/evals/fixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 
 # mk <path> [<content>]: a fixture file.
@@ -314,8 +316,16 @@ rc=0
 [[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]] || rc=1
 check "a sibling of a trigger file does not run that package" "$rc"
 
+# The packages with a suite that lists .github/workflows/ and reads every file
+# in it, so no workflow's name reaches them: callers.test.mjs and
+# api-budget-coverage.test.mjs (resolve-config), check-signed-commits.test.mjs,
+# check-wip-cap.test.mjs, log-api-budget.test.mjs, handoff-evidence.test.mjs
+# (lib), pr-merge's workflow.test.mjs and lane-transcripts' pull.test.mjs.
+EVERY_WORKFLOW=".github/actions/resolve-config .github/actions/check-signed-commits .github/actions/check-wip-cap \
+.github/actions/log-api-budget .github/scripts/lib .github/scripts/pr-merge scripts/lane-transcripts"
+
 plan -- .github/workflows/pr-verify.yml
-is "$(key node_packages)" ".github/scripts/pr-verify scripts/lane-transcripts" && is "$(key node)" true
+is "$(key node_packages)" "${EVERY_WORKFLOW% *} .github/scripts/pr-verify scripts/lane-transcripts" && is "$(key node)" true
 check "a change to pr-verify.yml alone runs the pr-verify package" $?
 
 plan -- .github/workflows/pr-unblock.yml
@@ -323,17 +333,16 @@ rc=0
 [[ " $(key node_packages) " != *" .github/scripts/pr-verify "* ]] || rc=1
 check "another workflow does not run the pr-verify package" "$rc"
 
-# pull.test.mjs reads every workflow's upload-lane-transcript calls.
-is "$(key node_packages)" "scripts/lane-transcripts"
-check "any workflow change runs the lane-transcripts package" $?
+plan -- .github/workflows/new-uploader.yml
+is "$(key node_packages)" "$EVERY_WORKFLOW" && is "$(key node)" true
+check "a workflow no suite names runs every package whose suites read every workflow" $?
 
 plan -- .github/actions/check-kill-switch/action.yml
-rc=0
-[[ " $(key node_packages) " != *" scripts/lane-transcripts "* ]] || rc=1
-check "a change outside .github/workflows/ does not run the lane-transcripts package" "$rc"
+is "$(key node_packages)" ""
+check "a change outside .github/workflows/ runs none of the packages that read every workflow" $?
 
 plan -- .node-version
-is "$(key node_packages | wc -w | tr -d ' ')" 8
+is "$(key node_packages | wc -w | tr -d ' ')" 13
 check "a Node pin runs every Node package" $?
 
 plan -- plugins/ps/x.ps1
@@ -371,7 +380,7 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
 plan -- .github/workflows/pr-require-checks.yml
 is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
-  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 8 &&
+  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 13 &&
   is "$(key windows_jobs)" "[]"
 check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 12 legs, and test-windows from the selection" $?
 
