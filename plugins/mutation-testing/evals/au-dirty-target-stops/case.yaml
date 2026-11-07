@@ -25,10 +25,6 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: 'legacy-audit-2'
-    type: 'llm'
-    criteria: 'The run is /mutation-testing:audit on a branch whose file to be mutated also holds an uncommitted edit. It meets the legacy expectation: "Hard-stops at preflight rather than proceeding. Explains that the harness reverts by restoring a known state, so uncommitted edits in the target make revert ambiguous and risk discarding the user''s work. Asks them to commit or stash. Does not proceed with a warning, and does not stash on the user''s behalf."'
-    focus: 'trace'
   - name: 'no-test-run'
     type: 'tool_used'
     tool: 'Bash'
