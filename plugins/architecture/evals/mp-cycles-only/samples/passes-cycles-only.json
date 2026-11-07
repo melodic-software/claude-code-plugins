@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record docs/architecture/dependency-graph.json --out docs/architecture --cycles-only",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --cycles-only --record \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record docs/architecture/dependency-graph.json --out docs/architecture",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no filter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq 'del(.edges[0])' docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record docs/architecture/dependency-graph.json --out docs/architecture",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "edges deleted instead"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\"",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/architecture/dependency-graph.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws > docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the collector's own stdout into the record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > docs/architecture/dependency-graph.md <<'EOF'\n```mermaid\nflowchart LR\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'flowchart LR\\n' >> docs/architecture/dependency-graph.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/n1 --> n2/n1 --> n2; n1 --> n3/' docs/architecture/dependency-graph.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "in place"
+    }
+  ]
+}

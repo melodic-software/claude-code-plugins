@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out \"docs/architecture/dependency-graph.json\" \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out /opt/eval/ws/docs/architecture/dependency-graph.json /opt/eval/ws",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute out path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stdout only, nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out /opt/eval/tmp/dependency-graph.json /opt/eval/ws",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "written outside the architecture directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only"
+    }
+  ]
+}

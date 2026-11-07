@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n```\n\n\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n  n4[\"src/Logging/Logging.csproj\"]\n  n1 --> n4\n```\n\n\n",
+      "why": "edge off the cycle drawn"
+    },
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nC4Component\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n```\n\n\n",
+      "why": "C4 block"
+    },
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n  n5[\"Analytics.Events\"]\n  n1 --> n5\n```\n\n\n",
+      "why": "edge from a using directive"
+    }
+  ]
+}

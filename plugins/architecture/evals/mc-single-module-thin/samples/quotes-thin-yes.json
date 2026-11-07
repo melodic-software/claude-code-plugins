@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "- **Thin result**: yes (`thin=yes`): a single module with no internal edges."
+    },
+    {
+      "answer": "components: container=\"Ledger.Api\" components=1 edges=0 drawn_edges=0 violations=0 aggregated=no thin=yes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Thin result**: yes, a single module."
+    },
+    {
+      "answer": "- **Thin result**: thin=no"
+    }
+  ]
+}
