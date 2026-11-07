@@ -97,6 +97,12 @@ Org architecture (cross-repo decisions, glossary, why each trust link exists): p
 
 To run a skill here and record evidence, use `/app-control:drive claude-code-plugins <plugin>/<skill>`; its control skill is `.claude/skills/control-claude-code-plugins/`.
 
+## Running tests locally
+
+Run node suites with `node --test --test-concurrency=4`, and at most one full `.github` suite (about
+8,200 tests) per machine at a time, across every session on it: two at once can exhaust the host.
+Start one only when the machine is not already loaded.
+
 ## Team standards
 
 Team engineering standards sync from `melodic-software/standards` into `docs/standards/`;
