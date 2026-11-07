@@ -274,12 +274,18 @@ printf '%s\n' "$STUB_CYGPATH_RESULT"
 EOF
 chmod +x "$APPLY/tools/npm" "$APPLY/tools/curl" "$APPLY/tools/uname" "$APPLY/tools/cygpath"
 
-# Install a firecrawl stub in <dir> that reports the version in $STUB_VERSION_FILE.
+# Install a firecrawl stub in <dir> that reports the version in $STUB_VERSION_FILE,
+# logs `update` calls to $STUB_FIRECRAWL_LOG, and fails them when
+# $STUB_UPDATE_FAIL is set.
 place_firecrawl() {
   mkdir -p "$1"
   cat >"$1/firecrawl" <<'EOF'
 #!/usr/bin/env bash
 [[ "${1:-}" == "--version" ]] && cat "$STUB_VERSION_FILE"
+if [[ "${1:-}" == "update" ]]; then
+  printf '%s\n' "$*" >>"$STUB_FIRECRAWL_LOG"
+  [[ -z "${STUB_UPDATE_FAIL:-}" ]] || exit 1
+fi
 exit 0
 EOF
   chmod +x "$1/firecrawl"
@@ -290,6 +296,7 @@ reset_apply() {
   rm -rf "$APPLY/prefix" "$APPLY/launcher"
   mkdir -p "$APPLY/prefix/bin" "$APPLY/launcher"
   : >"$APPLY/npm.log"
+  : >"$APPLY/firecrawl.log"
   printf '%s\n' "$APPLY_PRIOR_RECORD" >"$APPLY_RECORD"
   printf '%s\n' "$1" >"$APPLY/version"
 }
@@ -300,6 +307,7 @@ run_stubbed() {
     PATH="$APPLY/tools:$APPLY/launcher:$2:$PATH" \
       STUB_NPM_PREFIX="${5:-$APPLY/prefix}" \
       STUB_NPM_LOG="$APPLY/npm.log" \
+      STUB_FIRECRAWL_LOG="$APPLY/firecrawl.log" \
       STUB_VERSION_FILE="$APPLY/version" \
       STUB_VERSION_AFTER_INSTALL="$3" \
       STUB_LATEST="2.0.0" \
@@ -328,6 +336,14 @@ assert_exit "npm-owned: exit 0" 0 "$apply_exit"
 assert_eq "npm-owned: install ran once" "install -g firecrawl-cli@latest" "$(cat "$APPLY/npm.log")"
 assert_contains "npm-owned: records the new version" "$(cat "$APPLY_RECORD")" "CLI version at sync: 2.0.0"
 assert_contains "npm-owned: records the rollback target" "$(cat "$APPLY_RECORD")" "rollback target): 1.0.0"
+assert_eq "npm-owned: self-update turned off" "update --disable-auto" "$(cat "$APPLY/firecrawl.log")"
+
+# Turning self-update off fails: nothing recorded, so --check keeps the drift.
+reset_apply "1.0.0"
+place_firecrawl "$APPLY/prefix/bin"
+STUB_UPDATE_FAIL=1 run_stubbed_apply "$APPLY/prefix/bin" "2.0.0"
+assert_apply_wrote_nothing "disable-auto fails"
+assert_contains "disable-auto fails: says so" "$apply_out" "firecrawl update --disable-auto failed"
 
 # A launcher ahead of npm's bin owns the command, behind the new version.
 reset_apply "1.0.0"

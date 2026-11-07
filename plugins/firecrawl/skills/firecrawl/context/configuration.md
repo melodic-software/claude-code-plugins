@@ -2,7 +2,7 @@
 
 Env vars, global flags, and built-in defaults for the `firecrawl-cli` binary. SKILL.md points here from its Configuration pointer.
 
-**Environment variables**: set these three. This skill needs none of the others the CLI reads; see its [Telemetry section](https://github.com/firecrawl/cli#telemetry) (as of 2026-11-03, CLI 1.26.24; recheck when `/firecrawl:update` reports a CLI release). Extended `FIRECRAWL_RETRY_*` and `FIRECRAWL_CREDIT_*_THRESHOLD` vars found in older setups were **specific to the `firecrawl-mcp` server**; the CLI ignores them and uses built-in retry/backoff. Don't set them.
+**Environment variables**: set these three. This skill needs none of the others the CLI reads; see its [Telemetry section](https://github.com/firecrawl/cli#telemetry) (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release). Extended `FIRECRAWL_RETRY_*` and `FIRECRAWL_CREDIT_*_THRESHOLD` vars found in older setups were **specific to the `firecrawl-mcp` server**; the CLI ignores them and uses built-in retry/backoff. Don't set them.
 
 | Var | Purpose | Default |
 |---|---|---|

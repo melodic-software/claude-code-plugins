@@ -25,7 +25,7 @@ Per-command flag detail for the `/firecrawl:firecrawl` skill. SKILL.md carries t
 firecrawl scrape <url> --format <markdown|html|rawHtml|screenshot|json|summary> -o <path>
 ```
 
-Default `--format markdown`. Use `--format json` for structured output (title, metadata, links, content in one file). Use `--format screenshot` for PNG to `-o path.png`. Combine multiple formats with comma-separated values. Output becomes JSON containing each format.
+Default `--format markdown`. Use `--format json` for structured output (title, metadata, links, content in one file). Use `--format screenshot` for PNG to `-o path.png`. Combine multiple formats with comma-separated values. Output becomes JSON containing each format. Main-content extraction is the default; add `--full-page` to keep navigation, headers and footers (the same flag works on `batch-scrape`, `search --scrape` and `parse`).
 
 ## batch-scrape: many known URLs as one job
 
@@ -71,7 +71,7 @@ firecrawl crawl <job-id> --status -o <path>
 firecrawl crawl <job-id> --wait -o <path>
 ```
 
-`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns (as of 2026-11-03, CLI 1.26.24; recheck when `/firecrawl:update` reports a CLI release).
+`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release).
 
 ## map: fast URL discovery, no content
 
@@ -87,7 +87,7 @@ Cheap. Returns a list of URLs the site exposes. Use before `crawl` to estimate s
 firecrawl parse <file> --format <markdown|html|rawHtml|links|images|summary|json|attributes> -o <path>
 ```
 
-Supported file types: `.html`, `.htm`, `.pdf`, `.docx`, `.doc`, `.odt`, `.rtf`, `.xlsx`, `.xls`. Max upload: 50 MB. Uses `/v2/parse` server-side. Multiple formats with commas produce a JSON wrapper; single format produces raw content. `--only-main-content` strips boilerplate. `-Q "<question>"` runs a Q&A pass over the parsed content in one call. Use this instead of WebFetch when the artifact is a binary doc already on disk (downloaded PDF, exported DOCX). No separate text-extraction step needed.
+Supported file types: `.html`, `.htm`, `.pdf`, `.docx`, `.doc`, `.odt`, `.rtf`, `.xlsx`, `.xls`. Max upload: 50 MB. Uses `/v2/parse` server-side. Multiple formats with commas produce a JSON wrapper; single format produces raw content. Boilerplate is stripped by default; `--full-page` keeps it. `-Q "<question>"` runs a Q&A pass over the parsed content in one call. Use this instead of WebFetch when the artifact is a binary doc already on disk (downloaded PDF, exported DOCX). No separate text-extraction step needed.
 
 ## interact: run prompts/code against a prior scrape
 
@@ -159,7 +159,7 @@ firecrawl research related-papers <seedId>... --intent "<what you want>" -o <pat
 firecrawl research read-paper <paperId> --question "<question>" -o <path>
 ```
 
-A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`: the research GitHub endpoint behind `research search-github` is deprecated with a shutdown date ([Firecrawl SDK README](https://github.com/firecrawl/firecrawl/blob/main/apps/python-sdk/README.md), as of 2026-11-03; recheck when `/firecrawl:update` reports a CLI release). Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
+A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`; the CLI has no `research search-github` subcommand. `search-papers --sort date_desc` returns the newest of the most relevant matches. Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
 
 ## doctor: diagnose a failed job
 
