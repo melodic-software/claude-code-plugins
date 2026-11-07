@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: se-retired-team-file-migrates
+description: 'Legacy setup 12. config-written, retired-info, old-file-kept, no-git-add-or-commit and keys-carried (llm) grade the migration; legacy-setup-12 (llm) quotes the legacy expectation. The narration stays in the prompt, and the scaffold commits the retired file. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Reports .claude/mutation-testing.md as retired (INFO), writes docs/conventions/mutation-testing.yaml as plain YAML with every key unchanged, leaves the old file and says to delete it once the YAML is committed, offers add and commit without running them.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup apply. An earlier plugin release configured this repository, so its settings are the yaml block in .claude/mutation-testing.md (tool: manual, diff-target: main, mutate: ["src/**/*.py"], operators: narrow, max-mutants: 12) and there is no docs/conventions/mutation-testing.yaml. Keep every setting as it is.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: 'config-written'
+    type: 'file_exists'
+    path: 'docs/conventions/mutation-testing.yaml'
+  - name: 'retired-info'
+    type: 'regex'
+    pattern: 'retired[^\n]{0,80}\bINFO\b|\bINFO\b[^\n]{0,80}retired'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'old-file-kept'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\b(?:rm|git\s+rm|mv|git\s+mv)\b(?:[^"\\]|\\.)*\.claude/mutation-testing\.md'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-git-add-or-commit'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit(?:\s+-C\s+\S+)?\s+(?:add|commit)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'keys-carried'
+    type: 'llm'
+    criteria: 'PASS only if the run writes docs/conventions/mutation-testing.yaml as plain YAML (no Markdown fence) carrying tool: manual, diff-target: main, mutate src/**/*.py, operators: narrow and max-mutants: 12, each name and value unchanged. FAIL if any key is missing, renamed or changed, or the file is Markdown.'
+    focus: 'trace'
+  - name: 'legacy-setup-12'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup apply run on a scaffolded repository (A Python repo configured only by the retired .claude/mutation-testing.md). It meets the legacy expectation: "Reports .claude/mutation-testing.md as a retired file that no layer reads (INFO), not as the team layer in effect, and names apply as the move. Writes docs/conventions/mutation-testing.yaml as plain YAML, not Markdown, carrying every key of the retired file''s yaml block with its name and value unchanged: tool manual, diff-target main, mutate src/**/*.py, operators narrow, max-mutants 12. Leaves .claude/mutation-testing.md in place and tells the user to delete it once the YAML file is committed. Offers the git add and commit for the new file without running them unasked."'
+    focus: 'trace'

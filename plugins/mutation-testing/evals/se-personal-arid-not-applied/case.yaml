@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: se-personal-arid-not-applied
+description: 'Legacy setup 6. personal-only-not-applied, info-not-fail and promotion-and-floor (llm) grade the verdict; legacy-setup-6 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'personal-only, not applied, as INFO, with promotion to the team layer as the remedy; the record is a policy floor, so a personal entry the team lacks does not suppress.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup check. I added a suppression to .claude/mutation-testing-arid.local.md. Confirm it''s working.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'personal-only-not-applied'
+    type: 'regex'
+    pattern: 'personal-only,?\s+not applied'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'info-not-fail'
+    type: 'regex'
+    pattern: 'personal-only[^\n]{0,80}\bINFO\b|\bINFO\b[^\n]{0,80}personal-only'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'promotion-and-floor'
+    type: 'llm'
+    criteria: 'PASS only if the reply names promotion to the team record as the remedy and says a personal entry for an id the team record lacks does not suppress, because the team layer is a floor. FAIL if it says the entry works or that the suppression record layers like the config.'
+    focus: 'last_message'
+  - name: 'legacy-setup-6'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup check run on a scaffolded repository (A configured Python repo with an empty team arid record and one personal entry). It meets the legacy expectation: "Reports it as `personal-only, not applied` (INFO, not FAIL -- the entry is legal, it just does not suppress) and names promotion to the team layer as the remedy. Explains that this suppression record inverts the cascade default: it is a policy floor, so a personal-layer entry for a finding_id the team layer does not carry does not suppress, because absence from the team layer IS the team''s unsuppressed state. Does not treat it as layering like the config file."'
+    focus: 'trace'

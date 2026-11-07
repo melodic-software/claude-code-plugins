@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/x.yaml",
+            "old_string": "a",
+            "new_string": "operators: narrow"
+          }
+        }
+      ],
+      "why": "unrelated edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/x.yaml",
+            "old_string": "a",
+            "new_string": "min-score: 75"
+          }
+        }
+      ],
+      "why": "adds a threshold"
+    }
+  ]
+}

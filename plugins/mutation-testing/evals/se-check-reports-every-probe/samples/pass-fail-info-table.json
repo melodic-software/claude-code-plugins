@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Tool present | PASS | manual |",
+      "why": "a row"
+    },
+    {
+      "answer": "| 4 | **FAIL** | baseline red |",
+      "why": "bold"
+    },
+    {
+      "answer": "| 3 | Test runner supported | **PASS**: `unittest` takes a path list |",
+      "why": "smoke reply at 492363d: verdict and detail share a cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All checks passed.",
+      "why": "no table"
+    },
+    {
+      "answer": "PASS: tool present",
+      "why": "not a table cell"
+    }
+  ]
+}

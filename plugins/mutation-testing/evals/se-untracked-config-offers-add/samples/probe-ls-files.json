@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --error-unmatch docs/conventions/mutation-testing.yaml",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "no error-unmatch"
+    }
+  ]
+}

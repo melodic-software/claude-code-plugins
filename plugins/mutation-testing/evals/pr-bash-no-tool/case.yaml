@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: pr-bash-no-tool
+description: 'Legacy principles 6. One llm grader per legacy requirement (five) plus no-invented-tool; legacy-principles-6 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'No established tool covers shell; the manual fallback needs one operator (statement-block removal), a green baseline, a bounded test selection, revert on every exit path, and a cited measurement for any unkillable verdict; reference/tooling.md is read and no tool is invented.'
+execution:
+  prompt: 'We write Bash. Is there a mutation testing tool for shell scripts? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'loads-tooling'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/tooling\.md'
+  - name: 'req-single-operator'
+    type: 'llm'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is a single mutation operator, preferring statement-block removal. FAIL if that requirement is missing or only implied.'
+    focus: 'last_message'
+  - name: 'req-green-baseline'
+    type: 'llm'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is a recorded green baseline run before any mutant. FAIL if that requirement is missing or only implied.'
+    focus: 'last_message'
+  - name: 'req-bounded-tests'
+    type: 'llm'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is a bounded test selection rather than the whole suite per mutant. FAIL if that requirement is missing or only implied.'
+    focus: 'last_message'
+  - name: 'req-revert-every-exit'
+    type: 'llm'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is guaranteed revert of the mutated source on every exit path, in any wording: a trap on EXIT, or restoration whether the run passes, fails, errors or is interrupted. FAIL if that requirement is missing or only implied.'
+    focus: 'last_message'
+  - name: 'req-cited-unkillable'
+    type: 'llm'
+    criteria: 'The reply describes a manual mutation-testing fallback for shell scripts. PASS only if one of its requirements is a cited measurement or demonstration for any verdict that a mutant cannot be killed. FAIL if that requirement is missing or only implied.'
+    focus: 'last_message'
+  - name: 'no-invented-tool'
+    type: 'llm'
+    criteria: 'PASS only if the reply says no established mutation-testing tool covers shell or Bash scripts and names no shell mutation tool as if it exists. FAIL if it recommends a named shell mutation tool.'
+    focus: 'last_message'
+  - name: 'legacy-principles-6'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “We write Bash. Is there a mutation testing tool for shell scripts?”. It meets the legacy expectation: "States plainly that no established tool covers shell, and describes the manual/agent-driven fallback with its five requirements: a single operator (prefer statement-block removal), a recorded green baseline, a bounded test selection, guaranteed revert on every exit path, and a cited measurement for any unkillable verdict. Loads reference/tooling.md. Does not invent a tool that does not exist."'
+    focus: 'trace'

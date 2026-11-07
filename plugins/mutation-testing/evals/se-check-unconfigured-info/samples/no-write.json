@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/x.py",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a Write call"
+    }
+  ]
+}

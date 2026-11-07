@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: se-gradle-name-filter-notice
+description: 'Legacy setup 9. proposes-pit, names-name-filter and exercised-refuses-notice (llm) grade the notice; legacy-setup-9 (llm) quotes the legacy expectation. The fixture files move into the scaffold''s heredocs. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Detects the JVM from build.gradle, proposes PIT asking before installing, and in that step says Gradle only filters by name (--tests), so audit --exercised refuses and /testing:cleanup''s mutation gate cannot run while the diff, --full and --paths scopes work; proposes no test-command.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup apply. Set up mutation testing for this Gradle project.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'proposes-pit'
+    type: 'regex'
+    pattern: '\bPIT(?:est)?\b|\bpitest\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-name-filter'
+    type: 'regex'
+    pattern: '--tests\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'exercised-refuses-notice'
+    type: 'llm'
+    criteria: 'PASS only if the reply says that with Gradle, audit --exercised refuses and the /testing:cleanup mutation gate cannot run (only its cannot-fail-only mode), while the diff, --full and --paths scopes still work, and it says this before asking anything about the diff target. FAIL if the notice is missing, comes only at the mutate-paths step, or proposes a {tests} test command for Gradle.'
+    focus: 'last_message'
+  - name: 'legacy-setup-9'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup apply run on a scaffolded repository (A Gradle project with one class and one JUnit test). It meets the legacy expectation: "Detects the JVM ecosystem from build.gradle and proposes PIT with its install step, asking before installing. In that same step, before asking anything about the diff target, names Gradle as the test runner and states that it only filters by name (`--tests`), so `audit --exercised` refuses and `/testing:cleanup`''s mutation gate cannot run (only its cannot-fail-only mode is available), while the diff, `--full` and `--paths` scopes still work; it lets the user stop there. Its check table carries the same capability line as an INFO row under the test-runner probe. Later proposes no `test-command`. Does not defer the notice to the mutate-paths step, and does not propose a `{tests}` form for Gradle."'
+    focus: 'trace'

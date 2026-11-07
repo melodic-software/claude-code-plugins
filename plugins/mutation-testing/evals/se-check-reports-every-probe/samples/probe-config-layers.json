@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Config (effective across layers) | PASS | team |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Config | present |",
+      "why": "near miss"
+    }
+  ]
+}

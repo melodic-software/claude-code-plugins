@@ -1,0 +1,82 @@
+schema_version: "1.1"
+name: se-check-reports-every-probe
+description: 'Legacy setup 1. One regex per legacy probe (nine) plus the table shape; no-write and no-edit grade read-only; legacy-setup-1 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'A read-only PASS/FAIL/INFO table across every probe, one remediation line per FAIL, no mutation analysis, nothing written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup check'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'pass-fail-info-table'
+    type: 'regex'
+    pattern: '\|\s*\**(?:PASS|FAIL|INFO)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-ecosystem'
+    type: 'regex'
+    pattern: '\becosystem\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-tool'
+    type: 'regex'
+    pattern: '\btool\b[^\n]{0,80}\b(?:present|runnable|available|installed|manual)\b|\b(?:present|runnable)\b[^\n]{0,40}\btool\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-runner'
+    type: 'regex'
+    pattern: 'test[- ]runner|\brunner\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-baseline'
+    type: 'regex'
+    pattern: '\bbaseline\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-flakiness'
+    type: 'regex'
+    pattern: '\bflak'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-config-layers'
+    type: 'regex'
+    pattern: '\blayers?\b|\bcascade\b|\beffective config'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-diff-target'
+    type: 'regex'
+    pattern: 'diff[- ]target'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-suppression-record'
+    type: 'regex'
+    pattern: '\bsuppression|\barid\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'probe-tracked'
+    type: 'regex'
+    pattern: '\btracked\b|check-ignore|ls-files'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-setup-1'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup check run on a scaffolded repository (A configured Python repo with an empty arid record). It meets the legacy expectation: "Runs the check action read-only. Reports a PASS/FAIL/INFO table across ecosystem detection, tool presence and runnability, test-runner support, baseline suite health, known flakiness, effective config across cascade layers, diff-target resolution, suppression-record entry hygiene, and tracked-not-ignored status. One remediation line per FAIL. Does not run a mutation analysis and does not write anything."'
+    focus: 'last_message'

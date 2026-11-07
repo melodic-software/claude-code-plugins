@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Run /mutation-testing:setup apply to make it repeatable.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Configure it later.",
+      "why": "no apply"
+    }
+  ]
+}

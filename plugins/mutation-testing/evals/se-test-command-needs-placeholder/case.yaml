@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: se-test-command-needs-placeholder
+description: 'Legacy setup 8. test-command-fail and proposes-placeholder grade the finding, no-write and no-edit read-only; legacy-setup-8 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'test-command is a FAIL for lacking {tests}, with the remediation python -m pytest {tests}; the config is not rewritten.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup check. My mutation config has `test-command: python -m pytest tests/` and nothing else changed.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'test-command-fail'
+    type: 'regex'
+    pattern: 'test[- ]command[^\n]{0,120}\bFAIL\b|\bFAIL\b[^\n]{0,120}test[- ]command'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'proposes-placeholder'
+    type: 'regex'
+    pattern: 'python -m pytest \{tests\}'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-setup-8'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup check run on a scaffolded repository (A configured Python repo whose test-command lacks {tests}). It meets the legacy expectation: "Runs check read-only and reports the test-command as a FAIL because it does not contain the `{tests}` placeholder: `audit --exercised` substitutes the test paths there, so without it every mutant would run against the whole suite. The remediation line proposes `python -m pytest {tests}`. Does not rewrite the config during check."'
+    focus: 'trace'

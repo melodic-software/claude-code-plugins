@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Baseline suite | PASS | green, 0.1 s |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Suite | green |",
+      "why": "near miss"
+    }
+  ]
+}

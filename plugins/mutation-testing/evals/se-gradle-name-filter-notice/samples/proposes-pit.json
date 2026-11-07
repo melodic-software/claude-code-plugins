@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Proposed tool: PIT (gradle-pitest-plugin).",
+      "why": "PIT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposed tool: Stryker.",
+      "why": "wrong tool"
+    }
+  ]
+}

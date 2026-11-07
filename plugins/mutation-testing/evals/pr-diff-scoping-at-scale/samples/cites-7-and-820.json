@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Google reports a median of 7 mutants per changelist against 820 for traditional mutagenesis.",
+      "why": "both numbers"
+    },
+    {
+      "answer": "820 mutants traditionally, against a median of 7 per changelist.",
+      "why": "reversed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Google reports a median of 7 mutants per changelist.",
+      "why": "820 missing"
+    },
+    {
+      "answer": "Traditional mutagenesis made 820 mutants.",
+      "why": "7 missing"
+    }
+  ]
+}
