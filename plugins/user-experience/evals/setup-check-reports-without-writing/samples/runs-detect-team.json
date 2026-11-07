@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/scripts/detect.mjs\" --project \"/w\" --team \"/w/docs/conventions/user-experience.yaml\""
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/scripts/detect.mjs\" --project \"/w\""
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "#304 continues through the rest of the admission gate and is admitted.",
+      "why": "names the item, no objection line"
+    },
+    {
+      "answer": "| #304 | admitted |",
+      "why": "table row"
+    },
+    {
+      "answer": "- **#304:** objection window over.\n- **Objection rows:** none, and no `objection: #304 -> escalated` line.",
+      "why": "the wb1b reply: names the line only to say it is absent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "objection: #304 -> escalated",
+      "why": "the objection line"
+    },
+    {
+      "answer": "No candidate this cycle.",
+      "why": "never names the item"
+    },
+    {
+      "answer": "Report:\n- `objection: #304 -> escalated`",
+      "why": "the line as a report row"
+    },
+    {
+      "answer": "1. objection: #304 -> escalated",
+      "why": "numbered row (review on #13960)"
+    },
+    {
+      "answer": "| objection: #304 -> escalated |",
+      "why": "table cell (review on #13960)"
+    },
+    {
+      "answer": "Cycle report: objection: #304 -> escalated",
+      "why": "mid-line (review on #13960)"
+    }
+  ]
+}

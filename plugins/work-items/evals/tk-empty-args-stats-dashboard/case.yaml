@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: tk-empty-args-stats-dashboard
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'recurring-due-count'
+    type: 'regex'
+    pattern: '\brecurring\b[^\n]{0,30}\bdue\b[^\n]{0,30}\b1\b|\b1\b[^\n]{0,30}\brecurring\b[^\n]{0,40}\b(?:due|overdue|next_due)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'claimed-count'
+    type: 'regex'
+    pattern: '\bclaimed\b[^\n]{0,20}\b1\b|\b1\b[^\n]{0,20}\bclaimed\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'export-count'
+    type: 'regex'
+    pattern: '\bexport\b[^\n0-9]{0,30}\b2\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:track did with empty arguments. PASS only if it satisfies every point: (1) Treats the empty arguments as the stats action, with no missing or unknown action error; (2) Reports both an open-item count and a claimed-item count; (3) Reports the recurring item past its next_due date; (4) Gives a category breakdown of open work; (5) Creates, closes, labels and assigns nothing. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

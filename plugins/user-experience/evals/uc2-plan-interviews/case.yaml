@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: uc2-plan-interviews
-description: "Use case 2 (idea stage): plan interviews to validate an idea, as a screener and a past-behavior discussion guide"
+description: 'Use case 2 (idea stage): plan interviews to validate an idea, as a screener and a past-behavior discussion guide. Also carries legacy plan-user-research 1: methods-note, assumptions-to-test and legacy-plan-user-research-1 (llm) quote its expectations.'
 tags: [use-case, uc2]
 runs: 3
 expected_outcome: "The reply gives a research question, a screener that hides the qualifying answers, and a discussion guide about past behavior, not a product pitch"
@@ -9,3 +9,18 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900
+graders:
+  - name: 'methods-note'
+    type: 'regex'
+    pattern: 'methods?[- ]note|^#{1,6}\s*Methods?\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'assumptions-to-test'
+    type: 'regex'
+    pattern: '^\s*(?:#{1,6}\s*|\*\*)\s*Assumptions to test'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'legacy-plan-user-research-1'
+    type: 'llm'
+    criteria: 'The run writes the instruments for interviews about an unbuilt product. It meets the legacy expectations for its discussion guide: "The guide opens with an Evidence: line labeled assumption-based or mixed" "The guide includes a methods note disclosing that it was AI-drafted and who reviews it" "The questions ask about past behavior rather than hypothetical future use" "The guide ends with an Assumptions to test section".'
+    focus: 'last_message'

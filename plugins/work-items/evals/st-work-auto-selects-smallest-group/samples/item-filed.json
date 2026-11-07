@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work-items/1.md"
+      ],
+      "why": "created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/notes.md"
+      ],
+      "why": "elsewhere"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ]
+}

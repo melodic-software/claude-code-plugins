@@ -977,7 +977,8 @@ jobs:
       # needs a Read call that was refused (capture-probe.mjs reads), and the
       # Write and Grep through links a refused call too, with nothing left
       # where the Write would have landed, so a fence that let one through,
-      # or a leg that never tried, fails the job.
+      # or a leg that never tried, fails the job. A leg that never tried a
+      # Read (reads exits 3) is reported as an untested fence, not an open one.
       - name: Check the probe
         id: probe-check
         if: steps.credential.outputs.present == 'true' && steps.probe.outputs.handoff != 'true'
@@ -1000,10 +1001,19 @@ jobs:
             echo "::error::head code could reach a credential or token, or the probe could not show its scan works (${reach:-no readable result}); no pull request code runs"
             exit 1
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence" "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link"; then
-            echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude, directly or through a link; no pull request code runs"
-            exit 1
-          fi
+          reads=0
+          node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" "$HOME/.claude/pr-verify-probe-fence" "$GITHUB_WORKSPACE/capture-run/probe-environ-link" "$GITHUB_WORKSPACE/capture-run/probe-fence-link" || reads=$?
+          case $reads in
+            0) ;;
+            3)
+              echo "::error::the probe's session made no Read call on a fenced path, so the driver's file-tool fence was not tested; no pull request code runs"
+              exit 1
+              ;;
+            *)
+              echo "::error::the driver's file tools are not fenced off /proc, the runner's temp directory and ~/.claude, directly or through a link; no pull request code runs"
+              exit 1
+              ;;
+          esac
           # The Write and the Grep, read from the transcript as capture-probe.mjs
           # reads a Read: at least one call on the path, and every one refused
           # (listed in permission_denials, or answered with an error).

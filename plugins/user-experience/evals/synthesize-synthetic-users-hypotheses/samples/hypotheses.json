@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "These are hypotheses to test with real people, not findings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: 4 of 5 users found the annual toggle confusing."
+    },
+    {
+      "answer": "Users were confused by the annual toggle."
+    }
+  ]
+}

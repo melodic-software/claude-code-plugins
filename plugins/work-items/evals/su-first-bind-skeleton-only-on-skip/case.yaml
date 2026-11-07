@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-first-bind-skeleton-only-on-skip
+graders:
+  - name: 'skip-recommended'
+    type: 'regex'
+    pattern: '\bskip\w*\b[\s*_`''"]{0,6}(?:(?:marked|is|as)\s+){0,2}[(\[:-]?[\s*_`]{0,4}RECOMMENDED|RECOMMENDED[\s*_`]{0,4}[:)\]-]?[\s*_`''"]{0,6}skip'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Writes only the provider binding, the role-label pass, and the empty {"items": []} schedule skeleton; (2) Runs no candidate inference and no per-item interview when the seeding offer is skipped; (3) Offers seeding once as a single yes/no with skip marked RECOMMENDED, and points at apply --seed-schedule for bulk-seeding later; (4) Still runs the role-label pass as a numbered step anchored after the bind, treating a missing recurring-maintenance label as informational when the schedule carries zero rows. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

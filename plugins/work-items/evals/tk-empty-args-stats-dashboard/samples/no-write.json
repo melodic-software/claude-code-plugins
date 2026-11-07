@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --state open"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "a",
+            "new_string": "b",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a Write call"
+    }
+  ]
+}

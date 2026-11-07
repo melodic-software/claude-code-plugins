@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "In your product that's a Notice (a toast).",
+      "why": "the project name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That's a toast.",
+      "why": "near miss: the general term only"
+    }
+  ]
+}

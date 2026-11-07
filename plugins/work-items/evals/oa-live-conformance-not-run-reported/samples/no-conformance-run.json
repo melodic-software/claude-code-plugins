@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "guards only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/conformance/bindings/tasker.sh"
+          }
+        }
+      ],
+      "why": "reads the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/conformance/run-conformance.sh"
+          }
+        }
+      ],
+      "why": "reads the runner, from review"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/work-item-tracker/conformance/run-conformance.sh --binding tasker"
+          }
+        }
+      ],
+      "why": "runs conformance"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd tools/work-item-tracker/conformance && ./run-conformance.sh --binding tasker"
+          }
+        }
+      ],
+      "why": "runs it after cd"
+    }
+  ]
+}

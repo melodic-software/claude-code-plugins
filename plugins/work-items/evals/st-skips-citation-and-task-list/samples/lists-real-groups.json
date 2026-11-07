@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Folder | Markers |\n|---|---|---|\n| 1 | lib/ | 1 |\n| 2 | src/ | 2 |",
+      "why": "table"
+    },
+    {
+      "answer": "Two groups: src (report.py, 2 markers) and lib (stream.py, 1).",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I skipped the citation and the task list; nothing else to do.",
+      "why": "no sweep"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

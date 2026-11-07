@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: setup-apply-args-block-style
+description: 'Legacy setup 3. apply with complete arguments asks nothing, writes the team file with version 1, jtbd_school and the disable entry as a block mapping, re-runs check, and writes nothing under .claude/ (setup SKILL.md 65-94). no-question grades the reply, file-block-mapping, file-no-flow and file-version-jtbd the team file, reruns-check the detect calls, nothing-under-claude the workspace; legacy-setup-3 (llm) quotes the four legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'No question; docs/conventions/user-experience.yaml written with version: 1, jtbd_school: jobs-to-be-done-theory and routing.disable as `- job: synthesis` / `id: dovetail`; check re-run and its stored values reported, with a note that the untracked file must be committed to reach the team; nothing under .claude/.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/user-experience:setup apply jtbd_school=jobs-to-be-done-theory routing.disable=synthesis:dovetail'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 720
+graders:
+  - name: 'no-question'
+    type: 'regex'
+    pattern: '\?[ \t]*(?:\*\*|__|\*|_)?[ \t]*$'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'file-block-mapping'
+    type: 'regex'
+    pattern: '^\s*- job: synthesis\n\s+id: dovetail$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/user-experience.yaml }
+  - name: 'file-no-flow'
+    type: 'regex'
+    pattern: '\{\s*job:'
+    match: 'not_contains'
+    target: { source: file, path: docs/conventions/user-experience.yaml }
+  - name: 'file-version-jtbd'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*^version: 1$)[\s\S]*^jtbd_school: jobs-to-be-done-theory$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/user-experience.yaml }
+  - name: 'reruns-check'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?detect\.mjs(?:[^"\\]|\\.)*?--team'
+    min: 2
+  - name: 'nothing-under-claude'
+    type: 'file_exists'
+    path: '.claude/**'
+    exists: false
+  - name: 'legacy-setup-3'
+    type: 'llm'
+    criteria: 'The run is /user-experience:setup apply with complete arguments in a repository with no team file. It meets the legacy expectations: "Asks no questions because the arguments are complete" "Writes the disable entry as a block mapping, never as {job: ..., id: ...}" "Re-runs check and reports the stored values from its table" "Writes nothing under .claude/"; the legacy expected output also says it reports that an untracked file must be committed to reach the team.'
+    focus: 'trace'

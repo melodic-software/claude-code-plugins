@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: quiet-unit-test-parse-date
+description: 'Legacy structure 4. A testing task with no flow or information-architecture question does not reach /user-experience:structure. no-structure-fired grades the trace; legacy-structure-4 (llm) quotes the legacy expectation.'
+tags: [quiet, control, legacy]
+runs: 3
+expected_outcome: 'No Skill call reaches user-experience:structure.'
+execution:
+  prompt: 'Write a unit test for the parseDate helper.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: 'no-structure-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-structure-4'
+    type: 'llm'
+    criteria: 'The run is asked to write a unit test for a parseDate helper. It meets the legacy expectation: "No Skill call reaches user-experience:structure". It also fails if the reply turns the request into a flow or navigation structure.'
+    focus: 'trace'

@@ -30,7 +30,10 @@ Standing exits are limited to:
 - or an unrecoverable configuration error (missing binding, rejected argument).
 
 When the snapshot shows only human-gated or escalated items with no PR in flight
-(drain-terminal shape), report that shape in the cycle report and keep looping. The attended queue
+(drain-terminal shape), report that shape in the cycle report and keep looping. Standing mode
+takes no status read ([snapshot-reads.md](snapshot-reads.md)), so the report says the shape comes
+from labels only, per the tracker seam's "Reading an item's status"
+([`tracker-seam.md`](../../../reference/tracker-seam.md)). The attended queue
 owns those items; this lane idles with backoff rather than terminating.
 
 ## Post-snapshot intake report

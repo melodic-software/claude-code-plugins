@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Findings in db/migrations/001_create_users.sql.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"db/migrations/001_create_users.sql\"}}]}}",
+      "why": "the bare audit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"db/migrations/001_create_users.sql\",\"content\":\".x { transition: opacity 200ms ease-out; }\"}}]}}",
+      "why": "a rewrite"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"db/migrations/001_create_users.sql --fix\"}}]}}",
+      "why": "near miss: the right skill asked to fix when the request did not ask"
+    }
+  ]
+}
