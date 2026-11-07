@@ -3512,6 +3512,27 @@ def test_ids_an_id_less_entry_passes_when_the_predecessor_has_no_floor(tmp_path)
     assert "without a [" not in out(result), out(result)
 
 
+def test_ids_a_legacy_id_less_predecessor_keeps_the_carry_checks_failing(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={"open-questions": "- Which color?"},
+    )
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    edit(hop3, "- [R2] Never push to main.\n", "")
+    dropped = strict(hop3)
+    assert dropped.returncode == 1, out(dropped)
+    assert "failed validation" not in out(dropped), out(dropped)
+    assert "[R2] left this file without a retirement" in out(dropped), out(dropped)
+
+
 def test_ids_amend_refuses_an_id_less_entry_once_the_predecessor_carries_the_floor(
     tmp_path,
 ):

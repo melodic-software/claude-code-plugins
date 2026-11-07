@@ -1847,8 +1847,9 @@ def _validate_shape3(
         # chains started before ids existed (no floor, or shape 2) still validate.
         required = (
             spec is RULES
-            or pred is None
-            or (pred.shape == 3 and _fm_int(pred, spec.floor_key) is not None)
+            or previous is None
+            or (pred is not None
+                and pred.shape == 3 and _fm_int(pred, spec.floor_key) is not None)
         )
         for n, entry, title in _id_entries(doc, spec):
             if n is None:
