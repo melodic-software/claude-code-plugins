@@ -23,3 +23,9 @@ graders:
     pattern: '(?:[^\s.!?;:|]+[ \t]+){34,}[^\s.!?;:|]+'
     match: not_contains
     target: last_message
+  - name: no-improvised-term
+    type: regex
+    pattern: '^(?![ \t]*>)(?:[^\n\"“]|\"[^\"\n]*?payout run slipped because the PSP moved the cutoff[^\"\n]*\"|“[^”\n]*?payout run slipped because the PSP moved the cutoff[^”\n]*”|\"(?![^\"\n]*?payout run slipped because the PSP moved the cutoff[^\"\n]*\")|“(?![^”\n]*?payout run slipped because the PSP moved the cutoff[^”\n]*”))*?(?<![\"“‘''`])\bpayout runs?\b(?![\"”’''`])'
+    flags: 'mi'
+    match: 'not_contains'
+    target: last_message

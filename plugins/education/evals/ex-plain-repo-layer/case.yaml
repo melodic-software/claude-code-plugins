@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ex-plain-repo-layer
+description: "A repository docs/conventions/education.yaml setting explain_starting_rung: plain is read through parse-concern-value.sh, the explanation opens at rung 1, and the rung report names the repository file as the layer"
+tags: [education, explain, outcome, starting-rung, scaffold]
+expected_outcome: "The repository layer is read; the mutex explanation opens with an everyday analogy, and the last line reports explain_starting_rung: plain from docs/conventions/education.yaml or the repository."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:explain what a mutex is"
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: read-repo-layer
+    type: tool_used
+    tool: Bash
+    input_match: 'parse-concern-value\.sh|conventions/education\.yaml'
+  - name: rung-report-plain-repo
+    type: regex
+    pattern: 'explain_starting_rung\W{0,4}plain\W{1,4}(?:[^\n]{0,30}?)(?:docs/conventions/education\.yaml|\brepositor(?:y|ies)\b|\brepo\b)[^\n]{0,80}\s*$'
+    flags: 'i'
+    target: last_message
+  - name: opens-with-analogy
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "The explanation opens at rung 1 with an everyday analogy, not a precise peer-level definition". PASS if the first sentence or two explain a mutex through an everyday comparison (for example one key to a single shared room, a talking stick, a single-occupancy restroom) before any technical wording. FAIL if the reply opens with a precise definition in terms of art (mutual exclusion, critical section, lock acquisition) before any analogy. Example PASS: "A mutex is like the one key to a single shared bathroom: whoever holds it goes in, everyone else waits." Example FAIL: "A mutex is a synchronization primitive that enforces mutual exclusion over a critical section."'

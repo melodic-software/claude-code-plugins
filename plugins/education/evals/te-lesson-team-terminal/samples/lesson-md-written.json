@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ["learning/topic/rust-ownership/concepts/borrow-checker/lesson.md", "learning/topic/rust-ownership/concepts/borrow-checker/reference.md"],
+      "why": "markdown lesson and reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["learning/topic/rust-ownership/concepts/borrow-checker/lesson.html"],
+      "why": "HTML lesson"
+    },
+    {
+      "answer": [],
+      "why": "nothing written"
+    }
+  ]
+}

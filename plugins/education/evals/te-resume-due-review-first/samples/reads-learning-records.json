@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/learning/topic/sql-joins/MISSION.md"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/learning/topic/sql-joins/learning-records/0002-inner-join-demonstrated.md"}}],
+      "why": "reads the latest record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/learning/topic/sql-joins/MISSION.md"}}],
+      "why": "mission only, records unread"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

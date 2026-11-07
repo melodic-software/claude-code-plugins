@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "**/*retry*"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/src/billing/retry-scheduler.js"}}],
+      "why": "reads the scheduler"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "explained from recall"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/src/billing/charge-invoice.js"}}],
+      "why": "reads only the caller"
+    }
+  ]
+}

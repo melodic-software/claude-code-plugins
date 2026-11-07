@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "Don't wait for a third copy."
+    },
+    {
+      "answer": "Two copies is already duplication."
+    },
+    {
+      "answer": "This skill pins the threshold at two."
+    },
+    {
+      "answer": "**Yes, it's a problem now, so don't wait for a third copy.** This skill pins the trigger at two. The second copy is already duplication to resolve, not something to tolerate until a third shows up.",
+      "why": "smoke reply"
+    },
+    {
+      "answer": "You don't need to wait for a third doc."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wait for a third copy before consolidating."
+    },
+    {
+      "answer": "It's fine for now; consolidate if a third appears."
+    },
+    {
+      "answer": "Two copies is not yet duplication worth acting on; wait for a third.",
+      "why": "negated verdict"
+    },
+    {
+      "answer": "Having two docs is fine; duplication only matters at three.",
+      "why": "tolerating verdict"
+    },
+    {
+      "answer": "Not a problem yet; wait for a third copy.",
+      "why": "the negation belongs to 'a problem', not to 'wait'"
+    },
+    {
+      "answer": "The threshold is three copies, not two.",
+      "why": "threshold named with the opposite number"
+    },
+    {
+      "answer": "The threshold isn't two; consolidate at the third copy."
+    }
+  ]
+}

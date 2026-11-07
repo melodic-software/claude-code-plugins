@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: te-codebase-root-plugin-data
+description: "A first codebase-mode workspace with no declared or configured root never asks where learning state should live and never offers the Documents home, even with a learner present: it lands under the plugin data directory, because codebase lessons can carry private-repo snippets and Documents is often cloud-synced"
+tags: [education, teach, outcome, root-ladder, codebase]
+expected_outcome: "The reply names the plugin data directory as where the codebase workspace will live, asks no question about where learning state should live, and does not mention a Documents or Claude Learning location."
+execution:
+  prompt: "/education:teach codebase auth-flow. Goal: understand our sign-in flow well enough to fix login bugs. Success looks like tracing one login from the form to the session cookie. Constraint: about an hour a week. I'm at the keyboard and will answer your questions in my next message. No project file declares a teach workspace root, workspace_root is unset, and I have no learning workspaces yet. This run can't write files, so tell me in your reply where this workspace will live and what you need from me before creating it."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-root-question
+    type: regex
+    pattern: '\b(?:where\s+(?:should|shall|would you like|do you want)|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: plugin-data-mode-split
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Does NOT offer or resolve an OS Documents root for the codebase workspace", "Creates the codebase workspace under the plugin-data root when rungs 1-2 are unset" and "States or honors the mode-split privacy rationale rather than treating the Documents default as universal". PASS if the reply says the workspace will live under the plugin data directory (CLAUDE_PLUGIN_DATA or its path) and either gives the reason (codebase lessons can embed repository code, and Documents folders are often cloud-synced) or simply resolves there without offering any other root. Mentioning Documents only to explain why it is not used passes. FAIL if it names or offers another root (Documents, a Claude Learning home, the home directory, the repository) as where the codebase workspace goes, or offers a choice of roots. Example PASS: "It will live under the plugin data directory: codebase lessons can quote this repository, and a Documents folder is often cloud-synced." Example FAIL: "It will go in ~/Documents/Claude Learning/."'

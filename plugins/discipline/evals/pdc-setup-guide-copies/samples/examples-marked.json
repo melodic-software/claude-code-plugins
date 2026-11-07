@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "The triage bot handles issue upkeep, for example adding labels, assigning reviewers and closing stale issues (examples, not a fixed list)."
+    },
+    {
+      "answer": "The triage bot keeps the tracker tidy: labels, reviewer assignment and stale-issue closing are current examples.",
+      "why": "marker after the duties"
+    },
+    {
+      "answer": "The triage bot handles upkeep, e.g. adding labels, assigning reviewers and closing stale issues.",
+      "why": "e.g. followed by a space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The triage bot can add labels, assign reviewers, and close stale issues.",
+      "why": "the closed phrasing dropped but the duties are still a plain list"
+    },
+    {
+      "answer": "The triage bot can do exactly three things: add labels, assign reviewers, and close stale issues."
+    },
+    {
+      "answer": "Install ripgrep first (e.g. with your package manager).\nThe triage bot can add labels, assign reviewers, and close stale issues.",
+      "why": "e.g. marks an unrelated line; the duties stay a plain list"
+    }
+  ]
+}

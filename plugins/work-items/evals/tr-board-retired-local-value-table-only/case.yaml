@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: tr-board-retired-local-value-table-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'resolver-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'view-settings\.mjs[^\n]*\bresolve\b[^\n]*work-items:triage'
+    min: 1
+  - name: 'report-line'
+    type: 'regex'
+    pattern: 'view: terminal \(retired ~/\.claude/rendered-views\.md\)'
+    target: 'last_message'
+  - name: 'retired-notice'
+    type: 'regex'
+    pattern: 'rendered-views\.md[^\n]*\b(?:retired|keeps the view local|no longer read)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-build'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'build-board\.mjs'
+    min: 0
+    max: 0
+  - name: 'no-view-server'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'view-bridge\.sh'
+    min: 0
+    max: 0
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the trace as the account of what /work-items:triage did for the attention view. PASS only if it satisfies every point: (1) Runs the shared medium resolver for lane work-items:triage, passing the plugin''s medium option; (2) Prints the report line naming the retired ~/.claude/rendered-views.md as what decided the medium; (3) Prints the resolver''s notice that the retired file still keeps the view local and where to set it instead; (4) Builds no page, starts no view server and does not call the Artifact tool. A point counts only when the reply states it or the trace plainly shows it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

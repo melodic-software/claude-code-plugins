@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/work-items.yaml: triage_repro_count=0 is invalid; dropping that layer.",
+      "why": "invalid"
+    },
+    {
+      "answer": "0 is not a valid repro count (at least 1).",
+      "why": "not valid"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=0 (repository)",
+      "why": "takes 0"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

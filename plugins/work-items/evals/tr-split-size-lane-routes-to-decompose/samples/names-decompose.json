@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Comment: next step is /work-items:decompose.",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Comment: split this up later.",
+      "why": "unnamed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

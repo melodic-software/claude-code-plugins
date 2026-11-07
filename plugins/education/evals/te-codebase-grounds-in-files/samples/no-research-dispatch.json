@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/hooks/run-hook.sh"}}],
+      "why": "tier 0 only"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Agent", "input": {"description": "Research git hooks", "prompt": "Research how git pre-commit hooks work and summarize best practices."}}],
+      "why": "research dispatch for repo-grounded claims"
+    }
+  ]
+}

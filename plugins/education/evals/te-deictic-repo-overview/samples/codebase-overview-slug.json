@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Workspace: `<plugin data>/run-1a2b-3c4d5e6f/codebase/run-1a2b-overview/`, raw subject name \"run-1a2b overview\".",
+      "why": "basename plus overview under codebase"
+    },
+    {
+      "answer": "I'd create ~/.claude/plugins/data/education/csv-report-9f8e7d6c/codebase/csv-report-overview/ and record \"csv-report overview\".",
+      "why": "expanded root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Workspace: `<plugin data>/csv-report-9f8e7d6c/codebase/this-repo/`.",
+      "why": "slugs the deixis"
+    },
+    {
+      "answer": "Workspace: `<plugin data>/csv-report-9f8e7d6c/topic/csv-report-overview/`.",
+      "why": "topic mode"
+    },
+    {
+      "answer": "Workspace: `<plugin data>/csv-report-9f8e7d6c/codebase/csv-report-overview-2/`.",
+      "why": "suffix after overview"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

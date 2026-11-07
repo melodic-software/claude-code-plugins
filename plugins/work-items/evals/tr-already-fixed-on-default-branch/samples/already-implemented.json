@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Close #218: already implemented in #190.",
+      "why": "implemented"
+    },
+    {
+      "answer": "It is already fixed on main by #190.",
+      "why": "fixed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Confirmed: reproduced twice; applying status: confirmed.",
+      "why": "confirms"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

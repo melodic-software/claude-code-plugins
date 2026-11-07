@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: il-compare-kind
+description: "Two options weighed on the same points are drawn as one diagram of kind compare, one column per option covering the same points in the same order, not as branches of a hub"
+tags: [education, illustrate, outcome, diagram-kind, no-network]
+expected_outcome: "The printed JSON model has a compare diagram with a REST column and a GraphQL column covering the same points (caching, over- or under-fetching, tooling) in the same order, and no hub for the two options."
+execution:
+  prompt: "/education:illustrate REST versus GraphQL for a mobile app's API\n\nThe primary sources for this topic are these excerpts I saved from the HTTP caching specification (RFC 9111) and the GraphQL specification and guides: \"REST exposes one URL per resource, so plain HTTP GET responses can be cached by browsers and CDNs with Cache-Control headers; a screen that needs several resources makes several requests, and each response returns the server's fixed fields, often more than the screen needs. GraphQL exposes one endpoint and the client names exactly the fields it wants in one query, so a screen gets what it needs in one round trip; queries usually go over POST, so HTTP caches do not cache them and clients rely on a normalized client cache or persisted queries. REST tooling is OpenAPI and plain HTTP tools; GraphQL tooling is a typed schema with introspection and code generation.\"\n\nThis run cannot write files, run scripts or reach the web, so print the JSON model you would pass to the builder in a json code block, then the complete markdown record."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: compare-kind
+    type: regex
+    pattern: '"kind"\s*:\s*"compare"'
+    target: last_message
+  - name: same-points-per-column
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "The diagram that weighs REST against GraphQL has kind compare, with one column per option", "The columns cover the same points, so a reader can read across them" and "Does not draw the two options as a hub". PASS if the JSON model''s compare diagram has one REST column and one GraphQL column, item n of each column addresses the same point (for example caching, then fetching too much or too little data, then tooling) so the columns read across, and no hub diagram has REST and GraphQL as its branches. FAIL if there is no compare diagram, the columns cover different points, the points come in a different order in each column, or REST and GraphQL are drawn as branches of a hub. Example PASS: columns [{"heading":"REST","items":["HTTP caches work","Fixed fields per URL","OpenAPI tools"]},{"heading":"GraphQL","items":["Client cache needed","Exact fields per query","Typed schema tools"]}]. Example FAIL: columns [{"heading":"REST","items":["Simple","Cacheable"]},{"heading":"GraphQL","items":["One endpoint","Typed schema","Popular"]}].'

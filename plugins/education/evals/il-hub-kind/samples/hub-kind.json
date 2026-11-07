@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"title\":\"Linus Torvalds and his projects\",\"slug\":\"torvalds-projects\",\"diagrams\":[{\"heading\":\"One main project, two side projects\",\"kind\":\"hub\",\"center\":\"Linux kernel\",\"branches\":[\"Git\",\"Subsurface\"],\"caption\":\"Both side projects grew out of his own needs.\"}]}\n```",
+      "why": "compact JSON"
+    },
+    {
+      "answer": "```json\n{\n  \"diagrams\": [\n    {\n      \"kind\" : \"hub\",\n      \"center\": \"Linux\"\n    }\n  ]\n}\n```",
+      "why": "pretty-printed, space before colon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"diagrams\":[{\"kind\":\"flow\",\"steps\":[\"Linux kernel\",\"Git\",\"Subsurface\"]}]}\n```",
+      "why": "flow, not hub"
+    },
+    {
+      "answer": "The projects form a hub around the Linux kernel.",
+      "why": "the word hub in prose, no model kind"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

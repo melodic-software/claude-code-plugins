@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The config file is conf/client.toml (client/config.py:3); config/app.yaml does not exist."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The config file lives at config/app.yaml.",
+      "why": "the unverified path"
+    },
+    {
+      "answer": "The config is in conf/client.yaml.",
+      "why": "wrong file"
+    }
+  ]
+}

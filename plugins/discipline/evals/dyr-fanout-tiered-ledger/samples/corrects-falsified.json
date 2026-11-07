@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | free tier 120 rpm | corrected: 60 requests per minute | rate_limits.yaml:4 |\n| 4 | 24-hour tokens | corrected: 3600 s | auth.py:3 |\n| 5 | gateway issues refresh tokens | corrected: no refresh tokens are issued | auth.py:4 |\n| 6 | Free 100,000 calls | corrected: 10,000 calls a month | pricing.md:5 |"
+    },
+    {
+      "answer": "Free tier: 60 rpm. Tokens last one hour. The gateway does not issue refresh tokens. Free includes 10000 calls."
+    },
+    {
+      "answer": "Free tier: 60 requests per minute; tokens last 3600 s; refresh tokens: false (ISSUES_REFRESH_TOKENS = False); Free includes 10,000 calls."
+    },
+    {
+      "answer": "| 1 | free tier | rate_limits.yaml:4 | corrected: 60 rpm |\n| 4 | token lifetime | auth.py:3 | corrected: 3600 s |\n| 5 | refresh tokens | auth.py:4 | corrected |\n| 6 | free quota | pricing.md:5 | corrected: 10,000 calls |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Free tier: 120 requests per minute. Tokens last 24 hours. Free includes 100,000 calls.",
+      "why": "old claims"
+    },
+    {
+      "answer": "Free tier: 60 requests per minute. Tokens last 24 hours. Free includes 100,000 calls.",
+      "why": "only one corrected"
+    },
+    {
+      "answer": "| 1 | free tier 120 rpm | corrected: 60 requests per minute | rate_limits.yaml:4 |\n| 4 | 24-hour tokens | corrected: 3600 s | auth.py:3 |\n| 5 | refresh tokens | verified | auth.py |\n| 6 | Free 100,000 calls | corrected: 10,000 calls a month | pricing.md:5 |",
+      "why": "the refresh-token claim is marked verified"
+    },
+    {
+      "answer": "Free tier: 60 rpm. Tokens last 3600 s, not 24 hours; refresh tokens verified. Free includes 10,000 calls.",
+      "why": "the negation belongs to the token lifetime, in the clause before"
+    },
+    {
+      "answer": "Free tier: 60 rpm, tokens last one hour, refresh tokens verified. Free includes 10,000 calls, corrected from 100,000.",
+      "why": "the correction verdict is in the next sentence"
+    },
+    {
+      "answer": "| 1 | free tier 120 rpm | corrected: 60 requests per minute | rate_limits.yaml:4 |\n| 4 | 24-hour tokens | corrected: 3600 s | auth.py:3 |\n| 5 | refresh tokens (not load-bearing) | verified | auth.py |\n| 6 | Free 100,000 calls | corrected: 10,000 calls a month | pricing.md:5 |",
+      "why": "a negation about load-bearing status, not issuance; the claim is marked verified"
+    },
+    {
+      "answer": "Free tier: 60 rpm. Tokens last one hour. Claim 5 (refresh tokens) is not load-bearing. Free includes 10,000 calls.",
+      "why": "the refresh-token claim is not corrected"
+    }
+  ]
+}

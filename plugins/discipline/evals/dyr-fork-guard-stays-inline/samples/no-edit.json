@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Edit call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/gateway/config/rate_limits.yaml",
+            "old_string": "60",
+            "new_string": "120"
+          }
+        }
+      ],
+      "why": "a Edit call"
+    }
+  ]
+}

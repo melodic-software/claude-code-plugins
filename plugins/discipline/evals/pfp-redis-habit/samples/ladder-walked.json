@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Walk the ladder: native first (an in-process Map or the framework's session store), then official, then a vetted third-party store like Redis."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use Redis; it is a vetted third-party store.",
+      "why": "no native rung"
+    },
+    {
+      "answer": "A native in-memory cache works.",
+      "why": "no third-party rung"
+    }
+  ]
+}

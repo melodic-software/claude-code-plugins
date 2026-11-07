@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: qz-library-path-repo-identity
+description: "quiz-me's retention path is keyed on repo identity (the origin remote's basename plus 8 hex of its normalized sha256), sits under the plugin data directory by default and never in the working tree"
+tags: [education, quiz-me, outcome, retention, scaffold]
+expected_outcome: "The reply gives the report path as <plugin data>/widget-shop-7c50a056/quiz-me/reports/<date>-<slug>-<short hash>.html, derived from git remote get-url origin, outside the repository's working tree."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:quiz-me on the slugify fix I just committed. This run cannot write files, so before the report, tell me the full path you would save it to and how you derived each part of that path."
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: repo-identity-slug
+    type: regex
+    pattern: '\bwidget-shop-7c50a056/quiz-me/reports/'
+    target: last_message
+  - name: library-not-repo-tree
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Writes the report to the retention library, never into the consuming repo''s working tree", "Keys the library on repo identity (basename plus a hash of the origin remote), not the checkout path, so pruned worktrees do not strand reports" and "Uses CLAUDE_PLUGIN_DATA by default and report_library_dir only when that userConfig is set". report_library_dir is unset in this run. PASS if the path given sits under the plugin data directory (named as CLAUDE_PLUGIN_DATA or its expanded path), its repo segment comes from the origin remote (widget-shop plus a hash of github.com/example-org/widget-shop), and the reply does not place the report inside the repository''s working tree. FAIL if the path is inside the working tree, the slug comes from the checkout directory''s path, or the reply uses a report_library_dir that is not set. Example PASS: "${CLAUDE_PLUGIN_DATA}/widget-shop-7c50a056/quiz-me/reports/2026-11-07-slugify-strip-accents-1a2b3c4.html: widget-shop is the remote''s basename, 7c50a056 the first 8 hex of sha256 of github.com/example-org/widget-shop." Example FAIL: "./reports/slugify-quiz.html".'

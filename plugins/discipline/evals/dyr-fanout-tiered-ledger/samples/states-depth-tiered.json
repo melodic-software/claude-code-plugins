@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Depth: tiered (from the invocation argument)."
+    },
+    {
+      "answer": "Running at the tiered depth you passed as the argument."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Depth: tiered (the configured default).",
+      "why": "wrong source"
+    },
+    {
+      "answer": "Depth: tiered.",
+      "why": "depth without its source"
+    }
+  ]
+}

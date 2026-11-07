@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/cache.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/cache.py",
+            "content": "def invalidate_user(user_id): ..."
+          }
+        }
+      ]
+    }
+  ]
+}

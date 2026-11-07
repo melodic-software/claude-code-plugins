@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: te-lesson-team-terminal
+description: "A team rendered-views.yaml saying medium: terminal decides a topic lesson's format: teach runs the shared view-settings.mjs resolver before choosing, prints its report line naming team, writes lesson.md and not lesson.html, and offers no artifact publish"
+tags: [education, teach, outcome, medium, lesson-format, scaffold]
+expected_outcome: "Bash runs view-settings.mjs resolve --lane education:teach; the reply prints view: terminal (team); learning/topic/rust-ownership/concepts/borrow-checker/lesson.md is written and no lesson.html; nothing offers to publish the lesson as an artifact."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach explain borrow-checker. My rust-ownership topic workspace is at learning/topic/rust-ownership/ in this directory; use it as the active workspace and write the lesson there. I'm at my desktop with a browser. This run cannot reach the web."
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: report-line-team
+    type: regex
+    pattern: '\bview:\s*terminal\s*\(team\)'
+    target: last_message
+  - name: lesson-md-written
+    type: file_exists
+    path: learning/topic/rust-ownership/concepts/borrow-checker/lesson.md
+  - name: resolver-first-no-html-no-publish
+    type: llm
+    focus: trace
+    criteria: 'Expectations: "Resolves the medium with the shared view-settings.mjs resolver (resolve --lane education:teach) before deciding the lesson format, rather than reading rendered-views files itself", "Writes lesson.md, not lesson.html" and "Does not offer to publish the lesson as an artifact". PASS if a Bash call runs lib/view-settings.mjs resolve --lane education:teach before the lesson file is written, the run does not read docs/conventions/rendered-views.yaml itself to decide the format, no lesson.html is written for borrow-checker, and the final reply makes no offer to publish or share the lesson as an Artifact. FAIL if the resolver never runs or runs only after the lesson is written, the run reads the rendered-views file to decide, a lesson.html is written, or the reply offers to publish the lesson.'

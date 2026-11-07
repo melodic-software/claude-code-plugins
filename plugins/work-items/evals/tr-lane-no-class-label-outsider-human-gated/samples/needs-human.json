@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Applies needs-human in the outcome edit.",
+      "why": "label"
+    },
+    {
+      "answer": "The item ends briefed and human-gated.",
+      "why": "role"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applies agent-ready and status:ready.",
+      "why": "delegable"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Agent call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify claims",
+            "prompt": "Verify the session's claims."
+          }
+        }
+      ],
+      "why": "a Agent call"
+    }
+  ]
+}

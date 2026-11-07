@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: tr-sets-dimensions-from-config
+graders:
+  - name: 'set-dimensions-keys'
+    type: 'regex'
+    pattern: 'set-dimensions\.sh(?=[^\n]*\bsize=quick\b)(?=[^\n]*\bcomplexity=plain\b)(?=[^\n]*\buncertainty=settled\b)'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does with #520''s dimensions. PASS only if it satisfies every point: (1) Runs set-dimensions.sh with size=quick, complexity=plain and uncertainty=settled before applying agent-ready; (2) Takes the dimension keys from models.issue-dimensions and passes no option or field id by hand; (3) Applies no size label such as size: small or tier/quick. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

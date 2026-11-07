@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: te-deictic-repo-overview
+description: "A deictic whole-repo subject ('onboard me to this repo') routes to codebase mode with a stable content name, the repo basename plus 'overview', never a slug of the phrase itself, so repeated requests land in one workspace"
+tags: [education, teach, outcome, codebase, naming, scaffold]
+expected_outcome: "The reply gives a workspace path under codebase/ whose topic slug is <repo-basename>-overview and records '<repo-basename> overview' as the raw subject name; no this-repo slug appears."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach onboard me to this repo. Goal: be able to change the report renderer on my own. Success looks like shipping one rendering fix without help. Constraint: about an hour a week. This run cannot write files, so tell me the full path of the workspace directory you would create and the raw subject name you would record for it."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: codebase-overview-slug
+    type: regex
+    pattern: '^(?![\s\S]*\bthis-(?:repo|repository|codebase)\b)(?=[\s\S]*/codebase/[a-z0-9-]+-overview(?![\w-]))'
+    target: last_message
+  - name: raw-name-recorded
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Routes the whole-repo/deictic subject (''this repo'') to codebase mode via the smart default", "Derives a stable content name (repo basename + scope word) recorded as the raw subject name, instead of slugging the deixis into something like ''this-repo''" and "Resolves two runs of the same deictic request to the same workspace". PASS if the reply records the raw subject name as the repository''s directory name followed by "overview" (for example "csv-report overview" or "<basename> overview"), derived from the repository rather than the wording of the request, so the same request would give the same name again. FAIL if the recorded name is the phrase itself ("this repo", "onboard me"), or a name chosen from the request''s wording that would change with different phrasing.'

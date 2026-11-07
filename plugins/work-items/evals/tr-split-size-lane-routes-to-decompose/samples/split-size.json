@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "set-dimensions.sh 521 size=huge complexity=plain uncertainty=settled",
+      "why": "split size"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "size=long: two hundred turns covers it.",
+      "why": "fits a size"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
