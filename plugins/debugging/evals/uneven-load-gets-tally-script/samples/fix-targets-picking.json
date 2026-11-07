@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Tallied three replay passes with tally.py: workers 2 and 5 hold 540-560 MB every pass, the other four 60-110 MB. The leader never changes, so the next hypothesis is pick_worker in thumbs/dispatch.py: it hashes the album, so every job of a RAW album lands on one worker. Fix: pick by least current load, or hash the job id; raising the memory limit or adding workers would leave the picking code as it is.",
+      "why": "picking code as the hypothesis, fix in the picking code"
+    },
+    {
+      "answer": "Workers 2 and 5 no longer hit their memory limit. `python3 replay.py` now exits 0 with 0 jobs lost on every seed I tried.\n\n## Root cause\n`pick_worker` in `thumbs/dispatch.py:8` hashed only the album name (`crc32(album) % 6`) and ignored how much memory each worker already held. Workers 2 and 5 died under every arrival order I tried (seeds 1, 2 and 3).\n\n## The fix\n- **Routing:** `thumbs/dispatch.py` now has a `Dispatcher`. An album stays on the worker that first took it. When a job would push that worker past 512 MB, the job goes to the least-loaded worker and the album moves there.\n\n## Post-mortem\n- **Prevention (judgment, not consequential):** the design let a routing function decide placement without seeing load. If cache locality has to stay in a real deployment, the dispatcher should also reserve headroom or spill earlier, for example at 80% of the limit. If real capacity is this tight, the workers' flush cadence or the limit itself needs a separate look. I haven't filed this finding anywhere.",
+      "why": "smoke dg2a reply (trimmed): the fix changes the picking code; the limit appears only in a prevention note as a separate look, not as the fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Workers 2 and 5 lead every pass because pick_worker hashes the album. Quick options: raise MEMORY_LIMIT_MB to 1024 for now, or change pick_worker to spread jobs.",
+      "why": "offers raising the limit as one fix"
+    },
+    {
+      "answer": "Workers 2 and 5 always lead, so add two more workers to share the load.",
+      "why": "adding workers as the fix"
+    },
+    {
+      "answer": "`pick_worker` in `thumbs/dispatch.py` hashes only the album, so workers 2 and 5 lead every pass.\n\n## The fix\n- `thumbs/dispatch.py` now sends a job to the least-loaded worker once its album's worker passes 512 MB.\n- `thumbs/cluster.py`: I also raised `MEMORY_LIMIT_MB` to 768 so a heavy night has headroom.",
+      "why": "near miss: a picking fix that also raises the memory limit as part of the fix"
+    }
+  ]
+}

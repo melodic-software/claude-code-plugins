@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: analyze-profile-heapsnapshot-retaining-path
+description: "Reading a session-service heap snapshot names the 4096-byte string as the largest object, follows its holders to SessionCache.lastOrder, Window.sessionCache and the GC roots, says one snapshot cannot show growth, and proposes no code fix (legacy analyze-profile 2). The workspace holds only the snapshot, so a fix is graded through the reply. Needs --scaffold --allow-tools Bash"
+tags: [analyze-profile, converted, no-network]
+expected_outcome: The answer converts heap/session-cache.heapsnapshot to SQLite, identifies the 4096-byte 'order payload' string as the largest object, reports the retaining path SessionCache.lastOrder, then Window.sessionCache, then the GC roots, says a second snapshot taken later is needed to show growth, and proposes no code fix.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/debugging:analyze-profile heap/session-cache.heapsnapshot. Memory on the session service climbs all day. Which object is keeping the big string alive?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: converter-ran
+    type: tool_used
+    tool: Bash
+    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))python\d?(?:\.\d+)?\s+(?:-\w+\s+)*(?:\\")?[^\s"\\]*trace_to_sqlite\.py'
+    min: 1
+    arm: with-only
+  - name: names-4096-byte-string
+    type: regex
+    pattern: '\b(?:4,?096|4(?:\.0)? ?Ki?B)\b[^\n]{0,80}\bstrings?\b|\bstrings?\b[^\n]{0,80}\b(?:4,?096|4(?:\.0)? ?Ki?B)\b'
+    flags: i
+    arm: both
+  - name: names-retaining-path
+    type: regex
+    pattern: '^(?=[\s\S]*\bSessionCache\b)(?=[\s\S]*\blastOrder\b)(?=[\s\S]*\bWindow\b)(?=[\s\S]*\bGC roots?\b)[\s\S]'
+    flags: i
+    arm: both
+  - name: second-snapshot-for-growth
+    type: regex
+    pattern: '\b(?:second|another|later|two|2|follow-up|next)\b[^.\n]{0,40}\b(?:heap )?snapshots?\b|\bcompare\b[^.\n]{0,60}\bsnapshots\b'
+    flags: i
+    arm: both
+  - name: retaining-reference-no-fix
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer meets all three of these: 'Reports the retaining path SessionCache.lastOrder, then Window.sessionCache, then the GC roots'; 'Says a second snapshot taken later is needed to show growth'; 'Does NOT propose or apply a code fix'. Naming the capture the skill asks for to settle the cause, 'a second capture, taken after the suspected code changed', is not a fix proposal, and neither is pointing to /debugging:debug for the fix. FAIL if it names a different holder, skips the growth caveat, or proposes or applies a code change, such as clearing, bounding or weakening lastOrder."

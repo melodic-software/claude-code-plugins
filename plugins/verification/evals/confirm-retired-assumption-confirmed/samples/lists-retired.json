@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Batch upload call: retired by the approved 2026-10-02 re-plan."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Batch upload: falsified."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Cannot quantify improvement without a baseline."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Batching made it 40% faster."
+    },
+    {
+      "answer": "about 3x faster"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-missing-entry-point-holds-verdict
+graders:
+  - name: 'verdict-below'
+    type: 'regex'
+    pattern: 'verdict\W{0,8}(?:NEEDS WORK|NOT VERIFIED)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-api-entry'
+    type: 'regex'
+    pattern: '\bAPI\b[^\n]{0,80}(?:missing|no line|not (?:reported|covered|driven|exercised))|(?:missing|no line|not (?:reported|covered|driven))[^\n]{0,80}\bAPI\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'missing-entry-point'
+    type: 'llm'
+    criteria: 'The reply verifies a timer change after a drive missing one entry point. It meets the legacy expectations: "Does not render CONFIRMED" "Names the API entry point as missing from run-e2e''s report".'
+    focus: 'last_message'

@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: measure-plan-match-routes-to-confirm
+graders:
+  - name: 'names-confirm'
+    type: 'regex'
+    pattern: '/?verification:confirm'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'routes-to-confirm'
+    type: 'llm'
+    criteria: 'The reply answers a did-we-build-the-plan question asked of /verification:measure. It meets the legacy expectations: "Routes plan-vs-implementation / intent-match requests to /verification:confirm" "Reserves itself for measurable-improvement claims (performance or code metrics) with a baseline/compare shape".'
+    focus: 'last_message'

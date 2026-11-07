@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Type: Restructure (High)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Type: Rename"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

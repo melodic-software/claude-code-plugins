@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m importer.csv_import samples/with-bom.csv; echo exit=$?",
+            "description": "Import the BOM sample"
+          }
+        }
+      ],
+      "why": "the README loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 importer/csv_import.py samples/with-bom.csv",
+            "description": "Run the importer by path"
+          }
+        }
+      ],
+      "why": "the importer run by path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from importer.csv_import import read_rows; read_rows('samples/with-bom.csv')\"",
+            "description": "Call read_rows on the BOM sample"
+          }
+        }
+      ],
+      "why": "an inline call into the importer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "xxd samples/with-bom.csv | head -2",
+            "description": "Look at the first bytes"
+          }
+        }
+      ],
+      "why": "reads the sample, never runs the importer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat importer/csv_import.py",
+            "description": "Read the importer"
+          }
+        }
+      ],
+      "why": "reads the importer, never runs it"
+    }
+  ]
+}

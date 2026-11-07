@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Refund journey: FAILED, the seed data has no shipped order."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The journey failed."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

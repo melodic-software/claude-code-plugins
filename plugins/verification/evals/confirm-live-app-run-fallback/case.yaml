@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-live-app-run-fallback
+graders:
+  - name: 'falls-back-to-run-e2e'
+    type: 'regex'
+    pattern: '/?testing:run-e2e'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'suggests-verify'
+    type: 'regex'
+    pattern: '(?<![\w-])/verify\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'delegation-and-fallback'
+    type: 'llm'
+    criteria: 'The reply handles a live-app run after the bundled /run could not launch the project. It meets the legacy expectations: "Delegates live-app observation rather than reimplementing app launch" "Treats /testing:run-e2e as primary for orchestrated apps and the bundled /run as supplementary; surfaces the bundled /verify as a suggestion for the user to run rather than invoking it, scoping the restriction as a per-client runtime gate rather than stating it unscoped or as an absolute" "On bundled /run failure, falls back to /testing:run-e2e and SAYS SO — never silently swaps live observation for a static check". It fails if it lists a call to /verify itself.'
+    focus: 'last_message'

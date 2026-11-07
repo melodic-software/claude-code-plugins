@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Edit call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/reports/export.py",
+            "old_string": "def export(rows):",
+            "new_string": "def export(rows):  # see post-mortem"
+          }
+        }
+      ],
+      "why": "an edit outside any check config"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/pyproject.toml",
+            "old_string": "[tool.ruff]\nline-length = 100\n",
+            "new_string": "[tool.ruff]\nline-length = 100\n\n[tool.ruff.lint.flake8-tidy-imports.banned-api]\n\"datetime.datetime.utcnow\".msg = \"banned\"\n"
+          }
+        }
+      ],
+      "why": "adds a banned-api rule to pyproject.toml"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "setup.cfg",
+            "old_string": "[flake8]",
+            "new_string": "[flake8]\nbanned-modules = datetime.utcnow"
+          }
+        }
+      ],
+      "why": "edits a flake8 config by relative path"
+    }
+  ]
+}

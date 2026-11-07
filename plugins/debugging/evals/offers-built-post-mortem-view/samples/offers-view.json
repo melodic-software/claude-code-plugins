@@ -19,6 +19,10 @@
     {
       "answer": "I could turn this into a clickable page from the post-mortem data.",
       "why": "statement-form offer, could"
+    },
+    {
+      "answer": "I wrote the post-mortem to `notes/checkout-timeout-postmortem.md`. I haven't committed it.\n\nI didn't build the interactive view of the post-mortem. Say if you want it.",
+      "why": "smoke dg1a reply: a statement plus an invitation to say yes, which the old regex missed"
     }
   ],
   "fail": [
@@ -45,6 +49,10 @@
     {
       "answer": "I can also build a regression test for the retry cap.",
       "why": "offers something other than the view"
+    },
+    {
+      "answer": "I wrote the post-mortem to `notes/checkout-timeout-postmortem.md`. I also built the interactive view: /opt/eval/tmp/debugging-views/post-mortem.html. Say if you want changes.",
+      "why": "near miss: an invitation after the view was built unasked"
     }
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Cause:** SessionCache's `lastOrder` field keeps the 4096-byte 'order payload' string alive. Retaining path: (GC roots) -> Window -> sessionCache -> SessionCache -> lastOrder -> string.\n\n**Status:** likeliest explanation from one snapshot. One snapshot cannot show growth: take a second one later under the same load and compare them. A fix with a regression test belongs to /debugging:debug.\n\n**Cleanup:** deleted the temporary SQLite directory.",
+      "why": "holder, path, growth caveat, no fix"
+    },
+    {
+      "answer": "1. **Cause:** `SessionCache.lastOrder` (node id 7) points to the 4096-byte string `\"order payload\"` (node id 9). `SessionCache` hangs off `Window.sessionCache`, a global, which is reachable from the GC roots.\n2. **Status:** This is the likeliest explanation from one snapshot, not a confirmed cause. A single snapshot shows what is held, not what grows. A second snapshot taken some minutes later under the same load would settle it. A third check is a capture taken after changing the code that sets `lastOrder`.\n5. **Cleanup:** I deleted the temporary SQLite directory. I changed no files in the tree and didn't run the program.",
+      "why": "smoke dg1b reply (1 of 3 judges passed): the confirming capture SKILL.md:91 asks for is not a fix proposal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SessionCache.lastOrder holds the 4096-byte string via Window.sessionCache from the GC roots. Fix: set `this.lastOrder = null` after the order is saved, or keep it in a WeakRef.",
+      "why": "proposes a code fix"
+    },
+    {
+      "answer": "SessionCache.lastOrder holds the 4096-byte string via Window.sessionCache from the GC roots, and that is why memory climbs all day.",
+      "why": "no growth caveat; one snapshot read as growth"
+    },
+    {
+      "answer": "SessionCache.lastOrder holds the 4096-byte string via Window.sessionCache from the GC roots. One snapshot cannot show growth; take a second one later. Clear lastOrder after each request.",
+      "why": "near miss: path and caveat, then a one-line fix"
+    }
+  ]
+}

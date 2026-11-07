@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Don't write a third fix yet. Both fixes assumed one thing: the database is timing out. Check that claim with the replay loop: log every insert's outcome and duration for last night's batch and count timeouts. If no write times out, the rows are lost somewhere else (the batch reader or a filter), and the timeout and retry changes come out.",
+      "why": "names the belief, then checks it directly before any fix"
+    },
+    {
+      "answer": "Both attempts share one belief: the database is timing out on writes. The next step is to test that belief, not build on it: add a tagged log line around the insert that records the error type, replay the batch, and see whether any write times out at all.",
+      "why": "belief in one sentence, direct check proposed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Since the timeout and the retry did not help, the third fix should batch the inserts in groups of 500 so each transaction finishes inside the timeout.",
+      "why": "a third fix built on the timeout belief, no check"
+    },
+    {
+      "answer": "The third fix should be to add a dead-letter queue for rows that fail to insert, then replay them.",
+      "why": "never names the shared belief and proposes another fix"
+    }
+  ]
+}
