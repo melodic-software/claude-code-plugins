@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def test_parse_price_reads_dollars_and_cents():\n    assert parse_price(\"$12.50\") == Decimal(\"12.50\")\n\n\ndef test_parse_price_ignores_thousands_separators():\n    assert parse_price(\"$1,200.50\") == Decimal(\"1200.50\")\n",
+      "why": "a documented-name test with a separator input"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_parse_price_reads_dollars_and_cents():\n    assert parse_price(\"$12.50\") == Decimal(\"12.50\")\n",
+      "why": "the scaffolded file, no new test"
+    },
+    {
+      "answer": "def test_parse_price_reads_dollars_and_cents():\n    assert parse_price(\"$12.50\") == Decimal(\"12.50\")\n\n\ndef test_thousands():\n    assert parse_price(\"$1,200.50\") == Decimal(\"1200.50\")\n",
+      "why": "separator test outside the documented name pattern"
+    }
+  ]
+}

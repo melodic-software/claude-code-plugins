@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "package intervals\n\nimport (\n\t\"testing\"\n\n\t\"pgregory.net/rapid\"\n)\n",
+      "why": "the library go.mod already requires"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "package intervals\n\nimport (\n\t\"testing\"\n\t\"testing/quick\"\n)\n",
+      "why": "a different property library than the module uses"
+    },
+    {
+      "answer": "package intervals\n\n// uses pgregory.net/rapid later\nimport \"testing\"\n",
+      "why": "named in a comment, not imported"
+    }
+  ]
+}

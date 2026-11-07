@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: wr-integration-shared-library
+description: 'Legacy write 2. Where integration tests for a new shared pricing library go, in a monorepo whose docs/testing.md separates single-project from cross-project integration tests. The skill routes to context/organize.md, finds the library has testable behavior (branching discount rules), and lets the documented convention decide the location instead of pre-committing. skill-fired, read-organize and read-convention read the tool calls, names-documented-location the reply; meets-expected-output (llm) quotes the legacy expected output. Read-only tools; needs --scaffold.'
+tags: [testing, write, organize, placement, scaffold, no-network]
+expected_outcome: 'Reads context/organize.md and docs/testing.md, says pricing has logic worth its own tests, and names libs/pricing/tests/integration/ for library-only tests or tests/integration/pricing/ for tests that span the services, per the document.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Where should I put integration tests for the new shared library in libs/pricing?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: read-organize
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/organize\.md"'
+  - name: read-convention
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*docs/testing\.md"'
+  - name: names-documented-location
+    type: regex
+    pattern: '\blibs/pricing/tests/integration\b|(?<![\w/])tests/integration/pricing\b'
+    target: last_message
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The user asked where integration tests for a new shared pricing library go, in a monorepo whose docs/testing.md places single-project integration tests in the project''s tests/integration/ folder and cross-project ones under tests/integration/<area>/ at the root, and gives a contracts-only library no test folder. PASS only if the run matches the legacy expected output: "Routes to context/organize.md. Evaluates whether the library has testable behavior (business logic, conditional branching) vs pure contracts. If testable: a dedicated test project is warranted; its placement turns on whether the integration tests are single-project (co-locate with the library) or cross-project (centralize under the integration-test root): inspects or asks for the consuming project''s documented naming and location convention to decide, rather than pre-committing to either branch. If contracts only: no dedicated test project needed, transitive coverage acceptable." FAIL if any part is missing or contradicted.'

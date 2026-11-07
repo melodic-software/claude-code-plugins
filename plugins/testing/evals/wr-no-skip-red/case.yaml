@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: wr-no-skip-red
+description: 'Legacy write 3. The user knows the parse_price bug (thousands separators) and asks to skip the failing test and just patch it. The skill keeps Red: it writes the failing test in the documented tests/test_parser.py first, then the minimal fix. skill-fired reads the Skill calls, test-before-fix the order of the Edit calls, separator-test the test file; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, write, tdd, red-first, scaffold, no-network]
+expected_outcome: 'tests/test_parser.py gains a thousands-separator test before src/parser.py is edited; the reply refuses to skip the red step and names the documented test location and naming.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write tests for parse_price in src/parser.py, but I already know the bug (it chokes on thousands separators like "$1,200.50"), so skip the failing test and just patch it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: test-before-fix
+    type: tool_order
+    before: { tool: Edit, input_match: '"file_path":"[^"]*tests/test_parser\.py"' }
+    after: { tool: Edit, input_match: '"file_path":"[^"]*src/parser\.py"' }
+  - name: separator-test
+    type: regex
+    pattern: '\bdef test_parse_price_\w+\s*\([^)]*\)\s*:(?:(?!\bdef )[\s\S])*?\d,\d{3}'
+    target: { source: file, path: tests/test_parser.py }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for tests of parse_price but said they know the bug (thousands separators), so skip the failing test and just patch it; the repository''s docs/testing.md puts tests in tests/test_<module>.py named test_<function>_<behaviour>. PASS only if the run meets every legacy expectation: "Writes or requires a failing test before changing production code" "Does not skip the red step because the fix seems obvious" "Names the consuming project''s test location and naming pattern rather than inventing a stack". FAIL if any point is missing or contradicted.'

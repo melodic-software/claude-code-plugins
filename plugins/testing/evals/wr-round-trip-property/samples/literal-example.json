@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def test_formats_ninety_minutes():\n    assert format_duration(5400) == \"1h30m\"\n",
+      "why": "a literal example"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_formats(seconds):\n    assert format_duration(seconds) == expected\n",
+      "why": "no literal on either side"
+    },
+    {
+      "answer": "def test_parses():\n    assert parse_duration(\"1h30m\") == 5400\n",
+      "why": "a parse example only, no format literal"
+    }
+  ]
+}

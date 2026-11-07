@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@given(st.integers(min_value=0, max_value=10**6))\ndef test_round_trip(seconds):\n    assert parse_duration(format_duration(seconds)) == seconds\n",
+      "why": "parse of format equals the input"
+    },
+    {
+      "answer": "def test_round_trip(n):\n    assert n == parse_duration(format_duration(n))\n",
+      "why": "operands swapped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_round_trip(n):\n    assert parse_duration(format_duration(n)) == parse_duration(format_duration(n))\n",
+      "why": "compares the round trip to itself"
+    },
+    {
+      "answer": "def test_round_trip(n):\n    assert format_duration(parse_duration(text)) == expected\n",
+      "why": "the reverse direction against a separate expected value"
+    }
+  ]
+}
