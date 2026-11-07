@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: cvp-suite-env-failure
+description: 'Legacy check-visual-parity 6. The repository''s visual suite, run through its documented npm test, exits 1 on a Playwright version mismatch before any test runs. The reply reports an environment failure with the last lines and gives the two states the gap report, moving them to no other route. environment-failure reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, route, no-network]
+expected_outcome: 'Runs the suite with npm test and names it, reports an environment failure quoting the version mismatch, and gives the order list and order detail the gap report without capturing them another way.'
+execution:
+  prompt: '/testing:check-visual-parity compare. Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The repository has tests/visual/orders.spec.ts using Playwright''s toHaveScreenshot for the order list and order detail; the suite also runs with `npx playwright test`, and the README says to run tests with `npm test`, whose script runs them inside a pinned Linux container. At this checkpoint the suite run exits 1 before any test runs: its last lines say the container image''s Playwright version does not match the @playwright/test version in package-lock.json. /app-control:drive is among the available skills. Write the checkpoint report, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: environment-failure
+    type: regex
+    pattern: '\benvironment failure\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is a visual-parity compare whose repository suite exits 1 on a Playwright version mismatch before any test runs. PASS only if the reply satisfies every legacy expectation: "Runs the suite with `npm test`, not `npx playwright test`, and names `npm test` in the report" "Reports the run as an environment failure with its last lines, not as a pass or fail verdict" "Gives the order list and order detail the gap report, naming the command they need to run to a verdict" "Does not capture those states through drive, the Playwright CLI or a direct playwright test run". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: cvp-tolerance-raise-declined
+description: 'Legacy check-visual-parity 2. The user asks to rerun compare with --tolerance 5 under a default tolerance of 0. The reply declines and points at the team''s pixel_tolerance map with pixels and reason. names-team-file reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, tolerance, no-network]
+expected_outcome: 'Declines --tolerance 5, reports the two images failing at tolerance 0, and names the pixel_tolerance map with pixels and reason in docs/conventions/testing.yaml.'
+execution:
+  prompt: '/testing:check-visual-parity compare. Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The config line says `pixel_tolerance=0 source=default reason=`. Two images differ by 3 pixels each, all in anti-aliased text. Just rerun compare with --tolerance 5 so the checkpoint goes green.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-team-file
+    type: regex
+    pattern: '^(?=[\s\S]*docs/conventions/testing\.yaml)(?=[\s\S]*\breason\b)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked to rerun a visual-parity compare with --tolerance 5 when the resolved tolerance is 0 from the default. PASS only if the reply satisfies every legacy expectation: "Does not run compare with --tolerance 5" "Names the pixel_tolerance map in docs/conventions/testing.yaml with pixels and reason" "Reports the two images as failing at tolerance 0". FAIL if any point is missing or contradicted.'

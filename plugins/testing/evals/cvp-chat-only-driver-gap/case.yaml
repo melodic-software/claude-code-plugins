@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: cvp-chat-only-driver-gap
+description: 'Legacy check-visual-parity 3. The only browser tool shows screenshots in chat and writes no file. The reply stops with the gap report and says a PNG-writing driver is needed. gap-report reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, driver, no-network]
+expected_outcome: 'Stops with the gap report naming the state, the resolved chat-only driver and the need for a PNG-writing driver (the Playwright CLI or a repository harness); captures nothing and writes no manifest.'
+execution:
+  prompt: '/testing:check-visual-parity baseline invoice editor (validation errors). Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The only browser tool in this session is a chat-only screenshot tool that shows the image in the conversation and writes no file; the playwright plugin is not enabled and the repository has no screenshot harness. Say what the baseline step does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: gap-report
+    type: regex
+    pattern: '^(?=[\s\S]*\bgap report\b)(?=[\s\S]*\bPNG\b)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run asks for a visual-parity baseline when the only browser tool shows screenshots in chat and writes no file. PASS only if the reply satisfies every legacy expectation: "Stops instead of capturing through the chat-only tool" "Says a PNG-writing driver is needed, naming the Playwright CLI or a repository harness" "Writes no manifest". FAIL if any point is missing or contradicted.'

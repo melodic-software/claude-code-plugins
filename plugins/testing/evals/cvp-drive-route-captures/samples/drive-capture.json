@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Capture with `/app-control:drive capture --kind screenshot --out .work/x/visual-parity/baseline/`, rename it to invoice-list-empty.png; route: drive.",
+      "why": "drive capture"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Capture with `/playwright:playwright screenshot` into the baseline directory.",
+      "why": "Playwright CLI"
+    },
+    {
+      "answer": "Use /app-control:drive to launch, then take the screenshot with the Playwright CLI.",
+      "why": "drive launch, CLI capture"
+    }
+  ]
+}
