@@ -14,9 +14,10 @@ bump: patch
     - `e2e-workspace-none-collide`: also accepts "port 5173 may already be taken".
     - `hand-off-target` (`e2e-mask-hand-off-source-fails`, `e2e-mask-hand-off-none-source-publishes`): also accepts the path named inside the trusted root, "`.claude/skills/control-browser/SKILL.md` inside `/srv/trusted/shop`"; the checkout's copy still fails.
     - `e2e-hub-driver-wins`: also accepts "playwright. It comes from the control skill's hub".
-    - The three own-instance cases: also accept "is not reused" and "does not adopt it".
+    - The three own-instance cases: also accept "is not reused" and "does not adopt it", and now also require the reply to name the case's own instance port (51877, or 49210 in `e2e-own-instance-auto-unattended`), so a reply about another app's port fails.
     - `e2e-worst-case-word-scenario`: also accepts the code-span "not the `worst-case` action".
     - `e2e-native-run-disabled`: also accepts "invocation refused (disableBundledSkills" when more reason text follows inside the parentheses.
   - Prompt fixes after the first smoke data, where both graders failed because of how the case was built:
     - `e2e-session-name-slug` keeps a blank line after the scenario. With the instructions appended on the same line, the run dropped "; rm -rf tmp" as an instruction.
+    - Every narrated scenario now ends in a full stop before the appended instructions (the four `e2e-worst-case-*` cases, `e2e-affected-unattended-drive`, `e2e-config-layers-delegated`, `e2e-nothing-affected`, `e2e-summary-scan-hit`), so the instructions do not run on into the scenario's last sentence.
     - `e2e-every-entry-point` states that each entry point drove and passed, because the run would not invent results.
