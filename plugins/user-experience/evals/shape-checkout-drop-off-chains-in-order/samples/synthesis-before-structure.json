@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure"
+          }
+        }
+      ]
+    }
+  ]
+}

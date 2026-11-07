@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Add breadcrumbs and a flatter tree."
+    },
+    {
+      "answer": "Collapse levels: put Projects at the top."
+    },
+    {
+      "answer": "A shallower tree with three levels."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Six levels is deep; keep the structure and add search."
+    },
+    {
+      "answer": "Yes: six levels against a guide of three levels."
+    },
+    {
+      "answer": "Yes, it is too deep."
+    }
+  ]
+}

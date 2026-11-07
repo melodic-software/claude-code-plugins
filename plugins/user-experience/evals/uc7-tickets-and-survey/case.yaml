@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: uc7-tickets-and-survey
-description: "Use case 7 (live): summarize support tickets and open survey answers into themes traced to their sources, with AI-suggested codes and no identifying data"
+description: 'Use case 7 (live): summarize support tickets and open survey answers into themes traced to their sources, with AI-suggested codes and no identifying data. Also carries legacy synthesize 1: evidence-label, not-reflexive-ta and legacy-synthesize-1 (llm) quote its expectations.'
 tags: [use-case, uc7]
 runs: 3
 expected_outcome: "Themes traced to ticket and survey ids with counts, offered as AI-suggested codes for a person to review, carrying an AI-use disclosure and no names or emails"
@@ -11,3 +11,19 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900
+graders:
+  - name: 'evidence-label'
+    type: 'regex'
+    pattern: 'Evidence\**:\**\s*[*`]*(?:assumption-based|evidence-based|mixed)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'not-reflexive-ta'
+    type: 'regex'
+    pattern: '(?<!\bnot )(?<!\bnever )(?<!n[''’]t )(?<!\bno )(?<!\bthan )(?<!\bnot a )reflexive thematic analysis'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-synthesize-1'
+    type: 'llm'
+    criteria: 'The run summarizes support tickets and survey answers into themes. It meets the legacy expectations: "Each theme cites the source ids or counts that support it" "The response presents codes as AI suggestions for a human analyst role to review" "The response does not call the method reflexive thematic analysis" "The record opens with Evidence: and AI use: lines".'
+    focus: 'last_message'

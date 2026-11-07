@@ -46,6 +46,12 @@ When every remaining open item in the snapshot is human-gated or escalated and n
 escalated items. Apply the post-snapshot intake report below
 before stopping.
 
+Human-gated here means held for a person per the tracker seam's "Reading an item's status"
+([`tracker-seam.md`](../../../reference/tracker-seam.md)): the human-gated role label, a hold-state
+label, or a status in `WIT_HUMAN_FLOOR_STATUS_STATES`, read from the snapshot's status read
+([snapshot-reads.md](snapshot-reads.md)), whose values count only trusted setters when the binding
+configures that.
+
 ## Cordoned items
 
 An open retained item whose row carries a `milestone` listed in `cordoned-milestones` counts toward

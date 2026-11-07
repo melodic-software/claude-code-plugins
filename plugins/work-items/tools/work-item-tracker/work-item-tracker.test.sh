@@ -467,6 +467,7 @@ cat >"$FIELD_DIR/get-statuses.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "get-statuses $*" >>"$FIELD_LOG"
 [[ "$FIELD_STATUSES" != "fail" ]] || { echo "rate limit" >&2; exit 8; }
+[[ "$FIELD_STATUSES" != "config" ]] || { echo "status_trust: trust list unread" >&2; exit 3; }
 printf '{"schema_version":"1.0","statuses":%s}\n' "$FIELD_STATUSES"
 EOF
 FIELD_BINDING="$TEST_TMPDIR/fieldfake.json"
@@ -496,6 +497,13 @@ run_field_frontier field fail --autonomous
 assert_eq "a failed status read fails closed with the adapter's exit" "8" "$RC"
 assert_eq "a failed status read prints no envelope" "" "$OUT"
 assert_contains "a failed status read says so" "$ERR" "Work status values unread"
+
+run_field_frontier field config --autonomous
+assert_eq "a status read refused for its trust configuration fails closed with exit 3" "3" "$RC"
+assert_eq "a status read refused for its trust configuration prints no envelope" "" "$OUT"
+
+run_field_frontier field '{"fieldfake:o/r#1":null,"fieldfake:o/r#2":"needs-owner-decision","fieldfake:o/r#3":null,"fieldfake:o/r#4":null,"fieldfake:o/r#5":"ready"}' --autonomous
+assert_eq "an answered hold on an item without a hold label drops it from the frontier" "#5" "$(ids)"
 
 run_field_frontier unreachable "$FIELD_ALL" --autonomous
 assert_eq "an unread status storage fails closed with the adapter's exit" "8" "$RC"

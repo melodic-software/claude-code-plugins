@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Seed the recurring schedule now? yes / **skip** (RECOMMENDED)",
+      "why": "bold option with marker"
+    },
+    {
+      "answer": "Offer once: RECOMMENDED: skip. The skeleton alone stops the degradation.",
+      "why": "marker first"
+    },
+    {
+      "answer": "makes the seeding offer once, with skip marked RECOMMENDED.",
+      "why": "smoke reply shape the original grader rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Seed the recurring schedule now? yes (RECOMMENDED) / skip",
+      "why": "near miss: yes marked RECOMMENDED"
+    },
+    {
+      "answer": "The user skipped seeding, so only the skeleton is written.",
+      "why": "no RECOMMENDED marker on skip"
+    }
+  ]
+}
