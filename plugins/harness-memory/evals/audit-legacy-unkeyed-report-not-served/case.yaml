@@ -6,7 +6,7 @@ graders:
   - name: 'runs-resolver'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\b(?:bash|sh)\s+(?:-\w+\s+)*|[;&|(]\s*))?(?:\\")?[^"\s;&|]*state-key\.sh'
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:(?<![\w./-])(?:bash|sh)\s+(?:-\w+\s+)*|[;&|(]\s*))?(?:\\")?[^"\s;&|]*state-key\.sh'
   - name: 'unattributable'
     type: 'regex'
     pattern: '\bunattributabl\w*|\bcan(?:not|''t) be attributed|\bno (?:project|repo\w*) segment|\b(?:nothing|no way to tell|can(?:not|''t) tell|does(?:n''t| not) (?:record|say|show))\b[^\n]{0,30}\bwhich (?:repo\w*|project|checkout)'

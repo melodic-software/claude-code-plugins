@@ -6,7 +6,7 @@ graders:
   - name: 'runs-resolver'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\b(?:bash|sh)\s+(?:-\w+\s+)*|[;&|(]\s*))?(?:\\")?[^"\s;&|]*state-key\.sh'
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:(?<![\w./-])(?:bash|sh)\s+(?:-\w+\s+)*|[;&|(]\s*))?(?:\\")?[^"\s;&|]*state-key\.sh'
   - name: 'names-key-scheme'
     type: 'regex'
     pattern: 'repo[\s_-]?identity>?[\s*_`]{0,3}/[\s*_`]{0,3}<?worktree[\s_-]?discriminator|^\s*identity:[^\n]*\n\s*discriminator:[^\n]*\n\s*key:'
