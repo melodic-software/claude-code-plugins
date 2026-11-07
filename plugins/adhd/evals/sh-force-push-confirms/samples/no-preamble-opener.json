@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "This overwrites main on the remote: everyone else's commits after your branch point are lost. Confirm main has nothing you need?\n\nAfter you confirm:\n```\ngit push --force-with-lease origin HEAD:main\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sure! This overwrites main on the remote: everyone else's commits after your branch point are lost. Confirm main has nothing you need?\n\nAfter you confirm:\n```\ngit push --force-with-lease origin HEAD:main\n```"
+    },
+    {
+      "answer": "Let me explain the risk first. This overwrites main on the remote: everyone else's commits after your branch point are lost. Confirm main has nothing you need?\n\nAfter you confirm:\n```\ngit push --force-with-lease origin HEAD:main\n```"
+    }
+  ]
+}

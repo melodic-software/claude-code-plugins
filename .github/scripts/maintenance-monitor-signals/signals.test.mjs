@@ -689,6 +689,34 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   assert.equal(holdJob(lane.jobs, "record"), false);
 });
 
+test("signal 13: pr-merge's lane token hold parses to one fixed reason, for either cause, read from the action", () => {
+  // The notice the action prints, read from the action itself, so producer
+  // and parser are one contract.
+  const action = readFileSync(new URL("../../actions/request-lane-token/action.yml", import.meta.url), "utf8");
+  const [, msg] = /^ +msg="(lane-token-held: [^"]*)"$/m.exec(action) ?? [];
+  assert.ok(msg, "the action builds a lane-token-held message");
+  assert.match(action, /^ +echo "::notice title=Lane token hold::\$msg"$/m);
+  // The budget cause appends the rate-limit clause; the 3-request cap appends nothing.
+  const pastBudget = "; GitHub's secondary rate limit (core) resets at 2026-11-06T21:00:00Z, past the 1-minute retry budget";
+  for (const clause of [pastBudget, ""]) {
+    const line = `::notice title=Lane token hold::${msg.replace("${rate_limit}", clause)}`;
+    assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "lane token rate-limited" }, clause || "attempt cap");
+  }
+  // Another title's text, and the kill-switch stop's notice, parse to nothing.
+  assert.equal(parseHold("pr-merge", msg), null);
+  assert.equal(parseHold("Lane token hold", "lane-token-stopped: the broker refused the token because a lanes kill switch is on"), null);
+  const lane = HOLD_LANES.find((l) => l.lane === "pr-merge");
+  assert.equal(lane.workflow, "pr-merge.yml");
+  assert.equal(lane.holdStep, undefined, "no pr-merge step runs only on a hold");
+  // Each job named is one whose token step opts into the hold.
+  const workflow = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
+  for (const job of lane.jobs) {
+    const body = new RegExp(`\\n  ${job}:\\n((?: {4,}.*\\n|\\n)+)`).exec(workflow)?.[1] ?? "";
+    assert.match(body, /uses: \.\/\.base\/\.github\/actions\/request-lane-token[^\n]*\n {8}with:\n(?: {10}.*\n)*? {10}rate-limit-hold-ok: true\n/, job);
+  }
+  assert.equal([...workflow.matchAll(/^ {10}rate-limit-hold-ok: true$/gm)].length, lane.jobs.length, "every opted-in token step's job is listed");
+});
+
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({
   lane,
   runId,

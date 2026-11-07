@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9] - 2026-11-07
+
+### Fixed
+
+- `/improvement:find` names each `context/` recipe by its full `${CLAUDE_PLUGIN_ROOT}/skills/find/context/<file>.md` path and reads it with one Read, never a Glob or Grep of the plugin directory (#13768).
+
 ## [0.4.8] - 2026-11-06
 
 ### Fixed

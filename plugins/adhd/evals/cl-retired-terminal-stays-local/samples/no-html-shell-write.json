@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/eval/plugin/reference/html-chrome.html",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a read of the chrome reference"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/eval/plugin/lib/view-settings.mjs resolve --lane adhd:clarify --option auto 2>/dev/null; cat /opt/eval/plugin/reference/html-chrome.html",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a stderr redirect, then a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "f=$(mktemp --suffix=.html); cat > \"$f\" <<'EOF'\n<table></table>\nEOF",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '<table>' > /opt/eval/tmp/clarify.html",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '<table>' |\ntee /opt/eval/tmp/x.html",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tee after an escaped newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> \"/opt/eval/tmp/clarify.html\" <<'EOF'\n<p></p>\nEOF",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a quoted append target"
+    }
+  ]
+}

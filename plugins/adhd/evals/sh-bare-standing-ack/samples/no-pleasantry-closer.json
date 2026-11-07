@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "ADHD shaping is on for the rest of this session. Say \"stop shaping\" to turn it off."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ADHD shaping is on for the rest of this session. Say \"stop shaping\" to turn it off. Let me know if you need anything else."
+    },
+    {
+      "answer": "ADHD shaping is on for the rest of this session. Say \"stop shaping\" to turn it off. Hope this helps!"
+    }
+  ]
+}

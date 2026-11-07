@@ -23,8 +23,9 @@ name: eval-hill-climb-pass
 # credit stop or a 401 or 402, the subscription leg, when the fallback token
 # is set, also on a limit stop; an empty credential hands off too. A leg that
 # hands off uploads nothing, so the pass's outputs are the one leg that
-# finished. The gate job skips the key after a recent credit stop
-# (ci-workflows check-key-credit).
+# finished. Each leg's credential and the leg after it come from ci-workflows
+# select-model-credential; the gate job's start call skips the key after a
+# recent credit stop.
 #
 # The pass uploads only what eval-browser-dispatch.yml uploads, its result
 # (per-case scores and grader verdicts), with summarize.mjs's summary (its
@@ -92,35 +93,38 @@ on:
 permissions: {}
 
 jobs:
-  # The key's credit gate (ci-workflows check-key-credit, gate.cjs: one
-  # artifact-list call for the marker the key leg uploads after a credit
-  # stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset)
-  # starts the pass on the subscription, with no refused key attempt first.
-  # No secret, no model, no checkout; every failure runs the key (skip-key
-  # empty). Probing is off.
+  # The key's credit gate (ci-workflows select-model-credential, its start
+  # call: check-key-credit's one artifact-list call for the marker the key leg
+  # uploads after a credit stop). A credit stop inside the window names the
+  # subscription leg, and the pass starts on the subscription, with no
+  # refused key attempt first. No secret, no model, no checkout; every
+  # failure runs the key. Probing is off.
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
       marker: ${{ steps.credit.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: pass
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -146,10 +150,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -183,25 +185,20 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass: the key is set and the
+      # gate did not name the subscription leg.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.gate.outputs.skip-key }}
-        run: |
-          run=$PRESENT
-          if [ "$SKIP_KEY" = true ]; then
-            run=false
-            echo "::notice::the credit gate skipped MAINTENANCE_CLAUDE_API_KEY; pass-subscription runs the pass"
-          elif [ "$PRESENT" != true ]; then
-            echo "::warning::MAINTENANCE_CLAUDE_API_KEY is empty; pass-subscription runs the pass"
-          fi
-          { echo "present=$PRESENT"; echo "run=$run"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.gate.outputs.next-leg }}
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -210,7 +207,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -230,7 +227,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -244,7 +241,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -252,7 +249,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -287,13 +284,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -303,7 +300,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -320,12 +317,14 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           LANE_API_KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -342,25 +341,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -376,16 +356,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
@@ -543,18 +524,34 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ""
 
+      # The leg the next job runs, from this job's credential decision and
+      # the leg's handoff (select-model-credential). always(), so a step that
+      # failed, or a job that hit its own timeout, after a handoff or an empty
+      # credential still hands on, as the job outputs did before; the next
+      # job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+
   # The subscription leg: the key leg's steps on a fresh runner, on the
   # maintenance role's subscription token alone, with no credit-stop marker.
   # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop,
-  # or a 401 or 402 hands off to pass-fallback, and so does an empty token.
-  # hill-climb-workflow.test.mjs holds its steps equal to the key leg's but
-  # for the credential and the leg record's fallback reason.
+  # or a 401 or 402 hands off to pass-fallback, and so does an empty token;
+  # with both tokens empty the job fails. callers.test.mjs holds its steps
+  # equal to the key leg's but for the credential, that stop and the leg
+  # record's fallback reason.
   pass-subscription:
     needs: [gate, pass]
     if: >-
       ${{ !cancelled() && needs.gate.result == 'success'
-      && (needs.pass.outputs.handoff == 'true' || needs.pass.outputs.credential-present == 'false'
-      || needs.gate.outputs.skip-key == 'true') }}
+      && (needs.pass.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -563,10 +560,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -600,25 +595,28 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.pass.outputs.next-reason || needs.gate.outputs.next-reason }}
+
+      # With both tokens empty no leg can run the pass, so the job fails.
+      - name: Stop when no token is set
+        id: no-credential
+        if: steps.credential.outputs.present != 'true' && steps.credential.outputs.fallback-ready != 'true'
         run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" != true ]; then
-              echo "::error::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so no case runs"
-              exit 1
-            fi
-            echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; pass-fallback runs the pass"
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+          echo "::error::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so no case runs"
+          exit 1
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -627,7 +625,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -647,7 +645,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -661,7 +659,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -669,7 +667,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -704,13 +702,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -720,7 +718,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -737,12 +735,14 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -759,25 +759,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -793,16 +774,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
@@ -921,16 +903,30 @@ jobs:
           credential: MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ needs.pass.outputs.handoff-reason || needs.gate.outputs.skip-key == 'true' && 'credit-stop' || needs.pass.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
+
+      # The leg the next job runs, from this job's credential decision and
+      # the leg's handoff (select-model-credential). always(), so a step that
+      # failed, or a job that hit its own timeout, after a handoff or an empty
+      # credential still hands on, as the job outputs did before; the next
+      # job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
   # The fallback leg: the same steps on the central fallback token, after
   # the subscription leg handed off or found its token empty, and only when
   # the fallback token is set. It is the last leg and never hands off.
   pass-fallback:
     needs: [gate, pass-subscription]
-    if: >-
-      ${{ !cancelled() && needs.pass-subscription.outputs.fallback-ready == 'true'
-      && (needs.pass-subscription.outputs.handoff == 'true' || needs.pass-subscription.outputs.credential-present == 'false') }}
+    if: ${{ !cancelled() && needs.pass-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     cache-mode: read
@@ -939,10 +935,6 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -976,21 +968,20 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `run` is whether this leg runs the pass.
+      # Only whether each secret is set reaches the action, never its value.
+      # `present` is whether this leg runs the pass. The job starts only when
+      # the subscription leg saw the fallback token set.
       - name: Check the credential
         id: credential
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so no case runs"
-            exit 1
-          fi
-          { echo "present=$PRESENT"; echo "run=$PRESENT"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: maintenance
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.pass-subscription.outputs.next-reason }}
 
       - name: Download the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ inputs.edit-artifact-id }}
@@ -999,7 +990,7 @@ jobs:
       # The patch the scan job checked, byte for byte, applied with git's own
       # path checks; nothing else of the artifact is read.
       - name: Apply the edit
-        if: steps.credential.outputs.run == 'true' && inputs.pass == 'b'
+        if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
           PATCH: ${{ runner.temp }}/edit/edit.patch
           WANT: ${{ inputs.edit-sha256 }}
@@ -1019,7 +1010,7 @@ jobs:
       # validate-cases.py makes no model call; the suite is then copied without
       # its judged cases.
       - name: Stage the suite
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           DIR: .base/plugins/${{ inputs.plugin }}
         run: |
@@ -1033,7 +1024,7 @@ jobs:
           fi
 
       - name: Create the tool directories
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
       # eval-browser-dispatch.yml's pull request policy, for the same reason:
@@ -1041,7 +1032,7 @@ jobs:
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         run: |
           runner_root="" pid=$$
           while [ "${pid:-0}" -gt 1 ]; do
@@ -1076,13 +1067,13 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
 
       - name: Isolate the runner
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
       - name: Install the locked root toolchain
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         timeout-minutes: 5
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/
@@ -1092,7 +1083,7 @@ jobs:
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
       - name: Check out the launcher's classifier
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
@@ -1109,12 +1100,14 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
         id: probe
-        if: steps.credential.outputs.run == 'true'
+        if: steps.credential.outputs.present == 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1131,25 +1124,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -1165,16 +1139,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
@@ -1293,4 +1268,4 @@ jobs:
           credential: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
           handoff: ${{ steps.judge.outputs.handoff }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          fallback-reason: ${{ needs.pass-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}

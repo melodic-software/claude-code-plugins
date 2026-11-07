@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Run `npm install jsonwebtoken`.\n\n1. Add `JWT_SECRET` to `.env`\n2. Create `src/middleware/auth.js` that calls `jwt.verify`\n3. Mount it with `app.use('/api', auth)`\n\nNext: run `npm start` and call `/api/me` without a token; expect 401."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Great question! JWT auth has a few moving parts. Let me walk you through it.\n\nFirst install the package, then write middleware and mount it.\n\nHope this helps!"
+    },
+    {
+      "answer": "Run `npm install jsonwebtoken`.\n\n1. Add `JWT_SECRET` to `.env`\n2. Create `src/middleware/auth.js` that calls `jwt.verify`\n3. Mount it with `app.use('/api', auth)`\n\nNext: run `npm start` and call `/api/me` without a token; expect 401.\n\nThat covers the basics of JWT auth."
+    }
+  ]
+}

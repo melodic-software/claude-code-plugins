@@ -8,7 +8,10 @@
 // /evals:plugin-eval's reference/ci.md gives: a partial document, then any
 // run that skipped its paid graders or errored, then a two-arm case with no
 // delta, each NOT COMPARABLE, and only then the score against the run's
-// threshold, PASS or FAIL. A NOT COMPARABLE case shows no score. The health
+// threshold, PASS or FAIL. A case whose case.yaml (<suite.root>/<dir>) sets
+// context.history_file and whose result records no without-arm key ran
+// single-arm by design and is scored alone, as run-validity.py reads it. A NOT
+// COMPARABLE case shows no score. The health
 // line reads each with-arm run's kept trace (--keep-temp): whether the
 // plugin's skills were loaded (the init message's skill list) and how many
 // runs called one of them through the Skill tool, called one of the plugin's
@@ -30,7 +33,7 @@
 // Exit 0 when every case passes, 1 when any case fails, is not comparable,
 // or the result holds no case, 2 on a usage error or an unreadable result.
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -102,8 +105,69 @@ export function health(runs, { plugin, base, invoked = null }) {
   return { kept, loaded, fired };
 }
 
-// [{name, verdict, reason, score, without, delta}] for each case.
-export function verdicts(result, { redact = false } = {}) {
+// A case.yaml context key in block or flow form, read without a YAML parser
+// the way run-validity.py's context_value reads it; any other shape, or an
+// empty value continued on the next line, gives null.
+const CONTEXT_BLOCK = /^context:\s*(?:#.*)?$/;
+const CONTEXT_FLOW = /^context:\s*\{(.*)\}\s*(?:#.*)?$/;
+const scalar = (text) => {
+  const value = text.trim().replace(/^['"]+|['"]+$/g, "");
+  return ["", "null", "~"].includes(value) ? null : value;
+};
+const indent = (line) => line.length - line.trimStart().length;
+const continues = (lines, index) => {
+  const next = lines.slice(index + 1).find((line) => line.trim() && !line.trimStart().startsWith("#"));
+  return next !== undefined && indent(next) > indent(lines[index]);
+};
+
+export function contextValue(text, key) {
+  if (typeof text !== "string" || !new RegExp(`^[^#\\n]*${key}`, "m").test(text)) {
+    return null;
+  }
+  const blockKey = new RegExp(`^\\s+${key}:\\s*(.*?)\\s*(?:#.*)?$`);
+  const flowKey = new RegExp(`\\b${key}:\\s*([^,}]*)`);
+  const lines = text.split(/\r\n|\r|\n/);
+  let inContext = false;
+  for (const [index, line] of lines.entries()) {
+    const flow = CONTEXT_FLOW.exec(line);
+    if (flow) {
+      const found = flowKey.exec(flow[1]);
+      if (found) {
+        return scalar(found[1]);
+      }
+      inContext = false;
+    } else if (CONTEXT_BLOCK.test(line)) {
+      inContext = true;
+    } else if (!["", " ", "\t", "#"].includes(line.slice(0, 1))) {
+      inContext = false;
+    } else if (inContext) {
+      const found = blockKey.exec(line);
+      if (found) {
+        const value = scalar(found[1]);
+        return value === null && continues(lines, index) ? null : value;
+      }
+    }
+  }
+  return null;
+}
+
+// A reader of <suite.root>/<dir>/case.yaml, a relative root read against base
+// (the result file's directory): the text, or null when it cannot be read.
+export const caseYamlReader = (result, base) => (dir) => {
+  const root = result?.suite?.root;
+  if (typeof root !== "string" || !root || typeof dir !== "string" || !dir || (!isAbsolute(root) && !base)) {
+    return null;
+  }
+  try {
+    return readFileSync(join(isAbsolute(root) ? root : resolve(base, root), dir, "case.yaml"), "utf8");
+  } catch {
+    return null;
+  }
+};
+
+// [{name, verdict, reason, score, without, delta}] for each case. caseYaml
+// maps a case dir to its case.yaml text, or null.
+export function verdicts(result, { redact = false, caseYaml = () => null } = {}) {
   const said = (text) => (redact ? "(redacted)" : text);
   const twoArm = result.suite?.ablation !== "none";
   const threshold = num(result.suite?.threshold) ?? 1;
@@ -127,18 +191,20 @@ export function verdicts(result, { redact = false } = {}) {
     if (runs.length === 0) {
       return notComparable("the case holds no runs");
     }
-    if (twoArm && row.delta === null) {
+    const singleArm = twoArm && !Object.hasOwn(c?.arms ?? {}, "without") && contextValue(caseYaml(c?.dir), "history_file") !== null;
+    if (twoArm && !singleArm && row.delta === null) {
       return notComparable("the arms are not comparable: the case carries no delta");
     }
     if (row.score === null) {
       return notComparable("the case carries no score");
     }
-    return { ...row, verdict: row.score >= threshold ? PASS : FAIL, reason: `score ${fixed(row.score)} against threshold ${fixed(threshold)}` };
+    const scored = `score ${fixed(row.score)} against threshold ${fixed(threshold)}`;
+    return { ...row, verdict: row.score >= threshold ? PASS : FAIL, reason: singleArm ? `ran single-arm by design (context.history_file), so no delta: ${scored}` : scored };
   });
 }
 
-export function summarize(result, { plugin, base, redact = false }) {
-  const rows = verdicts(result, { redact });
+export function summarize(result, { plugin, base, redact = false, caseYaml = caseYamlReader(result, base) }) {
+  const rows = verdicts(result, { redact, caseYaml });
   const owner = plugin || (typeof result.suite?.root === "string" ? basename(result.suite.root) : "");
   const lines = [
     `### Plugin eval: ${cell(owner || "unknown plugin")}`,

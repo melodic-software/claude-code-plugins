@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/adhd/skills/clarify/SKILL.md"
+          }
+        }
+      ],
+      "why": "the skill, not a settings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/home/.claude/rendered-views.md"
+          }
+        }
+      ],
+      "why": "the retired file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/conventions/rendered-views.yaml"
+          }
+        }
+      ],
+      "why": "the team file"
+    }
+  ]
+}

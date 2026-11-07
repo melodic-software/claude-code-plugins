@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.7] - 2026-11-07
+
+### Changed
+
+- The clarify and shape `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Fifteen new cases: `cl-previous-response-target` ('make this clear' restructures the previous message without asking, keeping Q ids, verbatim terms and the closing lens line), `cl-cold-start-asks-target` (with no earlier message it asks what to clarify and invents nothing), `cl-explain-simply-routes-explain` and `cl-eli5-picture-routes-illustrate` (a plain-words ask names `education:explain`, a picture or ELI5 ask names `education:illustrate`, and neither draws a diagram), `cl-explicit-earlier-target-glossary` (a named earlier memo wins over the previous message and gets a glossary of the session's coined terms), `cl-resolver-default-decision-table`, `cl-team-artifact-ignored` and `cl-retired-terminal-stays-local` (the shared medium resolver runs first, its report line and notices are printed as they stand, and no rendered-views file is read by hand), `sh-adhd-friendly-trigger` (a natural ADHD-friendly ask fires shape and leads with the action), `sh-bare-standing-ack` (a bare `/adhd:shape` says it holds for the rest of the session), `sh-force-push-confirms` (a terse force-push ask gets the risk and a confirmation first, in a flat tone), `sh-explain-runs-long` (a walk-through runs full length under headings), `sh-direct-answer-first` (the verdict is the first line), `sh-conflicting-shaper-asks` (an active caveman shaper is named and the user picks one) and `sh-off-switch-unshaped` (after 'stop shaping' the answer is plain prose). `cl-dense-identifiers` gains `lens-line-closes`, and `cl-trivial-escape-hatch` gains `no-glossary` and `no-left-out-note`. The `userConfig` medium case is held: a run cannot set the plugin's option. Both `evals.json` files are deleted.
+
 ## [0.10.6] - 2026-11-05
 
 ### Changed

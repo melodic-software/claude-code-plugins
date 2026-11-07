@@ -34,16 +34,16 @@ test("a pull request run proves the policy denies the reads before any case runs
   assert.match(probe, /if: steps\.stage\.outputs\.go == 'true' && github\.event_name == 'pull_request'\n/);
   assert.match(probe, /RUNNER_ROOT: \$\{\{ steps\.deny\.outputs\.runner-root \}\}/);
   assert.match(probe, /--allowedTools Read Grep Glob /);
-  assert.match(probe, /any\(\.permission_denials\[\]\?; \.tool_name == \$t and/);
-  for (const call of ["Read /proc/self/environ", 'Read "$RUNNER_ROOT/.runner"', "Grep /proc/self", "Glob /proc/self"]) {
-    assert.ok(probe.includes(`\n          denied ${call}\n`), `the probe checks a denied ${call}`);
-  }
+  // policy-probe.mjs judges the four calls; only its exit 0 lets the step pass.
+  const judge = 'reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?';
+  assert.ok(probe.includes(judge), "the judge runs from the base checkout without the credential");
+  assert.match(probe, /\n {10}case \$judged in\n {12}0\) echo "\$reason" ;;\n {12}3\) echo "::error::[^\n]*"; exit 1 ;;\n {12}\*\) echo "::error::[^\n]*"; exit 1 ;;\n {10}esac\n/);
   // The leak check looks for the leg's own credential, whichever leg runs.
   assert.match(probe, /credential=\$\{ANTHROPIC_API_KEY:-\$\{CLAUDE_CODE_OAUTH_TOKEN:-\}\}\n {10}\[ -n "\$credential" \] \|\| /);
   assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {14}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
   // A probe the credential's own stop ended hands off before the denial checks, never past them.
-  assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("denied Read /proc/self/environ"));
+  assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("policy-probe.mjs"));
   assert.ok(probe.indexOf('if grep -qF "$credential"') < probe.indexOf("eval-handoff.mjs"), "the leak check runs before the classifier");
   assert.match(probe, /env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="\$out"/, "the classifier runs without the credential");
   assert.doesNotMatch(probe, /cat "\$out"|jq [^\n]*"\$out"[^\n]*\| *tee/);

@@ -434,6 +434,54 @@ replace "$SKILL/SKILL.md" "$MASK_LINES" ""
 assert_equals "mask-missing: plural kind names" "$(run_check)" \
   "mask-missing | SKILL.md | ## Capture records screenshot, video $MASK_DETAIL"
 
+# mask hand-off: a hub whose ## Mask is only the hand-off line is checked against the target the
+# Driving tool line names, resolved against the project root.
+# shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+HAND_OFF_LINE='The driving tool'\''s `## Mask`.'
+UNREADABLE="mask-missing | SKILL.md | ## Mask hands off to a target that cannot be read:"
+hand_off_case() { # <target's ## Mask body, or "" for no target file>
+  new_case
+  # shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+  replace "$SKILL/SKILL.md" "# control-shop" '# control-shop
+
+Driving tool: `shop-driver`, its hub at
+`tools/shop-driver/SKILL.md` and its driver beside it.'
+  replace "$SKILL/SKILL.md" "$MASK_LINES" "$HAND_OFF_LINE"
+  [[ -n "$1" ]] || return 0
+  mkdir -p "$ROOT/tools/shop-driver"
+  printf '# shop-driver\n\n## Mask\n\n%s\n\n## Cleanup\n\nStop it.\n' "$1" >"$ROOT/tools/shop-driver/SKILL.md"
+}
+hand_off_case "$MASK_LINES"
+assert_equals "mask hand-off: a target on the line that continues Driving tool, with mask lines" "$(run_check)" ""
+hand_off_case "values: config.account.email"
+assert_equals "mask hand-off: a target with no mask line" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL in tools/shop-driver/SKILL.md"
+hand_off_case ""
+assert_equals "mask hand-off: a missing target" "$(run_check)" "$UNREADABLE tools/shop-driver/SKILL.md does not exist"
+hand_off_case "$HAND_OFF_LINE"
+assert_equals "mask hand-off: a target that hands off again" "$(run_check)" "$UNREADABLE tools/shop-driver/SKILL.md hands off again"
+hand_off_case "$MASK_LINES"
+replace "$ROOT/tools/shop-driver/SKILL.md" "## Mask" "## Masks"
+assert_equals "mask hand-off: a target with no ## Mask" "$(run_check)" "$UNREADABLE tools/shop-driver/SKILL.md has no ## Mask"
+hand_off_case "$MASK_LINES"
+replace "$SKILL/SKILL.md" "tools/shop-driver/SKILL.md" "../outside/SKILL.md"
+assert_equals "mask hand-off: a .. path leaves the root" "$(run_check)" "$UNREADABLE ../outside/SKILL.md leaves the project root"
+hand_off_case "$MASK_LINES"
+mkdir -p "$TEST_TMPDIR/outside-$n"
+mv "$ROOT/tools/shop-driver/SKILL.md" "$TEST_TMPDIR/outside-$n/SKILL.md"
+rmdir "$ROOT/tools/shop-driver"
+ln -s "$TEST_TMPDIR/outside-$n" "$ROOT/tools/shop-driver"
+assert_equals "mask hand-off: a symlinked folder out of the root" "$(run_check)" "$UNREADABLE tools/shop-driver/SKILL.md leaves the project root"
+hand_off_case "$MASK_LINES"
+# shellcheck disable=SC2016 # the backticks are a Markdown code span, not a substitution
+replace "$SKILL/SKILL.md" '`tools/shop-driver/SKILL.md`' 'tools/shop-driver/SKILL.md'
+assert_equals "mask hand-off: a Driving tool line with no .md code span" "$(run_check)" "$UNREADABLE the Driving tool line names no .md path"
+hand_off_case "$MASK_LINES"
+replace "$SKILL/SKILL.md" "$HAND_OFF_LINE" "$HAND_OFF_LINE
+values: config.account.email"
+assert_equals "mask hand-off: the hand-off beside another line is read as the hub's own mask" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"
 bash "$CHECK" "$SKILL" "$SKILL" >/dev/null 2>&1

@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: cl-team-artifact-ignored
+context:
+  scaffold_script: scaffold.sh
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:adhd:)?clarify"'
+    min: 1
+    arm: 'with-only'
+  - name: resolver-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?adhd:clarify\b'
+    min: 1
+    arm: 'with-only'
+  - name: no-convention-read
+    type: tool_used
+    tool: 'Read'
+    input_match: 'rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-convention-shell-read
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?rendered-views'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: team-notice
+    type: regex
+    pattern: '\ba team file never publishes\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: report-line-plugin-default
+    type: regex
+    pattern: 'view: auto \(plugin default\)'
+    target: 'last_message'
+  - name: team-not-decider
+    type: regex
+    pattern: 'view: [^\n(]*\(team\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

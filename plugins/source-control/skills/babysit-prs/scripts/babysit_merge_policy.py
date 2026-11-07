@@ -5107,9 +5107,10 @@ def _merged_since(
     before `since` (a merge updates the PR, so every PR merged since then comes
     first) or the history ends; a PR merged earlier and updated since is
     skipped. A PR updated mid-read jumps to page 1 and can slip past a walk of
-    more than one page, so page 1 is then read again: a merge there the walk
-    missed makes the history unreadable. None when the page limit is reached
-    first."""
+    more than one page, so page 1 is then read again and a merge there the
+    walk missed is added: pages follow the update time, so a PR the walk
+    skipped can only have moved to the front. None when the page limit is
+    reached first."""
     found: list[dict[str, Any]] = []
     cursor: str | None = None
     for pages in range(1, MERGED_PAGE_LIMIT + 1):
@@ -5134,9 +5135,7 @@ def _merged_since(
             if _time(pr.get("updatedAt")) < since:
                 break
             if _time(pr.get("mergedAt")) >= since and pr.get("number") not in numbers:
-                raise PolicyReadError(
-                    "merged pull requests: the history changed while it was read"
-                )
+                found.append(pr)
     return found
 
 

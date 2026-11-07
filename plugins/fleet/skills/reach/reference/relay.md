@@ -65,8 +65,13 @@ gotcha.
 `claude` there. For its Windows lane, chain R1 on the far side:
 
 ```console
-<ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p "<prompt>" < /dev/null'
+printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p'
 ```
+
+The prompt goes on stdin and the quoted remote command carries only the flags, so no shell on
+either host parses prompt text. Never add `ssh -n`: it replaces stdin with `/dev/null` and drops
+the prompt. The live probes below passed the prompt as an argument with `< /dev/null`; this stdin
+form has not been re-probed on these hops.
 
 That turn runs as the target's Windows console account, signed into the target's Windows lane.
 Port 22 is never the agent hop: `ssh-admin` has no Claude sign-in.
@@ -95,10 +100,14 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
     default, or what `crossSessionInbound` accepts.
 - Its standing instructions say what to do with each message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
-  quote. Double-quote it with escaped inner quotes instead:
-  `<ssh> <wsl-alias> 'claude -p -n <name> --settings "{\"crossSessionInbound\":\"accept\"}" "<instructions>" < /dev/null'`.
+  quote. Double-quote it with escaped inner quotes instead, and send the instructions on stdin:
+  `printf '%s\n' '<instructions>' | <ssh> <wsl-alias> 'claude -p -n <name> --settings "{\"crossSessionInbound\":\"accept\"}"'`.
 - The tested receiver kept its turn open (a standing instruction to wait, then print what arrived)
-  and ran under `nohup ... &` on the target. For a session that must stay up, use a
+  and ran under `nohup ... &` on the target, with its instructions as an argument. Do not
+  background the stdin form that way: a shell without job control gives a backgrounded command
+  `/dev/null` as stdin unless it redirects stdin itself
+  ([POSIX Shell Command Language, 2.9.3.1 Asynchronous AND-OR Lists](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_09_03_02),
+  as of 2026-11-06), so the instructions never arrive. For a session that must stay up, use a
   [background session](#background-sessions) instead.
   - **Pointer**: for when a `-p` run ends after its turn, fetch
     [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
@@ -112,8 +121,8 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
 Per-turn resume survives a disconnect. Choose the id up front so nothing parses output:
 
 ```console
-<ssh> <wsl-alias> 'cd <dir> && claude -p --session-id <uuid> "<prompt>" < /dev/null'
-<ssh> <wsl-alias> 'cd <dir> && claude -p --resume <uuid> "<prompt>" < /dev/null'
+printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd <dir> && claude -p --session-id <uuid>'
+printf '%s\n' '<prompt>' | <ssh> <wsl-alias> 'cd <dir> && claude -p --resume <uuid>'
 ```
 
 This session generates no id: leave `<uuid>` for whoever runs the command to fill, or start the
@@ -212,7 +221,7 @@ seconds still saying it was waiting. Instead:
 Check the target Windows lane before relying on it:
 
 ```console
-<ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p "echo ok" < /dev/null'
+printf '%s\n' 'echo ok' | <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p'
 ```
 
 An expired-OAuth-session authentication error means the route worked and the Windows lane on the

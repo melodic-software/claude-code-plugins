@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.1] - 2026-11-06
+
+### Fixed
+
+- `track recheck` no longer says the recurring-issues automation advances `next_due`: that automation only files the due item, and a `next_due` already in the future means an earlier recheck advanced it.
+
 ## [12.0.0] - 2026-11-06
 
 ### Changed

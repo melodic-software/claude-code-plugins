@@ -1344,7 +1344,8 @@ branch-cleanup:
 # fix-docs read or a changed-files read that failed, or a Refine pass that
 # failed, whose refine-failed warning is read on red runs too: pr-refine's
 # failed runs are listed and read as well, and its cap of 6 unread runs covers
-# green and red together) and intake-triage (a verdict a GitHub fault held):
+# green and red together), intake-triage (a verdict a GitHub fault held) and
+# pr-merge (a lane token rate limit past the request's retry budget):
 # each ends green with only a notice, so a fault
 # that keeps holding shows nowhere else. A lane with `threshold` held runs or
 # more in the last `window-hours` raises the signal's issue, which only
@@ -1563,7 +1564,7 @@ merge:
       max-count-tokens-requests: 50
       max-preflight-requests: 1000
       upstream-timeout-ms: 600000
-      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15]
+      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15, fallback-credit-2026-06-01]
       body-keys: [context_management, max_tokens, messages, metadata, model, output_config, stream, system, thinking, tools]
       block-types: [text, image, document, tool_use, tool_result, thinking, redacted_thinking]
   # Dependabot pull requests answer to this switch, not report-only: tier auto
