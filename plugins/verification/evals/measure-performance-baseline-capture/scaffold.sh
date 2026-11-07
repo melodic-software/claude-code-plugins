@@ -17,7 +17,7 @@ if [[ "$(git rev-parse --show-toplevel)" != "${here}" ]]; then
   exit 3
 fi
 printf '.work/\n__pycache__/\n' >.gitignore
-printf '# textkit\n\nSmall text helpers. Benchmark: `python3 bench.py`.\n' >README.md
+printf '# textkit\n\nSmall text helpers. Benchmark: python3 bench.py\n' >README.md
 mkdir -p textkit
 : >textkit/__init__.py
 cat >textkit/rows.py <<'PY'
@@ -58,7 +58,7 @@ Goal: make `parse_rows` in `textkit/rows.py` 2% faster on `python3 bench.py` by 
 
 ## Plan
 
-### Phase 1: hoist the strip [TODO]
+### Phase 1: hoist the strip
 
 - Edit `textkit/rows.py`.
 MD

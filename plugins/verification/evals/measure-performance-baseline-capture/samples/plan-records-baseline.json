@@ -6,7 +6,7 @@
   ],
   "fail": [
     {
-      "answer": "## Plan\n\n### Phase 1: hoist the strip [TODO]\n"
+      "answer": "## Plan\n\n### Phase 1: hoist the strip\n"
     },
     {
       "answer": "baseline: to be captured\n"

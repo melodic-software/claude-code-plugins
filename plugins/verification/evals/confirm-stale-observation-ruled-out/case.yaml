@@ -3,7 +3,7 @@ name: confirm-stale-observation-ruled-out
 graders:
   - name: 'names-observation-doubt'
     type: 'regex'
-    pattern: 'stale (?:build|bundle|cache)|cach(?:e|ed)|hard (?:reload|refresh)|wrong (?:port|instance|server)|old (?:build|instance|process)'
+    pattern: 'stale (?:build|bundle|cache)|cached?|hard (?:reload|refresh)|wrong (?:port|instance|server)|old (?:build|instance|process)'
     flags: 'i'
     target: 'last_message'
   - name: 'doubts-observation-first'
