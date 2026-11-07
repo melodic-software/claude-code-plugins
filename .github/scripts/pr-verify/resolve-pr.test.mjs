@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -371,6 +371,15 @@ test("by default the schedule is the one in the resolver's own checkout", async 
   const [entry] = (await resolve({ issues: [filed(`<!-- recurring-schedule id=${row.id} -->`)] })).specText;
   assert.equal(entry.source, "recurring-schedule");
   assert.ok(entry.body.includes(row.notes), "the body carries the row's notes from this checkout");
+});
+
+test("linkedIssues called without a schedule, as the pr-unblock lanes call it, reads this checkout's", async () => {
+  const own = JSON.parse(readFileSync(fileURLToPath(new URL("../../recurring-schedule.json", import.meta.url)), "utf8"));
+  const row = own.items.find((item) => typeof item.notes === "string" && item.notes !== "");
+  const github = fake({ issues: [filed(`<!-- recurring-schedule id=${row.id} -->`)] });
+  const { specText } = await linkedIssues(github, github, REPO, 41, HUMANS, undefined, undefined, undefined, undefined, "main");
+  assert.equal(specText[0].source, "recurring-schedule");
+  assert.ok(specText[0].body.includes(row.notes), "the body carries the row's notes from this checkout");
 });
 
 // Owner decision 2026-11-03 on #12965: a closing pull request's body names on

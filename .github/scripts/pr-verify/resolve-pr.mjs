@@ -703,13 +703,15 @@ export function recurringSpec(issue, schedule) {
 // `base` branch, a closing issue also carries the siblings that delivered part
 // of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
 // rest. An issue the recurring filer opened takes its body from its row of
-// `schedule` (recurringSpec), marked `source` `recurring-schedule`.
+// `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
+// defaults to this checkout's schedule, so every caller (the pr-unblock lanes
+// too) gets the same spec.
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head. `read` posts the
 // spec query for the variables it is given (resolvePull's folded one).
-export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule) {
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule = readSchedule()) {
   const [owner, name] = repository.split("/");
   const variables = { owner, name, number };
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
