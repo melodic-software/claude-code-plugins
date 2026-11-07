@@ -26,6 +26,18 @@ graders:
     pattern: '\b(?:suggested fix location|fix location|where to fix)\b(?=[^\n]*(?:\n[^\n]*){0,2}?\bfees\.ts\b)(?=[^\n]*(?:\n[^\n]*){0,2}?\bapplyLateFee\b)'
     flags: 'i'
     target: last_message
+  - name: justification-cites-impact
+    type: regex
+    pattern: '(?:\bjustification\b(?:\*\*)?[ \t]*:?[ \t]*(?:\*\*)?[ \t]*(?:\n[ \t]*){0,2}|\bseverity\b(?:\*\*)?[ \t]*:?[ \t]*(?:\*\*)?[ \t]*`?(?:low|medium|high|critical)\b)[^\n]{0,300}?\b(?:customers?|users?|invoices?|fees?|charg\w*|billing|billed|money|monetary|financial|revenue|overcharg\w*|data[- ]integrity)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-issue-filed
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:gh\s+(?:issue|pr)\s+create\b|git(?:\s+-C\s+\S+)?\s+(?:commit|push)\b)'
+    min: 0
+    max: 0
+    arm: both
   - name: title-not-past-tense
     type: regex
     pattern: '^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:Bug(?: report)?|Title)(?:\*\*)?[ \t]*[:—–-][^\n]*\b(?:fixed|broke|(?:was|were)[ \t]+(?:\w+ed|\w+ing|broken|\w+en)|(?<!\bis )(?<!\bare )(?<!\bbe )(?<!\bget )(?<!\bgets )(?<!\bbeen )(?<!\bbeing )(?:charged|applied|added|returned|billed)[ \t]+(?:an?|the|\d|\$|customers?|users?|invoices?))\b'

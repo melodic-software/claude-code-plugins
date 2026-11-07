@@ -33,6 +33,32 @@ graders:
     pattern: '\b(?:src/)?discount\.js(?::\d+|#L\d+|,? line \d+)'
     flags: 'i'
     target: last_message
+  - name: lens-id-line
+    type: regex
+    pattern: '\bLens\b(?:\*\*)?[ \t]*(?:[:|]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?lens-?\d'
+    flags: 'i'
+    target: last_message
+  - name: verbatim-quote
+    type: regex
+    pattern: 'if \(totalCents > 10000\) return 0\.1;'
+    target: last_message
+  - name: refuted-tail-present
+    type: regex
+    pattern: '^[ \t]*#{1,6}[ \t]*Refuted candidates\b|^[ \t]*\*\*Refuted candidates\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-cursor-line
+    type: regex
+    pattern: '\bNo scan cursor\b|\brotation not advanced\b'
+    flags: 'i'
+    target: last_message
+  - name: no-branch-or-filing
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:git(?:\s+-C\s+\S+)?\s+(?:checkout\s+-[bB]\b|switch\s+-[cC]\b|push\b|commit\b|branch\s+(?:-[cCmM]\b|(?!-)[\w./-]+))|gh\s+(?:issue|pr)\s+create\b)'
+    min: 0
+    max: 0
+    arm: both
   - name: no-write
     type: tool_used
     tool: Write

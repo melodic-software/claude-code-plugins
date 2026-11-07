@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Then rerun `/bugs:setup check` in a fresh session."
+    },
+    {
+      "answer": "Start a new Claude Code session and rerun check."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then rerun `/bugs:setup check`."
+    },
+    {
+      "answer": "The new value applies after a restart of the plugin."
+    }
+  ]
+}

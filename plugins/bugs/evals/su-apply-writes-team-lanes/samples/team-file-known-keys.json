@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    },
+    {
+      "answer": "# team lanes\nlanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    },
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\nverification: standard\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\noutput_dir: docs/bug-reports\n"
+    },
+    {
+      "answer": "lanes:\n  - name: api\n    description: HTTP handlers\n    globs:\n      - 'src/api/**'\n"
+    },
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\nfiling_posture: manual-only\n"
+    }
+  ]
+}

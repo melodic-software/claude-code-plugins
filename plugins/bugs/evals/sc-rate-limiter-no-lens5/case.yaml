@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: sc-rate-limiter-no-lens5
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: hunter-dispatched
+    type: tool_used
+    tool: Agent
+    min: 1
+  - name: no-lens5-dispatch
+    type: tool_used
+    tool: Agent
+    input_match: '(?:Display|display) formatting and fallbacks|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))[Ll]ens-5\b|[Ll]ens 5:[ \t]*(?:Display|display)|renders? wrongly for some real value'
+    min: 0
+    max: 0
+    arm: both
+  - name: metadata-names-lenses
+    type: regex
+    pattern: '\blens[- ]?[1-4]\b'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both

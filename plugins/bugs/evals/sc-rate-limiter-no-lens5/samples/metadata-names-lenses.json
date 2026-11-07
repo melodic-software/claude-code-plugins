@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Targeted run, effort high, small scope (1 file), 2 lenses (lens-1 contract, lens-4 state); lens 5 not dispatched: the target renders nothing."
+    },
+    {
+      "answer": "Lenses: Lens 1, Lens 4."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Targeted run, small scope, two hunters dispatched. No verified findings."
+    },
+    {
+      "answer": "Lens 5 skipped: renders nothing."
+    }
+  ]
+}

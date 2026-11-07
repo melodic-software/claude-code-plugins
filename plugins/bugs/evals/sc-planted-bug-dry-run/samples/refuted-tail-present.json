@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Refuted candidates\n\nNone — every candidate this run survived the gate."
+    },
+    {
+      "answer": "**Refuted candidates**: none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No candidate was refuted."
+    },
+    {
+      "answer": "## Candidates not gated\n\nNone."
+    }
+  ]
+}
