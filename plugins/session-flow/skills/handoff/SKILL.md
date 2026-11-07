@@ -160,7 +160,8 @@ user-controlled removal. Nothing expires, sweeps, or ages these files out silent
 what the next session acts on: rules rewritten in place under their ids, preferences until their
 instruction file holds them, one direction-change line per change (structure doc, "Shape 3").
 What it drops is already verbatim in this hop's archive file, so nothing is trimmed by deleting
-history. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
+history. A rule or preference leaves the hot file only when retired or promoted, listed with its
+reason under that file's `## Retired rules`, never to meet the size cap. A shape-2 predecessor's cumulative sections land whole in the first shape-3 hop file;
 state the rules still in force under Current rules from there, never from memory.
 
 Carrying a rule forward re-checks any refusal or owner reservation it records against the
