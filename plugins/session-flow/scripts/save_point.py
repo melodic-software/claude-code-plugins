@@ -78,6 +78,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -130,6 +131,23 @@ RULE_ID_RE = re.compile(r"^\[R(\d+)\]\s*")
 # The hop file already holds the predecessor's whole Current rules, so only this
 # section proves a rule was retired rather than dropped to meet the cap.
 RETIRED_RULES = "Retired rules"
+# Core sections whose entries carry no id: an entry leaves the hot file only when
+# this hop's file lists it verbatim under the paired heading, then a
+# `Retired: <reason>` line. Matched only under that heading, since the hop file
+# already holds the predecessor's whole Direction changes elsewhere.
+RETIRED_ENTRY_SECTIONS = {
+    "Original goal": "Retired goal amendments",
+    "Direction changes": "Retired direction changes",
+}
+AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
+TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
+RETIRED_PREFIX = "Retired:"
+CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
+# A retired rule's reason names its new home: another rule, a promotion target,
+# or a file path.
+NEW_HOME_RE = re.compile(
+    r"\[R\d+\]|\b(?:promoted|moved|codified) (?:to|in|into)\b|/|\.md\b"
+)
 # Sections `new` writes and the writer cannot shorten (frontmatter aside).
 CARRIED_3 = ("Prior sessions", "Resume prompt")
 # The frontmatter keys `new` writes; any other line, and text before the first
@@ -1360,6 +1378,174 @@ def _retired_rules(archived: str) -> dict[int, str]:
     return found
 
 
+def _amendment_units(lines: list[str]) -> tuple[list[tuple[str, ...]], list[str]]:
+    """An Original goal body split into its amendment units and its other
+    non-blank lines. A unit is a `**Amended…:**` (or `- **Amended…:**`) line plus
+    the lines after it up to a blank line, the next marker, `Opening ask:` or
+    another `**` line."""
+    units: list[list[str]] = []
+    plain: list[str] = []
+    current: list[str] | None = None
+    for line in lines:
+        if AMENDMENT_RE.match(line):
+            current = [line]
+            units.append(current)
+        elif (
+            current is not None
+            and line.strip()
+            and not line.startswith(("**", "Opening ask:"))
+        ):
+            current.append(line)
+        else:
+            current = None
+            if line.strip():
+                plain.append(line)
+    return [tuple(unit) for unit in units], plain
+
+
+def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
+    """The retirable units of a RETIRED_ENTRY_SECTIONS section and its other
+    non-blank lines: amendment units for Original goal, one unit per line for
+    Direction changes."""
+    lines = doc.section(title) or []
+    if title == "Original goal":
+        return _amendment_units(lines)
+    return [(line,) for line in lines if line.strip()], []
+
+
+def _retired_listings(
+    archived: str, heading: str
+) -> list[tuple[tuple[str, ...], str | None]]:
+    """Each listing under `## <heading>` in a hop file: the entry's lines and the
+    reason on the `Retired:` line closing it, or None for a line no `Retired:`
+    line closes (the one-line `- [R<n>] <reason>` rule shape)."""
+    found: list[tuple[tuple[str, ...], str | None]] = []
+    pending: list[str] = []
+    inside = False
+    for line in [*archived.splitlines(), "## "]:
+        if line.startswith("## ") or not line.strip():
+            found.extend(((entry,), None) for entry in pending)
+            pending = []
+            if line.startswith("## "):
+                inside = line[3:].strip() == heading
+        elif not inside:
+            continue
+        elif line.startswith(RETIRED_PREFIX):
+            if pending:
+                found.append((tuple(pending), line[len(RETIRED_PREFIX) :].strip()))
+            pending = []
+        else:
+            pending.append(line)
+    return found
+
+
+def _chain_hop_paths(pred: Doc, start: int):
+    """`(doc, hop file path)` for every shape-3 file on `pred`'s
+    `previous_handoff` path from `archive_from` on, newest first."""
+    cursor: Doc | None = pred
+    seen: set[str] = set()
+    while cursor is not None and cursor.shape == 3 and cursor.basename not in seen:
+        seen.add(cursor.basename)
+        hop = _fm_int(cursor, "hop")
+        root = cursor.frontmatter.get("chain_root", "")
+        if hop is None or hop < start or not HANDOFF_NAME_RE.match(root):
+            break
+        yield (
+            cursor,
+            hop_file_path(
+                cursor.path.parent, root, hop, cursor.frontmatter.get("session_id", "")
+            ),
+        )
+        previous = cursor.frontmatter.get("previous_handoff")
+        cursor = _sibling(cursor.path.parent, previous) if previous else None
+
+
+def _retire_reasons(archived: str) -> list[str]:
+    """Every non-empty `Retired:` reason under a verbatim-entry retire heading."""
+    return [
+        reason
+        for heading in RETIRED_ENTRY_SECTIONS.values()
+        for _, reason in _retired_listings(archived, heading)
+        if reason
+    ]
+
+
+def _check_retired_entries(
+    doc: Doc,
+    f: Findings,
+    pred: Doc,
+    start: int,
+    rel: str,
+    archived: str | None,
+    report,
+) -> None:
+    """Original goal and Direction changes lose nothing: each predecessor goal
+    line stays in order byte for byte, and each amendment unit or trail line
+    stays in order or is listed verbatim, with a reason, in this hop's file."""
+    text = archived or ""
+    for title, heading in RETIRED_ENTRY_SECTIONS.items():
+        pred_units, pred_plain = _entry_units(pred, title)
+        own_units, own_plain = _entry_units(doc, title)
+        remaining = iter(own_plain)
+        for line in pred_plain:
+            if not any(line == own for own in remaining):
+                report(
+                    f"{title}: the predecessor's goal lines (quote, intent, vision, opening ask) stay byte for byte and in order; missing or changed: {line[:60]!r}"
+                )
+                break
+        listed = _retired_listings(text, heading)
+        reasoned = Counter(lines for lines, reason in listed if reason)
+        unreasoned = {lines for lines, reason in listed if reason == ""}
+        cursor = 0
+        for unit in pred_units:
+            at = next(
+                (i for i in range(cursor, len(own_units)) if own_units[i] == unit),
+                None,
+            )
+            if at is not None:
+                cursor = at + 1
+            elif reasoned[unit]:
+                reasoned[unit] -= 1
+            elif unit in own_units:
+                report(
+                    f"{title}: predecessor entry moved out of order (carried entries keep their order): {unit[0][:60]!r}"
+                )
+            elif unit in unreasoned:
+                report(
+                    f"{title}: predecessor entry listed under '## {heading}' in {rel} with an empty 'Retired:' reason: {unit[0][:60]!r}"
+                )
+            else:
+                report(
+                    f"{title}: predecessor entry left this file without a retirement; keep it here, or list it verbatim in {rel} under '## {heading}' followed by 'Retired: <why it no longer binds>': {unit[0][:60]!r}"
+                )
+    rules = {rid for rid, _, _ in _rule_entries(doc) if rid is not None}
+    for reason in _retire_reasons(text):
+        m = CODIFIED_RE.search(reason)
+        if m and int(m.group(1)) not in rules:
+            f.fail(
+                f"archive: a retirement in {rel} reads 'codified in [R{m.group(1)}]', but [R{m.group(1)}] is not in this file"
+            )
+    retired_rules = {
+        rid: reason
+        for rid, reason in _retired_rules(text).items()
+        if not NEW_HOME_RE.search(reason)
+    }
+    if not retired_rules:
+        return
+    pointed: set[int] = set()
+    for _, path in _chain_hop_paths(pred, start):
+        try:
+            earlier = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for reason in _retire_reasons(earlier):
+            pointed.update(int(n) for n in re.findall(r"\[R(\d+)\]", reason))
+    for rid in sorted(pointed & set(retired_rules)):
+        f.warn(
+            f"archive: [R{rid}] is retired in {rel}, but an earlier retired entry points at it; name the rule's new home in its reason (another [R<n>], 'promoted to <file>', or a path)"
+        )
+
+
 def _squash(text: str) -> str:
     return " ".join(text.split())
 
@@ -1605,7 +1791,7 @@ def _validate_shape3(
             report(
                 f"frontmatter: after {previous!r} (chain_root, hop, archive_from) is {want} (got {(root, hop, start)})"
             )
-        _check_carry_3(doc, f, pred, hop == start, rel, archived, report)
+        _check_carry_3(doc, f, pred, start, hop == start, rel, archived, report)
         _check_hop_path(f, pred, start)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
@@ -1624,6 +1810,7 @@ def _check_carry_3(
     doc: Doc,
     f: Findings,
     pred: Doc,
+    start: int,
     first_split: bool,
     rel: str,
     archived: str | None,
@@ -1633,16 +1820,7 @@ def _check_carry_3(
     this hop's file."""
     arch = _squash(archived or "")
     if pred.shape == 3:
-        pred_goal = _section_lines(pred, "Original goal")
-        if _section_lines(doc, "Original goal")[: len(pred_goal)] != pred_goal:
-            report(
-                "Original goal: does not start with the predecessor's section byte for byte (copy it off disk, append a new owner amendment below it, never rewrite)"
-            )
-        trail = _section_lines(pred, "Direction changes")
-        if _section_lines(doc, "Direction changes")[: len(trail)] != trail:
-            report(
-                "Direction changes: the predecessor's trail lines stay first, verbatim; append this hop's lines below them"
-            )
+        _check_retired_entries(doc, f, pred, start, rel, archived, report)
         if archived is None:
             return
         own = {rid: e for rid, e, _ in _rule_entries(doc) if rid is not None}
@@ -1696,23 +1874,11 @@ def _check_carry_3(
 def _check_hop_path(f: Findings, pred: Doc, start: int) -> None:
     """Every shape-3 predecessor on this file's `previous_handoff` path, from
     `archive_from` on, has its own hop file."""
-    cursor: Doc | None = pred
-    seen: set[str] = set()
-    while cursor is not None and cursor.shape == 3 and cursor.basename not in seen:
-        seen.add(cursor.basename)
-        hop = _fm_int(cursor, "hop")
-        root = cursor.frontmatter.get("chain_root", "")
-        if hop is None or hop < start or not HANDOFF_NAME_RE.match(root):
-            break
-        path = hop_file_path(
-            cursor.path.parent, root, hop, cursor.frontmatter.get("session_id", "")
-        )
+    for cursor, path in _chain_hop_paths(pred, start):
         if not path.is_file():
             f.fail(
                 f"archive: hop file {path.relative_to(cursor.path.parent).as_posix()} of predecessor {cursor.basename!r} is missing"
             )
-        previous = cursor.frontmatter.get("previous_handoff")
-        cursor = _sibling(cursor.path.parent, previous) if previous else None
 
 
 def _check_prior_rows_3(
