@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-workspace-up-info
+description: 'Legacy run-e2e e2e-workspace-01 (declared-entry-runs-up-then-info-and-drives-the-reported-url). Reads the Workspace environment entry from the fetched default-branch commit, runs up then info through Bash with WORKSPACE_ID and WORKSPACE_ROOT set, drives the APP_URL info printed, and never executes the info output. workspace-env reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Reads the Workspace environment entry from the fetched default-branch commit, runs up then info through Bash with WORKSPACE_ID and WORKSPACE_ROOT set, drives the APP_URL info printed, and never executes the info output.'
+execution:
+  prompt: '/testing:run-e2e the invoice search page. On origin''s default branch, docs/conventions/workspace-environment.md has a Workspace environment section naming `scripts/ws.sh up` for up and `scripts/ws.sh info` for info. This worktree''s directory is acme-billing-feat-search. info prints `APP_URL=http://127.0.0.1:49217` and `DB_PORT=49218`. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." List the commands the run executes before driving and the address it drives, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: workspace-env
+    type: regex
+    pattern: '^(?=[\s\S]*(?:WORKSPACE_ID\b))(?=[\s\S]*(?:WORKSPACE_ROOT\b))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the invoice search page. On origin''s default branch, docs/conventions/workspace-environment.md has a Workspace environment section naming `scripts/ws.sh up` for up and `scripts/ws.sh info` for info. This worktree''s directory is acme-billing-feat-search. info prints `APP_URL=http://127.0.0.1:49217` and `DB_PORT=49218`. PASS only if the reply satisfies every legacy expectation: "Reads the Workspace environment entry from the fetched default branch and names the commit" "Runs up before info, through the Bash tool, with WORKSPACE_ID and WORKSPACE_ROOT set" "Drives http://127.0.0.1:49217 taken from the APP_URL line" "Does not source, eval or otherwise execute the info output". FAIL if any point is missing or contradicted.'

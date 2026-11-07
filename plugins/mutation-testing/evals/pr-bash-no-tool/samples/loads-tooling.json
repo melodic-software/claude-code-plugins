@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/tooling.md"
+          }
+        }
+      ],
+      "why": "reads tooling.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/theory.md"
+          }
+        }
+      ],
+      "why": "reads theory.md"
+    }
+  ]
+}

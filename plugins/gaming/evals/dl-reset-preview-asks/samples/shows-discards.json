@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Reset would discard:\n- [DlssNr] AutoCapture: true -> false\n- [DlssNr] LocalTone: 0.300000 -> 0.5\n\nReply yes to confirm.", "why": "both values" },
+    { "answer": "It puts LocalTone back to 0.5 and turns AutoCapture off again.", "why": "paraphrase" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Reset discards your overlay changes. Reply yes to confirm.", "why": "near miss: no values shown" },
+    { "answer": "Reset would put LocalTone back to 0.5. Reply yes.", "why": "near miss: one value dropped" }
+  ]
+}

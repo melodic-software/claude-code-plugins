@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/notes.md", "content": "ToggleKey conflict noted" } }], "why": "not a preset file" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json", "content": "{\"ini\":[{\"key\":\"Style\",\"value\":\"2\"},{\"key\":\"ToggleKey\",\"value\":\"0x7f\"}]}" } }], "why": "writes ToggleKey into the preset" }
+  ]
+}

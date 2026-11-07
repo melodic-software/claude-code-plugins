@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/mutation-testing.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "reads it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .claude/mutation-testing.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "deletes it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv .claude/mutation-testing.md docs/x",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "moves it"
+    }
+  ]
+}

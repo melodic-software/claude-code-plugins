@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "No audit is on record for this project, so there is nothing to fix yet.", "why": "no audit on record"},
+    {"answer": "Fix mode requires a prior audit before it changes anything.", "why": "requires ... before"},
+    {"answer": "I ran the audit first; approve the fixes below and I will apply them.", "why": "ran it first"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Done: I trimmed CLAUDE.md to 120 lines and removed the stale paths.", "why": "silent edit"},
+    {"answer": "Approve these fixes and I will apply them.", "why": "near miss: no audit mentioned"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Test runner supported | PASS | unittest |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Tests | ok |",
+      "why": "near miss"
+    }
+  ]
+}

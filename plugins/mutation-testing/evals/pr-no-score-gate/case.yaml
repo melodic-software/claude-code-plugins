@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: pr-no-score-gate
+description: 'Legacy principles 3. One llm grader per legacy reason (three), loads-scaling for the reference read; legacy-principles-3 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'Recommends against gating with three reasons (equivalent mutants cap the score below 100%, score is purchasable by suppression, a repo-level score hides the per-file signal) and suggests reporting the number and ranking by oracle gap; reference/scaling-and-suppression.md is read.'
+execution:
+  prompt: 'Should we fail CI when the mutation score drops below 80%? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'loads-scaling'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/scaling-and-suppression\.md'
+  - name: 'reason-equivalent-ceiling'
+    type: 'llm'
+    criteria: 'PASS only if the reply gives as a reason not to gate that equivalent mutants, which no test can kill, put an unknowable ceiling below 100% on the score. FAIL if it never ties the score''s ceiling to equivalent mutants.'
+    focus: 'last_message'
+  - name: 'reason-suppression-purchasable'
+    type: 'llm'
+    criteria: 'PASS only if the reply gives as a reason not to gate that score can be bought by suppressing mutants, so a threshold rewards suppression over writing tests. FAIL if suppression is not named as the way the gate gets gamed.'
+    focus: 'last_message'
+  - name: 'reason-aggregation'
+    type: 'llm'
+    criteria: 'PASS only if the reply gives as a reason not to gate that a repository-level score aggregates away the per-file signal. FAIL if it never says a whole-repo number hides which files are weak.'
+    focus: 'last_message'
+  - name: 'legacy-principles-3'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “Should we fail CI when the mutation score drops below 80%?”. It meets the legacy expectation: "Recommends against gating, with three reasons: equivalent mutants put an unknowable ceiling below 100%, every point of score is purchasable by suppressing a mutant so a gate selects for suppression over testing, and a repo-level score aggregates away the per-file signal. Suggests reporting the number and ranking by oracle gap instead. Loads reference/scaling-and-suppression.md."'
+    focus: 'trace'

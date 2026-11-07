@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: de-tone-rubric-claims
+description: "Hard case. Source: legacy design case 7 (llm-grader-hygiene-recorded), its rubric-form and verdict expectations; the different-grader-model expectation is graded in design-grading-hygiene-recorded. The prompt names a non-Claude stack so the Claude API route does not apply. Why hard: handed a 1-to-5 tone score, the base model keeps the numeric scale; this plugin's design skill turns it into checkable pass/fail claims with a pass or fail verdict per claim."
+tags: [design, grading-hygiene, hard]
+runs: 3
+expected_outcome: "The grader shown is a list of pass/fail claims about tone (for example no slang, no blame on the customer, the problem acknowledged) in place of a numeric scale, and its verdict is constrained to pass or fail for each claim"
+execution:
+  prompt: "/evals:design app: my support bot runs on GPT-4o through OpenAI's API, and my criteria include 'responses stay professional in tone, scored 4 or higher out of 5'. The other criteria are settled, so don't ask me anything: set that one up and show the grader in your reply; write no file."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-pass-fail
+    type: regex
+    pattern: '\bpass(?:es|ed)?\b[^\n]{0,60}\bfail(?:s|ed)?\b|\bfail(?:s|ed)?\b[^\n]{0,60}\bpass(?:es|ed)?\b'
+    flags: i
+  - name: pass-fail-claims
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "The rubric is a list of pass/fail claims a grader can verify one by one, not a numeric tone scale". PASS if the tone grader shown is a list of separate claims about the reply (for example: no slang, no blame placed on the customer, the problem is acknowledged) that a grader checks one at a time. FAIL if the grader scores tone on a numeric scale (1 to 5, 0 to 10), or gives one holistic tone judgment with no claim list. Example PASS: "Claims: 1. No slang or emoji. 2. Does not blame the customer. 3. Acknowledges the problem before the fix." Example FAIL: "Score the reply 1 to 5 for professionalism; pass at 4 or higher."'
+  - name: verdict-constrained
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "The grader verdict is constrained to pass or fail for each claim". PASS if the grader instructions require a pass or fail verdict (or yes or no) for each claim, with no other verdict allowed. FAIL if the verdict is a score, a free-text opinion, or one verdict for the whole reply with no per-claim verdict. Example PASS: "For each claim answer PASS or FAIL, nothing else." Example FAIL: "Return a tone score and a short comment."'

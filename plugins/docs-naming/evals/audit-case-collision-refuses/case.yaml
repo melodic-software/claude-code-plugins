@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: audit-case-collision-refuses
+description: 'Legacy audit-file-names 2. docs/BETA.md would be renamed to docs/beta.md, which already exists: inventory.sh prints a COLLISION row and the run stops there with no plan written (emit-findings.sh refuses with nothing written). The reply names the pair, gives the case-insensitive checkout overwriting the second file as the reason, proposes resolving the pair and re-auditing, and offers no partial rename of the other offenders (audit-file-names SKILL.md lines 58-62, 143-145). ran-inventory is the with-only indicator; no-partial-plan (llm) quotes the legacy expectations. no-rename guards git mv or mv. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [audit-file-names, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'inventory.sh reports the COLLISION and no plan exists at .work/docs-hygiene/main/file-names.md. The reply names docs/BETA.md and docs/beta.md, explains that on a case-insensitive checkout one overwrites the other, proposes resolving the pair before re-auditing, and proposes no rename of the other offenders.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Audit the file names under docs/. Note that docs/BETA.md and docs/beta.md both exist in this tree. No one is around to answer questions while this runs.\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: ran-inventory
+    type: tool_used
+    tool: Bash
+    input_match: 'inventory\.sh'
+    arm: with-only
+  - name: names-pair
+    type: regex
+    pattern: '^(?=[\s\S]*\bBETA\.md\b)(?=[\s\S]*\bbeta\.md\b)'
+    target: last_message
+    arm: both
+  - name: case-insensitive-reason
+    type: regex
+    pattern: '\bcase[- ]insensitive\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-plan
+    type: file_exists
+    path: .work/docs-hygiene/main/file-names.md
+    exists: false
+    arm: both
+  - name: no-rename
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+(?:-C\s+\S+\s+)?mv\b|(?:"command"\s*:\s*"|[;&|]\s*)mv\s'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-partial-plan
+    type: llm
+    criteria: 'Pass only if all four legacy expectations hold. "The colliding pair is named explicitly." "The reason given is the case-insensitive checkout overwriting, not a generic validation failure." "No plan is written and no partial rename is proposed": the reply does not offer to rename the other offenders (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) anyway. "The remedy offered is resolving the pair and re-auditing."'
+    focus: last_message
+    arm: both

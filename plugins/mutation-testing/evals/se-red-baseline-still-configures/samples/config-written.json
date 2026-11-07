@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "docs/conventions/mutation-testing.yaml"
+      ],
+      "why": "as required"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "opposite"
+    }
+  ]
+}

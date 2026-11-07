@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "-s='feature-abc-12-x-20261004153012-7f3a-the-coupon-form'",
+      "why": "prefixed name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "-s='Feature/ABC 12;x-20261004153012-7f3a-the-coupon-form'",
+      "why": "raw id"
+    },
+    {
+      "answer": "-s='20261004153012-7f3a-the-coupon-form'",
+      "why": "no workspace part"
+    }
+  ]
+}

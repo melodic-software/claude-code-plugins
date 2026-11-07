@@ -57,13 +57,35 @@ export function unitMismatch(finding, unit) {
   return null;
 }
 
+// The carry rule for an incomplete sweep: an earlier entry it did not see
+// carries when everything carries (the collector stopped early, its record or
+// a unit's data is missing, a findings file is unreadable), when it names no
+// workflow, when its workflow's window was read only in part, or when a unit
+// whose findings were not read could have produced it. An entry records its
+// slice and workflow, not its unit; an A or D finding must match its unit's
+// slice and workflow (unitMismatch), so those two pick out the unit, and a C
+// unit binds no workflow, so an unread C unit carries every C entry.
+export const carryRule =
+  ({ all, partial, unread }) =>
+  (entry) => {
+    if (all) return all;
+    if (!entry.workflow) return "no-workflow";
+    if (partial.has(entry.workflow)) return "partial-window";
+    const fromUnread = unread.some((u) => u.slice === entry.slice && (!u.workflow || u.workflow === entry.workflow));
+    return fromUnread ? "unit-unread" : null;
+  };
+
 // complete: the collector read every unit's whole window and every unit has a
 // findings file the judge parsed, so a finding missing from this sweep is gone
-// rather than unread.
+// rather than unread. carry: which earlier entries an incomplete sweep keeps.
 export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath = null }) {
   const items = [];
   const dropped = [];
   const read = new Set();
+  const partial = new Set();
+  const unread = [];
+  const unparsed = [];
+  let all = null;
   let complete = true;
   for (const entry of readdirSync(findingsDir).sort()) {
     let data;
@@ -74,10 +96,13 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
     } catch {
       dropped.push({ unit: entry, title: null, reason: "unreadable" });
       complete = false;
+      all ??= "findings-unreadable";
       continue;
     }
-    if ((data.dropped ?? []).some((d) => d?.reason === "unparsable")) complete = false;
-    else read.add(data.unit);
+    if ((data.dropped ?? []).some((d) => d?.reason === "unparsable")) {
+      complete = false;
+      unparsed.push(String(data.unit));
+    } else read.add(data.unit);
     let unit = null;
     if (unitsDir && /^[acd][1-8]$/.test(String(data.unit))) {
       try {
@@ -121,32 +146,64 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
           .filter((f) => f.endsWith(".json"))
           .map((f) => f.slice(0, -".json".length))
       : [];
-    if (units.length === 0 || units.some((u) => !read.has(u))) complete = false;
-    // A unit the collector read only part of its workflow's window for.
-    for (const unit of units) {
+    if (units.length === 0) {
+      complete = false;
+      all ??= "no-units";
+    }
+    for (const id of units) {
+      let unit;
       try {
-        if (JSON.parse(readFileSync(join(unitsDir, `${unit}.json`), "utf8")).window_complete === false) complete = false;
+        unit = JSON.parse(readFileSync(join(unitsDir, `${id}.json`), "utf8"));
       } catch {
         complete = false;
+        all ??= "unit-unreadable";
+        continue;
+      }
+      // A unit the collector read only part of its workflow's window for.
+      if (unit.window_complete === false) {
+        complete = false;
+        if (unit.workflow) partial.add(unit.workflow);
+        else all ??= "partial-window";
+      }
+      if (!read.has(id)) {
+        complete = false;
+        unread.push({ slice: unit.slice, workflow: unit.slice === "C" ? null : (unit.workflow ?? null) });
       }
     }
-  }
+    if (unparsed.some((id) => !units.includes(id))) all ??= "unit-unread";
+  } else if (unparsed.length > 0) all ??= "unit-unread";
   // The collector's own record: a run that stopped before writing every unit
   // or read part of a workflow's window says so; a missing record is not
   // complete.
   if (statusPath) {
     try {
-      if (JSON.parse(readFileSync(statusPath, "utf8")).complete !== true) complete = false;
+      const status = JSON.parse(readFileSync(statusPath, "utf8"));
+      if (status.complete !== true) {
+        complete = false;
+        if (status.truncated != null) all ??= "collector-stopped";
+        else if (!Array.isArray(status.partial) || status.partial.length === 0) all ??= "collector-status-unclear";
+        else for (const path of status.partial) partial.add(String(path));
+      }
     } catch {
       complete = false;
+      all ??= "collector-status-unreadable";
     }
   }
-  return { items, dropped, complete };
+  return { items, dropped, complete, carry: carryRule({ all, partial, unread }) };
 }
 
 // Model text in the step summary: one line, no code spans, links, mentions
 // or HTML.
 const inertLine = (text) => inertTitle(String(text ?? "").replace(/`/g, ""));
+
+// How many unseen earlier entries carried, counted by reason.
+export function carriedNote(carried) {
+  if (carried.length === 0) return "no earlier entry carried over";
+  const counts = new Map();
+  for (const { reason } of carried) counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  const why = [...counts].map(([reason, n]) => `${n} ${reason}`).join(", ");
+  return `${carried.length} earlier entr${carried.length === 1 ? "y" : "ies"} carried over: ${why}`;
+}
 
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
@@ -227,7 +284,7 @@ async function main() {
     return response.json();
   };
 
-  const { items, dropped, complete } = prepareItems({
+  const { items, dropped, complete, carry } = prepareItems({
     findingsDir: env.FINDINGS_DIR,
     baseDir: env.BASE_DIR,
     unitsDir: env.UNITS_DIR,
@@ -240,6 +297,7 @@ async function main() {
     existing,
     openNumbers: new Set(openItems.map((i) => i.number)),
     complete,
+    carry,
   });
   const labels = [];
   if (plan.action === "file") {
@@ -257,7 +315,7 @@ async function main() {
   const lines = [
     "### Lane sweep digest",
     "",
-    `Entries: ${plan.entries.length}${complete ? "" : " (a unit's findings were not read, so earlier entries carry over)"}. New: ${plan.added.length}. No longer seen: ${plan.dropped.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Reopened: ${list(done.reopened)}. Calls: ${budget.used}.`,
+    `Entries: ${plan.entries.length}${complete ? "" : ` (sweep incomplete; ${carriedNote(plan.carried)})`}. New: ${plan.added.length}. No longer seen: ${plan.dropped.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Reopened: ${list(done.reopened)}. Calls: ${budget.used}.`,
     "",
     ...done.failed.map((f) => `- failed ${f.target}: ${f.error}`),
     ...plan.skip.map((s) => `- skipped ${s.fingerprint}: ${s.reason}`),

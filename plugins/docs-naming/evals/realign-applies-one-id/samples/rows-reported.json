@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nAPPLIED\tFN-c60eb30e\tdocs/Release_Notes.md\tdocs/release-notes.md\nEDITED\t3\nSKIPPED\t2\nDRIFTED\t0\nREGENERATED\t\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: docs/Release_Notes.md is now docs/release-notes.md and 3 references were updated."
+    },
+    {
+      "answer": "APPLIED FN-c60eb30e; EDITED 3."
+    }
+  ]
+}

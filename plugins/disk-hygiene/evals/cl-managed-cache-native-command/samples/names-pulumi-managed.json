@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "These are Pulumi-managed cache entries, so this skill reports them and does not delete them."
+    },
+    {
+      "answer": "The cache is owned by Pulumi."
+    },
+    {
+      "answer": "These versions belong to Pulumi's plugin cache."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "These old versions are Low tier; name and age are not proof."
+    },
+    {
+      "answer": "The cache under .pulumi/plugins holds three versions."
+    }
+  ]
+}

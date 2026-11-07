@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "touched features not matched (app-control not installed). cart page | passed.",
+      "why": "line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Touched feature: cart (shop/cart/** matches shop/cart/basket.py).",
+      "why": "matches the glob"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "The key is `<repo-identity>/<worktree-discriminator>`, the scheme audit-pass defines.",
+      "why": "code span"
+    },
+    {
+      "answer": "Reports live under audit/<repo-identity>/<worktree-discriminator>/last-audit.md.",
+      "why": "in a path"
+    },
+    {
+      "answer": "keyed by repo identity / worktree discriminator",
+      "why": "prose with spaces"
+    },
+    {
+      "answer": "```\nrung:          remote\nidentity:      example.invalid/acme/orchard-map\ndiscriminator: 93bd430a\nkey:           example.invalid/acme/orchard-map/93bd430a\n```",
+      "why": "smoke hm-p2a reply: quotes the resolver's --explain key parts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "You get this morning's report; the audit overwrites last-audit.md.",
+      "why": "unkeyed"
+    },
+    {
+      "answer": "Reports are keyed by repository name.",
+      "why": "near miss: no worktree discriminator"
+    },
+    {
+      "answer": "C1 PASS.",
+      "why": "different question"
+    },
+    {
+      "answer": "identity: example.invalid/acme/orchard-map\nkey: example.invalid/acme/orchard-map",
+      "why": "near miss: identity alone, no discriminator"
+    }
+  ]
+}

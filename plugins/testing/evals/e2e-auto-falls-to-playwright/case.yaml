@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-auto-falls-to-playwright
+description: 'Legacy run-e2e e2e-settings-05 (auto-falls-to-playwright-when-no-spec-covers). With no spec covering the changed page, auto does not pick harness or chrome and drives the page through the playwright CLI. picks-playwright-cli reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With no spec covering the changed page, auto does not pick harness or chrome and drives the page through the playwright CLI.'
+execution:
+  prompt: '/testing:run-e2e the new profile-photo upload page. e2e_driver resolves to auto. The repository''s e2e specs cover login and search only; none touches profile photos. The playwright plugin is enabled. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which driver auto picks and why, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: picks-playwright-cli
+    type: regex
+    pattern: '\bplaywright[- ]cli\b|/playwright:playwright\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the new profile-photo upload page. e2e_driver resolves to auto. The repository''s e2e specs cover login and search only; none touches profile photos. The playwright plugin is enabled. PASS only if the reply satisfies every legacy expectation: "Does not pick harness, because no spec covers the changed flow" "Drives the page through the playwright CLI path" "Does not pick chrome". FAIL if any point is missing or contradicted.'

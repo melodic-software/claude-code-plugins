@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Use `python -m pytest {tests}`.",
+      "why": "the remediation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use `python -m pytest tests/`.",
+      "why": "unchanged"
+    }
+  ]
+}

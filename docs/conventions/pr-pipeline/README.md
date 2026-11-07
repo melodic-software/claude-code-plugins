@@ -3377,10 +3377,14 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   tracking issue. A sweep whose set differs replaces the body with the entries it found, so a fixed
   finding drops off, and adds a comment naming the new and dropped entries and any whose tracking
   issue opened or closed; an empty set closes the digest, and a later finding reopens it. An
-  entry's details are not in the fingerprint, so they stay as the last rewrite left them. When the
-  collector read part of a workflow's window or stopped before writing every unit
-  (`collect-status.json`), or a unit's findings were not read (a failed judge leg, unparsable
-  output), earlier entries carry over instead of dropping off. A digest closed as not planned or duplicate is muted.
+  entry's details are not in the fingerprint, so they stay as the last rewrite left them. An
+  earlier entry the sweep did not see carries over instead of dropping off only when it could be
+  unread: its Where workflow is one whose window the collector read in part (`partial` in
+  `collect-status.json`), a unit of its slice and workflow had findings that were not read (a
+  failed judge leg, unparsable output), or it names no workflow. Every earlier entry carries when
+  the collector stopped before writing every unit (`truncated`), its status or a unit file is
+  missing or unreadable, or a findings file is unreadable. A digest closed as not planned or
+  duplicate is muted.
   Each field is cut at 2,000 characters, and past 60,000 characters an entry keeps only its title
   and fingerprint. The digest is labeled `source: lane-sweep` where that label exists, never
   `needs-triage`; writes run 1 s apart and stop at 50 calls.

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        }
+      ],
+      "why": "no build"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dotnet test Shop.Tests/Shop.Tests.csproj"
+          }
+        }
+      ],
+      "why": "runs the tests"
+    }
+  ]
+}

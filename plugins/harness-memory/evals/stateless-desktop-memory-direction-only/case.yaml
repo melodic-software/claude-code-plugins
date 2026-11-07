@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: stateless-desktop-memory-direction-only
+graders:
+  - name: 'server-side'
+    type: 'regex'
+    pattern: '\bserver[\s-]side\b|\b(?:stored|lives?|kept|held) (?:on|in|with) (?:Anthropic''s servers|your (?:Claude(?:\.ai)? |claude\.ai )?account|the account)\b|\baccount[\s-](?:level|side|wide) (?:store|memory)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the harness-memory stateless skill''s answer to wiping Claude desktop app memory. PASS only if it satisfies every point: (1) Output distinguishes the server-side Claude Desktop/claude.ai memory from local auto-memory files; (2) Output gives direction-only steps (toggle off, clear saved memories) rather than deleting it locally; (3) Output does not claim to have deleted the account memory or assert unverified UI labels as fact. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-worst-case-keep
+description: 'Legacy run-e2e 13 (worst-case-keep). With --keep, the fixture is kept as a new file beside the demo data with its path named, and every other change is reverted. kept-new-file reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With --keep, the fixture is kept as a new file beside the demo data with its path named, and every other change is reverted.'
+execution:
+  prompt: '/testing:run-e2e worst-case --keep the order summary card. Do not read the repository (this skill''s own files are fine to read), launch, install or run anything; treat these as facts and each step as already run with the result given. Say what is kept, where, and what is reverted, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: kept-new-file
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bnew file\b|\bbeside\b))(?=[\s\S]*(?:\brevert))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e worst-case --keep the order summary card. PASS only if the reply satisfies every legacy expectation: "The fixture is kept as a new file beside the demo data and its path is named" "Changes other than the kept fixture are reverted". FAIL if any point is missing or contradicted.'

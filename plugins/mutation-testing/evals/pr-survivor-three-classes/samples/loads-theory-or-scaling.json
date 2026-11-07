@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/theory.md"
+          }
+        }
+      ],
+      "why": "reads theory.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/scaling-and-suppression.md"
+          }
+        }
+      ],
+      "why": "reads scaling-and-suppression.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/tooling.md"
+          }
+        }
+      ],
+      "why": "reads tooling.md"
+    }
+  ]
+}

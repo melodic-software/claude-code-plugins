@@ -1,0 +1,8 @@
+{
+  "no-apply-or-acl": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:-Verb\\s+apply\\b|\\btakeown\\b|\\bicacls\\b|Set-Acl\\b)"
+  ]
+}

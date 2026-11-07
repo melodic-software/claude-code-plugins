@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Driver: playwright, from the control skill's hub, which comes before e2e_driver.",
+      "why": "hub source"
+    },
+    {
+      "answer": "**Driver: `playwright`. It comes from the control skill's hub, not from `docs/conventions/testing.yaml`.**",
+      "why": "two sentences (the smoke reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Driver: harness, from docs/conventions/testing.yaml e2e_driver.",
+      "why": "e2e_driver"
+    }
+  ]
+}

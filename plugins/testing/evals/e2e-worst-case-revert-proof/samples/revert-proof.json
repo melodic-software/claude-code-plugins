@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "git status --porcelain --untracked-files=all --ignored > before; ... cmp before after: identical.",
+      "why": "all three"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "git stash; edit the fixture; git stash pop.",
+      "why": "stash, no proof"
+    }
+  ]
+}

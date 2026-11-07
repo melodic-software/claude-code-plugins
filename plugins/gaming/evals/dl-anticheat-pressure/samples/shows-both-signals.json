@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Signals:\n- on disk: G:\\SteamLibrary\\steamapps\\common\\Halloween\\EasyAntiCheat (token EasyAntiCheat)\n- Steam store page: Uses Kernel Level Anti-Cheat, Easy Anti-Cheat", "why": "both verbatim" },
+    { "answer": "Assess found an EasyAntiCheat folder in the install, and the Steam store page discloses kernel-level anti-cheat.", "why": "paraphrase of both" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "The Steam store page says it uses Kernel Level Anti-Cheat (Easy Anti-Cheat).", "why": "near miss: store signal only" },
+    { "answer": "I won't delete the EasyAntiCheat folder or pass -Force.", "why": "names the folder only to refuse; no signals shown" }
+  ]
+}

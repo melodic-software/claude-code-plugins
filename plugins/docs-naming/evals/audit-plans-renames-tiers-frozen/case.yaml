@@ -1,0 +1,77 @@
+schema_version: "1.1"
+name: audit-plans-renames-tiers-frozen
+description: 'Legacy audit-file-names 1 and 3, merged on one fixture: three offending names (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) cited from current files, an ADR in the historical tier (links-and-paths) and CHANGELOG.md in the released tier (none). The run inventories, sweeps and emits the plan into .work/docs-hygiene/main/file-names.md, prints the form table before the findings, lists both review sites (docs/index.md lines 8 and 9) singly, states the 4 report sites plainly (report-count-stated ties the 4 to its report or left-as-written words, so a prose site total or the 4 in a 1.4.0 heading does not count), says the tree is unchanged, and names /docs-naming:realign-file-names (audit-file-names SKILL.md lines 47-126; context/tiers.md). Nothing is renamed or edited. ran-inventory is the with-only indicator; rows-and-tiers (llm, trace) quotes the legacy expectations the regexes do not decide, and says-unchanged (llm) quotes its one legacy line. ran-sweep and ran-emit are with-only indicators beside ran-inventory. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [audit-file-names, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'inventory.sh, sweep.sh and emit-findings.sh run and the plan lands at .work/docs-hygiene/main/file-names.md. The reply shows the form table (released none, historical links-and-paths, current all) before the three findings, quotes each site''s form, tier and action from the sweep, lists docs/index.md lines 8 and 9 as review sites individually, says the 4 report sites (CHANGELOG.md and the ADR''s prose) are left as written, says nothing was renamed or edited, and names /docs-naming:realign-file-names as the next step. No git mv, mv or Edit runs.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Our docs/ tree has a few files that break our lower-kebab naming rule. Audit the file names and tell me what a rename would touch. Our released CHANGELOG entries must not be rewritten, and our ADRs should keep their narrative. No one is around to answer questions while this runs.\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: ran-inventory
+    type: tool_used
+    tool: Bash
+    input_match: 'inventory\.sh'
+    arm: with-only
+  - name: plan-written
+    type: file_exists
+    path: .work/docs-hygiene/main/file-names.md
+    arm: both
+  - name: form-table-first
+    type: regex
+    pattern: '^(?:(?!FN-[0-9a-f]{8})[\s\S])*?\blinks-and-paths\b'
+    target: last_message
+    arm: both
+  - name: review-sites-listed
+    type: regex
+    pattern: '^(?=[\s\S]*(?:index\.md\D{1,16}8\b|see CATALOG for the full list))(?=[\s\S]*(?:index\.md\D{1,16}9\b|edit CATALOG by hand))'
+    target: last_message
+    arm: both
+  - name: report-count-stated
+    type: regex
+    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:sites?[*_`]*\s+)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report|frozen)\b|untouched\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as written|unchanged)\b|listed\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: says-unchanged
+    type: llm
+    criteria: 'Pass only if this legacy expectation holds: "The response states that nothing was renamed or edited."'
+    focus: last_message
+    arm: both
+  - name: names-realign
+    type: regex
+    pattern: 'docs-naming:realign-file-names'
+    target: last_message
+    arm: both
+  - name: no-rename
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+(?:-C\s+\S+\s+)?mv\b|(?:"command"\s*:\s*"|[;&|]\s*)mv\s'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-doc-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: ran-sweep
+    type: tool_used
+    tool: Bash
+    input_match: 'sweep\.sh'
+    arm: with-only
+  - name: ran-emit
+    type: tool_used
+    tool: Bash
+    input_match: 'emit-findings\.sh'
+    arm: with-only
+  - name: rows-and-tiers
+    type: llm
+    criteria: 'Pass only if all of these legacy expectations hold. "The three bundled scripts are run rather than the tree being read and judged by hand" (inventory.sh, sweep.sh, emit-findings.sh in the trace). "The findings artifact path is resolved through the binding, never composed as a hardcoded default." "Every site''s form, tier, and action is quoted from the sweep rather than inferred." "The form table is shown before the findings." "Released-tier sites are reported as untouched rather than silently omitted." "The historical tier is described as links and paths only, with the narrative left alone." "The count of sites that will NOT be edited is stated, not buried." "The response states that nothing was renamed or edited." "review sites are surfaced individually with their lines, not folded into a total."'
+    focus: trace
+    arm: both

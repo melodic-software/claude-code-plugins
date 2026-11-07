@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-browser-driver-missing
+description: 'Legacy run-e2e 16 (browser-driver-missing-stops-before-drive). Stops before any drive with a message naming browser_driver, pw-missing-tool and docs/conventions/testing.yaml, the two ways forward, and that no other browser tool is a silent substitute, dispatching no subagent. no-substitute reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Stops before any drive with a message naming browser_driver, pw-missing-tool and docs/conventions/testing.yaml, the two ways forward, and that no other browser tool is a silent substitute, dispatching no subagent.'
+execution:
+  prompt: '/testing:run-e2e the login flow. e2e_driver is playwright, and docs/conventions/testing.yaml sets browser_driver: pw-missing-tool, a command that is not installed on this machine. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the stop message, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: no-substitute
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\binstall\b))(?=[\s\S]*(?:\bsubstitut))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. e2e_driver is playwright, and docs/conventions/testing.yaml sets browser_driver: pw-missing-tool, a command that is not installed on this machine. PASS only if the reply satisfies every legacy expectation: "The stop message names the setting browser_driver, the value pw-missing-tool and the source docs/conventions/testing.yaml" "The message gives the two ways forward: install pw-missing-tool, or set browser_driver to a browser tool the user has" "The message says no other browser tool is used as a silent substitute" "No drive is attempted: no subagent is dispatched, no browser session opens and no screenshot is taken" "The run does not switch to another browser tool, to Claude in Chrome, or to another driver". FAIL if any point is missing or contradicted.'

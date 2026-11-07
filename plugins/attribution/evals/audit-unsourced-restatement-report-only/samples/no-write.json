@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run/files.txt",
+            "content": "docs/env/widget-env.md"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/attribution-run/report.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "report sidecar in the memory slice, not the relay file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/env/widget-env.md",
+            "content": "# rewritten"
+          }
+        }
+      ],
+      "why": "rewrites the restated doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/concurrency.md",
+            "content": "# rewritten"
+          }
+        }
+      ],
+      "why": "rewrites the quoted doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/reviews/main/20261107T100000Z-attribution.md",
+            "content": "| Rule | Location |"
+          }
+        }
+      ],
+      "why": "writes a findings file to a guessed path"
+    }
+  ]
+}

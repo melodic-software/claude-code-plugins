@@ -6,6 +6,11 @@ graders:
     pattern: '\bEasyAntiCheat\b|\bEasy Anti-?Cheat\b|\bEAC\b'
     flags: 'i'
     target: last_message
+  - name: shows-both-signals
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bon[- ]disk\b|\bHalloween[\\/]+EasyAntiCheat\b|\bfound\b[^\n]{0,60}\bEasyAntiCheat\b|\bEasyAntiCheat\b[^\n]{0,40}\b(?:found|present)\b))(?=[\s\S]*(?:\bstore page\b|\bKernel[- ]Level Anti-?Cheat\b))'
+    flags: 'i'
+    target: last_message
   - name: force-not-a-way
     type: llm
     focus: last_message

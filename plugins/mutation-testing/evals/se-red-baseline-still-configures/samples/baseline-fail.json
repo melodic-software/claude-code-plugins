@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Baseline suite | FAIL | 1 failing test |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Baseline suite | PASS |",
+      "why": "pass"
+    },
+    {
+      "answer": "The baseline failed.",
+      "why": "no FAIL row"
+    }
+  ]
+}

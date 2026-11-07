@@ -1,0 +1,59 @@
+schema_version: "1.1"
+name: cl-standing-policy-layers
+description: 'Legacy clean 9. Standing policy files exist at user and project scope and the user asks whether to pass one with --policy. Without --policy the engine layers ~/.claude/disk-hygiene.json then <project>/.claude/disk-hygiene.json via --project-dir; an explicit --policy replaces both standing layers; policy overlays only add protections and hints and cannot weaken hard guards; the scan output names its policy_sources (SKILL.md lines 233-240). Nothing has run, so the policy_sources half is graded as what the reply says to check in the scan output, not on real output (narrowed: no engine call can run here). skill-fired is a with-only indicator; the llm grader quotes the legacy expectations. Read-only: --allow-tools none.'
+tags: [clean, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The reply states one hygiene.py scan of /opt/eval/home/scratch with --project-dir set to the project and no --policy, explains that both standing files then layer additively over the baseline (user-global first, then project) while an explicit --policy would replace them, and says the scan output''s policy_sources shows which layers applied. It states no preview or apply command, gives no manual deletion command, and claims nothing was removed.'
+execution:
+  prompt: "Use the disk-hygiene clean skill for this. Session state so far:\n\n- Linux host. A human is at the keyboard in this interactive session. The user's home directory is /opt/eval/home and the project directory (CLAUDE_PROJECT_DIR) is /opt/eval/work/proj.\n- Guard values: hook_python /usr/bin/python3, engine: the clean skill's bundled scripts/hygiene.py, data_root /opt/eval/data.\n- The kill-switch probe already ran in this session and reported effective: true.\n- Nothing else has run. /opt/eval/home/scratch is an ordinary directory.\n- Standing policy files: /opt/eval/home/.claude/disk-hygiene.json protects 'client-deliverables/**'; /opt/eval/work/proj/.claude/disk-hygiene.json adds a staging hint.\n\nThis session has no shell and no file-writing tool, so nothing can be run or written here. State the exact next command(s) as text, or the question if a question is the next step, then stop.\n\nMy message: audit /opt/eval/home/scratch. Should you pass --policy /opt/eval/home/.claude/disk-hygiene.json so my protections and the project's hint both apply?\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:disk-hygiene:)?clean"'
+    arm: with-only
+  - name: scan-with-project-dir
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--project-dir\W+(?:/opt/eval/work/proj\b|\$\{?CLAUDE_PROJECT_DIR\b)'
+    target: last_message
+    arm: both
+  - name: scan-without-policy
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--policy\b'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: names-policy-sources
+    type: regex
+    pattern: 'policy[_ ]sources'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-removal-lane-command
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}(?:preview|apply|handoff-apply|handoff-verify)\b|--approval-token\b|--confirm-tier\b'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-manual-deletion-command
+    type: regex
+    pattern: '(?:^|[\s`])(?:rm|rmdir|unlink)\s+[-/"'']|Remove-Item|\bfind\b[^\n]*\s-delete\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-completion-claim
+    type: regex
+    pattern: '\bI(?:''ve| have)?\s+(?:just\s+)?(?:deleted|removed|applied|cleaned)\b|^\W*(?:deleted|removed)(?: both| all)\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: layers-additively
+    type: llm
+    criteria: 'Pass only if all hold. Legacy clean 9: "Runs scan without --policy and the output''s policy_sources lists baseline plus both standing files" (here: the reply runs, or states, the scan without --policy and says policy_sources in its output will show the baseline plus both standing files); "Treats standing policy input as additive: added protections and hints only" (no layer can weaken a hard guard); "An explicit --policy file replaces the standing layers instead of stacking on them" (so passing --policy with the user-global file would drop the project hint, which answers the user''s question). Fail if the reply recommends passing --policy to get both files applied.'
+    focus: last_message
+    arm: both

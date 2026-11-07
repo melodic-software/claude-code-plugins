@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: dl-status-game-update
+graders:
+  - name: update-not-mod
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Says Steam updated the game and the drift is the update, not the mod". Status showed the game exe modified and a line saying Steam updated the game (build 1000 -> 2000) with only game files drifted. PASS if the reply says Steam updated the game since the apply and the changed exe comes from that update, not from the mod or damage. FAIL if the reply blames the mod, calls the install corrupted or broken, or does not say the drift is the game update. Example PASS: "Steam updated the game from build 1000 to 2000; the changed exe is that update, not the mod." Example FAIL: "The mod changed your game exe."'
+  - name: offers-capture
+    type: regex
+    pattern: '\bcapture\b[\s\S]*?(?:\brefresh\b|-ConfirmRefresh\b|\bremove\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-refresh-or-ack
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:-ConfirmRefresh\b|\s-Finish\b|-AcceptAntiCheatRisk\b)'
+    min: 0
+    max: 0
+    arm: 'both'

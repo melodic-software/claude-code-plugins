@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.9] - 2026-11-07
+
+### Changed
+
+- The clean skill's `evals.json` is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Thirteen new cases: `cl-audit-only-next-step-is-scan` (an audit-only run's next step is a scan with output under the data root), `cl-managed-cache-native-command` (a product cache is deferred to its owner's read-only command), `cl-protected-items-stay-blocked` (tracked content and a virtual disk image stay blocked), `cl-changed-and-unverified-preview-blocks` (a renamed sibling or a missing lsof blocks the preview and needs a rescan), `cl-needs-elevation-deferred` (an access-denied OS path is deferred, never elevated), `cl-unattended-execute-audits-and-stops` (an unattended run reports by tier and stops), `cl-standing-policy-layers` (standing policy files layer additively), `cl-os-temp-zone-recommends-storage-sense` (an OS temp zone gets the OS mechanism), `cl-dev-drive-root-large-target-gate` (a non-OS volume root is gated, the OS drive refused), `cl-root-children-empty-dirs-stay-visible` (empty directories stay in a tidiness-first ranking), `cl-deep-inventory-report-keeps-gates` and `cl-home-target-inventory-first` (a home target starts with the read-only inventory), and `cl-linux-apply-hook-ask-is-the-question` (on Linux the apply call's hook ask is the removal question). `cl-approval-question-keeps-path-evidence` now states dontAsk mode, where the removal question comes before the apply call. Nothing is held.
+
+## [1.0.8] - 2026-11-07
+
+### Changed
+
+- The audit and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Nine new cases: `au-probe-then-scan-commands` (the kill-switch probe runs before a scan-only engine call whose snapshot goes under the data root), `au-null-data-root-not-run` (a null data root means the audit did not run, with no guessed root), `au-cleanup-request-routes-to-clean` (a removal request goes to the clean skill, not the audit), `su-bare-runs-check` and `su-apply-points-writes-nothing` (the bare and `apply` actions run the read-only check and write nothing), `su-exec-form-bash-registration-fails` (a bare `bash` registration fails step 1), `su-missing-git-bash-fails-probe` (no accepted bash fails the probe), `su-disabled-toggle-keeps-launch-fail` (a disabled toggle keeps the interpreter FAIL) and `su-python-below-floor-fails-closed` (an interpreter below `MIN_PYTHON` fails closed). Two halves of the legacy hints case are held because the existing `au-unwalked-child-is-coverage-gap` case does not grade them: truncated paths as coverage gaps (its fixture has none) and a plain path list proposed for removal (its graders catch only an engine `plan`, `preview` or `apply` call). The clean skill's `evals.json` stays for a later pull request.
+
 ## [1.0.7] - 2026-11-06
 
 ### Fixed

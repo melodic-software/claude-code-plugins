@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "docs/conventions/docs-naming.yaml"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/conventions/docs-naming.json"
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

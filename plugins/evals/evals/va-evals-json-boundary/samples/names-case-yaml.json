@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Convert each case to a directory with a `case.yaml`, then validate those.",
+      "why": "case.yaml"
+    },
+    {
+      "answer": "This validator reads only prompt.md / CASE.YAML / graders.",
+      "why": "casing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your evals.json is valid JSON with four cases.",
+      "why": "near miss: validates the JSON"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Point the validator at the file, not the directory.",
+      "why": "no format named"
+    }
+  ]
+}

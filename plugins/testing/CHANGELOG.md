@@ -3,6 +3,58 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.3] - 2026-11-07
+
+### Changed
+
+- The cleanup skill's legacy `evals.json` is retired into native `claude plugin eval` cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)):
+  - 5 new cases (`cl-*`): `refuses_default_branch`, `refuses_mixed_languages`, `refuses_without_mutation_setup`, `cannot_fail_only_accepted` and `cannot_fail_only_skeptic`. These legacy entries have no expectations list, so each llm grader quotes the expected output.
+  - Already covered: `cannot_fail_only_offered` (`cl-no-mutation-gate`), which gains an llm grader quoting it.
+  - Held, because each needs the mutation-testing plugin, which a testing-plugin eval run does not load: `routing` (on a feature branch with tests, the skill stops at its mutation-testing setup step before stating the batch rules), `cf_and_k_rewritten`, `trivial_getter_waits`, `registry_contract_kept`, `bash_harness_rewrite_only`, `expired_quarantine_reported_not_renewed`, `flaky_quarantined_gate_passes`, `red_baseline_stops`, `lost_kill_blocks`, `judge_diff_not_applied_unclassified`, `weaken_block_quarantine`, `findings_file_rows`, `answered_batch_commits`, `resumes_own_dirty_batch`, `cannot_fail_only_offered_on_empty_mapping`, `dotnet_gate_runs` and `dotnet_lost_kill_blocks`.
+  - The skill's `evals/` directory is removed along with its `evals.json`. Its fixtures had no other consumer. The cases now seed the Python and C# shops through `evals/fixtures/cleanup-shop.sh` and `cleanup-dotnet.sh`. `evals/fixtures/git-workspace.sh` is main's existing file, unchanged.
+  - A grader change after the first smoke data, in both cannot-fail-only cases: the reply-only `skeptic-verdicts` regex required the reply to say "throw is the only oracle". Both runs wrote that reason to `decisions.md` instead. It is now two graders: `records-keep-reason`, which checks the Bash write of `keep: throw is the only oracle`, and `proposes-two-deletions`, which checks the reply. The llm graders now read the trace, because the legacy text grades what `decisions.md` records. Every near-miss sample still fails.
+  - A grader tightening after the data: `writes-mode` read the whole trace, which carries the skill body's own `mode: cannot-fail-only` line, so it could not fail. It and `records-keep-reason` now read `.work/testing-cleanup/shop.tests/decisions.md` itself, so a `grep` of the skill or an `echo` leaves no file to match, and a Write-tool or quoted-path write passes alike. Near-miss samples cover an empty file, prose naming the mode, and the keep reason on another test.
+  - A grader widening after the data: `records-keep-reason` allows words between `keep:` and `throw is the only oracle` on the `Price_feed_resolves` row, since a skeptic run wrote `keep: DI resolution/constructor throw is the only oracle` and its llm grader passed. The keep-without-reason and reason-on-another-test samples still fail.
+
+- The run-e2e skill's legacy `evals.json` is retired into native `claude plugin eval` cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)):
+  - 53 new cases (`e2e-*`), one per legacy entry. The narrated entries run with read-only tools: the scenario facts are in the prompt, and each case is graded on the reply. Entry 2 has no expectations list, so its llm grader quotes the expected output.
+  - Entry 1 (`e2e-bare-prereq-gap`) is graded to the current skill text: with no scenario named and app-control not installed there is nothing to drive (run-e2e SKILL.md "Entry points"), so its legacy hard-fail gap report is not graded.
+  - `e2e-mcp-server-no-ui` now ends "Use the `testing:run-e2e` skill if you have it." Unnamed, the skill fired in 0 of 1 runs.
+  - Grader changes after the first smoke data. In each case the llm grader passed the reply, and every near-miss sample still fails:
+    - `e2e-test-endpoint-refused`: also accepts "real UI".
+    - `e2e-unknown-driver-defaulted`: also accepts "auto. Its source is the bundled default".
+    - `e2e-workspace-none-collide`: also accepts "port 5173 may already be taken".
+    - `hand-off-target` (`e2e-mask-hand-off-source-fails`, `e2e-mask-hand-off-none-source-publishes`): also accepts the path named inside the trusted root, "`.claude/skills/control-browser/SKILL.md` inside `/srv/trusted/shop`"; the checkout's copy still fails.
+    - `e2e-hub-driver-wins`: also accepts "playwright. It comes from the control skill's hub".
+    - The three own-instance cases: also accept "is not reused" and "does not adopt it", and now also require the reply to name the case's own instance port (51877, or 49210 in `e2e-own-instance-auto-unattended`), so a reply about another app's port fails. `e2e-own-instance-auto-unattended` also accepts "doesn't reuse", "does not reuse", and a negation within 40 characters of "reuse" or "adopt", such as "doesn't make the run adopt it".
+    - `summary-held` (`e2e-mask-hand-off-source-fails`): also accepts "summary" for `e2e-summary.json` and the verb "does not join", as in "the summary does not join `publishable`".
+    - `e2e-worst-case-word-scenario`: also accepts the code-span "not the `worst-case` action".
+    - `e2e-native-run-disabled`: also accepts "invocation refused (disableBundledSkills" when more reason text follows inside the parentheses.
+  - Prompt fixes after the first smoke data, where both graders failed because of how the case was built:
+    - `e2e-session-name-slug` keeps a blank line after the scenario. With the instructions appended on the same line, the run dropped "; rm -rf tmp" as an instruction.
+    - Every narrated scenario now ends in a full stop before the appended instructions (the four `e2e-worst-case-*` cases, `e2e-affected-unattended-drive`, `e2e-config-layers-delegated`, `e2e-nothing-affected`, `e2e-summary-scan-hit`, and both `e2e-mask-hand-off-*` cases), so the instructions do not run on into the scenario's last sentence.
+    - `e2e-worst-case-keep` and `e2e-worst-case-network` allow reading the skill's own files, since the graded `--keep` and report rules live in `context/worst-case.md` and a run barred from it could not reach them; the repository stays off-limits.
+    - `e2e-every-entry-point` states that each entry point drove and passed, because the run would not invent results.
+
+## [3.6.2] - 2026-11-07
+
+### Changed
+
+- The audit and check-visual-parity skills' legacy `evals.json` files are retired into native `claude plugin eval` cases ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)):
+  - 29 new cases: audit 1 to 3 and 5 to 24 (`au-*`), check-visual-parity 1 to 6 (`cvp-*`).
+  - Held: audit 4 (persist the findings), which needs the detector-findings contract fetched over the network.
+  - Not graded, because the current skill contradicts them: audit 7's "does not claim to audit bash test files", and audit 11's and 14's "report-only, never gates --check" (the skill now gates inert-assertion and conditional-assertion).
+  - Audit scaffolds copy the skill's existing fixtures through a new `evals/fixtures/audit-workspace.sh`, which drops each corpus file's leading header comments. `evals/fixtures/git-workspace.sh` is main's existing file, unchanged.
+  - `cant-fail-scan.test.sh` check (e) reads the native audit cases instead of the deleted `evals.json`.
+  - Six audit prompts now end "Use the `testing:audit` skill if you have it." On the unnamed prompt the skill fired in 0 of 1 runs for `au-boundary-routes-out`, `au-mock-only-advisory`, `au-conditional-assertion`, `au-relation-across-rows` and `au-snapshot-only`, and in 1 of 2 for `au-config-exemption-counted`.
+  - Grader changes after the first smoke data. In each case the llm grader passed the reply, and every near-miss sample still fails:
+    - `ran-scanner` (every scanning audit case): the script path may now be followed by `;`, `&`, `|`, `\` or `)`, not only by a space or a quote. The rejected reply was `bash "…/cant-fail-scan.sh"; echo "exit=$?"`.
+    - `au-clean-suite-denominator`: "no can't-fail tests" now counts as a clean result. A new negative rejects a scan that examined 0 test files, with a new sample for it.
+    - The rule-id regexes accept the unqualified `rule-<slug>`, except in `au-detect-happy-path`, whose legacy expectation asks for the qualified id. The rejected reply was `` `rule-flaky-passes-suite` at `playwright.config.ts:21` ``. The three weak-oracle cases also accept a bare `weak-oracle`. The rejected reply was "The audit's `weak-oracle` rule".
+    - `au-snapshot-only`: "only oracle" now counts as well as "review it as code". The rejected reply was "The snapshot is its only oracle".
+    - `cvp-repo-suite-first`: the prompt now names the README's `npm run test:visual` command and an available Playwright CLI, because the first run had no PNG driver to give the settings page and failed on both graders. Its grader now asks for that command plus `manifest` or `visual-compare.sh compare`. The rejected reply named only `visual-compare.sh compare`.
+    - `au-repair-not-pruning` gains `no-write` and `no-edit`. A run rewrote the test file with Write and the old Bash-only check passed it.
+
 ## [3.6.1] - 2026-11-07
 
 ### Changed

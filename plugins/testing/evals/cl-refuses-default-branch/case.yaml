@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: cl-refuses-default-branch
+description: 'Legacy cleanup refuses_default_branch. The shop fixture with main checked out. Step 0 refuses before reading findings or running a mutation, naming the default branch and asking for a feature branch, and writes nothing. The legacy entry has no expectations list, so the llm grader quotes its expected output. no-write reads the tool calls, names-branch the reply. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, cleanup, refuse, scaffold, no-network]
+expected_outcome: 'Refuses at step 0 on the default branch, names it and asks for a feature branch, edits nothing and writes no working file.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:cleanup shop_tests'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:\.work/testing-cleanup|shop_tests/)'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-branch
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:default branch|main)\b))(?=[\s\S]*(?:\b(?:feature|new|separate|another|topic|working) branch\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user ran /testing:cleanup shop_tests with the default branch main checked out. PASS only if the reply satisfies every legacy expectation: "Refuses before reading any finding or running any mutation, naming the default branch and asking for a feature branch. Edits nothing and writes no working file.". FAIL if any point is missing or contradicted.'

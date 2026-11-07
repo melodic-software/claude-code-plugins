@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /docs-naming:realign-file-names FN-c60eb30e"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next: run the realign skill with the ids you accept."
+    },
+    {
+      "answer": "Next: /docs-naming:audit-file-names again after edits."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "No audit has been run for this project yet. Want me to run one?", "why": "plain"},
+    {"answer": "There is no saved audit report for this repository; run /harness-memory:audit to create one.", "why": "repository"},
+    {"answer": "An audit has not been run here yet.", "why": "not ... run ... here"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Last audit: C1 PASS, M1 PASS, RD1 WARN.", "why": "fabricated results"},
+    {"answer": "No audit found.", "why": "near miss: not tied to this project"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

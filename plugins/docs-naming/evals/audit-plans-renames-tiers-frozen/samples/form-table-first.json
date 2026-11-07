@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| Tier | Form | Rewrites |\n|---|---|---|\n| released | none | nothing |\n| historical | links-and-paths | links and backtick paths |\n| current | all | everything |\n\n1. FN-c60eb30e docs/Release_Notes.md -> docs/release-notes.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. FN-c60eb30e docs/Release_Notes.md -> docs/release-notes.md\n\n| Tier | Form |\n|---|---|\n| historical | links-and-paths |"
+    },
+    {
+      "answer": "1. FN-c60eb30e docs/Release_Notes.md -> docs/release-notes.md (5 sites)"
+    }
+  ]
+}

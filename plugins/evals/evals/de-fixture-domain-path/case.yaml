@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: de-fixture-domain-path
+description: "Routine case. Source: legacy design case 12 (fixture-path-carries-eval-words). judge, rubric and case in a path the model reads tell it it is being graded, so the fixture is renamed after its domain and the prompt follows the new path."
+tags: [design, case-authoring, routine]
+runs: 3
+expected_outcome: "The reply proposes a fixture path named after its domain, with no word such as judge, rubric or case (for example exports/customers-may.csv), and points the case prompt at that path"
+execution:
+  prompt: "/evals:design skill csv-cleanup: the input file for case 3 is evals/judge-inputs/rubric-case-3/broken.csv and the prompt says 'Fix the CSV at evals/judge-inputs/rubric-case-3/broken.csv'. Scaffold it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: domain-csv-path
+    type: regex
+    pattern: '(?<![\w./-])(?![\w./-]*\b(?:judge|rubrics?|cases?|evals?|evaluations?|tests?|graders?|benchmarks?|fixtures?)\b)(?!broken\.csv(?![\w-]))[\w-]+(?:/[\w.-]+)*\.csv\b'
+    flags: i
+  - name: path-without-eval-words
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Proposes a fixture path with no evaluation words such as judge, rubric or case". PASS if the reply proposes a new path for the CSV whose directory and file names come from its domain and contain no word such as judge, rubric, case, eval, test, grader or benchmark. FAIL if it keeps the original path, or the new path still carries such a word. Example PASS: "Move it to exports/customers-may.csv." Example FAIL: "Move it to evals/inputs/case-3.csv."'
+  - name: prompt-follows-path
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Updates the prompt to reference the renamed path". PASS if the case prompt the reply proposes points at the renamed path. FAIL if the prompt still names evals/judge-inputs/rubric-case-3/broken.csv, or the reply renames the file without updating the prompt. Example PASS: "Prompt: Fix the CSV at exports/customers-may.csv." Example FAIL: "Renamed to exports/customers-may.csv; the prompt stays as it is."'

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "mode: cannot-fail-only\n| Price_feed_resolves | can-fail | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\n",
+      "why": "decision table row, as a Bash heredoc or the Write tool leaves it"
+    },
+    {
+      "answer": "- Price_feed_resolves: keep: throw is the only oracle (Shop.Tests/WiringTests.cs:19)\n",
+      "why": "list form"
+    },
+    {
+      "answer": "| Price_feed_resolves (WiringTests.cs:16) | rule-zero-assertion | `var s = provider.GetRequiredService<IPriceFeed>();` | can-fail | keep: DI resolution/constructor throw is the only oracle (WiringTests.cs:19) | n/a |\n",
+      "why": "words between keep: and the reason (the t4r skeptic row, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "mode: cannot-fail-only\n| Price_feed_resolves | can-fail | keep |\n",
+      "why": "keep without the reason"
+    },
+    {
+      "answer": "| Price_feed_resolves | cleared | delete |\n| Wiring_is_sane | keep: throw is the only oracle |\n",
+      "why": "the reason on another test"
+    },
+    {
+      "answer": "",
+      "why": "no decisions.md written (a grep or echo of the phrase leaves no file)"
+    }
+  ]
+}

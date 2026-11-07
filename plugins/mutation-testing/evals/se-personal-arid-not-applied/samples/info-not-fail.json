@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Suppression record | INFO | personal-only, not applied |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Suppression record | FAIL | personal-only, not applied |",
+      "why": "FAIL"
+    }
+  ]
+}

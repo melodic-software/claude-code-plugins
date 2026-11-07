@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: va-evals-json-boundary
+description: "Hard case. Source: legacy validate case 5 (routes-the-other-eval-format-away). Why hard: asked to validate an evals.json, the base model checks its JSON; this plugin's validator reads only the prompt.md / case.yaml / graders layout and routes the file's cases to conversion first."
+tags: [validate, format-boundary, hard]
+runs: 3
+expected_outcome: "The reply does not claim to have validated evals.json, says this validator reads only the prompt.md / case.yaml / graders layout, and routes the cases to conversion into case.yaml case directories (/evals:design skill <name> or convert-evals-json.py), then validation of those"
+execution:
+  prompt: "/evals:validate .claude/skills/deploy-notes/evals. Validate the evals.json in there for me."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-case-yaml
+    type: regex
+    pattern: '\bcase\.yaml\b'
+    flags: i
+  - name: no-validation-claim
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not claim to have validated evals.json". PASS if the reply reports no validation result for evals.json. FAIL if it says the file validated or lists validator findings for it. Example PASS: "This validator does not read evals.json, so there is nothing to report for it." Example FAIL: "Validated: 4 cases, one missing expectations."'
+  - name: layout-only
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Says this validator reads only the prompt.md / case.yaml / graders layout". PASS if the reply says the validator reads only case directories in the prompt.md, case.yaml and graders layout (so pointed at evals.json it finds no cases). FAIL if it says the validator reads evals.json, or never states what it reads. Example PASS: "It reads case directories (prompt.md or case.yaml, graders/), so this directory holds no cases for it." Example FAIL: "Pass the JSON file path instead."'
+  - name: conversion-route
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Routes the evals.json cases to conversion into case.yaml case directories, then validation of those". PASS if the reply says to convert the cases into case.yaml case directories (with /evals:design skill <name>, or the plugin''s convert-evals-json.py script) and then validate those directories. FAIL if it gives no conversion route, or no validation after it. Example PASS: "Convert them with /evals:design skill deploy-notes, then run /evals:validate on the new case directories." Example FAIL: "Rewrite the JSON so each expectation is a string."'

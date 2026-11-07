@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: cl-refuses-mixed-languages
+description: 'Legacy cleanup refuses_mixed_languages. shop_tests holds Python tests and a bash harness on feat/cleanup. Step 0 refuses before any mutation run, names both languages and asks for a folder of one, and edits nothing. The legacy entry has no expectations list, so the llm grader quotes its expected output. no-test-edit reads the tool calls, names-languages the reply. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, cleanup, refuse, scaffold, no-network]
+expected_outcome: 'Refuses at step 0: shop_tests mixes Python and a bash harness that one test-command cannot run; names both languages, asks for a one-language folder, edits nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:cleanup shop_tests'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: no-test-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'shop_tests/'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-languages
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:bash|shell)\b))(?=[\s\S]*(?:\bpython\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user ran /testing:cleanup shop_tests on feat/cleanup where shop_tests holds Python tests and a bash harness. PASS only if the reply satisfies every legacy expectation: "Refuses at step 0 before any mutation run: shop_tests holds Python tests and a bash-harness file, and the one test-command (python -m unittest {tests}) cannot run both. Names the two languages and asks for a folder holding one of them. Edits nothing.". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-driver-userconfig-alone
+description: 'Legacy run-e2e e2e-settings-02 (driver-from-userconfig-alone). Reports e2e_driver playwright from userConfig and reuse_running_instance auto from the default. reuse-default reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Reports e2e_driver playwright from userConfig and reuse_running_instance auto from the default.'
+execution:
+  prompt: '/testing:run-e2e the export flow. The repository has no docs/conventions/testing.yaml, no ~/.claude/testing.yaml and no .claude/testing.local.yaml. The testing plugin''s e2e_driver userConfig option is set to playwright. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Report each run-config value and where it came from, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: reuse-default
+    type: regex
+    pattern: 'reuse_running_instance\b[^\n]{0,40}\bauto\b[^\n]{0,60}\bdefault\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the export flow. The repository has no docs/conventions/testing.yaml, no ~/.claude/testing.yaml and no .claude/testing.local.yaml. The testing plugin''s e2e_driver userConfig option is set to playwright. PASS only if the reply satisfies every legacy expectation: "Reports e2e_driver as playwright, supplied by userConfig" "Reports reuse_running_instance as auto from the default". FAIL if any point is missing or contradicted.'

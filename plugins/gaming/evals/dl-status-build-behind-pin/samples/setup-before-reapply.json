@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "1. Capture your tuning.\n2. Run /gaming:setup apply to re-provision wilsjo2 v0.9.0.\n3. Then remove and apply this game again, each with its own confirmation.", "why": "roll-out order" },
+    { "answer": "First `/gaming:setup apply` downloads the new build; only then does a remove followed by an apply put v0.9.0 in the game.", "why": "prose order" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Remove the mod and apply it again to pick up v0.9.0.", "why": "near miss: no setup apply" },
+    { "answer": "Remove the mod, apply it again, then run /gaming:setup apply.", "why": "near miss: setup apply after the re-apply" }
+  ]
+}

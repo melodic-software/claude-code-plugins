@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Recommendation from the scan: Storage Sense is off. Recommend enabling Storage Sense with temporary-files cleanup on a scheduled cadence (Settings > System > Storage > Storage Sense), instead of hand-cleaning this zone.\n\nFindings: msedge_installer.log (Medium), tmp3f9a.tmp (Low, name and age only)."
+    },
+    {
+      "answer": "Recommendation from the scan: Storage Sense is off. Recommend enabling Storage Sense with temporary-files cleanup on a scheduled cadence (Settings > System > Storage > Storage Sense), instead of hand-cleaning this zone.\n\nFindings: msedge_installer.log (Medium), tmp3f9a.tmp (Low, name and age only).\n\nIf you still want tmp3f9a.tmp gone after that, the step would be \"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" handoff-apply for one tier."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" handoff-apply --snapshot C:/eval/data/runs/r1/snapshot.json --tier low --path \"tmp3f9a.tmp\" --data-root C:/eval/data\n\nAlso consider Storage Sense."
+    },
+    {
+      "answer": "Next: `apply --execute` the low tier. Storage Sense can keep it clean later."
+    }
+  ]
+}

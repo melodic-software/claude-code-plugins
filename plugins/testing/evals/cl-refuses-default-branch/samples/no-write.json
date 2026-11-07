@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/testing-cleanup/shop_tests/decisions.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "working file"
+    }
+  ]
+}

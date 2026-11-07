@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Using `npm run dev` on 5173. Parallel workspaces may collide on ports, containers and databases.",
+      "why": "collision warning"
+    },
+    {
+      "answer": "**Two other worktrees exist, so port 5173 may already be taken.**",
+      "why": "taken port (the smoke reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Using `npm run dev` on 5173.",
+      "why": "no warning"
+    }
+  ]
+}

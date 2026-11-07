@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "The split routes the finding to you, and it is not fix-eligible even though the separation rule fired.",
+      "why": "label negated"
+    },
+    {
+      "answer": "Fix eligibility: none. The finding isn't fix-eligible whatever the majority said.",
+      "why": "contraction"
+    },
+    {
+      "answer": "It is never automatically fix-eligible on a split panel.",
+      "why": "never with an adverb"
+    },
+    {
+      "answer": "It cannot be automatically fixed; the human decides.",
+      "why": "plain-language refusal"
+    },
+    {
+      "answer": "The split goes to you. It isn’t fix-eligible, and it can’t be fixed by the fix action.",
+      "why": "curly apostrophes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Two of three judges upheld it, and since the separation rule fired it is fix-eligible.",
+      "why": "majority taken, called fix-eligible"
+    },
+    {
+      "answer": "The split routes it to the human for review.",
+      "why": "eligibility not stated"
+    },
+    {
+      "answer": "The split does not matter here: the finding is fix-eligible.",
+      "why": "negation on another clause"
+    }
+  ]
+}

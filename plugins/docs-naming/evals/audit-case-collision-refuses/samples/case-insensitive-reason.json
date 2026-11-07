@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "On a case-insensitive checkout (macOS, Windows) the second file overwrites the first."
+    },
+    {
+      "answer": "Case-insensitive filesystems cannot hold both."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The inventory failed validation."
+    },
+    {
+      "answer": "Two files have the same name."
+    }
+  ]
+}

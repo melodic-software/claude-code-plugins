@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Diff target | PASS | main from origin/HEAD |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Base branch | main |",
+      "why": "near miss"
+    }
+  ]
+}

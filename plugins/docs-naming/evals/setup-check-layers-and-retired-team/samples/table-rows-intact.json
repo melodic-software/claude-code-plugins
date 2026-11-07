@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nPASS  jq\nPASS  git\nINFO  layer user-global           absent; the layer below it supplies these keys\nINFO  layer team                  absent\nINFO  layer personal-override     absent\nWARN  old team file               .claude/docs-hygiene.json is no longer read\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs-naming is configured: every check passed."
+    },
+    {
+      "answer": "PASS jq, PASS git, INFO team layer absent, WARN old team file."
+    },
+    {
+      "answer": "| user-global | INFO |\n| team | INFO |\n| personal-override | INFO |\n| rule | PASS |"
+    }
+  ]
+}

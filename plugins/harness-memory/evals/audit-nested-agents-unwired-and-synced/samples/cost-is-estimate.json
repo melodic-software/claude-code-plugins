@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Always-loaded set: ~9,856 tokens (estimate, bytes / 4).", "why": "both"},
+    {"answer": "Context cost is estimated at 9856 tokens.", "why": "estimated"},
+    {"answer": "**Tokens:** about 9.9k (bytes/4 estimate, not a measurement)", "why": "bold, compact"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Per /context, the always-loaded set costs 9,856 tokens.", "why": "attributed to /context"},
+    {"answer": "The always-loaded set is 39 KB.", "why": "near miss: bytes, no token estimate"},
+    {"answer": "N1 FAIL: plugins/foo/AGENTS.md.", "why": "other check"}
+  ]
+}

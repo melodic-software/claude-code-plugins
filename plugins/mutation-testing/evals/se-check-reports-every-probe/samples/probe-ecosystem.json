@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Ecosystem detected | PASS | Python (unittest) |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Language | Python |",
+      "why": "near miss"
+    }
+  ]
+}

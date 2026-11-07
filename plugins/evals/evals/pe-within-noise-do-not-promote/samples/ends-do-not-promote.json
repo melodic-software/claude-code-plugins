@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. The verdict is within noise, so the gain is not established.\n\ndo not promote: noise report verdict is within noise",
+      "why": "last line"
+    },
+    {
+      "answer": "The +0.12 is not established.\n\n**Don't promote**: the interval does not exclude 0.\n",
+      "why": "contraction in bold, trailing newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do not promote.\n\nAdd harder cases and rerun.",
+      "why": "near miss: not the last line"
+    },
+    {
+      "answer": "promote: VALID and the delta is positive",
+      "why": "promote"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

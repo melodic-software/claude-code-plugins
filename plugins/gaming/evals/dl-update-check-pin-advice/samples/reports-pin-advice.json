@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Update check: wilsjo2 has a newer stable release, v0.9.0; the pin is v0.8.3. A new pin is a plugin release, so nothing was changed.", "why": "both versions" },
+    { "answer": "Heads up: wilsjo2 0.9.0 is out (pinned 0.8.3). Now the status run.", "why": "bare versions" },
+    { "answer": "wilsjo2 v0.9.0 is out.", "why": "the advice without the pin" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "A newer wilsjo2 release is out. Now the status run.", "why": "near miss: no version" },
+    { "answer": "Update check skipped: no pwsh here. Running status.", "why": "advice not reported" }
+  ]
+}

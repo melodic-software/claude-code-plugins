@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stop: gap report. e2e_driver=playwright from docs/conventions/testing.yaml cannot drive the `invoice` CLI.",
+      "why": "gap report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Playwright cannot drive a CLI, so I'll use a pseudo-terminal instead.",
+      "why": "switches drivers"
+    }
+  ]
+}

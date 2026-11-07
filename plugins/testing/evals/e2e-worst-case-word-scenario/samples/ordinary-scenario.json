@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This is an ordinary scenario, not the worst-case action: drive checkout with an expired card.",
+      "why": "ordinary"
+    },
+    {
+      "answer": "This is an attended, ordinary e2e run. It is not the `worst-case` action.",
+      "why": "code-span action name (the smoke reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Worst-case action on the checkout flow: injecting extreme card data.",
+      "why": "runs the action"
+    }
+  ]
+}

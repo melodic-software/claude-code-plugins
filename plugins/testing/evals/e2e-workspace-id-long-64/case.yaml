@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-workspace-id-long-64
+description: 'Legacy run-e2e own-instance-05 (long-workspace-id-and-scenario-keep-run-id). Uses the 24-character workspace part q4-ledger-reconciliation, keeps the whole run id, and shortens only the scenario part to apply-partial-refun for a 64-character name. sixty-four reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Uses the 24-character workspace part q4-ledger-reconciliation, keeps the whole run id, and shortens only the scenario part to apply-partial-refun for a 64-character name.'
+execution:
+  prompt: '/testing:run-e2e followed by a 200-character scenario: the words ''apply partial refund to a split shipment order '' repeated until the text is 200 characters long. A Workspace environment entry ran, and the run''s WORKSPACE_ID is the 80-character text ''q4-ledger-reconciliation-'' repeated and cut to 80 characters. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Give the exact browser session name, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: sixty-four
+    type: regex
+    pattern: 'q4-ledger-reconciliation-(?:\d{14}-[0-9a-f]{4}|<run[ -]id>)-apply-partial-refun(?![a-z0-9-])'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e followed by a 200-character scenario: the words ''apply partial refund to a split shipment order '' repeated until the text is 200 characters long. A Workspace environment entry ran, and the run''s WORKSPACE_ID is the 80-character text ''q4-ledger-reconciliation-'' repeated and cut to 80 characters. PASS only if the reply satisfies every legacy expectation: "Uses the 24-character workspace part q4-ledger-reconciliation" "Produces a session name exactly 64 characters long" "Keeps the whole 19-character run id in the name" "Shortens only the scenario part, to apply-partial-refun". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-ready-after-failed-step
+description: 'Legacy run-e2e feature-map-02 (control-skill-ready-after-failed-drive). Re-runs the control skill''s Ready after the failed step and, with health and Ready passing, reports the Start timeout as a product failure with the health output beside it. product-failure reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Re-runs the control skill''s Ready after the failed step and, with health and Ready passing, reports the Start timeout as a product failure with the health output beside it.'
+execution:
+  prompt: '/testing:run-e2e the timer page. A control skill exists for the app, with a Ready command. Mid-run, choosing the `Start` button times out; afterwards the health check and Ready both pass. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say how the run reports the Start timeout, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: product-failure
+    type: regex
+    pattern: '\bproduct failure\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the timer page. A control skill exists for the app, with a Ready command. Mid-run, choosing the `Start` button times out; afterwards the health check and Ready both pass. PASS only if the reply satisfies every legacy expectation: "Re-runs the control skill''s Ready after the failed step" "Reports the Start timeout as a product failure, with the health output beside it". FAIL if any point is missing or contradicted.'

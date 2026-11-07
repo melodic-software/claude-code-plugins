@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: setup-apply-defaults-verifies
+description: 'Legacy setup 3. In a repository with no docs-naming layer, apply runs setup-check.sh, then setup-apply.sh --defaults, then the check again, and reports the written docs/conventions/docs-naming.yaml with the values from the second table and the untracked WARN as commit it to share it (setup SKILL.md lines 89-127). Refit: setup sets disable-model-invocation, so the prompt is /docs-naming:setup apply --defaults plus the legacy text. The YAML is never composed by hand (no Write or Edit of it or of .gitignore). ran-apply-defaults is the with-only indicator; recheck-after-write (llm, trace) grades the order, since tool_order compares first calls only. no-shell-gitignore-write guards a shell append or rewrite of .gitignore. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, apply, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'setup-apply.sh --defaults writes docs/conventions/docs-naming.yaml after a first check, and the check runs again after the write. The reply names the written path, reports the values from the second table, and says the file is untracked and needs committing to reach the team. No Write or Edit touches the YAML or .gitignore.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/docs-naming:setup apply --defaults\n\nSet up docs-naming for this repository with the bundled defaults.\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-apply-defaults
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.sh(?:[^"\\]|\\.)*--defaults'
+    arm: with-only
+  - name: team-file-written
+    type: file_exists
+    path: docs/conventions/docs-naming.yaml
+    arm: both
+  - name: no-hand-write
+    type: tool_used
+    tool: Write
+    input_match: 'docs-naming\.yaml|\.gitignore'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-hand-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'docs-naming\.yaml|\.gitignore'
+    min: 0
+    max: 0
+    arm: both
+  - name: says-commit-it
+    type: regex
+    pattern: '\b(?:untracked|uncommitted|not (?:yet )?(?:committed|tracked))\b[\s\S]{0,200}?\bcommit|\bcommit\b[\s\S]{0,200}?\b(?:untracked|uncommitted|not (?:yet )?(?:committed|tracked)|reach(?:es|ed)? (?:the|your) team|share it)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-shell-gitignore-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\s+(?:-[a-zA-Z]*i|--in-place)|\bperl\s+-[a-zA-Z]*i|>>?\s*(?:\\")?|\btee\s+(?:-a\s+)?|\b(?:rm|mv|truncate)\s+(?:-\w+\s+)*)(?:[^"\\;&|]|\\.)*\.gitignore'
+    min: 0
+    max: 0
+    arm: both
+  - name: recheck-after-write
+    type: llm
+    criteria: 'Pass only if all of these legacy expectations hold. "apply is run through the bundled setup-apply.sh, never by composing the YAML by hand." "The check is re-run after the write and the reported values come from that table": the trace shows setup-check.sh running after setup-apply.sh, and the reported values match that second run. "The untracked WARN is surfaced as commit it to share it rather than as success." "The consumer''s .gitignore is not edited" by any tool, shell redirect included.'
+    focus: trace
+    arm: both

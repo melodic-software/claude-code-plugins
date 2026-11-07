@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-run-driver-unattended
+description: 'Legacy run-e2e e2e-settings-06 (run-driver-unattended-uses-own-recipe). On an unattended run with e2e_driver run, the Native step records skipped (unattended), run is never invoked, and the sync subcommand is driven under a pseudo-terminal with its transcript and exit code saved. unattended-skip reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'On an unattended run with e2e_driver run, the Native step records skipped (unattended), run is never invoked, and the sync subcommand is driven under a pseudo-terminal with its transcript and exit code saved.'
+execution:
+  prompt: '/testing:run-e2e --unattended smoke-test the `sync` subcommand of this terminal app. e2e_driver resolves to run, and the bundled run skill resolves in this session. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer. Write the Native step result block and say how the subcommand is driven, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: unattended-skip
+    type: regex
+    pattern: 'skipped \(unattended\)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended smoke-test the `sync` subcommand of this terminal app. e2e_driver resolves to run, and the bundled run skill resolves in this session. PASS only if the reply satisfies every legacy expectation: "Records ''skipped (unattended)'' for the Native step and never invokes the bundled run skill" "Drives the subcommand under a pseudo-terminal per the non-ui.md recipe" "Saves the transcript and exit code as evidence". FAIL if any point is missing or contradicted.'

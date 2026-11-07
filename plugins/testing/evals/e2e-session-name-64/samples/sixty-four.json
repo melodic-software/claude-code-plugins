@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "20261004153012-7f3a-apply-partial-refund-to-a-split-shipment-ord",
+      "why": "64 characters"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "20261004153012-7f3a-apply-partial-refund-to-a-split-shipment-order-apply",
+      "why": "not cut to 64"
+    },
+    {
+      "answer": "apply-partial-refund-to-a-split-shipment-order-apply-partial-ref",
+      "why": "run id dropped"
+    }
+  ]
+}

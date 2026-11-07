@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/run/files.txt",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits a temp file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/env/widget-env.md",
+            "old_string": "Widget Runner reads",
+            "new_string": "Per the docs, Widget Runner reads"
+          }
+        }
+      ],
+      "why": "edits the restated doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/notes/concurrency.md",
+            "old_string": "We accept",
+            "new_string": "We adopt"
+          }
+        }
+      ],
+      "why": "edits the quoted doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/.work/reviews/main/20261107T100000Z-attribution.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits a findings file"
+    }
+  ]
+}

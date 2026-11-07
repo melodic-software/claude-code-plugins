@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pr-score-vs-test-strength
+description: 'Legacy principles 2. loads-metrics grades the reference read and two-denominators (llm) the formulas; legacy-principles-2 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'The same metric under ecosystem names: mutation score divides detected by all valid mutants, test strength (PIT) and Covered Code MSI (Infection) by covered mutants; reference/metrics.md is read.'
+execution:
+  prompt: 'What''s the difference between mutation score and test strength? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'loads-metrics'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/metrics\.md'
+  - name: 'two-denominators'
+    type: 'llm'
+    criteria: 'PASS only if the reply gives both denominators: mutation score is detected over all valid mutants (no-coverage ones included), and test strength or Covered Code MSI is detected over covered mutants only. FAIL if it calls them different metrics, gives one denominator, or swaps them.'
+    focus: 'last_message'
+  - name: 'legacy-principles-2'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “What''s the difference between mutation score and test strength?”. It meets the legacy expectation: "Identifies them as the same metric under different ecosystem names: mutation score counts all valid mutants (including no-coverage) in the denominator; PIT''s test strength and Infection''s Covered Code MSI count only covered mutants. Gives the formulas (detected/valid vs detected/covered). Loads reference/metrics.md."'
+    focus: 'trace'

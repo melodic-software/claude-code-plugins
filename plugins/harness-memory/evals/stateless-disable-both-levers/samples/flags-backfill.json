@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "If chezmoi manages ~/.claude/settings.json, backfill the edit to the source.", "why": "both"},
+    {"answer": "A dotfile manager would revert this on the next apply, so update its source copy too.", "why": "dotfile manager"},
+    {"answer": "Tracked by your config-management tool? Backfill it.", "why": "backfill"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Set autoMemoryEnabled: false in ~/.claude/settings.json.", "why": "near miss: edit with no tracking note"},
+    {"answer": "Restart Claude Code for the change to apply.", "why": "other advice"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

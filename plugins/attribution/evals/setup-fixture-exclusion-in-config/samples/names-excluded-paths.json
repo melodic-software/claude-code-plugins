@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "I won't hardcode it in list-corpus.sh. Add the glob to `excluded_paths` in docs/conventions/attribution.yaml instead:\n\n```yaml\nexcluded_paths:\n  - \"evals/fixtures/**\"\n```",
+      "why": "key in a YAML block"
+    },
+    {
+      "answer": "Use the config layer's excluded_paths; a configured run reports the tree as declined.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I won't hardcode it in list-corpus.sh. Put the fixtures glob in the config's exclusion list instead.",
+      "why": "remedy described, key not named"
+    },
+    {
+      "answer": "Added `--exclude evals/fixtures` to list-corpus.sh.",
+      "why": "script edit"
+    },
+    {
+      "answer": "Add the glob under `excluded-paths` in the config.",
+      "why": "misspelled key"
+    }
+  ]
+}

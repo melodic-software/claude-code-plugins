@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/notes.md", "content": "wilsjo2 v0.9.0 out" } }], "why": "a scratch note, not a pin, ledger or game file" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "D:\\Gaming\\dlss5\\LEDGER.md", "content": "| wilsjo2 | v0.9.0 |" } }], "why": "rewrites the ledger" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1", "content": "Tag = 'v0.9.0'" } }], "why": "re-pins the installed script" }
+  ]
+}

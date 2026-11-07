@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No scenario is named and no feature is matched, so there is nothing to drive: Steps 3 and 4 launch nothing.",
+      "why": "nothing to drive"
+    },
+    {
+      "answer": "The run drives nothing and reports that.",
+      "why": "drives nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The prerequisite check failed, so the run writes the verification-environment gap report.",
+      "why": "the legacy hard-fail, not the skill's nothing-to-drive outcome"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

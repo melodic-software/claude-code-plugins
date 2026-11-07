@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-captures-other-states
+description: 'Legacy run-e2e e2e-states-01 (captures-error-empty-and-feedback-states). Captures the panel''s empty state, at least one save error state and the feedback after Save, and lists any state it could not reach as not driven with the reason. empty-and-error reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Captures the panel''s empty state, at least one save error state and the feedback after Save, and lists any state it could not reach as not driven with the reason.'
+execution:
+  prompt: '/testing:run-e2e the new saved-searches panel. A signed-in user can save the current search under a name, and the panel lists their saved searches. The happy path works on my machine. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." List the states the run captures and any it cannot reach, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: empty-and-error
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bempty state\b))(?=[\s\S]*(?:\berror state\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the new saved-searches panel. A signed-in user can save the current search under a name, and the panel lists their saved searches. The happy path works on my machine. PASS only if the reply satisfies every legacy expectation: "Captures the empty state of the panel for a user with no saved searches" "Captures at least one error state of saving a search" "Captures the feedback shown after Save, not only the resulting list" "Lists any state it could not reach as not driven, with the reason". FAIL if any point is missing or contradicted.'

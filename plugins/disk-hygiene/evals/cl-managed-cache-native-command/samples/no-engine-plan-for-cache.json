@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "These versions are Pulumi-managed state. This skill never puts managed state in an engine plan, so there is no preview or approval for them. Pulumi's own tooling decides what is unused."
+    },
+    {
+      "answer": "No plan: managed state is report-only here. The read-only Pulumi listing you ran is the owner's view."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" preview \\\n  --snapshot \"/opt/eval/data/runs/r1/snapshot.json\" --tier low \\\n  --path \"resource-aws-v6.10.0\" --path \"resource-aws-v6.12.0\" \\\n  --data-root \"/opt/eval/data\"\n```"
+    },
+    {
+      "answer": "Plan: --path resource-aws-v6.10.0 --path resource-aws-v6.12.0"
+    },
+    {
+      "answer": "{\"tier\": \"low\", \"paths\": [{\"path\": \"resource-aws-v6.10.0\"}]}"
+    }
+  ]
+}

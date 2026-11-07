@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Record:\n- Decision: retries back off three times.\n- Source: https://example.com/docs/retries#policy\n- As of: 2026-11-07\n- Recheck when: the retries page changes its default count.",
+      "why": "concrete ISO date"
+    },
+    {
+      "answer": "As of: YYYY-MM-DD (the fix run's date), so check-stamps.sh can parse it.",
+      "why": "ISO template, record specified not written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "As of: 2026/11/07.",
+      "why": "slash-separated date"
+    },
+    {
+      "answer": "As of: Nov 7 2026.",
+      "why": "month-name date"
+    },
+    {
+      "answer": "As of: the date of the fix run, in ISO 8601.",
+      "why": "format named, no date or template"
+    }
+  ]
+}

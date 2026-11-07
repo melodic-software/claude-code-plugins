@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -Command \"Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\\dlss5'\"" } }], "why": "the default data_dir command" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb discover -DataDir '${user_config.data_dir}'" } }], "why": "an unexpanded option token" }
+  ]
+}

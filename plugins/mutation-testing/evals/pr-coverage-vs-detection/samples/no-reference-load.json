@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/SKILL.md"
+          }
+        }
+      ],
+      "why": "the skill body"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/principles/reference/metrics.md"
+          }
+        }
+      ],
+      "why": "loads a reference"
+    }
+  ]
+}

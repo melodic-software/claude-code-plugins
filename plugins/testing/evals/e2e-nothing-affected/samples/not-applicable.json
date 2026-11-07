@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "{\"capture\": {\"status\": \"not-applicable\", \"reason\": \"control skill present, 1 files unmatched\", \"count\": 0}}",
+      "why": "status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"capture\": {\"status\": \"blocked\", \"reason\": \"nothing affected\"}}",
+      "why": "blocked"
+    }
+  ]
+}

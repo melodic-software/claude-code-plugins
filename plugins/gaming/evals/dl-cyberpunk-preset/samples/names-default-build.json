@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Build: wilsjo2 v0.8.3 (the default).", "why": "build and tag" },
+    { "answer": "| Build | wilsjo2 |\n| Tag | v0.8.3 |", "why": "table rows" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Build: dagherbou v0.2.0-patch1.", "why": "the fallback the user did not ask for" },
+    { "answer": "Build: wilsjo2.", "why": "near miss: no tag" }
+  ]
+}

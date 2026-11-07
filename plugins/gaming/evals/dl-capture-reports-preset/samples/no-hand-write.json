@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/notes.md", "content": "capture done" } }], "why": "a file outside the preset and game folders" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json", "content": "{\"ini\":[{\"key\":\"LogLevel\",\"value\":\"4\"}]}" } }], "why": "adds a not-captured key by hand" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\\OptiScaler.ini", "content": "[DlssNr]\nAutoCapture=false\n" } }], "why": "writes the game folder's ini" }
+  ]
+}

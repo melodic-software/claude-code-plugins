@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: va-effective-file-prompt-md
+description: "Routine case. Source: legacy validate case 8 (bounds-report-the-effective-file). prompt.md frontmatter overrides the matching case.yaml field, and the bounds check reports the file the effective value came from."
+tags: [validate, bounds, routine]
+runs: 3
+expected_outcome: "The reply says prompt.md frontmatter overrides the matching case.yaml field, so the effective runs is 99 and prompt.md is the file to fix, and does not tell the user to change case.yaml"
+execution:
+  prompt: "/evals:validate The validator says runs 99 over the maximum 50 in my-case/prompt.md, but my case.yaml says runs: 3. Which one is wrong?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: prompt-md-overrides
+    type: regex
+    pattern: '\bprompt\.md\b(?:(?!\bnot\b|n[''’]t\b|\boverridden\b)[^\n]){0,80}\b(?:overrides|wins|takes precedence|beats)\b|\b(?:overrides|takes precedence over)\b[^\n]{0,80}\bcase\.yaml\b'
+    flags: i
+  - name: edit-prompt-md
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Identifies prompt.md as the file to edit". PASS if the reply says the runs: 99 in my-case/prompt.md is the value to fix. FAIL if it names case.yaml, both files, or neither as the place to fix. Example PASS: "Fix prompt.md: its runs: 99 is the effective value." Example FAIL: "Make the two files agree."'
+  - name: not-case-yaml
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not tell the user to change case.yaml". PASS if the reply does not tell the user to edit case.yaml. FAIL if it tells them to change case.yaml''s runs, alone or as well as prompt.md. Example PASS: "case.yaml is fine; prompt.md overrides it." Example FAIL: "Set runs in case.yaml to 50."'

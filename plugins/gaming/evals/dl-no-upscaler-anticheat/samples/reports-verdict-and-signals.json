@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Verdict: not-a-candidate (no DLSS, FSR 2+ or XeSS DLL). Anti-cheat status: signals, with a kernel anti-cheat signal.", "why": "both" },
+    { "answer": "Helldivers 2 is not a candidate: there is no upscaler to hook. Assess also found a kernel-level anti-cheat.", "why": "kernel-level anti-cheat" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Helldivers 2 is not a candidate: there is no upscaler to hook.", "why": "near miss: verdict only" },
+    { "answer": "Assess found a kernel anti-cheat signal, so apply would need your typed acknowledgement.", "why": "near miss: signals without the verdict" }
+  ]
+}

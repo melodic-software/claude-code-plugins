@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### merged-once\n\nexpected_outcome: each pull request merged since v2.3 appears exactly once",
+      "why": "field named in a case"
+    },
+    {
+      "answer": "Each case below has an `expected_outcome` and a regex grader.",
+      "why": "in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Case 1: draft notes for v2.4. Expected: every PR once.",
+      "why": "near miss: expected answer without the field"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run the suite with claude plugin eval once the cases are written.",
+      "why": "a different question"
+    }
+  ]
+}

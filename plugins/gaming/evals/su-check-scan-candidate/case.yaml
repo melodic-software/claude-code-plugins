@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: su-check-scan-candidate
+graders:
+  - name: runtime-fail
+    type: regex
+    pattern: '\b(?:runtime|nvngx_dlssnr\.dll)\b[^\n]{0,160}\bFAIL(?:S|ED)?\b|\bFAIL(?:S|ED)?\b[^\n]{0,160}\b(?:runtime|nvngx_dlssnr\.dll)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-candidate
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bstreamline[\\/]+nvngx_dlssnr\.dll\b|\bExample DLSS 5 Title\b))(?=[\s\S]*\b(?:passes|passed|known-good|known good|gate:? PASS)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-provision-or-copy
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:-Verb\s+provision\b|\bcp\b|Copy-Item|\bxcopy\b|\brobocopy\b|\bmv\b|Move-Item|New-Item|Set-Content|Out-File)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-token
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?\$\{user_config\.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'

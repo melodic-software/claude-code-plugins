@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no Bash call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/harness-memory/lib/state-key.sh"}}], "why": "resolver only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls docs/audit"}}], "why": "near miss: reads the folder, writes nothing"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p docs/audit"}}], "why": "creates the folder"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat > docs/audit/health-report.md <<'EOF'\n# Report\nEOF"}}], "why": "redirect"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp /tmp/data/audit/k/last-audit.md docs/audit/health-report.md"}}], "why": "copies the report in"}
+  ]
+}

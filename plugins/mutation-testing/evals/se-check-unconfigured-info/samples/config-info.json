@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Config presence | INFO | none: the audit falls back |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Config presence | FAIL | missing |",
+      "why": "FAIL"
+    }
+  ]
+}

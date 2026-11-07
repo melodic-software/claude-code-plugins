@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .claude/mutation-testing-arid.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .gitignore",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "reads the file"
+    }
+  ]
+}

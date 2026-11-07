@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-native-run-ran
+description: 'Legacy run-e2e 5 (native-step-run-resolves-no-orchestrator). With run resolving and no orchestrator, the drive subagent launches through run once, fingerprints git diff HEAD before and after, layers evidence on run''s result and records State: ran. ran-state reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With run resolving and no orchestrator, the drive subagent launches through run once, fingerprints git diff HEAD before and after, layers evidence on run''s result and records State: ran.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The bundled run skill resolves in this session and the project has no orchestrator configuration. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the Native step result block and say how the app launches, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: ran-state
+    type: regex
+    pattern: 'State[*_`:\s]{1,6}ran\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. The bundled run skill resolves in this session and the project has no orchestrator configuration. PASS only if the reply satisfies every legacy expectation: "Invokes run through the Skill tool to launch the app and report how to reach it" "Saves git diff HEAD to a scratch file immediately before and after the invocation and compares the two" "Layers evidence (screenshots, responses, logs) on top of run''s result" "Records ''State: ran'' in the result block" "Launches the app once, through run only". FAIL if any point is missing or contradicted.'

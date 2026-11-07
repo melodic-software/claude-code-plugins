@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "skeptic",
+            "prompt": "Can Price_feed_resolves fail?"
+          }
+        }
+      ],
+      "why": "dispatched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skeptic"
+    }
+  ]
+}
