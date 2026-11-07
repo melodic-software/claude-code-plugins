@@ -64,8 +64,14 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     return run;
   }
 
+  // A head that reads as moved is read again after one poll before the skip,
+  // so one lagging read cannot leave this head with no review.
   async function finish(reason) {
-    const pr = await api.get(`pulls/${number}`);
+    let pr = await api.get(`pulls/${number}`);
+    if (pr.state === "open" && pr.head?.sha !== head) {
+      await sleep(pollMs);
+      pr = await api.get(`pulls/${number}`);
+    }
     if (pr.state !== "open" || pr.head?.sha !== head) {
       say("notice", `skip the review: the head is now ${pr.head?.sha ?? "unknown"} (${pr.state}), whose own review runs (after ${reason})`);
       return { proceed: false, reason: "head-moved" };
@@ -102,8 +108,9 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     say("notice", `dispatcher run ${dispatcher.id} started pr-refine run ${id}`);
 
     const refine = await api.get(`actions/runs/${id}`);
-    if (refine.path !== REFINE || refine.event !== "workflow_dispatch" || refine.head_branch !== "main") {
-      say("warning", `run ${id} named by dispatcher run ${dispatcher.id} is not a pr-refine.yml dispatch on main; not waiting for it`);
+    // pr-refine.yml's run-name ends with the PR number it refines.
+    if (refine.path !== REFINE || refine.event !== "workflow_dispatch" || refine.head_branch !== "main" || !String(refine.display_title ?? "").endsWith(` #${number}`)) {
+      say("warning", `run ${id} named by dispatcher run ${dispatcher.id} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
       return await finish("not-refine");
     }
     const done = await completed(refine);
