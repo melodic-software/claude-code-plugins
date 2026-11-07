@@ -3513,6 +3513,33 @@ def test_ids_a_verbatim_copy_without_a_reason_fails(tmp_path, entry, heading):
     assert f"{ref} left this file without a retirement" in out(result), out(result)
 
 
+def test_ids_a_multi_line_verbatim_copy_without_a_reason_fails(tmp_path):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    heading = "Retired open questions"
+    wrapped = "- [Q1] Which color?\n  Options blue or red; recommend blue."
+    edit(hop2, QUESTION + "\n", wrapped + "\n")
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired: {archived.name} § {heading}\n",
+    )
+    pred_path = (
+        hop2.parent
+        / hop2.read_text(encoding="utf-8")
+        .split("previous_handoff: ", 1)[1]
+        .split("\n", 1)[0]
+        .strip()
+    )
+    assert pred_path.is_file()
+    edit(pred_path, QUESTION + "\n", wrapped + "\n")
+    edit(hop2, wrapped + "\n", "None. Settled this hop.\n")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{wrapped}\n")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "[Q1] left this file without a retirement" in out(result), out(result)
+
+
 def test_ids_a_one_line_question_listing_still_needs_a_pointer(tmp_path):
     hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
     heading = "Retired open questions"
