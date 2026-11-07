@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "- **Result**: unknown. Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph."
+    },
+    {
+      "answer": "Result: unknown. The repo has only a Gemfile, which no shipped adapter reads, so I didn't invent an empty graph."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Result: unknown. No adapter could read this tree.",
+      "why": "Gemfile not named"
+    },
+    {
+      "answer": "Result: ok. The Gemfile declares no project references, so the graph is empty.",
+      "why": "empty graph presented"
+    },
+    {
+      "answer": "Result: unknown. Gemfile found. I invented nothing? Not really: I listed the gems as nodes.",
+      "why": "near miss with not in another clause"
+    }
+  ]
+}

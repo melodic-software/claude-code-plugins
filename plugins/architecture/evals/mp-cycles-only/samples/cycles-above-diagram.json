@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n```\n\n\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Dependency graph\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n```\n\n\n\n\n## Cycles\n\n- `src/Orders/Orders.csproj -> src/Payments/Payments.csproj -> src/Shipping/Shipping.csproj -> src/Orders/Orders.csproj`\n",
+      "why": "Cycles below the diagram"
+    },
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\nNone.\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 0. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/Orders/Orders.csproj\"]\n  n2[\"src/Payments/Payments.csproj\"]\n  n3[\"src/Shipping/Shipping.csproj\"]\n  n1 --> n2\n  n2 --> n3\n  n3 --> n1\n```\n\n\n",
+      "why": "cycle not named"
+    }
+  ]
+}

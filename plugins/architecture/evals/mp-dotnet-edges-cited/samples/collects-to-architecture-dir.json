@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out \"docs/architecture/dependency-graph.json\" \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws > docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stdout redirected into the record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out graph.json /opt/eval/ws",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "outside the architecture directory"
+    }
+  ]
+}

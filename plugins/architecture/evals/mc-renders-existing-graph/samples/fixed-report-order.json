@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Rendered the existing graph; nothing was re-collected.\n\n- **Artifacts**: `docs/architecture/components.md`\n- **Container**: Billing.Api (`src/Billing.Api/Billing.Api.csproj`)\n- **Grouping**: directory; no layering convention declared\n- **Components**: `components=3 edges=2 drawn_edges=2`\n- **Thin result**: no\n- **Layer violations**: 0 (informational)\n- **Aggregated**: no\n- **External and unresolved**: 0 external, 0 unresolved\n- **Graph source**: the existing `docs/architecture/dependency-graph.json`, not re-collected\n- **Dialect**: `diagram_dialect.system` = c4-plantuml (team convention doc `docs/conventions/authoring-formats/README.md`)\n\nWant an interactive view of the Billing.Api closure? Say yes and I'll build it."
+    },
+    {
+      "answer": "Rendered the existing graph; nothing was re-collected.\n\n**Artifacts:** `docs/architecture/components.md`\n**Container:** Billing.Api (`src/Billing.Api/Billing.Api.csproj`)\n**Grouping:** directory; no layering convention declared\n**Components:** `components=3 edges=2 drawn_edges=2`\n**Thin result:** no\n**Layer violations:** 0 (informational)\n**Aggregated:** no\n**External and unresolved:** 0 external, 0 unresolved\n**Graph source:** the existing `docs/architecture/dependency-graph.json`, not re-collected\n**Dialect:** `diagram_dialect.system` = c4-plantuml (team convention doc `docs/conventions/authoring-formats/README.md`)\n\nWant an interactive view of the Billing.Api closure? Say yes and I'll build it.",
+      "why": "labels bold with the colon inside"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Artifacts | docs/architecture/components.md |\n| Container | Billing.Api |\n| Grouping | directory |\n| Components | components=3 edges=2 drawn_edges=2 |\n| Thin result | no |\n| Layer violations | 0 |\n| Aggregated | no |\n| External and unresolved | 0 / 0 |\n| Graph source | existing dependency-graph.json |\n| Dialect | c4-plantuml (team convention doc) |",
+      "why": "table form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rendered the existing graph; nothing was re-collected.\n\n- **Artifacts**: `docs/architecture/components.md`\n- **Container**: Billing.Api (`src/Billing.Api/Billing.Api.csproj`)\n- **Grouping**: directory; no layering convention declared\n- **Components**: `components=3 edges=2 drawn_edges=2`\n- **Thin result**: no\n- **Layer violations**: 0 (informational)\n- **Aggregated**: no\n- **External and unresolved**: 0 external, 0 unresolved\n- **Dialect**: `diagram_dialect.system` = c4-plantuml (team convention doc `docs/conventions/authoring-formats/README.md`)\n\nWant an interactive view of the Billing.Api closure? Say yes and I'll build it.",
+      "why": "Graph source missing"
+    },
+    {
+      "answer": "Rendered the existing graph; nothing was re-collected.\n\n- **Artifacts**: `docs/architecture/components.md`\n- **Container**: Billing.Api (`src/Billing.Api/Billing.Api.csproj`)\n- **Grouping**: directory; no layering convention declared\n- **Components**: `components=3 edges=2 drawn_edges=2`\n- **Layer violations**: 0 (informational)\n- **Aggregated**: no\n- **Thin result**: no\n- **External and unresolved**: 0 external, 0 unresolved\n- **Graph source**: the existing `docs/architecture/dependency-graph.json`, not re-collected\n- **Dialect**: `diagram_dialect.system` = c4-plantuml (team convention doc `docs/conventions/authoring-formats/README.md`)\n\nWant an interactive view of the Billing.Api closure? Say yes and I'll build it.",
+      "why": "Thin result out of order"
+    },
+    {
+      "answer": "Rendered docs/architecture/components.md for Billing.Api: 3 components, 2 edges, c4-plantuml, directory grouping, nothing aggregated or unresolved.",
+      "why": "prose, no fixed report"
+    }
+  ]
+}

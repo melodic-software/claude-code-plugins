@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\nNone.\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 1. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/App/App.csproj\"]\n  n2[\"src/Lib/Lib.csproj\"]\n  n1 --> n2\n```\n\n\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\nNone.\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 1. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nflowchart LR\n  n1[\"src/App/App.csproj\"]\n  n2[\"src/Lib/Lib.csproj\"]\n  n1 --> n2\n  n3[\"pkg:Newtonsoft.Json\"]\n  n1 --> n3\n```\n\n\n",
+      "why": "package drawn"
+    },
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\nNone.\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 1. Pass --include-external to draw them.\n\n",
+      "why": "no flowchart"
+    },
+    {
+      "answer": "# Dependency graph\n\n## Cycles\n\nNone.\n\n- Result: ok\n- Ecosystem: dotnet\n- Node threshold: 40\n\n## Unresolved\n\nNone.\n\n## External packages\n\nExternal packages collapsed: 1. Pass --include-external to draw them.\n\n## Diagram\n\n```mermaid\nC4Component\n  n1[\"src/App/App.csproj\"]\n  n2[\"src/Lib/Lib.csproj\"]\n  n1 --> n2\n```\n\n\n",
+      "why": "not a flowchart"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Thin result: yes. Neighboring rungs: `/architecture:map-landscape`, `/architecture:map-containers`, `/architecture:improve`."
+    },
+    {
+      "answer": "Try architecture:map-landscape for the repositories, architecture:map-containers for the deployables, or architecture:improve for module friction."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Thin result: yes. Try the landscape map, the container map, or improve the architecture."
+    },
+    {
+      "answer": "Neighboring rungs: `/architecture:map-landscape`, `/architecture:map-containers`."
+    }
+  ]
+}

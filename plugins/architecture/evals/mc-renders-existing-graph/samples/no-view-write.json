@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/components-notes.md",
+            "content": "Annotation: Billing.Api hosts the HTTP endpoints."
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/components.md",
+            "content": "# Component view\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/architecture/dependency-graph.json",
+            "content": "{}"
+          }
+        }
+      ]
+    }
+  ]
+}
