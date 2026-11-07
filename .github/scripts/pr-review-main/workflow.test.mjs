@@ -22,6 +22,8 @@ const FB = "review-fallback";
 const LEGS = [KEY, SUB, FB];
 // The credit gate before the key leg: no model, no secret.
 const PROBE = "review-handoffs-credit";
+// The one read of the trusted PR text each leg may take: no model, no secret.
+const TEXT = "trusted-text";
 const jobText = (id) => {
   const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
   assert.ok(found, `a job ${id}`);
@@ -785,8 +787,12 @@ test("each chunk's review leaves a lane record", () => {
 });
 
 test("it checks out main only, and runs local actions from that checkout", () => {
-  // One checkout per leg, and the trigger job's of the tip, like the key leg's.
-  assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 1);
+  // One checkout per leg, the trigger job's of the tip, like the key leg's,
+  // and the trusted-text job's of the trigger job's recorded commit.
+  assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 2);
+  const textCheckout = stepsOf(TEXT).filter((s) => /uses: actions\/checkout@/.test(s.block));
+  assert.equal(textCheckout.length, 1);
+  assert.match(textCheckout[0].block, /^ {10}ref: \$\{\{ needs\.trigger\.outputs\.main-sha \}\}\n {10}path: \.base\n {10}persist-credentials: false$/m);
   const triggerCheckout = jobText("trigger").split(/\n(?=      - name: )/).filter((s) => /uses: actions\/checkout@/.test(s));
   assert.equal(triggerCheckout.length, 1);
   assert.match(triggerCheckout[0], /^ {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}$/m);
@@ -857,8 +863,9 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 });
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
-  // Each leg's verdict, plus review-handoffs' credit-stop marker and the gate's probing marker.
-  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 2);
+  // Each leg's verdict, plus review-handoffs' credit-stop marker, the gate's
+  // probing marker and the trusted-text job's shared read.
+  assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3);
   for (const job of LEGS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.equal(uploads.length, 1, job);
@@ -911,7 +918,7 @@ test("only a lane-source pull request is reviewed, by the gate's own predicate",
 // trigger job). The later legs always gate themselves.
 test("the key leg takes the trigger job's gate only from this attempt, and every value has a fixed shape", () => {
   const trigger = jobText("trigger");
-  assert.equal(needsOf(KEY), `[trigger, ${PROBE}]`);
+  assert.equal(needsOf(KEY), `[trigger, ${PROBE}, ${TEXT}]`);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(trigger)[1];
   assert.deepEqual(
     [...outputs.matchAll(/^ {6}([a-z-]+): (.*)$/gm)].map(([, name, value]) => `${name}=${value}`),
@@ -1607,7 +1614,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   for (let job = KEY; ; ) {
     const route = ["review-handoffs", "subscription-handoffs"].find((id) => needsOf(id).replace(/^\[|\]$/g, "").split(", ").at(-1) === job);
     if (!route) break;
-    job = LEGS.find((id) => needsOf(id) === route);
+    job = LEGS.find((id) => needsOf(id) === `[${TEXT}, ${route}]`);
     order.push(job);
   }
   assert.deepEqual(order, LEGS);
@@ -1720,7 +1727,7 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     assert.match(routeJob, /^ {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/m);
     assert.doesNotMatch(routeJob, /always\(\)/);
     const leg = jobText(to);
-    assert.equal(needsOf(to), route);
+    assert.equal(needsOf(to), `[${TEXT}, ${route}]`);
     assert.match(leg, new RegExp(`^ {6}matrix: \\$\\{\\{ fromJSON\\(needs\\.${route}\\.outputs\\.matrix\\) \\}\\}$`, "m"));
     // !cancelled() with the route's own success: the implicit success() needs
     // every ancestor, so one lane's failed leg would skip the other's.
