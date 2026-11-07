@@ -2794,7 +2794,7 @@ def test_shape3_goal_must_start_with_the_predecessors_section_byte_for_byte(tmp_
     edit(hop2, "> Do the thing. \n", "> Do the thing.\n")
     trimmed = strict(hop2)
     assert trimmed.returncode == 1, out(trimmed)
-    needle = "FAIL: Original goal: does not start with the predecessor's section"
+    needle = "FAIL: Original goal: the predecessor's goal lines (quote, intent, vision, opening ask) stay byte for byte and in order"
     assert needle in out(trimmed), out(trimmed)
     edit(hop2, "> Do the thing.\n", "> Do the thing now. \n")
     reworded = strict(hop2)
@@ -2872,7 +2872,7 @@ def test_shape3_duplicate_rule_id_fails(tmp_path):
     hop1 = s3_hop(repo, tmp_path, values={"rules": rules})
     result = strict(hop1)
     assert result.returncode == 1, out(result)
-    assert "duplicate rule id [R1]" in out(result), out(result)
+    assert "Current rules: duplicate id [R1]" in out(result), out(result)
 
 
 def test_shape3_rule_without_an_id_fails(tmp_path):
@@ -3189,3 +3189,490 @@ def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
     made = s3_new(repo, tmp_path, hop3, sid=SID_D, now="2026-09-04T10:00:00Z")
     skeleton = Path(out(made).strip()).read_text(encoding="utf-8")
     assert "new ids from R3" in slot_instructions(skeleton)["rules-new"]
+
+
+# --- shape 3: retiring goal amendments and trail lines ------------------------------
+#
+# Expected values come from PLAN.md AC1/AC2: an amendment unit is a line starting
+# `**Amended` or `- **Amended` (any text up to `:**`) plus the non-marker lines after
+# it; a unit or trail line leaves the hot file only when this hop's file lists it
+# verbatim under `## Retired goal amendments` / `## Retired direction changes`
+# followed by `Retired: <reason>`.
+
+UNIT_NONE = "**Amended:** None."
+UNIT_PAREN = (
+    '**Amended (2026-09-01 ~10:1xZ, owner verbatim):** "Ship the widget first."'
+)
+UNIT_BULLET = '- **Amended (2026-09-01, owner):** "Then the gadget."'
+UNIT_TWO_LINES = '- **Amended:** "Keep the gadget small."\n  It must fit one screen.'
+TRAIL_START = SHAPE3_VALUES["trail"]
+TRAIL_RANGE = "- [h1-h11] imported: the older trail, summarized (agent-initiated)."
+TRAIL_NARROW = "- [h1] narrowed to the widget (agent-initiated)."
+RETIRE_VALUES = {
+    "amended": f"None.\n\n{UNIT_PAREN}\n\n{UNIT_BULLET}\n{UNIT_TWO_LINES}",
+    "trail": f"{TRAIL_START}\n{TRAIL_RANGE}\n{TRAIL_NARROW}",
+}
+GOAL_HEADING = "Retired goal amendments"
+TRAIL_HEADING = "Retired direction changes"
+
+
+def retire_chain(repo: Path, tmp_path: Path, hop1_edit=None) -> tuple[Path, Path]:
+    """A two-hop shape-3 chain whose hop 1 holds four amendment units and three
+    trail lines; returns hop 2's hot file and hop 2's own hop file."""
+    hop1 = s3_hop(repo, tmp_path, values=RETIRE_VALUES)
+    if hop1_edit:
+        edit(hop1, *hop1_edit)
+    assert strict(hop1).returncode == 0, out(strict(hop1))
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    return hop2, hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+
+
+def retire_by_hand(
+    hot: Path, archived: Path, heading: str, entry: str, reason: str = "superseded"
+) -> None:
+    """Move `entry` out of the hot file into `archived` under `heading`, the way
+    the writer does it, with a Review pointer naming the hop file and heading."""
+    edit(hot, entry + "\n", "")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{entry}\nRetired: {reason}\n".replace(" \n", "\n"))
+    edit(
+        hot,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired: {archived.name} § {heading}\n",
+    )
+
+
+def test_retire_kept_units_and_trail_lines_validate(tmp_path):
+    hop2, _ = retire_chain(make_repo(tmp_path), tmp_path)
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result), out(result)
+
+
+@pytest.mark.parametrize(
+    "heading, entry",
+    [
+        (GOAL_HEADING, UNIT_NONE),
+        (GOAL_HEADING, UNIT_PAREN),
+        (GOAL_HEADING, UNIT_BULLET),
+        (GOAL_HEADING, UNIT_TWO_LINES),
+        (TRAIL_HEADING, TRAIL_RANGE),
+        (TRAIL_HEADING, TRAIL_NARROW),
+    ],
+    ids=["none", "paren", "bullet", "two-line", "range-tag", "trail"],
+)
+def test_retire_a_unit_listed_with_a_reason_validates(tmp_path, heading, entry):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    retire_by_hand(hop2, archived, heading, entry)
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    assert "FAIL" not in out(result), out(result)
+
+
+def test_retire_consecutive_units_split_at_each_marker(tmp_path):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    retire_by_hand(hop2, archived, GOAL_HEADING, UNIT_BULLET + "\n" + UNIT_TWO_LINES)
+    merged = strict(hop2)
+    assert merged.returncode == 1, out(merged)
+    assert "left this file without a retirement" in out(merged), out(merged)
+    assert repr(UNIT_BULLET[:60]) in out(merged), out(merged)
+
+
+def test_retire_a_unit_inline_before_the_opening_ask_stops_at_it(tmp_path):
+    second = UNIT_TWO_LINES.split("\n")[1]
+    hop2, archived = retire_chain(
+        make_repo(tmp_path),
+        tmp_path,
+        hop1_edit=(f"{second}\n\nOpening ask:", f"{second}\nOpening ask:"),
+    )
+    retire_by_hand(hop2, archived, GOAL_HEADING, UNIT_TWO_LINES)
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    assert "Opening ask:\n" in hop2.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "title, entry",
+    [("Original goal", UNIT_PAREN), ("Direction changes", TRAIL_NARROW)],
+)
+def test_retire_a_dropped_unit_fails(tmp_path, title, entry):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    edit(hop2, entry + "\n", "")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert f"FAIL: {title}: predecessor entry left this file" in out(result), out(
+        result
+    )
+    assert archived.name in out(result), out(result)
+
+
+def test_retire_a_trail_line_found_elsewhere_in_the_hop_file_still_fails(tmp_path):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    assert TRAIL_NARROW in archived.read_text(encoding="utf-8")
+    retire_by_hand(hop2, archived, GOAL_HEADING, TRAIL_NARROW)
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "Direction changes: predecessor entry left this file" in out(result)
+
+
+def test_retire_without_a_reason_fails(tmp_path):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    retire_by_hand(hop2, archived, GOAL_HEADING, UNIT_PAREN, reason="")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "with an empty 'Retired:' reason" in out(result), out(result)
+
+
+def test_retire_an_edited_goal_line_fails(tmp_path):
+    hop2, _ = retire_chain(make_repo(tmp_path), tmp_path)
+    edit(hop2, "Fewer bytes, same accuracy.", "Fewer bytes.")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "missing or changed: '**Intent (verbatim):** Fewer bytes, same" in out(
+        result
+    ), out(result)
+
+
+def test_retire_a_reordered_unit_fails(tmp_path):
+    hop2, _ = retire_chain(make_repo(tmp_path), tmp_path)
+    edit(hop2, f"{TRAIL_RANGE}\n{TRAIL_NARROW}\n", f"{TRAIL_NARROW}\n{TRAIL_RANGE}\n")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "Direction changes: predecessor entry moved out of order" in out(result)
+
+
+def test_retire_codified_in_a_missing_rule_fails(tmp_path):
+    hop2, archived = retire_chain(make_repo(tmp_path), tmp_path)
+    retire_by_hand(hop2, archived, GOAL_HEADING, UNIT_PAREN, "codified in [R9]")
+    missing = strict(hop2)
+    assert missing.returncode == 1, out(missing)
+    assert "'codified in [R9]', but [R9] is not in this file" in out(missing)
+    edit(archived, "codified in [R9]", "codified in [R1]")
+    present = strict(hop2)
+    assert present.returncode == 0, out(present)
+
+
+@pytest.mark.parametrize(
+    "reason, warned",
+    [("no longer needed", True), ("promoted to AGENTS.md", False)],
+)
+def test_retire_a_rule_a_retired_entry_points_at_needs_its_new_home(
+    tmp_path, reason, warned
+):
+    repo = make_repo(tmp_path)
+    hop2, archived = retire_chain(repo, tmp_path)
+    retire_by_hand(hop2, archived, GOAL_HEADING, UNIT_PAREN, "codified in [R1]")
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    edit(hop3, "- [R1] The thing must stay green.\n", "")
+    own = hop_file(repo / ".work" / "handoffs", HOP1, 3, SID_C)
+    with own.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## Retired rules\n\n- [R1] {reason}\n")
+    result = strict(hop3)
+    assert result.returncode == 0, out(result)
+    assert ("[R1] is retired in" in out(result)) is warned, out(result)
+
+
+# --- shape 3: question and decision ids, retire by reference, Review pointers --------
+#
+# Expected values come from PLAN.md AC3-AC5: `[Q<n>]` / `[D<n>]` ids with
+# `next_question_id` / `next_decision_id` floors seeded above the highest
+# `Q<n>` / `D<n>` in the predecessor; a predecessor id leaves only when listed with a
+# reason; `retire` refs name `[R|Q|D<n>]`, `[h<k>]` plus ordinal, or an amendment
+# ordinal; a hop that retired entries points at its file and heading under Review
+# before you continue, and those pointers carry forward.
+
+QUESTION = (
+    "- [Q1] Which color? Options blue or red; recommend blue; unblocks the paint."
+)
+DECISION = "- [D1] Paint before polish, because polish needs dry paint."
+ID_VALUES = {**RETIRE_VALUES, "open-questions": QUESTION, "decisions": DECISION}
+
+
+def frontmatter_int(path: Path, key: str) -> int:
+    match = re.search(rf"^{key}: (\d+)$", path.read_text(encoding="utf-8"), re.M)
+    assert match, key
+    return int(match.group(1))
+
+
+def id_chain(repo: Path, tmp_path: Path) -> tuple[Path, Path]:
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    assert strict(hop1).returncode == 0, out(strict(hop1))
+    hop2 = s3_hop(
+        repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z", values=ID_VALUES
+    )
+    return hop2, hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+
+
+def fill_hop2(repo: Path, tmp_path: Path, retire: list[dict[str, str]], **values: str):
+    """Hop 2's skeleton over an id-carrying hop 1, filled through `fill` with a
+    `retire` key; returns the fill result, the hot file and its hop file."""
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    instructions = slot_instructions(target.read_text(encoding="utf-8"))
+    merged = {**ID_VALUES, **values}
+    payload: dict[str, object] = {
+        name: merged.get(name, SHAPE3_VALUES.get(name))
+        for name, instruction in instructions.items()
+        if not instruction.startswith("optional:")
+    }
+    payload["retire"] = retire
+    filled = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    return filled, target, hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+
+
+def test_ids_new_writes_question_and_decision_floors(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    assert frontmatter_int(hop1, "next_question_id") == 1
+    assert frontmatter_int(hop1, "next_decision_id") == 1
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={
+            "open-questions": "- [Q2] Which color? (Q14 in the old notes)",
+            "decisions": "- [D5] Paint first.",
+        },
+    )
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    assert frontmatter_int(hop3, "next_question_id") == 3
+    assert frontmatter_int(hop3, "next_decision_id") == 6
+
+
+def test_ids_first_adopting_hop_seeds_above_the_predecessor_text(tmp_path):
+    repo = make_repo(tmp_path)
+    values = {"open-questions": "- Q14: which color?", "decisions": "- D3 holds."}
+    hop1 = s3_hop(repo, tmp_path, values=values)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert frontmatter_int(hop2, "next_question_id") == 15
+    assert frontmatter_int(hop2, "next_decision_id") == 4
+
+
+def test_ids_an_id_less_question_or_decision_never_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    values = {"open-questions": "- Which color?", "decisions": "- Paint first."}
+    result = strict(s3_hop(repo, tmp_path, values=values))
+    assert result.returncode == 0 and "WARN" not in out(result), out(result)
+    duplicate = {"open-questions": "- [Q1] Which color?\n- [Q1] Which size?"}
+    other = tmp_path / "dup"
+    twice = strict(s3_hop(make_repo(other), other, values=duplicate))
+    assert twice.returncode == 1, out(twice)
+    assert "Open questions: duplicate id [Q1]" in out(twice), out(twice)
+
+
+@pytest.mark.parametrize(
+    "entry, heading",
+    [(QUESTION, "Retired open questions"), (DECISION, "Retired decisions")],
+    ids=["question", "decision"],
+)
+def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, heading):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    ref = entry[2:6]
+    edit(hop2, entry + "\n", "None. Settled this hop.\n")
+    dropped = strict(hop2)
+    assert dropped.returncode == 1, out(dropped)
+    assert f"{ref} left this file without a retirement" in out(dropped), out(dropped)
+    assert f"'## {heading}'" in out(dropped), out(dropped)
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        "## Review before you continue\n\n- x\n",
+    )
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{entry}\nRetired: settled on blue\n")
+    unpointed = strict(hop2)
+    assert unpointed.returncode == 1, out(unpointed)
+    assert f"retires entries under '## {heading}'" in out(unpointed), out(unpointed)
+    edit(hop2, "- x\n", f"- Retired: {archived.name} § {heading}\n")
+    retired = strict(hop2)
+    assert retired.returncode == 0, out(retired)
+
+
+@pytest.mark.parametrize(
+    ("entry", "heading"),
+    [(QUESTION, "Retired open questions"), (DECISION, "Retired decisions")],
+)
+def test_ids_a_verbatim_copy_without_a_reason_fails(tmp_path, entry, heading):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    ref = entry[2:6]
+    edit(hop2, entry + "\n", "None. Settled this hop.\n")
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired: {archived.name} § {heading}\n",
+    )
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{entry}\n")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert f"{ref} left this file without a retirement" in out(result), out(result)
+
+
+def test_ids_a_multi_line_verbatim_copy_without_a_reason_fails(tmp_path):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    heading = "Retired open questions"
+    wrapped = "- [Q1] Which color?\n  Options blue or red; recommend blue."
+    edit(hop2, QUESTION + "\n", wrapped + "\n")
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired: {archived.name} § {heading}\n",
+    )
+    pred_path = (
+        hop2.parent
+        / hop2.read_text(encoding="utf-8")
+        .split("previous_handoff: ", 1)[1]
+        .split("\n", 1)[0]
+        .strip()
+    )
+    assert pred_path.is_file()
+    edit(pred_path, QUESTION + "\n", wrapped + "\n")
+    edit(hop2, wrapped + "\n", "None. Settled this hop.\n")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{wrapped}\n")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert "[Q1] left this file without a retirement" in out(result), out(result)
+
+
+def test_ids_a_one_line_question_listing_still_needs_a_pointer(tmp_path):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    heading = "Retired open questions"
+    edit(hop2, QUESTION + "\n", "None. Settled this hop.\n")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n- [Q1] settled on blue\n")
+    unpointed = strict(hop2)
+    assert unpointed.returncode == 1, out(unpointed)
+    assert f"retires entries under '## {heading}'" in out(unpointed), out(unpointed)
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired entries: {archived.name} § {heading}\n",
+    )
+    pointed = strict(hop2)
+    assert pointed.returncode == 0, out(pointed)
+
+
+def test_retire_through_fill_moves_each_ref_and_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    filled, hot, archived = fill_hop2(
+        repo,
+        tmp_path,
+        [
+            {"ref": "[Q1]", "reason": "answered: blue"},
+            {"ref": "[R2]", "reason": "promoted to AGENTS.md"},
+            {"ref": "amendment#2", "reason": "superseded by the gadget plan"},
+            {"ref": "[h1]#2", "reason": "the widget shipped"},
+            {"ref": "[h1-h11]", "reason": "summarized in the start line"},
+        ],
+        **{"open-questions": SHAPE3_VALUES["open-questions"]},
+    )
+    assert filled.returncode == 0, err(filled)
+    result = strict(hot)
+    assert result.returncode == 0, out(result)
+    text = hot.read_text(encoding="utf-8")
+    for gone in (UNIT_PAREN, TRAIL_NARROW, TRAIL_RANGE, "- [R2] Never push to main."):
+        assert gone not in text, gone
+    assert UNIT_BULLET in text and TRAIL_START in text
+    rel = f"archive/{HOP1.removesuffix('.md')}/h2-{SID_B[:8]}.md"
+    for heading in (GOAL_HEADING, TRAIL_HEADING, "Retired open questions"):
+        assert f"- Retired entries: {rel} § {heading}\n" in text, heading
+    sections = _sections_by_hand(archived.read_text(encoding="utf-8"))
+    assert (
+        sections[GOAL_HEADING]
+        == f"{UNIT_PAREN}\nRetired: superseded by the gadget plan"
+    )
+    assert sections[TRAIL_HEADING] == (
+        f"{TRAIL_NARROW}\nRetired: the widget shipped\n\n"
+        f"{TRAIL_RANGE}\nRetired: summarized in the start line"
+    )
+    assert sections["Retired open questions"] == f"{QUESTION}\nRetired: answered: blue"
+    assert sections["Retired rules"] == (
+        "- [R2] Never push to main.\nRetired: promoted to AGENTS.md"
+    )
+
+
+@pytest.mark.parametrize(
+    "retire, code, needle",
+    [
+        ([{"ref": "[Q9]", "reason": "gone"}], 1, "names nothing"),
+        (
+            [{"ref": "[h1]", "reason": "gone"}],
+            1,
+            "2 lines carry [h1]; add '#<ordinal>'",
+        ),
+        ([{"ref": "amendment#9", "reason": "gone"}], 1, "names nothing"),
+        ([{"ref": "Q1", "reason": "gone"}], 1, "is not [R<n>]"),
+        (
+            [{"ref": "[Q1]", "reason": "a"}, {"ref": "[Q1]", "reason": "b"}],
+            1,
+            "repeats",
+        ),
+        ([{"ref": "[Q1]", "reason": " "}], 2, "each reason one non-empty line"),
+        ([{"ref": "[Q1]"}], 2, "each reason one non-empty line"),
+    ],
+    ids=["unknown", "ambiguous", "ordinal", "syntax", "repeat", "blank", "no-reason"],
+)
+def test_retire_refusals_leave_both_files_byte_identical(
+    tmp_path, retire, code, needle
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    before = (target.read_bytes(), archived.read_bytes())
+    payload = {**required_slots(target.read_text(encoding="utf-8")), "retire": retire}
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert result.returncode == code, err(result)
+    assert needle in err(result), err(result)
+    assert (target.read_bytes(), archived.read_bytes()) == before
+
+
+def test_retire_through_fill_keeps_each_files_crlf(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    for path in (target, archived):
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    payload = {
+        **required_slots(target.read_text(encoding="utf-8")),
+        "retire": [
+            {"ref": "amendment#2", "reason": "superseded"},
+            {"ref": "[Q1]", "reason": "answered"},
+        ],
+    }
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert result.returncode == 0, err(result)
+    for path in (target, archived):
+        data = path.read_bytes()
+        assert data.count(b"\n") == data.count(b"\r\n"), path
+    assert f"{UNIT_PAREN}\r\nRetired: superseded\r\n".encode() in archived.read_bytes()
+
+
+def test_retire_pointers_carry_forward_verbatim(tmp_path):
+    repo = make_repo(tmp_path)
+    filled, hot, _ = fill_hop2(
+        repo, tmp_path, [{"ref": "amendment#2", "reason": "superseded"}]
+    )
+    assert filled.returncode == 0, err(filled)
+    assert strict(hot).returncode == 0, out(strict(hot))
+    pointer = next(
+        line for line in hot.read_text(encoding="utf-8").split("\n") if "§" in line
+    )
+    hop3 = s3_hop(
+        repo, tmp_path, hot, sid=SID_C, now="2026-09-03T10:00:00Z", values=ID_VALUES
+    )
+    assert pointer + "\n" in hop3.read_text(encoding="utf-8")
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+    edit(hop3, pointer + "\n", "")
+    dropped = strict(hop3)
+    assert dropped.returncode == 1, out(dropped)
+    assert "the predecessor's retire pointer is missing" in out(dropped), out(dropped)
