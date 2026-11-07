@@ -11,6 +11,10 @@
     {
       "answer": "The run ends without a ScheduleWakeup.",
       "why": "without"
+    },
+    {
+      "answer": "Because of `--single-pass`, the run ends here and does not call `ScheduleWakeup`.",
+      "why": "the wb1b reply line: the call name in a code span"
     }
   ],
   "fail": [

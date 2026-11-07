@@ -3,7 +3,7 @@ name: wl-single-pass-ends-at-cap
 graders:
   - name: 'no-wakeup'
     type: 'regex'
-    pattern: '\b(?:no|without|never)\s+(?:a\s+|the\s+|another\s+)?(?:next\s+)?(?:ScheduleWakeup|wake-?up)\b|\b(?:does not|doesn''t|do not|not|never)\s+(?:call|schedule|run|arm)\w*\s+(?:a\s+|the\s+|another\s+)?(?:next\s+)?(?:ScheduleWakeup|wake-?up)\b|\bScheduleWakeup\b[^\n]{0,20}\b(?:not called|never|skipped|none)\b'
+    pattern: '\b(?:no|without|never)\s+(?:a\s+|the\s+|another\s+)?(?:next\s+)?`?(?:ScheduleWakeup|wake-?up)\b|\b(?:does not|doesn''t|do not|not|never)\s+(?:call|schedule|run|arm)\w*[\s`]+(?:a\s+|the\s+|another\s+)?(?:next\s+)?`?(?:ScheduleWakeup|wake-?up)\b|\bScheduleWakeup\b[^\n]{0,20}\b(?:not called|never|skipped|none)\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

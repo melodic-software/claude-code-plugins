@@ -7,6 +7,10 @@
     {
       "answer": "| #304 | admitted |",
       "why": "table row"
+    },
+    {
+      "answer": "- **#304:** objection window over.\n- **Objection rows:** none, and no `objection: #304 -> escalated` line.",
+      "why": "the wb1b reply: names the line only to say it is absent"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "No candidate this cycle.",
       "why": "never names the item"
+    },
+    {
+      "answer": "Report:\n- `objection: #304 -> escalated`",
+      "why": "the line as a report row"
     }
   ]
 }
