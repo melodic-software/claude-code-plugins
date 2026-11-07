@@ -11,6 +11,22 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cp .github/pull_request_template.md pr-body.md\"}}]}}\n",
       "why": "cp"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md 2>/dev/null > notes/pr-body.md\"}}]}}\n",
+      "why": "stderr redirect before the stdout redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md >> notes/pr-body.md\"}}]}}\n",
+      "why": "append redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md | tee notes/pr-body.md\"}}]}}\n",
+      "why": "tee into a file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"ls .github\\ncat .github/pull_request_template.md >notes/pr-body.md\"}}]}}\n",
+      "why": "cat redirect on a second line"
     }
   ],
   "fail": [
@@ -25,6 +41,42 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md\"}}]}}\n",
       "why": "a read with no copy"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md 2>/dev/null\"}}]}}\n",
+      "why": "a read with a stderr redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md notes/branch.md\"}}]}}\n",
+      "why": "a read of the template and the branch notes"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md 2>&1 | head -40\"}}]}}\n",
+      "why": "a read with stderr merged into a pipe"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md >/dev/null\"}}]}}\n",
+      "why": "stdout thrown away"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat -A .github/pull_request_template.md | head -60\"}}]}}\n",
+      "why": "a read piped to head"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md; echo done > notes/log.md\"}}]}}\n",
+      "why": "a redirect in a later command"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md\\nprintf x > notes/other.md\"}}]}}\n",
+      "why": "a redirect on the next line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md && cp notes/branch.md notes/copy.md\"}}]}}\n",
+      "why": "a cp of another file after the read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md | tee /dev/stderr\"}}]}}\n",
+      "why": "tee to a non-.md path"
     }
   ]
 }

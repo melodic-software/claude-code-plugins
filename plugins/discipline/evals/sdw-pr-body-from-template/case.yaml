@@ -9,7 +9,7 @@ graders:
     target: trace
   - name: frame-from-template
     type: regex
-    pattern: '^(?=[^\n]*"type":"assistant")(?=[^\n]*## What changed)(?=[^\n]*## Why it changed)(?=[^\n]*## Risk and rollback)(?=[^\n]*## Test evidence)|"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|cat)\b(?:[^"\\]|\\.)*?pull_request_template\.md(?:[^"\\]|\\.)*?(?:>|\s[^"\s]*\.md\b)'
+    pattern: '^(?=[^\n]*"type":"assistant")(?=[^\n]*## What changed)(?=[^\n]*## Why it changed)(?=[^\n]*## Risk and rollback)(?=[^\n]*## Test evidence)|"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cat\b(?:[^"\\;|&]|\\[^n]|&(?=>)|(?<=>)&)*?pull_request_template\.md(?:[^"\\;|&]|\\[^n]|&(?=>)|(?<=>)&)*?(?:(?:(?<![\d>])|(?<=\s1))>(?!&|>?\s*/dev/null\b)|\|\s*tee\b(?:\s+-a)?\s+[^"\s;|&]*\.md\b)|cp\b(?:[^"\\;|&]|\\[^n])*?pull_request_template\.md(?:[^"\\;|&]|\\[^n])*?\s[^"\s;|&]*\.md\b)'
     flags: 'm'
     target: trace
   - name: judgment-slots-only
