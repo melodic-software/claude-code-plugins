@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n # Owned by the platform team.\n-lever_scope: non-trivial\n+lever_scope: deterministic\n+written_against: discipline@0.25.1\n```\nWrite it?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This would change lever_scope from non-trivial to deterministic. Write it?"
+    },
+    {
+      "answer": "-lever_scope: deterministic\n+lever_scope: non-trivial",
+      "why": "reversed"
+    }
+  ]
+}

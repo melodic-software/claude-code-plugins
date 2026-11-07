@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/discipline.yaml"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "docs/conventions/discipline.yaml\n.git/config.worktree\n.git/objects/info/alternates",
+      "why": "git metadata the eval harness writes in the scaffolded repository, plus the yaml"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/conventions/discipline.yaml\n.gitignore"
+    },
+    {
+      "answer": "docs/conventions/discipline.local.yaml"
+    }
+  ]
+}

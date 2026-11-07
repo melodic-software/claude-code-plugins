@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"## What changed\\nx\\n## Why it changed\\ny\\n## Risk and rollback\\nz\\n## Test evidence\\nw\"}]}}\n",
+      "why": "body in the reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md > pr-body.md\"}}]}}\n",
+      "why": "cat redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cp .github/pull_request_template.md pr-body.md\"}}]}}\n",
+      "why": "cp"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"## What changed\\n\\n## Why it changed\\n\\n## Risk and rollback\\n\\n## Test evidence\"}]}}\n",
+      "why": "the template read back only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"## Summary\\nx\\n## Testing\\ny\"}]}}\n",
+      "why": "a hand-typed frame"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .github/pull_request_template.md\"}}]}}\n",
+      "why": "a read with no copy"
+    }
+  ]
+}

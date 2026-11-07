@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: su-check-invalid-lever-scope
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: warn-row
+    type: regex
+    pattern: '^(?=[^\n]*\bWARN\b)(?=[^\n]*discipline\.yaml)(?=[^\n]*\blever_scope\b)(?=[^\n]*\balways\b)'
+    flags: 'm'
+    target: last_message
+  - name: effective-deterministic
+    type: regex
+    pattern: '\beffective\b[^\n]{0,80}\bdeterministic\b|\bdeterministic\b[^\n]{0,80}\beffective\b|\bresolves? (?:to )?`?deterministic\b|\bfalls? back to `?deterministic\b'
+    flags: 'i'
+    target: last_message
+  - name: no-fail
+    type: regex
+    pattern: '(?<!not a )(?<!not )(?<!never )(?<!never a )(?<!no )(?<!No )(?<!n''t a )(?<!0 )(?<!zero )(?<!Zero )(?<!0 x )\bFAIL\b'
+    match: 'not_contains'
+    target: last_message
+  - name: no-apply-call
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:[^"\\]|\\.)*?(?:--yes|--decline|--default|lever_scope=|verification(?:_skills)?=)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '>>?[ \t]*(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee[ \t]+(?:-a[ \t]+)?(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))sed\b(?:[^"\\;&|]|\\[^n])*?[ \t]-i(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|mv|truncate)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git[ \t]+(?:checkout|restore)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: file-unchanged
+    type: regex
+    pattern: '^lever_scope:[ \t]*always[ \t]*\n?$'
+    target: { source: file, path: docs/conventions/discipline.yaml }

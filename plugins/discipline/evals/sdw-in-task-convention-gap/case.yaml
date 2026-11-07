@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: sdw-in-task-convention-gap
+graders:
+  - name: tiers-cited
+    type: regex
+    pattern: '\benforceability[- ]tiers?\b'
+    flags: 'i'
+    target: last_message
+  - name: gap-flagged
+    type: regex
+    pattern: '(?<!\bno )\bgap\b|\bno (?:dedicated |such |standards? |in-task )?(?:convention|standard|rule)\b|\bcandidate\b[^\n]{0,40}\b(?:upstream|standards?|addition)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-fabricated-rule
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Cites the enforceability-tiers convention for the tier vocabulary, not for an in-task scripting mandate", "Flags the missing in-task-scripting convention as a gap / candidate upstream addition" and "Does not fabricate or assert a standards rule that does not exist".'
+    focus: last_message
