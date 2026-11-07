@@ -7,6 +7,7 @@
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # test-scope: plugins/testing/hooks/hooks.json
 # test-scope: plugins/mutation-testing/scripts/fixtures/dotnet-test-selection/*
+# test-scope: plugins/testing/evals/au-*/case.yaml
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
