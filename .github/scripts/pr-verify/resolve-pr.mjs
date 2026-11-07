@@ -107,10 +107,22 @@ const incomplete = (message) => Object.assign(new Error(message), { incomplete: 
 // return it whole, so it holds (incomplete).
 const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count > cap ? new Error(message) : incomplete(message));
 
+const COMMENT_FIELDS = "totalCount pageInfo { hasNextPage endCursor } nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } }";
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+          comments(first: 100) { ${COMMENT_FIELDS} }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
+// The pages after the first of an issue's comments.
+const COMMENT_PAGE_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) { number comments(first: 100, after: $after) { ${COMMENT_FIELDS} } }
+  }
+}
+${ACTOR}`;
+// The most comment pages one issue's read takes. Every trusted comment is
+// spec and the merge gate compares that set whole, so no page may be skipped;
+// past the cap the read stays red and says so.
+export const COMMENT_PAGES = 10;
 // resolvePull's spec read also takes RELINK_QUERY's fields (`links` its
 // timelineItems) and, when the body may be the spec, the first page of the
 // title renames select-trusted-text's TITLE_RENAMES reads (`renames`), so one
@@ -163,7 +175,7 @@ const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       parent { number repository { nameWithOwner } body lastEditedAt author { ...actor } editor { ...actor }
-        comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } } }
+        comments(first: 100) { ${COMMENT_FIELDS} } }
     }
   }
 }
@@ -711,6 +723,40 @@ export function recurringSpec(issue, schedule) {
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head. `read` posts the
 // spec query for the variables it is given (resolvePull's folded one).
+// Issue `number`'s comments whole, from `first`, the first page an issue
+// read returned, and up to COMMENT_PAGES - 1 more. `subject` names the issue
+// in the error: "#<label>: <subject>'s comments could not be read" holds
+// (incomplete), as a re-read can return them whole; over the cap stays red.
+async function wholeComments(github, repository, number, first, label, subject) {
+  const unread = () => incomplete(`#${label}: ${subject}'s comments could not be read`);
+  if (!Array.isArray(first?.nodes) || !Number.isSafeInteger(first.totalCount)) {
+    throw unread();
+  }
+  const cap = COMMENT_PAGES * 100;
+  if (first.totalCount > cap) {
+    throw new Error(`#${label}: ${subject} has ${first.totalCount} comments, more than the ${cap} (${COMMENT_PAGES} pages) this read takes`);
+  }
+  const [owner, name] = repository.split("/");
+  const nodes = [...first.nodes];
+  let page = first;
+  for (let pages = 1; nodes.length < first.totalCount && pages < COMMENT_PAGES; pages += 1) {
+    const after = page.pageInfo?.endCursor;
+    if (page.pageInfo?.hasNextPage !== true || typeof after !== "string") {
+      throw unread();
+    }
+    const issue = (await github("POST", "/graphql", { query: COMMENT_PAGE_QUERY, variables: { owner, name, number, after } }))?.data?.repository?.issue;
+    page = issue?.number === number ? issue.comments : null;
+    if (!Array.isArray(page?.nodes) || page.nodes.length === 0) {
+      throw unread();
+    }
+    nodes.push(...page.nodes);
+  }
+  if (nodes.length !== first.totalCount) {
+    throw unread();
+  }
+  return { totalCount: first.totalCount, nodes };
+}
+
 export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule = readSchedule()) {
   const [owner, name] = repository.split("/");
   const variables = { owner, name, number };
@@ -734,14 +780,9 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     }
     nodes = node?.__typename === "Issue" ? [node] : [];
   }
-  const issues = nodes.filter(
-    (issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number),
-  );
-  for (const issue of issues) {
-    const comments = issue.comments;
-    if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) {
-      throw shortList(`#${issue.number}: the issue's comments could not be read`, comments?.totalCount, 100);
-    }
+  const issues = [];
+  for (const issue of nodes.filter((item) => item?.repository?.nameWithOwner === repository && Number.isSafeInteger(item.number))) {
+    issues.push({ ...issue, comments: await wholeComments(github, repository, issue.number, issue.comments, issue.number, "the issue") });
   }
   // The split sub-issues' bodies that count, by issue number.
   const childBodies = new Map();
@@ -759,10 +800,8 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
     }
     const parent = read.parent;
     const here = parent?.repository?.nameWithOwner === repository;
-    if (here && (!Array.isArray(parent.comments?.nodes) || parent.comments.totalCount !== parent.comments.nodes.length)) {
-      throw shortList(`#${issue.number}: the split parent's comments could not be read`, parent.comments?.totalCount, 100);
-    }
-    const body = here ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
+    const comments = here ? await wholeComments(github, repository, parent.number, parent.comments, issue.number, "the split parent") : null;
+    const body = here ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: comments.nodes }, appId: laneAppId } }, humans, taskList) : null;
     if (body !== null) {
       childBodies.set(issue.number, body);
     }

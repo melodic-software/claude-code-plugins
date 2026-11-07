@@ -235,6 +235,12 @@ class FakeGitHub:
         # Each closing issue's comments now, and a totalCount that cuts them.
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
+        # Each closing issue's comments as GraphQL pages of up to 100, the
+        # first in the closing read and the rest behind cursors "p1", "p2"...
+        self.comment_pages: dict[int, list[list[dict[str, Any]]]] = {}
+        # How a later comment page answers instead: "error" (gh fails) or
+        # "empty" (a page with no comments).
+        self.comment_page_fail: str | None = None
         # The pull requests, open or closed, that close each issue:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
@@ -337,6 +343,35 @@ class FakeGitHub:
                         args, 1, "", "gh: boom (HTTP 502)"
                     )
                 return ok({"data": {"repository": {"pullRequest": self.relink}}})
+            cursor = next((a[6:] for a in args if a.startswith("after=")), None)
+            if cursor is not None:
+                n = int(next(a for a in args if a.startswith("n="))[2:])
+                if self.comment_page_fail == "error":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "gh: boom (HTTP 502)"
+                    )
+                if self.comment_page_fail == "empty":
+                    return ok(
+                        {
+                            "data": {
+                                "repository": {
+                                    "issue": {"number": n, "comments": {"nodes": []}}
+                                }
+                            }
+                        }
+                    )
+                return ok(
+                    {
+                        "data": {
+                            "repository": {
+                                "issue": {
+                                    "number": n,
+                                    "comments": self.comment_page(n, int(cursor[1:])),
+                                }
+                            }
+                        }
+                    }
+                )
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
                 if n not in self.refs:
@@ -383,6 +418,19 @@ class FakeGitHub:
             return ok({"data": {"repository": {"pullRequest": pull}}})
         return self.rest(args, ok, missing, kwargs)
 
+    def comment_page(self, n: int, index: int) -> dict[str, Any]:
+        """Page `index` of issue `n`'s `comment_pages`, as GitHub returns a
+        comments connection: its cursor names the next page."""
+        pages = self.comment_pages[n]
+        return {
+            "totalCount": sum(map(len, pages)),
+            "pageInfo": {
+                "hasNextPage": index + 1 < len(pages),
+                "endCursor": f"p{index + 1}",
+            },
+            "nodes": pages[index],
+        }
+
     def issue(self, n: int, repo: str) -> dict[str, Any]:
         return {
             "number": n,
@@ -392,7 +440,9 @@ class FakeGitHub:
                 "totalCount": self.labels_total.get(n, len(self.labels.get(n, []))),
                 "nodes": [{"name": name} for name in self.labels.get(n, [])],
             },
-            "comments": {
+            "comments": self.comment_page(n, 0)
+            if n in self.comment_pages
+            else {
                 "totalCount": self.comments_total.get(
                     n, len(self.closing_comments.get(n, []))
                 ),
@@ -2665,6 +2715,57 @@ class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
         self.assertEqual(
             self.judge([comment(1, HUMAN)], [], user=user), "verify:spec-changed"
         )
+
+    def paged(self, recorded: list[dict[str, Any]]) -> FakeGitHub:
+        """#9867's shape: 144 comments over two pages, a trusted human's
+        comment 1 on the first and 144 on the second, Bot noise between."""
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "spec_comments": recorded}]
+        )
+        fake.comment_pages = {
+            7: [
+                [comment(1, HUMAN), *(comment(i, LANES_ACTOR) for i in range(2, 101))],
+                [
+                    *(comment(i, LANES_ACTOR) for i in range(101, 144)),
+                    comment(144, HUMAN),
+                ],
+            ]
+        }
+        return fake
+
+    def test_comments_over_one_page_are_read_whole(self) -> None:
+        both = [*self.RECORDED, {"id": 144, "updated_at": "2026-10-12T00:00:00Z"}]
+        fake = self.paged(both)
+        self.assertIsNone(read(fake).refusal)
+        self.assertTrue(any("after=p1" in c for c in fake.calls))
+        # A pass that recorded only the first page's comment missed one.
+        self.assertEqual(read(self.paged(self.RECORDED)).refusal, "verify:spec-changed")
+
+    def test_a_comment_page_that_never_comes_or_fails_refuses(self) -> None:
+        both = [*self.RECORDED, {"id": 144, "updated_at": "2026-10-12T00:00:00Z"}]
+        for answer in ("empty", "error"):
+            with self.subTest(answer):
+                fake = self.paged(both)
+                fake.comment_page_fail = answer
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_comments_past_the_page_cap_refuse_and_say_so(self) -> None:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "spec_comments": self.RECORDED}]
+        )
+        fake.closing_comments = {7: [comment(1, HUMAN)]}
+        fake.comments_total = {7: 1001}
+        reader = ve.Reader(REPO, "main")
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            with self.assertRaises(ve._Unreadable) as raised:
+                reader._closing_issues(PR)
+        self.assertEqual(
+            str(raised.exception),
+            "#7: the issue has 1001 comments, more than the 1000 (10 pages) this read takes",
+        )
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
 
     def test_a_partial_comment_read_or_a_malformed_record_refuses(self) -> None:
         fake = passing()
