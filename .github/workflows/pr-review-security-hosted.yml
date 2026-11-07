@@ -243,11 +243,13 @@ jobs:
   # head, and a Refine started with GITHUB_TOKEN fires no workflow_run event
   # that could start a review after it. A head that moved while it waited is
   # not reviewed: the push that moved it, Refine's or another, starts the
-  # new head's review. Every other outcome reviews, and a failed or timed-out
-  # job leaves proceed empty, which reviews too
-  # (.github/scripts/pr-review/wait-refine.mjs).
+  # new head's review. Every other outcome reviews, and a wait step that
+  # fails or times out leaves proceed empty and the job green, which reviews
+  # too (.github/scripts/pr-review/wait-refine.mjs). It waits only when the
+  # kill switch lets the review run.
   wait-refine:
-    if: github.event.pull_request.draft == false
+    needs: [kill-switch]
+    if: github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     permissions:
@@ -293,8 +295,11 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
+      # Its 2400 s cap and one confirming poll end it well inside 45 minutes.
       - name: Wait for this head's Refine
         id: wait
+        continue-on-error: true
+        timeout-minutes: 45
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

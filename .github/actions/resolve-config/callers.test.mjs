@@ -220,12 +220,23 @@ for (const [file, job, route, laneSwitch] of [
       };
       assert.equal(evaluate(review.if, context), reviewed, `wait-refine proceed=${JSON.stringify(proceed)}`);
     }
-    assert.equal(wait.if, "github.event.pull_request.draft == false");
+    // It waits only for a ready PR the kill switch lets through; when it is
+    // skipped for the kill switch, the review is skipped by its own clause.
+    assert.deepEqual(wait.needs, ["kill-switch"]);
+    for (const [draft, kill, waits] of [[false, "true", true], [false, "false", false], [false, "", false], [true, "true", false]]) {
+      const context = { "github.event.pull_request.draft": draft, "needs.kill-switch.outputs.proceed": kill };
+      assert.equal(evaluate(wait.if, context), waits, `draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
+      assert.equal(evaluate(review.if, { ...context, "needs.wait-refine.outputs.proceed": "" }), waits, `review, wait-refine skipped: draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
+    }
     assert.deepEqual(wait.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
     assert.deepEqual(stepSecrets(wait), [], "the wait job reads no secret");
     assert.equal(wait.outputs.proceed, "${{ steps.wait.outputs.proceed }}");
     const step = wait.steps.find((s) => s.id === "wait");
     assert.equal(step.run, "node .base/.github/scripts/pr-review/wait-refine.mjs", "no expression reaches the shell");
+    // A failed or timed-out wait leaves proceed empty and the run green.
+    assert.equal(step["continue-on-error"], true);
+    assert.equal(step["timeout-minutes"], 45);
+    assert.equal(wait["timeout-minutes"], 50, "the step times out before the job");
     assert.deepEqual(step.env, {
       GITHUB_TOKEN: "${{ github.token }}",
       PR_NUMBER: "${{ github.event.pull_request.number }}",

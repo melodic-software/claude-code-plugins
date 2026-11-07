@@ -98,6 +98,46 @@ test("a dispatcher run that appears after a poll is waited for", async () => {
   assert.equal(w.elapsed(), 30_000);
 });
 
+test("a push while Refine runs ends the wait at the next poll, not at the 2400 s cap", async () => {
+  const w = world(refined(refineRun({ status: "in_progress", conclusion: null }), steps(pull(), pull(MOVED))));
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
+});
+
+test("a push while the dispatcher has not yet appeared ends the wait at the next poll, not at the 300 s window", async () => {
+  const w = world({ "pulls/7": steps(pull(), pull(MOVED)), [LIST]: { workflow_runs: [] } });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
+});
+
+test("a moved head read once mid-wait and not confirmed: the review runs", async () => {
+  const w = world(refined(refineRun({ status: "in_progress", conclusion: null }), steps(pull(), pull(MOVED), pull())));
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "head-read-moved" });
+});
+
+test("the record on an older dispatcher run of this head is found and its Refine waited for", async () => {
+  const older = dispatcherRun({ id: 400 });
+  const newer = dispatcherRun({ id: 600, status: "in_progress" });
+  const w = world({
+    ...refined(steps(refineRun({ status: "in_progress", conclusion: null }), refineRun())),
+    [LIST]: { workflow_runs: [older, newer] },
+    "actions/runs/600": steps(newer, dispatcherRun({ id: 600 })),
+    "actions/runs/600/artifacts?per_page=100": { artifacts: [] },
+    "actions/runs/400/artifacts?per_page=100": record(),
+  });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.ok(w.reads.includes(`log ::notice::wait-refine #7 ${HEAD}: dispatcher run 400 started pr-refine run ${REFINE_ID}`));
+});
+
+test("only the newest five dispatcher runs are searched for the record", async () => {
+  const runs = [1, 2, 3, 4, 5, 6].map((id) => dispatcherRun({ id }));
+  const routes = { "pulls/7": pull(), [LIST]: { workflow_runs: runs }, "actions/runs/1/artifacts?per_page=100": record() };
+  for (const id of [2, 3, 4, 5, 6]) routes[`actions/runs/${id}/artifacts?per_page=100`] = { artifacts: [] };
+  const w = world(routes);
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "no-dispatch" });
+  assert.ok(!w.reads.includes("actions/runs/1/artifacts?per_page=100"), "the sixth-newest run is not read");
+});
+
 test("a dispatcher run that recorded no dispatch: the review runs", async () => {
   const w = world({ ...refined(refineRun()), [`actions/runs/${DISPATCHER_ID}/artifacts?per_page=100`]: { artifacts: [{ name: "pr-unblock-dispatched-1-2" }] } });
   assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "no-dispatch" });

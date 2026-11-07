@@ -3,14 +3,17 @@
 // pr-review-hosted.yml and pr-review-security-hosted.yml before the review
 // spends a model turn.
 //
-// It finds this head's pull_request_target run of pr-unblock-dispatch.yml,
-// waits for it, reads the pr-unblock-target-dispatched-<commit>-<run id>
-// record its refine job uploads, and waits for that pr-refine.yml run. Then
-// it reads the pull request: a head that moved (Refine pushed, or anyone
-// else did) is left to the newer head's own review (proceed=false);
-// otherwise the review runs (proceed=true). No dispatcher run, no record, a
-// record naming any other run, a wait past its cap, or any read that fails
-// runs the review, as it ran before this job existed.
+// It finds this head's pull_request_target runs of pr-unblock-dispatch.yml
+// (the newest five), waits for each, reads the
+// pr-unblock-target-dispatched-<commit>-<run id> records their refine jobs
+// upload, and waits for the newest pr-refine.yml run they name. Then it reads
+// the pull request: a head that moved (Refine pushed, or anyone else did) is
+// left to the newer head's own review (proceed=false); otherwise the review
+// runs (proceed=true). Every poll also reads the pull request, so a head that
+// moves mid-wait ends the wait at once rather than holding the newer head's
+// review in the per-PR queue. No dispatcher run, no record, a record naming
+// any other run, a wait past its cap, or any read that fails runs the review,
+// as it ran before this job existed.
 //
 // Reads PR_NUMBER and HEAD_SHA from env only; logs carry the PR number, SHAs
 // and run ids only. Writes proceed and reason to GITHUB_OUTPUT.
@@ -21,6 +24,13 @@ import { pathToFileURL } from "node:url";
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 2400, pollSeconds: 30 });
+// A re-run or a later pull_request_target event adds a dispatcher run per
+// head; the record may sit on any of them.
+const DISPATCHER_RUNS = 5;
+const MOVED = Symbol("head moved");
+// A poll read the head as moved and the wait stopped; finish confirms it, and
+// a confirming read that finds this head again reviews under this reason.
+const HEAD_READ_MOVED = "head-read-moved";
 export const DISPATCHER = ".github/workflows/pr-unblock-dispatch.yml";
 export const REFINE = ".github/workflows/pr-refine.yml";
 const RECORD = /^pr-unblock-target-dispatched-[0-9a-f]{40}-([1-9][0-9]{0,14})$/;
@@ -53,12 +63,20 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   const deadline = start + capMs;
   const say = (level, text) => log(`::${level}::wait-refine #${number} ${head}: ${text}`);
 
-  // Re-reads run <id> until it completes, or returns null once the next poll
-  // would pass the cap.
+  // One pulls read per poll: true once the pull request is closed or its head
+  // is no longer this one.
+  async function headMoved() {
+    const pr = await api.get(`pulls/${number}`);
+    return pr.state !== "open" || pr.head?.sha !== head;
+  }
+
+  // Re-reads run <id> until it completes; returns null once the next poll
+  // would pass the cap, or MOVED once the head moves.
   async function completed(run) {
     while (run.status !== "completed") {
       if (now() + pollMs > deadline) return null;
       await sleep(pollMs);
+      if (await headMoved()) return MOVED;
       run = await api.get(`actions/runs/${run.id}`);
     }
     return run;
@@ -96,24 +114,33 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       );
       if (runs.length > 0 || now() + pollMs > start + appearMs) break;
       await sleep(pollMs);
+      if (await headMoved()) return await finish(HEAD_READ_MOVED);
     }
     if (runs.length === 0) return await finish("no-dispatcher");
-    const dispatcher = await completed(runs.reduce((a, b) => (b.id > a.id ? b : a)));
-    if (!dispatcher) return await finish("dispatcher-timeout");
 
-    const { artifacts = [] } = await api.get(`actions/runs/${dispatcher.id}/artifacts?per_page=100`);
-    const ids = artifacts.map((artifact) => RECORD.exec(artifact.name ?? "")?.[1]).filter(Boolean).map(Number);
-    if (ids.length === 0) return await finish("no-dispatch");
-    const id = Math.max(...ids);
-    say("notice", `dispatcher run ${dispatcher.id} started pr-refine run ${id}`);
+    let id = 0;
+    let source = 0;
+    for (const run of runs.sort((a, b) => b.id - a.id).slice(0, DISPATCHER_RUNS)) {
+      const dispatcher = await completed(run);
+      if (dispatcher === MOVED) return await finish(HEAD_READ_MOVED);
+      if (!dispatcher) return await finish("dispatcher-timeout");
+      const { artifacts = [] } = await api.get(`actions/runs/${dispatcher.id}/artifacts?per_page=100`);
+      for (const artifact of artifacts) {
+        const found = Number(RECORD.exec(artifact.name ?? "")?.[1] ?? 0);
+        if (found > id) [id, source] = [found, dispatcher.id];
+      }
+    }
+    if (id === 0) return await finish("no-dispatch");
+    say("notice", `dispatcher run ${source} started pr-refine run ${id}`);
 
     const refine = await api.get(`actions/runs/${id}`);
     // pr-refine.yml's run-name ends with the PR number it refines.
     if (refine.path !== REFINE || refine.event !== "workflow_dispatch" || refine.head_branch !== "main" || !String(refine.display_title ?? "").endsWith(` #${number}`)) {
-      say("warning", `run ${id} named by dispatcher run ${dispatcher.id} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
+      say("warning", `run ${id} named by dispatcher run ${source} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
       return await finish("not-refine");
     }
     const done = await completed(refine);
+    if (done === MOVED) return await finish(HEAD_READ_MOVED);
     if (!done) return await finish("refine-timeout");
     return await finish(`refine-${/^[a-z_]+$/.test(done.conclusion ?? "") ? done.conclusion : "unknown"}`);
   } catch (error) {
