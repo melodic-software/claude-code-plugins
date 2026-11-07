@@ -1581,6 +1581,7 @@ test("refine invariant 2: no PR text reaches a step; run: holds no expression an
   const allowed = new Set([
     "github.event.pull_request.number",
     "github.event.sender.id",
+    "github.run_attempt",
     "github.workflow_sha",
     "github.token",
     "github.workspace",

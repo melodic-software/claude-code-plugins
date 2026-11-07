@@ -8,7 +8,9 @@
 // The trusted-trigger gate refuses a Refine run whose dispatcher run was
 // started by anyone but the lanes App or a listed human, and a refused run
 // counts toward fix-docs's per-PR cap, so an event from anyone else
-// dispatches nothing and is left to the tick.
+// dispatches nothing and is left to the tick. A re-run keeps the original
+// event's sender while anyone with write access may have started it, so only
+// a first attempt (RUN_ATTEMPT exactly 1) dispatches; the tick covers the rest.
 //
 // Reads only PR_NUMBER and SENDER_ID from the event, as numbers. Logs carry PR numbers,
 // SHAs, run ids and counts only. The dispatched run id is appended to
@@ -43,6 +45,10 @@ export async function main(
     throw new Error("PR_NUMBER is not a pull request number");
   }
   const number = Number(env.PR_NUMBER);
+  if (env.RUN_ATTEMPT !== "1") {
+    log(`::notice::skip fix-docs #${number}: this run is not its event's first attempt, and a re-run keeps the event's sender whoever started it; the next tick decides`);
+    return 0;
+  }
   const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
   const sender = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
   if (sender === null || (sender !== appSenderId && !readHumans().has(sender))) {

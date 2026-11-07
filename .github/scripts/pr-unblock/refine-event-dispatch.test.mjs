@@ -59,11 +59,11 @@ function fakeApi({ node = pr(), historyRuns = 0 } = {}) {
   };
 }
 
-async function run(api, { prNumber = "77", limits = {}, sender = "4242" } = {}) {
+async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt = "1" } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "refine-event-"));
   const lines = [];
   try {
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: prNumber, APP_SENDER_ID: "1", SENDER_ID: sender };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: prNumber, APP_SENDER_ID: "1", SENDER_ID: sender, ...(attempt === null ? {} : { RUN_ATTEMPT: attempt }) };
     const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, readGateLabel: () => null, readHumans: () => new Set([4242]) });
     let ids = "";
     try {
@@ -121,6 +121,22 @@ test("an event the lanes App or a listed human sent dispatches; any other sender
     assert.deepEqual(api.calls.read, [], sender);
     assert.deepEqual(api.calls.dispatch, [], sender);
     assert.equal(ids, "", sender);
+  }
+});
+
+// A re-run keeps the event's sender whoever started it, so only attempt 1 dispatches.
+test("only an event run's first attempt dispatches; a re-run or an unread attempt reads and dispatches nothing", async () => {
+  const first = fakeApi();
+  await run(first, { attempt: "1" });
+  assert.equal(first.calls.dispatch.length, 1, "attempt 1");
+  for (const attempt of ["2", null, "", "1x", "01"]) {
+    const api = fakeApi();
+    const { code, ids, lines } = await run(api, { attempt });
+    assert.equal(code, 0, String(attempt));
+    assert.deepEqual(api.calls.read, [], String(attempt));
+    assert.deepEqual(api.calls.dispatch, [], String(attempt));
+    assert.equal(ids, "", String(attempt));
+    assert.ok(lines.some((line) => line.startsWith("::notice::skip fix-docs #77: this run is not its event's first attempt")), String(attempt));
   }
 });
 

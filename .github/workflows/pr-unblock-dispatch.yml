@@ -424,6 +424,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SENDER_ID: ${{ github.event.sender.id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id
         run: node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs
 
