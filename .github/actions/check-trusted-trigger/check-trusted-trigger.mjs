@@ -1237,17 +1237,34 @@ export async function reconcilerRecordVouches({ github, repository, defaultBranc
   }
 }
 
-// app-label: the lanes App applying exactly that label to an issue starts the
-// lane; the label alone admits the issue. Any other App event stops. The
-// re-runner is the App itself, listed, or a listed human.
-async function checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, runId, runAttempt }) {
-  if (event.action !== "labeled" || event.label?.name !== appLabel) {
+// The lanes App starts the lane on an issue only by applying app-label, or by
+// setting the field app-field-id to the option app-field-option; that event
+// alone admits the issue. Any other App event stops. The re-runner is the App
+// itself, listed, or a listed human.
+function appTrigger(event, appLabel, appField) {
+  if (appLabel !== "" && event.action === "labeled" && event.label?.name === appLabel) {
+    return appLabel;
+  }
+  if (
+    appField !== null &&
+    event.action === "field_added" &&
+    String(event.issue_field?.id ?? "") === appField.id &&
+    String(event.issue_field_value?.option?.id ?? "") === appField.option
+  ) {
+    return `field ${appField.id} option ${appField.option}`;
+  }
+  return null;
+}
+
+async function checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, appField, runId, runAttempt }) {
+  const trigger = appTrigger(event, appLabel, appField);
+  if (trigger === null) {
     throw new Stop("bot-actor");
   }
   if (!PR_NUMBER.test(String(event.issue?.number ?? ""))) {
     throw new Stop("untrusted-actor");
   }
-  console.log(`check-trusted-trigger: ${appLabel} from the lanes App`);
+  console.log(`check-trusted-trigger: ${trigger} from the lanes App`);
   const rerunnerId = await readRerunner(github, repository, runId, runAttempt);
   const isApp = rerunnerId === lanesAppId && list.ids.has(rerunnerId);
   if (!isApp && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
@@ -1260,18 +1277,18 @@ async function checkAppLabel({ github, repository, event, list, deniedIds, lanes
 // (on issues, the account that applied the label) and the triggering actor, a
 // push only the triggering actor; no PR is read. require-kind human narrows
 // both to actors listed as human.
-async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, runId, runAttempt }) {
+async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, runId, runAttempt }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
   }
   if (
     eventName === "issues" &&
     requireKind === "human" &&
-    appLabel !== "" &&
+    (appLabel !== "" || appField !== null) &&
     lanesAppId !== null &&
     event.sender?.id === lanesAppId
   ) {
-    return checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, runId, runAttempt });
+    return checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, appField, runId, runAttempt });
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName !== "push") {
@@ -1305,6 +1322,7 @@ export async function evaluateTrigger({
   requirePr = "true",
   requireKind = "",
   appLabel = "",
+  appField = null,
   runId = "",
   runAttempt = "",
   reconcilerWorkflow = "",
@@ -1322,7 +1340,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, runId, runAttempt });
+    return evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, runId, runAttempt });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -1493,6 +1511,11 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
       appLabel: env.APP_LABEL ?? "",
+      // Both ids or neither: a half-set pair keeps every App field event stopped.
+      appField:
+        /^[1-9][0-9]{0,14}$/.test(env.APP_FIELD_ID ?? "") && /^[1-9][0-9]{0,14}$/.test(env.APP_FIELD_OPTION ?? "")
+          ? { id: env.APP_FIELD_ID, option: env.APP_FIELD_OPTION }
+          : null,
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",

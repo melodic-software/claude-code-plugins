@@ -1125,11 +1125,17 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
     assert.equal(reads("skipped", "true"), false, `${evidence} with no subscription call`);
     const third = jobGate(file, fallback);
     assert.doesNotMatch(third.gate, forged, fallback);
-    // The issue lane's third call keeps its second call's admission, label
-    // and slot gates.
+    // The issue lane's third call keeps its second call's admission, Work
+    // status field and slot gates (field 48484079 set to agent-ready,
+    // 84879220, models.issue-status).
     const base =
       file === "work-resolve-issue.yml"
-        ? { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false" }
+        ? {
+            "github.event.issue_field.id": 48484079,
+            "github.event.issue_field_value.option.id": 84879220,
+            "needs.admit.outputs.proceed": "true",
+            "needs.pick-slot.outputs.capped": "false",
+          }
         : {};
     const starts = (handedOff, ready) =>
       evaluate(third.gate, { ...base, [`needs.${evidence}.outputs.handed-off`]: handedOff, [`needs.${handoff}.outputs.fallback-ready`]: ready });
