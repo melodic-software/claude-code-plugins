@@ -384,9 +384,11 @@ an item whose `status` is `needs-human`, `needs-owner-decision`, `needs-reporter
 `needs-spec`, and that carries none of those states' labels (`needs-human`,
 `status: needs-decision`, `needs-owner-decision`, `status: needs-info`, `needs-spec`), is held
 too, and the labels decide everything else, since labels are written first
-and reach the field afterwards. No setter is checked, because a value can only hold an item back. A status read that fails, or a `status-storage`
-read the provider did not answer, prints one warning on stderr and leaves the labels to
-decide; the frontier does not fail on it. The default frontier reads no status. The floor wins over the autonomous-eligible role label: an
+and reach the field afterwards. No setter is checked, because a value can only hold an item back. A `get-statuses` read that fails, or a `status-storage`
+read the provider did not answer, prints one line on stderr and exits with the adapter's code,
+with no envelope on stdout, so an autonomous caller reads nothing it cannot trust; an answer
+without a `statuses` object exits `1`. `labels` storage, and an adapter that declares no
+`get-statuses`, read no status and pass through. The default frontier reads no status. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
 worker from claiming and then escalating it once per lane pass. No other work class is
 floored, and neither is an item with no `work-class:` label: work class is not an admission
