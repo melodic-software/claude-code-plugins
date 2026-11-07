@@ -1938,7 +1938,10 @@ def _check_carry_3(
                     report(
                         f"{title}: predecessor entry {ref} is in neither this file nor {rel}"
                     )
-                elif not retired.get(n):
+                elif not retired.get(n) or _squash(retired[n]) == _squash(
+                    _id_of(spec, entry.text)[1]
+                ):
+                    # A verbatim copy with no `Retired:` line is not a reason.
                     report(
                         f"{title}: predecessor entry {ref} left this file without a retirement; keep it here, or list it in {rel} under '## {spec.retired_heading}' (the entry verbatim, then 'Retired: <why it no longer binds>'). An entry never leaves to meet the size cap"
                     )
