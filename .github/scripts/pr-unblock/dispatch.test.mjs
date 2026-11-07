@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, LIST_QUERY, listAll, main, shareTimeline } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, LIST_QUERY, listAll, main, PULL_QUERY, shareTimeline } from "./dispatch.mjs";
 import { dispatchCiFixes } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -1300,6 +1300,14 @@ test("resolve-conflicts and fix-ci page through one listing: each page is one Gr
   for (const field of ["mergeable", "changedFiles", "commits(last: 1) {\n          totalCount", "conclusion title completedAt", "first: 50"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
+});
+
+test("fields only fix-docs reads are in its one-PR query, not the tick's listing", () => {
+  for (const field of ["files(first: 100)", "additions", "deletions", "author { login }", "signature { isValid }", "author { user { login } }", "committer { email }"]) {
+    assert.ok(PULL_QUERY.includes(field), `PULL_QUERY reads ${field}`);
+    assert.ok(!LIST_QUERY.includes(field), `LIST_QUERY leaves out ${field}`);
+  }
+  assert.ok(!/\blogin\b/.test(LIST_QUERY), "LIST_QUERY reads no login");
 });
 
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
