@@ -51,7 +51,9 @@ name: pr-review-main
 # merge gate binds), once per run; no leg starts otherwise. The key leg takes its result, a boolean, the
 # PR number and two SHAs
 # checked against fixed shapes, only from the same run attempt, and gates
-# itself otherwise. The later legs gate themselves at their own start.
+# itself otherwise. The later legs gate themselves at their own start. The
+# trusted-text job reads the trusted pull request text once per run; a leg
+# takes it only when it matches the leg, and otherwise reads its own.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
@@ -522,12 +524,151 @@ jobs:
         with:
           tokens: github-token
 
+  # The PR's trusted text, read once per run for every leg (outage posture
+  # element 6), on this attempt's trigger gate result and under the legs' kill
+  # switch and upstream status. It uploads context.json after a leak scan and
+  # outputs its sha256 with the main commit, PR number, head and run attempt it
+  # was read for; a leg takes it only when all of those match its own, and
+  # otherwise reads its own (take-shared-text.sh). It never fails the run: a
+  # read, scan or upload that fails leaves no hash, so each leg reads its own.
+  trusted-text:
+    needs: trigger
+    if: >-
+      !cancelled()
+      && needs.trigger.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && needs.trigger.outputs.run-attempt == github.run_attempt
+      && needs.trigger.outputs.proceed == 'true'
+      && needs.trigger.outputs.review == 'true'
+      && needs.trigger.outputs.judged != 'true'
+      && needs.trigger.outputs.held != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR, its comments and reviews
+    outputs:
+      run-attempt: ${{ github.run_attempt }}
+      sha256: ${{ steps.hash.outputs.sha256 }}
+      main-sha: ${{ steps.hash.outputs.main-sha }}
+      pr-number: ${{ steps.hash.outputs.pr-number }}
+      head-sha: ${{ steps.hash.outputs.head-sha }}
+    steps:
+      - name: Check out the trigger job's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        continue-on-error: true
+        with:
+          ref: ${{ needs.trigger.outputs.main-sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        id: node
+        continue-on-error: true
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
+
+      # A notice, never an error: each leg reports its own stop.
+      - name: Report the kill switch
+        id: switch
+        env:
+          PROCEED: ${{ steps.kill.outputs.proceed }}
+          UPSTREAM_DEGRADED: ${{ steps.upstream.outputs.degraded }}
+          LANES_OFF: ${{ vars.CLAUDE_REVIEW_DISABLED == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED == 'true' }}
+        run: |
+          if [ "$PROCEED" = true ] && [ "$UPSTREAM_DEGRADED" != true ] && [ "$LANES_OFF" != true ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::a kill switch or an upstream outage stops the shared read; each leg reports its own stop"
+          fi
+
+      - name: Select the trusted PR text
+        id: select
+        if: steps.switch.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ needs.trigger.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ runner.temp }}/pr-review-main-text/context.json
+          github-token: ${{ github.token }}
+
+      - name: Scan the trusted PR text for credentials
+        id: scan
+        if: steps.select.outcome == 'success'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-review-main-text/context.json
+
+      # The name is written out so its retention row claims it, and sits
+      # outside the pr-review-main-* verdict names the merge gate reads.
+      - name: Upload the trusted PR text
+        id: upload
+        if: (steps.select.outcome == 'success') && steps.scan.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trusted-text-pr-review-main
+          path: ${{ runner.temp }}/pr-review-main-text/context.json
+          if-no-files-found: error
+          retention-days: 1
+
+      # Only fixed shapes leave this job: no PR text is an output.
+      - name: Record what was read
+        id: hash
+        if: steps.upload.outcome == 'success'
+        continue-on-error: true
+        env:
+          FILE: ${{ runner.temp }}/pr-review-main-text/context.json
+          PR_NUMBER: ${{ needs.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ needs.trigger.outputs.head-sha }}
+        run: |
+          main=$(git -C .base rev-parse --verify HEAD)
+          sum=$(sha256sum "$FILE" | awk '{ print $1 }')
+          if ! [[ $main =~ ^[0-9a-f]{40}$ && $sum =~ ^[0-9a-f]{64}$ && $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::notice::the shared read left a malformed record; each leg reads its own"
+            exit 0
+          fi
+          { echo "sha256=$sum"; echo "main-sha=$main"; echo "pr-number=$PR_NUMBER"; echo "head-sha=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget
+        if: always() && steps.node.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # No leg starts when the trigger job of this attempt found no lane source
   # or a head both lanes already reviewed: the leg would review nothing. A
   # leg re-run alone in a later attempt starts and gates itself. With the
   # key out of credit, review-handoffs-credit skips this job.
   review:
-    needs: [trigger, review-handoffs-credit]
+    needs: [trigger, review-handoffs-credit, trusted-text]
     if: >-
       needs.review-handoffs-credit.outputs.next-leg != 'subscription'
       && !cancelled()
@@ -862,8 +1003,38 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      - name: Select the trusted PR text
+      # The trusted-text job's read, used only when it matches this leg
+      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
+      # read its own, as before.
+      - name: Download the shared trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: trusted-text-pr-review-main
+          path: ${{ runner.temp }}/pr-review-main-shared-text
+
+      - name: Take the shared trusted PR text
+        id: shared
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        continue-on-error: true
+        env:
+          SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
+          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_DIR: .base
+          CONTEXT_FILE: ${{ github.workspace }}/pr-review-main-data/context.json
+        run: bash .base/.github/scripts/pr-review-main/take-shared-text.sh
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.shared.outputs.shared != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
@@ -1451,7 +1622,7 @@ jobs:
   # holds them equal), so the gates, the kill switch and the hardening run
   # again. Only this job's launcher step gets the subscription token.
   review-subscription:
-    needs: review-handoffs
+    needs: [trusted-text, review-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
     if: >-
@@ -1757,8 +1928,38 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      - name: Select the trusted PR text
+      # The trusted-text job's read, used only when it matches this leg
+      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
+      # read its own, as before.
+      - name: Download the shared trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: trusted-text-pr-review-main
+          path: ${{ runner.temp }}/pr-review-main-shared-text
+
+      - name: Take the shared trusted PR text
+        id: shared
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        continue-on-error: true
+        env:
+          SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
+          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_DIR: .base
+          CONTEXT_FILE: ${{ github.workspace }}/pr-review-main-data/context.json
+        run: bash .base/.github/scripts/pr-review-main/take-shared-text.sh
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.shared.outputs.shared != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
@@ -2324,7 +2525,7 @@ jobs:
   # credential and the fallback reason, and it hands nothing on: it is the
   # last leg, so a stop here leaves the lane unbound and fails the job.
   review-fallback:
-    needs: subscription-handoffs
+    needs: [trusted-text, subscription-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
     if: >-
@@ -2626,8 +2827,38 @@ jobs:
           echo "::notice title=pr-review-main chunks::lane=$LANE pr=$PR_NUMBER chunks=$chunks bytes=$bytes manifest_paths=$paths"
           echo "diff: $(cat "$DATA"/diff/chunk-*/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
-      - name: Select the trusted PR text
+      # The trusted-text job's read, used only when it matches this leg
+      # (take-shared-text.sh); a missing or mismatched one leaves the leg to
+      # read its own, as before.
+      - name: Download the shared trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: trusted-text-pr-review-main
+          path: ${{ runner.temp }}/pr-review-main-shared-text
+
+      - name: Take the shared trusted PR text
+        id: shared
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
+        continue-on-error: true
+        env:
+          SHARED_FILE: ${{ runner.temp }}/pr-review-main-shared-text/context.json
+          SHARED_SHA256: ${{ needs.trusted-text.outputs.sha256 }}
+          SHARED_ATTEMPT: ${{ needs.trusted-text.outputs.run-attempt }}
+          SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
+          SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
+          SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_DIR: .base
+          CONTEXT_FILE: ${{ github.workspace }}/pr-review-main-data/context.json
+        run: bash .base/.github/scripts/pr-review-main/take-shared-text.sh
+
+      - name: Select the trusted PR text
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.shared.outputs.shared != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
