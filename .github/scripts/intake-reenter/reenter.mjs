@@ -25,10 +25,11 @@
 //   own needs-triage writes, the issue's newest Work status field events must
 //   be that person's, from a hold state (read-status.mjs HOLD_STATES) to none
 //   or needs-triage; the issue must carry no status label but `needs-triage`
-//   and intake must admit its author. The `needs-triage` label is the claim,
-//   added first, since the field may already read needs-triage before the
-//   run: a second run finds it and dispatches nothing. A release that left
-//   the field empty then sets it to needs-triage, and intake is dispatched;
+//   and intake must admit its author. The claim is a marked comment keyed to
+//   the event that left the hold, posted first, since the field may already
+//   read needs-triage before the run: a re-run of that release finds it and
+//   dispatches nothing. A release that left the field empty then sets it to
+//   needs-triage, and intake is dispatched;
 //
 // A decision on an issue that carries `needs-human` changes nothing: only a
 // listed human releases that hold (docs/contracts/loop-lane/README.md, the
@@ -78,6 +79,7 @@ import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { HOLD_STATES, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { ownComment } from "../lib/upsert-comment.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
 export const NEEDS_INFO = "status: needs-info";
@@ -198,8 +200,8 @@ const ACTIONS_BOT_ID = 41898282;
 // then a needs-triage add release too, and a re-run that sees its own write
 // still finds the release. Every value an event names must be an option the
 // config maps, so a renamed option fails the run instead of hiding a release.
-// Returns {from, to}, `to` the field's state now, or null when intake should
-// not take the issue.
+// Returns {from, to, event}, `to` the field's state now and `event` the one
+// that left the hold, or null when intake should not take the issue.
 async function fieldReleases({ github, repository, issue, humans, lanesAppId, senderId, config, fieldEvents }) {
   const states = new Set(Object.values(config.options));
   const unknown = HOLD_STATES.find((state) => !states.has(state));
@@ -242,15 +244,38 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
   while (i > 0 && events[i].from === null && sender(events[i - 1])) {
     i -= 1;
   }
-  return HOLD_STATES.includes(events[i].from) ? { from: events[i].from, to: now } : null;
+  return HOLD_STATES.includes(events[i].from) ? { from: events[i].from, to: now, event: events[i] } : null;
 }
 
-// The Work status field path: a listed human's release (fieldReleases) adds
-// `needs-triage`, the claim a second run finds, sets the field to
-// needs-triage when the release left it empty, and dispatches intake once; a
-// hold a person set since then keeps the field and takes the label back. A
-// failed field write or dispatch takes the label back and fails the run, so
-// a re-run, which walks past the field write, can claim again.
+// The record of one release: a job token comment opening with a marker keyed
+// to the event that left the hold, so a re-run of that release finds it and a
+// later release, a new event, does not. The body is fixed text: the triage
+// run reads the job token's comments as trusted.
+const releaseMarker = (event) => {
+  if (!event.actorId || !event.at) {
+    throw new Error("the release's Work status event names no actor or time");
+  }
+  return `<!-- intake-reenter:release ${event.actorId} ${event.at} -->`;
+};
+
+async function dropRecord(client, repository, id) {
+  try {
+    await client("DELETE", `/repos/${repository}/issues/comments/${id}`);
+  } catch (error) {
+    if (!(error instanceof GitHubError && error.status === 404)) {
+      throw error;
+    }
+  }
+}
+
+// The Work status field path: a listed human's release (fieldReleases) posts
+// its record (releaseMarker), sets the field to needs-triage when the release
+// left it empty, and dispatches intake once; it writes no label. Runs for one
+// issue wait in line, so only a re-run can see the same release again, and it
+// finds the record and dispatches nothing. A hold a person set since then
+// keeps the field and takes the record back. A failed field write or
+// dispatch takes the record back, leaves the field as written and fails the
+// run, so a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
   const senderId = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
   const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
@@ -263,26 +288,29 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
     log("intake-reenter: not a listed human's release of a Work status hold that sends an issue to intake; nothing changed");
     return 0;
   }
-  if (labelNames(issue).includes(NEEDS_TRIAGE)) {
-    log(`intake-reenter: ${NEEDS_TRIAGE} is already on the issue; nothing dispatched`);
+  const marker = releaseMarker(release.event);
+  if (await ownComment({ github: client, repository, pull: issue.number, marker })) {
+    log("intake-reenter: this release's record is already on the issue; nothing dispatched");
     return 0;
   }
-  await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+  const record = await client("POST", `${base}/comments`, {
+    body: `${marker}\nA listed human released the issue's Work status hold, so it goes back to intake triage.`,
+  });
   try {
     if (release.to === null) {
       const moved = await (await statusWriter({ env, github: client, repository })).set(Number(issue.number), NEEDS_TRIAGE, { keepHold: true });
       if (moved?.outcome === "held") {
-        await removeLabel(client, base, NEEDS_TRIAGE);
+        await dropRecord(client, repository, record.id);
         log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the release changes nothing; nothing dispatched`);
         return 0;
       }
     }
     await dispatch(client, repository, issue);
   } catch (error) {
-    await removeLabel(client, base, NEEDS_TRIAGE).catch(() => false);
+    await dropRecord(client, repository, record.id).catch(() => log("::error title=intake-reenter::could not take back this release's record; delete it by hand so a re-run can claim again"));
     throw error;
   }
-  log(`intake-reenter: Work status ${release.from} released, added ${NEEDS_TRIAGE}${release.to === null ? `, set Work status to ${NEEDS_TRIAGE}` : ""}, dispatched ${WORKFLOW}`);
+  log(`intake-reenter: Work status ${release.from} released, posted its record${release.to === null ? `, set Work status to ${NEEDS_TRIAGE}` : ""}, dispatched ${WORKFLOW}`);
   return 0;
 }
 
