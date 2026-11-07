@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".calls.log"],
+      "why": "a lint command ran"
+    }
+  ]
+}

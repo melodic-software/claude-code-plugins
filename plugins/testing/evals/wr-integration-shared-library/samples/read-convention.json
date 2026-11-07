@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/w/docs/testing.md" } }],
+      "why": "read the documented convention"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Glob", "input": { "pattern": "docs/testing.md" } }],
+      "why": "found the file, never read it"
+    },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/w/libs/pricing/pricing/discounts.py" } }],
+      "why": "read the code only"
+    }
+  ]
+}

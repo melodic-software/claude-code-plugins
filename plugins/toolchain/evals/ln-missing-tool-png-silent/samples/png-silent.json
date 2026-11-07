@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| markdown | skip (tool missing: mdlint-absent) | INCOMPLETE |\n\nOverall: INCOMPLETE (markdown: skip (tool missing: mdlint-absent))",
+      "why": "no mention of the image"
+    },
+    {
+      "answer": "Changed files: docs/guide.md, assets/logo.png\n\n| markdown | skip (tool missing: mdlint-absent) | INCOMPLETE |",
+      "why": "listed as changed, no verdict on it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "assets/logo.png: skipped (no ecosystem matches it)",
+      "why": "noise for the image"
+    },
+    {
+      "answer": "Warning: ignoring assets/logo.png, which no ecosystem covers.",
+      "why": "a warning for the image"
+    }
+  ]
+}

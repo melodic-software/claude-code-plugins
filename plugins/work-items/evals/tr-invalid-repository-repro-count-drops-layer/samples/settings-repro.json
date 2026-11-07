@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_repro_count=2 (default)",
+      "why": "the settings line"
+    },
+    {
+      "answer": "Settings: `triage_repro_count=2` (default, read from `origin/main`)",
+      "why": "code span and a layer note, written by analogy to case 24's smoke reply"
+    },
+    {
+      "answer": "Settings: triage_repro_count=2 (default), triage_objection_window_hours=0 (default)",
+      "why": "in the full line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=2 (userConfig)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "triage_repro_count resolves to something else",
+      "why": "no value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

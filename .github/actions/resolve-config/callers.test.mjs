@@ -37,6 +37,15 @@ const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf
 const workflow = (name) => parse(read(`../../workflows/${name}`));
 const RESOLVE = "./.base/.github/actions/resolve-config";
 
+// The Work status field write that starts work-resolve-issue: the field set to
+// its agent-ready option, both read from models.issue-status.
+const ISSUE_STATUS = parse(read("../../../docs/conventions/pr-pipeline.yaml")).models["issue-status"];
+const AGENT_READY_OPTION = Number(Object.keys(ISSUE_STATUS.options).find((id) => ISSUE_STATUS.options[id] === "agent-ready"));
+const AGENT_READY_FIELD = {
+  "github.event.issue_field.id": ISSUE_STATUS["field-id"],
+  "github.event.issue_field_value.option.id": AGENT_READY_OPTION,
+};
+
 // A checkout of main's live tip takes it as a 40-hex ref from the job's tip
 // step, so actions/checkout makes no hash-algorithm REST call.
 const TIP_REF = "${{ steps.tip.outputs.sha }}";
@@ -1299,18 +1308,23 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   );
   assert.deepEqual([...groups].sort(), [0, 1, 2].map((n) => `work-resolve-issue-slot-${n}`));
 
-  // A label other than agent-ready starts neither job, so it holds no runner.
-  for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
-    const context = { "github.event.label.name": label, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false" };
-    assert.equal(evaluate(pick.if, context), runs, label);
-    assert.equal(evaluate(resolve.if, context), runs, label);
+  // A Work status other than agent-ready starts neither job, so it holds no runner.
+  for (const [name, option, runs] of [["agent-ready", AGENT_READY_OPTION, true], ["another option", 86380002, false]]) {
+    const context = {
+      ...AGENT_READY_FIELD,
+      "github.event.issue_field_value.option.id": option,
+      "needs.admit.outputs.proceed": "true",
+      "needs.pick-slot.outputs.capped": "false",
+    };
+    assert.equal(evaluate(pick.if, context), runs, name);
+    assert.equal(evaluate(resolve.if, context), runs, name);
   }
   // At the WIP cap resolve-issue takes no slot, and a cap check that failed or
   // set nothing holds the same way (outage posture element 2): only `false`
   // starts it, in each call that takes a slot.
   assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
   for (const [capped, runs] of [["true", false], ["false", true], ["", false], ["null", false]]) {
-    const context = { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
+    const context = { ...AGENT_READY_FIELD, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
     assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
   }
   for (const id of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
@@ -1318,55 +1332,45 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
     assert.doesNotMatch(jobs[id].if, /capped != 'true'/, id);
   }
   // The per-issue run group still dedupes: one agent-ready run per issue.
-  assert.equal(
-    concurrency.group,
-    "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
-  );
+  assert.match(concurrency.group, /^work-resolve-issue-\$\{\{ github\.event\.issue\.number \}\}-/);
   assert.equal(concurrency["cancel-in-progress"], false);
 });
 
-// #13484: a person's Work status change to agent-ready runs only admit's
-// trigger check; the lanes App's mirror write, another field or another
-// option starts nothing. No field write joins the agent-ready label's run
-// group, so none can replace a waiting label run.
-test("work-resolve-issue.yml: a person's Work status field change to agent-ready runs admit alone, outside the agent-ready group", () => {
+// #13486: setting Work status to agent-ready starts the lane, from a listed
+// human or the lanes App; no label starts it. A Bot other than the App,
+// another field or another option starts nothing, and no other field write
+// joins the agent-ready run group, so none can replace a waiting run.
+const LANES_APP_ID = 337595936;
+test("work-resolve-issue.yml: a Work status field write to agent-ready from a person or the lanes App starts the lane, in the agent-ready group", () => {
   const { on, jobs, concurrency } = workflow("work-resolve-issue.yml");
-  assert.deepEqual(on.issues.types, ["labeled", "field_added"]);
+  assert.deepEqual(on.issues.types, ["field_added"]);
   const group = concurrency.group.replace(/^work-resolve-issue-\$\{\{ github\.event\.issue\.number \}\}-/, "");
-  const label = { "github.event.action": "labeled", "github.event.label.name": "agent-ready" };
-  const field = (fieldId, optionId, type) => ({
-    "github.event.action": "field_added",
-    "github.event.label.name": "",
+  const field = (fieldId, optionId, type, id) => ({
     "github.event.issue_field.id": fieldId,
     "github.event.issue_field_value.option.id": optionId,
     "github.event.sender.type": type,
+    "github.event.sender.id": id,
+    "vars.AUTOMATION_LANES_APP_SENDER_ID": String(LANES_APP_ID),
   });
+  const fieldId = ISSUE_STATUS["field-id"];
   const cases = [
-    ["agent-ready label", label, true, true],
-    ["another label", { ...label, "github.event.label.name": "bug" }, false, false],
-    ["a person's agent-ready field", field(48484079, 84879220, "User"), true, false],
-    ["the App's mirror write", field(48484079, 84879220, "Bot"), false, false],
-    ["another option", field(48484079, 86380002, "User"), false, false],
-    ["another field", field(1, 84879220, "User"), false, false],
+    ["a person's agent-ready field", field(fieldId, AGENT_READY_OPTION, "User", 1), true, true],
+    ["the lanes App's agent-ready field", field(fieldId, AGENT_READY_OPTION, "Bot", LANES_APP_ID), true, true],
+    ["another Bot's agent-ready field", field(fieldId, AGENT_READY_OPTION, "Bot", 41898282), false, true],
+    ["another option", field(fieldId, 86380002, "User", 1), false, false],
+    ["another field", field(1, AGENT_READY_OPTION, "User", 1), false, false],
   ];
   for (const [name, context, admits, joins] of cases) {
-    const labelOnly = { "github.event.issue_field.id": 0, "github.event.issue_field_value.option.id": 0, "github.event.sender.type": "User", ...context };
-    assert.equal(evaluate(group, labelOnly), joins, `group: ${name}`);
-    assert.equal(evaluate(jobs.admit.if, labelOnly), admits, `admit: ${name}`);
+    assert.equal(evaluate(group, context), joins, `group: ${name}`);
+    assert.equal(evaluate(jobs.admit.if, context), admits, `admit: ${name}`);
   }
-  // The field ids are models.issue-status's.
-  const status = parse(read("../../../docs/conventions/pr-pipeline.yaml")).models["issue-status"];
-  assert.equal(status["field-id"], 48484079);
-  assert.equal(status.options["84879220"], "agent-ready");
-  // A field run checks the trigger and logs; the blocker read and every later
-  // job wait for the label.
+  // A field run reads its blockers once the trigger passed, and nothing reads a label event.
   const steps = jobs.admit.steps;
-  const log = steps.find((step) => step.name === "Log the Work status change");
-  assert.ok(steps.indexOf(log) > steps.findIndex((step) => step.id === "gate"));
-  assert.match(steps.find((step) => step.id === "blockers").if, /github\.event\.action == 'labeled'/);
-  for (const [id, job] of Object.entries(jobs)) {
-    if (id !== "admit") assert.doesNotMatch(String(job.if ?? ""), /field_added/, id);
-  }
+  assert.equal(steps.find((step) => step.name === "Log the Work status change"), undefined);
+  assert.equal(steps.find((step) => step.id === "blockers").if, "steps.gate.outputs.proceed == 'true'");
+  const text = JSON.stringify(jobs);
+  assert.doesNotMatch(text, /github\.event\.label\b/);
+  assert.doesNotMatch(text, /'labeled'/);
 });
 
 // Outage posture elements 2 and 3 (#12283): an unknown WIP cap holds the run
@@ -1927,7 +1931,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   assert.equal(upstream.if, "steps.blockers.outputs.proceed == 'true'");
   assert.equal(upstream["continue-on-error"], true);
   const blockers = admit.steps.find((s) => s.id === "blockers");
-  assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true' && github.event.action == 'labeled'");
+  assert.equal(blockers.if, "steps.gate.outputs.proceed == 'true'");
   assert.equal(blockers.run, "node .base/.github/scripts/work-resolve-issue/check-blockers.mjs");
   // Trusted closes and provenance are judged against the default branch's list, never the head's.
   assert.equal(blockers.env.TRUSTED_ACTORS_PATH, ".base/.github/standards/trusted-actors/trusted-actors.json");
@@ -1941,9 +1945,13 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   const gate = admit.steps.find((s) => s.id === "gate");
   assert.equal(gate.uses, "./.base/.github/actions/check-trusted-trigger");
   assert.deepEqual(
-    [gate.with["require-pr"], gate.with["require-kind"], gate.with["app-label"], gate.with["lanes-app-id"]],
-    ["false", "human", "agent-ready", "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"],
+    [gate.with["require-pr"], gate.with["require-kind"], gate.with["app-label"], gate.with["app-field-id"], gate.with["app-field-option"], gate.with["lanes-app-id"]],
+    ["false", "human", undefined, String(ISSUE_STATUS["field-id"]), String(AGENT_READY_OPTION), "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"],
   );
+  // Every runner call names the same App field, so the read and write runners' trigger checks match admit's.
+  for (const [id, job] of Object.entries(jobs).filter(([, job]) => /\/pr-run-activity-(read|write)\.yml$/.test(String(job.uses ?? "")))) {
+    assert.deepEqual([job.with["app-label"], job.with["app-field-id"], job.with["app-field-option"]], [undefined, gate.with["app-field-id"], gate.with["app-field-option"]], id);
+  }
   const guarded = Object.entries(jobs).filter(
     ([, job]) => JSON.stringify(job).includes(ISSUE_SECRET) || job.uses === "./.github/workflows/pr-run-activity-read.yml",
   );
@@ -1952,7 +1960,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
     assert.ok(needsOf(jobs, id).has("admit"), `${id} needs admit`);
     assert.ok(String(job.if).includes(ADMITTED), `${id} requires the gate's proceed`);
     const context = {
-      "github.event.label.name": "agent-ready",
+      ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
       "needs.resolve-issue-handoff.outputs.handed-off": "true",
@@ -1967,9 +1975,10 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
 });
 
 // Drives the gate step's inputs through check-trusted-trigger's own main, as
-// the action's env map passes them, on an agent-ready label event. The gate
-// reads the run attempt's re-runner by id from the run's own record; the stub
-// answers that read alone, with `rerunner` (the labeler by default).
+// the action's env map passes them, on a Work status field write to
+// agent-ready. The gate reads the run attempt's re-runner by id from the run's
+// own record; the stub answers that read alone, with `rerunner` (the sender by
+// default).
 const RUN_ID = "39500000001";
 async function admitOn(sender, rerunner = sender) {
   const { jobs } = workflow("work-resolve-issue.yml");
@@ -1979,7 +1988,17 @@ async function admitOn(sender, rerunner = sender) {
   try {
     const eventPath = join(dir, "event.json");
     const output = join(dir, "output");
-    writeFileSync(eventPath, JSON.stringify({ action: "labeled", label: { name: "agent-ready" }, issue: { number: 7 }, sender, repository: { full_name: "o/r" } }));
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        action: "field_added",
+        issue_field: { id: ISSUE_STATUS["field-id"] },
+        issue_field_value: { option: { id: AGENT_READY_OPTION } },
+        issue: { number: 7 },
+        sender,
+        repository: { full_name: "o/r" },
+      }),
+    );
     writeFileSync(output, "");
     const values = {
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
@@ -2017,7 +2036,7 @@ async function admitOn(sender, rerunner = sender) {
     return {
       proceed,
       runs: evaluate(resolve.if, {
-        "github.event.label.name": "agent-ready",
+        ...AGENT_READY_FIELD,
         "needs.admit.outputs.proceed": proceed,
         "needs.pick-slot.outputs.capped": "false",
       }),
@@ -2027,13 +2046,13 @@ async function admitOn(sender, rerunner = sender) {
   }
 }
 
-test("work-resolve-issue.yml: an unlisted labeler's agent-ready is refused at the gate and the credentialed job is skipped", async () => {
+test("work-resolve-issue.yml: an unlisted sender's agent-ready field write is refused at the gate and the credentialed job is skipped", async () => {
   const stranger = { login: "stranger", id: 9999001, type: "User" };
   assert.deepEqual(await admitOn(stranger), { proceed: "false", runs: false });
   const listedBot = { login: "claude[bot]", id: 209825114, type: "Bot" };
   assert.deepEqual(await admitOn(listedBot), { proceed: "false", runs: false }, "a listed bot is not a human");
   const human = { login: "kyle-sexton", id: 153232337, type: "User" };
-  assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's label is admitted");
+  assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's field write is admitted");
   assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
   const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
   assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
@@ -8021,7 +8040,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.doesNotMatch(sub.if, /needs\.resolve-issue\.outputs\./, "the start reads no resolve-issue output");
   const starts = (handedOff, overrides = {}) =>
     evaluate(sub.if, {
-      "github.event.label.name": "agent-ready",
+      ...AGENT_READY_FIELD,
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
       "needs.resolve-issue-handoff.outputs.handed-off": handedOff,
@@ -8747,7 +8766,7 @@ test(`every caller of ${READ} runs no model, write token, push, comment or label
       ...first.map((id) => [id, { result: "success", outputs: stopped }]),
     ]);
     const outputsOf = (id) => (reads.includes(id) ? stopped : {});
-    const run = simulate(jobs, { seed, context: { "github.event.label.name": "agent-ready", "inputs.issue-number": "" }, outputsOf });
+    const run = simulate(jobs, { seed, context: { ...AGENT_READY_FIELD, "inputs.issue-number": "" }, outputsOf });
     const ran = [...downstream].filter((id) => !reads.includes(id) && run.state[id].result === "success");
     const writes = ran.filter((id) => {
       const job = jobs[id];

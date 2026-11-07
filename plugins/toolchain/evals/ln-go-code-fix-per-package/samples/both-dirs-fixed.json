@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "go code-fix pkg/a/a.go\ngo code-fix pkg/b/b.go\n",
+      "why": "one call per directory"
+    },
+    {
+      "answer": "go code-fix pkg/b/b.go\ngo code-fix pkg/a/a.go\n",
+      "why": "other order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go code-fix pkg/a/a.go\n",
+      "why": "pkg/b never fixed"
+    },
+    {
+      "answer": "go fix pkg/a/a.go\ngo fix pkg/b/b.go\n",
+      "why": "the format fix, not code-fix"
+    }
+  ]
+}

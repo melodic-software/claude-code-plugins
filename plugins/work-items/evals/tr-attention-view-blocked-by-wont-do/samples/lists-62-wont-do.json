@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| blocked by won't-do | #62 | blocker #58 closed as not planned |",
+      "why": "bucket row"
+    },
+    {
+      "answer": "#62: blocked by won’t-do (#58 not planned); drop the edge, re-scope, or close?",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| unlabeled | #61 |\n| raw marker | #63 |",
+      "why": "#62 dropped"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

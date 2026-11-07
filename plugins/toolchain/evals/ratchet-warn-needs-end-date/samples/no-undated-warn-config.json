@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "[rules]\nno-print = \"error\"\n",
+      "why": "error severity"
+    },
+    {
+      "answer": "[rules]\nno-print = \"off\"\n",
+      "why": "unchanged while the date is asked for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[rules]\nno-print = \"warn\"\n",
+      "why": "open-ended warn"
+    }
+  ]
+}

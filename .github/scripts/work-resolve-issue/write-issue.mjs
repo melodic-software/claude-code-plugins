@@ -14,16 +14,16 @@
 // babysit_verify_evidence.py capped_close), tagged `verify-findings`: the
 // verifier's findings on the pull request it closed for this fresh attempt,
 // quoted as data. That record is posted just before the restart's re-add,
-// which anchors at the label it restarted, so it is kept whenever it was
+// which anchors at the admission it restarted, so it is kept whenever it was
 // posted, only while no one but the lanes App edited it.
 // `person_checks` lists, as written, the body's done-when items intake's split
 // refinement names as checks a person runs, only under admission's guards
-// (admit.mjs personChecks, over the comments posted before the label, with the
+// (admit.mjs personChecks, over the comments posted before the admission, with the
 // issue lane's web hosts); a split refinement whose record does not stand is
 // left out, so its prose excuses no item. `split_parent` holds the body of the
 // native parent a size split filed the issue from, only while the issue
 // counts as that parent's text (admit.mjs splitChildBody) and a listed human
-// wrote, and last edited before the label if ever, that body: the split
+// wrote, and last edited before the admission if ever, that body: the split
 // copies only its task-list lines. `scope` lists, for such a part split by
 // target, the targets its Scope line names (admit.mjs splitScope).
 // `verify_close` lists, for a finished parent (admit.mjs finishedParent), its
@@ -31,9 +31,10 @@
 // issue's own done-when and stops verified-done or verify-unmet. On any failure no file is left, so
 // the skill never reads a partial issue.
 //
-// The label admitted the issue as it stood at the label event readAdmittedAt
-// anchors on, so a comment created or edited after that is left out, and a
-// title or body changed since fails the run.
+// The admission readAdmission anchors on admitted the issue as it stood
+// then, so a comment created or edited after that is left out, and a title or
+// body changed since fails the run; an admission record's hashes must also
+// match the title and body written here.
 //
 // When the run resumes an earlier run's lane branch (report-outcome
 // --find-prior), `resume` says so: the branch, why that run ended, the tip the
@@ -50,9 +51,13 @@
 //   TRUSTED_ACTORS_PATH   the base's trusted-actor list
 //   ISSUE_FILE            where to write issue.json
 //   LANES_APP_ID          the lanes App bot's user id
-//   LABEL_SENDER_ID       the account that applied the label
-//   LABEL_NAME            the label whose event started the run
-//   LABEL_EVENT_AT        the issue's updated_at in that event's payload
+//   TRIGGER_SENDER_ID     the account whose event started the run (else
+//                         LABEL_SENDER_ID)
+//   TRIGGER_AT            the issue's updated_at in that event's payload (else
+//                         LABEL_EVENT_AT)
+//   BASE_PATH, CONFIG_PATH
+//                         the base checkout and its pr-pipeline.yaml, whose
+//                         models.issue-status names the Work status field
 //   RESUME_BRANCH, RESUME_TIP, RESUME_CAUSE
 //                         the resumed lane branch, its tip and the earlier
 //                         run's outcome, or empty when the run resumes nothing
@@ -64,7 +69,7 @@
 //                         webHostsFrom); unset allows only GitHub hosts
 //   GITHUB_API_URL
 //   GITHUB_OUTPUT         receives refused=edited when the title or body
-//                         changed after the label, or refused=edited-trusted
+//                         changed after the admission, or refused=edited-trusted
 //                         when only listed accounts changed them, which
 //                         report-outcome names
 import { rmSync, writeFileSync } from "node:fs";
@@ -74,7 +79,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, removalStands, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
+import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { admittedAt, matchesRecord } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -132,48 +139,19 @@ async function readEditsSince(github, repository, number, frozenAt, trusted) {
   return bodyTrusted && !title.hidden && title.byTrusted ? "edited-trusted" : "edited";
 }
 
-// When `senderId` added `label` in the event that started this run (its newest
-// such event no later than `eventAt`, the issue's update time in the payload):
-// that account admitted the text as it stood then. A later label event, by
-// any account, never moves it, so a run never adopts a newer admission.
-// Adding a label need not bump the update time, so the payload's can predate
-// its own label event (the App's re-add lands a second after its removal);
-// with no such event at or before it, the run's is the first one after it.
-// The lanes App's remove-and-re-add after a limit stop (work-unblock's
-// restart) admits nothing new, so it anchors at the label it restarted,
-// which must be the App's or a listed human's. An App removal that a
-// `status: ready` from the App or a listed human followed before the re-add
-// no longer stands (admit.mjs removalStands): that re-add is a fresh
-// admission and anchors itself.
-async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId, humans, eventAt) {
-  const all = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
-    // Times are whole seconds; the event id breaks a tie in the order GitHub recorded them.
-    .sort((a, b) => timeOf(a?.created_at) - timeOf(b?.created_at) || Number(a?.id) - Number(b?.id));
-  const events = all.filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label);
-  const trusted = (event) => event.actor?.id === lanesAppId || humans.has(event.actor?.id);
-  const restart = (removal, readd) => removalStands(all.slice(0, all.indexOf(readd)), (event) => event === removal, trusted);
-  const bySender = (event) => event.event === "labeled" && event.actor?.id === senderId;
-  let index = events.findLastIndex((event) => bySender(event) && timeOf(event.created_at) <= eventAt);
-  if (index < 0) {
-    index = events.findIndex((event) => bySender(event) && timeOf(event.created_at) > eventAt);
-  }
-  while (
-    index > 0 &&
-    events[index].actor?.id === lanesAppId &&
-    events[index - 1].event === "unlabeled" &&
-    events[index - 1].actor?.id === lanesAppId &&
-    restart(events[index - 1], events[index])
-  ) {
-    index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
-    if (index >= 0 && events[index].actor?.id !== lanesAppId && !humans.has(events[index].actor?.id)) {
-      index = -1;
-    }
-  }
-  const at = index < 0 ? Number.NaN : timeOf(events[index].created_at);
-  if (!Number.isFinite(at)) {
-    throw new Error(`no ${label} label event that admitted the issue`);
-  }
-  return at;
+// The admission the run freezes at (admission-record.mjs admittedAt): the
+// lanes App's newest admission record or a listed human's newest Work status
+// set of agent-ready, whichever is newer, at or before the event that started
+// the run (`triggerAt`, its payload's issue update time; else the first after
+// it), so a later admission never moves it. The App's restarts write no
+// record, so they anchor at the admission they restarted. A human sender's own
+// sets count, and none when the App sent it. Neither found throws.
+async function readAdmission(github, repository, number, { lanesAppId, humans, sender, triggerAt, env }) {
+  const config = issueStatusFromBase(env);
+  const state = Object.values(config?.options ?? {}).includes("agent-ready") ? "agent-ready" : null;
+  const comments = await paginate(github, `/repos/${repository}/issues/${number}/comments`);
+  const events = config && state ? await fieldEvents(github, repository, Number(number)) : [];
+  return admittedAt({ comments, appId: lanesAppId, fieldEvents: events, fieldId: state ? config["field-id"] : null, humans, sender, triggerAt });
 }
 
 // The resume record, or undefined when the run resumes nothing. Any value
@@ -239,15 +217,13 @@ export async function main({ env = process.env, github, log = console.log, write
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("ISSUE_NUMBER or GITHUB_REPOSITORY is malformed");
     }
-    if (!/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") || !/^[1-9][0-9]*$/.test(env.LABEL_SENDER_ID ?? "")) {
-      throw new Error("LANES_APP_ID or LABEL_SENDER_ID is not a user id");
+    const senderText = env.TRIGGER_SENDER_ID || env.LABEL_SENDER_ID || "";
+    if (!/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") || !/^[1-9][0-9]*$/.test(senderText)) {
+      throw new Error("LANES_APP_ID or TRIGGER_SENDER_ID is not a user id");
     }
-    if (!env.LABEL_NAME) {
-      throw new Error("LABEL_NAME is empty");
-    }
-    const eventAt = timeOf(env.LABEL_EVENT_AT);
-    if (!Number.isFinite(eventAt)) {
-      throw new Error("LABEL_EVENT_AT is not a time");
+    const triggerAt = timeOf(env.TRIGGER_AT || env.LABEL_EVENT_AT);
+    if (!Number.isFinite(triggerAt)) {
+      throw new Error("TRIGGER_AT is not a time");
     }
     const lanesAppId = Number(env.LANES_APP_ID);
     const { ids, humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
@@ -269,15 +245,21 @@ export async function main({ env = process.env, github, log = console.log, write
     dropped["after-admission"] = 0;
     dropped["over-cap"] = 0;
 
-    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, humans, eventAt);
-    const refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]));
+    const admission = await readAdmission(client, repository, env.ISSUE_NUMBER, { lanesAppId, humans, sender: Number(senderText), triggerAt, env });
+    const frozenAt = admission.at;
+    // Edits since the admission decide first; a record also holds the hashes
+    // of the text it admitted, which this run's one read must match.
+    let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]));
+    if (!refused && admission.kind === "record" && !matchesRecord(admission.record, { title: data.title, body: data.body ?? "" })) {
+      refused = "edited";
+    }
     if (refused) {
       const by = refused === "edited" ? "" : ", each change by a listed account";
-      throw Object.assign(new Error(`the issue title or body changed after ${env.LABEL_NAME} was added${by}`), { refused });
+      throw Object.assign(new Error(`the issue title or body changed after its admission${by}`), { refused });
     }
 
     // The body's checks a person runs, as admission read them: the comments
-    // posted before the label, every one read, on the body as written now.
+    // posted before the admission, every one read, on the body as written now.
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
     const spec = await specOf(client, repository, env.ISSUE_NUMBER);
     const before = spec.comments.filter((node) => timeOf(node.createdAt) < frozenAt);

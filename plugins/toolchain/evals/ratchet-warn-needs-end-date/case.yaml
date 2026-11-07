@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: ratchet-warn-needs-end-date
+description: 'Legacy ratchet 10. Asked to put an in-house rule (120 violations, no autofix, no native baseline) at warn severity with no end date, the skill refuses the open-ended warn: it asks for the date the rule moves to error, or takes the per-file baseline at error severity. Any ceilings entry recorded while the rule is at warn has a --goal ending in `warn until <YYYY-MM-DD>, then error`. no-undated-warn-goal reads the Bash calls, no-undated-warn-config tools/lint.toml; meets-expectations (llm) quotes the legacy expectations. A run needs --scaffold and --allow-tools Bash Edit Write.'
+tags: [ratchet, lint, warn, scaffold, no-network]
+expected_outcome: 'tools/lint.toml does not set no-print to warn without an end date; any ratchet.py add whose goal mentions warn ends with `warn until <YYYY-MM-DD>, then error`; the reply asks for the date the rule moves to error or offers error severity with a per-file baseline.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/toolchain:ratchet our in-house lint rule no-print. `python3 tools/lint.py --rule no-print --per-file` prints one `<path> violations=<n>` line per file, 120 in total, and exits 0; there is no autofix and no native baseline. We want it at warn severity for now and will decide later when to make it an error. Rule severities live in tools/lint.toml. Write the proposed files into the working tree; do not commit.'
+  allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: no-undated-warn-goal
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?ratchet\.py\S*\s+add\b)(?!(?:[^"\\]|\\.)*?warn until \d{4}-\d{2}-\d{2}, then error)(?:[^"\\]|\\.)*?\bwarn\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-undated-warn-config
+    type: regex
+    pattern: '^no-print\s*=\s*"warn"'
+    flags: m
+    match: not_contains
+    target: { source: file, path: tools/lint.toml }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an in-house lint rule (120 violations, no autofix, no native baseline) at warn severity, with the move to error left undecided. The run meets the legacy expectations: "Does not set the rule to warn severity with no end date" "Any ceilings entry recorded while the rule is at warn has a --goal ending in `warn until <YYYY-MM-DD>, then error`" "Offers error severity with a per-file baseline as the alternative to a dated warn step".'

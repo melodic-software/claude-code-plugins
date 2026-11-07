@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "typescript check src/cart.ts\nbash check scripts/release.sh\n",
+      "why": "check-cmd only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "typescript build src/cart.ts\ntypescript check src/cart.ts\nbash check scripts/release.sh\n",
+      "why": "ran a build"
+    },
+    {
+      "answer": "typescript check src/cart.ts\nbash check scripts/release.sh\nbash fix scripts/release.sh\n",
+      "why": "ran the format fix in check mode"
+    }
+  ]
+}

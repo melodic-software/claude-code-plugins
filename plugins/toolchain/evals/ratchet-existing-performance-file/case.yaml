@@ -40,3 +40,6 @@ graders:
     input_match: 'ratchet\.py\S*\s+add\b'
     min: 1
     arm: with-only
+  - name: meets-legacy-ratchet-4
+    type: llm
+    criteria: 'The repository''s required CI job already runs `python3 .performance/ratchet.py check` with no --file, and the user asks to ratchet a count of `type: ignore` comments that reads 9. The run meets the legacy expectations: "Adds the counter to .performance/ratchets.json" "Does not propose .ratchets.json or a second ceilings file" "Adds no new CI step, because the existing check covers the file" "Records a ceiling of 9".'

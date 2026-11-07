@@ -1055,13 +1055,14 @@ describe("run", () => {
   });
 
   // A manual dispatch skips intake-reenter, so a parked issue reaches a held
-  // verdict still at status: confirmed; the status goes after the hold lands.
-  test("a held verdict replaces a parked status: confirmed, the hold first", async () => {
+  // verdict still at status: confirmed; the field write replaces it.
+  test("a held verdict replaces a parked status: confirmed with the field alone", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "status: confirmed" }] }, comments: [laneComment(ESCALATED_BODY)] });
     assert.equal((await go(fake)).outcome, "needs-decision");
     assert.deepEqual(
       writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
-      ["POST /repos/o/r/issues/7/comments", "STATUS #7 needs-owner-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed"],
+      ["POST /repos/o/r/issues/7/comments", "STATUS #7 needs-owner-decision"],
+      "the Work status write stands in for taking status: confirmed off",
     );
   });
 
@@ -1192,16 +1193,16 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
-  test("status: ready is taken off when the verdict no longer holds", async () => {
+  test("a verdict that no longer holds moves the Work status off ready and leaves status: ready unwritten", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: READY }] },
       comments: [laneComment(ESCALATED_BODY)],
     });
     await go(fake);
-    assert.ok(
-      writes(fake.calls).some(
-        ({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(READY)}`,
-      ),
+    assert.deepEqual(
+      writes(fake.calls).filter(({ method }) => method === "STATUS" || method === "DELETE").map(({ method, path, body }) => `${method} ${method === "STATUS" ? body : path}`),
+      ["STATUS needs-owner-decision"],
+      "the field write alone moves the issue off ready",
     );
   });
 
@@ -1821,12 +1822,12 @@ describe("run", () => {
     });
   }
 
-  // Taking status: ready off adds no hold, so it needs no record and never waits on one.
+  // Moving the Work status off ready adds no hold, so it needs no record and never waits on one.
   for (const [name, comments, failing] of [
     ["a failed post", [], "POST /repos/o/r/issues/7/comments"],
     ["a failed edit", [unflagged()], "PATCH /repos/o/r/issues/comments/51"],
   ]) {
-    test(`a flagged re-triage of an issue at status: ready with ${name} still takes status: ready off and adds no hold`, async () => {
+    test(`a flagged re-triage of an issue at status: ready with ${name} still moves the Work status off ready and writes no label`, async () => {
       const fake = fakeGitHub({
         issue: { labels: [{ name: READY }] },
         comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments],
@@ -1840,13 +1841,10 @@ describe("run", () => {
       };
       const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
       assert.ok(result.reasonsError, "the run fails");
-      assert.deepEqual(states(fake.calls), ["needs-triage"], "status: ready comes off and no hold is written");
+      assert.deepEqual(states(fake.calls), ["needs-triage"], "the Work status leaves ready and no hold is written");
       const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
-      assert.deepEqual(
-        labelWrites.map(({ method, path }) => `${method} ${path}`),
-        [`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)}`],
-      );
-      assert.match(result.summary, /removed: status: ready/);
+      assert.deepEqual(labelWrites, [], "no status label is taken off or added");
+      assert.match(result.summary, /- Labels: none written, since the reasons comment was not written/);
     });
   }
 
@@ -1915,11 +1913,12 @@ describe("run", () => {
     assert.ok(!edited.body.body.includes("needs-decision"), edited.body.body);
   });
 
-  test("takes needs-triage off after the verdict's Work status", async () => {
+  test("a ready verdict over needs-triage writes the Work status ready and takes no label off", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
     assert.equal((await go(fake)).outcome, "ready");
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`);
-    assert.deepEqual(done.slice(-2), ["STATUS #7 ready", "DELETE /repos/o/r/issues/7/labels/needs-triage"], done.join("\n"));
+    assert.equal(done.at(-1), "STATUS #7 ready", done.join("\n"));
+    assert.ok(!done.some((line) => line.startsWith("DELETE /repos/o/r/issues/7/labels/")), done.join("\n"));
   });
 
   // The triage run's own hold labels (the reusable's) stay on the issue and
@@ -2162,6 +2161,8 @@ describe("run", () => {
         github,
         dimensionsConfig: DIMS,
         fieldSetters: noSetters,
+        setStatus: fake.setStatus,
+        statusConfig: STATUS_CONFIG,
         admitIssue: async () => {
           admitted = true;
           return { outcome: "admitted", reasons: [] };
@@ -2173,7 +2174,8 @@ describe("run", () => {
       const added = fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/labels")).flatMap(({ body }) => body.labels);
       assert.ok(!added.some((name) => name.startsWith("work-class:")), added.join(", "));
       assert.ok(!added.includes(READY), added.join(", "));
-      assert.ok(fake.calls.some(({ method, path }) => method === "DELETE" && path.endsWith(`/labels/${encodeURIComponent(READY)}`)));
+      assert.ok(!states(fake.calls).includes("ready"), `the Work status is not set to ready: ${states(fake.calls).join(", ")}`);
+      assert.ok(!fake.calls.some(({ method, path }) => method === "DELETE" && path.endsWith(`/labels/${encodeURIComponent(READY)}`)), "status: ready is not taken off as a label");
       assert.ok(result.summary.includes(`- Blocked by: #12 not written (GitHub answered ${status})`), result.summary);
       assert.match(result.summary, /- Status: none: admission waits for intake to run again, since a blocked-by edge is missing/);
       const said = fake.calls.find(({ method, path }) => (method === "POST" && path.endsWith("/comments")) || (method === "PATCH" && path.endsWith("/comments/51")));

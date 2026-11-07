@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is retired but still keeps the view local (it sets medium: terminal); set it in docs/conventions/rendered-views.local.yaml instead",
+      "why": "notice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: terminal",
+      "why": "no notice"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

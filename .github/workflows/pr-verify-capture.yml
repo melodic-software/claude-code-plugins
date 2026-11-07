@@ -415,10 +415,22 @@ jobs:
         run: |
           fonts=$(fc-list ':charset=23f8' family file)
           if ! grep -q NotoSansSymbols2 <<<"$fonts"; then
-            # Bounded network waits, so a stalled mirror retries instead of
-            # outlasting the step timeout.
-            sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20
-            sudo apt-get install -y --no-install-recommends fonts-noto-core -o Acquire::Retries=3 -o Acquire::http::Timeout=20 >/dev/null
+            # As setup-runner-isolation: each apt call is bounded, so a stalled
+            # mirror or held dpkg lock retries inside the step timeout instead
+            # of outlasting it (both attempts, the sleep and the repair take
+            # at most 285 s of its 300). sudo resets the environment, so the
+            # no-prompt settings for debconf and needrestart go through env.
+            apt=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=30)
+            quiet=(env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a)
+            for i in 1 2; do
+              timeout 45 sudo "${quiet[@]}" apt-get "${apt[@]}" update -qq &&
+                timeout 75 sudo "${quiet[@]}" apt-get "${apt[@]}" install -y -qq --no-install-recommends fonts-noto-core && break
+              echo "apt-get attempt $i failed or timed out"
+              [ "$i" = 2 ] && { echo "::error::fonts-noto-core did not install after 2 attempts"; exit 1; }
+              sleep 5
+              # A killed install can leave dpkg half-configured, which fails the retry at once.
+              timeout 40 sudo "${quiet[@]}" dpkg --configure -a || true
+            done
             fonts=$(fc-list ':charset=23f8' family file)
           fi
           [[ -n $fonts ]] || { echo "::error::no installed font has U+23F8"; exit 1; }

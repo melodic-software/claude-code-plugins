@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_repro_count=3 (repository), triage_objection_window_hours=0 (default)",
+      "why": "pinned value"
+    },
+    {
+      "answer": "Settings: triage_repro_count=3 (repository); the checked-out branch's triage_repro_count=1 is ignored",
+      "why": "names the ignored working-tree value without reporting it as resolved"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=1 (repository)",
+      "why": "working tree value"
+    },
+    {
+      "answer": "Settings: `triage_repro_count=1` (repository, read from the working tree)",
+      "why": "working tree value in a code span"
+    }
+  ]
+}

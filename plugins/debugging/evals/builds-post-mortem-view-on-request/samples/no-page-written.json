@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Write call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/notes/post-mortem.md",
+            "content": "# Post-mortem\n"
+          }
+        }
+      ],
+      "why": "the record in notes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/post-mortem.html",
+            "content": "<html><body>Hypotheses</body></html>"
+          }
+        }
+      ],
+      "why": "hand-written page"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/tmp/view.mjs",
+            "content": "console.log('<html>')"
+          }
+        }
+      ],
+      "why": "a script written in the session"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "There is nothing to classify: the working tree is clean and `feature/reports` has no commits beyond `main`.",
+      "why": "nothing to classify"
+    },
+    {
+      "answer": "No changed files in the range main...HEAD, so there is no test plan to write.",
+      "why": "no changed files in the range"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Unit\n- parse_duration: add edge cases for '0h' and '2h'.",
+      "why": "invents a plan"
+    },
+    {
+      "answer": "The working tree is clean. Coverage gaps: parse_duration lacks negative-input tests.",
+      "why": "clean noted, gaps invented"
+    }
+  ]
+}

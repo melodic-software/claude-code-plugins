@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: wr-round-trip-property
+description: 'Legacy write 4. format_duration and parse_duration are a reverse pair, so the skill routes to context/property.md and writes a round-trip property (parsing the formatted string returns the input) beside literal examples, without rebuilding the expected string from the formatter''s arithmetic. skill-fired and read-property read the tool calls; round-trip, literal-example and no-recomputed-expected read tests/test_durations.py; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, write, property, round-trip, scaffold, no-network]
+expected_outcome: 'Reads context/property.md; tests/test_durations.py holds a property asserting parse_duration(format_duration(n)) == n and at least one literal format example, and no divmod or // 3600 arithmetic.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our config loader has format_duration, which turns a number of seconds into strings like ''1h30m'', and parse_duration, which reads them back (src/durations.py). Add tests for both. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: read-property
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/property\.md"'
+  - name: round-trip
+    type: regex
+    pattern: '\bparse_duration\(\s*format_duration\(\s*(\w+)\s*\)\s*\)\s*==\s*\1\b|\b(\w+)\s*==\s*parse_duration\(\s*format_duration\(\s*\2\s*\)\s*\)'
+    target: trace
+  - name: literal-example
+    type: regex
+    pattern: '\bformat_duration\(\s*\d+\s*\)\s*==\s*["''](?:\d+[hms])+["'']|["''](?:\d+[hms])+["'']\s*==\s*format_duration\(\s*\d+\s*\)|\(\s*\d+\s*,\s*["''](?:\d+[hms])+["'']\s*\)'
+    target: { source: file, path: tests/test_durations.py }
+  - name: no-recomputed-expected
+    type: regex
+    pattern: '\bdivmod\(|//\s*(?:3600|60)\b|%\s*(?:3600|60)\b'
+    match: not_contains
+    target: { source: file, path: tests/test_durations.py }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for tests of format_duration (seconds to strings like ''1h30m'') and parse_duration, which reads them back. PASS only if the run meets every legacy expectation: "Reads context/property.md before writing the tests" "Uses the round trip (parse of format equals the input) as the property''s oracle" "Does not build the expected string inside the test by repeating the formatter''s arithmetic". FAIL if any point is missing or contradicted.'

@@ -356,7 +356,7 @@ activities:
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   resolve-issue:
-    # Works one issue labeled agent-ready: either leaves the change in the
+    # Works one issue at Work status agent-ready: either leaves the change in the
     # working tree, or stops and says why. The runner adds `--issue <number>`.
     # It holds no write token: the read runner turns its uncommitted change
     # into a patch that apply-issue-patch commits to a new branch.
@@ -466,14 +466,17 @@ activities:
     reads-untrusted: true
     inputs: [issue]
     applies-when:
-      events: [labeled]
-      # The agent-ready label alone admits the issue, whoever added it; the
-      # trigger gate checks that a listed human or the lanes App added it.
+      events: [field_added]
+      # Work status set to agent-ready admits the issue; it counts only when
+      # a listed human or the lanes App set it (models.issue-status), and the
+      # trigger gate checks the same. resolve-config folds the trusted field
+      # into the labels, so `agent-ready` below matches a field-only
+      # admission and a field hold matches labels-absent.
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, or, for attended, takes its step
       # present, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended, "security: outside-actor"]
-      # Read now, so removing agent-ready while a run waits stops it.
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended, host-run, "security: outside-actor"]
+      # Read now, so Work status moved off agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
     # Commits resolve-issue's patch to a new branch,
@@ -491,14 +494,16 @@ activities:
     inputs:
       - issue
     applies-when:
-      # Read again right before the commit: a hold added, or agent-ready
-      # removed, while the model worked drops the patch.
+      # Read again right before the commit, with the Work status folded in:
+      # a hold added, or the field moved off agent-ready, while the model
+      # worked drops the patch.
       labels-absent:
         - needs-human
         - needs-owner-decision
         - "status: needs-decision"
         - "status: needs-info"
         - attended
+        - host-run
         - "security: outside-actor"
       labels:
         - agent-ready
@@ -611,12 +616,13 @@ activities:
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
   sync-status:
-    # When a listed human adds a queue-state or agent-ready status label
+    # When a listed human adds a queue-state status label
     # (models.issue-status) to an issue, writes that label's state into its
     # Work status field, unless the field holds a hold or that state already;
     # when a listed human takes agent-ready off, writes confirmed only while
     # the field reads agent-ready. The field is the state: a label's absence
-    # never resets it, and a hold label writes nothing. A script, no model.
+    # never resets it, and a hold label or an added agent-ready label writes
+    # nothing (a person sets agent-ready on the field). A script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/sync-status.mjs
     # Writes the Work status issue field; nothing else.
@@ -777,7 +783,7 @@ activities:
     reads-untrusted: true
 
 lanes:
-  # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
+  # Started by Work status agent-ready on an issue (.github/workflows/work-resolve-issue.yml).
   work-resolve-issue:
     stage: work
     slots:
@@ -1781,6 +1787,8 @@ merge:
       - glob: ".github/scripts/lib/stop-reason.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/admission-comment.mjs"
+        class: enforcement
+      - glob: ".github/scripts/lib/admission-record.mjs"
         class: enforcement
       - glob: ".github/scripts/lib/done-evidence.mjs"
         class: trust
