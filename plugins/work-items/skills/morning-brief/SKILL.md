@@ -135,7 +135,15 @@ has you save the same output the reader sees and build a collapsible, filterable
 printed brief is the record; the page is a view of it. The brief holds issue and pull-request titles (K2), so only
 `scripts/build-brief-view.mjs` writes the page, from its checked-in template (`templates/brief.html`) and the lines as escaped
 JSON data. Never hand-write the page or add script to it. A scheduled run or CI prints the brief
-only, and so does a resolved medium that builds no page. `context/view.md` writes this skill's
+only, and so does a resolved medium that builds no page.
+
+A team file never publishes. When the repository's tracked rendered-views file names a medium,
+`artifact` included, still run the resolver and take its medium: it ignores the team value and
+prints a notice saying a team file never publishes. Print that notice, never read or weigh the team
+file yourself, and never hand the page to the Artifact tool on its value; with nothing else set,
+build the page to a local temp file and give its path.
+
+`context/view.md` writes this skill's
 directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, the plugin root as `<plugin-root>`, which
 is `${CLAUDE_PLUGIN_ROOT}`, the plugin data dir as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`,
 and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`; put those
