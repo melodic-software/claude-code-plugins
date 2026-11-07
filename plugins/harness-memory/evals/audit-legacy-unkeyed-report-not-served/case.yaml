@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: audit-legacy-unkeyed-report-not-served
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-resolver'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*state-key\.sh'
+  - name: 'unattributable'
+    type: 'regex'
+    pattern: '\bunattributabl\w*|\bcan(?:not|''t) be attributed|\bno (?:project|repo\w*) segment|\b(?:nothing|no way to tell|can(?:not|''t) tell|does(?:n''t| not) (?:record|say|show))\b[^\n]{0,30}\bwhich (?:repo\w*|project|checkout)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the run as the harness-memory audit report action when an older unkeyed last-audit.md sits in the plugin data directory. PASS only if it satisfies every point: (1) Does NOT present the unkeyed legacy report as this project''s findings; (2) Does NOT migrate or copy the legacy file into this project''s keyed path; (3) Names the leftover path to the user and explains it cannot be attributed to a project; (4) Offers to run a fresh audit for this project. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

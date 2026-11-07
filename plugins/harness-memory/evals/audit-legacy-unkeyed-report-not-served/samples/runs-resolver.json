@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/tmp/p/harness-memory/lib/state-key.sh\""}}], "why": "plain run"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/harness-memory/lib/state-key.sh --explain"}}], "why": "with --explain"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/data/harness-memory/audit/last-audit.md"}}], "why": "reads the unkeyed file"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/p/harness-memory/lib/state-key.sh"}}], "why": "near miss: read, not run"}
+  ]
+}

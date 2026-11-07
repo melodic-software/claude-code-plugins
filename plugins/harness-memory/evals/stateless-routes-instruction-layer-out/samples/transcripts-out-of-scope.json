@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Transcripts are out of scope here; cleanupPeriodDays ages them out.", "why": "plain"},
+    {"answer": "Chat transcripts: this skill does not touch them.", "why": "does not touch"},
+    {"answer": "Out of scope: transcripts and prompt history.", "why": "label first"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Deleted 14 transcripts from ~/.claude/projects/.", "why": "deletes them"},
+    {"answer": "Transcripts are stored per project.", "why": "near miss: no scope statement"},
+    {"answer": "Auto memory is off.", "why": "different question"}
+  ]
+}

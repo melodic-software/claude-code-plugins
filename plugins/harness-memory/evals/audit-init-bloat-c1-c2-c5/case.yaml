@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: audit-init-bloat-c1-c2-c5
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'c1-fail'
+    type: 'regex'
+    pattern: '\bC1\b[^\n]{0,80}?\bFAIL|\bFAIL\b[^\n]{0,80}?\bC1\b'
+    target: 'last_message'
+  - name: 'retry-storm-kept'
+    type: 'regex'
+    pattern: 'retry-storm[^\n]{0,150}?(?:\bKEEP\b|\bkept\b|\bkeep (?:it|this)\b|not (?:be )?flagged|carve-?out|navigation[\s-]pointer)|(?:\bKEEP\b|carve-?out|navigation[\s-]pointer)[^\n]{0,150}?retry-storm'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the report of a harness-memory audit of an /init-shaped CLAUDE.md, scoped to C1, C2 and C5 only. PASS only if it satisfies every point: (1) C1 reports a FAIL for the file exceeding the 200-visible-line target; (2) C5 flags the file-by-file Repository Structure inventory as a codebase description Claude can rebuild with ls/Glob; (3) C5 (or C2) flags the Express Middleware Reference section as framework documentation to link rather than copy; (4) C2 flags the standard-convention style rules (camelCase, prefer const, async/await) as removable standard practice, grouped by section rather than one finding per line; (5) The docs/runbooks/2025-11-retry-storm.md entry in ''Where to Look First'' is NOT flagged by C5: it is treated as KEEP under the navigation-pointer carve-out; (6) The pnpm build:proto first-run gotcha is NOT flagged by C2 as removable: it is kept as a non-obvious gotcha; (7) Honors the requested C1/C2/C5 scope: does not report C7 missing-file or C9 command-validation findings against the fictional repository''s paths and commands. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

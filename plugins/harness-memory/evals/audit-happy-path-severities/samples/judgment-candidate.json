@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "C2 WARN (judgment candidate): the commit rule restates a convention.", "why": "inline label"},
+    {"answer": "Judgment candidates: C3, C5.", "why": "heading form"},
+    {"answer": "**Judgment-candidate** findings follow.", "why": "hyphen and bold"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C2 WARN (judgment call): the commit rule restates a convention.", "why": "near miss: other label"},
+    {"answer": "These are candidates for judgment later.", "why": "words reversed"},
+    {"answer": "C1 PASS, M1 PASS.", "why": "spine only"}
+  ]
+}

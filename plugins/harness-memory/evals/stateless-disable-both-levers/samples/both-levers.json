@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Set `\"autoMemoryEnabled\": false` and `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = \"1\"` in ~/.claude/settings.json.", "why": "JSON form"},
+    {"answer": "Both levers: autoMemoryEnabled: false, plus CLAUDE_CODE_DISABLE_AUTO_MEMORY=1.", "why": "prose"},
+    {"answer": "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 first, then **autoMemoryEnabled** false.", "why": "reversed order"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Set autoMemoryEnabled: false in ~/.claude/settings.json.", "why": "near miss: one lever"},
+    {"answer": "Export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 in your shell profile.", "why": "env var only"},
+    {"answer": "autoMemoryEnabled is true; CLAUDE_CODE_DISABLE_AUTO_MEMORY is unset.", "why": "status, not the change"}
+  ]
+}

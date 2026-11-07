@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: audit-c6-owns-user-project-conflict
+graders:
+  - name: 'c6-owns-it'
+    type: 'regex'
+    pattern: '^[\s*_`#>-]*(?:it''s |it is |that''s |that is |answer:\s*)?[\s*_`]{0,3}C6\b|\bC6\b[\s*_`]{0,3}(?:Consistency[\s*_`]{0,3})?(?:owns|covers|handles|is the (?:owner|one|check))\b|\b(?:owned by|belongs (?:to|under)|it''s|it is|that''s|that is|falls under)[\s*_`]{0,3}(?:the\s+)?C6\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the harness-memory audit''s answer to which check owns a contradiction between the user ~/.claude/CLAUDE.md and the project CLAUDE.md. PASS only if it satisfies every point: (1) Attributes the user<->project CLAUDE.md contradiction to C6 Consistency, not to I15; (2) Names discover-instruction-surfaces (or Step 3 cross-scope comparison) as why both sides are in population; (3) States that nested CLAUDE.md / auto-memory / non-memory surfaces remain outside C6 and belong to I15. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

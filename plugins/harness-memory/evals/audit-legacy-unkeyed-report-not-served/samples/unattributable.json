@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "That last-audit.md is unattributable: it has no project segment.", "why": "both terms"},
+    {"answer": "The old file can't be attributed to any project, so I won't show it.", "why": "can't be attributed"},
+    {"answer": "Nothing in the file records which repository produced it.", "why": "nothing records which"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Here is your last report: C1 PASS, M1 WARN.", "why": "serves the old file"},
+    {"answer": "I copied last-audit.md into this project's key so report works now.", "why": "migrates it"},
+    {"answer": "The old file is from an older version of the plugin.", "why": "near miss: no attribution reason"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "MCP servers and hooks are out of scope here: run /harness-config:audit. For agents and skills, run /harness-config:audit-automation-gaps.", "why": "slash forms"},
+    {"answer": "Those belong to the harness-config plugin (its audit and audit-automation-gaps skills).", "why": "prose"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Hooks: two PreToolUse hooks look fine. MCP: one server configured. Subagents: none.", "why": "audits them itself"},
+    {"answer": "Use /harness-config:audit for MCP servers and hooks.", "why": "near miss: agents and skills not routed"},
+    {"answer": "C1 PASS, M1 PASS.", "why": "different question"}
+  ]
+}

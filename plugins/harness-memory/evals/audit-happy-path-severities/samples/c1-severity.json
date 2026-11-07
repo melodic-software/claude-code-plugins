@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| C1 | Line budget | PASS | 14 lines |", "why": "table row"},
+    {"answer": "**C1 Line budget:** PASS (14 loaded lines against 200)", "why": "bold label"},
+    {"answer": "WARN on C1: close to the target", "why": "severity first"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C1 line budget looks fine, 14 lines.", "why": "near miss: no severity"},
+    {"answer": "PASS overall. Everything is in good shape.", "why": "no per-check id"},
+    {"answer": "Your rules layer has two files.", "why": "different question"}
+  ]
+}

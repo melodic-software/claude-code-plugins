@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "CLAUDE.md and rules are not auto memory: use /harness-memory:audit for those.", "why": "slash form"},
+    {"answer": "The instruction layer belongs to the `harness-memory:audit` skill.", "why": "code span"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I cleared CLAUDE.md and deleted .claude/rules/.", "why": "edits the instruction layer"},
+    {"answer": "Use /harness-config:audit-instructions for CLAUDE.md.", "why": "near miss: wrong skill"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

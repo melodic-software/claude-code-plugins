@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| C9 | Commands | FAIL | `pnpm run compile`: package.json has no compile script |", "why": "table row"},
+    {"answer": "`pnpm run compile` is not a defined script (C9 FAIL).", "why": "id after"},
+    {"answer": "**C9 Build/test commands:** FAIL. `compile` is missing from package.json.", "why": "bold label"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C7 FAIL: `pnpm run compile` names a script that does not exist.", "why": "near miss: filed under C7"},
+    {"answer": "C9 WARN: build and test commands are missing from CLAUDE.md.", "why": "absent-commands WARN, no compile"},
+    {"answer": "C1 PASS: 16 lines.", "why": "different check"}
+  ]
+}

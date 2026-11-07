@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: stateless-routes-instruction-layer-out
+graders:
+  - name: 'routes-to-audit'
+    type: 'regex'
+    pattern: '/?harness-memory:audit\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'transcripts-out-of-scope'
+    type: 'regex'
+    pattern: '\b(?:transcripts?|chat history|history)\b[^\n]{0,120}?\b(?:out of scope|not in scope|outside (?:this|the|my)|(?:won''t|will not|doesn''t|does not|can''t|cannot|not) (?:touch|delete|clear|cover|handle|remove)|cleanupPeriodDays|claude purge)|\b(?:out of scope|cleanupPeriodDays)\b[^\n]{0,120}?\btranscripts?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the harness-memory stateless skill does with the request. PASS only if it satisfies every point: (1) Output limits its actions to auto-memory (status/disable/purge), not CLAUDE.md/rules; (2) Output routes the CLAUDE.md / rules request to /harness-memory:audit; (3) Output does not delete transcripts/history and explains they are out of scope (auto-cleaned by cleanupPeriodDays). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

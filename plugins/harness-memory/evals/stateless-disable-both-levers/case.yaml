@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: stateless-disable-both-levers
+graders:
+  - name: 'both-levers'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*autoMemoryEnabled[\s*_`"'':]{0,6}false)(?=[\s\S]*CLAUDE_CODE_DISABLE_AUTO_MEMORY)'
+    target: 'last_message'
+  - name: 'flags-backfill'
+    type: 'regex'
+    pattern: '\bbackfill\w*|\bchezmoi\b|\bdotfiles?\b|\b(?:dotfile|config(?:uration)?)[\s-]manage\w*'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the harness-memory stateless disable action does with the request. PASS only if it satisfies every point: (1) Output sets autoMemoryEnabled:false AND CLAUDE_CODE_DISABLE_AUTO_MEMORY (both levers); (2) Output targets the correct scope for machine-wide reach (user settings, ~/.claude/settings.json) after confirming scope; (3) Output flags the dotfile/config-management backfill requirement for a tracked settings file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

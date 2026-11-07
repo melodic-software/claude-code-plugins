@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "The key is `<repo-identity>/<worktree-discriminator>`, the scheme audit-pass defines.", "why": "code span"},
+    {"answer": "Reports live under audit/<repo-identity>/<worktree-discriminator>/last-audit.md.", "why": "in a path"},
+    {"answer": "keyed by repo identity / worktree discriminator", "why": "prose with spaces"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "You get this morning's report; the audit overwrites last-audit.md.", "why": "unkeyed"},
+    {"answer": "Reports are keyed by repository name.", "why": "near miss: no worktree discriminator"},
+    {"answer": "C1 PASS.", "why": "different question"}
+  ]
+}

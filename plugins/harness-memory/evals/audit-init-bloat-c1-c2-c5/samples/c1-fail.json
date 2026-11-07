@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| C1 | Line budget | FAIL | 230 visible lines against 200 |", "why": "table row"},
+    {"answer": "**C1 Line budget:** FAIL, over the 200-line target.", "why": "bold label"},
+    {"answer": "FAIL (C1): the file is over budget.", "why": "severity first"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C1 WARN: close to the 200-line target.", "why": "near miss: WARN"},
+    {"answer": "C1 PASS.", "why": "pass"},
+    {"answer": "C5 FAIL: the Repository Structure inventory.", "why": "other check"}
+  ]
+}

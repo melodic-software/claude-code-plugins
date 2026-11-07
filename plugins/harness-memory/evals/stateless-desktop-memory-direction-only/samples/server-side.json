@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Desktop memory is server-side, tied to your account; I can't delete it from here.", "why": "server-side"},
+    {"answer": "That memory is stored in your Claude account, not in local files.", "why": "stored in your account"},
+    {"answer": "It's an account-level store on claude.ai.", "why": "account-level"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Done: I deleted the Claude desktop memories under ~/Library/Application Support/Claude.", "why": "claims a local delete"},
+    {"answer": "Open Settings and turn memory off.", "why": "near miss: direction with no store distinction"},
+    {"answer": "Auto memory is on.", "why": "different question"}
+  ]
+}

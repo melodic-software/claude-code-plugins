@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: audit-two-repos-keyed-apart
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-resolver'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*state-key\.sh'
+  - name: 'names-key-scheme'
+    type: 'regex'
+    pattern: 'repo[\s_-]?identity>?[\s*_`]{0,3}/[\s*_`]{0,3}<?worktree[\s_-]?discriminator'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the run as the harness-memory audit answering whether a report from another repository on the same machine is served or overwritten here. PASS only if it satisfies every point: (1) States that the second project neither reads nor overwrites the first project''s report, and names a distinct path for each; (2) Derives the state key by running the resolver rather than by evaluating whether a placeholder is set; (3) Reuses audit-pass''s <repo-identity>/<worktree-discriminator> scheme instead of inventing a second one; (4) Explains that the read-back path is why keying is required and an append-only history alone would not be sufficient; (5) States that two worktrees of one repository also key apart. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'
