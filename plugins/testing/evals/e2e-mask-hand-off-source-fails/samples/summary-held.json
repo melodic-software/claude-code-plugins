@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "e2e-summary.json stays out of publishable: the values source `cli/browser whoami` exited 1, so the scan cannot run.",
+      "why": "summary first, then held"
+    },
+    {
+      "answer": "Publishable is empty, and the run keeps out of publishable `e2e-summary.json` because the values source failed.",
+      "why": "held, then summary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The generic credential pattern found nothing, so e2e-summary.json is listed in publishable.",
+      "why": "publishes the summary"
+    },
+    {
+      "answer": "e2e-summary.json was written. Nothing is out of publishable.",
+      "why": "the clause break separates the summary from the verdict"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

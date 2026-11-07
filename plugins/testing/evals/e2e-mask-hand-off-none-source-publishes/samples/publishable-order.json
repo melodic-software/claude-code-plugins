@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "publishable: `cart/shot-1.png`, `cart/report.public.md`, `cart/report.public.json`, `e2e-summary.json`",
+      "why": "the cart paths, then the summary last"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "publishable: `e2e-summary.json`, `cart/shot-1.png`, `cart/report.public.md`, `cart/report.public.json`",
+      "why": "summary first, not last"
+    },
+    {
+      "answer": "publishable: `cart/shot-1.png`, `cart/report.public.md`, `cart/report.public.json`",
+      "why": "summary missing"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

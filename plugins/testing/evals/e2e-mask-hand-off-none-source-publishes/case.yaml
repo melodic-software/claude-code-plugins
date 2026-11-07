@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: e2e-mask-hand-off-none-source-publishes
+description: 'Legacy run-e2e affected-06 (unattended-mask-hand-off-none-source-publishes-clean-summary). The hub''s Mask hands off to the trusted control-browser skill, whose values source prints one `none:` line and exits 0, so the clean summary is published after the cart report''s three paths. hand-off-target and publishable-order read the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Follows the hub''s Mask hand-off to /srv/trusted/shop/.claude/skills/control-browser/SKILL.md, treats its `cli/browser whoami` source printing one `none:` line with exit 0 as resolved with no values, scans e2e-summary.json with the generic credential pattern, and lists shot-1.png, report.public.md and report.public.json, then e2e-summary.json last, in publishable.'
+execution:
+  prompt: '/testing:run-e2e --unattended app=shop base=main trusted-root=/srv/trusted/shop Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, with one entry point, `Add to cart button`, driven true. That hub''s `## Mask` holds only the line ``The driving tool''s `## Mask`.``, and its `Driving tool:` line names `.claude/skills/control-browser/SKILL.md`, which exists inside /srv/trusted/shop. That target''s `## Mask` has mask lines and the line ``values: `cli/browser whoami` ``; the command prints exactly one line, `none: API-key auth has no signed-in account`, and exits 0. The /app-control:drive cart run records one screenshot, and its report.json lists `shot-1.png`, `report.public.md` and `report.public.json` in publishable. The text of e2e-summary.json holds no email address, bearer token, key-shaped secret or PEM header.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: hand-off-target
+    type: regex
+    pattern: '/srv/trusted/shop/\.claude/skills/control-browser/SKILL\.md|\.claude/skills/control-browser/SKILL\.md`?[^\n.;]{0,30}?\b(?:inside|in|under|within|from)\b[^\n.;]{0,10}?`?/srv/trusted/shop\b'
+    target: last_message
+  - name: publishable-order
+    type: regex
+    pattern: 'shot-1\.png[\s\S]{0,300}?report\.public\.md[\s\S]{0,300}?report\.public\.json[\s\S]{0,300}?e2e-summary\.json'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended app=shop base=main trusted-root=/srv/trusted/shop, with the hub''s Mask handing off to a trusted control-browser skill whose values source prints one `none:` line and exits 0. PASS only if the reply satisfies every legacy expectation: "Reads the Mask in effect from the hand-off target /srv/trusted/shop/.claude/skills/control-browser/SKILL.md, not from the checkout" "Treats the source''s single `none: API-key auth has no signed-in account` line with exit 0 as resolved with no values, not as a failed source" "Scans e2e-summary.json with the generic credential pattern" "Lists shot-1.png, report.public.md and report.public.json from the cart report.json, then e2e-summary.json last in publishable". A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

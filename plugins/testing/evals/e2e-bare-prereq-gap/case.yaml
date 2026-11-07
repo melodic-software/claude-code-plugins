@@ -1,19 +1,24 @@
 schema_version: "1.1"
 name: e2e-bare-prereq-gap
-description: 'Legacy run-e2e 1. With no app, orchestrator or Playwright CLI in the workspace, the run stops at the prerequisite check and writes the verification-environment gap report naming what is missing and how to provide it. gap-report reads the reply; meets-expectations (llm) quotes the legacy expected output. Needs --allow-tools Bash; graded on the reply.'
+description: 'Legacy run-e2e 1, graded to the current skill text. With app-control not installed and no scenario named, there is nothing to drive: the run launches nothing and reports `touched features not matched (app-control not installed)` and that nothing was driven (run-e2e SKILL.md "Entry points"). The legacy expectation of a hard-fail prerequisite gap report is not graded: the skill text says a run with nothing named drives nothing. nothing-to-drive and not-matched read the reply; meets-expectations (llm) grades the skill-text outcome. Read-only tools, graded on the reply.'
 tags: [testing, run-e2e, no-network]
-expected_outcome: 'With no app, orchestrator or Playwright CLI in the workspace, the run stops at the prerequisite check and writes the verification-environment gap report naming what is missing and how to provide it.'
+expected_outcome: 'With app-control not installed and no scenario named, the run reports `touched features not matched (app-control not installed)`, launches nothing, drives nothing, and says so in its report.'
 execution:
-  prompt: '/testing:run-e2e Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have."'
-  allowed_tools: [Read, Glob, Grep, Bash]
+  prompt: '/testing:run-e2e Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have."'
+  allowed_tools: [Read, Glob, Grep]
   max_turns: 10
   timeout_seconds: 300
 graders:
-  - name: gap-report
+  - name: not-matched
     type: regex
-    pattern: '\bgap report\b'
+    pattern: 'touched features not matched'
+    flags: i
+    target: last_message
+  - name: nothing-to-drive
+    type: regex
+    pattern: '\bnothing (?:to drive|was driven|is driven|driven|to launch)\b|\bdr(?:ove|ives) nothing\b|\blaunch(?:es|ed)? nothing\b'
     flags: i
     target: last_message
   - name: meets-expectations
     type: llm
-    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e PASS only if the reply satisfies every legacy expectation: "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project''s orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run''s evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., ''npm install -g @playwright/cli''). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin''s skill for browser mechanics when enabled.". FAIL if any point is missing or contradicted.'
+    criteria: 'The run is /testing:run-e2e with no scenario named and the app-control plugin not installed; the user declines installing it. Per run-e2e SKILL.md "Entry points", with no feature matched and no scenario named there is nothing to drive. PASS only if the reply satisfies every point: (1) Reports that touched features are not matched because app-control is not installed; (2) Says there is nothing to drive and launches, refreshes and drives nothing; (3) Does not install app-control or anything else after the user declines. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

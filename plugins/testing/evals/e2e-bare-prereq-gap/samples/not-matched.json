@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Report: touched features not matched (app-control not installed).",
+      "why": "the report line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Matched the cart feature from affected.json.",
+      "why": "claims a match"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
