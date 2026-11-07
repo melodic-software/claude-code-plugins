@@ -545,6 +545,26 @@ describe("applyRefinement", () => {
     }
   });
 
+  // With the field unset, a stale status: ready would win once the person
+  // lifts the needs-info label; the App's field write hides it, and the label
+  // still holds on top.
+  test("an inexact refinement writes needs-decision under a person's label-only needs-info over an unset field", async () => {
+    for (const fields of [{}, undefined]) {
+      const fake = fakeGitHub({
+        issue: issueOf({ labels: [{ name: "status: ready" }, { name: "status: needs-info" }] }),
+        comments: [laneComment()],
+        events: [{ event: "labeled", label: { name: "status: needs-info" }, actor: { id: HUMAN } }],
+        fields,
+      });
+      assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+        ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+        fields ? "reader with no field state" : "no reader",
+      );
+    }
+  });
+
   // A Work status read that fails could hide a person's hold.
   test("a failed Work status read lifts nothing", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields: { 7: new Error("HTTP 502") } });

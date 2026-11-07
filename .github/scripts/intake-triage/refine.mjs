@@ -820,11 +820,15 @@ export async function applyRefinement({ github, repository, number, appId, human
     return true;
   };
   if (!output.exact) {
-    // A person's needs-info or needs-spec stays: the App writes needs-decision
-    // only over no hold or one it set itself.
+    // A person's needs-info or needs-spec on the field stays: an App
+    // needs-decision there would let a later exact refinement lift it as the
+    // App's own. One on a label alone, over an unset field, holds on top of the
+    // App's write (read-status.mjs statusLabels) and would otherwise leave a
+    // stale queue label to win once the person lifts it.
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
     const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), hold) !== appId;
-    if (!labels.includes(NEEDS_DECISION) && !personHold) {
+    const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
+    if (!labels.includes(NEEDS_DECISION) && !fieldHeld) {
       await setStatus(number, "needs-owner-decision");
     }
     await post();
