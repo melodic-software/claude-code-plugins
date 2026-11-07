@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The objection-window comment failed to post (HTTP 502), so no label edit.",
+      "why": "502"
+    },
+    {
+      "answer": "Posting the window comment failed; stopped.",
+      "why": "failed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applied agent-ready and status: ready.",
+      "why": "labels anyway"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

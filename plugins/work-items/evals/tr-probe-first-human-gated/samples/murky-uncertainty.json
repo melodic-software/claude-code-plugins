@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "set-dimensions.sh 522 size=quick complexity=plain uncertainty=murky",
+      "why": "murky"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "uncertainty=open: research first.",
+      "why": "open"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/lib/view-settings.mjs resolve --lane work-items:triage --option auto"
+          }
+        }
+      ],
+      "why": "resolver only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/view-bridge/view-bridge.sh --dir /tmp/bb ensure-running"
+          }
+        }
+      ],
+      "why": "starts the server"
+    }
+  ]
+}

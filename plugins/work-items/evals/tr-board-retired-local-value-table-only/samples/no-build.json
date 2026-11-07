@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/lib/view-settings.mjs resolve --lane work-items:triage --option auto"
+          }
+        }
+      ],
+      "why": "resolver only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/skills/triage/scripts/build-board.mjs --out /tmp/b.html < /tmp/i.json"
+          }
+        }
+      ],
+      "why": "builds"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "<!-- work-items:objection-window until=2026-10-06T09:00:00Z -->\nObjection window until 2026-10-06T09:00:00Z.",
+      "why": "marker"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<!-- work-items:objection-window until=2026-10-05T09:00:00Z -->",
+      "why": "no hours added"
+    },
+    {
+      "answer": "Objection window until 2026-10-06T09:00:00Z.",
+      "why": "text without marker"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

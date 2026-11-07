@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#650 stays a [human-gated] row for /work-items:attend-queue.",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#650 keeps its label.",
+      "why": "unnamed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

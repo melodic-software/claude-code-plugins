@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "needs-triage stays on #220 so the next sweep retries it.",
+      "why": "stays"
+    },
+    {
+      "answer": "It leaves needs-triage in place.",
+      "why": "leaves"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Removed needs-triage and applied agent-ready.",
+      "why": "cleared"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

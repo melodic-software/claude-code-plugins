@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Next step: /work-items:decompose.",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next step: break it up.",
+      "why": "unnamed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
