@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: il-hub-kind
+description: "Side projects that all branch off one main project are drawn as one diagram of kind hub (the Linux kernel at the center), not as a flow whose arrows would claim a sequence"
+tags: [education, illustrate, outcome, diagram-kind, no-network]
+expected_outcome: "The printed JSON model has a diagram of kind hub with the Linux kernel as center and Git and Subsurface as branches, uses no flow or stack for the side projects, and no caption or text line explains that arrows do not mean a sequence."
+execution:
+  prompt: "/education:illustrate Linus Torvalds: his main project and the side projects he started alongside it\n\nThe primary source for this topic is this excerpt I saved from his project pages: \"Linus Torvalds started the Linux kernel in 1991 and still maintains it. In 2005 he wrote Git to manage the kernel's source code after the kernel lost its BitKeeper license. In 2011 he started Subsurface, a dive-log program, because he is a scuba diver.\"\n\nThis run cannot write files, run scripts or reach the web, so print the JSON model you would pass to the builder in a json code block, then the complete markdown record."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: hub-kind
+    type: regex
+    pattern: '"kind"\s*:\s*"hub"'
+    target: last_message
+  - name: hub-shape
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "The diagram of the main project and its side projects has kind hub, with the main project as center and the side projects as branches" and "Does not use a flow or a stack for the side projects, and adds no caption or text line saying the arrows do not mean a sequence". PASS if the JSON model''s hub diagram has the Linux kernel (or Linux) as center and Git and Subsurface among its branches, no diagram of kind flow or stack lists the side projects, and no caption or text line says the arrows or order do not mean a sequence. FAIL if the side projects appear as steps of a flow or layers of a stack, the center is not the main project, or a line explains away what the arrows mean. Example PASS: {"kind":"hub","center":"Linux kernel","branches":["Git","Subsurface"]}. Example FAIL: {"kind":"flow","steps":["Linux kernel","Git","Subsurface"],"caption":"The arrows do not mean one came after the other."}'

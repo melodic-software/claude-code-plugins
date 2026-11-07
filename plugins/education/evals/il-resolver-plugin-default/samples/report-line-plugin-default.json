@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# How a guitar amplifier shapes tone\n\n...record...\n\nview: file (plugin default)",
+      "why": "report line as printed"
+    },
+    {
+      "answer": "...record...\n\nview: terminal (fell back: file unreachable: non-interactive session)",
+      "why": "the resolver's report line on a CI runner, where file falls back"
+    },
+    {
+      "answer": "Record above.\n\n`view: file (plugin default)`",
+      "why": "backticked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: artifact (userConfig)",
+      "why": "another decider"
+    },
+    {
+      "answer": "The medium is the plugin default, a local file.",
+      "why": "paraphrase, report line not printed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

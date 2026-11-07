@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: il-video-unavailable
+description: "A video request with no explainer-video plugin in the session gets the record as usual plus one line saying the video view is unavailable because explainer-video is not installed, with no install and no invented video"
+tags: [education, illustrate, outcome, video, no-network]
+expected_outcome: "The printed record explains hash-map collisions from the quoted source, and one line says the video view is unavailable because the explainer-video plugin is not installed; nothing claims a video was made."
+execution:
+  prompt: "/education:illustrate how a hash map handles collisions, and I would like a video too markdown terminal\n\nThe primary source for this concept is this excerpt I saved from a data-structures textbook: \"A hash map turns each key into a bucket number with a hash function. Two different keys can land in the same bucket; that is a collision. Separate chaining keeps a short list in each bucket and appends the colliding entry to it; a lookup hashes the key, goes to the bucket, and walks its list comparing keys. Open addressing instead probes the next free slot (linear probing tries slot + 1, slot + 2, and so on), and a lookup follows the same probe sequence until it finds the key or an empty slot. When the table fills past its load factor, it is resized and every entry is rehashed.\"\n\nThis run cannot write files, run scripts or reach the web, so print the complete markdown record in your reply instead of building it."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 600
+graders:
+  - name: video-unavailable
+    type: regex
+    pattern: '^(?=[^\n]*\bvideo\b)(?=[^\n]*\b(?:unavailable|not available|isn[''’]t available|not installed|isn[''’]t installed)\b)(?=[^\n]*\bexplainer-video\b)'
+    flags: 'mi'
+    target: last_message
+  - name: no-video-claim
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not install the plugin or claim a video was produced". PASS if the reply makes no claim that a video exists or was rendered and does not say it installed explainer-video. Telling the user the video view needs that plugin passes. FAIL if the reply presents a video, a video file path, or a narrated script as a produced video, or says it installed the plugin. Example PASS: "The video view is unavailable because the explainer-video plugin is not installed." Example FAIL: "Here is your narrated video: collisions.mp4."'

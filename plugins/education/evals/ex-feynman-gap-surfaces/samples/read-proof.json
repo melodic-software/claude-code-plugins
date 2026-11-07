@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/proof.md"}}],
+      "why": "re-reads the proof"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call: explained from recall"
+    },
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "*.md"}}],
+      "why": "found the file but never read it"
+    }
+  ]
+}

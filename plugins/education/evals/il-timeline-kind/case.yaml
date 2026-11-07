@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: il-timeline-kind
+description: "Dated releases are drawn as one diagram of kind timeline, one point per release with its date in when, not a wrapping flow of boxes"
+tags: [education, illustrate, outcome, diagram-kind, no-network]
+expected_outcome: "The printed JSON model has a timeline diagram with one point per Python 3 release from 3.0 to 3.12, and every point carries its date in when."
+execution:
+  prompt: "/education:illustrate the release history of Python 3, from 3.0 to 3.12\n\nThe primary source for this topic is this table I copied from the Python release schedules (PEPs 361 to 693): 3.0 on 2008-12-03 (print becomes a function); 3.1 on 2009-06-27 (ordered dictionaries in collections); 3.2 on 2011-02-20 (concurrent.futures); 3.3 on 2012-09-29 (yield from); 3.4 on 2014-03-16 (asyncio and pathlib); 3.5 on 2015-09-13 (async and await); 3.6 on 2016-12-23 (f-strings); 3.7 on 2018-06-27 (dataclasses); 3.8 on 2019-10-14 (the walrus operator); 3.9 on 2020-10-05 (dict union operators); 3.10 on 2021-10-04 (structural pattern matching); 3.11 on 2022-10-24 (faster CPython); 3.12 on 2023-10-02 (f-string grammar in the parser).\n\nThis run cannot write files, run scripts or reach the web, so print the JSON model you would pass to the builder in a json code block, then the complete markdown record."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: timeline-every-point-dated
+    type: regex
+    pattern: '^(?=[\s\S]*"kind"\s*:\s*"timeline")(?=[\s\S]*"when"\s*:\s*"[^"]*\d{4})(?![\s\S]*\{\s*"label"\s*:\s*"[^"]*"\s*\})(?![\s\S]*"when"\s*:\s*"\s*")'
+    target: last_message
+  - name: one-point-per-release
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "The diagram of the releases has kind timeline, with one point per release" and "Every point carries its date in when, not folded into some labels and missing from others". PASS if the JSON model''s timeline diagram has a point for each of the thirteen releases 3.0 to 3.12 (or groups none of them), each point''s when holds that release''s year or date, and the release dates are not drawn as a flow of boxes instead. FAIL if releases are missing from the timeline, dates sit in labels while when is empty, or the releases are drawn as a flow or stack. Example PASS point: {"when":"2016-12-23","label":"3.6: f-strings"}. Example FAIL point: {"label":"3.6 (2016): f-strings"}.'

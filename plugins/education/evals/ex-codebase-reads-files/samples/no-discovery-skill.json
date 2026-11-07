@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/src/billing/retry-scheduler.js"}}],
+      "why": "explain only, reads the file itself"
+    },
+    {
+      "answer": [],
+      "why": "no skill call at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "discovery:explore", "args": "--output explain invoice retry scheduler"}}],
+      "why": "invokes discovery:explore"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "discovery:trace-intent"}}],
+      "why": "invokes trace-intent"
+    }
+  ]
+}

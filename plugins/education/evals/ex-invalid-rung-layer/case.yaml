@@ -17,3 +17,7 @@ graders:
     pattern: 'explain_starting_rung\W{0,4}plain\W{1,4}default\b[^\n]{0,40}\s*$'
     flags: 'i'
     target: last_message
+  - name: opens-with-analogy
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Still delivers an explanation; the invalid value does not stop the run" and "The explanation opens at rung 1 with an everyday analogy". PASS if, beside naming the invalid expert value, the reply explains backpressure and opens that explanation with an everyday comparison (for example a cook plating faster than the waiter can carry, or a sink filling faster than it drains) before any technical wording. FAIL if the reply stops at the invalid value without explaining, or opens the explanation with a precise peer-level definition. Example PASS: "Imagine a kitchen where the cook plates food faster than the waiter can carry it: plates pile up until the cook is told to slow down." Example FAIL: "Backpressure is a flow-control signal by which a consumer throttles its producers."'

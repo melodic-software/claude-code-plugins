@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: te-codebase-no-grounding-asks
+description: "A subject naming a module 'in this repo' routes to codebase mode and is grounded from the live repository; when discovery finds no such module, teach asks the user to point at the area instead of inventing repo sources"
+tags: [education, teach, outcome, codebase, grounding, scaffold]
+expected_outcome: "AGENTS.md or README.md is read and the tree surveyed; the reply chooses codebase mode, says no auth-flow module or sign-in code exists in this repository, and asks the user to point to where it lives, naming no invented file."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach the auth-flow module in this repo. Goal: learn how sign-in works so I can fix login bugs. Success looks like tracing one login from the form to the session cookie. Constraint: about an hour a week. This run cannot write files, so tell me in your reply which mode you chose and which repository files ground this workspace."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-repo-guidance
+    type: tool_used
+    tool: Read
+    input_match: '(?:AGENTS|CLAUDE|README)\.md'
+    min: 1
+  - name: codebase-mode-asks-to-point
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Detects that the subject names a repo-grounded concept and resolves to `codebase` mode (not `topic`)", "Discovers grounding from live repo files at teach-time (climbs for CLAUDE.md/AGENTS.md, surveys structure) rather than baked assumptions" and "If no real grounding for the concept is found in the repo, asks the user to point to the relevant area instead of inventing or hallucinating repo sources". The repository is csv-report, a CSV-to-Markdown command-line tool with src/cli.py, src/render.py and tests; it has no authentication code. PASS if the reply chooses codebase mode, says it found no auth-flow or sign-in code in this repository (citing what it did find), and asks the user where that code lives. FAIL if it picks topic mode, names auth files that do not exist (such as src/auth/flow.py), or starts teaching a generic login flow as if it were this repo''s. Example PASS: "Codebase mode. This repo is csv-report (src/cli.py, src/render.py); I found no auth-flow or sign-in code. Which repository or directory holds it?" Example FAIL: "Grounding in src/auth/session.py and src/auth/login.py..."'

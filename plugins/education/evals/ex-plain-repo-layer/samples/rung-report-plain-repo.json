@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "A mutex is like the one key to a single shared room: whoever holds the key goes in, and everyone else waits at the door.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic mutex` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (repository: docs/conventions/education.yaml)",
+      "why": "repository layer named"
+    },
+    {
+      "answer": "A mutex works like a talking stick.\n\nWant to actually learn this, not just get past it? `/education:teach topic mutexes` runs a multi-session coached deep-dive.\n\n`explain_starting_rung: plain (docs/conventions/education.yaml)`\n",
+      "why": "file named, backticked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A mutex is like the one key to a single shared room.\n\nWant to actually learn this, not just get past it? `/education:teach topic mutex` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "reports the default, not the repository file"
+    },
+    {
+      "answer": "A mutex is like the one key to a single shared room.\n\nexplain_starting_rung: peer (repository: docs/conventions/education.yaml)",
+      "why": "wrong value"
+    },
+    {
+      "answer": "A mutex is like the one key to a single shared room.\n\nexplain_starting_rung: plain (repository)\n\nAnything else?",
+      "why": "report is not the last line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
