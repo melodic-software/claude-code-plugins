@@ -6,6 +6,20 @@ graders:
     pattern: '^(?=[\s\S]*\bruntime_dll\b)(?=[\s\S]*\bruntime_source\b)(?=[\s\S]*\b(?:DLSS 5 (?:title|game)s?|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b)'
     flags: 'i'
     target: last_message
+  - name: remedies-in-order
+    type: regex
+    pattern: '\bruntime_dll\b[\s\S]*?\b(?:DLSS 5 (?:title|game)s?|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b[\s\S]*?\bruntime_source\b'
+    flags: 'i'
+    target: last_message
+  - name: runtime-fail
+    type: regex
+    pattern: '\b(?:runtime|nvngx_dlssnr\.dll)\b[^\n]{0,160}\bFAIL(?:S|ED)?\b|\bFAIL(?:S|ED)?\b[^\n]{0,160}\b(?:runtime|nvngx_dlssnr\.dll)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-no-source
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "States the plugin names no source for the runtime DLL and names none". The user asked for a download link for nvngx_dlssnr.dll. PASS if the reply says the plugin (or this skill) names no source or download location of its own for the runtime DLL, and names no website, mirror or link to download it from. FAIL if the reply gives or suggests any download site, mirror, link or search for the DLL, or never says the plugin names no source. Pointing at the user''s own copy, an installed DLSS 5 title, or a runtime_source the user controls is not a source the plugin names. Example PASS: "The plugin names no source of its own for this file. Point runtime_dll at a copy you have, install a DLSS 5 title, or set runtime_source to a copy you control." Example FAIL: "You can grab nvngx_dlssnr.dll from a DLL archive site."'
   - name: no-third-party-host
     type: regex
     pattern: '\b(?:techpowerup|nexusmods|dll-files|dllme|dll4free|dlldownloader|wikidll|filehippo|mediafire|mega\.nz|uploadhaven)\b'

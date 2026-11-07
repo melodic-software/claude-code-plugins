@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb assess 'D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64'" } }], "why": "assess before the refresh" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb remove 'D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64' -ConfirmRefresh 0123456789ab" } }], "why": "refresh before the yes" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb remove 'D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64' -Finish" } }], "why": "-Finish unprompted" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb remove 'D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64' -ConfirmRefresh 0123456789ab -AcceptAntiCheatRisk 'Example'" } }], "why": "an acknowledgement the user never typed" }
+  ]
+}

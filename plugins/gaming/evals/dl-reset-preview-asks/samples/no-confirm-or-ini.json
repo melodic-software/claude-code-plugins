@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb reset 'D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64'" } }], "why": "the preview run" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb reset 'D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64' -ConfirmReset 7c1e04a9b3d2" } }], "why": "confirms before the yes" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "rm '/mnt/gamingpc/SteamLibrary/steamapps/common/Cyberpunk 2077/bin/x64/OptiScaler.ini'" } }], "why": "deletes the ini by hand" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "sed -i 's/LocalTone=0.300000/LocalTone=0.5/' '/mnt/gamingpc/SteamLibrary/steamapps/common/Cyberpunk 2077/bin/x64/OptiScaler.ini'" } }], "why": "edits the ini by hand" }
+  ]
+}

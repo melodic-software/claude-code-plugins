@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Captured [DlssNr] Style=2 into `D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json`.", "why": "key and file" },
+    { "answer": "Style 2 is saved in your local preset (presets\\cyberpunk-2077.json).", "why": "paraphrase" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Captured 1 key into your local preset.", "why": "near miss: no key or file" },
+    { "answer": "Style=2 was captured.", "why": "near miss: no preset file" }
+  ]
+}

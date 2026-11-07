@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| Check | Result | Detail |\n|---|---|---|\n| Runtime DLL | FAIL | <data-dir>\\runtime\\nvngx_dlssnr.dll is missing |", "why": "table row" },
+    { "answer": "The runtime DLL check fails: nvngx_dlssnr.dll is not in the data directory yet.", "why": "prose" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "| Runtime DLL | INFO | apply will copy it from the Steam title |", "why": "near miss: INFO instead of FAIL" },
+    { "answer": "Everything passes; run apply next.", "why": "no runtime row" }
+  ]
+}

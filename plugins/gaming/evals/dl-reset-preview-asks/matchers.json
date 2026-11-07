@@ -1,0 +1,8 @@
+{
+  "no-confirm-or-ini": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:-ConfirmReset\\b|(?:\\brm\\b|\\bdel\\b|Remove-Item|Set-Content|Out-File|Copy-Item|\\bcp\\b|\\bmv\\b|\\bsed\\b)(?:[^\"\\\\]|\\\\.)*?OptiScaler\\.ini)"
+  ]
+}

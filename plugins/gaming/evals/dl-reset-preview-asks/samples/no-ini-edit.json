@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\Gaming\\dlss5\\LEDGER.md", "old_string": "| Cyberpunk 2077 |", "new_string": "| Cyberpunk 2077 (reset) |" } }], "why": "a ledger note" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\\OptiScaler.ini", "old_string": "LocalTone=0.300000", "new_string": "LocalTone=0.5" } }], "why": "edits the ini by hand" }
+  ]
+}

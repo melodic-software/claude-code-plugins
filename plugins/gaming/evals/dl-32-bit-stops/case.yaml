@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: dl-32-bit-stops
+graders:
+  - name: says-32-bit
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b32-?bit\b|\bPE32(?!\+)\b))(?=[\s\S]*(?:\b(?:can(?:no|''|’)t|won(?:''|’)t|will not|unable to|doesn(?:''|’)t|does not)\b[^\n]{0,100}\bload\b|\b32-bit\b[^\n]{0,40}\bNGX\b|\bNGX\b[^\n]{0,60}\b32-bit\b|\b64-bit\b[^\n]{0,40}\bonly\b|\bonly\b[^\n]{0,40}\b64-bit\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-upscaler-mod-route
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not suggest an upscaler mod as a way past the 32-bit refusal". Alien: Isolation''s exe is 32-bit, and NVIDIA ships no 32-bit NGX, so the mod cannot load in it whatever upscaler the game has. PASS if the reply does not present an upscaler mod (a mod that adds DLSS, FSR or XeSS) as a way to get DLSS 5 into this game, or mentions one only to say it does not change the 32-bit refusal. FAIL if the reply suggests installing an upscaler mod and then running assess or apply again, or implies an upscaler mod would make this game a candidate. Example PASS: "An upscaler mod would not change this: the game is 32-bit." Example FAIL: "Add an FSR mod from the wiki, then run assess again."'
+  - name: no-flag-offer
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not offer -Force or any other flag as a way past the verdict". PASS unless the reply offers, suggests or mentions as an option -Force or any other flag or switch to get past the not-a-candidate verdict. Saying plainly that no flag clears the verdict passes. Example PASS: "No flag overrides a 32-bit verdict." Example FAIL: "You could try apply with -Force."'
+  - name: no-apply-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?-Verb\s+apply\b'
+    min: 0
+    max: 0
+    arm: 'both'

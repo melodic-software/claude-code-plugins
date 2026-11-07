@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Scan candidate: G:\\SteamLibrary\\steamapps\\common\\Example DLSS 5 Title\\data\\streamline\\nvngx_dlssnr.dll, version 310.8.0.0, known-good hash, passes the gate. apply would copy it.", "why": "path and gate result" },
+    { "answer": "The installed Example DLSS 5 Title ships a copy that passed the runtime gate (known hash).", "why": "title and passed" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "A candidate was found in one of your Steam games; apply would copy it.", "why": "near miss: no path, no gate result" },
+    { "answer": "Candidate: G:\\SteamLibrary\\steamapps\\common\\Example DLSS 5 Title\\data\\streamline\\nvngx_dlssnr.dll.", "why": "near miss: path without the gate result" }
+  ]
+}

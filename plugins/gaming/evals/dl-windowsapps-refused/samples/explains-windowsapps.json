@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Assess refused this one: the folder is under WindowsApps, a protected package folder where installing a proxy DLL is unverified. Nothing clears that verdict.", "why": "relays the refusal" },
+    { "answer": "I can't install here. WindowsApps is a protected package folder, so the script refuses it before any write.", "why": "refusal word before the folder" },
+    { "answer": "The verdict is **refused** because the game sits in `C:\\Program Files\\WindowsApps\\...`. Game Pass installs under an XboxGames folder are supported instead.", "why": "verdict word then the path" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Looks good. Reply yes and I'll install DLSS 5 with dxgi.dll as the proxy.", "why": "ignores the refusal" },
+    { "answer": "Game Pass games work fine; I'll pick winmm.dll as the proxy for an Xbox app game.", "why": "different answer, no WindowsApps explanation" }
+  ]
+}

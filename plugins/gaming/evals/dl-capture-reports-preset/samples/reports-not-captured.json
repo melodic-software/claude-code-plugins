@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Not captured:\n- [Log] LogLevel=4: not on the preset allow-list, so it stays in the game's ini only.\n- [DlssNr] AutoCapture=true: never captured. Set it back to false in the overlay.", "why": "both keys" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Not captured: AutoCapture=true. Set it back to false.", "why": "near miss: LogLevel dropped" },
+    { "answer": "Captured LocalTone and WhitePointScale into cyberpunk-2077.json.", "why": "only the captured half" }
+  ]
+}

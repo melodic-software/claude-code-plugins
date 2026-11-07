@@ -1,0 +1,8 @@
+{
+  "no-apply-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "-Verb\\s+apply\\b"
+  ]
+}

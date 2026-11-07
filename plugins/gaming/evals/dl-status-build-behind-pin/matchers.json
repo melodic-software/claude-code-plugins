@@ -1,0 +1,8 @@
+{
+  "no-remove-or-apply": [
+    {
+      "use": "command_anywhere"
+    },
+    "-Verb\\s+(?:remove|apply)\\b"
+  ]
+}

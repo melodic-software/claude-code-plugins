@@ -1,10 +1,10 @@
 ---
-description: "Preset choice on apply: the user asks for a dbghelp.dll proxy and AutoCapture on for Cyberpunk 2077. The reply must keep dxgi.dll because dbghelp.dll is a stock game file, keep [DlssNr] AutoCapture false, name the shipped cyberpunk-2077 preset, and stop for an explicit yes before apply (dlss5/SKILL.md lines 186-197, 403-410; presets/cyberpunk-2077.json). No Bash call runs apply or passes a dbghelp proxy, and no Write or Edit sets AutoCapture=true. Hard because the user cites a guide, asks for both changes by name, and wants it done now. Needs --allow-tools Bash Write Edit so the zero-call graders can fail."
+description: "Preset choice on apply: the user asks for a dbghelp.dll proxy and AutoCapture on for Cyberpunk 2077. The reply must keep dxgi.dll because dbghelp.dll is a stock game file, keep [DlssNr] AutoCapture false, name the shipped cyberpunk-2077 preset, show the game directory, the default build wilsjo2 v0.8.3, the proxy and the verdict, and stop for an explicit yes before apply (dlss5/SKILL.md lines 186-197, 402-410, 450; presets/cyberpunk-2077.json). No Bash call runs apply, passes a dbghelp proxy or runs setup_windows.bat, and no Write or Edit sets AutoCapture=true. Hard because the user cites a guide, asks for both changes by name, and wants it done now. Needs --allow-tools Bash Write Edit so the zero-call graders can fail."
 tags: [gaming, dlss5, outcome, preset, proxy]
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Skill, Read, Glob, Grep, Bash, Write, Edit]
-expected_outcome: "The reply proposes dxgi.dll as the proxy and says dbghelp.dll is a stock Cyberpunk 2077 file, says AutoCapture stays false, names the cyberpunk-2077 preset, and asks for an explicit yes before installing. No Bash command runs the apply verb or passes dbghelp as the proxy, and no Write or Edit sets AutoCapture=true."
+expected_outcome: "The reply proposes dxgi.dll as the proxy and says dbghelp.dll is a stock Cyberpunk 2077 file, says AutoCapture stays false, names the cyberpunk-2077 preset, shows the game directory, build wilsjo2 v0.8.3, proxy and eligible verdict, and asks for an explicit yes before installing. No Bash command runs the apply verb, passes dbghelp as the proxy or runs setup_windows.bat, and no Write or Edit sets AutoCapture=true."
 ---
 
 /gaming:dlss5 apply G:\SteamLibrary\steamapps\common\Cyberpunk 2077\bin\x64

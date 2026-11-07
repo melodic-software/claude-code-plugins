@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Before I install:\n- Game directory: G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\n- Build: wilsjo2 v0.8.3\n- Proxy: dxgi.dll\n- Verdict: eligible\n\nReply yes to go ahead.", "why": "all four fields" },
+    { "answer": "| Field | Value |\n|---|---|\n| Dir | `G:/SteamLibrary/steamapps/common/Cyberpunk 2077/bin/x64` |\n| Build | wilsjo2 |\n| Proxy | dxgi.dll |\n| Verdict | eligible |", "why": "forward slashes in a table" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Build wilsjo2 v0.8.3, proxy dxgi.dll, verdict eligible. Reply yes.", "why": "near miss: no game directory" },
+    { "answer": "G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 with wilsjo2 and dxgi.dll. Reply yes.", "why": "near miss: no verdict" }
+  ]
+}

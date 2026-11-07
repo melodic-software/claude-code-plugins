@@ -1,0 +1,14 @@
+{
+  "no-provision-or-copy": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:-Verb\\s+provision\\b|\\bcp\\b|Copy-Item|\\bxcopy\\b|\\brobocopy\\b|\\bmv\\b|Move-Item|New-Item|Set-Content|Out-File)"
+  ],
+  "no-config-token": [
+    {
+      "use": "command_anywhere"
+    },
+    "\\$\\{user_config\\."
+  ]
+}
