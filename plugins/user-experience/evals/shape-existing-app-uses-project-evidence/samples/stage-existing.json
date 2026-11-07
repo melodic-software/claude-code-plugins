@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "**Stage:** existing (signals: ...)"
+    },
+    {
+      "answer": "Stage: `existing`"
+    },
+    {
+      "answer": "The stage is existing."
+    },
+    {
+      "answer": "**Stage:** **existing**"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At this stage, the existing work comes first."
+    },
+    {
+      "answer": "Stage: legacy"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "You asked to put every migrate batch on a shared integration branch; I'm declining and keeping expand, then migrate per package, then contract.",
+      "why": "declines the shortcut"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Skipping expand-contract as you asked: every migrate batch goes on the shared integration branch, ending with an integrate-and-verify item instead of a contract step.",
+      "why": "complies with the shortcut using all three words in order; moved here from expand-migrate-contract (review on #13960)"
+    }
+  ]
+}

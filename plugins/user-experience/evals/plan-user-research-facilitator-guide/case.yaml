@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: plan-user-research-facilitator-guide
+description: 'Legacy plan-user-research 4. A usability test script: scenario tasks each with a success criterion, think-aloud instructions, neutral prompts, and the AI-use disclosure in its methods note (plan-user-research SKILL.md 61-62 and 70-72). think-aloud grades the reply; legacy-plan-user-research-4 (llm) quotes the three legacy expectations.'
+tags: [plan-user-research, usability-test, legacy]
+runs: 3
+expected_outcome: 'A facilitator guide with scenario tasks and a success criterion each, think-aloud instructions, neutral prompts that do not lead, post-task questions, and an AI-use disclosure in a methods note.'
+execution:
+  prompt: 'Write a facilitator guide for a moderated usability test of our new checkout prototype. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?plan-user-research"'
+    weight: 0.1
+  - name: 'think-aloud'
+    type: 'regex'
+    pattern: 'think(?:ing)?[- ]aloud|think out loud|(?:say|tell me|talk (?:me )?through) what you(?:[''’]re| are)? (?:thinking|looking for|doing|expect)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-plan-user-research-4'
+    type: 'llm'
+    criteria: 'The run writes a facilitator guide for a moderated usability test of a checkout prototype. It meets the legacy expectations: "Each task is a scenario with a stated success criterion" "The script includes think-aloud instructions and neutral prompts that do not lead the participant" "The script carries an AI-use disclosure in a methods note".'
+    focus: 'last_message'

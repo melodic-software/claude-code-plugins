@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Recurring due:** 1 items past their `next_due` date",
+      "why": "template line"
+    },
+    {
+      "answer": "Recurring due: 1 (dependency-review)",
+      "why": "short"
+    },
+    {
+      "answer": "1 recurring item is overdue (next_due 2026-09-01).",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Recurring due:** 0 items past their `next_due` date",
+      "why": "wrong count"
+    },
+    {
+      "answer": "**Recurring due:** 2 items",
+      "why": "both rows counted"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

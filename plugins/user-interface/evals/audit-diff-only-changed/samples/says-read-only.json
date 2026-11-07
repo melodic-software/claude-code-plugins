@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Read-only review: no file was edited.",
+      "why": "says read-only"
+    },
+    {
+      "answer": "I didn't change any file; run with --fix to apply these.",
+      "why": "did not change"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Fixed both findings in src/menu.css.",
+      "why": "claims a fix"
+    },
+    {
+      "answer": "Two findings in src/menu.css.",
+      "why": "near miss: never says it edited nothing"
+    }
+  ]
+}

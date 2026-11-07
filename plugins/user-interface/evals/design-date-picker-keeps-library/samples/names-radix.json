@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Your app already uses Radix primitives, so build the picker on them.",
+      "why": "names the installed library"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Use react-datepicker.",
+      "why": "near miss: another library, the installed one unnamed"
+    }
+  ]
+}

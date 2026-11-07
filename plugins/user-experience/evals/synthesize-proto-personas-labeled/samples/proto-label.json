@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Proto-personas: meal planning\n\nEvidence: assumption-based"
+    },
+    {
+      "answer": "Evidence: assumption-based"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Persona 1: Dana, a busy parent of two."
+    },
+    {
+      "answer": "These personas are based on assumptions."
+    }
+  ]
+}

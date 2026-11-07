@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: structure-menu-depth
+description: 'Legacy structure 5. A six-level path is past the three-level review point; the reply counts levels in the tree, proposes a flatter tree or breadcrumbs, and says a too-flat tree also fails (flows-ia.md 161-168). flatter-or-breadcrumbs grades the reply; legacy-structure-5 (llm) quotes the four legacy expectations.'
+tags: [structure, navigation, legacy]
+runs: 3
+expected_outcome: 'The six-level path named as deeper than the three-level guide, counted in tree levels not clicks, a flatter tree or breadcrumbs proposed, and three levels treated as a point to review because a too-flat structure also fails.'
+execution:
+  prompt: 'Structure the navigation for our project tool. Today a file sits at Workspace > Teams > Design > Projects > 2026 > Brand refresh, reached through nested dropdowns. Is that too deep, and what should the tree be? This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"'
+    weight: 0.1
+  - name: 'flatter-or-breadcrumbs'
+    type: 'regex'
+    pattern: 'breadcrumb|flatter|flatten|fewer (?:levels|layers)|shallower|(?:collapse|collapsing) (?:levels|layers|the (?:tree|path))|merg\w* (?:levels|layers)|you are here'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-structure-5'
+    type: 'llm'
+    criteria: 'The run is asked whether a six-level navigation path is too deep and what the tree should be. It meets the legacy expectations: "The response says the six-level path is deeper than the three-level limit" "The response proposes a flatter tree, breadcrumbs, or both" "The response counts the levels in the tree rather than the clicks" "The response says a structure that is too flat also fails, so three levels is not a hard limit".'
+    focus: 'last_message'

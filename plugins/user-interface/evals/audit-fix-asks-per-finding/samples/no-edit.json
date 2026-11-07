@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Findings in src/drawer.css.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"src/drawer.css\"}}]}}",
+      "why": "reading is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"src/drawer.css\",\"old_string\":\"ease-in\",\"new_string\":\"ease-out\"}}]}}",
+      "why": "an edit"
+    }
+  ]
+}

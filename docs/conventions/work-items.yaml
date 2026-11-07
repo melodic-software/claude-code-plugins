@@ -24,3 +24,8 @@ tracker:
   provider: "github"
   config:
     lease_ttl_hours: 24
+    github:
+      status_trust:
+        trusted_actors: .github/standards/trusted-actors/trusted-actors.json
+        model: docs/conventions/pr-pipeline.yaml
+        lanes_app: melodic-automation-lanes[bot]
