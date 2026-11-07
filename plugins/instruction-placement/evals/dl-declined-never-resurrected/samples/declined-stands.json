@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "IP-004 (Testing conventions) stays declined; the section changed, but a re-run does not reopen it.",
+      "why": "stays declined"
+    },
+    {
+      "answer": "Testing conventions: your decision stands. I will not re-propose it.",
+      "why": "decision stands"
+    },
+    {
+      "answer": "- **IP-004**: still `declined`",
+      "why": "bold id, code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "IP-004 Testing conventions: changed since you declined it, re-proposed for review.",
+      "why": "resurrected for review"
+    },
+    {
+      "answer": "Changed: IP-004 (declined) -> source content changed.",
+      "why": "reported as changed movement"
+    },
+    {
+      "answer": "New: IP-007 Docker conventions.",
+      "why": "silent on the declined finding"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

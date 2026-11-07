@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing moved since 2026-10-31. Suppressed: 2.",
+      "why": "skill's wording"
+    },
+    {
+      "answer": "**Moved:** 0 (window 2026-10-31 to today)",
+      "why": "bold count"
+    },
+    {
+      "answer": "No movement since the last run.",
+      "why": "no movement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open findings: IP-001, IP-002, IP-003 (unchanged).",
+      "why": "re-lists standing findings"
+    },
+    {
+      "answer": "2 new findings moved into view.",
+      "why": "reports suppressed items as movement"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

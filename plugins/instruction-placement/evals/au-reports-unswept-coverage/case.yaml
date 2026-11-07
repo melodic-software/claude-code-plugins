@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: au-reports-unswept-coverage
+graders:
+  - name: 'skipped-count'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\b980\b)(?=[^\n]*\b(?:skip\w*|not swept|unswept|not read|unread|left)\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the stated repository. PASS only if it satisfies every point: (1) Reports files swept and files skipped with reasons; (2) Names any bound applied to the expanded tier instead of truncating silently; (3) Shows the held-back list alongside the findings; (4) Reports zero findings as a real result when the layer is already well-placed. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: au-creation-content-denied-paths
+graders:
+  - name: 'subtree-destination'
+    type: 'regex'
+    pattern: '\bservices/(?:AGENTS|CLAUDE)\.md\b|\bstays? (?:put|in (?:the )?(?:root )?AGENTS\.md|where it is)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the requested scoping. PASS only if it satisfies every point: (1) Identifies the content as creation-governing; (2) Explains that the path-scoping trigger does not reliably put the rule in context before a new file is created: Read only before Claude Code 2.1.288, and a Write trigger from 2.1.288 that loads the rule only after the write; (3) Denies the path-scoped destination specifically, not the candidate as a whole; (4) Offers the subtree destination or staying put as the alternative, and names the CLAUDE.md shim as part of the subtree destination in this repository. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

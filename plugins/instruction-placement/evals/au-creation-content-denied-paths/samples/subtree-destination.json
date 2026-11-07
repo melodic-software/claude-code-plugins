@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Destination: `services/AGENTS.md`, plus a `services/CLAUDE.md` holding `@AGENTS.md`.",
+      "why": "subtree destination"
+    },
+    {
+      "answer": "Otherwise the checklist stays put in the root AGENTS.md.",
+      "why": "staying put"
+    },
+    {
+      "answer": "Route it to services/CLAUDE.md (shim) beside a nested AGENTS.md.",
+      "why": "shim named first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposed: `.claude/rules/services.md` with `paths: services/**` (74 matches).",
+      "why": "the denied destination"
+    },
+    {
+      "answer": "Re-derive the glob as `services/*/**` and scope it there.",
+      "why": "fixes the glob instead"
+    },
+    {
+      "answer": "The checklist is creation-governing.",
+      "why": "classifies but offers no alternative"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

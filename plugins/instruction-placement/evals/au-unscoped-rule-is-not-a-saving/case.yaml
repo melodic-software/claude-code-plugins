@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: au-unscoped-rule-is-not-a-saving
+graders:
+  - name: 'unscoped-no-saving'
+    type: 'regex'
+    pattern: '^(?=[^\n]*(?:\bwithout (?:a |any )?`?paths:?`?|\bno `?paths:?`?|\bunscoped\b))(?=[^\n]*(?:\bat launch\b|\bat (?:session )?start(?:up)?\b|\bevery session\b|\balways[- ]loaded\b|\bsame (?:cost|priority|budget)\b|\bloads? (?:up ?front|unconditionally|eagerly)\b|\bsaves? nothing\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the stated repository. PASS only if it satisfies every point: (1) States that an unscoped rule costs the same as CLAUDE.md and that the glob is what produces the saving; (2) Proposes path-scoped destinations with concrete `paths:` globs, not bare file relocations; (3) Reports sections with no derivable scope as staying put rather than moving them to an unscoped rule; (4) Mutates no instruction file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

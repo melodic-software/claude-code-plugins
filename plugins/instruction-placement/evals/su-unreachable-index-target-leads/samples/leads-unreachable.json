@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "**Index target: UNREACHABLE.** The root CLAUDE.md is read instead of AGENTS.md and does not import it.",
+      "why": "headline"
+    },
+    {
+      "answer": "`render-index.sh reachable --file AGENTS.md`: UNREACHABLE",
+      "why": "probe output"
+    },
+    {
+      "answer": "The index is unreachable: CLAUDE.md never imports AGENTS.md.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Index target AGENTS.md: present and in sync with the six rules.",
+      "why": "existence only"
+    },
+    {
+      "answer": "Index target AGENTS.md: reachable, but stale since last week.",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
