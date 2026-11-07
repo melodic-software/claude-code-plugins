@@ -3,6 +3,13 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-07
+
+### Changed
+
+- The principles and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). 18 new cases cover every legacy case.
+  - The setup `gradle-project` fixture becomes a scaffold's heredoc, and the other setup cases seed a repository from `evals/fixtures/seed-shipping.sh`.
+
 ## [0.16.0] - 2026-11-06
 
 ### Added
