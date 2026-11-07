@@ -16,8 +16,8 @@ behavior and look up the stack's own form. A rule that ends in **Audit:** gives 
 `/user-interface:audit` uses for a finding against it.
 
 Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`, `group-entrance`,
-`section-entrance`, `exit`, `icon-swap`, `first-paint`, `group-exit`, `looping`, `hold-to-confirm`,
-`tab-indicator`, `scroll-reveal`, `drag-to-dismiss`, `crossfade-mask`.
+`section-entrance`, `exit`, `icon-swap`, `first-paint`, `group-exit`, `view-swap`, `looping`,
+`hold-to-confirm`, `tab-indicator`, `scroll-reveal`, `drag-to-dismiss`, `crossfade-mask`.
 
 ## Button press: `press`
 
@@ -272,13 +272,44 @@ it, hard-refresh the page and confirm nothing that should animate went static.
 
 When an exiting element sits in a group (list items, toasts, tags), let siblings slide into place
 while the exit plays, instead of waiting for it. In Motion for React that is `mode="popLayout"` on
-`AnimatePresence`.
+`AnimatePresence`. Without a library, pin the leaving element at its current offset with absolute
+positioning inside a positioned parent before its exit starts, so it no longer holds its slot; the
+siblings then reflow or animate into the gap (`catalog.md`, "Choreography").
 
 - **Pointer**: Motion, "AnimatePresence", props `initial` and `mode` (`popLayout`),
   <https://motion.dev/docs/react-animate-presence#initial>,
   <https://motion.dev/docs/react-animate-presence#poplayout>.
 - **As of**: 2026-10-29.
 - **Recheck trigger**: Motion renames `initial={false}` or `popLayout`, or changes what either does.
+
+## View swap in one container: `view-swap`
+
+Steps of a flow, tabs of a panel, or states of one morphing surface replace each other inside the
+same container (`catalog.md`, "Choreography").
+
+- The outgoing view fades out as the incoming one fades in (a crossfade), not one after the
+  other. The container's resize and the swapped content belong to one object: one duration role
+  and one easing family, with the content on a lighter curve of that family keeping the change
+  readable.
+- The content fade lengthens with the resize distance, clamped within the role: a tiny
+  resize with a full-length fade reads as a flicker.
+- Direction follows the step: forward and back slide opposite ways. A leaving view reads its
+  direction when its exit starts, so the newest direction has to reach it; how a stack passes it is
+  a run-time lookup (in Motion for React, the `custom` prop).
+- Small containers or near-identical views take a crossfade with a few pixels of shift instead of a
+  full slide.
+- Two dense views in a container resizing on both axes sequence instead: the old view
+  leaves before the new one enters, unless a duplicate of the leaving view is rendered on top to
+  fade out on its own path.
+- Each view carries a stable, unique key, which is how the stack detects a departure; when an
+  exit never plays, check the key before anything else.
+
+- **Pointer**: Motion, "AnimatePresence", props `mode` and `custom`,
+  <https://motion.dev/docs/react-animate-presence#mode>,
+  <https://motion.dev/docs/react-animate-presence#custom>.
+- **As of**: 2026-11-07.
+- **Recheck trigger**: Motion renames `mode` or `custom`, or changes how an exiting child reads
+  `custom`.
 
 ## Looping animation: `looping`
 
