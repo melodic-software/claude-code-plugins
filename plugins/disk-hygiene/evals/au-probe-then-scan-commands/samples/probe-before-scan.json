@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "1. Probe:\n\n```text\n\"<hook-python>\" \"/opt/eval/plugin/skills/setup/scripts/kill_switch_probe.py\"\n```\n\n2. Scan:\n\n```text\n\"<hook-python>\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"<data_root>/runs/a1/snapshot.json\" --data-root \"<data_root>\"\n```"
+    },
+    {
+      "answer": "First the probe, `\"<hook-python>\" \".../skills/setup/scripts/kill_switch_probe.py\"`, then `\"<hook-python>\" \".../skills/clean/scripts/hygiene.py\" scan --target /eval/work/scratch-audit --output <data_root>/runs/r1/snapshot.json --data-root <data_root>`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. `\"<hook-python>\" \".../hygiene.py\" scan --target /eval/work/scratch-audit --output <data_root>/runs/a1/snapshot.json --data-root <data_root>`\n2. `\"<hook-python>\" \".../kill_switch_probe.py\"`"
+    },
+    {
+      "answer": "Run `hygiene.py scan --target /eval/work/scratch-audit --output <data_root>/runs/a1/snapshot.json --data-root <data_root>`, taking data_root from the kill_switch_probe.py output."
+    },
+    {
+      "answer": "1. `\"<hook-python>\" \".../hygiene.py\" scan --target /eval/work/scratch-audit --data-root <data_root> --output <data_root>/runs/a1/snapshot.json`"
+    }
+  ]
+}

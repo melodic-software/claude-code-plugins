@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Python floor (MIN_PYTHON in hygiene.py): 3.11. /usr/bin/python3 is 3.12.3: PASS."
+    },
+    {
+      "answer": "| Python ≥ 3.11 | PASS | /usr/bin/python3 3.12.3 |"
+    },
+    {
+      "answer": "| Python floor | PASS | MIN_PYTHON = (3, 11); /usr/bin/python3 is 3.12.3 |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "python3 resolves to /usr/bin/python3: PASS."
+    },
+    {
+      "answer": "Requires Python 3.8 or later."
+    },
+    {
+      "answer": "python3 is 3.11.4: PASS."
+    }
+  ]
+}

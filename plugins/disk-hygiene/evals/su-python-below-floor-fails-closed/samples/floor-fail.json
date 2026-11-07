@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Python floor | FAIL | /usr/bin/python3 is 3.6.9; MIN_PYTHON in hygiene.py is (3, 11) |"
+    },
+    {
+      "answer": "| Python | FAIL | 3.6.9 is below the 3.11 floor |"
+    },
+    {
+      "answer": "Python: FAIL. Requires 3.11 or later."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Python floor | PASS | /usr/bin/python3 launches |"
+    },
+    {
+      "answer": "| Python | FAIL | needs 3.8 or later |"
+    },
+    {
+      "answer": "| Python | WARN | 3.6.9, minimum 3.11 |"
+    }
+  ]
+}

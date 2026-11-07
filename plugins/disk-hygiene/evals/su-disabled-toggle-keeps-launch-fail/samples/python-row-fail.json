@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Python interpreter ladder | FAIL | python3 and python are WindowsApps stubs, no py launcher |"
+    },
+    {
+      "answer": "Python: FAIL even with the toggle off."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Python interpreter ladder | INFO | toggle disabled |"
+    },
+    {
+      "answer": "| Python | WARN | python3 is the alias stub |"
+    }
+  ]
+}

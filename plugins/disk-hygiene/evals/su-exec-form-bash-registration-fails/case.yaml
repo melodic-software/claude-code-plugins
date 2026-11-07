@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: su-exec-form-bash-registration-fails
+description: 'Legacy setup 3, facts as data: the eval host cannot be a Windows machine with a hand-edited hooks.json, so the prompt gives that machine''s probe results and registration and the session has no shell. Step 1 FAILs on the registration shape itself, command bash with an args array, not on PATH order (setup SKILL.md lines 61-69); the fix is command node with hooks/exec-bash.mjs first in args, then hooks/run-python-hook.sh. not-a-path-problem (llm) quotes the legacy expectations; the distractor is System32 ahead of Git on PATH. Slash-invoked, so no Skill grader. Read-only: no tool grant needed; run with --disallow-tools Grep if a Grep on the plugin dir reads INVALID.'
+tags: [setup, check, windows, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The check table FAILs the launcher registration step because command is the bare interpreter bash, which exec form resolves on PATH to the WSL relay, so the guard never starts and a failed launch blocks nothing. The remediation is command node with hooks/exec-bash.mjs first in args, then hooks/run-python-hook.sh. It does not call this a PATH-ordering problem or recommend reordering PATH or setting CLAUDE_CODE_GIT_BASH_PATH as the fix.'
+execution:
+  prompt: "/disk-hygiene:setup check\n\nThe check is for another machine, not this session. This session has no shell and no file-writing tool, so nothing can be probed or written here. Report the check table from these facts, gathered on that machine, then stop.\n\n- Windows 11 host. node resolves to C:\\Program Files\\nodejs\\node.exe (v22.11.0).\n- Git for Windows is installed at C:\\Program Files\\Git, and CLAUDE_CODE_GIT_BASH_PATH is C:\\Program Files\\Git\\bin\\bash.exe. PATH lists C:\\Windows\\System32 before C:\\Program Files\\Git\\bin, so `where bash` prints C:\\Windows\\System32\\bash.exe first.\n- python3 resolves to C:\\Python313\\python3.exe, which reports 3.13.1; the alias probe printed {\"verdict\": \"ok\"}.\n- git 2.47.1 is on PATH.\n- The kill-switch probe printed {\"effective\": true, \"source\": \"default\", \"degraded\": false, \"hook_python\": \"C:/Python313/python3.exe\", \"data_root\": \"C:/eval/data\"}.\n- That machine's copy of the plugin was hand-edited. Its hooks/hooks.json registers both wired PreToolUse hooks like this (only `if` differs between them), and the clean skill's frontmatter belt the same way:\n\n```json\n{\n  \"type\": \"command\",\n  \"command\": \"bash\",\n  \"args\": [\n    \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh\",\n    \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py\",\n    \"--mode\",\n    \"engine-gate\",\n    \"--plugin-root\",\n    \"${CLAUDE_PLUGIN_ROOT}\"\n  ],\n  \"if\": \"Bash(*hygiene.py*)\",\n  \"timeout\": 60\n}\n```\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: fails-on-registration
+    type: regex
+    pattern: '(?:registration|hooks\.json|exec[- ]form|wired hooks?|"command"\s*:\s*"bash")[^\n]{0,200}\bFAIL\b|\bFAIL\b[^\n]{0,200}(?:registration|hooks\.json|exec[- ]form|wired hooks?|bare\W{0,3}bash\b)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: names-node-fix
+    type: regex
+    pattern: '\bnode\b[\s\S]{0,300}?exec-bash\.mjs[\s\S]{0,300}?run-python-hook\.sh'
+    target: last_message
+    arm: both
+  - name: not-a-path-problem
+    type: llm
+    criteria: 'Pass only if all three legacy expectations hold. "Fails on the bare interpreter name in command, not on the machine''s environment": the launcher registration row is FAIL because command is bash. "Does NOT report the problem as a PATH-ordering issue and does NOT recommend reordering PATH or setting CLAUDE_CODE_GIT_BASH_PATH": neither is offered as the fix for this FAIL (saying the bash probe itself passes is fine). "Names the fix as command node with hooks/exec-bash.mjs first in args, then hooks/run-python-hook.sh."'
+    focus: last_message
+    arm: both

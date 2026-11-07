@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Node exec-form launcher registration | PASS | command node, exec-bash.mjs first in args |"
+    },
+    {
+      "answer": "PASS: hooks.json and the clean skill's belt use the exec form."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Launcher registration | FAIL | no bash |"
+    },
+    {
+      "answer": "| bash | FAIL | no Git Bash |"
+    }
+  ]
+}

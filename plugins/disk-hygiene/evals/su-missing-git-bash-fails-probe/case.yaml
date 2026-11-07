@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: su-missing-git-bash-fails-probe
+description: 'Legacy setup 4, facts as data: a Windows machine with no Git Bash and only System32\bash.exe on PATH, given in the prompt with no shell. The bash probe FAILs because no bash resolves in the order the hooks/exec-bash.mjs header lists; the remediation names CLAUDE_CODE_GIT_BASH_PATH, a Git for Windows install, or a bash.exe on PATH outside System32, Sysnative and WindowsApps; the shipped registration (read from the plugin) still PASSes (setup SKILL.md lines 76-86). read-exec-bash is a with-only indicator for reading the order from the header; consequence-and-order (llm, trace) quotes the legacy expectations. Slash-invoked, so no Skill grader. Read-only: no tool grant needed; run with --disallow-tools Grep if a Grep on the plugin dir reads INVALID.'
+tags: [setup, check, windows, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The check FAILs the bash probe and names the remediation (CLAUDE_CODE_GIT_BASH_PATH, a Git for Windows install, or a bash.exe on PATH outside System32, Sysnative and WindowsApps), stating that every hook then fails to launch, the user sees a hook error notice, the guard is not enforced and the model is not told. It reports the launcher registration as PASS.'
+execution:
+  prompt: "/disk-hygiene:setup check\n\nThe check is for another machine, not this session. This session has no shell and no file-writing tool, so nothing can be probed or written here. Report the check table from these facts, gathered on that machine, then stop.\n\n- Windows 11 host. node resolves to C:\\Program Files\\nodejs\\node.exe (v22.11.0).\n- Git for Windows is not installed (C:\\Program Files\\Git does not exist), CLAUDE_CODE_GIT_BASH_PATH is unset, and `where bash` prints only C:\\Windows\\System32\\bash.exe.\n- python3 resolves to C:\\Python313\\python3.exe, which reports 3.13.1; the alias probe printed {\"verdict\": \"ok\"}.\n- git is not on PATH, and no target contains a git worktree.\n- The kill-switch probe printed {\"effective\": true, \"source\": \"default\", \"degraded\": false, \"hook_python\": \"C:/Python313/python3.exe\", \"data_root\": \"C:/eval/data\"}.\n- That machine's copy of the plugin is unmodified, the same files as the plugin loaded in this session, so read hooks/hooks.json, hooks/exec-bash.mjs and the clean skill from the plugin here.\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: read-exec-bash
+    type: tool_used
+    tool: Read
+    input_match: 'exec-bash\.mjs'
+    arm: with-only
+  - name: bash-fail-remediation
+    type: regex
+    pattern: '^(?=[\s\S]*\bFAIL\b)(?=[\s\S]*CLAUDE_CODE_GIT_BASH_PATH)(?=[\s\S]*Git for Windows)(?=[\s\S]*(?:System32|WSL relay))'
+    target: last_message
+    arm: both
+  - name: registration-pass
+    type: regex
+    pattern: '(?:registration|exec[- ]form|hooks\.json)[^\n]{0,160}\bPASS\b|\bPASS\b[^\n]{0,160}(?:registration|exec[- ]form|hooks\.json)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: consequence-and-order
+    type: llm
+    criteria: 'Pass only if the legacy expectations hold. "Reads the resolution order from hooks/exec-bash.mjs rather than reciting it": the trace shows hooks/exec-bash.mjs read before the bash row is decided. "Names CLAUDE_CODE_GIT_BASH_PATH, a Git for Windows install, or a bash.exe on PATH outside System32, Sysnative and WindowsApps as the remediation." The expected outcome''s consequence is stated: every hook fails to launch, the user sees a hook error notice, the guard is not enforced, and the model is not told. "Still reports the wired-hook registration shape as correct when it is": the registration row is PASS.'
+    focus: trace
+    arm: both
