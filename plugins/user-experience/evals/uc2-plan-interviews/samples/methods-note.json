@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Methods note\nThis guide was drafted with AI; the lead researcher reviews it."
+    },
+    {
+      "answer": "Methods note: AI-drafted, reviewed by the researcher."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "AI use: drafted by an assistant; a researcher reviews."
+    },
+    {
+      "answer": "Method: interviews."
+    }
+  ]
+}
