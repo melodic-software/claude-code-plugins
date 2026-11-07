@@ -3,9 +3,17 @@
     {
       "answer": "Own instance: make ws-up, make ws-info, drive http://localhost:51877.",
       "why": "own instance"
+    },
+    {
+      "answer": "1. reuse_running_instance is false, so the app already answering at http://localhost:8080 is not reused.\n3. make ws-info prints APP_URL=http://localhost:51877.\n**Address driven:** http://localhost:51877, not :8080.",
+      "why": "not reused with the own-instance URL (the t3d reply, which the llm grader passed)"
     }
   ],
   "fail": [
+    {
+      "answer": "reuse_running_instance is false, so the app at http://localhost:8080 is not reused. Stop: gap report naming the collision on port 8080.",
+      "why": "collision stop that also says not reused (review counter-reply)"
+    },
     {
       "answer": "Drive the app at http://localhost:8080.",
       "why": "reuses"
