@@ -69,7 +69,8 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
-import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { carriesSplit, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
+import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 
 export { refsIssue };
 
@@ -666,6 +667,24 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
   return credited;
 }
 
+// github-actions[bot], which maintenance-file-recurring-issues.yml files as.
+const ACTIONS_BOT_ID = 41898282;
+
+// The spec of an issue the recurring filer opened, or null: the title and body
+// file-due.mjs builds from the one schedule row its one marker line names, in
+// the schedule this script's checkout holds (main's, in pr-verify.yml). The
+// issue's own text is never read as spec, so an edit by anyone cannot change
+// this text; it can only point the marker at another reviewed row of that
+// schedule (hardening candidate: also require an unedited issue).
+export function recurringSpec(issue, schedule) {
+  const marks = [...String(issue?.body ?? "").matchAll(SCHEDULE_MARKER)];
+  if (issue?.author?.__typename !== "Bot" || issue.author.databaseId !== ACTIONS_BOT_ID || marks.length !== 1) {
+    return null;
+  }
+  const rows = Array.isArray(schedule?.items) ? schedule.items.filter((row) => row?.id === marks[0][1]) : [];
+  return rows.length === 1 && typeof rows[0].title === "string" && rows[0].title !== "" ? `# ${issueTitle(rows[0])}\n\n${issueBody(rows[0])}` : null;
+}
+
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
@@ -683,13 +702,16 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
 // admission's `task-list` (admit.mjs splitChildBody, its one home). Given the
 // `base` branch, a closing issue also carries the siblings that delivered part
 // of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
-// rest.
+// rest. An issue the recurring filer opened takes its body from its row of
+// `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
+// defaults to this checkout's schedule, so every caller (the pr-unblock lanes
+// too) gets the same spec.
 // The merge gate cannot see the refinement: an edit, a hide (isMinimized)
 // or a newer one after a pass leaves that pass standing. An edit only takes
 // the refinement out of spec, so no one gains a spec by it; a person's
 // correction made after a pass waits for the next head. `read` posts the
 // spec query for the variables it is given (resolvePull's folded one).
-export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base) {
+export async function linkedIssues(github, readRefs, repository, number, humans, laneAppId, taskList, webHosts, read, base, schedule = readSchedule()) {
   const [owner, name] = repository.split("/");
   const variables = { owner, name, number };
   const data = await (read ? read(variables) : github("POST", "/graphql", { query: SPEC_QUERY, variables }));
@@ -775,10 +797,12 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
       // in no form, so its prose names no item a person runs; a split drafts
       // no criteria (refine.mjs validateOutput), so nothing else goes with it.
       const counted = refinement !== undefined && (checks.length > 0 || !carriesSplit(refinement.body)) ? refinement : undefined;
+      const recurring = written(issue) || childBodies.has(issue.number) ? null : recurringSpec(issue, schedule);
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",
-        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
+        ...(recurring !== null && { source: "recurring-schedule" }),
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? recurring),
         // A trusted target-subset part's Scope line (admit.mjs splitScope):
         // its done-when lines apply only to these targets.
         ...(!written(issue) && childBodies.has(issue.number) && splitScope(childBodies.get(issue.number)) !== null && { scope: splitScope(childBodies.get(issue.number)) }),
@@ -794,7 +818,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule() }) {
   const skip =(reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -872,7 +896,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     if (await rated({ github, repository, number: pull.number, head, base })) {
       return skip("already-rated");
     }
-    const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base);
+    const { bodyEditor, bodyEditedAt, ...spec } = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, undefined, base, schedule);
     return { proceed: true, reason: "ok", relinkSinceHead: false, prNumber: pull.number, headSha: head, baseSha: pull.base.sha, headRef: String(pull.head.ref ?? ""), ...spec };
   }
   const prs =new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
@@ -892,7 +916,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     specPull = answer?.data?.repository?.pullRequest ?? null;
     return answer;
   };
-  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base);
+  const readSpecIssues = () => linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts, readSpec, base, schedule);
   // One relink read per judgment, shared by every rule that weighs it: the
   // spec answer's, where a missing or malformed field reads as a failed
   // read, or RELINK_QUERY's when no spec read answered.
