@@ -126,5 +126,28 @@ export async function statusWriter({ env, github, repository }) {
     const { state: held } = await readField(number);
     return held === "agent-ready" ? set(number, state) : { outcome: "unchanged", state: held };
   };
-  return { set, leaveAgentReady };
+  // Restarts the issue lane: clears the field, then sets agent-ready with no
+  // skip, so GitHub sends the field_added that starts a run. A hold a listed
+  // human set stops it (`{outcome: "held"}`).
+  const restart = async (number) => {
+    if (failure) {
+      throw failure;
+    }
+    const now = await readField(number);
+    if (now.personHold) {
+      return { outcome: "held", state: now.state };
+    }
+    try {
+      await github("DELETE", `/repos/${repository}/issues/${number}/issue-field-values/${config["field-id"]}`, undefined, FIELD_API);
+    } catch (error) {
+      if (!/\bstatus 404\b/.test(String(error?.message ?? error))) {
+        throw new StatusWriteError(`#${number}'s Work status field was not cleared for a restart: ${error?.message ?? error}`, { cause: error });
+      }
+    }
+    wrote.delete(number);
+    const result = await writeState({ github, repository, number, state: "agent-ready", config, current: null });
+    wrote.set(number, result.option);
+    return result;
+  };
+  return { set, leaveAgentReady, restart };
 }
