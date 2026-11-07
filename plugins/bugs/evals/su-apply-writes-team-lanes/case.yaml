@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: su-apply-writes-team-lanes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: check-before-write
+    type: regex
+    target: trace
+    pattern: '^(?:(?!(?:\\?"name\\?":\s*\\?"Write\\?",\s*\\?"input\\?":\s*\{[^}]{0,300}?docs/conventions/bugs\.yaml|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml))[\s\S])*?\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:(?!>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?docs/conventions/bugs\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?docs/conventions/bugs\.yaml)(?:[^"\\]|\\.))*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git\b(?:[\s\S]*?(?:\\?"name\\?":\s*\\?"Write\\?",\s*\\?"input\\?":\s*\{[^}]{0,300}?docs/conventions/bugs\.yaml|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml)|(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml)'
+  - name: team-file-lanes
+    type: regex
+    target: { source: file, path: docs/conventions/bugs.yaml }
+    pattern: '^lanes:(?=[\s\S]*^[ \t]*(?:-[ \t]+)?name:[ \t]*[''"]?[a-z][a-z0-9-]*)(?=[\s\S]*^[ \t]*(?:-[ \t]+)?globs:)(?=[\s\S]*\bsrc/(?:api|billing)/)'
+    flags: 'm'
+  - name: team-file-known-keys
+    type: regex
+    target: { source: file, path: docs/conventions/bugs.yaml }
+    pattern: '^(?!lanes:|verification(?:_skills)?:)[A-Za-z_][\w-]*:|^[ \t]+(?:-[ \t]+)?(?!name:|globs:)[A-Za-z_][\w-]*:'
+    flags: 'm'
+    match: not_contains
+  - name: no-posture-in-team-file
+    type: regex
+    target: { source: file, path: docs/conventions/bugs.yaml }
+    pattern: 'filing_posture'
+    match: not_contains
+  - name: writes-only-team-file
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?![^"]*docs/conventions/bugs\.yaml")'
+    min: 0
+    max: 0
+    arm: both
+  - name: edits-only-team-file
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"(?![^"]*docs/conventions/bugs\.yaml")'
+    min: 0
+    max: 0
+    arm: both
+  - name: verifies-after-write
+    type: llm
+    focus: trace
+    criteria: "The run must verify the written file by re-reading it and by git check-ignore. PASS only if, after docs/conventions/bugs.yaml is written (by the Write tool or a shell write such as a heredoc), the trace shows that file re-read (a Read, cat or a YAML parse of it) and git check-ignore run on docs/conventions/bugs.yaml, either in a later call or later in the same shell command as the write, and the final reply reports what those showed. A check-ignore or read that ran only before the write does not count. FAIL if no such file was written, or nothing re-checks it after the write."
+  - name: recommends-ignore-line
+    type: regex
+    pattern: '\.claude/\*\*/\*\.local\.\*'
+    target: last_message
+  - name: says-commit-it
+    type: regex
+    pattern: '\b(?:commit|stage)\b[^\n]{0,60}\b(?:it|the (?:team )?file|bugs\.yaml)\b|\bgit add\b'
+    flags: 'i'
+    target: last_message

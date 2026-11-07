@@ -27,19 +27,22 @@ renaming it would break the schedule rows and scripts that match it.
 Before claiming (tier 4) or recheck-closing:
 
 1. Read the row's `last_checked` date.
-2. Ask whether a Claude model release of the class the row's `prompt` names occurred
-   **after** that date.
-3. If **no** (or unknown): **do not claim, do not recheck-close**. Leave the open
-   recurring issue open and report the `prompt` text inline.
-4. If **yes**: proceed, and record in the claim/recheck comment that the operator
-   confirmed a post-`last_checked` release.
+2. Read the official release notes page the row's `prompt` names for a Claude model
+   release of the class it names **after** that date.
+3. If **no**: run nothing and recheck-close. Cite the page and its newest model entry,
+   set `last_checked` to the date you read it, and advance `next_due` by the cadence.
+4. If **yes**: run the pass, and cite the release in the claim and recheck comments.
+5. If the page cannot be read: do not claim and do not recheck-close. Leave the
+   issue open and report why.
 
-There is no automated release oracle in-repo; `requires_operator_confirmation: true`
-makes the confirmation explicit rather than inferred from cadence.
+The release notes page is the release oracle, so an agent can settle the check. A row
+sets `requires_operator_confirmation: true` only when a person must confirm it.
 
 ## Seam helper
 
 `plugins/work-items/scripts/evaluate-schedule-precondition.sh` prints `met`,
 `unmet`, or `needs-confirmation` for a schedule row id. Pass
 `--operator-confirmed` when the operator has affirmed a confirmation-style
-precondition.
+precondition. For a row with no operator gate, `met` means only that nothing
+holds the row: the script prints the row's `prompt` ahead of it, and the caller
+settles the check with the `id` steps above before running the pass.

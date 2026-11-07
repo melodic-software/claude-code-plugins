@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "## Finding 2: `initials` throws on a one-word name\n\n`name.split(\" \")[1]` is undefined for \"Cher\"."
+    },
+    {
+      "answer": "The initials code breaks for a single-word name such as \"Plato\"."
+    },
+    {
+      "answer": "A name with no space crashes initials()."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "initials() takes the first character of each word."
+    },
+    {
+      "answer": "## Finding 2: initials mishandles names outside the basic plane"
+    }
+  ]
+}

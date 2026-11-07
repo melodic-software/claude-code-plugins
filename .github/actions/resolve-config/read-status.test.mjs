@@ -101,6 +101,17 @@ test("a value the newest field event does not name throws StatusReadError", asyn
   assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-human" } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
 });
 
+test("a listed human's hold that claude[bot] then changed is still added to the labels", async () => {
+  const event = (newValue, databaseId) => ({ __typename: "IssueFieldChangedEvent", newValue, actor: { databaseId }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } });
+  const nodes = [event("needs-human", 11), event("ready", 209825114)];
+  const github = async (method, path) =>
+    method === "GET"
+      ? [{ issue_field_id: STATUS_CONFIG["field-id"], single_select_option: { id: 86380003 } }]
+      : { data: { repository: { issue: { timelineItems: { nodes } } } } };
+  const labels = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  assert.deepEqual(await labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
+});
+
 // The labels alone could miss a hold that exists only on the field.
 const unreadable = (error) => error instanceof StatusReadError && error.name === "StatusReadError" && error.number === 7;
 

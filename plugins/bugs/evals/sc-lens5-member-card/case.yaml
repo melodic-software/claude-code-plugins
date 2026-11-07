@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: sc-lens5-member-card
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: lens5-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: '(?:Display|display) formatting and fallbacks|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))[Ll]ens-5\b|[Ll]ens 5:[ \t]*(?:Display|display)|renders? wrongly for some real value'
+    min: 1
+  - name: plural-finding
+    type: regex
+    pattern: '^[ \t]*#{1,6}[ \t]*(?:Finding\b|\d+[.)])[^\n]*\b(?:plurals?|pluraliz\w*|projects?|projectCount)\b'
+    flags: 'mi'
+    target: last_message
+  - name: plural-quote
+    type: regex
+    pattern: 'member\.projectCount \+ " projects"'
+    target: last_message
+  - name: initials-one-word
+    type: regex
+    pattern: '\binitials?\b[^\n]{0,200}(?:\bone[- ]word\b|\bsingle[- ](?:word|name|token)\b|\bmononyms?\b|\bno spaces?\b|\bwithout (?:a )?spaces?\b|\bonly one (?:word|name)\b|\bno (?:surname|last name|second word)\b)|(?:\bone[- ]word\b|\bsingle[- ](?:word|name)\b|\bmononyms?\b|\bno spaces?\b)[^\n]{0,200}\binitials?\b'
+    flags: 'i'
+    target: last_message
+  - name: plural-not-dismissed
+    type: llm
+    criteria: "src/member-card.js builds the project count as member.projectCount + \" projects\", so one project renders as \"1 projects\". PASS only if the reply reports that hardcoded plural as a verified finding (its own finding section, with an evidence label of verified-by-reading or reproduced). FAIL if the plural appears only under Refuted candidates, Candidates not gated or Side observations, is dismissed as a style, wording or formatting opinion, or is not mentioned."
+    focus: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both

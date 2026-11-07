@@ -236,7 +236,10 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
   if (i < 0 || !sender(events[i])) {
     return null;
   }
-  while (i > 0 && sender(events[i - 1])) {
+  // A removal followed by an add names no earlier value on the add; read the
+  // sender's removal before it. Stop there, so a hold the sender set earlier
+  // never hides the release.
+  while (i > 0 && events[i].from === null && sender(events[i - 1])) {
     i -= 1;
   }
   return HOLD_STATES.includes(events[i].from) ? { from: events[i].from, to: now } : null;

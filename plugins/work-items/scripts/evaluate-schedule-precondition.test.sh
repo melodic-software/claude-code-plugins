@@ -19,6 +19,15 @@ cat >"$TMP" <<'JSON'
       }
     },
     {
+      "id": "agent",
+      "title": "Agent-checked",
+      "precondition": {
+        "id": "frontier-release-since-last-checked",
+        "prompt": "read the release notes",
+        "requires_operator_confirmation": false
+      }
+    },
+    {
       "id": "plain",
       "title": "Plain"
     }
@@ -62,6 +71,14 @@ if [[ "$rc" -eq 0 && "$out" == "met" ]]; then
   pass "operator confirmation satisfies precondition"
 else
   fail "confirmed path"
+fi
+
+out="$("$EVAL" "$TMP" agent)"
+rc=$?
+if [[ "$rc" -eq 0 && "$out" == $'read the release notes\nmet' ]]; then
+  pass "a precondition with no operator gate prints its prompt, then met"
+else
+  fail "agent-checked path exit=$rc stdout: $out"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

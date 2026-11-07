@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Did you mean `pagination()`, or is `paginaton()` the real name?"
+    },
+    {
+      "answer": "`paginaton` looks like a typo for `pagination`; which is it?"
+    },
+    {
+      "answer": "Note: `paginaton` may be a misspelling."
+    },
+    {
+      "answer": "Does `paginaton()` exist under that name, or is it `pagination()`?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Bug: `pagination()` skips the last row of each page\n\n**Severity**: medium"
+    },
+    {
+      "answer": "# Bug: `paginaton()` skips the last row of each page"
+    },
+    {
+      "answer": "What page size makes `paginaton()` skip rows?",
+      "why": "a question, but not about the identifier"
+    }
+  ]
+}

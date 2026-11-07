@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```js\n  const projects = member.projectCount + \" projects\";\n```"
+    },
+    {
+      "answer": "Evidence: `member.projectCount + \" projects\"` at src/member-card.js:9"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Evidence: `member.projectCount + 'projects'`"
+    },
+    {
+      "answer": "The count is concatenated with the word projects."
+    }
+  ]
+}

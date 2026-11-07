@@ -1,7 +1,7 @@
 // The issue status (models.issue-status): an issue's state as its Work status
 // org issue field, keyed on field and option ids, and the state its labels
 // collapse to. Pure: the caller fetches the facts.
-import { trustedOption } from "./dimensions.mjs";
+import { trustedOption, trustedSetters } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
 // The state an issue carrying no state label collapses to, and so the last in
@@ -43,41 +43,82 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // human or the lanes App counts for every state; a `bot-setters` account for
 // every state but agent-ready, github-actions[bot] always and a `melodic-` bot
 // only while `trustedActors` lists it as a bot with the same id and login (one
-// the list dropped reads as unset). `facts.fieldNames`, when given, maps a
-// field id to the option name its newest field event left: a value that
-// names another option than the REST value maps to throws, since the setter
-// read belongs to another write and the hold may be the one unseen. An option a counted setter chose that
-// the config does not map stops the read: GitHub's options drifted.
+// the list dropped reads as unset). An option a counted setter chose that the
+// config does not map stops the read: GitHub's options drifted.
+//
+// With `facts.fieldEvents` (resolve-config.mjs fieldEvents), the newest Work
+// status event whose setter counts for the value it set decides, null for a
+// removal, so an uncounted change neither sets nor clears a counted state. The
+// newest event's value is the REST value; an older event's is the option it
+// names. Without it, the newest setter (`facts.fieldSetters`) decides the REST
+// value, and `facts.fieldNames`, when given, maps a field id to the option name
+// its newest field event left. Either way a REST value that names another
+// option than the newest event left throws: the two reads saw different
+// writes, and the hold may be the one unseen.
 export function issueStatus(facts, config, trustedActors) {
+  return issueStatusSetter(facts, config, trustedActors).state;
+}
+
+// issueStatus's `{state, setter}`: setter is the account id whose event
+// decided the state (undefined when none did).
+export function issueStatusSetter(facts, config, trustedActors) {
   const unmapped = (option) =>
     new Rejection(
       "unmapped-status",
       `issue field ${config["field-id"]} (Work status) holds option ${option}, which models.issue-status does not map`,
     );
   const fieldId = config["field-id"];
-  const setter = facts.fieldSetters[String(fieldId)];
-  const named = facts.fieldNames?.[String(fieldId)];
-  const held = facts.fieldValues.find((value) => value.field === fieldId);
-  if (typeof named === "string" && held !== undefined && config.options[String(held.option)] !== named) {
-    throw new Error(`issue field ${fieldId} (Work status) holds option ${held.option}, but its newest field event set \`${named}\``);
-  }
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   const listed = ({ id, login }) =>
     (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
     actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot");
-  if (!(config["bot-setters"] ?? []).some((entry) => entry.id === setter && listed(entry))) {
-    return trustedOption(facts, config, trustedActors, unmapped);
-  }
+  const botSetter = (id) => (config["bot-setters"] ?? []).some((entry) => entry.id === id && listed(entry));
   const row = facts.fieldValues.find((value) => value.field === fieldId);
+  const disagree = (named) => {
+    if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
+      throw new Error(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
+    }
+  };
+  if (Array.isArray(facts.fieldEvents)) {
+    const people = trustedSetters(trustedActors);
+    const states = new Set(Object.values(config.options));
+    const events = facts.fieldEvents.filter((event) => event?.field === String(fieldId));
+    disagree(events.at(-1)?.to);
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const { actorId, removed, to } = events[i];
+      const person = people.has(actorId);
+      if (!person && !botSetter(actorId)) {
+        continue;
+      }
+      const newest = i === events.length - 1;
+      if (removed || (newest && row === undefined)) {
+        return { state: null, setter: actorId };
+      }
+      const option = newest ? String(row.option) : to;
+      const state = newest ? (Object.hasOwn(config.options, option) ? config.options[option] : undefined) : states.has(to) ? to : undefined;
+      if (state === undefined) {
+        throw unmapped(option);
+      }
+      if (person || state !== PERSON_ONLY_STATE) {
+        return { state, setter: actorId };
+      }
+    }
+    return { state: null, setter: undefined };
+  }
+  const setter = facts.fieldSetters[String(fieldId)];
+  disagree(facts.fieldNames?.[String(fieldId)]);
+  if (!botSetter(setter)) {
+    return { state: trustedOption(facts, config, trustedActors, unmapped), setter };
+  }
   if (row === undefined) {
-    return null;
+    return { state: null, setter };
   }
   const option = String(row.option);
   if (!Object.hasOwn(config.options, option)) {
     throw unmapped(option);
   }
   const state = config.options[option];
-  return state === PERSON_ONLY_STATE ? null : state;
+  return { state: state === PERSON_ONLY_STATE ? null : state, setter };
 }
 
 // What the schema cannot check: no two options name one state, every state has

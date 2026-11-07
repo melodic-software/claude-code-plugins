@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/bugs.yaml",
+            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/bugs.yaml",
+            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/.gitignore",
+            "content": ".claude/**/*.local.*\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/bugs.local.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}
