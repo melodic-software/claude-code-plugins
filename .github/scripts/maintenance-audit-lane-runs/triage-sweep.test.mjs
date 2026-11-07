@@ -139,6 +139,14 @@ test("the Work status field decides an issue with no status label, and adds a ho
   assert.deepEqual(await fieldSelect(issues, fields), [2]);
 });
 
+// models.issue-status bot-setters: a hold the job token (github-actions[bot])
+// set drops the issue; its agent-ready does not count, so its labels choose.
+test("a hold github-actions[bot] set on the field drops the issue, and its agent-ready leaves the issue to its labels", async () => {
+  const issues = [issue(1), issue(2)];
+  const fields = { 1: { state: "needs-human", setter: BOT.id }, 2: { state: "agent-ready", setter: BOT.id } };
+  assert.deepEqual(await fieldSelect(issues, fields), [2]);
+});
+
 test("an issue whose Work status field is unset, or set by another account, is chosen by its labels", async () => {
   const issues = [issue(1), issue(2, { labels: [{ name: "agent-ready" }] })];
   assert.deepEqual(await fieldSelect(issues, { 1: { state: "agent-ready", setter: STRANGER_ID } }), [1]);

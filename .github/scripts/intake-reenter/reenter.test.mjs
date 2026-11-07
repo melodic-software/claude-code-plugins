@@ -29,7 +29,18 @@ const STRANGER = { id: 5005, login: "someone", type: "User" };
 const AUTHOR = { id: 6006, login: "reporter", type: "User" };
 const LISTED_BOT = { id: 209825114, login: "claude[bot]", type: "Bot" };
 const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
+const ACTIONS_BOT = { id: 41898282, login: "github-actions", type: "Bot" };
 const NUMBER = 42;
+// The Work status option ids (docs/conventions/pr-pipeline.yaml models.issue-status).
+const OPTION = { "needs-triage": 84879216, "needs-human": 86380005, ready: 86380003 };
+// One GraphQL Work status field event, as the API answers it.
+const fieldNode = (type, actor, values = {}, field = "48484079") => ({
+  __typename: type,
+  createdAt: "2026-11-06T00:00:00Z",
+  actor: { __typename: actor.type, login: actor.login, databaseId: actor.id },
+  issueField: { fullDatabaseId: field },
+  ...values,
+});
 const DECISION = "**Decision recorded.**\n\nOption 1.";
 
 const dir = tempDir("intake-reenter-");
@@ -49,7 +60,7 @@ writeFileSync(
 // One issue with its comments. `editors` maps a comment id to its last
 // editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
 // that already took them); `fail` names one `METHOD path` write that answers 500 once.
-function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], editors = {}, gone = [], fail = null }) {
+function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], fieldNodes = [], editors = {}, gone = [], fail = null }) {
   let failing = fail;
   const current = new Set(labels);
   const writes = [];
@@ -73,6 +84,9 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
     if (method === "GET" && one) return shaped.find((c) => String(c.id) === one[1]);
     if (method === "GET" && path.startsWith(`${base}/events?`)) return path.endsWith("page=1") ? events : [];
     if (method === "GET" && path.startsWith(`${base}/comments?`)) return path.endsWith("page=1") ? shaped : [];
+    if (method === "POST" && path === "/graphql" && body.query.includes("timelineItems")) {
+      return { data: { repository: { issue: { timelineItems: { nodes: fieldNodes } } } } };
+    }
     if (method === "POST" && path === "/graphql") {
       return {
         data: {
@@ -98,6 +112,11 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
       return [];
     }
     if (method === "POST" && path === `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`) return null;
+    if (method === "POST" && path === `${base}/issue-field-values`) {
+      const value = body.issue_field_values[0].value;
+      fieldNodes.push(fieldNode("IssueFieldAddedEvent", ACTIONS_BOT, { value }));
+      return [{ issue_field_id: 48484079, single_select_option: { id: OPTION[value] } }];
+    }
     throw new Error(`unexpected ${method} ${path}`);
   }
   const dispatches = () => writes.filter(([, path]) => path.endsWith("/dispatches"));
@@ -587,14 +606,14 @@ test("a failed dispatch after a lift takes needs-triage back off", async () => {
 
 test("the workflow runs on a needs-human unlabel", () => {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
-  assert.match(workflow, /^ {2}issues:.*\n {4}types: \[unlabeled\]$/m);
+  assert.match(workflow, /^ {2}issues:.*\n {4}types: \[unlabeled, field_added, field_removed\]$/m);
   assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
 });
 
 // The reenter job's folded `if:`, evaluated against one event. Covers only
 // what that gate uses: &&, ||, ==, !, and contains() over the issue's labels
 // and, case-insensitively as GitHub does, over the comment body.
-function reenterGate({ event, labels, label = null, comment = null, sender = null }) {
+function reenterGate({ event, labels, label = null, comment = null, sender = null, action = event === "issues" ? "unlabeled" : "created", fieldId = null }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
   assert.ok(block, "the reenter job has a folded if:");
@@ -611,6 +630,8 @@ function reenterGate({ event, labels, label = null, comment = null, sender = nul
   const context = {
     "github.event.comment.performed_via_github_app": null,
     "github.event.comment.user.type": comment?.type ?? null,
+    "github.event.action": action,
+    "github.event.issue_field.id": fieldId,
     "github.event.issue.pull_request": null,
     "github.event.issue.state": "open",
     "github.event.label.name": label,
@@ -671,4 +692,159 @@ test("only a bot's status: confirmed removal with nothing else to move the issue
   for (const label of ["status: ready", "status: needs-decision", "status: needs-info", "agent-ready", "needs-triage"]) {
     assert.equal(removal([label]), false, label);
   }
+});
+
+// A Work status field change: a listed human releasing a hold that exists
+// only on the field (no status label) re-enters intake once. The field events
+// are the GraphQL ones; the run reads the live models.issue-status from this
+// checkout.
+const ROOT = new URL("../../..", import.meta.url).pathname;
+const FIELD_WRITE = `/repos/${REPO}/issues/${NUMBER}/issue-field-values`;
+const runField = (w, action, sender = OWNER) =>
+  run(w, "", { EVENT_NAME: "issues", EVENT_ACTION: action, SENDER_ID: String(sender.id), COMMENT_ID: "", BASE_PATH: ROOT });
+const heldBy = (actor = LANES_APP, value = "needs-human") => fieldNode("IssueFieldAddedEvent", actor, { value });
+const changed = (actor, previousValue, newValue) => fieldNode("IssueFieldChangedEvent", actor, { previousValue, newValue });
+const removed = (actor) => fieldNode("IssueFieldRemovedEvent", actor);
+const fieldWrites = (w) => w.writes.filter(([, path]) => path === FIELD_WRITE);
+
+test("a listed human moving a field-only hold to needs-triage adds the needs-triage claim, writes no field, and dispatches once", async () => {
+  const w = world({ labels: ["priority: medium"], fieldNodes: [heldBy(), changed(OWNER, "needs-human", "needs-triage")] });
+  assert.equal(await runField(w, "field_added"), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  assert.deepEqual(fieldWrites(w), [], "the field is already at the floor");
+  expectDispatched(w);
+  assert.equal(await runField(w, "field_added"), 0, "a queued second run finds the claim");
+  expectDispatched(w);
+});
+
+test("a listed human clearing a field-only hold dispatches once, then sets the field to needs-triage", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed"), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  expectDispatched(w);
+  assert.deepEqual(fieldWrites(w).map(([method, , body]) => [method, body]), [["POST", { issue_field_values: [{ field_id: 48484079, value: "needs-triage" }] }]]);
+  const order = w.writes.map(([method, path]) => `${method} ${path.split("/").at(-1)}`);
+  assert.deepEqual(order, ["POST labels", "POST issue-field-values", "POST dispatches"], "claim, field, then dispatch");
+  w.writes.length = 0;
+  assert.equal(await runField(w, "field_removed"), 0, "a queued second run stops");
+  assert.deepEqual(w.writes, []);
+});
+
+test("every hold state released by a listed human re-enters", async () => {
+  for (const hold of ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"]) {
+    const w = world({ labels: [], fieldNodes: [heldBy(LANES_APP, hold), changed(OWNER, hold, "needs-triage")] });
+    assert.equal(await runField(w, "field_added"), 0, hold);
+    assert.equal(w.dispatches().length, 1, hold);
+  }
+});
+
+test("a failed dispatch after a field release takes the claim back, and a re-run dispatches once", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${DISPATCH}` });
+  assert.equal(await runField(w, "field_removed"), 1);
+  assert.deepEqual(w.labels(), [], "the claim comes back off");
+  assert.equal(fieldWrites(w).length, 1, "the field was set before the dispatch");
+  assert.equal(await runField(w, "field_removed"), 0, "the re-run walks past its own field write");
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.equal(w.dispatches().length, 2, "the failed call and the re-run's");
+  assert.equal(fieldWrites(w).length, 1, "the field already reads needs-triage");
+});
+
+test("a re-run that sees the job token's or the lanes App's own needs-triage write still finds the release", async () => {
+  for (const bot of [ACTIONS_BOT, LANES_APP]) {
+    const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(bot, "needs-triage")] });
+    assert.equal(await runField(w, "field_removed"), 0, bot.login);
+    expectDispatched(w);
+    assert.deepEqual(fieldWrites(w), [], bot.login);
+  }
+});
+
+test("a listed human who set the hold and then clears it releases it", async () => {
+  for (const fieldNodes of [
+    [heldBy(OWNER, "needs-human"), removed(OWNER)],
+    [heldBy(LANES_APP, "ready"), changed(OWNER, "ready", "needs-human"), removed(OWNER)],
+  ]) {
+    const w = world({ labels: [], fieldNodes });
+    assert.equal(await runField(w, "field_removed"), 0);
+    expectDispatched(w);
+  }
+});
+
+test("a listed human who removes a hold and then sets needs-triage releases it", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(OWNER, "needs-triage")] });
+  assert.equal(await runField(w, "field_added"), 0);
+  expectDispatched(w);
+  assert.deepEqual(fieldWrites(w), []);
+});
+
+test("a field write that fails warns, still dispatches, and the claim stops a queued second run", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${FIELD_WRITE}` });
+  const lines = [];
+  const code = await main({
+    github: w.github,
+    log: (line) => lines.push(line),
+    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), EVENT_NAME: "issues", EVENT_ACTION: "field_removed", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT },
+  });
+  assert.equal(code, 0);
+  expectDispatched(w);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=intake-reenter::#42's Work status field was not set")), lines.join("\n"));
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  w.writes.length = 0;
+  assert.equal(await runField(w, "field_removed"), 0);
+  assert.deepEqual(w.writes, [], "the needs-triage claim stops it");
+});
+
+test("an option name models.issue-status does not map fails the run", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(LANES_APP, "on-hold"), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed"), 1);
+  assert.deepEqual(w.writes, []);
+});
+
+const fieldQuiet = [
+  ["a third-party bot's release", { labels: [], fieldNodes: [heldBy(), changed(LISTED_BOT, "needs-human", "needs-triage")] }, "field_added", LISTED_BOT],
+  ["an unlisted person's release", { labels: [], fieldNodes: [heldBy(), changed(STRANGER, "needs-human", "needs-triage")] }, "field_added", STRANGER],
+  ["a listed human moving a hold to ready", { labels: [], fieldNodes: [heldBy(), changed(OWNER, "needs-human", "ready")] }, "field_added", OWNER],
+  ["a listed human moving a hold to agent-ready", { labels: [], fieldNodes: [heldBy(), changed(OWNER, "needs-human", "agent-ready")] }, "field_added", OWNER],
+  ["a newest event that is not the sender's", { labels: [], fieldNodes: [heldBy(), changed(STRANGER, "needs-human", "needs-triage")] }, "field_added", OWNER],
+  ["a hold set again after the release", { labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(LANES_APP)] }, "field_added", OWNER],
+  ["another person between the hold and the sender", { labels: [], fieldNodes: [heldBy(), changed(STRANGER, "needs-human", "ready"), changed(OWNER, "ready", "needs-triage")] }, "field_added", OWNER],
+  ["a third-party bot's needs-triage after the release", { labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(LISTED_BOT, "needs-triage")] }, "field_added", OWNER],
+  ["a change from a state that is no hold", { labels: [], fieldNodes: [heldBy(LANES_APP, "confirmed"), removed(OWNER)] }, "field_removed", OWNER],
+  ["another field's release", { labels: [], fieldNodes: [heldBy(), fieldNode("IssueFieldRemovedEvent", OWNER, {}, "15462270")] }, "field_removed", OWNER],
+  ["a status label still on the issue", { labels: ["status: needs-decision"], fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["a hold label still on the issue", { labels: ["needs-human"], fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["agent-ready on the issue", { labels: ["agent-ready"], fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["an author intake does not admit", { labels: [], author: AUTHOR, fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["a closed issue", { labels: [], state: "closed", fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["a pull request", { labels: [], pullRequest: true, fieldNodes: [heldBy(), removed(OWNER)] }, "field_removed", OWNER],
+  ["no field event", { labels: [], fieldNodes: [] }, "field_added", OWNER],
+];
+for (const [name, options, action, sender] of fieldQuiet) {
+  test(`a Work status field change changes nothing: ${name}`, async () => {
+    const w = world(options);
+    assert.equal(await runField(w, action, sender), 0);
+    assert.deepEqual(w.writes, []);
+  });
+}
+
+test("a field change with no action reads as a label removal, so a stale needs-human removal still needs the unlabel path", async () => {
+  const w = world({ labels: [], events: [], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT }), 0);
+  assert.deepEqual(w.writes, []);
+});
+
+test("the job starts on a person's Work status field change only, on that field only", () => {
+  const field = (action, fieldId, sender) => reenterGate({ event: "issues", action, fieldId, sender, labels: [] });
+  assert.equal(field("field_added", 48484079, "User"), true);
+  assert.equal(field("field_removed", 48484079, "User"), true);
+  assert.equal(field("field_added", 48484079, "Bot"), false, "a bot's field write");
+  assert.equal(field("field_removed", 48484079, "Bot"), false, "a bot's field removal");
+  assert.equal(field("field_added", 15462270, "User"), false, "another field");
+  assert.equal(field("unlabeled", 48484079, "User"), false, "an unlabel of no watched label");
+  assert.equal(reenterGate({ event: "issues", action: "field_added", fieldId: 48484079, sender: "User", labels: [], comment: null, label: null }), true);
+});
+
+test("the job hands the script the field change's action and sender", () => {
+  const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
+  assert.match(workflow, /^ {10}EVENT_ACTION: \$\{\{ github\.event\.action \}\}$/m);
+  assert.match(workflow, /^ {10}SENDER_ID: \$\{\{ github\.event\.sender\.id \}\}$/m);
 });

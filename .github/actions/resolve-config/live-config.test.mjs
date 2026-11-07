@@ -3,6 +3,7 @@
 // contract (applies-when of resolve-conflicts, the report-escalation leaf) and
 // the README's skip reasons, not from resolver output.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -892,4 +893,36 @@ test("live config: post-merge records the owner login's agent merges on the owne
   const { paths, agentIdentity } = postMergeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
   assert.deepEqual(paths, { "owner-agent": { mode: "record", enqueuers: ["kyle-sexton"] } });
   assert.equal(agentIdentity, "melodic-automation-lanes[bot]");
+});
+
+// The owner's rule for Work status bot setters: bot-setters is
+// github-actions[bot] and every melodic- App trusted-actors.json lists other
+// than the lanes App, with the same id and login, and no third-party bot.
+test("live config: models.issue-status bot-setters are github-actions[bot] and the listed melodic- Apps but the lanes App", () => {
+  const setters = parse(FILES.config).models["issue-status"]["bot-setters"];
+  const melodic = FILES.trustedActors.actors
+    .filter((actor) => actor.kind === "bot" && actor.login.startsWith("melodic-") && actor.login !== "melodic-automation-lanes[bot]")
+    .map(({ id, login }) => ({ id, login }));
+  assert.ok(melodic.length > 0);
+  assert.deepEqual(setters, [{ id: 41898282, login: "github-actions[bot]" }, ...melodic]);
+  for (const login of ["claude[bot]", "cursor[bot]", "cursoragent", "dependabot[bot]", "melodic-automation-lanes[bot]"]) {
+    assert.equal(setters.some((entry) => entry.login === login), false, login);
+  }
+  // issueStatus ignores an entry the list stops holding; this test is what
+  // flags that drift, so each entry must still be on the list as that bot.
+  for (const entry of setters.slice(1)) {
+    assert.ok(FILES.trustedActors.actors.some((actor) => actor.id === entry.id && actor.login === entry.login && actor.kind === "bot"), entry.login);
+  }
+});
+
+// The merge lane reads this file through the source-control YAML subset
+// (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
+// the lane off with config-parse-error.
+test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () => {
+  const awk = fileURLToPath(new URL("../../../plugins/source-control/lib/yaml-subset.awk", import.meta.url));
+  const config = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
+  const errors = execFileSync("awk", ["-f", awk, config], { encoding: "utf8" })
+    .split("\n")
+    .filter((line) => line.startsWith("error\t"));
+  assert.deepEqual(errors, []);
 });

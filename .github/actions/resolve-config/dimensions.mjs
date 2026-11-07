@@ -11,7 +11,7 @@ const NOT_ASSESSED = "not-assessed";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
 // The account ids whose field values count: the listed humans and the lanes App.
-function trustedSetters(trustedActors) {
+export function trustedSetters(trustedActors) {
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   return new Set(
     actors
