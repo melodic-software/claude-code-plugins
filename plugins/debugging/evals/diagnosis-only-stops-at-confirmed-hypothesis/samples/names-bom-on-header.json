@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "rejected samples/with-bom.csv: unexpected header: ['\\ufeffsku', 'name', 'qty']",
+      "why": "the loop output with \\ufeff"
+    },
+    {
+      "answer": "Opening with utf-8 keeps the BOM, so the first header cell is not 'sku'.",
+      "why": "BOM and header in one sentence"
+    },
+    {
+      "answer": "Python's utf-8 codec keeps U+FEFF; only utf-8-sig drops it.",
+      "why": "U+FEFF"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The importer rejects files that start with a byte-order mark.",
+      "why": "restates the symptom"
+    },
+    {
+      "answer": "The file has a BOM.\n\nThe header check fails.",
+      "why": "BOM and header never tied in one sentence"
+    }
+  ]
+}

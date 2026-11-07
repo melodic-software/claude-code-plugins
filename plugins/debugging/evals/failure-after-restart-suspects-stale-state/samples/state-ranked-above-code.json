@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No code changed and the failure started at the reboot, so the suspects are what the last run left in state/:\n\n| Rank | Cause | Cheap test |\n|---|---|---|\n| 1 | state/session.json saved by the last run | move it aside, relaunch |\n| 2 | state/cache/index.json | move it aside, relaunch |\n| 3 | state/settings.json | move it aside, relaunch |\n| 4 | state/profile.lock left by the pre-reboot process | move it aside, relaunch |\n\nResult: only moving profile.lock aside made the launch succeed; its pid 48213 no longer exists.",
+      "why": "state ranked first, a test for each, cause reported after"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The likeliest cause is a bug in _load: it raises on any OSError. Second, the lock file may be stale.",
+      "why": "opens with a code defect"
+    },
+    {
+      "answer": "Suspects: the session, the cache, the settings and the lock file. One of them is probably corrupt.",
+      "why": "no test for each"
+    }
+  ]
+}

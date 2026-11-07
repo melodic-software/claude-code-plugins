@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Post-mortem: checkout timed out above $1k\n\n**Cause:** the pricing client retried RATE_LIMITED with no bound (41213 calls in one request).\n**Fix:** capped at 3 attempts (`MAX_ATTEMPTS`).\n**Regression test:** test/client.test.js.\n\nThis goes in the PR description.\n\nview: file (plugin default)\n\nThe interactive view, built by the plugin's build-view.mjs from the post-mortem above: /opt/eval/tmp/debug-post-mortem-1a2b.html",
+      "why": "record first, then the built view"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your interactive view: /opt/eval/tmp/view.html. It has the hypotheses to click through.",
+      "why": "view without a post-mortem"
+    },
+    {
+      "answer": "## Post-mortem\n\nCause: unbounded retry; fix: 3 attempts; test: test/client.test.js.\n\nHere is the page:\n\n```html\n<html><body><h1>Hypotheses</h1></body></html>\n```",
+      "why": "hand-written markup for the page"
+    }
+  ]
+}

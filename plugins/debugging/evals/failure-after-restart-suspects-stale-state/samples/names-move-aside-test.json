@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Test: mv state/session.json state/session.json.bak, relaunch, and see whether the error clears.",
+      "why": "mv a state file"
+    },
+    {
+      "answer": "Moving profile.lock aside cleared the error: the client launched.",
+      "why": "moving the lock aside"
+    },
+    {
+      "answer": "Rename the cache directory and relaunch.",
+      "why": "rename the cache"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Probably a bug in open_profile; add logging to sync_client.py.",
+      "why": "a code hypothesis, no state test"
+    },
+    {
+      "answer": "The lock file is stale. Delete state/profile.lock.",
+      "why": "names the lock but no move-aside test"
+    }
+  ]
+}

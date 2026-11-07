@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,20p' src/pricing/format.js",
+            "description": "Read the formatter"
+          }
+        }
+      ],
+      "why": "sed that prints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn NumberFormat src/ 2>/dev/null",
+            "description": "Find formatter construction"
+          }
+        }
+      ],
+      "why": "a read of src/ with stderr to /dev/null"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat src/pricing/format.js > \"${work:?}/format.js.bak\"",
+            "description": "Copy out of src"
+          }
+        }
+      ],
+      "why": "redirect from src/, not into it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 'p' src/checkout/render.js | grep -i src/pricing",
+            "description": "Find the pricing import"
+          }
+        }
+      ],
+      "why": "-i on grep after a pipe, not on sed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/new Intl.NumberFormat/cachedFormat/' src/pricing/format.js",
+            "description": "Patch the formatter"
+          }
+        }
+      ],
+      "why": "sed -i on a src file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > src/pricing/format.js <<'EOF'\nconst cache = new Map();\nEOF",
+            "description": "Rewrite the formatter"
+          }
+        }
+      ],
+      "why": "heredoc redirect into src/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls\ntee src/pricing/cache.js <<'EOF'\nmodule.exports = {};\nEOF",
+            "description": "Add a cache module"
+          }
+        }
+      ],
+      "why": "tee into src/ after an escaped newline"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Cause:** SessionCache's `lastOrder` field keeps the 4096-byte 'order payload' string alive. Retaining path: (GC roots) -> Window -> sessionCache -> SessionCache -> lastOrder -> string.\n\n**Status:** likeliest explanation from one snapshot. One snapshot cannot show growth: take a second one later under the same load and compare them. A fix with a regression test belongs to /debugging:debug.\n\n**Cleanup:** deleted the temporary SQLite directory.",
+      "why": "holder, path, growth caveat, no fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SessionCache.lastOrder holds the 4096-byte string via Window.sessionCache from the GC roots. Fix: set `this.lastOrder = null` after the order is saved, or keep it in a WeakRef.",
+      "why": "proposes a code fix"
+    },
+    {
+      "answer": "SessionCache.lastOrder holds the 4096-byte string via Window.sessionCache from the GC roots, and that is why memory climbs all day.",
+      "why": "no growth caveat; one snapshot read as growth"
+    }
+  ]
+}

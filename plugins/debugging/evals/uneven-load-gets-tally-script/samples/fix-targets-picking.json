@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Tallied three replay passes with tally.py: workers 2 and 5 hold 540-560 MB every pass, the other four 60-110 MB. The leader never changes, so the next hypothesis is pick_worker in thumbs/dispatch.py: it hashes the album, so every job of a RAW album lands on one worker. Fix: pick by least current load, or hash the job id; raising the memory limit or adding workers would leave the picking code as it is.",
+      "why": "picking code as the hypothesis, fix in the picking code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Workers 2 and 5 lead every pass because pick_worker hashes the album. Quick options: raise MEMORY_LIMIT_MB to 1024 for now, or change pick_worker to spread jobs.",
+      "why": "offers raising the limit as one fix"
+    },
+    {
+      "answer": "Workers 2 and 5 always lead, so add two more workers to share the load.",
+      "why": "adding workers as the fix"
+    }
+  ]
+}

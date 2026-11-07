@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: analyze-profile-minified-frame-needs-source-map
+description: "A minified heaviest frame ('a' in main.3f9a.js at line 1) is not a source line: the answer says only the bundle's source map can resolve it, says where that map would be or asks for it, and invents no original file or line (analyze-profile 'Before you answer' table, the unresolved-frame row). Narration: the profile is described, not present, as in the legacy case. Read-only; tagged no-network because the prompt carries a URL"
+tags: [analyze-profile, converted, narration, no-network]
+expected_outcome: "States that frame 'a' maps to no source line until the bundle's source map resolves it, says where main.3f9a.js.map would be found or asks the user for it, and names no original file name or line number"
+execution:
+  prompt: "/debugging:analyze-profile profiles/bundle.cpuprofile. The heaviest frame is 'a' in https://shop.example/assets/main.3f9a.js at line 1. Just tell me the source line behind it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: says-source-map
+    type: regex
+    pattern: 'source ?maps?\b'
+    flags: i
+    arm: both
+  - name: names-map-location
+    type: regex
+    pattern: 'main\.3f9a\.js\.map|sourceMappingURL|SourceMap:?\s+(?:HTTP )?header|\b(?:send|share|give|provide|attach|upload|point me (?:at|to)|where is|do you have|can you (?:find|get))\b[^.\n?]{0,60}\bsource ?map'
+    flags: i
+    arm: both
+  - name: no-invented-source-line
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer says the minified frame 'a' maps to no source line until the bundle's source map resolves it, and gives no original source file name and no original line number for 'a', not even as a guess or an example of what it probably is; repeating main.3f9a.js line 1 from the question, or describing in general what a source map would supply, is fine. FAIL if it names an original file (such as src/checkout/cart.ts) or an original line for 'a', calls a guess at the original function the answer, or presents line 1 of main.3f9a.js as the source line."

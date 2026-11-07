@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'MEMORY_LIMIT_MB\\|WORKERS' thumbs/*.py",
+            "description": "Find the constants"
+          }
+        }
+      ],
+      "why": "a read of the constants"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,10p' thumbs/cluster.py | grep -i MEMORY_LIMIT_MB",
+            "description": "Show the limit"
+          }
+        }
+      ],
+      "why": "-i on grep after a pipe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/MEMORY_LIMIT_MB = 512/MEMORY_LIMIT_MB = 1024/' thumbs/cluster.py",
+            "description": "Raise the limit"
+          }
+        }
+      ],
+      "why": "sed -i on the limit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 replay.py\nsed -i.bak 's/^WORKERS = 6/WORKERS = 8/' thumbs/dispatch.py",
+            "description": "Add workers"
+          }
+        }
+      ],
+      "why": "sed -i with a suffix after an escaped newline"
+    }
+  ]
+}

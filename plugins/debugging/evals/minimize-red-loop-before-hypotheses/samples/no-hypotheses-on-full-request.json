@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Not hypotheses yet. Shrink the request first, one element per replay, until only the elements that keep it red are left. Phase 3 ranks causes against that small case.",
+      "why": "minimizing first, hypotheses deferred"
+    },
+    {
+      "answer": "Next: minimize. Cut body fields, headers and config one at a time with a replay after each cut; once nothing more can go, we rank causes against what is left.",
+      "why": "no cause named before minimizing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Likely causes, ranked: 1) the discount_code field is null, 2) the X-Tenant header is missing, 3) the tax config is off. Start by testing the null discount_code.",
+      "why": "ranks causes against the full request"
+    },
+    {
+      "answer": "Shrink it later; first check whether the 500 comes from the inventory service by stubbing it out.",
+      "why": "tests a cause before minimizing"
+    }
+  ]
+}

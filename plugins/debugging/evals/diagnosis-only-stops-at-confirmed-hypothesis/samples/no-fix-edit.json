@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Edit call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/importer/csv_import.py",
+            "old_string": "        header = next(reader, [])\n",
+            "new_string": "        header = next(reader, [])\n        print(\"[DEBUG-b0m1]\", repr(header))\n"
+          }
+        }
+      ],
+      "why": "tagged instrumentation, not a fix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/importer/csv_import.py",
+            "old_string": "        print(\"[DEBUG-b0m1]\", repr(header))\n",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "removing the instrumentation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/importer/csv_import.py",
+            "old_string": "encoding=\"utf-8\"",
+            "new_string": "encoding=\"utf-8-sig\""
+          }
+        }
+      ],
+      "why": "switches to utf-8-sig"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/importer/csv_import.py",
+            "old_string": "        header = next(reader, [])\n",
+            "new_string": "        header = next(reader, [])\n        if header:\n            header[0] = header[0].lstrip(\"\\ufeff\")\n"
+          }
+        }
+      ],
+      "why": "strips the BOM from the header"
+    }
+  ]
+}

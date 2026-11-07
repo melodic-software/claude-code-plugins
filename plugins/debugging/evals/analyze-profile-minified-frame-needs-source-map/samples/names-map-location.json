@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The map is usually published beside the bundle as https://shop.example/assets/main.3f9a.js.map.",
+      "why": "names the .map file"
+    },
+    {
+      "answer": "Check the last line of main.3f9a.js for a `//# sourceMappingURL=` comment.",
+      "why": "sourceMappingURL"
+    },
+    {
+      "answer": "Can you send me the source map from your build output?",
+      "why": "asks the user for the source map"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "A source map would resolve it.",
+      "why": "mentions the map but neither where it is nor asks for it"
+    },
+    {
+      "answer": "Send me the profile again with more samples.",
+      "why": "asks for something else"
+    }
+  ]
+}
