@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/dependency-graph.json",
+            "content": "{}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: mp-gemfile-unknown
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: record-unknown
+    type: regex
+    pattern: '^(?=[\s\S]*"result"\s*:\s*"unknown")(?=[\s\S]*"nodes"\s*:\s*\[\s*\])(?=[\s\S]*"edges"\s*:\s*\[\s*\])'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: no-mermaid-fence
+    type: regex
+    pattern: '^(?![\s\S]*```mermaid)(?![\s\S]*\b(?:rails|sidekiq)\b)[\s\S]*\bResult: unknown\b'
+    target: { source: file, path: docs/architecture/dependency-graph.md }
+  - name: reply-names-gemfile-not-invented
+    type: regex
+    pattern: '^(?=[\s\S]*\bGemfile\b)(?=[\s\S]*(?:\b(?:not|never)\b|n''t\b)[^\n.]{0,40}\binvent)(?=[\s\S]*\bunknown\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-ecosystem-question
+    type: regex
+    pattern: '\b(?:which|what)\s+(?:ecosystem|language|adapter)\b[^\n]*\?|\b(?:pick|choose|select)\b[^\n.]{0,40}\b(?:ecosystem|adapter)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-no-index-yet-is-a-starting-state
+graders:
+  - name: 'no-index-yet'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bindex\b)(?=[^\n]*(?:\bno index\b|\bnot (?:yet )?(?:exist|present|created|generated|written)\w*|\babsent\b|\byet to be\b|\bno [\w-]* ?block\b|\bnone yet\b))(?![^\n]*\b(?:target|it|index|AGENTS\.md) is unreachable\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the setup run reports for the fresh repository. PASS only if it satisfies every point: (1) Distinguishes ''no index yet'' from ''index unreachable''; (2) Names the file the resolution order would pick; (3) States that the plugin works with zero configuration; (4) Does not gate a first audit behind setup. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

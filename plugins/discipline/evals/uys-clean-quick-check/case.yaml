@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: uys-clean-quick-check
+context:
+  history_file: history.jsonl
+graders:
+  - name: reports-clean
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )\b(?:clean|nothing (?:missed|to correct|to fix)|no (?:missed|skipped) skills?|no (?:listed )?skill (?:fit|fits|applies|applied|was needed|needed|owns)|none (?:fit|fits|applied|applies))\b'
+    flags: 'i'
+    target: last_message
+  - name: no-forced-skill
+    type: tool_used
+    tool: Skill
+    min: 0
+    max: 0
+    arm: both
+  - name: no-manufactured-finding
+    type: llm
+    criteria: 'The only recent work is a one-line answer explaining what `git log --oneline -3` prints. The reply meets the legacy expectations: "Audits recent work against the listing without manufacturing a finding"; "Reports clean when the fitting skills were already used or none fit"; "Does not force-invoke an ill-fitting skill for its own sake". It fails if it reports a finding or recommends invoking a skill for that answer.'
+    focus: last_message

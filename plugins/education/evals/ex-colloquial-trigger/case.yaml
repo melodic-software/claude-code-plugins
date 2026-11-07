@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ex-colloquial-trigger
+description: "A colloquial 'what does this actually do?' with no command reaches explain by model invocation, which resolves 'this' to the git rebase --onto command in the previous assistant message and explains it in plain words"
+tags: [education, explain, outcome, trigger, history]
+expected_outcome: "The explain skill fires without the user typing /education:explain, and the reply explains the previous message's git rebase --onto main feature~5 feature command in plain words."
+context:
+  history_file: history.jsonl
+execution:
+  prompt: "wait, what does this actually do?"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:education:)?explain"'
+    min: 1
+    arm: with-only
+  - name: resolves-referent
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Resolves the referent from conversational context and delivers a plain-language explanation". The previous assistant message gave the command git rebase --onto main feature~5 feature to drop three WIP commits. PASS if the reply explains what that command does (taking the branch''s later commits, replaying them on top of main, leaving the old WIP commits behind) in plain words, with any technical term glossed. FAIL if it explains a different command or concept, asks what "this" refers to, or answers only in unexplained git jargon. Example PASS: "Picture your branch as a stack of index cards. The command lifts off every card above the third junk one and lays them, in order, on top of the main pile, so the junk cards are left out." Example FAIL: "Could you share the code you mean?"'

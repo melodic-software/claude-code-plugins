@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#1248 is lane infrastructure (the Lane telemetry: work-loop title), so I stop.",
+      "why": "named"
+    },
+    {
+      "answer": "This is the work-loop lane's telemetry issue: not intake, stopping.",
+      "why": "telemetry not intake"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#1248 needs verification first.",
+      "why": "state machine"
+    },
+    {
+      "answer": "Recommendation: close #1248 as noise.",
+      "why": "close"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

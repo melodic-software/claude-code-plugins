@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "needs-triage stays on #220 so the next sweep retries it.",
+      "why": "stays"
+    },
+    {
+      "answer": "It leaves needs-triage in place.",
+      "why": "leaves"
+    },
+    {
+      "answer": "Then it applies `status: confirmed`. Both succeed. The raw marker stays on.",
+      "why": "raw marker, from smoke r2"
+    },
+    {
+      "answer": "So the run doesn't apply `agent-ready` or `status: ready`, and it doesn't remove `needs-triage`.",
+      "why": "negated removal, from smoke r2"
+    },
+    {
+      "answer": "The raw marker is still on, so #220 stays in the attention view.",
+      "why": "still on, from smoke r2"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Removed needs-triage and applied agent-ready.",
+      "why": "cleared"
+    },
+    {
+      "answer": "The raw marker is removed with the label edit.",
+      "why": "raw marker cleared"
+    },
+    {
+      "answer": "The raw marker is removed with the label edit, but the window comment still failed.",
+      "why": "still describes the failed post, not the marker"
+    },
+    {
+      "answer": "Removes needs-triage; nothing is left to retry.",
+      "why": "left describes the retry, not the marker"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

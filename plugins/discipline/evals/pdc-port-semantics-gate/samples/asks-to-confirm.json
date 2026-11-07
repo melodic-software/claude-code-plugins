@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Reply 'semantics confirmed' (or any clear yes) and I'll write the port."
+    },
+    {
+      "answer": "Shall I proceed with the port?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's the port; I wrote packages/services/src/limiter.ts."
+    }
+  ]
+}

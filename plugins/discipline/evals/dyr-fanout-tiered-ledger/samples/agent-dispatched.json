@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify free-tier limit",
+            "prompt": "Check gateway/config/rate_limits.yaml for the free tier's requests per minute."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/gateway/config/rate_limits.yaml"
+          }
+        }
+      ],
+      "why": "verified in the same context"
+    }
+  ]
+}

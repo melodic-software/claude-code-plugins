@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
+import { recordBody } from "../lib/admission-record.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -149,7 +150,7 @@ describe("decide", () => {
       const result = await admit({ ...goArgs(fake), status: async () => assert.fail("a refusal reads no status") });
       assert.deepEqual(result, { outcome: "refused", reasons: [APP_FILED, NO_SPEC], status: NEEDS_DECISION });
       const writes = fake.calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}${call.method === "STATUS" ? ` ${call.body}` : ""}`);
-      assert.deepEqual(writes, ["STATUS #7 needs-owner-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(writes, ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"]);
     });
 
     test("a body line opening with Hold: refuses the issue for a person, and Hold: inside a line does not", () => {
@@ -1774,7 +1775,7 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
   const olderIssues = Array.from({ length: Number(older) || 0 }, (_, i) => ({ number: 100 + i, created_at: "2026-01-01T00:00:00Z", labels: [READY, DEFERRED], state: null }));
   const listing = {
     issues: async (states) => {
-      if (older === "incomplete" || failOn?.("LIST", "issuesByStatus")) {
+      if (older === "incomplete" || failOn?.("LIST", "issuesByStatus") || failOn?.("LIST", states.join(","))) {
         throw new Error("the open issues could not be read");
       }
       const legacy = (labels) => states.some((one) => STATUS_CONFIG.labels[one].some((label) => labels.includes(label)));
@@ -1813,11 +1814,14 @@ const go = (fake, options) => admit(goArgs(fake, options));
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 // A Work status write as `writes` lists it.
 const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
+// The admission record of issueOf()'s title and body, posted before the agent-ready write.
+const RECORD = `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) })}`;
 
 describe("admit", () => {
   // Under a cap the issue claims its place with a change of its Work status
-  // to deferred before it takes agent-ready, which the field records too.
-  const CLAIMED = [STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`];
+  // to deferred before it takes agent-ready; the field write alone admits it,
+  // with no agent-ready label.
+  const CLAIMED = [RECORD, STATUS("deferred"), STATUS(AGENT_READY)];
 
   test("adds agent-ready when every criterion holds and the caps have room", async () => {
     const fake = fakeGitHub();
@@ -1830,22 +1834,22 @@ describe("admit", () => {
     const fake = fakeGitHub({ personHold: "needs-human" });
     const result = await go(fake);
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
-    assert.deepEqual(writes(fake.calls), [`HELD #7 "deferred"`]);
+    assert.deepEqual(writes(fake.calls), [RECORD, `HELD #7 "deferred"`]);
   });
 
   test("a person's hold that lands before a deferral keeps the issue held", async () => {
     const fake = fakeGitHub({ personHold: "needs-spec" });
     const result = await go(fake, { status: { ...open, admission_open: false, admission_reason: "closed" } });
     assert.equal(result.outcome, "held");
-    assert.deepEqual(writes(fake.calls), [`HELD #7 "deferred"`]);
+    assert.deepEqual(writes(fake.calls), [RECORD, `HELD #7 "deferred"`]);
   });
 
-  // A manual re-dispatch skips intake-reenter, so the parked status comes off here.
-  test("adds agent-ready and lifts a parked status: confirmed beside status: ready", async () => {
+  // A manual re-dispatch skips intake-reenter; the agent-ready field write replaces the parked state.
+  test("admits beside a legacy parked status: confirmed label with field writes only", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });
     const result = await go(fake);
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [...CLAIMED, `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(CONFIRMED)} undefined`]);
+    assert.deepEqual(writes(fake.calls), CLAIMED);
   });
 
   // The real write-status.mjs writer over the base config's field (48484079):
@@ -1875,7 +1879,8 @@ describe("admit", () => {
     const result = await admit({ ...goArgs(fake), github, setStatus: set });
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
     const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);
-    assert.deepEqual(posts, [`/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`], "no agent-ready label and no agent-ready field write");
+    // The record precedes the claim, so it stands; with no agent-ready, it starts nothing.
+    assert.deepEqual(posts, [RECORD.replace("POST ", ""), `/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`],"no agent-ready label and no agent-ready field write");
   });
 
   // Parallel apply-verdict runs for other issues read the same room: only
@@ -1891,7 +1896,7 @@ describe("admit", () => {
         const result = await go(fake, { status: ROOM_ONE });
         assert.equal(result.outcome, "deferred", racer.labels[0]);
         assert.match(result.reasons[0], /1 issue\(s\) entered admission ahead of it/);
-        assert.deepEqual(writes(fake.calls), [STATUS("deferred")], racer.labels[0]);
+        assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")], racer.labels[0]);
       }
     });
 
@@ -1906,16 +1911,16 @@ describe("admit", () => {
       assert.equal((await go(fakeGitHub({ racers: [entered(8, AGENT_READY, 1)] }), { status: { ...open, admission_room: 2 } })).outcome, "admitted");
       const raced = fakeGitHub({ racers: [entered(8, AGENT_READY, 1), entered(9, DEFERRED, 2)] });
       assert.equal((await go(raced, { status: { ...open, admission_room: 2 } })).outcome, "deferred");
-      assert.deepEqual(writes(raced.calls), [STATUS("deferred")], "the claim the race keeps is the one write");
+      assert.deepEqual(writes(raced.calls), [RECORD, STATUS("deferred")], "the claim the race keeps is the one write");
       assert.equal((await go(fakeGitHub({ racers: [entered(8, DEFERRED, RACE_WINDOW_MS / 60_000 + 5)] }), { status: ROOM_ONE })).outcome, "admitted");
     });
 
     test("a racing read that fails keeps the claim and admits nothing", async () => {
-      const fake = fakeGitHub({ failOn: (method, path) => method === "GET" && path.startsWith("/repos/o/r/issues?") });
+      const fake = fakeGitHub({ failOn: (method, path) => method === "LIST" && path === `deferred,${AGENT_READY}` });
       const result = await go(fake, { status: ROOM_ONE });
       assert.equal(result.outcome, "deferred");
       assert.match(result.reasons[0], /could not be read/);
-      assert.deepEqual(writes(fake.calls), [STATUS("deferred")]);
+      assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
     });
 
     // A field that already reads deferred is set to ready and back, so the
@@ -1923,7 +1928,7 @@ describe("admit", () => {
     test("an issue already deferred claims afresh, so a racer reads its new place", async () => {
       const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: DEFERRED }, { name: "work-class: mechanical" }] }), events: [{ event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: ago(120) }] });
       assert.equal((await go(fake, { status: ROOM_ONE })).outcome, "admitted");
-      assert.deepEqual(writes(fake.calls), [`DELETE /repos/o/r/issues/7/labels/${DEFERRED} undefined`, STATUS("ready"), ...CLAIMED]);
+      assert.deepEqual(writes(fake.calls), [RECORD, STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY)]);
     });
 
     // The racer carries no label and no label event: it reads deferred on the
@@ -1963,7 +1968,7 @@ describe("admit", () => {
     test("admissionsSince keys each entry by its newest claim, else its first agent-ready add, in the window", async () => {
       const since = Date.parse("2026-10-30T10:00:00Z");
       const add = (name, at) => ({ event: "labeled", label: { name }, actor: { id: APP }, created_at: at });
-      const lists = { [AGENT_READY]: [{ number: 3 }, { number: 4, pull_request: {} }, { number: 8 }], [DEFERRED]: [{ number: 2 }, { number: 3 }, { number: 5 }, { number: 6 }, { number: 7 }] };
+      const listed = [{ number: 2 }, { number: 3 }, { number: 4, pull_request: {} }, { number: 5 }, { number: 6 }, { number: 7 }, { number: 8 }];
       const events = {
         2: [add(DEFERRED, "2026-10-30T10:02:00Z")],
         3: [add(DEFERRED, "2026-10-30T09:00:00Z"), add(DEFERRED, "2026-10-30T10:01:00Z"), add(AGENT_READY, "2026-10-30T10:03:00Z")],
@@ -1972,11 +1977,8 @@ describe("admit", () => {
         7: [],
         8: [add(DEFERRED, "2026-10-30T09:00:00Z"), add(AGENT_READY, "2026-10-30T10:04:00Z"), add(AGENT_READY, "2026-10-30T10:06:00Z")],
       };
-      const github = async (method, path) => {
-        assert.equal(new URLSearchParams(path.split("?")[1]).get("labels"), AGENT_READY, "only agent-ready is a label listing");
-        return lists[AGENT_READY];
-      };
-      const listing = { issues: async () => lists[DEFERRED], events: async (number) => events[number] };
+      const github = async (method, path) => assert.fail(`no label listing: ${method} ${path}`);
+      const listing = { issues: async () => listed, events: async (number) => events[number] };
       assert.deepEqual(await admissionsSince(github, "o/r", since, listing), [
         { number: 7, at: null },
         { number: 3, at: Date.parse("2026-10-30T10:01:00Z") },
@@ -1986,28 +1988,22 @@ describe("admit", () => {
       ]);
     });
 
-    // admit() adds agent-ready before it drops its claim, so reading the claims
-    // first leaves no gap an admission can pass through unseen.
-    test("admissionsSince sees an issue that takes agent-ready and drops its claim between its two listing reads", async () => {
+    // admit() moves the field from its claim straight to agent-ready, so one
+    // listing of both states leaves no gap an admission can pass through unseen.
+    test("admissionsSince lists an issue whose field moved from its claim to agent-ready, keyed by that claim, in one listing read", async () => {
       const since = Date.parse("2026-10-30T10:00:00Z");
       const claim = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-30T10:01:00Z" };
-      const labels = new Set([DEFERRED]);
-      const events = [claim];
+      const left = { ...claim, event: "unlabeled", created_at: "2026-10-30T10:01:01Z" };
       let listings = 0;
-      const answer = (name) => {
-        const listed = labels.has(name) ? [{ number: 8 }] : [];
-        listings += 1;
-        if (listings === 1) {
-          labels.add(AGENT_READY);
-          labels.delete(DEFERRED);
-          events.push({ ...claim, label: { name: AGENT_READY }, created_at: "2026-10-30T10:01:01Z" });
-        }
-        return listed;
+      const listing = {
+        issues: async (states) => {
+          listings += 1;
+          return states.includes(AGENT_READY) ? [{ number: 8, created_at: "2026-10-01T00:00:00Z", labels: [], state: AGENT_READY }] : [];
+        },
+        events: async () => [claim, left],
       };
-      const github = async () => answer(AGENT_READY);
-      const listing = { issues: async () => answer(DEFERRED), events: async () => [...events] };
-      assert.deepEqual(await admissionsSince(github, "o/r", since, listing), [{ number: 8, at: Date.parse("2026-10-30T10:01:00Z") }]);
-      assert.equal(listings, 2);
+      assert.deepEqual(await admissionsSince(async () => assert.fail("no label listing"), "o/r", since, listing), [{ number: 8, at: Date.parse("2026-10-30T10:01:00Z") }]);
+      assert.equal(listings, 1);
     });
 
     test("admissionsAhead counts a tie and an unread add ahead, and every other entry when its own add is unread", () => {
@@ -2120,11 +2116,11 @@ describe("admit", () => {
         return fake.github(method, `/repos/o/r/issues/7${rest}`, body);
       };
       const status = async () => {
-        const left = room - numbers.filter((n) => labels.get(n).has(AGENT_READY)).length;
+        const left = room - numbers.filter((n) => states.get(n) === AGENT_READY).length;
         return { paused: false, admission_open: left > 0, admission_room: Math.max(0, left), admission_reason: left > 0 ? null : "queued", admission_basis: "read" };
       };
       const run = (number) => admit({ github, repository: "o/r", number, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status, setStatus, listing, log: () => {} });
-      return { numbers, labels, run };
+      return { numbers, states, run };
     }
 
     // mulberry32: a seeded generator, so a failing shuffle replays.
@@ -2137,7 +2133,7 @@ describe("admit", () => {
     const burst = async (options) => {
       const world = burstGitHub(options);
       const outcomes = (await Promise.all(world.numbers.map(world.run))).map((result) => result.outcome);
-      const labeled = world.numbers.filter((n) => world.labels.get(n).has(AGENT_READY)).length;
+      const labeled = world.numbers.filter((n) => world.states.get(n) === AGENT_READY).length;
       return { outcomes, admitted: outcomes.filter((outcome) => outcome === "admitted").length, labeled };
     };
     const BURSTS = [
@@ -2229,7 +2225,7 @@ describe("admit", () => {
       const fake = fakeGitHub();
       const result = await go(fake, { status });
       assert.equal(result.outcome, "deferred");
-      assert.deepEqual(writes(fake.calls), [STATUS("deferred")]);
+      assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
     });
   }
 
@@ -2239,22 +2235,21 @@ describe("admit", () => {
     const fake = fakeGitHub();
     const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS(AGENT_READY)]);
   });
 
-  test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
+  test("a mechanical refusal sets the Work status to confirmed, writes no status label, and posts the reason", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),
     });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
-    assert.equal(done.length, 3);
+    assert.equal(done.length, 2);
     assert.equal(done[0], STATUS("confirmed"));
-    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
-    assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
-    assert.match(done[2], /no trusted-human acceptance criteria/);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+    assert.ok(done[1].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
+    assert.match(done[1], /no trusted-human acceptance criteria/);
   });
 
   // g-holds-governance-1: a split no person answers (stop reason `none`)
@@ -2268,17 +2263,17 @@ describe("admit", () => {
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
     assert.equal(done[0], STATUS("confirmed"));
     assert.ok(!done.some((call) => call.includes("stop-reason")), "a parked refusal carries no stop-reason marker");
-    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a child issue for the host queue \(`host-run`\)/);
+    assert.match(done[1], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* a child issue for the host queue \(`host-run`\)/);
   });
 
-  test("a refusal that needs a person swaps status: ready for needs-decision", async () => {
+  test("a refusal that needs a person sets the Work status to needs-owner-decision and writes no status label", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done[0], STATUS("needs-owner-decision"));
-    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+    assert.equal(done.length, 2);
   });
 
   // g-holds-governance-1: a hold names its owner reason as the stop-reason
@@ -2302,12 +2297,12 @@ describe("admit", () => {
     assert.equal(parseReason(comment.body.body), null);
   });
 
-  test("a refusal that needs a person takes a parked status: confirmed off too, after the hold", async () => {
+  test("a refusal that needs a person over a parked status: confirmed label writes only the hold to the field", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: untrusted-provenance" }] }) });
     assert.equal((await go(fake)).outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done[0], STATUS("needs-owner-decision"));
-    assert.ok(done.some((call) => call.startsWith("DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed")), done.join("\n"));
+    assert.ok(!done.some((call) => call.includes("/labels")), done.join("\n"));
   });
 
   test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
@@ -2452,8 +2447,19 @@ describe("admit", () => {
     const fake = fakeGitHub({ older: 1 });
     const result = await go(fake);
     assert.equal(result.outcome, "deferred");
-    assert.deepEqual(writes(fake.calls), [STATUS("deferred")]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
     assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")), "the deferred listing reads the Work status, not a label search");
+  });
+
+  // A re-admission anchors at its own record: reusing an older one naming the
+  // same text would freeze the run at the earlier admission and drop every
+  // comment since.
+  test("a deferral for room posts a fresh record even when an older App record names the same text", async () => {
+    const record = { id: 41, user: { id: APP }, created_at: "2026-10-21T00:00:00Z", body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) };
+    const fake = fakeGitHub({ older: 1, comments: [record] });
+    const result = await go(fake);
+    assert.equal(result.outcome, "deferred");
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
   });
 
   // work-unblock's sweep counts these blockers as decide() does, so such an
@@ -2474,7 +2480,7 @@ describe("admit", () => {
     const fake = fakeGitHub({ blockers: [blocker], closed: { 5: { ...blocker, closed_by: { id: HUMAN } } } });
     const result = await go(fake, { status: { ...open, paused: true, pause_reason: "held-cap" } });
     assert.equal(result.outcome, "deferred");
-    assert.deepEqual(writes(fake.calls), [STATUS("deferred")]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
   });
 
   test("a failed deferred listing defers rather than admits", async () => {
@@ -2490,21 +2496,19 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), []);
   });
 
-  test("a refusal or a wait takes admission-deferred off, so the sweep cannot admit it", async () => {
+  test("a refusal or a wait moves a deferred issue's Work status off deferred with no label write, so the sweep cannot admit it", async () => {
     const deferred = { name: DEFERRED };
-    for (const issue of [
-      issueOf({
-        body: "Make the README better.",
-        labels: [{ name: READY }, deferred],
-      }),
-      issueOf({ labels: [{ name: READY }, deferred] }),
+    for (const [issue, leaves] of [
+      [issueOf({ body: "Make the README better.", labels: [{ name: READY }, deferred] }), "confirmed"],
+      [issueOf({ labels: [{ name: READY }, deferred] }), "ready"],
     ]) {
       const fake = fakeGitHub({
         issue,
         blockers: [{ number: 5, state: "open" }],
       });
       await go(fake);
-      assert.ok(writes(fake.calls).includes(`DELETE /repos/o/r/issues/7/labels/${DEFERRED} undefined`));
+      assert.equal(writes(fake.calls)[0], STATUS(leaves));
+      assert.ok(!writes(fake.calls).some((line) => line.includes("/labels")), writes(fake.calls).join("\n"));
     }
   });
 });
@@ -2570,7 +2574,22 @@ describe("admit() with the Work status field", () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
     const result = await admit({ ...withStatus(fake, { 7: { state: "deferred" } }), status: async () => ({ ...open, admission_room: 1 }) });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY)]);
+  });
+
+  // An admitted issue is never admitted again: no second record, no second run.
+  test("an issue whose field reads agent-ready beside a stale status: ready label is left alone, with no record", async () => {
+    const fake = fakeGitHub();
+    const result = await admit(withStatus(fake, { 7: { state: AGENT_READY } }));
+    assert.equal(result.outcome, "skipped");
+    assert.deepEqual(writes(fake.calls), []);
+  });
+
+  test("admissionSettled reads the field's agent-ready, and a legacy label only while the field is unset", () => {
+    assert.equal(admissionSettled([READY], [], undefined, AGENT_READY), `already ${AGENT_READY}`);
+    assert.equal(admissionSettled([READY, AGENT_READY], [], undefined, "ready"), null);
+    assert.equal(admissionSettled([READY, AGENT_READY], [], undefined, null), `already ${AGENT_READY}`);
+    assert.equal(admissionSettled([READY], [], undefined, null), null);
   });
 
   test("a wait with no open pull request takes a field-only deferral back to ready", async () => {
@@ -2668,7 +2687,6 @@ describe("a merged Refs pull request after the newest decision or refinement", (
     assert.equal(fake.calls.filter((call) => call.path === "/graphql" && call.body.query.includes("fragment done on Issue")).length, 1);
     assert.deepEqual(writes(fake.calls), [
       STATUS("confirmed"),
-      `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(READY)} undefined`,
       `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(doneReason([30]))}` })}`,
     ]);
     assert.match(doneReason([30]), /#30/);

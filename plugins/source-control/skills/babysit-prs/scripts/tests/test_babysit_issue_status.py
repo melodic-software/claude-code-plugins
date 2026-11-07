@@ -135,6 +135,9 @@ def setter(actor_id: int, login: str, kind: str = "Bot") -> dict[str, Any]:
 
 
 WORK_STATUS = {"fullDatabaseId": str(FIELD)}
+# A Work status POST's answer with the field at confirmed (pr-pipeline.yaml).
+CONFIRMED_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 86380002}}]
+AGENT_READY_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 84879220}}]
 
 
 def field_event(
@@ -648,11 +651,16 @@ class TheStatusLabels(unittest.TestCase):
 
 class TheCappedClose(unittest.TestCase):
     """`capped_close` reads the field with the hold labels and, parking an
-    issue, sets the field to confirmed beside the label."""
+    issue, sets the field to confirmed and writes no status label."""
 
     def run_close(
-        self, world: World, read: Any, labels: tuple[str, ...] = ("agent-ready",)
+        self,
+        world: World,
+        read: Any,
+        labels: tuple[str, ...] = ("agent-ready",),
+        field_events: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        events = {"repository": {"issue": {"timelineItems": {"nodes": field_events or []}}}}
         reader = StubReader(issue_labels=labels)
         reader.branch = "main"  # type: ignore[attr-defined]
         main = policy.PipelineConfig(MAIN, "C2", "pr-merge", IDENTITY, None, (), None)
@@ -664,6 +672,7 @@ class TheCappedClose(unittest.TestCase):
                 ve.merge_policy, "_default_branch_config", return_value=main
             ),
             mock.patch.object(ve.merge_policy, "issue_status", side_effect=read),
+            mock.patch.object(ve.merge_policy, "_graphql", return_value=events),
         ):
             return ve.capped_close(
                 reader,
@@ -676,6 +685,7 @@ class TheCappedClose(unittest.TestCase):
 
     def parked_world(self) -> World:
         world = World()
+        world.field_rows = CONFIRMED_ROWS
         world.comments[CAPPED_ISSUE] = [
             comment(
                 f"<!-- verify-capped-close pr=40 heads={'3' * 40} attempt=1 of=1 -->\nearlier"
@@ -683,7 +693,7 @@ class TheCappedClose(unittest.TestCase):
         ]
         return world
 
-    def test_parking_sets_the_field_to_confirmed_beside_the_label(self) -> None:
+    def test_parking_sets_the_field_to_confirmed_with_no_status_label(self) -> None:
         world = self.parked_world()
         result = self.run_close(world, lambda *a: "ready")
         self.assertEqual(result["parked"], [CAPPED_ISSUE])
@@ -693,15 +703,13 @@ class TheCappedClose(unittest.TestCase):
             [
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
                 f"POST {base}/comments",
-                f"POST {base}/labels",
-                f"DELETE {base}/labels/status%3A%20ready",
                 f"POST {base}/issue-field-values",
-                f"DELETE {base}/labels/agent-ready",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
+            "the park writes the field alone, no agent-ready label removal",
         )
         self.assertEqual(
-            world.writes[4][4:],
+            world.writes[2][4:],
             [
                 "-H",
                 "X-GitHub-Api-Version: 2026-03-10",
@@ -711,6 +719,29 @@ class TheCappedClose(unittest.TestCase):
                 "issue_field_values[][value]=confirmed",
             ],
         )
+
+    def test_a_park_field_write_that_does_not_land_raises_before_the_close(
+        self,
+    ) -> None:
+        # No label stands in: a failed or drifted field write raises before
+        # agent-ready comes off or the pull request closes, so the next run
+        # retries the park.
+        for name, rows in (
+            ("failed", None),
+            ("other option", [{"issue_field_id": FIELD, "single_select_option": {"id": 86380003}}]),
+        ):
+            with self.subTest(name):
+                world = self.parked_world()
+                base = f"repos/{CAPPED_REPO}/issues/{CAPPED_ISSUE}"
+                if rows is None:
+                    world.fail_once.add(f"POST {base}/issue-field-values")
+                else:
+                    world.field_rows = rows
+                with self.assertRaises(RuntimeError) as raised:
+                    self.run_close(world, lambda *a: "ready")
+                self.assertIn("Work status not set to confirmed", str(raised.exception))
+                self.assertEqual(world.calls()[-1], f"POST {base}/issue-field-values")
+                self.assertFalse(any(a.startswith("labels[]=") for w in world.writes for a in w))
 
     def test_a_hold_set_before_the_park_keeps_the_issue_unparked(self) -> None:
         reads = iter(["ready", "needs-human"])
@@ -722,21 +753,130 @@ class TheCappedClose(unittest.TestCase):
             world.calls(),
             [
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
-                f"DELETE {base}/labels/agent-ready",
                 f"POST {base}/comments",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
-            "no park or field write over the hold; agent-ready comes off at the cap"
-            " before the record a rerun would stop at",
+            "no park, field or label write over the hold",
         )
         # Both records say the hold, neither says parked, and the issue's
         # marker names no attempt, so a rerun restarts nothing.
-        for index in (0, 2):
+        for index in (0, 1):
             body = world.body(index)
             self.assertIn("held at Work status `needs-human`", body)
             self.assertNotIn("parked at", body)
-        self.assertNotIn("parked", world.body(2).splitlines()[0])
-        self.assertNotIn("attempt=", world.body(2).splitlines()[0])
+        self.assertNotIn("parked", world.body(1).splitlines()[0])
+        self.assertNotIn("attempt=", world.body(1).splitlines()[0])
+
+    def test_a_restart_clears_then_sets_the_field_with_no_label_write(self) -> None:
+        # write-status.mjs restart: DELETE the field value, then POST
+        # agent-ready (option 84879220 in pr-pipeline.yaml).
+        world = World()
+        world.field_rows = AGENT_READY_ROWS
+        result = self.run_close(world, lambda *a: "agent-ready")
+        self.assertEqual(result["restarted"], [CAPPED_ISSUE])
+        base = f"repos/{CAPPED_REPO}/issues/{CAPPED_ISSUE}"
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
+                f"POST {base}/comments",
+                f"DELETE {base}/issue-field-values/{FIELD}",
+                f"POST {base}/issue-field-values",
+                f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
+            ],
+            "the restart goes through the field alone, no label call",
+        )
+        self.assertEqual(
+            world.writes[2][4:], ["-H", "X-GitHub-Api-Version: 2026-03-10"]
+        )
+        self.assertIn("issue_field_values[][value]=agent-ready", world.writes[3])
+
+    def test_a_restart_set_that_does_not_land_raises_before_the_close(self) -> None:
+        world = World()
+        world.field_rows = CONFIRMED_ROWS
+        with self.assertRaises(RuntimeError) as raised:
+            self.run_close(world, lambda *a: "agent-ready")
+        self.assertIn("Work status not set to agent-ready", str(raised.exception))
+        self.assertNotIn(
+            f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}", world.calls()
+        )
+
+    def restart_rerun(self) -> World:
+        # Run 1 wrote both records with an attempt and stopped before the close.
+        world = World()
+        world.field_rows = AGENT_READY_ROWS
+        world.comments[CAPPED_PR] = [
+            comment(f"<!-- verify-capped-close pr={CAPPED_PR} heads= -->")
+        ]
+        world.comments[CAPPED_ISSUE] = [
+            comment(f"<!-- verify-capped-close pr={CAPPED_PR} heads= attempt=1 of=1 -->")
+        ]
+        return world
+
+    def test_a_rerun_after_the_field_restart_landed_restarts_nothing(self) -> None:
+        world = self.restart_rerun()
+        landed = {
+            "__typename": "IssueFieldAddedEvent",
+            "createdAt": "2026-10-29T10:00:00Z",
+            "value": "agent-ready",
+            "actor": setter(LANES_ID, "melodic-automation-lanes"),
+            "issueField": WORK_STATUS,
+        }
+        self.run_close(world, lambda *a: "agent-ready", field_events=[landed])
+        self.assertEqual(
+            world.calls(),
+            [f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}"],
+            "the lanes App's agent-ready set at the record is run 1's restart: no second one",
+        )
+
+    def test_a_rerun_with_no_lanes_app_set_since_the_record_restarts(self) -> None:
+        base = f"repos/{CAPPED_REPO}/issues/{CAPPED_ISSUE}"
+        restart = [
+            f"DELETE {base}/issue-field-values/{FIELD}",
+            f"POST {base}/issue-field-values",
+            f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
+        ]
+        for name, event in (
+            ("someone else's set", ("2026-10-29T11:00:00Z", setter(HUMAN_ID, "kyle-sexton", "User"))),
+            ("the App's set before the record", ("2026-10-29T09:00:00Z", setter(LANES_ID, "melodic-automation-lanes"))),
+        ):
+            with self.subTest(name):
+                world = self.restart_rerun()
+                at, who = event
+                self.run_close(
+                    world,
+                    lambda *a: "agent-ready",
+                    field_events=[
+                        {
+                            "__typename": "IssueFieldAddedEvent",
+                            "createdAt": at,
+                            "value": "agent-ready",
+                            "actor": who,
+                            "issueField": WORK_STATUS,
+                        }
+                    ],
+                )
+                self.assertEqual(world.calls(), restart)
+
+    def test_a_rerun_restarts_nothing_once_a_person_moved_the_field(self) -> None:
+        world = self.restart_rerun()
+        self.run_close(world, lambda *a: "ready")
+        self.assertEqual(world.calls(), [f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}"])
+
+    def test_a_parked_rerun_with_the_field_confirmed_writes_nothing(self) -> None:
+        # A lingering agent-ready label does not make the park unfinished.
+        world = World()
+        world.field_rows = CONFIRMED_ROWS
+        world.comments[CAPPED_PR] = [
+            comment(f"<!-- verify-capped-close pr={CAPPED_PR} heads= -->")
+        ]
+        world.comments[CAPPED_ISSUE] = [
+            comment(
+                f"<!-- verify-capped-close pr={CAPPED_PR} heads= attempt=1 of=1 parked -->"
+            )
+        ]
+        self.run_close(world, lambda *a: "confirmed", ("agent-ready",))
+        self.assertEqual(world.calls(), [f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}"])
 
     def test_a_held_field_keeps_it_open(self) -> None:
         world = World()
@@ -761,6 +901,7 @@ class TheCappedClose(unittest.TestCase):
         ):
             with self.subTest(field=field, labels=labels):
                 world = World()
+                world.field_rows = CONFIRMED_ROWS
                 world.comments[CAPPED_PR] = [
                     comment(f"<!-- verify-capped-close pr={CAPPED_PR} heads= -->")
                 ]
@@ -795,11 +936,22 @@ class StatusGh(FakeGh):
         self.field_answer: Any = [
             {"issue_field_id": FIELD, "single_select_option": {"id": 86380005}}
         ]
+        # The PolicyIssueStatus answer for a record, or the HTTP status its
+        # read fails with.
+        self.work_status: Any = answer(None, None)
 
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[Any]:
         joined = " ".join(args)
+        if args[:2] == ["api", "graphql"] and "PolicyIssueStatus" in joined:
+            self.calls.append(list(args))
+            self.tokens.append(None)
+            if isinstance(self.work_status, int):
+                return completed(
+                    returncode=1, stderr=f"gh: Error (HTTP {self.work_status})"
+                )
+            return completed({"data": self.work_status})
         if f"contents/{policy.CONFIG_PATH}" in joined and "?ref=" not in joined:
             self.calls.append(list(args))
             self.tokens.append(None)
@@ -853,7 +1005,7 @@ class TheDemotionRecord(CheckCase):
         report = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
         self.assertEqual(len(self.creates()), 2)
         labels = [w for w in self.gh.writes() if w[3].endswith("/labels")]
-        self.assertEqual(len(labels), 2)
+        self.assertEqual(labels, [])
         self.assertEqual(len(report["errors"]), 2)
         self.assertTrue(all("Work status not set" in e for e in report["errors"]))
 
@@ -880,7 +1032,9 @@ class TheDemotionRecord(CheckCase):
             ],
         )
 
-    def test_a_failed_or_mismatched_write_adds_the_label_and_errors(self) -> None:
+    def test_a_failed_or_mismatched_write_errors_with_no_label(self) -> None:
+        # As post-merge-demotion-alert.yml: the field write that did not land
+        # is an error, and no status label stands in for it.
         for name, field_answer in (
             ("failed", 502),
             (
@@ -893,17 +1047,71 @@ class TheDemotionRecord(CheckCase):
                 self.gh.pipeline = SMALL
                 self.gh.field_answer = field_answer
                 report = self.remediate()
-                label = self.gh.writes()[-1]
-                self.assertEqual(
-                    label[3:],
-                    [
-                        f"repos/{PM_REPO}/issues/9001/labels",
-                        "-f",
-                        "labels[]=needs-human",
-                    ],
+                self.assertIn("issue-field-values", self.gh.writes()[-1][3])
+                self.assertFalse(
+                    any(
+                        a.startswith("labels[]=")
+                        for w in self.gh.writes()
+                        for a in w
+                    )
                 )
                 self.assertEqual(len(report["errors"]), 1)
                 self.assertIn("Work status not set", report["errors"][0])
+
+    def test_a_later_pass_retries_a_hold_only_while_the_field_is_unset(
+        self,
+    ) -> None:
+        # The first hold write fails; the record then exists, so a second pass
+        # over the same verdict takes the existing-record path.
+        person = setter(HUMAN_ID, "kyle-sexton", "User")
+        for name, work_status, want_hold, want_errors in (
+            ("unset", answer(None, None), True, 0),
+            ("set by a person", answer("needs-spec", person), False, 0),
+            (
+                "set by an uncounted account",
+                answer("ready", setter(3003, "drive-by", "User")),
+                False,
+                0,
+            ),
+            ("unreadable", 502, False, 1),
+        ):
+            with self.subTest(name):
+                self.setUp()
+                self.gh.pipeline = SMALL
+                self.gh.field_answer = 502
+                self.gh.merged = [identity_merge()]
+                self.all_green()
+                verdict = self.check(pinned=OTHER_SHA)
+                first = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
+                self.assertEqual(len(first["errors"]), 1)
+                create = self.creates()[-1]
+                body = next(a for a in create if a.startswith("body="))
+                self.gh.issues.append(
+                    {
+                        "number": 9001,
+                        "state": "open",
+                        "body": body.removeprefix("body="),
+                        "user": {"login": IDENTITY},
+                    }
+                )
+                self.gh.field_answer = [
+                    {"issue_field_id": FIELD, "single_select_option": {"id": 86380005}}
+                ]
+                self.gh.work_status = work_status
+                before = len(self.gh.writes())
+                report = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
+                later = self.gh.writes()[before:]
+                holds = [
+                    w for w in later if w[3] == f"repos/{PM_REPO}/issues/9001/issue-field-values"
+                ]
+                self.assertEqual(len(holds), 1 if want_hold else 0, later)
+                self.assertFalse(
+                    any(a.startswith("labels[]=") for w in later for a in w)
+                )
+                self.assertEqual(len(report["errors"]), want_errors, report["errors"])
+                if want_errors:
+                    self.assertIn("Work status", report["errors"][0])
+                self.assertEqual(report["issues"], [])
 
     def test_unconfigured_files_the_labeled_record_as_before(self) -> None:
         report = self.remediate()

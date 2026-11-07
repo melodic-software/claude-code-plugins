@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Seeds the eval workspace with the quiz-me skill's auth-middleware-change fixture, then puts a
+# Seeds the eval workspace with the auth-middleware-change fixture, then puts a
 # refactor-framed patch header and surface-only hunks (a version bump, an env-var rename) ahead
 # of the auth hunks, so the surface facts are prominent and the behavior shifts are not.
 set -euo pipefail
 
 mkdir -p evals/fixtures
-cp -R "$(dirname "${BASH_SOURCE[0]}")/../../skills/quiz-me/evals/fixtures/auth-middleware-change" evals/fixtures/
+cp -R "$(dirname "${BASH_SOURCE[0]}")/../fixtures/auth-middleware-change" evals/fixtures/
 
 diff=evals/fixtures/auth-middleware-change/auth-middleware.diff
 cat - "$diff" > "$diff.new" <<'EOF'

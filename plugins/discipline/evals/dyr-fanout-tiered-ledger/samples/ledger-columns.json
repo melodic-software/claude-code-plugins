@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Claim | Verdict | Source | Source tier | Consensus | Recency |\n|---|---|---|---|---|---|\n| free rpm | corrected | rate_limits.yaml:4 | live environment | 1 | n/a |"
+    },
+    {
+      "answer": "| Claim | Verdict | Source | Tier | Consensus count |\n|---|---|---|---|---|"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Claim | Verdict | Source |\n|---|---|---|\n| free tier rpm | corrected | rate_limits.yaml:4 |",
+      "why": "no tier or consensus; 'free tier' is not the column"
+    },
+    {
+      "answer": "Verdict: all verified; consensus reached with the team.",
+      "why": "no source tier"
+    }
+  ]
+}

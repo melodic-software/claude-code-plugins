@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The rationale still holds: issue 2851 is not fixed in 8.13.1."
+    },
+    {
+      "answer": "The ADR remains valid."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Upstream fixed it in 8.9, so bump the pin."
+    },
+    {
+      "answer": "The ADR explains the pin.",
+      "why": "no recheck"
+    }
+  ]
+}

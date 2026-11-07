@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: oa-generates-into-consumer-repo
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'adapter-written'
+    type: 'file_exists'
+    path: 'tools/work-item-tracker/adapters/redmine/common.sh'
+  - name: 'binding-written'
+    type: 'file_exists'
+    path: 'tools/work-item-tracker/conformance/bindings/redmine.sh'
+  - name: 'readme-kept'
+    type: 'regex'
+    pattern: 'Hand-written notes kept by the operations team'
+    target:
+      source: 'file'
+      path: 'tools/work-item-tracker/adapters/redmine/README.md'
+  - name: 'no-force'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '(?:^|[ \t])--force\b'
+    min: 0
+    max: 0
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:onboard-adapter did when generating the redmine adapter. PASS only if it satisfies every point: (1) Writes the adapter under the consuming repository''s tools/work-item-tracker/, never into the plugin directory; (2) Generates the conformance binding alongside the adapter; (3) Explains that adapters resolve consumer-local-first, so no fork of the plugin is needed; (4) Notes that the generated adapter needs no vendored seam because the dispatcher exports WIT_SEAM_LIB_DIR; (5) Keeps the existing README.md rather than overwriting it without --force. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

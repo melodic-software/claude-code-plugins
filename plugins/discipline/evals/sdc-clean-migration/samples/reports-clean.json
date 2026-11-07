@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The fresh-context pass came back clean: the up migration adds the nullable column and the down migration drops it."
+    },
+    {
+      "answer": "Verdict: sound. No issues found."
+    },
+    {
+      "answer": "The reviewer found nothing wrong with 0007."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is not clean: the down migration loses data."
+    },
+    {
+      "answer": "The pass found two problems: no index and no backfill."
+    },
+    {
+      "answer": "It isn't sound yet; see below."
+    }
+  ]
+}

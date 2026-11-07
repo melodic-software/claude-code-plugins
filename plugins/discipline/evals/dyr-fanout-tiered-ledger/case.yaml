@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: dyr-fanout-tiered-ledger
+context:
+  scaffold_script: scaffold.sh
+  history_file: history.jsonl
+graders:
+  - name: reads-fan-out-tier
+    type: regex
+    pattern: '"name":"(?:Read|Bash|Grep)","input":\{[^\n]*?fan-out-tier\.md'
+    target: 'trace'
+    arm: 'with-only'
+  - name: no-skill-handoff
+    type: regex
+    pattern: '"name":"Skill","input":\{[^\n]*?"skill":"(?!(?:discipline:)?do-your-research")'
+    match: 'not_contains'
+    target: 'trace'
+    arm: 'both'
+  - name: typed-inventory
+    type: regex
+    pattern: '^(?=[\s\S]*\bassumptions?\b)(?=[\s\S]*\b(?:asserted facts?|concrete specifics?|load-bearing premises?)\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: full-inventory
+    type: llm
+    criteria: 'Legacy expectation: "Enumerates a typed full inventory (not just the obviously load-bearing claims) as a checklist so coverage is provable". The earlier assistant turn made eight numbered claims (free tier 120 requests a minute, burst 10, OAuth client credentials, 24-hour tokens, refresh tokens, the pricing tiers, per-key limits, a single region) plus a plan. PASS only if the reply''s inventory covers all eight claims, each typed. FAIL if any is dropped or the inventory spot-checks a few.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: agent-dispatched
+    type: tool_used
+    tool: 'Agent'
+    min: 1
+    arm: 'both'
+  - name: blind-briefs
+    type: llm
+    criteria: 'Legacy expectation: "Fans out fresh-context (blind) subagents that verify against primary sources, not the same recall that produced the claims". Judge the Agent calls in the trace. PASS only if the subagents are briefed with the claim and the requirement (verify against the gateway files or another primary source) without the earlier reasoning or the expected answer. FAIL if no subagent is dispatched, or the briefs hand over the answer or tell the subagent to rely on memory.'
+    focus: 'trace'
+    arm: 'both'
+  - name: corrects-falsified
+    type: regex
+    pattern: '^(?=[\s\S]*(?<![\d.])60\b[^\n]{0,40}\b(?:requests|rpm|req|per minute|/min|a minute))(?=[\s\S]*(?:\b3600\b|\b3,600\b|\b1[ -]hour\b|\bone hour\b|\b60[ -]minutes?\b))(?=[\s\S]*(?<![\d,.])10,?000\b)(?=[\s\S]*?(?:\b(?:no|never (?:issues?|issued)|(?:does|do|did) not issue|(?:doesn|don|didn)[''’]t issue)[ \t]+refresh[- ]tokens?\b|\brefresh[- ]tokens?\b(?:[^\n;.]|\.(?=\w)){0,60}\b(?:false|falsified|corrected|wrong|incorrect|none issued|not issued|never issued)\b|\bISSUES_REFRESH_TOKENS\b[ =:]{1,4}False\b))'
+    flags: 'i'
+    target: 'last_message'
+  - name: ledger-columns
+    type: regex
+    pattern: '^(?=[\s\S]*\bverdict\b)(?=[\s\S]*\bsource[ -]tier\b|[\s\S]*\|[ \t]*\**tier\**[ \t]*\|)(?=[\s\S]*\bconsensus\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: ledger-per-item
+    type: llm
+    criteria: 'Legacy expectation: "Reports one ledger row per inventory item with verdict, source, source tier, and consensus count (and recency for facts that can go stale)". PASS only if the ledger has one row for each inventory item, each with a verdict, a source (or where it looked), a source tier and a consensus count, and the pricing row (a fact that can go stale) carries a recency such as the 2026-10-01 date. FAIL if a row is missing or a field is left out.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: states-depth-tiered
+    type: regex
+    pattern: '\btiered\b[^\n]{0,80}\b(?:argument|invocation|invoked|passed|requested)\b|\b(?:argument|invocation|invoked|passed|requested)\b[^\n]{0,80}\btiered\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-mutating-gh-api
+    type: regex
+    pattern: '"name":"Bash","input":\{(?:"(?!command")[^"]*":(?:"(?:[^"\\]|\\.)*"|[^,{}"]*),)*"command":"(?!(?:[^"\\]|\\.)*?(?:--method|-X)[ =]?GET\b)(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))gh[ \t]+api\b(?:[^"\\]|\\.)*?(?:[ \t](?:-f|-F|--field|--raw-field|--input)(?=[ \t=])|(?:--method|-X)[ =]?(?:POST|PATCH|PUT|DELETE)\b)'
+    match: 'not_contains'
+    target: 'trace'
+    arm: 'both'

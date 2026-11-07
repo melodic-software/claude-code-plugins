@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: il-prose-request-routes-explain
+description: "Boundary: a request for plainer words about the previous message is education:explain's lane, not a picture, so the session explains it in prose through explain and illustrate builds no record, page or diagram"
+tags: [education, illustrate, boundary, history]
+expected_outcome: "education:explain runs and the reply puts the replica-lag explanation in plain prose with no mermaid diagram, record or page."
+context:
+  history_file: history.jsonl
+execution:
+  prompt: "explain this simply, I don't get what the previous message means"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: explain-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:education:)?explain"'
+    min: 1
+    arm: with-only
+  - name: no-diagram
+    type: regex
+    pattern: '```\s*mermaid\b|\bflowchart\s+(?:TD|TB|LR|RL|BT)\b|<html\b|<!doctype\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

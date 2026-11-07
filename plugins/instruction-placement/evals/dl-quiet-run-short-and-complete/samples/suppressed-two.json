@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing moved since 2026-10-31. Suppressed: 2.",
+      "why": "count"
+    },
+    {
+      "answer": "Two low-confidence candidates were suppressed by the noise budget.",
+      "why": "word count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing moved since 2026-10-31.",
+      "why": "no suppressed count"
+    },
+    {
+      "answer": "Suppressed: 0.",
+      "why": "wrong count"
+    },
+    {
+      "answer": "The artifact carries three open findings (IP-001 to IP-003), none of them declined, and no suppression file exists. Two new candidates appear, both low-confidence and low-value, which puts them under the default noise budget.",
+      "why": "echoes the prompt's state line"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

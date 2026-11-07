@@ -111,6 +111,8 @@ class World:
         self.events: dict[int, list[dict[str, Any]]] = {PR: [], ISSUE: []}
         self.writes: list[list[str]] = []
         self.fail_once: set[str] = set()
+        # What a Work status POST answers: the issue's field value rows.
+        self.field_rows: Any = None
 
     def paginated(self, endpoint: str, label: str) -> list[dict[str, Any]]:
         number = int(endpoint.split("/issues/")[1].split("/")[0])
@@ -124,6 +126,8 @@ class World:
         if key in self.fail_once:
             self.fail_once.discard(key)
             return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+        if self.field_rows is not None and any("issue-field-values" in a for a in args):
+            return subprocess.CompletedProcess(args, 0, json.dumps(self.field_rows), "")
         return subprocess.CompletedProcess(args, 0, "{}", "")
 
     def run(

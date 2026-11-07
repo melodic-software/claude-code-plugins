@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: tr-objection-window-comment-then-moves-on
+graders:
+  - name: 'window-marker'
+    type: 'regex'
+    pattern: '<!-- work-items:objection-window until=2026-10-06T09:00:00Z -->'
+    target: 'last_message'
+  - name: 'window-text'
+    type: 'regex'
+    pattern: 'Objection window until 2026-10-06T09:00:00Z'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does for #217 with a repository objection window. PASS only if it satisfies every point: (1) Resolves triage_objection_window_hours to 24 from layer repository; (2) Posts a comment whose first line is <!-- work-items:objection-window until=2026-10-06T09:00:00Z -->; (3) The comment text says Objection window until 2026-10-06T09:00:00Z; (4) Does not wait, sleep or poll for a reply before finishing the item. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

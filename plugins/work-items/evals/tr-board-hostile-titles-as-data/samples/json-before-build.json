@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/items.json",
+            "content": "{}"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/build-board.mjs --out /tmp/b/x.html < /tmp/b/items.json"
+          }
+        }
+      ],
+      "why": "Write then build"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '{}' > /tmp/b/items.json && node /p/build-board.mjs --out /tmp/b/x.html < /tmp/b/items.json"
+          }
+        }
+      ],
+      "why": "shell-written JSON"
+    }
+  ]
+}

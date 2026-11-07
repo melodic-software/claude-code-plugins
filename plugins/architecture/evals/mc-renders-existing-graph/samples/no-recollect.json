@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-components/scripts/render-components.sh\" --graph \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\" --dialect c4-plantuml --group-by directory --root \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "renders only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --help | head -60",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the layout with --help"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,80p \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the script header"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out \"docs/architecture/dependency-graph.json\" \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-components/scripts/render-components.sh\" --graph \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\" --dialect c4-plantuml --group-by directory --root \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "re-collects the graph"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh . > /opt/eval/graph.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "re-collects to stdout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out docs/architecture/dependency-graph.json \"$(git rev-parse --show-toplevel)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs it directly"
+    }
+  ]
+}

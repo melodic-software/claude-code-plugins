@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/write.md" } }
+      ],
+      "why": "routed to write.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/organize.md" } }
+      ],
+      "why": "placement guidance only"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ra-blanket-approval-declined
+graders:
+  - name: 'declines-blanket'
+    type: 'regex'
+    pattern: '^(?=[^\n]*(?:\bblanket\b|\bapprove everything\b|\brun-level\b|\bwhole migration\b|\ball (?:four|4) (?:at once|findings at once)\b))(?=[^\n]*(?:\bnot\b|\bno\b|\bdeclin\w*|\bcan''t\b|\bcannot\b|\bwon''t\b|\bwill not\b|\bisn''t\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the realign run does with the request. PASS only if it satisfies every point: (1) Declines the blanket approval explicitly rather than proceeding quietly; (2) States why the per-item gate exists in terms of what these files do; (3) Presents one finding with source, destination, validated glob, saving, and cost; (4) Applies nothing before an acceptance of that specific finding. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

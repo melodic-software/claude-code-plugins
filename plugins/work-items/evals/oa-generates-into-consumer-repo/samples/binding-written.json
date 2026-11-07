@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "tools/work-item-tracker/conformance/bindings/redmine.sh"
+      ],
+      "why": "binding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "tools/work-item-tracker/adapters/redmine/common.sh"
+      ],
+      "why": "adapter only"
+    },
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ]
+}

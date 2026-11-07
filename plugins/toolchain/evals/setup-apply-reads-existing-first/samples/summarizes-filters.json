@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Existing config:\n- dotnet: test-cmd `dotnet test \"Cart.sln\" --no-build --filter \"Category!=Slow\"`\n- python: test-cmd `python3 -m pytest -q -m 'not integration'`\n\nProposed: no changes to either.",
+      "why": "both baselines summarized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drafted dotnet: test-cmd `dotnet test \"Cart.sln\" --no-build`. Drafted python: test-cmd `uv run pytest -x -q`.",
+      "why": "fresh drafts, the existing files unread"
+    },
+    {
+      "answer": "Existing dotnet.yaml: test-cmd `dotnet test \"Cart.sln\" --no-build --filter \"Category!=Slow\"`. Drafted python: `pytest -q`.",
+      "why": "only one file summarized"
+    }
+  ]
+}

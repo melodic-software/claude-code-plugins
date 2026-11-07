@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "chmod +x x && ./tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "direct"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls tools/work-item-tracker/adapters/tasker"
+          }
+        }
+      ],
+      "why": "lists it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/adapters/tasker/common.sh tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "reads both files, from review"
+    }
+  ]
+}

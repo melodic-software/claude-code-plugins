@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: mym-posture-points-at-sources
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?mind-your-maxims"'
+    min: 1
+    arm: 'with-only'
+  - name: posture-only
+    type: llm
+    criteria: 'Legacy expectation: "Treats a conversation-start invocation as posture-setting with nothing to audit yet". PASS only if the reply says the communication discipline is active and reports no audit findings. FAIL if it audits or reports findings.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: points-at-sources
+    type: regex
+    pattern: '^(?=[\s\S]*2403\.15115)(?=[\s\S]*\b(?:Grice|Cooperative principle)\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-maxim-definitions
+    type: llm
+    criteria: 'Legacy expectation: "Points at the cited maxim sources rather than reproducing the maxim definitions". Naming the maxims the skill covers (Quantity, Relation, Manner, Transparency, and Quality routed elsewhere) is fine. PASS only if the reply does not reproduce the definitions of the maxims (for example Grice''s wording of each maxim and its submaxims) and points at the sources instead. FAIL if it restates the definitions.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: benevolence-out-of-scope
+    type: regex
+    pattern: '\bBenevolence\b[^\n]{0,160}?\b(?:out of scope|out-of-scope|not audited|isn''t audited|excluded|exclusion|deliberately|platform|safety[- ]layer)\b|\b(?:out of scope|out-of-scope|excluded|not audited)\b[^\n]{0,80}\bBenevolence\b'
+    flags: 'i'
+    target: 'last_message'

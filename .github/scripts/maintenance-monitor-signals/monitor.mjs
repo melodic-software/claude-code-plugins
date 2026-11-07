@@ -104,9 +104,10 @@ export async function writePlan({ plan, call, repo, labels, runUrl, leaveAgentRe
   // The rolling issue's author is github-actions[bot], outside the trusted
   // list, so the issue lane never works from it: a person who wants a signal
   // worked re-files it as a new issue. A stray agent-ready still comes off
-  // before the PATCH (a 404 means it was not on the issue), and
-  // `leaveAgentReady` (write-status.mjs statusWriter) moves a Work status
-  // field still at agent-ready to needs-triage. The PATCH runs last and
+  // before the PATCH: `leaveAgentReady` (write-status.mjs statusWriter, with
+  // orUnset) sets a Work status field at agent-ready or unset to
+  // needs-triage, and a set field drops the agent-ready label as a queue
+  // label (read-status.mjs statusLabels). The PATCH runs last and
   // carries the marker, so a failed call before it leaves the old state
   // recorded and the write is retried on the next run.
   const writes = [
@@ -124,10 +125,7 @@ export async function writePlan({ plan, call, repo, labels, runUrl, leaveAgentRe
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(family, runUrl) });
       await wait();
-      await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
-        if (error.status !== 404) throw error;
-      });
-      await leaveAgentReady(number, "needs-triage");
+      await leaveAgentReady(number, "needs-triage", { orUnset: true });
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: renderBody(family, runUrl) });
       into.push(number);

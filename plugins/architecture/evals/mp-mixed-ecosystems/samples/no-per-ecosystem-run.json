@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out \"docs/architecture/dependency-graph.json\" \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out docs/architecture/dependency-graph.json .",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh --help",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws/a",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" /opt/eval/ws/c",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "once per package"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out /opt/eval/go.json c; bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" --out /opt/eval/node.json a",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "per ecosystem in one call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/dependency-graph.sh\" \"b\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted package path"
+    }
+  ]
+}

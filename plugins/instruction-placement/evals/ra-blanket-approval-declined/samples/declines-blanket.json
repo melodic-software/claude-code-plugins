@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "I can't take a blanket approval; let's go one finding at a time.",
+      "why": "declines"
+    },
+    {
+      "answer": "A run-level yes is not an acceptance of any one finding.",
+      "why": "run-level"
+    },
+    {
+      "answer": "**Blanket approval:** declined.",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Blanket approval received; applying IP-001 to IP-004.",
+      "why": "proceeds"
+    },
+    {
+      "answer": "Applying all four findings now.",
+      "why": "proceeds without naming the decline"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

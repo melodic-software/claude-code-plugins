@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: ck-malformed-config-degrades
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: warns-malformed
+    type: regex
+    pattern: 'dotnet\.yaml[^\n.;|,]{0,100}?(?<!\bnot )(?<!n''t )\b(?:malformed|invalid|unpars\w*able|not valid YAML|fail(?:s|ed)? to parse|could(?: not|n''t) be parsed|parse (?:error|failure))|(?<!\bnot )\b(?:malformed|invalid|unpars\w*able)\b(?:[^\n.;|,]|\.(?=[\w/])){0,80}?dotnet\.yaml'
+    flags: i
+    target: last_message
+  - name: overall-line
+    type: regex
+    pattern: 'Overall\W{0,8}(?:PASS|FAIL|INCOMPLETE)\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run checks dotnet in a repository whose tracked .claude/ecosystems/dotnet.yaml is invalid YAML. A dotnet tool missing from this host is an acceptable outcome of the inferred commands. It meets the legacy expectations: "Warns that the consumer `.claude/ecosystems/dotnet.yaml` is malformed rather than silently ignoring it" "Degrades to inference (rung 2) to resolve the command surface instead of hard-stopping" "Does NOT abort the run with a hard error because the consumer file is malformed".'

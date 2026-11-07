@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "One edit: +status:ready +agent-ready -needs-triage.",
+      "why": "label edit"
+    },
+    {
+      "answer": "No class label applied.\nApplied `status:ready` and `agent-ready`, removed `needs-triage` in one edit.",
+      "why": "apply verb on the agent-ready line; the class-label negation sits on another line"
+    },
+    {
+      "answer": "gh issue edit 4399 --add-label status:ready,agent-ready --remove-label needs-triage",
+      "why": "add-label command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applies needs-human: the class label is missing.",
+      "why": "human-gated"
+    },
+    {
+      "answer": "Not applying agent-ready: the C3 class label is missing, so I add needs-human.",
+      "why": "negated: the human-gated fallback"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

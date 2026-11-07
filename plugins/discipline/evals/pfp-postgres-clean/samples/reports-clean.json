@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Audit: clean. The choice was derived from the requirements."
+    },
+    {
+      "answer": "Keep Postgres: it fits both requirements."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Postgres is popular, so consider switching to MongoDB."
+    },
+    {
+      "answer": "This is not clean: nobody surveyed the field.",
+      "why": "negated"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/loop.md" } }
+      ],
+      "why": "routed to the loop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/diagnose/context/investigate.md" } }
+      ],
+      "why": "only the investigate phase"
+    }
+  ]
+}

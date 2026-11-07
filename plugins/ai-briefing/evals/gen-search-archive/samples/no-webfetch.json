@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "archives/meeting-5.md"
+          }
+        }
+      ],
+      "why": "reads the archive only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://blog.northwind.example/cloud-agents-ga",
+            "prompt": "Confirm the Cloud Agents GA announcement"
+          }
+        }
+      ],
+      "why": "fetched the matched item's source instead of searching the archive only"
+    }
+  ]
+}

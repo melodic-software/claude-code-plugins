@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Before we start the binary-search-trees workspace: what's the reason you want to understand deletion, is it for an interview, a course, or code you're writing?",
+      "why": "one mission question"
+    },
+    {
+      "answer": "",
+      "why": "empty reply lectures nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deletion has three cases. A leaf is just removed; a node with one child is replaced by it; a node with two children takes the value of its in-order successor. Why are you learning this?",
+      "why": "lectures the algorithm first"
+    },
+    {
+      "answer": "The tricky case is a node with two children. What's your goal?",
+      "why": "starts on the two-children case"
+    }
+  ]
+}

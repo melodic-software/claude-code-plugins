@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Dispatched in waves of 8 to stay clear of 529 overload errors."
+    },
+    {
+      "answer": "A wider fan-out risks server-side overload."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Dispatched in waves of 8.",
+      "why": "no risk named"
+    },
+    {
+      "answer": "Team overage costs $0.40 per 1,000 calls.",
+      "why": "overage, not overload"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: dyr-cross-repo-recommendations
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: reads-consumers
+    type: regex
+    pattern: '"name":"(?:Read|Grep|Glob)","input":\{[^\n]*?(?:\.github/workflows|lint\.yml|ci\.yml|shared-lint-action|"path":"[^"]*repos)'
+    target: 'trace'
+  - name: names-consumers
+    type: regex
+    pattern: '^(?=[\s\S]*\bbilling-api\b)(?=[\s\S]*\bweb-portal\b)'
+    target: 'last_message'
+  - name: old-new-why
+    type: llm
+    criteria: 'Legacy expectations: "Audits each pending recommendation, not only factual claims" and "Reports each recommendation as old -> new -> why, or unchanged with why, where new may be a withheld open question". PASS only if the reply audits both recommendations (the v3 pin and the cache-step default) and reports each as old -> new -> why or unchanged with why. FAIL if either recommendation is missing or restated without its why.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: pin-verified-or-withheld
+    type: llm
+    criteria: 'Legacy expectation: "Never labels the cross-repo recommendation judgment: it ends up either Basis: verified with a cited source, or withheld as an open question". The v3 pin spans several repositories, so it is consequential. PASS only if the pin recommendation ends as Basis: verified citing a source read this session (a file:line, tool output or URL), or is withheld as an open question naming the evidence that would settle it. FAIL if it is labeled Basis: judgment, or carries no outcome.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: one-outcome-each
+    type: llm
+    criteria: 'Legacy expectation: "Gives every recommendation exactly one outcome (verified, judgment, or withheld); a withheld one carries no Basis: label and names the evidence that would settle it". PASS only if each of the two recommendations has exactly one of the three outcomes, and any withheld one has no Basis: label and names the settling evidence. Basis: judgment is allowed only on a recommendation the reply treats as not consequential. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'

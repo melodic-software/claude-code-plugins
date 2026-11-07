@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Edits comment 4410 in place from the body file; 4502 is ignored.",
+      "why": "edit"
+    },
+    {
+      "answer": "Comment 4410 (yours) is updated in place. No new comment.",
+      "why": "updated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Posts a new plan comment; 4410 and 4502 stay as they are.",
+      "why": "new comment"
+    },
+    {
+      "answer": "Edits comment 4502 in place.",
+      "why": "wrong comment"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import {
 import { issueStatus } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
+import { statusLabels } from "./read-status.mjs";
 import {
   checkAppliedBySupported,
   checkConfigPath,
@@ -267,7 +268,7 @@ export async function issuesByStatus(github, repository, states, { since, config
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep, splitChild },
+  { eventName, event, prNumber, headSha, repository, github, sleep, splitChild, status },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -309,22 +310,32 @@ async function gatherFacts(
   // read now for labels-absent).
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
-    if (needed.includes("fieldValues")) {
-      // The issue's org field values: REST answers the integer field and
-      // option ids the config maps (GraphQL answers only node ids).
-      const rows = await github("GET", `/repos/${repository}/issues/${Number(issue.number)}/issue-field-values`, undefined, {
-        "X-GitHub-Api-Version": FIELD_API_VERSION,
-      });
-      if (!Array.isArray(rows)) {
-        throw new Error("the issue's field values answer is not a list");
+    // The issue's org field values: REST answers the integer field and
+    // option ids the config maps (GraphQL answers only node ids). Each read
+    // once, shared by the dimensions and the Work status.
+    let values;
+    let events;
+    const readValues = async () => {
+      if (values === undefined) {
+        const rows = await github("GET", `/repos/${repository}/issues/${Number(issue.number)}/issue-field-values`, undefined, {
+          "X-GitHub-Api-Version": FIELD_API_VERSION,
+        });
+        if (!Array.isArray(rows)) {
+          throw new Error("the issue's field values answer is not a list");
+        }
+        values = rows.map((row) => ({
+          field: row?.issue_field_id,
+          option: row?.single_select_option?.id ?? null,
+        }));
       }
-      facts.fieldValues = rows.map((row) => ({
-        field: row?.issue_field_id,
-        option: row?.single_select_option?.id ?? null,
-      }));
+      return values;
+    };
+    const readEvents = async () => (events ??= await fieldEvents(github, repository, Number(issue.number)));
+    if (needed.includes("fieldValues")) {
+      facts.fieldValues = await readValues();
     }
     if (needed.includes("fieldSetters")) {
-      facts.fieldSetters = await fieldSetters(github, repository, Number(issue.number));
+      facts.fieldSetters = settersOf(await readEvents());
     }
     if (needed.includes("splitChild")) {
       // Whether the issue is a trusted size-split sub-issue, which takes
@@ -341,6 +352,19 @@ async function gatherFacts(
         ? (await github("GET", `/repos/${repository}/issues/${Number(issue.number)}`)).labels
         : issue.labels;
       facts.labels = labels.map((label) => label.name);
+      // The trusted Work status decides the queue state, agent-ready included,
+      // as read-status.mjs statusLabels folds it in: a field-only admission
+      // matches `labels`, and a field hold matches `labels-absent`. A failed
+      // read throws rather than fall back to the labels, which could miss a hold.
+      if (status?.config) {
+        const fieldEventsRead = await readEvents();
+        const state = issueStatus(
+          { fieldValues: await readValues(), fieldEvents: fieldEventsRead, fieldEventsFull: fieldEventsRead.full === true },
+          status.config,
+          status.trustedActors,
+        );
+        facts.labels = statusLabels(state, facts.labels, status.config);
+      }
     }
   } else if (needed.includes("labels")) {
     const labels = needed.includes("freshLabels")
@@ -489,6 +513,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     return null;
   }
   const facts = await gatherFacts(neededFacts(files, request), {
+    status: { config: loadConfig(files, { configPath }).models?.["issue-status"] ?? null, trustedActors: files.trustedActors },
     splitChild: env.SPLIT_CHILD,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),

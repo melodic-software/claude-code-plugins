@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain"}}],
+      "why": "explain fired by the model"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "explain"}}],
+      "why": "unqualified skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "answered inline, no skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:illustrate"}}],
+      "why": "illustrate, not explain"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain-change"}}],
+      "why": "a longer name that only starts with explain"
+    }
+  ]
+}

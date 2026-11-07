@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The old code's claim is inherited and was never verified."
+    },
+    {
+      "answer": "It was taken on faith."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We don't actually know whether the library supports this.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "Check the library's docs."
+    }
+  ]
+}

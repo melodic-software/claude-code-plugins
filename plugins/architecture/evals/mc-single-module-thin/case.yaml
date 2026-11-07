@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: mc-single-module-thin
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: quotes-thin-yes
+    type: regex
+    pattern: '\bthin=yes\b'
+    target: last_message
+  - name: no-diagram-block
+    type: regex
+    pattern: '^(?![\s\S]*\n```[A-Za-z])[\s\S]*\nThin result: yes\.'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: no-invented-edge
+    type: regex
+    pattern: '^(?![\s\S]*\bRel\()[\s\S]*\n\| From \| To \| Kind \| Evidence \|\n\|---\|---\|---\|---\|\n(?!\|)'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: names-neighbor-rungs
+    type: regex
+    pattern: '^(?=[\s\S]*/?\barchitecture:map-landscape\b)(?=[\s\S]*/?\barchitecture:map-containers\b)(?=[\s\S]*/?\barchitecture:improve\b)'
+    target: last_message

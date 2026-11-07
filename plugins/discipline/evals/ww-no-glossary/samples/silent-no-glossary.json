@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "At 02:00 the cache is emptied. Then many requests miss the cache at once."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no glossary, so I use plain terms."
+    },
+    {
+      "answer": "## Glossary\n- Thundering herd: many requests at once."
+    }
+  ]
+}

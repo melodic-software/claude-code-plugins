@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "add \"Exports: move onto the async job queue\""
+          }
+        }
+      ],
+      "why": "files a real marker"
+    },
+    {
+      "answer": [],
+      "why": "files nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "add \"Upstream: acme/csvkit#12 parser quirk\""
+          }
+        }
+      ],
+      "why": "files the citation"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "add \"[TODO] phase 2: wire the exporter to the scheduler\""
+          }
+        }
+      ],
+      "why": "files the task list"
+    }
+  ]
+}

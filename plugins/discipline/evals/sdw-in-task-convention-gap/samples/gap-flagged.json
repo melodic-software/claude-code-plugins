@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "None does: that is a flagged gap."
+    },
+    {
+      "answer": "There is no dedicated convention for it; a candidate upstream addition."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The scripting convention in docs/standards says so.",
+      "why": "fabricated"
+    },
+    {
+      "answer": "There is no gap here.",
+      "why": "negated"
+    }
+  ]
+}

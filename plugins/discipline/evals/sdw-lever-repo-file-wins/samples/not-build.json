@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "answer: edit-by-hand"
+    },
+    {
+      "answer": "A lever would not help here."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "answer: build-a-lever"
+    }
+  ]
+}

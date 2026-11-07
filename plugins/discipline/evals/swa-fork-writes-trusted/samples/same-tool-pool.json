@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "A fork receives the main conversation's exact tool pool, write tools included."
+    },
+    {
+      "answer": "Fork tools cannot be narrowed the way a named subagent's tools field can."
+    },
+    {
+      "answer": "- Forks get the same tools as this session, including Edit, Write, and Bash.",
+      "why": "a real smoke reply"
+    },
+    {
+      "answer": "- **I can't make them safe.** The skill forbids narrowing a fork's tools.",
+      "why": "a real smoke reply (s4n)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The forks are read-only."
+    },
+    {
+      "answer": "Each fork is told to make no writes."
+    },
+    {
+      "answer": "Every fork gets only read tools, so they cannot touch your tree.",
+      "why": "the containment claim, with every and tools"
+    },
+    {
+      "answer": "Each fork gets the same read-only tools, so your tree is safe.",
+      "why": "same tools narrowed to read-only"
+    },
+    {
+      "answer": "The skill forbids giving forks write tools, so they stay read-only.",
+      "why": "forbids, but not narrowing: the containment claim"
+    }
+  ]
+}

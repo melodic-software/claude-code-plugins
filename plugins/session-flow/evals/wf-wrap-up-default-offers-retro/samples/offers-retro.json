@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before you leave:\n1. Monitor CI on the open PR.\n3. **Retrospective.** `/session-flow:retro` for substantive sessions, or `/session-flow:retro quick` if context is tight.",
+      "why": "offers the retro in the checklist"
+    },
+    {
+      "answer": "Nothing is unfinished, so no handoff.\nRun /session-flow:retro to capture what went well.",
+      "why": "the negated line does not name the retro; another line offers it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Watch CI on the PR, then you are done.",
+      "why": "no retro offered"
+    },
+    {
+      "answer": "No need to run /session-flow:retro for this one.",
+      "why": "negated"
+    },
+    {
+      "answer": "Try /session-flow:retro-lite before leaving.",
+      "why": "near miss: a different name sharing the prefix"
+    }
+  ]
+}

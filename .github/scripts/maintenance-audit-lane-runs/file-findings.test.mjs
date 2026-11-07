@@ -14,6 +14,7 @@ import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-
 import { planDigest } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 const finding = (over = {}) => ({
   slice: "D",
@@ -282,14 +283,38 @@ const store = (issues = []) => {
     }
     const issue = issues.find((i) => i.number === Number(/issues\/(\d+)/.exec(path)[1]));
     if (method === "PATCH") Object.assign(issue, body);
-    if (method === "DELETE") {
-      if (!issue.labels.includes("agent-ready")) throw Object.assign(new Error(`DELETE ${path}: HTTP 404`), { status: 404 });
-      issue.labels = issue.labels.filter((l) => l !== "agent-ready");
-    }
     return {};
   };
   return { issues, calls, call };
 };
+const ROOT = new URL("../../..", import.meta.url).pathname;
+// The org Work status field and the option ids it maps, written by hand.
+const FIELD = 48484079;
+const OPTION = { "needs-triage": 84879216, "needs-owner-decision": 84879218, "agent-ready": 84879220 };
+const HUMAN = 153232337;
+// One issue's Work status field reading `state`, last set by account `setter`,
+// behind a real statusWriter. A POST sets it as the lanes App, or throws
+// `postError`; `written` lists the states POSTed.
+function workStatus(state, setter, postError) {
+  const written = [];
+  const value = () => (state === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }]);
+  const github = async (method, path, body) => {
+    if (method === "GET" && path.endsWith("/issue-field-values")) return value();
+    if (method === "POST" && path === "/graphql") {
+      const nodes = state === null ? [] : [{ __typename: "IssueFieldAddedEvent", value: state, actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
+      return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+    }
+    if (method === "POST" && path.endsWith("/issue-field-values")) {
+      if (postError) throw postError;
+      state = body.issue_field_values[0].value;
+      written.push(state);
+      setter = 337595936;
+      return value();
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" }) };
+}
 const run = async (s, items, extra = {}) => {
   const plan = planDigest({ items, existing: s.issues, openNumbers: new Set(), ...extra });
   return writeDigest({ plan, call: s.call, repo: "o/r", labels: ["source: lane-sweep"], runUrl: "https://run/1", wait: async () => {} });
@@ -312,12 +337,12 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.deepEqual(await run(s, [b]), { ...nothing, updated: [100] });
   assert.equal(s.issues.length, 1);
   assert.deepEqual(
-    s.calls.slice(-3).map(([m, p]) => `${m} ${p}`),
-    ["POST /repos/o/r/issues/100/comments", "DELETE /repos/o/r/issues/100/labels/agent-ready", "PATCH /repos/o/r/issues/100"],
+    s.calls.slice(-2).map(([m, p]) => `${m} ${p}`),
+    ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"],
   );
-  assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
-  assert.match(s.calls.at(-3)[2].body, /New:\n\n- fix\(ci\): another/);
-  assert.match(s.calls.at(-3)[2].body, /No longer seen:\n\n- fix\(ci\): skip the dispatch/);
+  assert.ok(!s.calls.some(([m]) => m === "DELETE"), "no label DELETE: the Work status field takes agent-ready off");
+  assert.match(s.calls.at(-2)[2].body, /New:\n\n- fix\(ci\): another/);
+  assert.match(s.calls.at(-2)[2].body, /No longer seen:\n\n- fix\(ci\): skip the dispatch/);
   assert.ok(!s.issues[0].body.includes(FP), "the fixed finding dropped off");
 
   assert.deepEqual(await run(s, []), { ...nothing, updated: [100] });
@@ -329,14 +354,14 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.equal(s.issues.length, 1);
 });
 
-test("a rewrite takes agent-ready off the label and the Work status field before the PATCH", async () => {
+test("a rewrite takes agent-ready off through the Work status field before the PATCH", async () => {
   const log = [];
   const call = async (method) => (log.push(method), {});
-  const leaveAgentReady = async (number, state) => log.push(["FIELD", number, state]);
+  const leaveAgentReady = async (number, state, options) => log.push(["FIELD", number, state, options]);
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
-  assert.deepEqual(log, ["POST", "DELETE", ["FIELD", 100, "needs-triage"], "PATCH"]);
+  assert.deepEqual(log, ["POST", ["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
 });
 
 test("a rewrite whose Work status write fails leaves the PATCH for the next run", async () => {
@@ -349,7 +374,7 @@ test("a rewrite whose Work status write fails leaves the PATCH for the next run"
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
-  assert.deepEqual(log, ["POST", "DELETE"]);
+  assert.deepEqual(log, ["POST"]);
 });
 
 test("a sweep missing a unit's findings carries the earlier entries over", async () => {
@@ -365,20 +390,42 @@ test("a sweep missing a unit's findings carries the earlier entries over", async
   assert.equal(s.calls.length, before);
 });
 
-test("a failed agent-ready removal other than 404 skips the PATCH and leaves the old state to retry", async () => {
+const rewriteWith = async (s, leaveAgentReady) => {
+  const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
+  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
+  const done = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", leaveAgentReady, wait: async () => {} });
+  return { done, next: planDigest({ items, existing: s.issues, openNumbers: new Set() }).action };
+};
+
+for (const [why, state, setter, written] of [
+  ["an unset field", null, undefined, ["needs-triage"]],
+  ["a field at agent-ready", "agent-ready", HUMAN, ["needs-triage"]],
+  ["a person's needs-owner-decision", "needs-owner-decision", HUMAN, []],
+]) {
+  test(`a rewrite with ${why} writes Work status ${written.join() || "nothing"} and deletes no label`, async () => {
+    const s = store();
+    await run(s, [{ fingerprint: FP, finding: finding() }]);
+    s.issues[0].labels.push("agent-ready");
+    const f = workStatus(state, setter);
+    const { done } = await rewriteWith(s, (await f.writer()).leaveAgentReady);
+    assert.deepEqual(done, { ...nothing, updated: [100] });
+    assert.deepEqual(f.written, written);
+    assert.ok(!s.calls.some(([m]) => m === "DELETE"), "agent-ready comes off through the field, never a label DELETE");
+  });
+}
+
+test("a rewrite whose Work status write fails reports it and leaves the old state to retry", async () => {
   const s = store();
   await run(s, [{ fingerprint: FP, finding: finding() }]);
   const old = s.issues[0].body;
-  const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
-  const failing = async (method, path, body) => {
-    if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
-    return s.call(method, path, body);
-  };
-  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
-  const result = await writeDigest({ plan, call: failing, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.deepEqual(result.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
+  const f = workStatus(null, undefined, new Error("HTTP 500"));
+  const { done, next } = await rewriteWith(s, (await f.writer()).leaveAgentReady);
+  assert.deepEqual(done.updated, []);
+  assert.equal(done.failed.length, 1);
+  assert.equal(done.failed[0].target, "#100");
+  assert.match(done.failed[0].error, /^#100's Work status field was not set to `needs-triage`: HTTP 500/);
   assert.equal(s.issues[0].body, old);
-  assert.equal(planDigest({ items, existing: s.issues, openNumbers: new Set() }).action, "update");
+  assert.equal(next, "update");
 });
 
 test("a failed filing is recorded", async () => {
@@ -417,5 +464,5 @@ test("a budget spent mid-rewrite stops before the PATCH and reports the failure"
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
   assert.deepEqual(done.failed, [{ target: "#100", error: "call budget of 1 reached" }]);
-  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no DELETE, no PATCH");
+  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no PATCH");
 });

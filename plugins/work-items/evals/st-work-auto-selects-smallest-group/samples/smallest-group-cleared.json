@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "def export(ledger):\n    return list(ledger.rows())\n",
+      "why": "marker removed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def export(ledger):\n    # TODO: move exports onto the platform async job queue\n    return list(ledger.rows())\n",
+      "why": "marker kept"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: me-name-resolution
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: short-name-resolved
+    type: regex
+    pattern: '\{"from"\s*:\s*"src/Orders/OrderService\.cs"\s*,\s*"to"\s*:\s*"Contracts\.OrderPlaced"\s*,\s*"kind"\s*:\s*"publish"\s*,\s*"resolution"\s*:\s*"static"'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: dotted-name-resolved
+    type: regex
+    pattern: '\{"from"\s*:\s*"src/Shop/Publisher\.cs"\s*,\s*"to"\s*:\s*"Shop\.Contracts\.InvoiceIssued"\s*,\s*"kind"\s*:\s*"publish"\s*,\s*"resolution"\s*:\s*"static"'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: undeclared-dotted-unresolved
+    type: regex
+    pattern: '^(?![\s\S]*"orphan-publisher"[^\n]*Vendor)(?![\s\S]*"id"\s*:\s*"Vendor\.)[\s\S]*"kind"\s*:\s*"unresolved"[^\n]*Vendor\.Sdk\.Ping[^\n]*src/Shop/Publisher\.cs:11'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: messages-are-contracts
+    type: regex
+    pattern: '^(?![\s\S]*"kind"\s*:\s*"orphan-)(?![\s\S]*"id"\s*:\s*"[^"]*(?:OrderPlacedConsumer|InvoiceIssuedConsumer|InventoryReport|Startup|OrderService|Publisher)")[\s\S]*"messages"\s*:\s*\['
+    target: { source: file, path: docs/architecture/events.json }

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Pilot: convert the first fixture by hand, run the codemod on a clean copy, and diff."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the codemod over all 22 fixtures.",
+      "why": "no pilot"
+    }
+  ]
+}

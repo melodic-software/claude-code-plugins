@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "TaskCreate",
+          "input": {
+            "subject": "x"
+          }
+        }
+      ],
+      "why": "a task-list tool, not a subagent"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Task",
+          "input": {
+            "description": "recheck",
+            "prompt": "fetch the docs"
+          }
+        }
+      ],
+      "why": "the older subagent tool name"
+    }
+  ]
+}

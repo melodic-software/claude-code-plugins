@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: tr-sweep-keeps-secret-gated-item
+graders:
+  - name: 'count-line'
+    type: 'regex'
+    pattern: '\b0[ \t]+of[ \t]+1\b'
+    target: 'last_message'
+  - name: 'names-attend-queue'
+    type: 'regex'
+    pattern: '/work-items:attend-queue\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage sweep does. PASS only if it satisfies every point: (1) Keeps needs-human on #650 because it needs a secret only a person holds; (2) Does not treat the RECOMMENDED comment as enough to clear the label; (3) States a count of 0 and makes no comment or label change; (4) Names /work-items:attend-queue as where #650 is worked. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

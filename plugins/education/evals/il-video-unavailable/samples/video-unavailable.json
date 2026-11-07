@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# How a hash map handles collisions\n\n...record...\n\nThe video view is unavailable because the explainer-video plugin is not installed.",
+      "why": "the documented line"
+    },
+    {
+      "answer": "Record above. Video: not available here, since explainer-video isn't installed in this session.",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# How a hash map handles collisions\n\n...record...",
+      "why": "silent on the video"
+    },
+    {
+      "answer": "A video view is unavailable in this run.",
+      "why": "no reason given"
+    },
+    {
+      "answer": "I can't make a video right now, but the record is above.\nThe explainer-video plugin would narrate it.",
+      "why": "unavailability and plugin on different lines, no not-installed reason"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

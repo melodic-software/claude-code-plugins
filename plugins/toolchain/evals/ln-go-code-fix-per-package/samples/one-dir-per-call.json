@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "go code-fix pkg/a/a.go\ngo code-fix pkg/b/b.go\n",
+      "why": "split by directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go code-fix pkg/a/a.go pkg/b/b.go\n",
+      "why": "both directories in one process"
+    }
+  ]
+}

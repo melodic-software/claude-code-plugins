@@ -478,19 +478,19 @@ describe("applyRefinement", () => {
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-    assert.equal(done[0], `STATUS #7 "needs-triage"`);
-    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed undefined");
-    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
-    assert.equal(done.length, 3);
+    assert.equal(done[0], `STATUS #7 "needs-triage"`, "the field write alone lifts status: confirmed");
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 2, done.join("\n"));
   });
 
-  test("a refinement with open questions replaces a parked status: confirmed with needs-decision, hold first", async () => {
+  test("a refinement with open questions replaces a parked status: confirmed with the needs-decision field alone", async () => {
     const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
     assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
     assert.deepEqual(
-      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${body?.labels ? ` ${body.labels}` : ""}`),
-      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+      ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+      "no status label is taken off",
     );
   });
 
@@ -513,22 +513,22 @@ describe("applyRefinement", () => {
     const result = await apply(fake, INEXACT);
     assert.equal(result.redispatch, false);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-    assert.equal(done[0], "DELETE /repos/o/r/issues/7/labels/status%3A%20ready undefined");
-    assert.equal(done[1], `STATUS #7 "needs-owner-decision"`);
-    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments .*RECOMMENDED:/, "the marker comment goes last");
+    assert.equal(done[0], `STATUS #7 "needs-owner-decision"`, "the field write alone moves the issue off status: ready");
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*RECOMMENDED:/, "the marker comment goes last");
+    assert.equal(done.length, 2, done.join("\n"));
     for (const call of done) {
       assert.ok(!call.includes("agent-ready") && !call.includes('"needs-human"'), call);
     }
   });
 
   // The Work status field hides stale queue labels from the field-first
-  // names, so the issue's own labels decide what comes off.
-  test("an inexact refinement removes stale status: ready and status: confirmed labels the field hides", async () => {
+  // names (read-status.mjs statusLabels), so none is taken off.
+  test("an inexact refinement leaves stale status: ready and status: confirmed labels the field hides", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "status: confirmed" }] }), comments: [laneComment()], events: [], fields: onField(HUMAN, "needs-triage") });
     assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
     assert.deepEqual(
-      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
-      ["DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "STATUS #7", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+      ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
     );
   });
 
@@ -542,6 +542,26 @@ describe("applyRefinement", () => {
       const app = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], fields: onField(APP, state) });
       await apply(app, INEXACT);
       assert.ok(writes(app.calls).some((call) => call.method === "STATUS" && call.body === "needs-owner-decision"), `${state}: ${JSON.stringify(writes(app.calls))}`);
+    }
+  });
+
+  // With the field unset, a stale status: ready would win once the person
+  // lifts the needs-info label; the App's field write hides it, and the label
+  // still holds on top.
+  test("an inexact refinement writes needs-decision under a person's label-only needs-info over an unset field", async () => {
+    for (const fields of [{}, undefined]) {
+      const fake = fakeGitHub({
+        issue: issueOf({ labels: [{ name: "status: ready" }, { name: "status: needs-info" }] }),
+        comments: [laneComment()],
+        events: [{ event: "labeled", label: { name: "status: needs-info" }, actor: { id: HUMAN } }],
+        fields,
+      });
+      assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+        ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+        fields ? "reader with no field state" : "no reader",
+      );
     }
   });
 
@@ -886,12 +906,12 @@ describe("split", () => {
       assert.equal(foreign.refine, false);
     });
 
-    test("the split lifts status: confirmed and asks for re-triage", async () => {
+    test("the split lifts status: confirmed through the field alone and asks for re-triage", async () => {
       const fake = fakeGitHub({ issue: parked(), comments: heldComments, events: [] });
       assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });
       assert.deepEqual(
-        writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
-        ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+        writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+        ["STATUS #7 needs-triage", "POST /repos/o/r/issues/7/comments"],
       );
     });
   });

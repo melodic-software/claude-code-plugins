@@ -17,6 +17,7 @@ import {
   fileReleaseHandoffs,
   handoffMarker,
   holdPathBranch,
+  KEY,
   loadHoldPaths,
   marksDone,
   netRawDiff,
@@ -157,6 +158,84 @@ test("a refusal names the field and index, never the plan's value", () => {
     () => checkRawLog(`:100644 100644 1 2 M\tplugins/hooks-kit/a\n:100644 100644 1 2 M\t${SECRET}`, "hooks-kit", 3),
     (e) => /branches\[3\] raw line 2/.test(e.message) && !e.message.includes(SECRET),
   );
+});
+
+test("a malformed key or plugin names the part that failed and none of its text", () => {
+  const LEAK = "sk-ant-test\n::set-output name=a::b";
+  const refuse = (key) => () => validatePlan(plan({ handoffs: [{ key, title: "t", body: "b" }] }), ctx);
+  const cases = [
+    [`changelog:2.1.299..2.1.299:adopt:${LEAK}`, "does not start with changelog:2.1.300..2.1.300:"],
+    [`changelog:2.1.300..2.1.300:Adopt-${LEAK}:x`, "has a lens that is empty or has characters outside [a-z-]"],
+    ["changelog:2.1.300..2.1.300::x", "has a lens that is empty or has characters outside [a-z-]"],
+    ["changelog:2.1.300..2.1.300:adopt:", "has an empty surface"],
+    ["changelog:2.1.300..2.1.300:adopt", "has an empty surface"],
+    [`changelog:2.1.300..2.1.300:adopt:${"s".repeat(201)}`, "has a surface over 200 characters"],
+    [`changelog:2.1.300..2.1.300:adopt:${LEAK}`, "has a surface with characters outside [A-Za-z0-9_./-]"],
+  ];
+  for (const [key, part] of cases) {
+    assert.throws(refuse(key), { message: `ci-plan.json: handoffs[0].key ${part} (${key.length} characters)` }, part);
+  }
+  assert.throws(refuse(undefined), { message: "ci-plan.json: handoffs[0].key is not a string" });
+  const plugins = [
+    [`Hooks ${LEAK}`, "does not start with [a-z0-9]"],
+    [`hooks-${LEAK}`, "has characters outside [a-z0-9-]"],
+    ["h".repeat(65), "is over 64 characters"],
+  ];
+  for (const [name, part] of plugins) {
+    const p = plan();
+    p.branches[0].plugin = name;
+    assert.throws(() => validatePlan(p, ctx), { message: `ci-plan.json: branches[0].plugin ${part} (${name.length} characters)` }, part);
+  }
+  const blank = plan();
+  blank.branches[0].plugin = "";
+  assert.throws(() => validatePlan(blank, ctx), { message: "ci-plan.json: branches[0].plugin is empty" });
+});
+
+test("the scan job's error line names the failed key part and prints no model text", () => {
+  const dir = mkdtempSync(join(tmpdir(), "upstream-apply-changelog-key-"));
+  try {
+    const key = "changelog:2.1.300..2.1.300:adopt:sk-ant-test\n::set-output name=a::b%0A";
+    writeFileSync(join(dir, "plan.json"), JSON.stringify(plan({ handoffs: [{ key, title: "t", body: "b" }] })));
+    const run = () =>
+      execFileSync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "scan"], {
+        env: { PATH: process.env.PATH, IN: dir, RELEASE: "2.1.300", BASE_SHA: BASE, REPO_DIR: dir },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    assert.throws(run, (e) => {
+      assert.equal(e.stdout, `::error::ci-plan.json: handoffs[0].key has a surface with characters outside [A-Za-z0-9_./-] (${key.length} characters)\n`);
+      assert.ok(!e.stdout.includes("sk-ant-test") && !e.stdout.includes("::set-output") && !e.stderr.includes("sk-ant-test"), "no key text reaches the log");
+      return true;
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ci-mode.md states the key grammar the validator enforces, with a valid example", () => {
+  const doc = readFileSync(new URL("../../../plugins/harness-ops/skills/changelog/context/ci-mode.md", import.meta.url), "utf8").replace(/\s+/g, " ");
+  const stated = [...doc.matchAll(/`(\^changelog:[^`]*)`/g)].map((m) => m[1]);
+  assert.deepEqual(stated, [KEY.source], "ci-mode.md states the key grammar once, equal to KEY");
+  assert.match(doc, /both sides of `\.\.` are the release being applied/, "ci-mode.md says the release fills both sides of ..");
+  const example = /for example `(changelog:[^`]+)`/.exec(doc)?.[1] ?? "";
+  const release = /^changelog:([0-9.]+)\.\./.exec(example)?.[1];
+  assert.equal(validatePlan(plan({ range: `${release}..${release}`, branches: [], handoffs: [{ key: example, title: "t", body: "b" }] }), { release, baseSha: BASE }).handoffs[0].key, example, "the example key passes the validator");
+});
+
+test("ci-mode.md keys native drift per item: its example passes, and two items on one surface keep distinct keys", () => {
+  const doc = readFileSync(new URL("../../../plugins/harness-ops/skills/changelog/context/ci-mode.md", import.meta.url), "utf8").replace(/\s+/g, " ");
+  const [, drift, example] = /drift key `(native-drift:[^`]+)` gives `(changelog:[^`]+)`/.exec(doc) ?? [];
+  assert.equal(drift, "native-drift:recheck:code-review:review:code-reviewer@agent", "ci-mode.md gives a native-drift example");
+  assert.equal(example, "changelog:2.1.319..2.1.319:native-drift:recheck/code-review/review-code-reviewer-agent");
+  // The stated rule: <kind>/<surface>/<component>, each character outside [A-Za-z0-9_./-] made `-`.
+  const planKey = (kind, surface, component) => `changelog:2.1.300..2.1.300:native-drift:${`${kind}/${surface}/${component}`.replace(/[^A-Za-z0-9_./-]/g, "-")}`;
+  const keys = [planKey("candidate", "code-review", "review:code-reviewer@agent"), planKey("candidate", "code-review", "code-tidying:simplify")];
+  assert.deepEqual(keys, [
+    "changelog:2.1.300..2.1.300:native-drift:candidate/code-review/review-code-reviewer-agent",
+    "changelog:2.1.300..2.1.300:native-drift:candidate/code-review/code-tidying-simplify",
+  ]);
+  const handoffs = keys.map((key) => ({ key, kind: "native-drift", title: "t", body: "b" }));
+  assert.equal(validatePlan(plan({ handoffs }), ctx).handoffs.length, 2, "both keys pass and neither repeats the other");
 });
 
 test("the publish text holds every pull request and issue string publish can post, decoded", async () => {

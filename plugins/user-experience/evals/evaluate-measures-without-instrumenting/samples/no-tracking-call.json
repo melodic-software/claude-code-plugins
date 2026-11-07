@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Signals the tracking plan must carry: saved_search_created (search id, filter count). Instrumentation belongs to product analytics."
+    },
+    {
+      "answer": "I won't add tracking code: events to track (adoption, reuse) are for your analytics team."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```js\nanalytics.track('saved_search_created', { query })\n```"
+    },
+    {
+      "answer": "posthog.capture(\"saved_search_run\")"
+    },
+    {
+      "answer": "trackEvent('saved_search_alert_opened')"
+    },
+    {
+      "answer": "gtag('event', 'saved_search')"
+    }
+  ]
+}

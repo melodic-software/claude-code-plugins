@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/evals/fixtures/auth-middleware-change/auth-middleware.diff"}}, {"tool": "Agent", "input": {"description": "Verify quiz answer key", "prompt": "Read only the report below and the diff at evals/fixtures/auth-middleware-change/auth-middleware.diff, then answer each quiz question."}}],
+      "why": "fresh-context key pass dispatched"
+    },
+    {
+      "answer": [{"tool": "Agent", "input": {"description": "Fresh-context answer-key pass", "prompt": "You see only this report and the diff. Derive the correct choice for each question."}}],
+      "why": "answer-key wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/evals/fixtures/auth-middleware-change/auth-middleware.diff"}}],
+      "why": "key authored inline, no fresh pass"
+    },
+    {
+      "answer": [{"tool": "Agent", "input": {"subagent_type": "Explore", "description": "Read the diff", "prompt": "Summarize what evals/fixtures/auth-middleware-change/auth-middleware.diff changes."}}],
+      "why": "an exploration dispatch, not the key pass"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

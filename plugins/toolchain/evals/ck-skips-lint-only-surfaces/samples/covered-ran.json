@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "bash check scripts/deploy.sh\nmarkdown check README.md\n",
+      "why": "both covered ecosystems"
+    },
+    {
+      "answer": "markdown check README.md\nbash check scripts/deploy.sh tools/run.sh\n",
+      "why": "other order, all files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "bash check scripts/deploy.sh\n",
+      "why": "markdown never ran"
+    }
+  ]
+}

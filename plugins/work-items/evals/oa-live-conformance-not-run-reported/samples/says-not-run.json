@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Live conformance was not run: there is no throwaway instance to point it at.",
+      "why": "not run"
+    },
+    {
+      "answer": "I didn't run the conformance suite, since it needs a throwaway target.",
+      "why": "didn't run"
+    },
+    {
+      "answer": "The conformance suite has not been run against a live instance yet.",
+      "why": "has not been run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The adapter is ready and the conformance suite passed.",
+      "why": "claims a pass"
+    },
+    {
+      "answer": "Generated 12 files; common.test.sh passes.",
+      "why": "silent on conformance"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

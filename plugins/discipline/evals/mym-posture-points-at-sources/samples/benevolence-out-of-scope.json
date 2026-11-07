@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Benevolence is deliberately out of scope: it is platform and safety-layer territory."
+    },
+    {
+      "answer": "Out of scope: Benevolence (a platform concern, not communication drift)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Axes: Quantity, Relation, Manner, Transparency, Benevolence.",
+      "why": "listed as audited"
+    },
+    {
+      "answer": "Some things are out of scope.",
+      "why": "Benevolence not named"
+    }
+  ]
+}

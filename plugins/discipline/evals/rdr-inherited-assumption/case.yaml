@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: rdr-inherited-assumption
+graders:
+  - name: inherited-framing
+    type: regex
+    pattern: '\b(?:inherit\w*|on faith|unverified|untested|unchecked|never (?:verified|checked|tested|questioned|confirmed)|taken for granted|took (?:it )?for granted|precedent)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-do-your-research
+    type: regex
+    pattern: '\bdo-your-research\b|\bdo[- ]your[- ]research\b[`''"*)]*(?:''s)?[ \t]+(?:skill|corrector)\b|\b(?:skill|corrector)\b[ \t]+[`''"*(]*/?do[- ]your[- ]research\b'
+    flags: 'i'
+    target: last_message
+  - name: incumbency-axis
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Frames the issue as an inherited, unquestioned assumption rather than only a missing external fact", "Challenges the ''the old code assumed it'' basis instead of reciting it" and "Distinguishes its incumbency axis from do-your-research''s external-evidence axis (may hand off the lookup)".'
+    focus: last_message

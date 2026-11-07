@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "WARN, not a FAIL: the check keeps going."
+    },
+    {
+      "answer": "One WARN row; everything else PASS."
+    },
+    {
+      "answer": "Summary: 1 WARN, 0 FAIL."
+    },
+    {
+      "answer": "No FAIL rows."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL docs/conventions/discipline.yaml: lever_scope=always"
+    },
+    {
+      "answer": "| lever_scope | FAIL |"
+    }
+  ]
+}

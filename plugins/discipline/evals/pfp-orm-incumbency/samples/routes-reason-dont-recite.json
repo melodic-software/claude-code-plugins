@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "The broader inherited-design challenge is /discipline:reason-dont-recite's."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reason about it before you recite the docs.",
+      "why": "not the skill"
+    }
+  ]
+}

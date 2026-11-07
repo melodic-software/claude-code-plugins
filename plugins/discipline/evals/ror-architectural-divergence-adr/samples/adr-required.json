@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Record the decision in an ADR."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Note the reason in the commit message."
+    }
+  ]
+}

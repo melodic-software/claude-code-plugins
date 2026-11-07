@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "set-dimensions.sh 523 size=huge complexity=plain uncertainty=settled",
+      "why": "split size"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "size=long fits thirty doc edits.",
+      "why": "fits a size"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

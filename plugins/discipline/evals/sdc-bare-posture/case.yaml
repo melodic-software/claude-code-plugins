@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: sdc-bare-posture
+graders:
+  - name: no-adversarial-pass
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: posture-active
+    type: regex
+    pattern: '\b(?:active|in effect|armed|engaged|on for (?:the rest of )?(?:this|the) (?:session|conversation)|for the rest of (?:this|the) (?:session|conversation)|from here on|going forward)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-fabricated-findings
+    type: llm
+    criteria: 'The skill was invoked bare at the start of a conversation, with nothing produced yet. The reply meets the legacy expectations: "Treats a no-work-yet invocation as posture-setting, not an audit"; "Does not manufacture findings or spawn an adversarial pass when there is nothing produced to examine"; "Acknowledges the discipline as active for the rest of the session". It fails if it lists findings, critiques imagined work, or asks for something to audit without acknowledging the posture.'
+    focus: last_message

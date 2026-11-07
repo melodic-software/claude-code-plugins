@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify wave 1",
+            "prompt": "Verify these claims against the gateway files."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/gateway/docs/pricing.md"
+          }
+        }
+      ],
+      "why": "no fan-out"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
-description: "In-progress deepen, carry-on path. The case runs single-turn, so the earlier exchange is quoted after the command and the shallow write-up it produced is seeded on disk. The feedback keeps the goal and scope, so the reply answers the four depth questions, redoes the write-up from the raw log rather than the digest, and reports what an outside check showed, without waiting. The no-plugin arm also redoes the work from the raw log when told it is too shallow, so the outcome lines (reads-raw-log, rewrites-write-up, names-the-cause, does-not-stall, reports-check-result) guard against regression; depth-pass is the line the skill moves."
-tags: [discipline, be-ambitious, outcome, in-progress]
+description: "Legacy be-ambitious 6. In-progress deepen, carry-on path. The case runs single-turn, so the earlier exchange is quoted after the command and the shallow write-up it produced is seeded on disk. The feedback keeps the goal and scope, so the reply answers the four depth questions, shows the rewritten brief (shows-rewritten-brief, llm; SKILL.md lines 117-118), redoes the write-up from the raw log rather than the digest, and reports what an outside check showed, without waiting. The no-plugin arm also redoes the work from the raw log when told it is too shallow, so the outcome lines (reads-raw-log, rewrites-write-up, names-the-cause, does-not-stall, reports-check-result) guard against regression; depth-pass and shows-rewritten-brief are the lines the skill moves. Needs --scaffold --allow-tools Bash Write Edit."
+tags: [discipline, be-ambitious, outcome, in-progress, no-network]
 runs: 3
 max_turns: 40
 timeout_seconds: 1200

@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ln-go-fix-filters-non-go
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: fixed-go-file
+    type: regex
+    pattern: '^go fix\b[^\n]*\bpkg/a\.go\b'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: no-module-files
+    type: regex
+    pattern: '^go (?:code-)?fix\b[^\n]*(?<![\w/.-])go\.(?:mod|sum)\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:lint --fix go` with pkg/a.go, go.mod and go.sum changed; the tracked go.yaml routes fix-cmd through tools/run.sh. It meets the legacy expectations: "When substituting <files> into Go fix-cmd (gofmt -w), drops every non-.go path from the ecosystem-scoped list" "Does not pass go.mod or go.sum to gofmt (gofmt exits 2 on module metadata)". Here the fix-cmd stands in for gofmt.'

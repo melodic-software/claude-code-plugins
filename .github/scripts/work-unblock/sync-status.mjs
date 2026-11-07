@@ -3,9 +3,11 @@
 // label's absence never resets the field.
 //
 // - `labeled` with a queue-state label (ready, confirmed, deferred,
-//   needs-triage) or agent-ready: writes that label's state, unless the
-//   field's trusted state is a hold (read-status.mjs HOLD_STATES), since a
-//   label never releases a hold, or is that state already.
+//   needs-triage): writes that label's state, unless the field's trusted
+//   state is a hold (read-status.mjs HOLD_STATES), since a label never
+//   releases a hold, or is that state already.
+// - `labeled agent-ready`: writes nothing. The App's agent-ready write would
+//   start a run with no admission record; a person sets the field directly.
 // - `labeled` with a hold label: writes nothing. The reader adds hold labels
 //   on top of the field, and a hold the App wrote would read as the App's.
 // - `unlabeled agent-ready`: a person stopping the lane. Writes confirmed,
@@ -48,6 +50,9 @@ export function translateLabel(event, config) {
     return { why: "not a status label" };
   }
   if (event.action === "labeled") {
+    if (state === AGENT_READY) {
+      return { why: "agent-ready, which a person sets on the Work status field itself" };
+    }
     return HOLD_STATES.includes(state) ? { why: "a hold label, which the reader adds on top of the field" } : { set: state };
   }
   if (event.action === "unlabeled" && state === AGENT_READY) {

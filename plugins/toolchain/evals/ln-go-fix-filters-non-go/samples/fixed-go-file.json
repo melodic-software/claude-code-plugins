@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "go fix pkg/a.go\n",
+      "why": "only the source file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go check pkg/a.go\n",
+      "why": "ran check, not fix"
+    },
+    {
+      "answer": "go fix pkg/ab.go.bak\n",
+      "why": "another file"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: mg-split-by-where-it-belongs
+graders:
+  - name: 'commit-rule-to-rules'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bcommit)(?=[^\n]*\.claude/rules/)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'runbook-to-docs-home'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\b(?:runbook|release)\b)(?=[^\n]*\bhandbook/[\w./-]*\w\.md\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the migrate run does with the three sections. PASS only if it satisfies every point: (1) Keeps every-conversation content in the root AGENTS.md; (2) Routes the sometimes-relevant runbook to the repository''s existing docs home behind a pointer, not into AGENTS.md; (3) Routes the Claude-specific section to .claude/rules/ with a validated paths: glob or a stated always-relevant reason; (4) Uses the detected docs home rather than imposing a new path. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

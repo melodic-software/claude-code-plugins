@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "WARN docs/conventions/discipline.yaml: lever_scope=always is not one of deterministic, non-trivial"
+    },
+    {
+      "answer": "| lever_scope | WARN | docs/conventions/discipline.yaml sets `always` |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "WARN: lever_scope is invalid.\nThe file docs/conventions/discipline.yaml sets always."
+    },
+    {
+      "answer": "FAIL docs/conventions/discipline.yaml: lever_scope=always"
+    }
+  ]
+}

@@ -9,6 +9,8 @@
 # test-scope: plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py plugins/source-control/skills/babysit-prs/scripts/babysit-python.sh plugins/source-control/skills/babysit-prs/scripts/engine-run.sh ruff.toml
 # test-scope: plugins/*/hooks/* docs/conventions/source-control.yaml docs/conventions/pr-pipeline.yaml .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/check-trusted-trigger/check-trusted-trigger.mjs .github/scripts/pr-merge/carry-run-cache.mjs .github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/rotation.mjs .github/scripts/pr-verify/resolve-pr.mjs plugins/source-control/lib/parse-concern-value.sh plugins/source-control/lib/yaml-subset.awk plugins/source-control/skills/babysit-loop/scripts/*.mjs plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/*/*.json plugins/work-items/reference/escalation-marker.md
+# test-scope: .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/* scripts/sync-hold-floor.py
+# test-scope: lib/parse-concern-value.sh lib/prerequisites.mjs lib/publish-gate.mjs lib/yaml-subset.awk plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
 set -uo pipefail
 
 # Resolve before the cd: BASH_SOURCE is the path as invoked, so re-deriving it

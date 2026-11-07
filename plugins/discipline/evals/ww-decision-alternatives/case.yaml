@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ww-decision-alternatives
+context:
+  history_file: history.jsonl
+graders:
+  - name: decision-named
+    type: regex
+    pattern: '\bstream(?:ing|s|ed)?\b'
+    flags: 'i'
+    target: last_message
+  - name: alternatives-named
+    type: regex
+    pattern: '(?=[\s\S]*\b(?:raise[sd]?|raising|bump\w*|increase[sd]?|increasing|higher|bigger|larger)\b[^\n]{0,60}\b(?:limit|memory)\b)(?=[\s\S]*\bchunk\w*)'
+    flags: 'i'
+    target: last_message
+  - name: context-not-restated
+    type: llm
+    criteria: 'The previous reply ended ''so we ship that'' without naming the decision or the alternatives. The re-pitch meets the legacy expectations: "Surfaces the premise / decision / skipped alternatives the reader was missing"; "Does not merely restate the opaque conclusion more confidently"; "Treats missing context as the primary repair target". It fails if it repeats the numbers and the conclusion without saying what was decided, what the alternatives were and why each was set aside.'
+    focus: last_message

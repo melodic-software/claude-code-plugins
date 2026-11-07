@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/AGENTS.md"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/hooks/run-hook.sh"}}],
+      "why": "reads the dispatcher"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/hooks/pre-commit.d/10-no-debug-prints.sh"}}],
+      "why": "reads a step script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/AGENTS.md"}}],
+      "why": "guidance only, no hook file"
+    },
+    {
+      "answer": [],
+      "why": "taught from recall"
+    }
+  ]
+}

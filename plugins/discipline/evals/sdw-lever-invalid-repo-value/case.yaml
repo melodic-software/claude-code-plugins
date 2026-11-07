@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: sdw-lever-invalid-repo-value
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: invalid-value-named
+    type: regex
+    pattern: '^(?=[\s\S]*docs/conventions/discipline\.yaml)(?=[\s\S]*\balways\b)(?=[\s\S]*\binvalid\b)'
+    flags: 'i'
+    target: last_message
+  - name: scope-default
+    type: regex
+    pattern: 'lever_scope[`*]*\s*[:=][`*\s]*deterministic[`*]*\s*\([^)\n]*\bdefault\b'
+    flags: 'i'
+    target: last_message
+  - name: not-user-value
+    type: regex
+    pattern: '^[ \t>*`-]*lever_scope[`*]*\s*[:=][`*\s]*non-trivial'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: answers-edit
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*edit-by-hand\b'
+    flags: 'i'
+    target: last_message
+  - name: completes-check
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Answers edit-by-hand with the per-component naming judgment as the reason" and "Completes the check instead of stopping on the invalid value".'
+    focus: last_message

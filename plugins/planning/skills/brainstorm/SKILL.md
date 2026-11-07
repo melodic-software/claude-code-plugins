@@ -79,7 +79,8 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
    data that locks no scope). Never write the page into the memory slice; the conversation record
    stays authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never
    hand-written; it runs the shared medium resolver and publish gate with this plugin's `medium`
-   option `${user_config.medium}`, and you print the report line it prints. Procedure and data
+   option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put a
+   `${user_config.*}` string in a shell command), and you print the report line it prints. Procedure and data
    shape: the same rendered-view reference.
 5. **Calibrate and hand off**. From the resonating candidates and the criteria, propose a scope and
    route onward: `/planning:prd` (product intent still fuzzy), `/planning:interview` (engineering

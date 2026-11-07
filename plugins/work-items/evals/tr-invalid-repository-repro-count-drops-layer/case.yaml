@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: tr-invalid-repository-repro-count-drops-layer
+graders:
+  - name: 'settings-repro'
+    type: 'regex'
+    pattern: 'triage_repro_count=`?2`?[ \t]*\(default\b'
+    target: 'last_message'
+  - name: 'names-invalid'
+    type: 'regex'
+    pattern: '\binvalid\b|\bnot[ \t]+(?:a[ \t]+)?(?:valid|whole|positive)\b|\bat least 1\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does with an invalid repository repro count. PASS only if it satisfies every point: (1) Names docs/conventions/work-items.yaml, the key triage_repro_count and the value 0 as invalid; (2) Does not stop the triage over the invalid value and goes on with the workflow; (3) Resolves triage_repro_count to the manifest default from layer default; (4) Reports the resolved value and layer default in the Settings line. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Shim removal is decided by migrate's `cutover-check`, not by this audit.",
+      "why": "argument name"
+    },
+    {
+      "answer": "Keep the @AGENTS.md shim until the cutover check says it can go.",
+      "why": "spaced form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You can delete the shim once Claude Code reads AGENTS.md natively.",
+      "why": "removal with no gate"
+    },
+    {
+      "answer": "After the cutover, remove the shim.",
+      "why": "cutover without the check"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "lever_scope: always\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lever_scope: deterministic\n"
+    },
+    {
+      "answer": "lever_scope: always\nwritten_against: discipline@0.25.1\n"
+    }
+  ]
+}

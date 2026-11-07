@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "**Two draft slices**, one per behavior:",
+      "why": "bold"
+    },
+    {
+      "answer": "2 vertical slices: B1 (Phase 1) and B2 (Phase 2).",
+      "why": "digit"
+    },
+    {
+      "answer": "## Draft breakdown\n\n**1. Finance staff download one month's refunds as CSV**\n- Blocked by: none\n\n**2. Finance staff see the month's refund total on the export page**\n- Blocked by: #1",
+      "why": "two numbered slice headings, no count word (smoke c1d reply shape)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "One slice carries B1 and B2, since both cite AC1.",
+      "why": "near miss: merged into one"
+    },
+    {
+      "answer": "Three slices: one per layer.",
+      "why": "wrong count"
+    },
+    {
+      "answer": "**1. CSV export**\n\n**2. Export page total**\n\n**3. Shared refund query**",
+      "why": "near miss: three numbered slice headings"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

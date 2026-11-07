@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ex-original-ask-predicate
+description: "A comprehension request with a task behind it (a Postgres partial-index migration) gets a rung-1 explanation of 'predicate' aimed at unblocking that migration, shaped so the user's next prompt can use the term"
+tags: [education, explain, outcome, success-condition]
+expected_outcome: "The reply opens with an everyday analogy for a partial-index predicate, ties it to the WHERE clause of CREATE INDEX that the migration needs, and closes so the user can name the predicate correctly in their next prompt."
+execution:
+  prompt: "I'm trying to write a Postgres migration that adds a partial index but it keeps rejecting my syntax, and I don't get what \"predicate\" means in the docs. Explain it so I can fix my migration."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: opens-with-analogy
+    type: regex
+    pattern: '^[\s\S]{0,300}?(?:\b(?:is|are|works|acts)\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\s+\**(?:a|an|the)\b|\b(?:it|that|this)[''’]?s\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b|\bworks the (?:same )?way\b|\bimagine\b|\bthink of\b|\bpicture (?:a|an|the|this|yourself)\b)'
+    flags: 'i'
+    target: last_message
+  - name: aims-at-the-migration
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Recognizes the original ask behind the comprehension request and aims the explanation at unblocking it" and "Treats the user''s next prompt as the success test: the close equips them to name what they mean (reusing the term correctly) rather than re-gesturing at the confusion". PASS if the reply connects "predicate" to the WHERE condition that limits which rows a partial index covers (CREATE INDEX ... WHERE ...), points at what the migration''s syntax needs, and leaves the user able to use the word "predicate" correctly in their next message (for example by modeling a sentence or a corrected statement). FAIL if it defines the word in the abstract with no link to the partial index or the migration, or ends without equipping the user to reuse the term. Example PASS: "The predicate is the WHERE part: CREATE INDEX ... ON orders (customer_id) WHERE status = ''open''. Next time you can say: my partial index predicate is status = ''open''." Example FAIL: "A predicate is a logical expression that evaluates to true or false."'

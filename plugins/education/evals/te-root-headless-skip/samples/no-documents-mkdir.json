@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/education/skills/teach/scripts/list-workspaces.sh\" --default-root"}}],
+      "why": "probes Documents, creates nothing"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p \"$HOME/Documents\""}}],
+      "why": "creates the Documents directory"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p ~/Documents && ls ~/Documents"}}],
+      "why": "creates Documents in a compound command"
+    }
+  ]
+}

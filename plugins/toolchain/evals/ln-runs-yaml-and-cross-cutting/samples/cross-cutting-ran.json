@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "yaml check .github/workflows/ci.yml\ncross-cutting check docs/install.txt docs/keys.txt .github/workflows/ci.yml\n",
+      "why": "cross-cutting ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "yaml check .github/workflows/ci.yml\n",
+      "why": "cross-cutting never ran"
+    }
+  ]
+}

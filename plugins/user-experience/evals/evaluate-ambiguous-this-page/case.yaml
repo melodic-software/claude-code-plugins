@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: evaluate-ambiguous-this-page
+description: 'Legacy evaluate 8. Live-app ambiguous-copy check: "this page" in a question shown on three views is flagged with its possible readings (evaluation.md 105-108). quotes-this-page grades the reply; legacy-evaluate-8 (llm) quotes the three legacy expectations.'
+tags: [evaluate, live-app, legacy]
+runs: 3
+expected_outcome: 'A finding that "this page" in "What would you change about this page?" can point at Home, Study, Results or the page the person is on, with a recommendation naming the view or element the question is about.'
+execution:
+  prompt: 'Run an expert review of our live research app. It has three views: Home, Study and Results, and each ends with the prompt "What would you change about this page?" This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    weight: 0.1
+  - name: 'quotes-this-page'
+    type: 'regex'
+    pattern: '["“”''`]this page["“”''`]'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-evaluate-8'
+    type: 'llm'
+    criteria: 'The run is an expert review of a three-view app whose views each end with "What would you change about this page?". It meets the legacy expectations: "The review flags "this page" in the question as able to point at more than one view" "The finding names at least two of the possible readings (Home, Study, Results, or the page the person is on)" "The recommendation names the view or element the question is about".'
+    focus: 'last_message'
