@@ -119,7 +119,7 @@ The lane runs from `.github/workflows/pr-review-hosted.yml`, a caller of the ext
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:333`, `.github/workflows/pr-review-hosted.yml:214` | The rest is met; the one re-arm is kept (still-open table). Recovery is the reconciler's next pass: a recorded one-time re-run, idle while the status page lists an outage (element 5 allows that stop). The one-time record is a re-arm the owner kept: it is the trust proof for an attempt 2 (`check-trusted-trigger.mjs` `verifyRecordedRerun`). No other re-arm runs: the key-credit probing marker (`pr-review-main.yml` `review-handoffs-credit`) gates which credential runs, not when a review restarts. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:3068`, `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:497-503` | Kept (still-open table). A later clean review never clears a CRITICAL count: the merge gate carries the most CRITICAL findings any main-run review recorded on any head of the pull request (`_recorded_critical`, fed by `babysit_merge.py` `carried_critical`), so neither a re-run nor a whitespace push clears a security hold. Letting a later review close it would loosen a security control, which only the owner decides. |
 | 5 | met | `.github/workflows/pr-review-hosted.yml:214`, `.github/workflows/pr-review-main.yml:619` | `check-upstream-status` stops the review with exit 1. That is a stop, and the page starts nothing. The red stays: the reconciler re-runs on that failed step (`reconcile.mjs:250` `UPSTREAM_STOP_STEP`) and the merge gate binds the re-run on its error (`babysit_review_evidence.py:262` `UPSTREAM_STOP_RE`). |
-| 6 | met | `.github/workflows/pr-review-main.yml:531`, `.github/workflows/pr-review-main.yml:1015`, `.github/scripts/pr-review-main/take-shared-text.sh:18`, `.github/artifact-retention.json:153` (lines at the later change below) | Concurrency per PR and head is fine, and reads are serial within a job. The `trusted-text` job reads the PR's trusted text once per run and every leg takes it when it matches, so the legs no longer each read it (see the later change below). A later leg's own gate and file-list read are its trust check on a fresh VM, so they stay. |
+| 6 | met | `.github/workflows/pr-review-main.yml:541`, `.github/workflows/pr-review-main.yml:1019`, `.github/workflows/pr-review-main.yml:1028`, `.github/scripts/pr-review-main/take-shared-text.sh:21`, `.github/artifact-retention.json:153` (lines at this change) | Concurrency per PR and head is fine, and reads are serial within a job. The `trusted-text` job reads the PR's trusted text once per run and every leg takes it when it matches and the read is at most `SHARED_TEXT_MAX_AGE_MINUTES` old (`take-shared-text.sh:28`), so the legs no longer each read it (see the later change below). A later leg's own gate and file-list read are its trust check on a fresh VM, so they stay. |
 
 ## pr-review-security
 
@@ -133,7 +133,7 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:333`, `.github/workflows/pr-review-security-hosted.yml:219` | As for pr-review, the rest is met and the re-arm is kept. Resume is the reconciler's next pass and its one-time recorded re-run, a re-arm the owner kept as attempt 2's trust proof, as for pr-review. |
 | 4 | gap | `.github/workflows/pr-review-main.yml:3068`, `plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py:497-503` | Kept, as for pr-review: a later complete read never closes a carried CRITICAL count, a security control only the owner may loosen. |
 | 5 | met | `.github/workflows/pr-review-security-hosted.yml:219`, `.github/workflows/pr-review-main.yml:619` | The status page gates the run and turns it red. That is a stop, and the page starts nothing; the red is what the reconciler and the merge gate read, as for pr-review. |
-| 6 | met | `.github/workflows/pr-review-main.yml:531`, `.github/workflows/pr-review-main.yml:1015` (lines at the later change below) | It shares pr-review's code: one read of the trusted text per run, which each leg takes when it matches, as for pr-review. |
+| 6 | met | `.github/workflows/pr-review-main.yml:541`, `.github/workflows/pr-review-main.yml:1019`, `.github/workflows/pr-review-main.yml:1028` (lines at this change) | It shares pr-review's code: one read of the trusted text per run, which each leg takes when it matches, as for pr-review. |
 
 ## pr-verify
 
@@ -578,13 +578,17 @@ pr-review-security rows 6 cite its head.
   renames, at least one GraphQL read of the editors, and two reads per closing issue
   (`.github/actions/select-trusted-text/select-trusted-text.mjs:153-202`), so at least 6 calls a
   leg, and 12 a run once both key legs ran, plus 6 for each subscription or fallback leg. The
-  `trusted-text` job now reads it once (`.github/workflows/pr-review-main.yml:531`), on this
+  `trusted-text` job now reads it once (`.github/workflows/pr-review-main.yml:541`), on this
   attempt's trigger gate result and under the legs' kill switch and upstream status, whose stop is a
   notice there rather than a red. It scans `context.json` with `scan-upload` and uploads it as
   `trusted-text-pr-review-main`, its own 1-day family outside the `pr-review-main-*` verdict names
   (`.github/artifact-retention.json:153`), and outputs its sha256, main commit, PR number, head and
-  run attempt. Each leg downloads it and takes it only when all five match its own
-  (`.github/scripts/pr-review-main/take-shared-text.sh:18`); any other case, a missing artifact
+  run attempt, and the time it read the text. Each leg downloads it
+  (`.github/workflows/pr-review-main.yml:1019`) and takes it
+  (`.github/workflows/pr-review-main.yml:1028`) only when all five match its own
+  (`.github/scripts/pr-review-main/take-shared-text.sh:21`) and the read is at most
+  `SHARED_TEXT_MAX_AGE_MINUTES` (20) old (`take-shared-text.sh:28`), since a subscription or
+  fallback leg can start hours later, after the PR body or a trusted comment changed; any other case, a missing artifact
   included, leaves its own read as before, so a run sends 6 calls where it sent 12 or more. The
   job and each of its steps that can fail carry `continue-on-error`, and each leg's `needs` edge sits
   under its `!cancelled()` gate, so a failed read neither turns the run red nor skips a leg. The
