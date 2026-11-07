@@ -993,6 +993,28 @@ class TestSelfCheckDiagnostic(unittest.TestCase):
         )
 
 
+class TestCandidateBinaries(unittest.TestCase):
+    def _candidates(self, exe: str) -> list[pathlib.Path]:
+        real = os.readlink
+
+        def readlink(path, *args, **kwargs):
+            return exe if path == "/proc/4242/exe" else real(path, *args, **kwargs)
+
+        with mock.patch.dict(os.environ, {"CLAUDE_PID": "4242"}), mock.patch.object(
+            inv.os, "readlink", side_effect=readlink
+        ) as spy, mock.patch.object(inv.shutil, "which", return_value=None):
+            got = inv.candidate_binaries()
+        spy.assert_any_call("/proc/4242/exe")
+        return got
+
+    def test_running_cli_comes_first(self) -> None:
+        exe = "/tmp/lane/node_modules/.bin-native/claude"
+        self.assertEqual(self._candidates(exe)[0], pathlib.Path(exe))
+
+    def test_node_launcher_is_not_a_candidate(self) -> None:
+        self.assertNotIn(pathlib.Path("/usr/bin/node"), self._candidates("/usr/bin/node"))
+
+
 def _cmd(src: str, name: str) -> dict:
     return inv.extract_builtin_commands(src, inv.build_brace_map(src))[name]
 

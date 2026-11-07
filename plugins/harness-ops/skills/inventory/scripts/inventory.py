@@ -224,6 +224,17 @@ def candidate_binaries() -> list[Path]:
     """Ordered candidates for the Claude Code executable."""
     out: list[Path] = []
 
+    # Inside a session, the CLI that runs it: a lane can install it outside
+    # PATH and the install roots below.
+    pid = os.environ.get("CLAUDE_PID", "")
+    if pid.isdigit():
+        try:
+            exe = Path(os.readlink(f"/proc/{pid}/exe"))
+        except OSError:
+            exe = None
+        if exe and not re.match(r"(node|nodejs|bun)(\.exe)?$", exe.name):
+            out.append(exe)
+
     resolved = shutil.which("claude")
     if resolved:
         out.append(Path(resolved))
