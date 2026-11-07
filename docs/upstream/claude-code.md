@@ -7,8 +7,7 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.319` (published 2026-11-06), read as raw
-markdown on 2026-11-07 ([#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033)). Releases
+**Last audited upstream state:** changelog through `2.1.318` (published 2026-11-04). Releases
 `2.1.257` through `2.1.296` were read release by release as raw markdown. Releases `2.1.297` through
 `2.1.318` were not: that range was past the replay cap, so on 2026-11-04 the components were
 rechecked against the current docs instead
@@ -22,7 +21,7 @@ it to the newest published release.
 
 - **Pointer**: for what a release after the marker changed, fetch
   <https://code.claude.com/docs/en/changelog> live.
-- **As of**: 2026-11-07
+- **As of**: 2026-11-04
 - **Recheck trigger:** a new release block appears above the version on the marker line. Nothing
   before `2.1.257` was read release by release; the fleet's coverage of older releases, and of the
   rechecked range, rests on each skill's own verification stamps and the docs-conformance rechecks
