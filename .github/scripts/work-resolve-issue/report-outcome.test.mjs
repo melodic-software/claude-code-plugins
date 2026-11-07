@@ -5841,7 +5841,7 @@ test("main on a workflow-stale stop re-fires through refireStale and reads no ou
 // One hold set for the lane, which work-unblock's sweep reads too: every hold
 // on it stops the immediate re-fire, the owner-only ones included.
 test("refireStale re-fires nothing on any of the lane's holds", async () => {
-  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance") && LANE_HOLDS.has("provenance: untrusted"));
+  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("host-run") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance") && LANE_HOLDS.has("provenance: untrusted"));
   for (const hold of LANE_HOLDS) {
     const run = staleFetch({ labels: [hold] });
     assert.equal(await refire(run), `skipped: held by ${hold}`, hold);

@@ -907,8 +907,9 @@ const STALE_CAUSE =
   "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn.";
 // The labels the issue lane never starts or restarts on, which work-unblock
 // reads too: a person decides each but `attended`, which waits on a step the
-// owner takes present; only a person removes OUTSIDE_ACTOR_LABEL.
-export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
+// owner takes present, and `host-run`, which a host session builds while Work
+// status stays agent-ready; only a person removes OUTSIDE_ACTOR_LABEL.
+export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
 // The admission record's lib, loaded on use: ci-status loads this file from a
