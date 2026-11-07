@@ -11,6 +11,10 @@
     {
       "answer": "With `false`, `claim` exits `6` (a permanent degradation callers can route around).",
       "why": "exits, from smoke r1"
+    },
+    {
+      "answer": "`claim` exits with code 6.",
+      "why": "exits with code, from review"
     }
   ],
   "fail": [
