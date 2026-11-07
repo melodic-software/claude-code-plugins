@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| dotnet | pass | pass | pass | PASS |\n| python | pass | pass | pass | PASS |\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "both rows"
+    },
+    {
+      "answer": "| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| **python** | pass | pass | pass | PASS |\n| **dotnet** | pass | pass | pass | PASS |",
+      "why": "bold names, python first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| dotnet | pass | pass | pass | PASS |\n\npython also passed build, test and lint.",
+      "why": "python only in prose, no row"
+    }
+  ]
+}

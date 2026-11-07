@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Tests that exercise only the pricing library go in `libs/pricing/tests/integration/`.",
+      "why": "single-project location"
+    },
+    {
+      "answer": "If the tests drive checkout and invoicing through pricing, put them under `tests/integration/pricing/` at the root.",
+      "why": "cross-project location"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Put them in `tests/integration/test_pricing.py`.",
+      "why": "an invented flat file, not either documented location"
+    },
+    {
+      "answer": "Create `libs/pricing/tests/test_discounts.py` next to the library.",
+      "why": "a unit-test path, no integration folder"
+    },
+    {
+      "answer": "Use `services/checkout/tests/integration/pricing/` for them.",
+      "why": "the area folder nested under a service, not at the root"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: wr-go-loads-no-reference
+description: 'Legacy write 7. A property test for a Go Merge function uses the language-neutral guidance in context/property.md (commutativity, generators that build valid interval lists) and loads no file under context/property/, since Go has no reference there; it uses rapid, which go.mod already requires. skill-fired, read-property and no-language-reference read the tool calls, uses-rapid the go test file; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, write, property, language-reference, scaffold, no-network]
+expected_outcome: 'Reads context/property.md and nothing under context/property/; intervals/merge_test.go imports pgregory.net/rapid and checks Merge(a, b) against Merge(b, a).'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our Go module has a Merge function for interval lists (intervals/merge.go) that should be commutative. Write a property-based test for it in intervals/merge_test.go. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: read-property
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/property\.md"'
+  - name: no-language-reference
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/property/'
+    min: 0
+    max: 0
+    arm: both
+  - name: uses-rapid
+    type: regex
+    pattern: '"pgregory\.net/rapid"'
+    target: { source: file, path: intervals/merge_test.go }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a property-based test of a Go Merge function for interval lists that should be commutative; go.mod already requires pgregory.net/rapid. PASS only if the run meets every legacy expectation: "Uses the guidance in context/property.md" "Loads no file under context/property/" "States commutativity (merging a with b equals merging b with a) as the property". FAIL if any point is missing or contradicted.'

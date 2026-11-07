@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Edit", "input": { "file_path": "/w/tests/test_parser.py", "old_string": "a", "new_string": "b" } },
+        { "tool": "Bash", "input": { "command": "python3 -m pytest tests/test_parser.py" } },
+        { "tool": "Edit", "input": { "file_path": "/w/src/parser.py", "old_string": "c", "new_string": "d" } }
+      ],
+      "why": "test first, then the fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Edit", "input": { "file_path": "/w/src/parser.py", "old_string": "c", "new_string": "d" } },
+        { "tool": "Edit", "input": { "file_path": "/w/tests/test_parser.py", "old_string": "a", "new_string": "b" } }
+      ],
+      "why": "patched first, test after"
+    },
+    {
+      "answer": [
+        { "tool": "Edit", "input": { "file_path": "/w/src/parser.py", "old_string": "c", "new_string": "d" } }
+      ],
+      "why": "patched with no test"
+    }
+  ]
+}

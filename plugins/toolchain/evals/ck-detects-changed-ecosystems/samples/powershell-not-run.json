@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "dotnet build src/Cart/Totals.cs\ndotnet test\ndotnet check src/Cart/Totals.cs\npython build src/pricing/discount.py\npython test\npython check src/pricing/discount.py\n",
+      "why": "only the changed ecosystems"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "dotnet build src/Cart/Totals.cs\ndotnet test\ndotnet check src/Cart/Totals.cs\npython build src/pricing/discount.py\npython test\npython check src/pricing/discount.py\npowershell test\n",
+      "why": "ran the unchanged powershell ecosystem's test"
+    }
+  ]
+}

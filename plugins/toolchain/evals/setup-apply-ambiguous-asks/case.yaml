@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: setup-apply-ambiguous-asks
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-typescript-file
+    type: file_exists
+    path: .claude/ecosystems/typescript.yaml
+    exists: false
+  - name: no-python-file
+    type: file_exists
+    path: .claude/ecosystems/python*.yaml
+    exists: false
+  - name: names-test-ci
+    type: regex
+    pattern: '\btest:ci\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:setup apply typescript` in a repository whose package.json has both a `test` and a `test:ci` script and no linter config, beside a Python package, with no user present to answer. It meets the legacy expectations: "Asks the user which command to use when inference is ambiguous (multiple test scripts / no clear linter) instead of guessing one" "Scopes the run to only the typescript ecosystem because the argument named it" "Does not fabricate a test-cmd or check-cmd that the repo does not clearly support".'

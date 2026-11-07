@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "bash check scripts/deploy.sh\nmarkdown check README.md\n",
+      "why": "only covered ecosystems"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "bash check scripts/deploy.sh\nmarkdown check README.md\nyaml check .github/workflows/ci.yml\n",
+      "why": "ran the yaml surface"
+    },
+    {
+      "answer": "bash check scripts/deploy.sh\ncross-cutting check README.md scripts/deploy.sh\n",
+      "why": "ran cross-cutting"
+    }
+  ]
+}

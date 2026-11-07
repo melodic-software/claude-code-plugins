@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/python.md" } }
+      ],
+      "why": "the Python reference"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property.md" } }
+      ],
+      "why": "the guide only"
+    }
+  ]
+}

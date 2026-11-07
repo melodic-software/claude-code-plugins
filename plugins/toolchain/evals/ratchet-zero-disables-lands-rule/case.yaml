@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: ratchet-zero-disables-lands-rule
+description: 'Legacy ratchet 6. A suppression count of 0 with a rule that forbids the suppression comment itself lands that rule: @eslint-community/eslint-comments/no-use goes to error in .eslintrc.json, no ratchet.py add runs and no ceilings file is written. rule-on-error reads .eslintrc.json, no-add the Bash calls, no-ceilings-file the created files; meets-expectations (llm) quotes the legacy expectations. A run needs --scaffold and --allow-tools Bash Edit Write.'
+tags: [ratchet, suppressions, zero, scaffold, no-network]
+expected_outcome: '.eslintrc.json sets @eslint-community/eslint-comments/no-use to error; no ratchet.py add runs; no .ratchets.json is created; the reply says the rule landed with no ceiling.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/toolchain:ratchet the count of `eslint-disable` comments. `bash count-disables.sh` prints disables=0. The project already uses the @eslint-community/eslint-comments plugin, whose no-use rule reports every disable directive; that rule is off today. Write the proposed files into the working tree; do not commit.'
+  allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: rule-on-error
+    type: regex
+    pattern: '"@eslint-community/eslint-comments/no-use"\s*:\s*(?:"error"|2\b|\[\s*(?:"error"|2\b))'
+    target: { source: file, path: .eslintrc.json }
+  - name: no-add
+    type: tool_used
+    tool: Bash
+    input_match: 'ratchet\.py\S*\s+add\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-ceilings-file
+    type: file_exists
+    path: '**/*ratchets.json'
+    exists: false
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run ratchets a count of eslint-disable comments that is 0, in a project that has the @eslint-community/eslint-comments no-use rule turned off. It meets the legacy expectations: "Turns the no-use rule on at error severity" "Runs no ratchet.py add and writes no ceilings entry" "Reports that the rule landed with no ceiling".'

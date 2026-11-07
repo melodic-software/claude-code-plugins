@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git status --porcelain | head -20" } }],
+      "why": "status read"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git diff --name-only origin/main...HEAD" } }],
+      "why": "range read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "src/duration.py" } }],
+      "why": "read code, never git"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "echo 'git status is clean'" } }],
+      "why": "git only in an echoed string"
+    }
+  ]
+}

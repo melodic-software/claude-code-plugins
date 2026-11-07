@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Overall: INCOMPLETE (0 of 1 ecosystems passed; markdown: skip (tool missing: mdlint-absent))",
+      "why": "names the skip"
+    },
+    {
+      "answer": "**Overall:** INCOMPLETE (markdown: skip (tool missing: `mdlint-absent`))",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Overall: PASS (markdown skipped: mdlint-absent missing)",
+      "why": "PASS with an environment skip"
+    },
+    {
+      "answer": "Overall: INCOMPLETE\n\nInstall mdlint-absent to lint markdown.",
+      "why": "the cause is not on the Overall line"
+    }
+  ]
+}
