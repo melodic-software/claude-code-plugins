@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { SKILLS_FIX, tokens } from './parts'
 
 const PANE = 'context-budget-live'
-const HEADER = '◆ context 90k of 1M · compacts at 955k 9%'
+const HEADER = '◆ context budget 90k of 1M · compacts at 955k 9%'
 
 // A 1,000,000-token window with 90,000 in use: two used rows, the compaction buffer, the free
 // space, and one deferred row that sits outside the window. The window rows sum to 1,000,000.
@@ -163,7 +163,7 @@ test('pane: no "compacts at" clause when auto-compaction has no threshold', asyn
   world(on, 'no-threshold')
   await live($)
   const shown = await texts(await mountPane($))
-  expect(shown).toContain('◆ context 90k of 1M 9%')
+  expect(shown).toContain('◆ context budget 90k of 1M 9%')
   expect(shown.join('\n')).not.toContain('compacts at')
 })
 
@@ -180,7 +180,7 @@ test('pane: a failed breakdown shows the header from the plain usage figures and
   world(on, 'breakdown-rejected')
   await live($)
   const shown = await texts(await mountPane($))
-  expect(shown).toContain('◆ context 88k of 1M 9%')
+  expect(shown).toContain('◆ context budget 88k of 1M 9%')
   expect(shown.filter(t => t.startsWith('usage unavailable:'))).toHaveLength(1)
 })
 
@@ -199,7 +199,7 @@ test('pane: usage with no breakdown shows a one-line error under the window figu
   world(on, 'no-breakdown')
   await live($)
   const shown = await texts(await mountPane($))
-  expect(shown).toContain('◆ context 88k of 1M 9%')
+  expect(shown).toContain('◆ context budget 88k of 1M 9%')
   expect(shown.filter(t => t.startsWith('usage unavailable:'))).toHaveLength(1)
 })
 
