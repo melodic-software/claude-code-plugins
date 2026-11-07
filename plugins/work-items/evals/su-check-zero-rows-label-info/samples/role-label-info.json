@@ -17,6 +17,10 @@
     {
       "answer": "The recurring-maintenance role label is missing, so this is a hard FAIL until it is provisioned.",
       "why": "FAIL verdict"
+    },
+    {
+      "answer": "recurring-maintenance role label: FAIL; schedule validity: INFO (zero rows)",
+      "why": "near miss: prose on one line, the INFO belongs to the schedule probe"
     }
   ]
 }

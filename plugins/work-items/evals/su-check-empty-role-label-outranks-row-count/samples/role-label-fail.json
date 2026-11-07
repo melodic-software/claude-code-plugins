@@ -17,6 +17,10 @@
     {
       "answer": "The empty role_labels entry falls back to `recurring`, which exists, so the role label passes.",
       "why": "silent fallback"
+    },
+    {
+      "answer": "Role label: INFO, since the row count is unreadable; schedule validity: FAIL (`items` is null).",
+      "why": "near miss: prose on one line, the FAIL belongs to the schedule probe"
     }
   ]
 }

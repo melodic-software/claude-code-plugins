@@ -3,7 +3,7 @@ name: sh-shared-branch-discipline-statement
 graders:
   - name: 'names-integration-branch'
     type: 'regex'
-    pattern: 'integration/310-billing-migration\b'
+    pattern: '^(?=[\s\S]*integration/310-billing-migration\b)(?=[\s\S]*\b(?:defer\w*|one item (?:is )?in flight|single writer)\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

@@ -3,7 +3,7 @@ name: su-check-zero-rows-label-info
 graders:
   - name: 'role-label-info'
     type: 'regex'
-    pattern: '(?:role[- ]label|recurring-maintenance)[^\n]{0,160}\bINFO\b|\bINFO\b[^\n]{0,160}(?:role[- ]label|recurring-maintenance)'
+    pattern: '(?:role[- ]label|recurring-maintenance)[^\n.;|]{0,40}(?:\|[\s*_`]{0,6})?\bINFO\b|\bINFO\b[^\n.;|]{0,40}(?:role[- ]label|recurring-maintenance)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

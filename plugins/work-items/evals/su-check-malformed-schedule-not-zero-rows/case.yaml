@@ -3,7 +3,7 @@ name: su-check-malformed-schedule-not-zero-rows
 graders:
   - name: 'role-label-info-names-validity'
     type: 'regex'
-    pattern: '(?:role[- ]label|recurring-maintenance)[^\n]{0,200}\bINFO\b[^\n]{0,200}(?:validity|probe 4|unpars\w*|unreadable|malformed|not parse|does not parse|cannot be read)'
+    pattern: '(?:role[- ]label|recurring-maintenance)[^\n.;|]{0,40}(?:\|[\s*_`]{0,6})?\bINFO\b(?![^\n.;]{0,40}zero rows)[^\n]{0,200}(?:validity|probe 4|unpars\w*|unreadable|malformed|not parse|does not parse|cannot be read)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

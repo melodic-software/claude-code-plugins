@@ -3,7 +3,7 @@ name: su-rerun-preserves-existing-item-dates
 graders:
   - name: 'overdue-row-preserved'
     type: 'regex'
-    pattern: 'ci-pin-review[^\n]{0,200}(?:(?:preserve[sd]?|preserving)|unchanged|as-is|as is|untouched|left alone|stays|keeps? (?:its|the)|kept)|(?:(?:preserve[sd]?|preserving)|unchanged|as-is|untouched|keeps?|kept)[^\n]{0,200}ci-pin-review'
+    pattern: 'ci-pin-review[^\n.;]{0,60}(?:(?:preserve[sd]?|preserving)|unchanged|as-is|as is|untouched|left alone|stays|keeps? (?:its|the)|kept)|(?:(?:preserve[sd]?|preserving)|unchanged|as-is|untouched|keeps?|kept)[^\n.;|]{0,60}ci-pin-review'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

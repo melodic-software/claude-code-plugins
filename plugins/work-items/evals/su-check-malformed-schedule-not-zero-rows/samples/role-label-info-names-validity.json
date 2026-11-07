@@ -17,6 +17,10 @@
     {
       "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: null items |\n| Recurring-maintenance role label | FAIL: `recurring` absent |",
       "why": "raises the label FAIL on a guess"
+    },
+    {
+      "answer": "role label: INFO (zero rows); schedule validity: FAIL",
+      "why": "near miss: the INFO rests on zero rows, validity is a separate clause"
     }
   ]
 }
