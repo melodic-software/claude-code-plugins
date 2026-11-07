@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "The enforceability-tiers convention owns the tier vocabulary."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The tier vocabulary comes from our standards.",
+      "why": "unnamed"
+    }
+  ]
+}

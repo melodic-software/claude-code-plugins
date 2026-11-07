@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tr-decompose-output-not-retriaged
+graders:
+  - name: 'already-triaged'
+    type: 'regex'
+    pattern: '\b(?:already|born)[ \t]+triaged\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does with an item /work-items:decompose published. PASS only if it satisfies every point: (1) Does not re-run the triage state machine on the decompose-published item; (2) States the exclusion: triage covers raw intake only, keyed on the absence of the raw marker, not authorship and not classification labels; (3) Performs no triage write on the item: no label change, no needs-info comment, no close; (4) Notes that the attention view excludes decompose output by construction, since it is neither unlabeled nor raw-marked. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

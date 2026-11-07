@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: sdw-lever-no-tool-fits
+graders:
+  - name: scope-user-non-trivial
+    type: regex
+    pattern: 'lever_scope[`*]*\s*[:=][`*\s]*non-trivial[`*]*\s*\([^)\n]*\b(?:user|userConfig|option)\b'
+    flags: 'i'
+    target: last_message
+  - name: answers-edit
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*edit-by-hand\b'
+    flags: 'i'
+    target: last_message
+  - name: says-no-tool-fit
+    type: regex
+    pattern: '\bno (?:established |existing |suitable )?(?:codemod|tool|refactoring tool)\b[^\n]{0,80}\b(?:fits?|covers?|understands?|handles?|exists?)\b|\bno tool fit'
+    flags: 'i'
+    target: last_message
+  - name: no-scratch-script
+    type: llm
+    criteria: 'The reply meets the legacy expectation "Does NOT propose a refactoring script written from scratch for this change".'
+    focus: last_message

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Use jscodeshift or ast-grep first."
+    },
+    {
+      "answer": "A language-server rename covers it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a sed script over the repo.",
+      "why": "a written script only"
+    },
+    {
+      "answer": "Edit the 40 sites by hand."
+    }
+  ]
+}

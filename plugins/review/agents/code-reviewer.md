@@ -132,7 +132,7 @@ summary: <one paragraph at most>
 
 **Without any findings path**, reply with the full report, then a last line `persistence: by-value (no findings path given)`.
 
-**Cap.** The summary is one paragraph at most: the verdict, the highest-tier findings by `file:line`, and any changed file not reviewed. `counts` uses the tiers your report uses, the project's own vocabulary when it has one. Beyond the block, the reply holds only the by-value report. Callers follow `${CLAUDE_PLUGIN_ROOT}/reference/reviewer-handback.md`.
+**Cap.** The summary is one paragraph at most: the verdict, the highest-tier findings by `file:line`, and any changed file not reviewed. `counts` uses the tiers your report uses, the project's own vocabulary when it has one. With `persistence: written`, aim for 3,400 bytes; the whole reply must stay under 4,096, and detail goes in the findings file. Beyond the block, the reply holds only the by-value report. Callers follow `${CLAUDE_PLUGIN_ROOT}/reference/reviewer-handback.md`.
 
 ## Memory
 
