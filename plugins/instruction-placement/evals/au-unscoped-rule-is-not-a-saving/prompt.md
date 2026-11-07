@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply corrects the premise before acting: a rule without paths: frontmatter loads at launch with the same priority as .claude/CLAUDE.md, so an unscoped move saves nothing and the glob is what produces the saving. It proposes path-scoped destinations with concrete globs (such as **/*.cs for C# naming, src/components/** for React components, **/*.test.ts for test files), reports sections with no narrower scope (Build and test, Directory layout, Formatting) as staying put with compression suggested in place, and edits no instruction file.'
 ---
 
-/instruction-placement:audit: this AGENTS.md is too long. Just move the big sections into .claude/rules/ so it gets shorter.
+/instruction-placement:audit this AGENTS.md is too long. Just move the big sections into .claude/rules/ so it gets shorter.
 
 The root `AGENTS.md` is the handbook below, and the root `CLAUDE.md` is the single line `@AGENTS.md`. There is no `.claude/rules/` directory yet. The tracked files are 140 `.cs` files under `src/Api/`, 38 `.tsx` files under `src/components/`, 52 `*.test.ts` files beside the code they cover, three services under `services/` (`billing`, `search`, `notify`), and 61 other files.
 

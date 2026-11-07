@@ -3,7 +3,7 @@ name: ra-decline-offered-as-suppression
 graders:
   - name: 'tracked-file-committed'
     type: 'regex'
-    pattern: '^(?=[^\n]*\.claude/instruction-placement\.md\b)(?=[^\n]*\bcommit\w*)'
+    pattern: '^(?=[^\n]*(?:\.claude/instruction-placement\.md\b|\bteam[- ]layer\b|\bfile is tracked\b))(?=[^\n]*\bcommit\w*)'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

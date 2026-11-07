@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply confirms over-broad is a warning, not a failure: breadth judges whether a demotion was worth making, not whether the rule is broken. It accepts that in a documentation repository a glob covering most files may be right, does not propose narrowing a glob that accurately describes its scope, names raising --breadth-max as the lever rather than living with a standing warning, and confirms the exit code is unaffected (the gate passes).'
 ---
 
-/instruction-placement:check: it says one of our rules is over-broad but it's a docs repo, **/*.md really is most of it.
+/instruction-placement:check it says one of our rules is over-broad but it's a docs repo, **/*.md really is most of it.
 
 `glob-tools.sh rules` prints:
 

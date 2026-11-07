@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply does not substitute a skill for the rule the audit classified: realign executes the audit''s classifications, and reclassifying mid-apply would build a destination other than the one the operator gated on. It says the finding looks wrong to the operator, stops on IP-005, and names a re-audit as the fix, optionally recording it as declined so a later run does not re-propose it unchanged. It states that content is relocated verbatim, never rewritten in transit, because a move whose diff includes prose edits is unreviewable.'
 ---
 
-/instruction-placement:realign: apply IP-005, but honestly I think a skill would be better than a rule here. Use your judgment.
+/instruction-placement:realign apply IP-005, but honestly I think a skill would be better than a rule here. Use your judgment.
 
 This branch's findings artifact (branch and Claude Code version both match) lists IP-005 as `proposed`: the Deploy steps section at `CLAUDE.md` lines 88 to 120, destination `.claude/rules/deploy.md` with `paths: deploy/**` (14 matches). The cited lines still hold that section.
 

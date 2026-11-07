@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply resolves the index target (the root AGENTS.md), runs the reachability probe rather than only checking the file exists, and leads with UNREACHABLE: the root CLAUDE.md is read instead of the AGENTS.md beside it and does not import it, so the index never loads. It separates reachability from staleness (a reachable index can be stale and a stale one reachable) and names keeping it in sync as the check skill''s job. It shows the exact remediation, an @AGENTS.md first line in the root CLAUDE.md or a CLAUDE.md symlink, and does not apply it under the read-only check action.'
 ---
 
-/instruction-placement:setup: we have a CLAUDE.md and an AGENTS.md, and I ran the index generator last week. Everything reports green but I don't think the rules are reaching subagents.
+/instruction-placement:setup we have a CLAUDE.md and an AGENTS.md, and I ran the index generator last week. Everything reports green but I don't think the rules are reaching subagents.
 
 The root `CLAUDE.md` is 30 lines of build notes and imports nothing. The root `AGENTS.md` is 80 lines and carries the rules index block, which matches the six rules in `.claude/rules/`. Every rule glob resolves. `git`, `jq` and the Claude Code CLI are all on `PATH`, and there is no plugin configuration.
 

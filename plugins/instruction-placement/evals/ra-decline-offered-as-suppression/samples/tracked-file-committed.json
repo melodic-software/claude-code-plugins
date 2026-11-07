@@ -7,6 +7,10 @@
     {
       "answer": "Commit .claude/instruction-placement.md so the decline reaches every checkout.",
       "why": "imperative"
+    },
+    {
+      "answer": "| If you do say yes | I'd write the entry to the team-layer file only, never `~/.claude/**` or the `.local.md` file. The file is tracked, so the decision reaches other checkouts and the scheduled run only after you commit it. I won't commit it unless you ask. |",
+      "why": "smoke reply: team-layer file, commit"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Entry for `.claude/instruction-placement.md` shown above; say yes to write it.",
       "why": "never says it must be committed"
+    },
+    {
+      "answer": "Wrote the team-layer entry; no further step is needed.",
+      "why": "near miss: team layer with no commit"
     },
     {
       "answer": ""

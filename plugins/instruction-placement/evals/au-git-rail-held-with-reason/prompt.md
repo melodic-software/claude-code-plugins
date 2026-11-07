@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply declines to propose the move. The Git safety section is an irreversible-action safety rail: demotion trades guaranteed presence for conditional presence, and a deferred surface is absent until a read matches it, absent again after a compaction until that trigger recurs, never inherited by a subagent and never announced, so the moment the rail is needed it may not be loaded. It reports the section as held back with its class and location and no destination or glob, notes that git-specific names an action rather than a set of files, and offers compression in place.'
 ---
 
-/instruction-placement:audit: the 'Git safety' section in this AGENTS.md is clearly git-specific. Make it a path-scoped rule.
+/instruction-placement:audit the 'Git safety' section in this AGENTS.md is clearly git-specific. Make it a path-scoped rule.
 
 The root `AGENTS.md` is a 55-line engineering handbook, and the root `CLAUDE.md` is the single line `@AGENTS.md`. Lines 10 to 13 of `AGENTS.md` read:
 

@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply reports a content-home advisory for the root CLAUDE.md, which holds instructions rather than the single line @AGENTS.md, and points at /instruction-placement:migrate plan for the move. The .claude/CLAUDE.md gets no advisory, since migrate''s plan emits no DIR row for it. It does not recommend deleting CLAUDE.md: the file stays as the one-line @AGENTS.md shim, and migrate''s cutover-check decides when shims can come out. The Claude Code hooks section goes to .claude/rules/<topic>.md with a paths: glob. The advisory carries no finding_id or status, the demote lane still runs over the sections, and no instruction file is edited.'
 ---
 
-/instruction-placement:audit: this is our root CLAUDE.md, we also track a copy of it as .claude/CLAUDE.md, and there is no AGENTS.md. Should we just delete the CLAUDE.md and use AGENTS.md instead?
+/instruction-placement:audit this is our root CLAUDE.md, we also track a copy of it as .claude/CLAUDE.md, and there is no AGENTS.md. Should we just delete the CLAUDE.md and use AGENTS.md instead?
 
 The root `CLAUDE.md` and the tracked `.claude/CLAUDE.md` both read:
 

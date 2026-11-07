@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply resolves the root AGENTS.md as the index target and names it. render-index.sh check exit 3 means nothing to compare, not broken, so the absent index is a recommendation rather than a gate failure, and the verdict comes from the glob checks alone: all three rules are valid, so the gate passes. It explains what the index buys (no deferred surface announces that it exists, and the always-loaded index names each one so an ordinary Read can fetch it first) and names what generates it (render-index.sh write, run by /instruction-placement:realign or offered by /instruction-placement:setup). A repository that has an index and let it drift is a different case and does fail.'
 ---
 
-/instruction-placement:check: we have rules but we've never generated an index.
+/instruction-placement:check we have rules but we've never generated an index.
 
 The repository has a root `AGENTS.md`, a root `CLAUDE.md` that is the single line `@AGENTS.md`, and three rules in `.claude/rules/`. `glob-tools.sh rules` prints:
 

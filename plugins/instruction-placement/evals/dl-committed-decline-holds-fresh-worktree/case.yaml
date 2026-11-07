@@ -3,7 +3,7 @@ name: dl-committed-decline-holds-fresh-worktree
 graders:
   - name: 'suppressed-by-team-layer'
     type: 'regex'
-    pattern: '^(?=[^\n]*\bsuppress\w*)(?=[^\n]*\bteam\b)'
+    pattern: '^(?=[^\n]*\bsuppress\w*)(?=[^\n]*\b(?:team|tracked)\b)(?![^\n]*\b(?:not |un)suppress)'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

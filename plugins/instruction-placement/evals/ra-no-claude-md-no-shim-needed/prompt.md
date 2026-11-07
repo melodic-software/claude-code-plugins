@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply creates src/billing/AGENTS.md with the relocated content and does not claim a shim is what makes it load here: with none of the three CLAUDE.md names on that file''s path, nothing displaces it, so Claude Code attaches it directly on a Read in that directory, and render-index.sh wiring reports the row NATIVE rather than UNWIRED, which is the check to run. It does not present that as a reason to remove a shim; if it still recommends one, the reason is availability cover for sessions that cannot read AGENTS.md directly, not reachability here. The rest of the move is unchanged: destination before excision, index regenerated, result verified.'
 ---
 
-/instruction-placement:realign: apply IP-002, the billing subtree conventions. This repo has no CLAUDE.md at all: no root one, no .claude/CLAUDE.md, no CLAUDE.local.md. Should we still add the shim beside it?
+/instruction-placement:realign apply IP-002, the billing subtree conventions. This repo has no CLAUDE.md at all: no root one, no .claude/CLAUDE.md, no CLAUDE.local.md. Should we still add the shim beside it?
 
 This branch's findings artifact (branch and Claude Code version both match) lists IP-002 as `proposed`: the Billing module section at `AGENTS.md` lines 52 to 55, destination a nested `AGENTS.md` in `src/billing/`, which holds 23 tracked files and no instruction file. The cited lines still hold that section, and the root `AGENTS.md` carries the rules index.
 

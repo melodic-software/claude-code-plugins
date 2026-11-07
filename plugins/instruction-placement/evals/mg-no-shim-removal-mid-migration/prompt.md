@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: 'The reply deletes no shim by hand and says why in terms of consequence. Reading AGENTS.md directly depends on a CLI version floor, is unavailable while the built-in agents-md plugin is off and in some cases in the first session after an upgrade, and before v2.1.281 some sessions (such as Amazon Bedrock or telemetry disabled) could not read it. A directly read AGENTS.md also fires no InstructionsLoaded hook. Removal is the cutover-check and remove-shims arguments, which grade the conditions first and gate the deletion; the reply routes there and does the migration work that was asked for.'
 ---
 
-/instruction-placement:migrate: Claude Code reads AGENTS.md natively now, so delete every CLAUDE.md shim in this repo while you are in there.
+/instruction-placement:migrate Claude Code reads AGENTS.md natively now, so delete every CLAUDE.md shim in this repo while you are in there.
 
 The repository has a content-bearing root `CLAUDE.md` and no root `AGENTS.md`, plus three subtree pairs (`api/`, `web/`, `infra/`) where `AGENTS.md` holds the content and `CLAUDE.md` is the single line `@AGENTS.md`. Developers run a mix of Claude Code versions, and one team uses it through Amazon Bedrock.
 

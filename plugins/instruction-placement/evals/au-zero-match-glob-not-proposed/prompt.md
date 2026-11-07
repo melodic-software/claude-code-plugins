@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply derives a candidate glob for the Rust section (such as **/*.rs) and validates it before proposing anything. It comes back zero-match, 0 tracked files, and a zero-match rule never fires and Claude Code gives no warning, so the reply proposes no path-scoped rule for it. It reports the validation result with its count and raises the likely cause: the section describes code that is not in the repository, so the question is whether to retire it rather than relocate it.'
 ---
 
-/instruction-placement:audit: we have a section about Rust module conventions in CLAUDE.md. Propose a rule for it.
+/instruction-placement:audit we have a section about Rust module conventions in CLAUDE.md. Propose a rule for it.
 
 The root `CLAUDE.md` is 120 lines. Lines 64 to 71 read:
 

@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply says this worktree has no spine baseline, which is expected because the memory tier does not cross checkouts, and still does not surface the Deploy conventions finding. It resolves .claude/instruction-placement.md across its three layers, derives the finding''s finding_id from its check, claim and site anchor, matches the committed team-layer entry, and suppresses it, naming the tracked file (not a baseline) as what carried the decline across checkouts. It reports the suppression with its reason, its date (2026-11-02) and its contributing layer (team), plus any entry that did not suppress. It writes only its own memory-tier baseline and never edits the suppression file, which realign owns.'
 ---
 
-/instruction-placement:delta: fresh worktree of the same repo, branch cut from main. On main I declined the deploy-conventions demote finding and committed .claude/instruction-placement.md.
+/instruction-placement:delta fresh worktree of the same repo, branch cut from main. On main I declined the deploy-conventions demote finding and committed .claude/instruction-placement.md.
 
 This worktree's memory-tier home is empty: no spine baseline and no findings artifact. The tracked `.claude/instruction-placement.md` holds one entry:
 

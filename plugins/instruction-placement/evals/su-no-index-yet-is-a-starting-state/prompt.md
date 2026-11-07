@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply reports that no index block exists yet and treats it as a starting state, not a defect, distinct from UNREACHABLE, which means the file exists and is never read (here the root CLAUDE.md imports AGENTS.md, so it is reachable). It names the root AGENTS.md as the file the resolution order would pick for the index, confirms the plugin works with no configuration because every setting has a working default, and does not make setup or configuration a prerequisite for a first audit.'
 ---
 
-/instruction-placement:setup: fresh repo, we've never run this before.
+/instruction-placement:setup fresh repo, we've never run this before.
 
 The root `CLAUDE.md` is the single line `@AGENTS.md`. The root `AGENTS.md` is 40 lines of build and style conventions and nothing else. There are two rules in `.claude/rules/`, each with a `paths:` glob that resolves. `git`, `jq` and the Claude Code CLI are on `PATH`.
 

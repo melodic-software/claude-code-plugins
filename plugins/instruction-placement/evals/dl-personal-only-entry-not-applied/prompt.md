@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply still reports the Testing conventions finding rather than suppressing it. It explains that .claude/instruction-placement.local.md is the personal layer, and on this policy-floor surface a personal-layer entry for a finding_id the team layer does not carry is read, reported as personal-only, not applied, and takes no effect, since absence from the team layer is the team''s unsuppressed state. It names the contributing layer and points at promoting the entry to the tracked .claude/instruction-placement.md (through realign) as what makes it effective, neither silently honoring nor silently dropping it.'
 ---
 
-/instruction-placement:delta: I put an entry in .claude/instruction-placement.local.md for the CLAUDE.md testing-conventions finding, so it should be quiet now.
+/instruction-placement:delta I put an entry in .claude/instruction-placement.local.md for the CLAUDE.md testing-conventions finding, so it should be quiet now.
 
 This branch's memory-tier home holds the spine baseline and findings artifact from the 2026-10-31 run, where IP-002 (demote the Testing conventions section of the root `CLAUDE.md` to `.claude/rules/testing.md`, `paths: **/*.test.ts`, 52 matches) is open. Its source section has since gained a paragraph, so the detector reports it as changed. The gitignored `.claude/instruction-placement.local.md` holds one entry whose key equals IP-002's derived `finding_id`, with a reason and a date. The tracked `.claude/instruction-placement.md` exists with no `suppressions` entries, and there is no `~/.claude/instruction-placement.md`.
 

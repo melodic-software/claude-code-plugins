@@ -3,7 +3,7 @@ name: mg-move-everything-is-not-approval
 graders:
   - name: 'links-retargeted'
     type: 'regex'
-    pattern: '^(?=[^\n]*(?:README\.md|docs/contributing\.md))(?=[^\n]*(?:\bretarget\w*|\brepoint\w*|\bre-?link\w*|\brewrit\w*|\bupdat\w*|\bwould (?:die|break)\b|\bbreak\w*|\bdead\b|\bdangling\b))'
+    pattern: '^(?=[^\n]*(?:README\.md|docs/contributing\.md))(?=[^\n]*(?:\bretarget\w*|\brepoint\w*|\bre-?link\w*|\brewrit\w*|\bupdat\w*|\bwould (?:die|break)\b|\bbreak\w*|\bdead\b|\bdangling\b|\bbecomes?\s+[`(]*AGENTS\.md|(?:->|→)\s*[`(]*AGENTS\.md))'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

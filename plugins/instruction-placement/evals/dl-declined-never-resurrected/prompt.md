@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply reports the movement (IP-007, Docker conventions, as new) without re-proposing IP-004 in any shape: not as new, not as changed, not for review. It may note that the Testing conventions section changed while leaving the declined status standing and the artifact untouched, and it says once why: a re-run does not reopen a decision, and resurrecting decisions teaches the operator to stop reading the report.'
 ---
 
-/instruction-placement:delta: we declined the 'Testing conventions' move last week, has anything changed?
+/instruction-placement:delta we declined the 'Testing conventions' move last week, has anything changed?
 
 This branch's memory-tier home holds the spine baseline and findings artifact from the 2026-10-31 run. In the artifact, IP-004 (demote the Testing conventions section of the root `CLAUDE.md` to `.claude/rules/testing.md` with `paths: **/*.test.ts`) has status `declined`. Since that run the Testing conventions section gained two lines about snapshot files. One other section, Docker conventions, is new and the detector reports it as a medium-confidence demote candidate (IP-007, `paths: **/Dockerfile`, 6 matches). Every rule glob still resolves.
 

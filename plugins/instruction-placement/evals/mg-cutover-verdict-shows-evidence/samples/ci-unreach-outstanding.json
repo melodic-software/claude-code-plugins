@@ -11,12 +11,20 @@
     {
       "answer": "| 2 | CI | UNREACH | blocks the cutover |",
       "why": "table row"
+    },
+    {
+      "answer": "| 2 CI | **UNREACH** (counts as not passing) | `claude-code-action@v1.2.0` in `.github/workflows/claude.yml` isn't in the release map in `reference/sources.md`. |",
+      "why": "smoke reply: not passing"
     }
   ],
   "fail": [
     {
       "answer": "Condition 2 (CI): counts as met; the pin is only unknown.",
       "why": "rounds UNREACH up"
+    },
+    {
+      "answer": "| 2 CI | UNREACH (treated as passing) | pin outside the release map |",
+      "why": "near miss: UNREACH counted as passing"
     },
     {
       "answer": "No.",

@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply describes the accepted move: create src/billing/AGENTS.md with the relocated content and src/billing/CLAUDE.md holding the @AGENTS.md import, in the same move. The shim is what makes the new file load here, because the root CLAUDE.md is read instead of any AGENTS.md on that path, so the AGENTS.md alone would review as correct and reach nothing. The destination is created before the source lines are excised, so an interruption leaves the content duplicated rather than lost; the index is regenerated as part of the move; and verification confirms both files exist and the import resolves before the finding is marked applied.'
 ---
 
-/instruction-placement:realign: apply IP-002, the billing subtree conventions. Our repo root has a CLAUDE.md. Keep it portable so our other agents still read it.
+/instruction-placement:realign apply IP-002, the billing subtree conventions. Our repo root has a CLAUDE.md. Keep it portable so our other agents still read it.
 
 This branch's findings artifact (branch and Claude Code version both match) lists IP-002 as `proposed`: the Billing module section at `CLAUDE.md` lines 52 to 55, destination a nested `AGENTS.md` in `src/billing/`, which holds 23 tracked files and no instruction file yet. The cited lines still hold that section. The root `CLAUDE.md` holds content and does not import any `AGENTS.md`, and the root `AGENTS.md` carries the rules index.
 

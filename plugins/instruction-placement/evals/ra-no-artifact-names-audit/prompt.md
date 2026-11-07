@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply looks for the findings artifact at this branch''s memory-tier home, finds none, and stops with a visible message naming /instruction-placement:audit as the skill that produces it. It does not sweep the instruction layer itself, and it refuses main''s artifact as a fallback because findings cite line ranges and a range derived on another branch points at different text here. Nothing is created, excised or regenerated.'
 ---
 
-/instruction-placement:realign: go ahead and move our conventions into rules.
+/instruction-placement:realign go ahead and move our conventions into rules.
 
 The current branch is `feat/checkout-flow`. Its memory-tier home holds no findings artifact. The home for `main` holds one from an audit run on 2026-10-20 with five findings, and the root `CLAUDE.md` on this branch has gained 30 lines since `main` was audited.
 

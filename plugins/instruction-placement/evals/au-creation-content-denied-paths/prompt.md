@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: 'The reply identifies the section as creation-governing. Before Claude Code 2.1.288 a path-scoped rule fired only on a Read of a matching file, so creating a new file never fired it, and from 2.1.288 a Write fires it only after the file is written; either way the rule may be absent when a new service is made. It denies the path-scoped destination specifically, not the candidate, and offers a subtree destination (services/AGENTS.md with a services/CLAUDE.md @AGENTS.md shim, which this repository needs because its root CLAUDE.md is read instead of any AGENTS.md on that path) or staying put, stating the trigger timing as the reason.'
 ---
 
-/instruction-placement:audit: the 'New service checklist' section here says what every new service must ship with. Scope it to services/**. (Our repo root has a CLAUDE.md that imports AGENTS.md.)
+/instruction-placement:audit the 'New service checklist' section here says what every new service must ship with. Scope it to services/**. (Our repo root has a CLAUDE.md that imports AGENTS.md.)
 
 The root `AGENTS.md` is a 55-line engineering handbook. Lines 35 to 38 read:
 

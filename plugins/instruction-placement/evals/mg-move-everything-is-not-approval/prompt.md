@@ -7,7 +7,7 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: 'The reply runs the read-only plan first and shows its rows: the root directory''s state (content-in-claude), the AGENTS.md byte budget along the path, the two markdown links into CLAUDE.md that would die (README.md and docs/contributing.md), the script that finds the repository root by the existence of CLAUDE.md, the detected docs home (docs/), and the claude-code-action pin. It then proposes a content split per file as a proposal, not as work done, and stops for the operator: "just move everything" is not blanket approval, so nothing is written until specific moves are accepted. It names the links that must be retargeted in the same change.'
 ---
 
-/instruction-placement:migrate: our CLAUDE.md should be one line. Just move everything into AGENTS.md and write the shim.
+/instruction-placement:migrate our CLAUDE.md should be one line. Just move everything into AGENTS.md and write the shim.
 
 The repository has a 90-line root `CLAUDE.md` (build commands, a code-style section, a release runbook, and a section on how Claude should word its commit messages) and no `AGENTS.md` anywhere. `README.md` line 12 links `[agent notes](CLAUDE.md)`, and `docs/contributing.md` line 40 links `[testing rules](CLAUDE.md#testing)`. `scripts/find-root.sh` walks up the tree until it finds a `CLAUDE.md`. Documentation lives under `docs/`. `.github/workflows/claude.yml` pins `anthropics/claude-code-action@v1.4.0`.
 

@@ -7,6 +7,10 @@
     {
       "answer": "| LINK | docs/contributing.md:40 | CLAUDE.md#testing | would die once the content moves |",
       "why": "plan row"
+    },
+    {
+      "answer": "- `README.md:12`: `[agent notes](CLAUDE.md)` becomes `AGENTS.md`.",
+      "why": "smoke reply: becomes"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "README.md: no change needed.",
       "why": "file named, nothing to retarget"
+    },
+    {
+      "answer": "README.md links `CLAUDE.md`, which becomes the `@AGENTS.md` shim.",
+      "why": "near miss: becomes on the line but the shim, not the link"
     },
     {
       "answer": ""
