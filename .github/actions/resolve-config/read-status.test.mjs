@@ -59,6 +59,34 @@ test("an unset field, or one an untrusted account set, leaves the labels to deci
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: STRANGER_ID } }).labels(7, ["agent-ready"]), ["agent-ready"]);
 });
 
+// The live bot-setters: github-actions[bot] counts for every state but
+// agent-ready, and a third-party bot for none.
+test("a hold github-actions[bot] set is added to the labels; its agent-ready, and a third-party bot's hold, leave the labels", async () => {
+  const actionsBot = 41898282;
+  assert.deepEqual(await reader({ 7: { state: "needs-human", setter: actionsBot } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
+  assert.deepEqual(await reader({ 7: { state: "agent-ready", setter: actionsBot } }).labels(7, ["priority: high"]), ["priority: high"]);
+  assert.deepEqual(await reader({ 7: { state: "needs-human", setter: 209825114 } }).labels(7, ["priority: high"]), ["priority: high"]);
+});
+
+// The value (REST) and its setter (GraphQL events) are two reads: when the
+// newest event left another option than the value names, the setter belongs to
+// another write, so the field reads as unset.
+test("a value the newest field event does not name reads as unset", async () => {
+  assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]), ["priority: high"]);
+  assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-human" } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
+});
+
+test("a listed human's hold that claude[bot] then changed is still added to the labels", async () => {
+  const event = (newValue, databaseId) => ({ __typename: "IssueFieldChangedEvent", newValue, actor: { databaseId }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } });
+  const nodes = [event("needs-human", 11), event("ready", 209825114)];
+  const github = async (method, path) =>
+    method === "GET"
+      ? [{ issue_field_id: STATUS_CONFIG["field-id"], single_select_option: { id: 86380003 } }]
+      : { data: { repository: { issue: { timelineItems: { nodes } } } } };
+  const labels = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  assert.deepEqual(await labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
+});
+
 test("a failed read warns and leaves the labels to decide", async () => {
   const { labels, lines } = reader({ 7: new Error("GET answered 500") });
   assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready"]);

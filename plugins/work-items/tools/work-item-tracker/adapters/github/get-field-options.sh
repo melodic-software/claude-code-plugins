@@ -36,11 +36,11 @@ target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 owner="${target_repo%%/*}"
 
 wit_run_gh read api -H "X-GitHub-Api-Version: 2026-03-10" "orgs/$owner/issue-fields"
-options="$(jq -c --arg f "$field" '[.[] | select((.id | tostring) == $f or .name == $f)
-  | .options // [] | .[] | {id, name}]' <<<"$WIT_GH_OUT")" || {
+matched="$(jq -c --arg f "$field" '[.[] | select((.id | tostring) == $f or .name == $f)]
+  | {field_id: (.[0].id // null), options: [.[] | .options // [] | .[] | {id, name}]}' <<<"$WIT_GH_OUT")" || {
   echo "get-field-options: org issue-field listing for $owner is not JSON" >&2
   exit "$EX_INTERNAL"
 }
 
-jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg field "$field" --argjson options "$options" \
-  '{schema_version: $sv, field: $field, options: $options}'
+jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg field "$field" --argjson m "$matched" \
+  '{schema_version: $sv, field: $field, field_id: $m.field_id, options: $m.options}'

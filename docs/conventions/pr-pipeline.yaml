@@ -1065,12 +1065,34 @@ models:
   # An issue's state, as its Work status org issue field, read by field and
   # option id. A state's name is its option's name on GitHub. Collapsing an
   # issue's labels takes the first state in order one of whose labels it
-  # carries; one with none takes the last, needs-triage. A value whose latest
-  # setter is neither a listed human nor the lanes App reads as none; a
-  # trusted value no option maps fails the read. Nothing reads or writes the
-  # field from here yet.
+  # carries; one with none takes the last, needs-triage. A value counts when
+  # its latest setter is a listed human or the lanes App, or, for every state
+  # but agent-ready, one of bot-setters: the job GITHUB_TOKEN
+  # (github-actions[bot]) and the melodic- Apps of trusted-actors.json; a
+  # melodic- entry counts only while that list holds it as a bot with the same
+  # id and login. Third-party bots (claude[bot], cursor[bot], cursoragent,
+  # dependabot[bot]) never count, and agent-ready counts only from a listed
+  # human or the lanes App. Any other value reads as none; a counted value no
+  # option maps fails the read.
   issue-status:
     field-id: 48484079
+    bot-setters:
+      - id: 41898282
+        login: "github-actions[bot]"
+      - id: 300666570
+        login: "melodic-standards-sync[bot]"
+      - id: 288071998
+        login: "melodic-ai[bot]"
+      - id: 296023097
+        login: "melodic-software-github-iac[bot]"
+      - id: 300690090
+        login: "melodic-ci-runner-host[bot]"
+      - id: 302525172
+        login: "melodic-ci-runner-observer[bot]"
+      - id: 315045210
+        login: "melodic-claude-lanes-repin[bot]"
+      - id: 337859524
+        login: "melodic-release[bot]"
     options:
       "84879216": needs-triage
       "84879217": needs-reporter-info

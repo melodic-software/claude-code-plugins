@@ -139,8 +139,12 @@ known; an option no entry maps fails the step (`unmapped-dimension`); an applyin
 `research-first`, `probe-first` or `split-required` in that order
 ([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). `dimensions.mjs`
 reads them; beside it, `issue-status.mjs` collapses an issue's labels to its
-`models.issue-status` state and reads its Work status field under the same setter rule, failing on
-an option no entry maps (`unmapped-status`); no slot uses it yet. `read-status.mjs` hands the
+`models.issue-status` state and reads its Work status field under the same setter rule plus
+`bot-setters` for every state but agent-ready, failing on an option no entry maps
+(`unmapped-status`); no slot uses it yet. `resolve-config.mjs`'s `fieldEvents` reads an issue's
+field events with actor, time and values, and `fieldSetters` folds them to each field's latest
+setter. `write-status.mjs` holds the label mirror (`statusMirror`, which warns on a failed write)
+and the state writer (`statusWriter`, whose `set` and `leaveAgentReady` throw `StatusWriteError`). `read-status.mjs` hands the
 status-label readers outside resolve (the WIP cap, born-triaged, intake re-entry, the triage
 sweep, work-unblock) the issue's labels with that field's say added. Labels reach the field first,
 so while an issue carries a status label the labels decide and a trusted field can only add a hold

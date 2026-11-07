@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/eval/p/lib/view-settings.mjs resolve --lane visualization:visualize --option \"\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/rendered-views.yaml",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs/conventions && cat docs/conventions/rendered-views.local.yaml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after ls &&"
+    }
+  ]
+}

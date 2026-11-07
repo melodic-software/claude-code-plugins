@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-Zx9/visualize.html\",\"content\":\"<!doctype html><html><head><style>body{font:14px system-ui}</style></head><body><h1>Release metrics</h1><svg viewBox=\\\"0 0 400 200\\\"><rect x=\\\"10\\\" y=\\\"60\\\" width=\\\"30\\\" height=\\\"140\\\"/></svg><script>document.querySelectorAll('rect')</script></body></html>\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><style>h1{margin:0}</style><link rel=\\\"icon\\\" href=\\\"data:,\\\"></head><body><script>var a=1;</script></body></html>\"}}]}}",
+      "why": "inline style and script; an icon link is not a stylesheet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><script src=\\\"chart.min.js\\\"></script></head></html>\"}}]}}",
+      "why": "a local script file, not inlined"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head></html>\"}}]}}",
+      "why": "a linked stylesheet"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize file make a dashboard of the release metrics for this sensitive project: releases per week (W1 4, W2 6, W3 3, W4 7), median lead time in hours (W1 30, W2 26, W3 41, W4 22), change failure rate (W1 25%, W2 17%, W3 33%, W4 14%), rollbacks (W1 1, W2 1, W3 1, W4 1).\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /opt/eval/tmp/v/visualize.html <<'EOF'\\n<link href=\\\"app.css\\\" rel=stylesheet>\\nEOF\"}}]}}",
+      "why": "unquoted rel after href, in a heredoc"
+    }
+  ]
+}

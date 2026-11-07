@@ -12,11 +12,11 @@ name: intake-reenter
 # does the same. It never adds
 # `agent-ready`. The rules are in .github/scripts/intake-reenter/reenter.mjs.
 #
-# No model and no App token: the job's GITHUB_TOKEN edits labels and starts
-# the dispatch, as the triage sweep's does, and intake-triage admits
+# No model and no App token: the job's GITHUB_TOKEN edits labels and the Work
+# status field and starts the dispatch, as the triage sweep's does, and intake-triage admits
 # github-actions[bot] as a dispatcher. The script reads the issue and comment
-# back from the API; nothing from the event but their numbers and the removed
-# label's name, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
+# back from the API; nothing from the event but their numbers, the removed
+# label's name and a field change's action and sender id, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
 # the default branch only.
 #
 # A listed human who removes `needs-human` and leaves no `status:` label has
@@ -29,6 +29,14 @@ name: intake-reenter
 # blocker of an issue admission parked closes; only that token's removal starts
 # this run. The same `issues: unlabeled` run reads who removed it and dispatches
 # the same way when the App did and nothing else moves the issue.
+#
+# A listed human who changes the Work status field (48484079) from a hold to
+# none or needs-triage has released it: the `issues: field_added` or
+# `field_removed` run reads the issue's field events, and when that person
+# made the newest ones (past this lane's own needs-triage write), on an open
+# issue with no status label but `needs-triage` and an admitted author, it
+# adds `needs-triage`, sets the field to needs-triage when the release emptied
+# it, and dispatches the same way.
 #
 # Accepted exposure: only a trusted comment decides whether a re-entry
 # happens, and the triage run it starts passes the model only comments whose
@@ -43,12 +51,13 @@ name: intake-reenter
 # `agent-ready`.
 on:
   # Runs from the default branch; the job's `if` drops PR, bot and App
-  # comments, and only the issue and comment numbers and the removed label's
-  # name, through env, reach the script.
+  # comments, and only the issue and comment numbers, the removed label's
+  # name, and a field change's action and sender id, through env, reach the
+  # script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
   issues: # zizmor: ignore[dangerous-triggers]
-    types: [unlabeled]
+    types: [unlabeled, field_added, field_removed]
 
 permissions: {}
 
@@ -67,7 +76,9 @@ jobs:
     # with a `status:` label anyway. When the payload predates the add, the
     # script's own label read refuses it. A bot's `status: confirmed` removal
     # gets through unless the payload shows the status, `agent-ready` or
-    # `needs-triage` every other App removal lands after.
+    # `needs-triage` every other App removal lands after. A Work status field
+    # change gets through only on that field and from a person; the script
+    # reads who made it and from which state.
     if: >-
       !github.event.issue.pull_request
       && github.event.issue.state == 'open'
@@ -93,7 +104,10 @@ jobs:
                       && !contains(github.event.issue.labels.*.name, 'status: needs-decision')
                       && !contains(github.event.issue.labels.*.name, 'status: needs-info')
                       && !contains(github.event.issue.labels.*.name, 'agent-ready')
-                      && !contains(github.event.issue.labels.*.name, 'needs-triage')))))
+                      && !contains(github.event.issue.labels.*.name, 'needs-triage'))
+                  || ((github.event.action == 'field_added' || github.event.action == 'field_removed')
+                      && github.event.issue_field.id == 48484079
+                      && github.event.sender.type == 'User'))))
     runs-on: ubuntu-24.04
     # The resolve-config install can take its full 3 minutes on a slow registry;
     # the 5 minutes the job had before stay for the rest, so a slow install
@@ -101,7 +115,7 @@ jobs:
     timeout-minutes: 9
     permissions:
       contents: read # check out main
-      issues: write # read the issue and comments; edit its labels
+      issues: write # read the issue and comments; edit its labels and Work status field
       actions: write # dispatch intake-triage.yml
     # Every comment on a parked issue and every removal above starts a
     # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
@@ -162,7 +176,8 @@ jobs:
       - name: Install resolve-config's packages
         timeout-minutes: 3
         # A failed install leaves the Work status field unread (the reader
-        # warns and the labels decide); the re-entry still runs.
+        # warns and the labels decide); the re-entry still runs, except on a
+        # field change, which only the field explains, so that run fails.
         continue-on-error: true
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
@@ -175,6 +190,8 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
           EVENT_NAME: ${{ github.event_name }}
           REMOVED_LABEL: ${{ github.event.label.name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          SENDER_ID: ${{ github.event.sender.id }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           KILL_SWITCH: proceed

@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: viz-file-argument-dashboard
+graders:
+  - name: resolver-ran
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?visualization:visualize\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--argument(?:\s|=)+(?:\\"|'')?file\b'
+    min: 1
+    arm: 'with-only'
+  - name: report-line
+    type: 'regex'
+    pattern: 'view: file \(argument\)'
+    target: 'last_message'
+  - name: page-written
+    type: 'regex'
+    pattern: '"name":\s*"Write",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"file_path":\s*"(?:[^"\\]|\\.)*?\.html?"|"name":\s*"Bash",\s*"input":\s*\{\s*"command":\s*"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:[ \t]+-a)?)[ \t]*(?:\\"|\'')?[^\s"\\;&|<>]*\.html?\b'
+    flags: 'i'
+    target: 'trace'
+  - name: no-remote-asset
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:\b(?:src|href)\s*=\s*(?:\\"|\'')?\s*(?:https?:)?//|\burl\(\s*(?:\\"|\'')?\s*(?:https?:)?//|@import\s+(?:url\(\s*)?(?:\\"|\'')?\s*(?:https?:)?//|\bfrom\s+(?:\\"|\'')\s*(?:https?:)?//|\bimport\(\s*(?:\\"|\'')\s*(?:https?:)?//|\bfetch\(\s*(?:\\"|\''|`)\s*https?://)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'
+  - name: no-linked-asset
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:<script\b(?:[^>"\\]|\\.)*?\bsrc\s*=|<link\b(?:[^>"\\]|\\.)*?\brel\s*=\s*(?:\\"|\'')?\s*stylesheet)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'
+  - name: reports-path
+    type: 'regex'
+    pattern: '(?:^|[\s(`\''"<*])/[^\s`\''"<>)*]*\.html?\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: no-artifact-link
+    type: 'regex'
+    pattern: 'claude\.ai/(?:code/)?artifact'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

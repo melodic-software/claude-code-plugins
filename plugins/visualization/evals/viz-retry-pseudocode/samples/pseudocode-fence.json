@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nfor attempt in 1..5:\n    response = send(request)\n    if response.ok or not is_5xx(response): return response\n    if attempt == 5: raise last_error\n    sleep(2 ^ (attempt - 1) seconds)   # 1, 2, 4, 8\n```"
+    },
+    {
+      "answer": "```\nrepeat up to 5 attempts:\n  r = call()\n  if r.status < 500: return r\n  wait backoff[attempt]\nsurface last error\n```",
+      "why": "status < 500"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[try] -->|5xx| B[wait]\n```",
+      "why": "mermaid"
+    },
+    {
+      "answer": "Try the request; on a 5xx wait 1, 2, then 4 seconds, up to five attempts.",
+      "why": "prose, no fence"
+    },
+    {
+      "answer": "I couldn't run the medium resolver or the mermaid parse check because Bash is disabled in this session. I'm using the shipped default, which is the terminal. The diagram below is mermaid source and is not rendered or parse-checked.\n\n```mermaid\nflowchart TD\n    A([Start]) --> B[\"Attempt n (n = 1..5)\"]\n    B --> C{Response?}\n    C -->|2xx / success| D([Return response])\n    C -->|non-5xx failure| E([Surface error immediately])\n    C -->|5xx| F{n = 5?}\n    F -->|yes| G([Give up: surface last error])\n    F -->|no| H[\"Wait 2^(n-1) s: 1, 2, 4, 8\"]\n    H --> I[\"n = n + 1\"]\n    I --> B\n```\n\nThe same flow as a timeline:\n\n```\nattempt 1 ──5xx──▶ wait 1s ──▶ attempt 2 ──5xx──▶ wait 2s ──▶ attempt 3\n   ──5xx──▶ wait 4s ──▶ attempt 4 ──5xx──▶ wait 8s ──▶ attempt 5\n   ──5xx──▶ give up, surface last error\n(any success at any attempt returns immediately)\n```\n\nTwo points your description leaves open:\n- **Fifth wait:** Five attempts means only four waits, so the waits are 1, 2, 4 and 8 seconds. You named 1, 2 and 4. I assumed the pattern continues to 8 seconds before attempt 5. If you meant to stop at 4 seconds, say so and I'll change it.\n- **Non-5xx failures:** I drew these (4xx, network errors) as failing immediately with no retry, because you only mentioned 5xx. Tell me if network errors should be retried too.\n",
+      "why": "the real smoke reply: a mermaid flowchart first, then an ASCII timeline; neither is pseudocode"
+    },
+    {
+      "answer": "The retry, as a timeline:\n\n```\nattempt 1 --5xx--> wait 1s --> attempt 2 --5xx--> wait 2s --> attempt 3\n   --5xx--> wait 4s --> attempt 4 --5xx--> wait 8s --> attempt 5 --5xx--> give up\n```\n",
+      "why": "an ASCII timeline fence carrying attempt, wait and 5xx words but no pseudocode statement"
+    }
+  ]
+}

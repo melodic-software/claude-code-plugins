@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto) picks a page for a rendered diagram, but no Artifact surface is available and the mermaid gate kept the source (mmdc is not installed), so this is the mermaid source, unrendered:\n\n```mermaid\nstateDiagram-v2\n  [*] --> Pending\n  Pending --> Paid: payment\n  Pending --> Cancelled: timeout\n  Paid --> Shipped: dispatch\n  Paid --> Refunded: refund request\n  Shipped --> Delivered: delivery\n  Delivered --> [*]\n  Cancelled --> [*]\n  Refunded --> [*]\n```\n\nPaste it into a mermaid renderer to see the picture."
+    },
+    {
+      "answer": "Here is the mermaid source. It won't render in the terminal; open it in any mermaid viewer.",
+      "why": "won't render"
+    },
+    {
+      "answer": "No mermaid renderer is reachable here, so the fence below is source.",
+      "why": "no renderer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your state diagram:\n\n```mermaid\nstateDiagram-v2\n  Pending --> Paid\n```"
+    },
+    {
+      "answer": "Rendered below as a diagram you can look at.",
+      "why": "claims a render"
+    },
+    {
+      "answer": "I'll render this state machine as a diagram for you.",
+      "why": "echoes the request"
+    }
+  ]
+}

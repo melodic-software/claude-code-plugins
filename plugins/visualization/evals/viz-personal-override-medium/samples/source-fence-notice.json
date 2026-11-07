@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (personal override)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```"
+    },
+    {
+      "answer": "view: file (personal override)\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nThis is mermaid source; it won't render in the terminal.",
+      "why": "notice after the fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: file (personal override)\n\n```mermaid\nflowchart LR\n  A --> B\n```",
+      "why": "no notice"
+    },
+    {
+      "answer": "view: file (personal override)\n\nmmdc is not installed, so I described the pipeline in prose: build, test, push, deploy.",
+      "why": "notice without the fence"
+    }
+  ]
+}

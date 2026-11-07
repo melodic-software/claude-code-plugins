@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-Zx9/visualize.html\",\"content\":\"<!doctype html><html><head><style>body{font:14px system-ui}</style></head><body><header><img alt=\\\"logo\\\" src=\\\"data:image/svg+xml;base64,PHN2Zy8+\\\"></header><svg viewBox=\\\"0 0 400 200\\\"></svg><script>document.querySelectorAll('rect')</script></body></html>\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><style>h1{margin:0}</style><link rel=\\\"icon\\\" href=\\\"data:,\\\"></head><body><script>var a=1;</script></body></html>\"}}]}}",
+      "why": "inline style and script; an icon link is not a stylesheet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><script src=\\\"chart.min.js\\\"></script></head></html>\"}}]}}",
+      "why": "a local script file, not inlined"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head></html>\"}}]}}",
+      "why": "a linked stylesheet"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /opt/eval/tmp/v/visualize.html <<'EOF'\\n<link href=\\\"app.css\\\" rel=stylesheet>\\nEOF\"}}]}}",
+      "why": "unquoted rel after href, in a heredoc"
+    }
+  ]
+}
