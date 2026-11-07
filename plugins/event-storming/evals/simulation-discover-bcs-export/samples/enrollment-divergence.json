@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "H6: \"Enrollment\" means two different things: platform signup versus course access.", "why": "two meanings"},
+    {"answer": "The Enrollment divergence marks a boundary between Identity and Learning.", "why": "divergence"},
+    {"answer": "Same word, two meanings: Enrollment.", "why": "same word before the term"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Enrollment Granted belongs to Course Access.", "why": "names the event, no divergence"},
+    {"answer": "Refund Requested and Chargeback Filed diverge.", "why": "another divergence"}
+  ]
+}

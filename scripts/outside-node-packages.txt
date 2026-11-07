@@ -25,6 +25,7 @@
 .github/scripts/lane-run-report
 .github/scripts/lib
 .github/scripts/maintenance-audit-lane-runs
+.github/scripts/maintenance-measure-skill-edit
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
 .github/scripts/maintenance-tidy-code-upkeep
@@ -35,8 +36,10 @@
 .github/scripts/pr-merge-risk
 .github/scripts/pr-refine
 .github/scripts/pr-review-main
+.github/scripts/pr-run-activity-read
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
+.github/scripts/recurring-schedule
 .github/scripts/security-outside-actor
 .github/scripts/upstream-apply-changelog
 .github/scripts/work-unblock

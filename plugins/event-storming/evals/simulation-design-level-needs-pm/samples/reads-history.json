@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/data/event-storming/history.jsonl"}}], "why": "reads the store"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no lookup"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/opt/eval/plugin/skills/simulation/SKILL.md"}}], "why": "reads the skill only"}
+  ]
+}

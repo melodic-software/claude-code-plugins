@@ -1,0 +1,7 @@
+{
+  "name": "maintenance-measure-skill-edit",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: simulation-no-auto-advance
+description: "Legacy simulation never-auto-advance-formats. Narration: the finished Big Picture and three discovered bounded contexts are given as facts, since no run can hold a prior session. simulation SKILL.md line 89: present the arrow-voting winner and discovered BCs, then let the user pick the next BC to Process Model; 'Never auto-advance formats. The user chooses each step.' asks-which-bc needs a question about which context to explore next; no-auto-advance (llm) fails Process Modeling or Design-Level work started before the user picks; no-agent-dispatch fails any Agent call. The prompt asks for questions in the reply, since an AskUserQuestion call never reaches the last message. Natural-language prompt so the Skill call is visible."
+tags: [event-storming, simulation, outcome, progression, narration, no-network]
+expected_outcome: "The model loads the simulation skill, presents the three bounded contexts and asks which one to explore next, and starts no Process Modeling or Design-Level work on its own."
+execution:
+  prompt: "Use the event-storming plugin's simulation skill. During a --simulate run you have finished the Big Picture workshop and run bounded-context discovery for a logistics domain. Three bounded contexts were found: Shipment Booking, Fleet Dispatch and Freight Billing; the arrow-voting winner was late-delivery penalties. What happens next? Put any question for me in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?simulation"'
+    arm: with-only
+  - name: asks-which-bc
+    type: regex
+    pattern: '\b(?:which|what)\b[^\n?]{0,100}\b(?:bounded contexts?|contexts?|BCs?)\b[^\n?]{0,100}\?|\b(?:you|please)\s+(?:pick|choose|select)\b[^\n.]{0,60}\b(?:bounded contexts?|contexts?|BCs?)\b|\breply with\b[^\n.]{0,60}\b(?:bounded contexts?|contexts?|BCs?)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-auto-advance
+    type: llm
+    criteria: 'Legacy simulation 4: "Output does NOT automatically proceed into Process Modeling or Design-Level without the user selecting the next step" and "Output frames format progression as user-driven, one step at a time". PASS when the reply stops at the choice of which bounded context to explore next and leaves Process Modeling and Design-Level until the user picks. FAIL when the reply starts or narrates Process Modeling or Design-Level work for any context before the user chooses, or says the run will advance through the formats on its own.'
+    focus: 'last_message'
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

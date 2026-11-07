@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: simulation-markdown-big-picture-first
+description: "Legacy simulation simulate-starts-with-big-picture, refit to structured-markdown mode: the legacy run was on a live Miro board, which no eval run can have, and a full markdown run fans out persona Agents and persists under plugin data, so the case grades the plan the skill gives before the first phase. simulation SKILL.md lines 56-60: markdown mode keeps 'personas, phase ordering' identical; line 87: setup picks 4-7 personas; line 88: 'Big Picture (always first)'. Slash-invoked, so no Skill grader. names-big-picture needs Big Picture; bp-first fails a reply naming Process Modeling or Design-Level before its first Big Picture; persona-roster (llm) needs 4 to 7 distinct personas; no-agent-dispatch fails any Agent call before the go-ahead."
+tags: [event-storming, simulation, outcome, phase-order, no-network]
+expected_outcome: "The plan opens with Big Picture before any Process Modeling or Design-Level, lists 4 to 7 personas, and dispatches no agent."
+execution:
+  prompt: "/event-storming:simulation --simulate online-grocery-delivery\n\nIf Miro is not available, use the structured-markdown mode. Before running any phase, give me the plan: the personas you will use and the order of formats and phases you will run. Then stop and wait for my go-ahead."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: names-big-picture
+    type: regex
+    pattern: '\bbig[- ]picture\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: bp-first
+    type: regex
+    pattern: '^(?:(?!big[- ]picture)[\s\S])*?\b(?:process[- ]model|design[- ]level)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: persona-roster
+    type: llm
+    criteria: 'Legacy simulation 1: "Output sets up multiple personas (roughly 4-7) rather than modeling from a single voice". PASS when the plan lists between 4 and 7 distinct personas or roles who will take part. FAIL when it lists fewer than 4 or more than 7, or models the domain from a single voice.'
+    focus: 'last_message'
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

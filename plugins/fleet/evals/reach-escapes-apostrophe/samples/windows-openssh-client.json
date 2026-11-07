@@ -1,15 +1,11 @@
 {
   "pass": [
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"what'\\''s using the most disk space?\" < /dev/null'",
-      "why": "the Windows OpenSSH client from WSL"
+      "answer": "printf '%s\\n' 'what'\\''s using the most disk space?' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p",
+      "why": "the Windows OpenSSH client from WSL, prompt on stdin"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe -n desk-wsl 'claude -p \"what'\\''s using the most disk space?\"'",
-      "why": "ssh -n, which the skill allows"
-    },
-    {
-      "answer": "ssh.exe desk-wsl 'claude -p \"hello\" < /dev/null'",
+      "answer": "printf '%s\\n' 'hello' | ssh.exe desk-wsl claude -p",
       "why": "the Windows client with no path"
     }
   ],
@@ -21,6 +17,10 @@
     {
       "answer": "ssh desk-wsl \"claude -p \\\"what's using the most disk space?\\\" < /dev/null\"",
       "why": "observed without-arm form: the distro's ssh, which holds no key"
+    },
+    {
+      "answer": "printf '%s\\n' 'what'\\''s using the most disk space?' | /mnt/c/Windows/System32/OpenSSH/ssh.exe -n desk-wsl claude -p",
+      "why": "ssh -n drops the piped prompt"
     }
   ]
 }

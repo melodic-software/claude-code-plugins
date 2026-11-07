@@ -38,6 +38,12 @@ const RECORD_PREFIX = "pr-unblock-dispatched-";
 // A workflow_run dispatcher sends one dispatch per run and names its record
 // with the upstream run that started it, then the run it dispatched.
 const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{0,14})$/;
+// A pull_request_target dispatcher sends one dispatch, of this workflow only,
+// and names its record with the default-branch commit it ran, then the run it
+// dispatched.
+const TARGET_EVENT = "pull_request_target";
+const TARGET_DISPATCHED = ".github/workflows/pr-refine.yml";
+const TARGET_RECORD_NAME = /^pr-unblock-target-dispatched-([0-9a-f]{40})-([1-9][0-9]{0,14})$/;
 // The record can land after this run's gate starts: re-read every 5 s while
 // the dispatcher run is still going, for at most 2 min (judgment).
 const RECORD_WAIT_MS = 5000;
@@ -787,13 +793,15 @@ async function requireOnDefaultBranch(github, repository, defaultBranch, headSha
 }
 
 // What a record name says about this run: null when it does not list it,
-// otherwise true, or for a workflow_run dispatcher's record the upstream run id.
-function readRecordName(name, runId, viaRun) {
+// otherwise true, or for a workflow_run or pull_request_target dispatcher's
+// record the upstream run id or the commit it ran. Each kind reads only its
+// own name.
+function readRecordName(name, runId, kind) {
   if (typeof name !== "string") {
     return null;
   }
-  if (viaRun) {
-    const match = RUN_RECORD_NAME.exec(name);
+  if (kind !== "push") {
+    const match = (kind === "run" ? RUN_RECORD_NAME : TARGET_RECORD_NAME).exec(name);
     return match !== null && match[2] === runId ? match[1] : null;
   }
   return RECORD_NAME.test(name) && name.slice(RECORD_PREFIX.length).split("-").includes(runId)
@@ -803,7 +811,7 @@ function readRecordName(name, runId, viaRun) {
 
 // The dispatcher run's unexpired record of its own that lists this run's id,
 // read by readRecordName, or null. A failed or malformed read refuses.
-async function findRecord(github, runPath, dispatcherRunId, runId, viaRun) {
+async function findRecord(github, runPath, dispatcherRunId, runId, kind) {
   const body = await readOrRefuse(github, `${runPath}/artifacts?per_page=100`);
   if (!Array.isArray(body.artifacts)) {
     throw new Stop("untrusted-actor");
@@ -815,7 +823,7 @@ async function findRecord(github, runPath, dispatcherRunId, runId, viaRun) {
       Number.isSafeInteger(artifact.workflow_run?.id) &&
       String(artifact.workflow_run.id) === dispatcherRunId
     ) {
-      const found = readRecordName(artifact.name, runId, viaRun);
+      const found = readRecordName(artifact.name, runId, kind);
       if (found !== null) {
         return found;
       }
@@ -833,11 +841,11 @@ async function findRecord(github, runPath, dispatcherRunId, runId, viaRun) {
 // the run and its artifact list, and then the gate refuses. That wait counts
 // toward the cap, so the whole wait stays within 2 min. Returns what the
 // record names (readRecordName).
-async function requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep }) {
+async function requireRecorded({ github, repository, dispatcherRunId, runId, kind, sleep }) {
   const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
   for (let sleeps = 0; ; sleeps += 1) {
     const { status } = await readOrRefuse(github, runPath);
-    const found = await findRecord(github, runPath, dispatcherRunId, runId, viaRun);
+    const found = await findRecord(github, runPath, dispatcherRunId, runId, kind);
     if (found !== null) {
       return found;
     }
@@ -849,7 +857,7 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
     );
     await sleep(RECORD_WAIT_MS);
     if (status === "completed") {
-      const late = await findRecord(github, runPath, dispatcherRunId, runId, viaRun);
+      const late = await findRecord(github, runPath, dispatcherRunId, runId, kind);
       if (late !== null) {
         return late;
       }
@@ -873,7 +881,13 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 // runDispatcherRelay instead must have run on pull_request_review_comment,
 // name the PR among its pull_requests, and be started (and any re-run) by a
 // listed human, never the lanes App: a review comment relayed by path, event
-// and actor (ADR 0088). Returns this run's own record.
+// and actor (ADR 0088). A dispatcher started by pull_request_target vouches
+// for a pr-refine.yml run only: its head repository is this one, one
+// pull_requests entry names this PR on the default branch with base and head
+// in this repository and the run's head_branch as head ref, its actor and
+// triggering actor are the lanes App or a listed human, and the ancestry
+// check reads the commit its record names in place of head_sha (ADR 0090).
+// Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -917,7 +931,27 @@ async function verifyDispatcher({
   // A workflow_run run reports the default branch and its tip as head_branch
   // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
+  const viaTarget = dispatcher.event === TARGET_EVENT;
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
+  // The lanes App or a listed human.
+  const vouches = (user) =>
+    Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
+  // A pull_request_target run reports the PR's branch and head as head_branch
+  // and head_sha. One pull_requests entry must bind every term; an empty or
+  // missing list refuses. Entries carry repository ids, not names.
+  const repositoryId = event.repository?.id;
+  const onThisPull = () =>
+    Number.isInteger(repositoryId) &&
+    typeof dispatcher.head_branch === "string" &&
+    Array.isArray(dispatcher.pull_requests) &&
+    dispatcher.pull_requests.some(
+      (entry) =>
+        entry?.number === pull.number &&
+        entry.base?.ref === defaultBranch &&
+        entry.base?.repo?.id === repositoryId &&
+        entry.head?.repo?.id === repositoryId &&
+        entry.head?.ref === dispatcher.head_branch,
+    );
   // Comparisons with NaN are false, so a missing or unparsable time refuses.
   const trusted =
     own.path === dispatchedWorkflow &&
@@ -925,8 +959,15 @@ async function verifyDispatcher({
     dispatcher.repository?.full_name === repository &&
     expectedPath !== "" &&
     dispatcher.path === expectedPath &&
-    dispatcher.head_branch === defaultBranch &&
+    (viaTarget
+      ? own.path === TARGET_DISPATCHED &&
+        dispatcher.head_repository?.full_name === repository &&
+        onThisPull() &&
+        vouches(dispatcher.actor) &&
+        vouches(dispatcher.triggering_actor)
+      : dispatcher.head_branch === defaultBranch) &&
     (viaRun ||
+      viaTarget ||
       (DISPATCHER_EVENTS.has(dispatcher.event) &&
         (dispatcher.event !== "workflow_dispatch" || isListedHuman(dispatcher.actor)))) &&
     SHA.test(dispatcher.head_sha ?? "") &&
@@ -938,20 +979,25 @@ async function verifyDispatcher({
   if (!trusted) {
     throw new Stop("untrusted-actor");
   }
-  await requireOnDefaultBranch(github, repository, defaultBranch, dispatcher.head_sha, "untrusted-actor");
+  if (!viaTarget) {
+    await requireOnDefaultBranch(github, repository, defaultBranch, dispatcher.head_sha, "untrusted-actor");
+  }
   if (
     (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) ||
     (pushedCommit !== "" && (expectedUpstreamHead === "" || !SHA.test(pushedCommit)))
   ) {
     throw new Stop("untrusted-actor");
   }
-  const found = await requireRecorded({ github, repository, dispatcherRunId, runId, viaRun, sleep });
+  const kind = viaRun ? "run" : viaTarget ? "target" : "push";
+  const found = await requireRecorded({ github, repository, dispatcherRunId, runId, kind, sleep });
+  if (viaTarget) {
+    // Since 2025-12-08 a pull_request_target run takes its workflow file and
+    // checkout from the default branch, so only that branch's dispatcher
+    // writes this record, and the commit it names is what must be on it.
+    await requireOnDefaultBranch(github, repository, defaultBranch, found, "untrusted-actor");
+  }
   if (viaRun) {
     const upstream = await readOrRefuse(github, `/repos/${repository}/actions/runs/${found}`);
-    // The run the review reacted to was started, and any re-run triggered, by
-    // the lanes App or a listed human.
-    const vouches = (user) =>
-      Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
     // A relayed review comment: only a listed human vouches, never the lanes
     // App, and the run must name the PR.
     const relayed = runDispatcherRelay !== "" && upstream.path === runDispatcherRelay;
