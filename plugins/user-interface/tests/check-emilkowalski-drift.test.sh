@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exit-code contract of scripts/check-emilkowalski-drift.sh, network-free: the
 # script is sourced and fetch_tree is replaced by a stub. The expected SHAs are
-# the upstream blob SHAs at pin f1090bec recorded in
+# the upstream blob SHAs at pin c8a79627 recorded in
 # docs/upstream/emilkowalski-skills.md, not values read from the script.
 set -uo pipefail
 
@@ -36,7 +36,7 @@ PIN_TREE="a0652a605e6b418261a2b4fb1ad82576be0c3b53 .gitattributes
 e43b0f988953ae3a84b00331d0ccf5f7d51cb3cf .gitignore
 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 .pl
 57b46f1fd11dc62351ea548104a88aa3f659c11b LICENSE
-eb13e61d196401244b3c2061f322943c42313078 README.md
+e77e3dbb87c3349e323cbebd46d91fd7dbdc5b1b README.md
 15f73d24a3b0e8a44d96d16d996719565b3ab7d5 performance-cheatsheet.md
 a5c803280b82f72dd11ed2136caaf0ea8c139a5c ui-cheatsheet.md
 a02e6b80f9dec86f196590f2f7a4fe3310ea1cb4 skills/animate-expo/RECIPES.md
@@ -50,6 +50,8 @@ d2b0f3cf93d9495a8496275dc6e70199302df0f1 skills/ask-sonner/API.md
 6cf9217f409315466ecfd7796de4591879983637 skills/ask-sonner/SKILL.md
 46962bb89445b8526ea94994a79b49508573b5fd skills/break-ui/CATALOG.md
 091a28d488662d2451131f1aaa60a6dcd2391932 skills/break-ui/SKILL.md
+17936a9cfc3e26224c5b4555f5a239758718815c skills/choreograph/RECIPES.md
+9fef0048d260be7bc05a909a03b52627bb3ccf37 skills/choreograph/SKILL.md
 dc063c2a861922c1c9f2412b824b0862746304f5 skills/emil-design-eng/SKILL.md
 d3b030fbca9abad9220a032f72d425c6b7fa2de8 skills/find-animation-opportunities/SKILL.md
 0862c446eea250326cdd2054fc3492c6707f4cf7 skills/improve-animations/AUDIT.md
@@ -83,7 +85,7 @@ assert_contains "changed pinned file: names it" "$out" "CHANGED    skills/animat
 assert_contains "changed pinned file: shows the new SHA" "$out" "$CHANGED_SHA"
 assert_not_contains "changed pinned file: LICENSE not flagged" "$out" "CHANGED    LICENSE"
 assert_contains "changed pinned file: compare URL" "$out" \
-  "https://github.com/emilkowalski/skills/compare/f1090bec277140d02ed202440185ad9d02ac1490...main"
+  "https://github.com/emilkowalski/skills/compare/c8a79627b59d72d764d6ab6f2c87c09a48169833...main"
 
 # 3. An omitted file changed: not drift.
 stub_tree="${PIN_TREE/a09a8f693304fe1c04ed56d61dde9833a516849e/$CHANGED_SHA}"

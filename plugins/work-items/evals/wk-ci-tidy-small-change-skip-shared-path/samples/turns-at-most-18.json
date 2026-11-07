@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "invoke code-tidying:tidy-diff with the lines file and --turns 18",
+      "why": "18"
+    },
+    {
+      "answer": "`--turns=16` (two turns kept in reserve)",
+      "why": "less than 18"
+    },
+    {
+      "answer": "It invokes `code-tidying:tidy-diff` with the lines file. `--turns` is set to 18 or to what is left after that reserve, whichever is smaller.",
+      "why": "the wb2 reply line: the flag in a code span, its value in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "invoke code-tidying:tidy-diff with --turns 75",
+      "why": "the run's whole budget"
+    },
+    {
+      "answer": "invoke code-tidying:tidy-diff with an 18-turn budget",
+      "why": "no flag"
+    }
+  ]
+}

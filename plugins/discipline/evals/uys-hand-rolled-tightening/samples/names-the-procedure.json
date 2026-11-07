@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "I ran my own four-step pass: split into sentences, strike filler, merge restatements, re-read."
+    },
+    {
+      "answer": "Striking the filler and merging sentences by hand is what tighten-your-output does."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Invoking tighten-your-output now."
+    },
+    {
+      "answer": "You're right: I hand-wrote a whole tightening procedure.",
+      "why": "echoes the prompt only"
+    }
+  ]
+}

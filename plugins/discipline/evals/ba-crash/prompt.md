@@ -1,6 +1,6 @@
 ---
-description: "A software fix request (stop one crash). The reply raises it from fixing one crash toward the importer not crashing on malformed input, with concrete methods and an executable check, fences scope, and edits nothing."
-tags: [discipline, be-ambitious, outcome]
+description: "Legacy be-ambitious 3. A software fix request (stop one crash). The reply raises it from fixing one crash toward the importer not crashing on malformed input, with concrete methods and an executable check named before any fresh-context reviewer (executable-check-first, llm), points at /discipline:scrutinize-dont-coast for that review (scrutinize-pointer, with-only; SKILL.md line 59), carries the two scope-fence lines verbatim (scope-fence-lines, with-only; SKILL.md line 99), and edits nothing. Needs --allow-tools Bash Write Edit so the no-* graders measure a reachable tool."
+tags: [discipline, be-ambitious, outcome, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

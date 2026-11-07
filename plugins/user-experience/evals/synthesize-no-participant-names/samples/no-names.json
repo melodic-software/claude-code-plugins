@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "P1 and P2 could not find the export button (2 sources)."
+    },
+    {
+      "answer": "Theme: export button hard to find. Sources: S1, S2."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Maria Lopez (P1) could not find export."
+    },
+    {
+      "answer": "Source: maria@example.com"
+    },
+    {
+      "answer": "Tom said the same."
+    }
+  ]
+}

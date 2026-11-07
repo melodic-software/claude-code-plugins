@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "version: 1\njtbd_school: unset\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "version: 1\njtbd_school: unset\nrouting:\n  version: 1\n"
+    },
+    {
+      "answer": "jtbd_school: unset\nversion: 1\n"
+    }
+  ]
+}

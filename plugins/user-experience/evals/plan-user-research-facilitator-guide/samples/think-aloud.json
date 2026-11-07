@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Ask the participant to think aloud as they go."
+    },
+    {
+      "answer": "Think-aloud instructions: say what you are looking for."
+    },
+    {
+      "answer": "As you go, please say what you're thinking."
+    },
+    {
+      "answer": "Talk me through what you are looking for."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ask the participant to complete each task."
+    },
+    {
+      "answer": "Tell me what you think of the checkout."
+    },
+    {
+      "answer": "Talk me through the checkout."
+    },
+    {
+      "answer": "Say when you are done."
+    }
+  ]
+}

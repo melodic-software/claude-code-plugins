@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Make it a lint rule (eslint no-restricted-imports)."
+    },
+    {
+      "answer": "This belongs in a pre-commit hook."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's a one-off grep for this review."
+    }
+  ]
+}

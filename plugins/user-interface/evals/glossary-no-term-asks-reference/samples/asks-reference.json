@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Could you share a screenshot or a link to an app that does it?",
+      "why": "asks for a reference"
+    },
+    {
+      "answer": "Do you have a screen recording or a link to an example?",
+      "why": "asks for a recording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That's an idle animation.",
+      "why": "near miss: names a term, asks nothing"
+    },
+    {
+      "answer": "Which app do you use most?",
+      "why": "a question, not for a reference"
+    },
+    {
+      "answer": "Apps like Calm have this kind of idle animation, for example. Is that the effect you mean?",
+      "why": "near miss: confirms a guess, asks for no reference"
+    },
+    {
+      "answer": "Is the poster linked to the behave example?",
+      "why": "verbs inside other words (poster, linked, behave) are not a request"
+    }
+  ]
+}

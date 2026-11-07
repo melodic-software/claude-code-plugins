@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Assumptions to test\n- People quit after a missed streak (test in interviews)."
+    },
+    {
+      "answer": "Body.\n\n**Assumptions to test**\n- One"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "These assumptions should be tested in the interviews."
+    },
+    {
+      "answer": "## Assumptions\n- People quit after a streak."
+    }
+  ]
+}

@@ -1651,8 +1651,36 @@ test("the driver's file tools are fenced to the head and the run directory, and 
   assert.match(probePrompt, /^ {12}echo " {4}\$FENCE_LINK"$/m);
   assert.match(
     capStep(PROBE_CHECK),
-    /capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence" "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link"; then\n {12}echo "::error::.*"\n {12}exit 1$/m,
+    /^ {10}node \.base\/\.github\/scripts\/pr-verify\/capture-probe\.mjs reads "\$EXECUTION_FILE" \/proc\/self\/environ "\$PROMPT_FILE" "\$HOME\/\.claude\/pr-verify-probe-fence" "\$GITHUB_WORKSPACE\/capture-run\/probe-environ-link" "\$GITHUB_WORKSPACE\/capture-run\/probe-fence-link" \|\| reads=\$\?\n {10}case \$reads in\n {12}0\) ;;\n {12}3\)\n {14}echo "::error::.*"\n {14}exit 1\n {14};;\n {12}\*\)\n {14}echo "::error::.*"\n {14}exit 1\n {14};;\n {10}esac$/m,
   );
+  // Run against hand-built transcripts: a session with no Read call fails as an
+  // untested fence, a Read that came back fails as an open one.
+  const checkDir = tempDir("capture-probe-check-reads-");
+  const scripts = path.join(checkDir, ".base/.github/scripts/pr-verify");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "capture-probe.mjs"), readFileSync(new URL("./capture-probe.mjs", import.meta.url)));
+  const probeResult = path.join(checkDir, "capture-probe.json");
+  writeFileSync(probeResult, JSON.stringify({ clean: true, canary: true, hits: [] }));
+  const transcript = path.join(checkDir, "execution.json");
+  const checkWith = (messages) => {
+    writeFileSync(transcript, JSON.stringify(messages));
+    return spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", scriptOf(capStep(PROBE_CHECK))], {
+      cwd: checkDir,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, HOME: checkDir, GITHUB_WORKSPACE: checkDir, PROBE_OUTCOME: "success", RESULT: probeResult, EXECUTION_FILE: transcript, PROMPT_FILE: "/runner/_temp/probe.md" },
+    });
+  };
+  const untried = checkWith([]);
+  assert.equal(untried.status, 1, untried.stdout + untried.stderr);
+  assert.match(untried.stdout, /^::error::the probe's session made no Read call on a fenced path, so the driver's file-tool fence was not tested; no pull request code runs$/m);
+  assert.doesNotMatch(untried.stdout, /not fenced off/);
+  const leaked = checkWith([
+    { type: "assistant", message: { content: [{ type: "tool_use", id: "r", name: "Read", input: { file_path: "/proc/self/environ" } }] } },
+    { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "r", content: "x" }] } },
+  ]);
+  assert.equal(leaked.status, 1, leaked.stdout + leaked.stderr);
+  assert.match(leaked.stdout, /^::error::the driver's file tools are not fenced off \/proc, the runner's temp directory and ~\/\.claude, directly or through a link; no pull request code runs$/m);
+  assert.doesNotMatch(leaked.stdout, /not tested/);
   // Every launcher step carries the same fence, the probe's and the driver's alike.
   const launchers = [...CAP_STEPS, ...SUB_STEPS].filter((s) => /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/.test(s.block));
   assert.equal(launchers.length, 2);

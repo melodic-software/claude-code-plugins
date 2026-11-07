@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/types/touch-web.md"
+          }
+        }
+      ],
+      "why": "read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/types/web.md"
+          }
+        }
+      ],
+      "why": "another file"
+    }
+  ]
+}

@@ -87,23 +87,27 @@ the next hop's skeleton adds the section.
 What the writer owns, since no script can judge it:
 
 - **Rules are current, not historical.** A changed rule is rewritten in place under its id, its
-  new text verbatim; a retired rule is deleted from the hot file. The predecessor's text of both
-  is already in this hop's file. A new rule takes the next unused id, which the skeleton's slot
-  names. Ids are never reused.
+  new text verbatim; a retired rule is deleted from the hot file and listed in this hop's file
+  under `## Retired rules` as `- [R<n>] <why it no longer binds>`, which `validate` requires. The
+  predecessor's text of both is already in this hop's file. A rule never leaves to meet the size
+  cap. A new rule takes the next unused id, which the skeleton's slot names. Ids are never reused.
 - **A preference leaves once its instruction file holds it.** A rule that binds beyond this
   chain's goal stays under Standing preferences, marked pending promotion, until the instruction
   file it belongs in carries it; then the hot file keeps only the pointer under Review before you
-  continue. Auto memory is not a destination; an edit to the user's own instruction files goes
+  continue, and this hop's file lists it under `## Retired rules` as `- [R<n>] promoted to
+  <instruction file>`. Auto memory is not a destination; an edit to the user's own instruction files goes
   through the owner.
 - **No live GitHub fact.** Issue, PR, check and review state goes stale between hops. The hot
   file lists the re-read command instead, taken from the source-control plugin's surface (for a
   pull request, `/source-control:pull-request` names its status read); `validate` warns on a
   state claim it recognizes.
-- **Over the size cap, move non-core content out.** `validate` names the cap. The core (Original
-  goal, Direction changes, Resumption brief, Current rules, Standing preferences) never moves;
-  shorten the other sections, appending what they drop to this hop's file. A core alone over the
-  cap still emits, marked UNVALIDATED, until the file passes the Read page cap (25,000 tokens'
-  worth); past that, `validate` fails whatever the core holds.
+- **Over the size cap, move written content out.** `validate` names the cap and three sizes: the
+  core (Original goal, Direction changes, Resumption brief, Current rules, Standing preferences),
+  which never moves; the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
+  prompt); and everything else, the written part. Shorten written sections, appending what they
+  drop to this hop's file. When the core plus the carried part alone is over the cap, the file
+  emits marked UNVALIDATED instead: never shorten the core or cut written sections for it. Past
+  the Read page cap (25,000 tokens' worth) `validate` fails whatever the core holds.
 
 **From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

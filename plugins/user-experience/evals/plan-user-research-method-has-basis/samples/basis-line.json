@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Interviews. Basis: judgment (research-methods.md, why questions)."
+    },
+    {
+      "answer": "**Basis:** research-methods.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Interviews, because the question is why people leave."
+    },
+    {
+      "answer": "Based on judgment, run interviews."
+    }
+  ]
+}

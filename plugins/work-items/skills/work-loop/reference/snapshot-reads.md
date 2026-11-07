@@ -15,6 +15,10 @@ when the reads behind it were complete.
 - **Cordoned milestones**: the forge's contents read of the admission rules file
   ([mode-drain.md](mode-drain.md), "Cordoned items"), in drain mode and only when a retained row
   carries a `milestone`. An absent file is a complete read with no names.
+- **Status**, in drain mode: `status-storage`, then on `field` `get-statuses` over the retained
+  open ids, per the tracker seam's "Reading an item's status"
+  ([`tracker-seam.md`](../../../reference/tracker-seam.md)). The drain-terminal test reads holds
+  from it ([mode-drain.md](mode-drain.md)). It has no `truncated` field and is complete on exit `0`.
 
 With `--scope <label>`, both reads take `--label <label>`. Where the bound adapter filters by label
 in its provider query, the ceiling counts only scoped items, so a small scope on a large tracker
@@ -22,8 +26,8 @@ reads complete; where it does not, the seam filters after the read and a listing
 stays truncated (`CONTRACT.md`, "Verbs"). `--shard` has no provider filter and partitions the
 retained ids after the reads.
 
-An envelope with no `truncated` field falls under "Completeness unknown" below, whichever read
-returned it.
+An open-items or frontier envelope with no `truncated` field falls under "Completeness unknown"
+below, whichever of the two returned it.
 
 ## A read that is not complete aborts the cycle
 

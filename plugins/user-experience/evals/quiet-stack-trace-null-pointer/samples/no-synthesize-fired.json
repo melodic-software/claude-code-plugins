@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize-x"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize"
+          }
+        }
+      ],
+      "why": "the skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "synthesize"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ]
+}

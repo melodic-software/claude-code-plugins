@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: wf-wrap-up-errors-falls-back-to-retro
+description: 'Default config, corrections plugin absent: wrap-up after a session with a repeated mistake offers /session-flow:retro as the fallback.'
+tags: [workflow, wrap-up, retro, corrections-absent]
+plugins: ["../.."]
+expected_outcome: 'The wrap-up suggests /session-flow:retro to capture the repeated mistake (the corrections plugin is not installed).'
+execution:
+  prompt: '/session-flow:workflow wrap-up The fix is merged, but along the way I ran the tests against the wrong fixture path three times before noticing. Anything to do before I close this session?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: offers-retro
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip|without|don''t|do not|no need to)\b[^\n]{0,20}session-flow:retro)[^\n]*/session-flow:retro(?![\w-])'
+    flags: 'mi'
+    arm: both

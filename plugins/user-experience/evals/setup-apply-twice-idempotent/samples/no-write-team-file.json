@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/conventions/user-experience.yaml",
+            "content": "version: 1\njtbd_school: unset\n"
+          }
+        }
+      ]
+    }
+  ]
+}

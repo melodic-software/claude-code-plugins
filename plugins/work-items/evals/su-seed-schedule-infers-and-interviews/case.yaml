@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-seed-schedule-infers-and-interviews
+graders:
+  - name: 'manifest-candidate-quarterly'
+    type: 'regex'
+    pattern: 'package\.json[\s\S]{0,200}quarterly|quarterly[\s\S]{0,200}package\.json'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Treats the explicit --seed-schedule argument as the opt-in and runs the seeding pass without re-offering it; (2) Reads and summarizes the existing .github/recurring-schedule.json (here present with zero rows) before proposing changes; (3) Infers candidate items from concrete repo signals (here package.json, the eslint config and the CI workflow) with recommended cadences; (4) Interviews one item at a time with recommended values, rather than writing blind; (5) Does not invent items for which the repo gives no signal (here no security-review item, since the repo has no SECURITY.md and no auth or secrets-handling code); (6) Writes only the items the operator accepts. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

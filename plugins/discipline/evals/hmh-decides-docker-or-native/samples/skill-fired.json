@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:hold-my-hand"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "hold-my-hand"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:tighten-your-output"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Skill call"
+    }
+  ]
+}

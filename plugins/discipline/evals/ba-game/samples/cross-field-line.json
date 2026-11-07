@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Range.** Game design and live ops, not only rendering. What tool from another field would change what's possible here?",
+      "why": "the line verbatim"
+    },
+    {
+      "answer": "> What tool from another field would change what’s possible here?",
+      "why": "curly apostrophe in a quote"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Which tools from other fields could help here?",
+      "why": "paraphrase"
+    },
+    {
+      "answer": "What tool from another field would change what's possible here.",
+      "why": "not asked as a question"
+    }
+  ]
+}

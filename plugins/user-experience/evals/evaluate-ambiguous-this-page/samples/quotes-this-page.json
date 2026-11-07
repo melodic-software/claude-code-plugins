@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The phrase \"this page\" could mean Home, Study or Results."
+    },
+    {
+      "answer": "“this page” is ambiguous"
+    },
+    {
+      "answer": "`this page` has several readings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Each view ends with \"What would you change about this page?\""
+    },
+    {
+      "answer": "The closing question is vague."
+    }
+  ]
+}

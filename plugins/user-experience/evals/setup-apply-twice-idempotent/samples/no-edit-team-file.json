@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/docs/conventions/user-experience.yaml",
+            "old_string": "unset",
+            "new_string": "unset"
+          }
+        }
+      ]
+    }
+  ]
+}

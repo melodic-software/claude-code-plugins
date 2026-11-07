@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: su-check-unset-routes-native
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: lever-check-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:[^"\\]|\\.)*?--check'
+    min: 1
+  - name: reports-unset
+    type: regex
+    pattern: '\b(?:unset|not set|not configured|no override|as declared|(?:run|runs|ran) (?:the tiers )?exactly as (?:the correctors )?declare[sd]?)\b'
+    flags: 'i'
+    target: last_message
+  - name: routes-native
+    type: regex
+    pattern: '/plugin configure discipline@|claude plugin configure discipline@'
+    target: last_message
+  - name: no-settings-bash
+    type: tool_used
+    tool: Bash
+    input_match: 'settings(?:\.local)?\.json|pluginConfigs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-settings-read
+    type: tool_used
+    tool: Read
+    input_match: 'settings(?:\.local)?\.json|pluginConfigs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-apply-call
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:[^"\\]|\\.)*?(?:--yes|--decline|--default|lever_scope=|verification(?:_skills)?=)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-yaml-written
+    type: file_exists
+    path: 'docs/conventions/discipline.yaml'
+    exists: false
+  - name: placeholder-not-a-value
+    type: llm
+    criteria: 'The reply is the discipline setup check in a run where no plugin option was configured, so each ${user_config...} value renders either empty or as the literal unexpanded token. It meets the legacy expectations: "Treats a surviving literal ${user_config.…} token as unset, not a value"; "Does not parse the literal placeholder as a corrector name". Either form passes when it is reported as unset (the defaults or declared tiers apply). It fails if it lists placeholder text as an excluded, promoted or demoted corrector, a research depth or a lever scope, or reports an override as in effect.'
+    focus: last_message

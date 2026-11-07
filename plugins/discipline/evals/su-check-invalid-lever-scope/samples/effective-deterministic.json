@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Effective lever_scope: deterministic (the invalid layer is dropped)."
+    },
+    {
+      "answer": "The value falls back to deterministic."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Effective lever_scope: non-trivial."
+    },
+    {
+      "answer": "lever_scope is always."
+    }
+  ]
+}

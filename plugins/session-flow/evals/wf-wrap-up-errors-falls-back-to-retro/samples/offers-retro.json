@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The corrections plugin is not installed, so run `/session-flow:retro` and propose a check for the fixture path.",
+      "why": "offers the retro fallback"
+    },
+    {
+      "answer": "Wrap-up:\n- PR merged, nothing to monitor.\n- Recurring mistake: /session-flow:retro quick to codify a fixture-path check.",
+      "why": "offers the quick retro"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Add a note about the fixture path to the README and close the session.",
+      "why": "no retro offered"
+    },
+    {
+      "answer": "You don't need /session-flow:retro here.",
+      "why": "negated"
+    }
+  ]
+}
