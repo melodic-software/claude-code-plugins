@@ -3,7 +3,7 @@ name: aq-flip-needs-no-class-label
 graders:
   - name: 'both-flip-no-class-gate'
     type: 'regex'
-    pattern: '^(?![\s\S]*(?<!not )(?<!n''t )(?<!never )(?<!neither )\b(?:cannot|can''t|must|waits?|blocked|held)[^\n.]{0,20}(?:until|unless)[^\n.]{0,40}(?:reclassif|class label))(?=[\s\S]*#4400)(?=[\s\S]*#4401)(?=[\s\S]*(?:agent-ready|autonomous-eligible))'
+    pattern: '^(?![\s\S]*(?<!not )(?<!n''t )(?<!never )(?<!neither )\b(?:cannot|can''t|must|waits?|blocked|held|won''t|will not|stays?|remains?|keeps?|gated|doesn''t flip|does not flip)[^\n.]{0,20}(?:until|unless)[^\n.]{0,40}(?:reclassif|class label))(?=[\s\S]*#4400)(?=[\s\S]*#4401)(?=[\s\S]*(?:agent-ready|autonomous-eligible))'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

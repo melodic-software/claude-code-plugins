@@ -29,6 +29,14 @@
     {
       "answer": "Both rows keep needs-human; class labels are forbidden in this session.",
       "why": "no flip"
+    },
+    {
+      "answer": "#4400 flips to agent-ready, but #4401 won't take agent-ready until it is reclassified.",
+      "why": "won't ... until (review on #13960)"
+    },
+    {
+      "answer": "#4401 stays needs-human until reclassified.",
+      "why": "stays ... until (review on #13960)"
     }
   ]
 }

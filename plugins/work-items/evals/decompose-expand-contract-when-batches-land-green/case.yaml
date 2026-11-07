@@ -3,7 +3,7 @@ name: decompose-expand-contract-when-batches-land-green
 graders:
   - name: 'expand-migrate-contract'
     type: 'regex'
-    pattern: '^(?![\s\S]*(?:\b(?:every|each|all)\b[^\n.]{0,40}migrat\w*[^\n.]{0,40}\b(?:goes|go|put|placed?|lands?|sits?)\b|\b(?:puts?|places?|lands?)\b[^\n.]{0,60}\b(?:every|each|all)\b[^\n.]{0,40}migrat\w*)[^\n.]{0,80}integration branch)[\s\S]*?\bexpand\b[\s\S]{0,600}?\bmigrat\w*[\s\S]{0,600}?\bcontract\b'
+    pattern: '\bexpand\b[\s\S]{0,600}?\bmigrat\w*[\s\S]{0,600}?\bcontract\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

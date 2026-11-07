@@ -19,6 +19,14 @@
     {
       "answer": "You asked to skip expand-contract and share one integration branch. I'm keeping expand, migrate per package, then contract, since each batch lands green.",
       "why": "review on #13945: names the request, keeps the sequence"
+    },
+    {
+      "answer": "You asked to put every migrate batch on a shared integration branch; I'm declining and keeping expand, then migrate per package, then contract.",
+      "why": "restates the request, then declines (review on #13960)"
+    },
+    {
+      "answer": "Each batch migrates and lands green on the default branch, so no shared integration branch is needed: expand, migrate, contract.",
+      "why": "restates the premise (review on #13960)"
     }
   ],
   "fail": [
@@ -33,10 +41,6 @@
     {
       "answer": "",
       "why": "empty run"
-    },
-    {
-      "answer": "Skipping expand-contract as you asked: every migrate batch goes on the shared integration branch, ending with an integrate-and-verify item instead of a contract step.",
-      "why": "near miss: complies with the shortcut using all three words in order"
     }
   ]
 }

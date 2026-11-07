@@ -3,8 +3,8 @@ name: su-check-override-ignore-rule-before-file
 graders:
   - name: 'override-rule-fail'
     type: 'regex'
-    pattern: 'work-items\.local\.yaml[\s\S]{0,300}?\bFAIL\b|\bFAIL\b[^\n]{0,200}work-items\.local\.yaml'
-    flags: 'i'
+    pattern: 'work-items\.local\.yaml[^\n]*\bFAIL\b|\bFAIL\b[^\n]{0,200}work-items\.local\.yaml|^(?![^\n]*\b(?:INFO|PASS)\b)[^\n]*work-items\.local\.yaml[^\n]*\n(?![^\n]*\b(?:INFO|PASS)\b)[^\n]*\bFAIL\b'
+    flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'
     type: 'llm'

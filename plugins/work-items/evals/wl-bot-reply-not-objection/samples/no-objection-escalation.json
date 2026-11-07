@@ -25,6 +25,18 @@
     {
       "answer": "Report:\n- `objection: #304 -> escalated`",
       "why": "the line as a report row"
+    },
+    {
+      "answer": "1. objection: #304 -> escalated",
+      "why": "numbered row (review on #13960)"
+    },
+    {
+      "answer": "| objection: #304 -> escalated |",
+      "why": "table cell (review on #13960)"
+    },
+    {
+      "answer": "Cycle report: objection: #304 -> escalated",
+      "why": "mid-line (review on #13960)"
     }
   ]
 }

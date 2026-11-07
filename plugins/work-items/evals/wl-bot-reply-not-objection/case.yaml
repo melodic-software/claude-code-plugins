@@ -3,7 +3,7 @@ name: wl-bot-reply-not-objection
 graders:
   - name: 'no-objection-escalation'
     type: 'regex'
-    pattern: '(?<![\s\S])(?![\s\S]*^[ \t>*_`-]*objection:[\s*_`]{0,6}#?304\b\W{0,4}(?:->|→)\W{0,4}escalated)(?=[\s\S]*#304\b)'
+    pattern: '(?<![\s\S])(?![\s\S]*(?<!\bno )(?<!\bno `)(?<!\bnot )(?<!\bnot `)(?<!\bwithout )(?<!\bwithout `)objection:[\s*_`]{0,6}#?304\b\W{0,4}(?:->|→)\W{0,4}escalated)(?=[\s\S]*#304\b)'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

@@ -21,6 +21,10 @@
     {
       "answer": "| Probe | Result |\n|---|---|\n| Personal override | PASS: work-items.local.yaml covered by core.excludesFile |",
       "why": "counts a machine-local excludes file"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override | INFO: docs/conventions/work-items.local.yaml absent, skipped |\n| jq entry gate | FAIL: jq not confirmed |",
+      "why": "FAIL on the next row belongs to another probe (review on #13960)"
     }
   ]
 }
