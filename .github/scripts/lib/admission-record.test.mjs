@@ -95,7 +95,23 @@ test("an admission after the trigger never moves the anchor; with none at or bef
 test("a human sender counts only their own sets, the App's restart every listed human's, and anyone else throws", () => {
   const args = { comments: [record(1, 1, recordBody({ actorId: APP, title: "t", body: "b" }))], appId: APP, fieldEvents: [field(3)], fieldId: 48484079, humans: new Set([OWNER, 42]) };
   assert.equal(admittedAt({ ...args, sender: OWNER }).kind, "person");
-  assert.equal(admittedAt({ ...args, sender: 42 }).kind, "record");
+  // A human sender's own set is the admission: with none, no record stands in.
+  assert.throws(() => admittedAt({ ...args, sender: 42 }), /no admission record/);
   assert.equal(admittedAt({ ...args, sender: APP }).kind, "person");
   assert.throws(() => admittedAt({ ...args, sender: 999 }), /neither the lanes App nor a listed human/);
+});
+
+test("a human-started run anchors on that human's set even when the trigger's update time predates it and an older record exists", () => {
+  // Intake's record at 01, a decision comment bumps updated_at to 04, the
+  // human's agent-ready set lands at 05 with the payload still saying 04.
+  const found = admittedAt({
+    comments: [record(1, 1, recordBody({ actorId: APP, title: "t", body: "b" }))],
+    appId: APP,
+    fieldEvents: [field(5)],
+    fieldId: 48484079,
+    humans: HUMANS,
+    sender: OWNER,
+    triggerAt: Date.parse(at(4)),
+  });
+  assert.deepEqual([found.kind, found.at], ["person", Date.parse(at(5))]);
 });

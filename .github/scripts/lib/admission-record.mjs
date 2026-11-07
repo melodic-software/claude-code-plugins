@@ -77,16 +77,19 @@ export function personAdmissions(fieldEvents, { fieldId, state = "agent-ready", 
 // The admission a run anchors on: {at, kind: "record"|"person", record}.
 // Candidates are the App's records and a listed human's agent-ready sets;
 // with `sender`, which must be the App or a listed human, a human sender's
-// own sets are the only ones that count; the App's restart counts every
-// listed human's. With `triggerAt`, the newest candidate at
+// own sets are the only ones that count, records left out, since that
+// set is itself the admission (an older record must never win when the
+// trigger's update time predates the set); the App's restart counts every
+// record and every listed human's set. With `triggerAt`, the newest candidate at
 // or before it, else the first after it (the trigger's update time can
 // predate its own event); a later admission never moves the anchor. Neither
 // found throws.
 export function admittedAt({ comments, appId, fieldEvents, fieldId, state = "agent-ready", humans, sender, triggerAt }) {
-  const records = admissionRecords(comments, appId).map(({ at, record }) => ({ at, kind: "record", record }));
   if (sender != null && sender !== appId && !humans.has(sender)) {
     throw new Error("the run's sender is neither the lanes App nor a listed human");
   }
+  const personSender = sender != null && sender !== appId;
+  const records = personSender ? [] : admissionRecords(comments, appId).map(({ at, record }) => ({ at, kind: "record", record }));
   const people =
     fieldId == null
       ? []
