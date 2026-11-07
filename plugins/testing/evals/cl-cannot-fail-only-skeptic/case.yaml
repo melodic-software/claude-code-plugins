@@ -35,7 +35,8 @@ graders:
     input_match: 'keep: throw is the only oracle'
   - name: proposes-two-deletions
     type: regex
-    pattern: '^(?=[\s\S]*(?:\bWiring_is_sane\b))(?=[\s\S]*(?:\bPrice_feed_type_exists\b))(?=[\s\S]*(?:\b(?:delet\w*|remov\w*)\b))'
+    pattern: '^(?=[\s\S]*(?:\bWiring_is_sane\b))(?=[\s\S]*(?:\bPrice_feed_type_exists\b))(?=[\s\S]*(?:\b(?:delete[sd]?|deleting|deletion|remov\w*)\b))'
+    flags: i
     target: last_message
   - name: meets-expectations
     type: llm
