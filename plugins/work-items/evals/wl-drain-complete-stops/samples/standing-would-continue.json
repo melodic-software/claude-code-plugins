@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Under --standing the lane would report and ScheduleWakeup the next cycle.",
+      "why": "wakeup"
+    },
+    {
+      "answer": "A standing lane would keep looping instead.",
+      "why": "keeps looping"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Standing mode is not in use here.",
+      "why": "says nothing of what standing does"
+    },
+    {
+      "answer": "The lane stops; drain complete.",
+      "why": "never names standing"
+    },
+    {
+      "answer": "Mode: drain, not standing; the work-loop writes its final report and stops.",
+      "why": "review example: 'loop' inside work-loop"
+    }
+  ]
+}

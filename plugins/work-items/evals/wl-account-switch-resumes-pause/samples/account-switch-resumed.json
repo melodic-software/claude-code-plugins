@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "account-switch: resumed",
+      "why": "the line"
+    },
+    {
+      "answer": "- `account-switch: resumed`",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "account-switch: unknown",
+      "why": "the other outcome"
+    },
+    {
+      "answer": "The account switched, so the lane resumed.",
+      "why": "no report line"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Create `Lane stall: work-loop` through create-item.",
+      "why": "code span"
+    },
+    {
+      "answer": "A tracker item titled 'Lane stall: work-loop' is created.",
+      "why": "quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Raise a stall escalation item.",
+      "why": "no title"
+    },
+    {
+      "answer": "Lane telemetry: work-loop is updated.",
+      "why": "the telemetry issue"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "item_cap 5 → 3 (clamped to ceiling)",
+      "why": "the report line"
+    },
+    {
+      "answer": "Clamp `item_cap` from 5 to 3.",
+      "why": "prose"
+    },
+    {
+      "answer": "item_cap: 5 -> 3",
+      "why": "ascii arrow"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "item_cap stays 5 this cycle.",
+      "why": "no clamp"
+    },
+    {
+      "answer": "item_cap 3 → 2 after the dirty item.",
+      "why": "only the later decrement"
+    }
+  ]
+}
