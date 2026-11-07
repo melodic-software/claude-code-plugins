@@ -479,10 +479,10 @@ never a layer on top of it.
 **Objection window.** When `triage_objection_window_hours` resolved above 0, every outcome that
 applies the autonomous-eligible role label also posts an "Objection window until <UTC>" comment
 with the brief, before that label edit; a failed post means no label edit ("Objection window
-comment" in the same file). Its first line is the marker the gate reads,
-`<!-- work-items:objection-window until=<UTC> -->`; a report of the run quotes the comment whole.
-Triage posts it and moves on, never waiting for the window in a lane or interactively; the
-`/work-items:work-loop` admission gate enforces it.
+comment" in the same file). It opens with the marker line the gate reads,
+`<!-- work-items:objection-window until=<UTC> -->`, then `Objection window until <UTC>.`; a report
+of the run quotes both lines. Triage posts it and moves on, never waiting for the window in a lane
+or interactively; the `/work-items:work-loop` admission gate enforces it.
 
 ## Next
 
