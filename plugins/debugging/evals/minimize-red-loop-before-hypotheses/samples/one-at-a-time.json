@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Next is Phase 2's minimize step: cut the body fields, headers and config values one at a time and rerun the replay after each cut.",
+      "why": "one at a time"
+    },
+    {
+      "answer": "Remove a single header from the saved request, then rerun the loop; keep it out if the 500 stays.",
+      "why": "remove a single header, then rerun"
+    },
+    {
+      "answer": "Go through the 60 elements one by one with the loop as the judge.",
+      "why": "one by one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Cut half of the fields per run and bisect until the 500 goes away.",
+      "why": "halving, not one element at a time"
+    },
+    {
+      "answer": "The 500 is probably a null customer_id; add a check in the handler.",
+      "why": "jumps to a cause"
+    }
+  ]
+}

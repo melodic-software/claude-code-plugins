@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Not everything. The pool-size raise (10 to 40) and the retry wrapper were made for the connection-pool hypothesis, which the logs ruled out, so they come out before the commit: `git restore config/db.toml scheduler/db.py`. The fix commit then carries only scheduler/next_run.py and the regression test in tests/test_next_run.py.",
+      "why": "both dropped, with the reason"
+    },
+    {
+      "answer": "I reverted config/db.toml to pool_size = 10 and removed the retry wrapper from scheduler/db.py: both were changes for the ruled-out pool hypothesis. What is left to commit is the timezone fix and its regression test.",
+      "why": "reports having dropped both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, the tests pass, so commit everything. The larger pool and the retry are harmless hardening.",
+      "why": "approves committing the ruled-out edits"
+    },
+    {
+      "answer": "Revert the pool size back to 10 before committing; the retry wrapper can stay as extra resilience.",
+      "why": "drops only one of the two"
+    }
+  ]
+}
