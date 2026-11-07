@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\nnumber: 1\nstate: \"closed\"\nclosed_at: \"2026-11-07T10:00:00Z\"\n---\n",
+      "why": "closed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nnumber: 1\nstate: \"open\"\n---\n",
+      "why": "still open"
+    }
+  ]
+}

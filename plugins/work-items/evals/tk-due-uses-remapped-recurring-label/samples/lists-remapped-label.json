@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"$TRACKER\" list-items --state open --label scheduled-upkeep"
+          }
+        }
+      ],
+      "why": "resolved label"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --label 'scheduled-upkeep'"
+          }
+        }
+      ],
+      "why": "quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --label recurring"
+          }
+        }
+      ],
+      "why": "default literal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --state open"
+          }
+        }
+      ],
+      "why": "no label filter"
+    }
+  ]
+}

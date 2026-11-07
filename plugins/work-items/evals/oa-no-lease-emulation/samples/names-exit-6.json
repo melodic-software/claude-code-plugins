@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The core answers a false verb with exit 6, which callers route around.",
+      "why": "exit 6"
+    },
+    {
+      "answer": "Callers see exit code `6` and degrade.",
+      "why": "exit code 6"
+    },
+    {
+      "answer": "With `false`, `claim` exits `6` (a permanent degradation callers can route around).",
+      "why": "exits, from smoke r1"
+    },
+    {
+      "answer": "`claim` exits with code 6.",
+      "why": "exits with code, from review"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The verb exits 1 until its mapping is written.",
+      "why": "exit 1"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
