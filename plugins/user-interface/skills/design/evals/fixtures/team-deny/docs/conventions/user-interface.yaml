@@ -1,0 +1,4 @@
+routing:
+  version: 1
+  deny:
+    - frontend-design
