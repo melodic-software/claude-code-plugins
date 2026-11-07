@@ -9136,11 +9136,12 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
 });
 
-// sync-status mirrors status labels into the Work status field with the lanes
-// App token: a person's label event on an issue, and the hourly sweep. A
-// close, a bot's label change, a pull request and a finished issue lane run
-// start no job, and only a listed human's label event reaches the broker.
-test("work-unblock.yml: sync-status runs on a person's label event and the hourly sweep, and mints only for a listed human", () => {
+// sync-status writes a person's status-label edit into the Work status field
+// with the lanes App token, on a person's label event on an issue only. A
+// close, a bot's label change, a pull request, the schedule and a finished
+// issue lane run start no job, and only a listed human's label event reaches
+// the broker.
+test("work-unblock.yml: sync-status runs on a person's label event only, and mints only for a listed human", () => {
   const doc = workflow("work-unblock.yml");
   assert.deepEqual(doc.on.issues, { types: ["closed", "labeled", "unlabeled"] });
   const job = doc.jobs["sync-status"];
@@ -9158,8 +9159,7 @@ test("work-unblock.yml: sync-status runs on a person's label event and the hourl
   assert.equal(runs({ action: "closed" }), false, "a close is label-unblocked's");
   assert.equal(runs({ sender: "Bot" }), false, "the lanes App's scripts mirror their own writes");
   assert.equal(runs({ pr: { url: "x" } }), false);
-  assert.equal(runs({ event: "schedule", action: undefined }), true);
-  assert.equal(runs({ event: "schedule", action: undefined, ref: "refs/heads/feature" }), false);
+  assert.equal(runs({ event: "schedule", action: undefined }), false, "no sweep writes the field from labels");
   assert.equal(runs({ event: "workflow_run", action: undefined }), false);
   const step = (id) => job.steps.find((s) => s.id === id);
   assert.equal(step("config").with.activity, "sync-status");

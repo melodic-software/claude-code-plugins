@@ -1,155 +1,91 @@
-// Mirrors an issue's status labels into its Work status field
-// (models.issue-status), whoever changed them. A status label added or
-// removed by a person, a gh session, an outside reusable or a skill reaches
-// the field only here; the lane and maintenance scripts mirror their own
-// writes (write-status.mjs statusMirror), since a GITHUB_TOKEN label change
-// starts no workflow run.
+// Writes a listed human's status-label edit into the issue's Work status
+// field (models.issue-status), the field being the state. It only adds: a
+// label's absence never resets the field.
 //
-// - `issues` labeled or unlabeled: when the changed label is one of
-//   models.issue-status's labels and the issue is no pull request, read the
-//   issue's labels fresh (several label events can land together) and its
-//   field, and write the state the labels collapse to unless the field
-//   already holds it.
-// - `schedule`: the same for every open issue updated in the last two hours
-//   (the hourly entries), or every open issue (the daily entry), one
-//   at a time, a short pause apart, within CALL_BUDGET calls, ending on
-//   `swept N: wrote W, unchanged U, failed F`.
+// - `labeled` with a queue-state label (ready, confirmed, deferred,
+//   needs-triage) or agent-ready: writes that label's state, unless the
+//   field's trusted state is a hold (read-status.mjs HOLD_STATES), since a
+//   label never releases a hold, or is that state already.
+// - `labeled` with a hold label: writes nothing. The reader adds hold labels
+//   on top of the field, and a hold the App wrote would read as the App's.
+// - `unlabeled agent-ready`: a person stopping the lane. Writes confirmed,
+//   only while the field reads agent-ready (write-status.mjs
+//   leaveAgentReady): not ready or deferred, whose App write would read as a
+//   trusted status: ready after the removal and admit the issue again.
+// - any other `unlabeled`: writes nothing; the release paths own those.
 //
-// The field counts as holding a state only when the reader would trust it
-// (issue-status.mjs issueStatus: a listed human or the lanes App set it), so
-// a value an untrusted account set is written again; this script writes with
-// the lanes App token for that reason. Labels stay the source of truth: a
-// failed field write warns (writeStatus) and changes no label.
+// The workflow runs it only for a listed human's label event, one run per
+// issue at a time in event order, with the lanes
+// App token: the field's reader counts agent-ready only from a listed human or
+// the App.
+// A failed field write fails the run.
 //
 // Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_NAME,
 // GITHUB_EVENT_PATH, GITHUB_API_URL, TRUSTED_ACTORS_PATH, KILL_SWITCH
-// (`proceed`, or the run stops before any API call), CALL_BUDGET (the sweep's
-// limit, default 800), BASE_PATH (the base checkout, default `.base`).
+// (`proceed`, or the run stops before any API call), BASE_PATH (the base
+// checkout, default `.base`).
 import { readFileSync } from "node:fs";
 import process from "node:process";
-import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { FIELD_API, writeStatus } from "../../actions/resolve-config/write-status.mjs";
+import { HOLD_STATES } from "../../actions/resolve-config/read-status.mjs";
 
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
-const MAX_ISSUE_PAGES = 20;
+const AGENT_READY = "agent-ready";
 const fold = (name) => String(typeof name === "string" ? name : name?.name).toLowerCase();
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 
-// Whether `name` is one of models.issue-status's labels.
-export const isStatusLabel = (name, config) =>
-  typeof name === "string" && Object.values(config.labels).some((labels) => labels.some((label) => fold(label) === fold(name)));
+// The models.issue-status state whose labels include `name`, without case.
+const stateOf = (name, config) =>
+  typeof name === "string" ? Object.keys(config.labels).find((state) => config.labels[state].some((label) => fold(label) === fold(name))) : undefined;
 
-// Mirrors one issue. `issue` is the issue as just listed, else it is read.
-// `status` holds issue-status.mjs's collapseStatus and issueStatus,
-// resolve-config.mjs's fieldSetters and write-status.mjs's writeStatus.
-// Returns writeStatus's outcome, `unchanged` when the field already holds the
-// state, or `skipped` for a pull request.
-export async function mirrorIssue({ github, repository, number, issue, config, trustedActors, status, log = console.log }) {
-  const read = issue ?? (await github("GET", `/repos/${repository}/issues/${number}`));
-  if (read?.pull_request) {
-    return { outcome: "skipped", reason: "a pull request" };
+// What a label event asks of the field: `{set: state}`, `{leave: true}` for
+// agent-ready taken off, or `{why}` when it asks nothing. Pure.
+export function translateLabel(event, config) {
+  const state = stateOf(event?.label?.name, config);
+  if (state === undefined) {
+    return { why: "not a status label" };
   }
-  const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
-  if (!Array.isArray(rows)) {
-    throw new Error(`#${number}'s field values answered something other than a list`);
+  if (event.action === "labeled") {
+    return HOLD_STATES.includes(state) ? { why: "a hold label, which the reader adds on top of the field" } : { set: state };
   }
-  const facts = {
-    fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
-    fieldSetters: await status.fieldSetters(github, repository, number),
-  };
-  const have = status.issueStatus(facts, config, trustedActors);
-  let labels = read?.labels ?? [];
-  let want = status.collapseStatus(labels, config);
-  // A listed issue's labels can be minutes old by its turn in the sweep, and a
-  // label-event run may have written the newer state since: read the issue
-  // again before writing, so a stale listing never reverts the field.
-  if (have !== want && issue) {
-    const fresh = await github("GET", `/repos/${repository}/issues/${number}`);
-    labels = fresh?.labels ?? [];
-    want = status.collapseStatus(labels, config);
+  if (event.action === "unlabeled" && state === AGENT_READY) {
+    return { leave: true };
   }
-  if (have === want) {
-    return { outcome: "unchanged", state: want };
-  }
-  return status.writeStatus({ github, repository, number, labels, config, log });
+  return { why: "a status label taken off, which only a release path writes" };
 }
 
-// One label event. Returns mirrorIssue's answer, or `skipped` with why.
-export async function onLabelEvent({ event, github, repository, config, trustedActors, status, log = console.log }) {
+// The state agent-ready taken off by a person leaves the field at.
+export const STOPPED_STATE = "confirmed";
+
+// One label event. `status` holds `fieldState(number)` (the field's trusted
+// state, null when none) and the writer (write-status.mjs statusWriter's set
+// and leaveAgentReady). Returns the write's outcome, `unchanged`, or
+// `skipped` with why.
+export async function onLabelEvent({ event, config, status }) {
   if (event?.issue?.pull_request) {
     return { outcome: "skipped", reason: "a pull request" };
   }
-  if (!isStatusLabel(event?.label?.name, config)) {
-    return { outcome: "skipped", reason: "not a status label" };
+  const asked = translateLabel(event, config);
+  const number = Number(event?.issue?.number);
+  if (asked.leave) {
+    return status.leaveAgentReady(number, STOPPED_STATE);
   }
-  return mirrorIssue({ github, repository, number: Number(event.issue.number), config, trustedActors, status, log });
+  if (asked.set === undefined) {
+    return { outcome: "skipped", reason: asked.why };
+  }
+  const held = await status.fieldState(number);
+  if (HOLD_STATES.includes(held)) {
+    return { outcome: "skipped", reason: `the field holds ${held}` };
+  }
+  if (held === asked.set) {
+    return { outcome: "unchanged", state: held };
+  }
+  return status.set(number, asked.set);
 }
 
-// Every open issue, oldest first, or with `since` (an ISO time) only those
-// updated since then: a label change updates an issue. `budget` is the most
-// calls the sweep makes; past it the sweep stops and says so.
-export async function sweep({ github, repository, config, trustedActors, status, since, budget = 800, pause = () => delay(250), log = console.log }) {
-  let used = 0;
-  const call = (...args) => {
-    if (used >= budget) {
-      throw new Error(`call budget of ${budget} spent`);
-    }
-    used += 1;
-    return github(...args);
-  };
-  const counts = { swept: 0, wrote: 0, unchanged: 0, failed: 0 };
-  let stopped = "";
-  const issues = [];
-  for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
-    const window = since ? `&since=${encodeURIComponent(since)}` : "";
-    const batch = await call("GET", `/repos/${repository}/issues?state=open&direction=asc&per_page=100&page=${page}${window}`);
-    issues.push(...batch.filter((item) => !item.pull_request));
-    if (batch.length < 100) {
-      break;
-    }
-  }
-  for (const issue of issues) {
-    try {
-      const { outcome } = await mirrorIssue({ github: call, repository, number: issue.number, issue, config, trustedActors, status, log });
-      counts.swept += 1;
-      if (outcome === "written") {
-        counts.wrote += 1;
-      } else if (outcome === "unchanged") {
-        counts.unchanged += 1;
-      } else {
-        counts.failed += 1;
-      }
-    } catch (error) {
-      if (/call budget/.test(error?.message ?? "")) {
-        stopped = `; stopped at #${issue.number}: ${error.message}`;
-        break;
-      }
-      counts.swept += 1;
-      counts.failed += 1;
-      log(`::warning title=work-status::#${issue.number} not swept: ${annotate(error?.message ?? error)}`);
-    }
-    await pause();
-  }
-  log(`swept ${counts.swept}: wrote ${counts.wrote}, unchanged ${counts.unchanged}, failed ${counts.failed}${stopped} (${used} calls)`);
-  return { ...counts, stopped, used };
-}
-
-// Label events mirror each change as it lands, so an hourly run only catches
-// what they missed: issues updated in the last two hours, a window that
-// covers a late scheduled run. The run started by work-unblock.yml's daily
-// FULL_SWEEP_CRON entry reads every open issue to catch any other drift; the
-// trigger decides, not the clock, so a late start still sweeps in full.
-// Returns the `since` time, or undefined for the full sweep.
-export const FULL_SWEEP_CRON = "47 4 * * *";
-export const SWEEP_WINDOW_MS = 2 * 60 * 60 * 1000;
-export function sweepSince(at, schedule) {
-  return schedule === FULL_SWEEP_CRON ? undefined : new Date(at.getTime() - SWEEP_WINDOW_MS).toISOString();
-}
-
-export async function main({ env = process.env, log = console.log, now = () => new Date() } = {}) {
+export async function main({ env = process.env, log = console.log } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
       log("sync-status: the kill switch stops this run; nothing read or written");
@@ -158,30 +94,26 @@ export async function main({ env = process.env, log = console.log, now = () => n
     if (!REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    if (env.GITHUB_EVENT_NAME !== "issues") {
+      throw new Error("this runs only on an issue label event");
+    }
     const repository = env.GITHUB_REPOSITORY;
     // resolve-config.mjs and issue-status.mjs load the packages the job
     // installs, so they load here, after the kill switch.
-    const { fieldSetters, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
-    const { collapseStatus, issueStatus } = await import("../../actions/resolve-config/issue-status.mjs");
+    const { issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
+    const { fieldStatus, loadTrustedActors } = await import("../../actions/resolve-config/read-status.mjs");
+    const { statusWriter } = await import("../../actions/resolve-config/write-status.mjs");
     const config = issueStatusFromBase(env);
     if (!config) {
       log("sync-status: models.issue-status is unset, so no Work status field is written");
       return 0;
     }
-    const trustedActors = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
+    const trustedActors = loadTrustedActors(env);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const status = { collapseStatus, issueStatus, fieldSetters, writeStatus };
-    const args = { github, repository, config, trustedActors, status, log };
-    if (env.GITHUB_EVENT_NAME === "schedule") {
-      const budget = /^[1-9][0-9]{0,4}$/.test(env.CALL_BUDGET ?? "") ? Number(env.CALL_BUDGET) : undefined;
-      const result = await sweep({ ...args, budget, since: sweepSince(now(), env.SCHEDULE) });
-      return result.failed > 0 || result.stopped ? 1 : 0;
-    }
-    if (env.GITHUB_EVENT_NAME !== "issues") {
-      throw new Error("this runs only on an issue label event or the hourly schedule");
-    }
+    const writer = await statusWriter({ env, github, repository });
+    const fieldState = (number) => fieldStatus({ github, repository, number, config, trustedActors });
     const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    const result = await onLabelEvent({ ...args, event });
+    const result = await onLabelEvent({ event, config, status: { ...writer, fieldState } });
     log(`sync-status: #${Number(event.issue?.number)} ${result.outcome}${result.reason ? ` (${result.reason})` : result.state ? ` (${result.state})` : ""}`);
     return 0;
   } catch (error) {
