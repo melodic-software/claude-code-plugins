@@ -110,7 +110,9 @@ These labels this skill writes come from the live label set and are never invent
 - `needs-spec`, applied to an idea issue (step 1).
 
 **Preflight.** Before the edit that would apply any of them, check that it exists in the repository
-(adapter: the label listing step 2 uses for `priority:`). When it is absent, stop without mutating
+(adapter: the label listing step 2 uses for `priority:`). An adapter with no label listing keeps
+labels free-form, so the label is available and the preflight passes (local-markdown:
+`<plugin-root>/tools/work-item-tracker/adapters/local-markdown/README.md`, one Read). When it is absent, stop without mutating
 anything, not even the other labels of that edit, and report it as a provisioning gap for the
 repository's label-as-code owner, or for a person to create in the tracker. Never fall back to a
 different label.

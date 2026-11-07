@@ -43,6 +43,11 @@ surface are CONTRACT.md's "Branch, worktree, and lease confinement"
 subsection under "local-markdown adapter". Do not treat this README as a
 second copy of that fact set.
 
+## Labels
+
+Labels are free-form strings with no registry: `create-item` stores whatever `--labels` names, and
+there is no label listing, so any label a skill applies is available.
+
 ## List / frontier
 
 There is no provider search syntax. Listing and frontier selection are dispatcher
