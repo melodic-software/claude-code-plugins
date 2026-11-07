@@ -78,7 +78,7 @@ live grants under nested `.claude/skills/` paths, which Claude Code loads the mo
 file in that subdirectory; with the Bash sandbox on, from 2.1.319, it loads them only when the
 session starts or `/cd`s there, so they stay live grants either way
 (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12, and the
-[2.1.319 changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), as of
+[2.1.319 changelog](https://code.claude.com/docs/en/changelog#2-1-319), as of
 2026-11-07; recheck when the skills page changes how nested `.claude/skills/` directories are
 discovered). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is

@@ -494,7 +494,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   Code 2.1.319 or later, a self-paced loop counts as stopped once a finished iteration made no
   reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1` is set; the iteration in progress still counts
   as active (pointer: the
-  [2.1.319 changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) and
+  [2.1.319 changelog](https://code.claude.com/docs/en/changelog#2-1-319) and
   <https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, as of 2026-11-07; recheck when
   that section drops its fallback-wakeup sentence). On the loop's first iteration no reschedule has
   fired yet, so its absence is not evidence of anything. Starting a fresh conversation clears every
