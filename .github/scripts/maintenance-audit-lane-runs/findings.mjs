@@ -97,7 +97,14 @@ const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: 
 // the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
 export const DIGEST_TITLE = "Lane sweep: open findings";
-const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))? -->$/;
+// slice and wf ride on the marker so a tracked or cut entry keeps them; a
+// marker without them is an older entry, read from its Where block.
+const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))?(?: slice=([ACD]))?(?: wf=(\S+))? -->$/;
+// The workflow is model text for slice C, so only a plain workflow path is kept.
+const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
+const workflowPath = (path) => (typeof path === "string" && WORKFLOW_PATH.test(path) ? path : null);
+const entryMarker = ({ fingerprint: fp, tracked, slice, workflow }) =>
+  `<!-- lane-sweep-entry fp=${fp}${tracked ? ` tracked=${tracked}` : ""}${SLICES.has(slice) ? ` slice=${slice}` : ""}${workflowPath(workflow) ? ` wf=${workflow}` : ""} -->`;
 const END = "<!-- lane-sweep-end -->";
 export const MAX_FIELD = 2000;
 export const BODY_LIMIT = 60000;
@@ -113,7 +120,8 @@ const clip = (text) => {
 // One entry's section, model text inside fences. A finding an earlier sweep
 // filed an open issue for points at that issue instead of repeating it.
 export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
-  const head = [`<!-- lane-sweep-entry fp=${fp}${tracked ? ` tracked=${tracked}` : ""} -->`, `### ${inertTitle(finding.title)}`, ""];
+  const marker = entryMarker({ fingerprint: fp, tracked, slice: finding.slice, workflow: finding.workflow });
+  const head = [marker, `### ${inertTitle(finding.title)}`, ""];
   if (tracked) return [...head, `Slice ${finding.slice}, fingerprint \`${fp}\`. Tracked in #${tracked}.`].join("\n");
   return [
     ...head,
@@ -209,9 +217,16 @@ function entryWhere(lines) {
 export function readEntries(body) {
   const entries = [];
   let current = null;
+  let fence = null;
   for (const line of String(body ?? "").split("\n")) {
+    if (fence) {
+      if (line === fence) fence = null;
+      current?.lines.push(line);
+      continue;
+    }
     const m = ENTRY.exec(line);
     if (!m && line !== END) {
+      fence = FENCE.exec(line)?.[1] ?? null;
       current?.lines.push(line);
       continue;
     }
@@ -220,16 +235,20 @@ export function readEntries(body) {
       current = null;
       break;
     }
-    current = { fingerprint: m[1], tracked: m[2] ? Number(m[2]) : null, lines: [line] };
+    current = { fingerprint: m[1], tracked: m[2] ? Number(m[2]) : null, slice: m[3] ?? null, wf: m[4] ?? null, lines: [line] };
   }
   if (current) entries.push(current);
-  return entries.map(({ fingerprint: fp, tracked, lines }) => ({
-    fingerprint: fp,
-    tracked,
-    title: (lines[1] ?? "").replace(/^### /, ""),
-    text: lines.join("\n").trimEnd(),
-    ...entryWhere(lines),
-  }));
+  return entries.map(({ fingerprint: fp, tracked, slice, wf, lines }) => {
+    const where = entryWhere(lines);
+    return {
+      fingerprint: fp,
+      tracked,
+      title: (lines[1] ?? "").replace(/^### /, ""),
+      text: lines.join("\n").trimEnd(),
+      slice: slice ?? where.slice,
+      workflow: wf !== null ? workflowPath(wf) : workflowPath(where.workflow),
+    };
+  });
 }
 
 export function renderDigestComment({ added, dropped, retracked = [] }, runUrl) {
@@ -303,7 +322,9 @@ export function planDigest({ items, existing, openNumbers, complete = true, carr
     for (const entry of before.filter((e) => !seen.has(e.fingerprint))) {
       const reason = carry(entry);
       if (!reason) continue;
-      entries.push(entry);
+      // An older entry's marker gains the slice and workflow its Where block named.
+      const [, ...rest] = entry.text.split("\n");
+      entries.push({ ...entry, text: [entryMarker(entry), ...rest].join("\n") });
       seen.add(entry.fingerprint);
       carried.push({ fingerprint: entry.fingerprint, reason });
     }
