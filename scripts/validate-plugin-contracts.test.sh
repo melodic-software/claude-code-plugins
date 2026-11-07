@@ -1910,8 +1910,8 @@ fi
 # displayName fails; each title and description shape warns on its own line.
 OPT_DOC='docs/contracts/plugin-option-naming/README.md'
 
-# write_manifest <plugin> <extra-json-members> -- written verbatim after description.
-write_manifest() {
+# write_plugin_manifest <plugin> <extra-json-members> -- written verbatim after description.
+write_plugin_manifest() {
   mkdir -p "$TMP/plugins/$1/.claude-plugin"
   printf '{"version": "0.1.0",\n"name": "%s",\n"description": "fixture"%s}\n' "$1" "$2" \
     >"$TMP/plugins/$1/.claude-plugin/plugin.json"
@@ -1920,12 +1920,12 @@ write_manifest() {
 # option_case <type> <title> <description> -- one option "opt" on plugin optfix.
 option_case() {
   reset_fixture
-  write_manifest optfix ", \"userConfig\": {\"opt\": {\"type\": \"$1\", \"title\": \"$2\", \"description\": \"$3\"}}"
+  write_plugin_manifest optfix ", \"userConfig\": {\"opt\": {\"type\": \"$1\", \"title\": \"$2\", \"description\": \"$3\"}}"
   out="$(run_fixture)"
 }
 
 reset_fixture
-write_manifest optfix ', "displayName": "Opt Fix"'
+write_plugin_manifest optfix ', "displayName": "Opt Fix"'
 out="$(run_fixture)"
 if grep -qF -- "- plugins/optfix/.claude-plugin/plugin.json: plugins must not set displayName ($OPT_DOC)" <<<"$out"; then
   ok "a displayName in plugin.json fails"
@@ -1952,7 +1952,7 @@ core_case() {
   mkdir -p "$TMP/.claude-plugin"
   printf '{"plugins": [{"name": "on1", "source": "./plugins/on1"}, {"name": "on2", "source": "./plugins/on2", "defaultEnabled": true}, {"name": "off", "source": "./plugins/off", "defaultEnabled": false}, {"name": "core", "source": "./plugins/core"%s}]}\n' "$1" \
     >"$TMP/.claude-plugin/marketplace.json"
-  write_manifest core ", \"dependencies\": $2"
+  write_plugin_manifest core ", \"dependencies\": $2"
   out="$(run_fixture)"
   rm -rf "$TMP/.claude-plugin"
 }
@@ -2068,9 +2068,9 @@ fi
 
 # One key, one title: the same key under two titles warns once, naming both.
 reset_fixture
-write_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
-write_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output folder"}}'
-write_manifest gamma ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_plugin_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_plugin_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output folder"}}'
+write_plugin_manifest gamma ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
 out="$(run_fixture)"
 if grep -qF "warning: userConfig \"output_dir\" has different titles across plugins: \"Output directory\" (alpha, gamma); \"Output folder\" (beta) ($OPT_DOC)" <<<"$out" &&
   [[ "$(grep -c 'has different titles' <<<"$out")" -eq 1 ]]; then
@@ -2079,8 +2079,8 @@ else
   fail "a key with different titles across plugins should warn once: $out"
 fi
 reset_fixture
-write_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
-write_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_plugin_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_plugin_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
 out="$(run_fixture)"
 if grep -q 'has different titles' <<<"$out"; then
   fail "a key with one title across plugins should be silent: $out"
@@ -2090,11 +2090,11 @@ fi
 
 # --- 8f. claude.ai marketplace sync limits. ---------------------------------
 reset_fixture
-write_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
+write_plugin_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
 long="$(printf 'a%.0s' {1..501})"
-write_manifest longfix ''
+write_plugin_manifest longfix ''
 printf '{"version": "0.1.0",\n"name": "longfix",\n"description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
-write_manifest okfix ''
+write_plugin_manifest okfix ''
 out="$(run_fixture)"
 if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultEnabled' &&
   grep -qE '^- .*longfix.*description is 501 characters' <<<"$out" &&
@@ -2119,7 +2119,7 @@ printf '{"name": "samefix", "version": "0.1.0", "description": "fixture"}\n' \
   >"$TMP/plugins/samefix/.claude-plugin/plugin.json"
 printf '{\n  "name": "nestfix",\n  "userConfig": {"opt": {"type": "string",\n    "description": "nested"}},\n  "version": "0.1.0",\n  "license": "MIT",\n  "description": "fixture"\n}\n' \
   >"$TMP/plugins/nestfix/.claude-plugin/plugin.json"
-write_manifest gapfix ''
+write_plugin_manifest gapfix ''
 out="$(run_fixture)"
 if grep -qF -- '- plugins/adjfix/.claude-plugin/plugin.json: "version" (line 3) and "description" (line 4) touch' <<<"$out" &&
   grep -qF -- '- plugins/samefix/.claude-plugin/plugin.json: "version" (line 1) and "description" (line 1) touch' <<<"$out" &&
@@ -2135,7 +2135,7 @@ write_skill() {
   printf '%s' "$2" >"$TMP/plugins/skfix/skills/$1"
 }
 reset_fixture
-write_manifest skfix ''
+write_plugin_manifest skfix ''
 write_skill good/SKILL.md $'---\nname: good\ndescription: >-\n  Folded text, a\n  second line.\n---\nbody\n'
 write_skill angle/SKILL.md $'---\ndescription: "Use when: \'scan <X>\'."\n---\n'
 write_skill long/SKILL.md "$(printf -- '---\ndescription: %s\n---\n' "$(printf 'b%.0s' {1..1025})")"
@@ -2163,7 +2163,7 @@ fi
 #     copies them into plugins/autonomy/CHANGELOG.md. ------------------------
 reset_fixture
 cp "$SCRIPT_DIR/org-agnosticism-tokens.txt" "$TMP/scripts/"
-write_manifest autonomy ''
+write_plugin_manifest autonomy ''
 mkdir -p "$TMP/.changes/autonomy"
 printf -- '---\nbump: patch\n---\n\n- Fixed ([#1](https://github.com/melodic-software/x/issues/1)).\n' \
   >"$TMP/.changes/autonomy/linked.md"
