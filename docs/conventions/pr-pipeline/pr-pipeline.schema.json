@@ -40,6 +40,12 @@
           "default": 2,
           "description": "Full review rounds before reviews narrow to high severity only."
         },
+        "findings-after-first-review": {
+          "type": "string",
+          "enum": ["blocking-only", "all"],
+          "default": "blocking-only",
+          "description": "What a CI review lane reports on a head after the first one it reviewed whole: blocking findings only, or all findings."
+        },
         "no-progress": {
           "type": "integer",
           "minimum": 1,
