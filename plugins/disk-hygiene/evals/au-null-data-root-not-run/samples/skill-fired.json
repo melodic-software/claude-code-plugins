@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "disk-hygiene:audit"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "disk-hygiene:clean"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

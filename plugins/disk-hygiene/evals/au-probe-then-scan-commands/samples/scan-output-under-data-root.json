@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "\"<hook-python>\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"<data_root>/runs/a1/snapshot.json\" --data-root \"<data_root>\""
+    },
+    {
+      "answer": "```text\n\"<hook-python>\" \".../hygiene.py\" scan \\\n  --target \"/eval/work/scratch-audit\" \\\n  --data-root \"<data_root>\" \\\n  --output \"<data_root>/runs/20261107-audit/snapshot.json\"\n```"
+    },
+    {
+      "answer": "```text\n\"<hook-python>\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/eval/work/scratch-audit\" --output \"<data_root>/runs/scratch-audit-<unique-id>/snapshot.json\" \\\n  --data-root \"<data_root>\"\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"/eval/work/scratch-audit/runs/a1/snapshot.json\" --data-root \"<data_root>\""
+    },
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"<data_root>/runs/a1/snapshot.json\""
+    },
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"<data_root>/snapshot.json\" --data-root \"<data_root>\""
+    },
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"/eval/work/scratch-audit/runs/scratch-audit-1/snapshot.json\" --data-root \"<data_root>\""
+    },
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target /eval/work/scratch-audit --output /tmp/runs/a1/snapshot.json --data-root <data_root>",
+      "why": "a runs directory outside the data root"
+    }
+  ]
+}

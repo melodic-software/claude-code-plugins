@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The only setting is the userConfig toggle disk_hygiene_enabled; change it with /plugin configure disk-hygiene@<marketplace>."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The only setting is the kill switch; change it with /plugin configure."
+    },
+    {
+      "answer": "Set disk-hygiene-enabled to true."
+    }
+  ]
+}

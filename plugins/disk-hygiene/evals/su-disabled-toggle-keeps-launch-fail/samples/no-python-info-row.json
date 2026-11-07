@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Python interpreter ladder | FAIL | exhausted |\n| lsof | INFO | execution lane only |"
+    },
+    {
+      "answer": "| Kill switch | INFO | false (configured) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Python interpreter ladder | INFO | downgraded: the plugin is disabled |"
+    },
+    {
+      "answer": "| Python 3 floor | **INFO** | not needed while disabled |"
+    }
+  ]
+}
