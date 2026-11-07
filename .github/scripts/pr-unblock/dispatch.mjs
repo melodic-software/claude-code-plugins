@@ -94,7 +94,7 @@ function lagRefire(log, node, checkName, existing, handled) {
     log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
   }
 }
-const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 // A merge commit on a Dependabot head stops Dependabot's own rebases, which
 // resolve its conflicts, and breaks the pr-merge Dependabot tier.
@@ -471,13 +471,7 @@ const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
 // fix-docs all read: PULL_FIELDS, fix-ci's body, update time and head rollup
 // with the base tip's commit time, and fix-docs's files, 50 a page, with its
 // rateLimit.cost. commits(last: 1) also carries PULL_FIELDS's totalCount.
-export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
-  rateLimit { cost remaining }
-  repository(owner: $owner, name: $name) {
-    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
-    pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
-      nodes {
-        number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
+const LIST_NODE_FIELDS = `number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         files(first: 100) { nodes { path } pageInfo { hasNextPage } }
@@ -501,9 +495,27 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
               }
             }
           }
-        }
+        }`;
+
+export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
+  rateLimit { cost remaining }
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
+    pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
+      nodes {
+        ${LIST_NODE_FIELDS}
       }
       pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
+
+// One pull request with the listing's fields, for refine-event-dispatch.mjs.
+export const PULL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost remaining }
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      ${LIST_NODE_FIELDS}
     }
   }
 }`;
@@ -604,6 +616,15 @@ export function createGitHubApi({
     async listDocsFixCandidates({ base, after }) {
       const data = await listPage(base, after);
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+    },
+    // The same view of one pull request, as a one-page listing: empty unless it is open.
+    async readDocsFixCandidate(number) {
+      if (!Number.isSafeInteger(number) || number < 1) {
+        throw new Error(`not a PR number: ${number}`);
+      }
+      const data = await graphql(PULL_QUERY, { owner, name, number });
+      const node = data.repository.pullRequest;
+      return { rateLimit: data.rateLimit, pullRequests: { nodes: node?.state === "OPEN" ? [node] : [], pageInfo: { hasNextPage: false } } };
     },
     async readDocsFixHistory({ number, appId, checkName, earlierCheckName }) {
       const data = await graphql(DOCS_FIX_HISTORY_QUERY, { owner, name, number, appId, checkName, earlierCheckName });
@@ -788,7 +809,7 @@ export async function loadBaseTidyCutoffs(env) {
 
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
-function wrapRunIds(base, env) {
+export function wrapRunIds(base, env) {
   return {
     ...base,
     async dispatchWorkflow(request) {

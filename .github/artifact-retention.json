@@ -659,6 +659,18 @@
         ".github/workflows/pr-unblock-dispatch.yml#dispatch"
       ]
     },
+    "pr-unblock-target-dispatched-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs TARGET_RECORD_NAME, the dispatched run's trust check",
+        ".github/scripts/pr-unblock/dispatcher-current.sh the dispatched run's stale-file check"
+      ],
+      "reason": "Read by the run it dispatched; 1 day is the minimum.",
+      "scan": "upload",
+      "uploads": [
+        ".github/workflows/pr-unblock-dispatch.yml#refine"
+      ]
+    },
     "feedback-context-*": {
       "retention-days": 1,
       "readers": [

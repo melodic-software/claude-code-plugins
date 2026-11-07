@@ -27,7 +27,8 @@ name: pr-unblock-dispatch
 # gets fix-ci at the first tick after that failure, not at the next push to
 # main. A tick runs the same listings as a push run; heads the dispatch record
 # holds are not read again. pr-unblock.yml's trigger gate and the broker accept
-# a dispatcher run started by a push, a schedule or a listed human.
+# a dispatcher run started by a push, a schedule or a listed human, and for
+# pr-refine.yml alone a pull_request_target run (the refine job, ADR 0090).
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
@@ -61,13 +62,22 @@ on:
   schedule:
     - cron: "9,39 * * * *"
   workflow_dispatch: {}
+  # Starts fix-docs on a PR's own event instead of the next tick: the refine
+  # job below. pull_request_target runs this file and its checkout from main,
+  # never the PR's copy (ADR 0090). Opened, reopened or turned ready, and a
+  # push, which may add the PR's first Markdown file; a draft is skipped.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [opened, reopened, ready_for_review, synchronize]
+    branches: [main]
 
 permissions: {}
 
 jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
-    if: github.ref == 'refs/heads/main'
+    # A pull_request_target run also reports main as its ref; the refine job
+    # takes it.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target'
     # A burst of pushes collapses into one listing: a push cancels the run
     # going, since the newest listing reads main as it is now. A tick or a
     # hand run never cancels one going; it waits, and only replaces a run
@@ -337,6 +347,124 @@ jobs:
         with:
           name: ${{ steps.record.outputs.name }}
           path: ${{ runner.temp }}/pr-unblock-dispatched.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # Dispatches pr-refine.yml's fix-docs for this PR when the push dispatcher's
+  # rule would (refine-event-dispatch.mjs), and records the dispatch for the
+  # trusted-trigger gate and the broker (ADR 0090). Four invariants, each
+  # pinned in workflow-gates.test.mjs: main's code only, checked out at the
+  # commit this file ran from, never the PR head; no PR text reaches a step,
+  # only the PR number and SHAs through env:; exactly the two permissions
+  # below; no secret and no App token. A burst of pushes cancels the run
+  # going, and the record steps run on cancel too (always()), so a run
+  # cancelled after its dispatch still records it.
+  refine:
+    if: >-
+      github.event_name == 'pull_request_target'
+      && github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: pr-unblock-dispatch-refine-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write # list and dispatch pr-refine.yml runs
+      contents: read # check out main
+    env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
+    steps:
+      # The record names this commit, which the gate and the broker check is
+      # on main and holds main's copy of this file.
+      - name: Check out the commit this workflow ran from
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # refine-event-dispatch.mjs reads the base config's `limits` through the
+      # base's resolve-config, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Dispatch pr-refine for this PR
+        id: dispatch
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SENDER_ID: ${{ github.event.sender.id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id
+        run: node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs
+
+      # Named from the commit this file ran from and the id the dispatch API
+      # returned, nothing else: pr-unblock-target-dispatched-<commit>-<run id>.
+      - name: Name the dispatched-run record
+        id: record
+        if: always() && steps.dispatch.outcome != 'skipped'
+        env:
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id
+        run: |
+          RUN_ID=$(head -n 1 "$RUN_IDS_FILE" 2>/dev/null) || RUN_ID=""
+          if [ -z "$RUN_ID" ]; then
+            echo "no run dispatched"
+            exit 0
+          fi
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the run id or the workflow commit is malformed"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"workflow_sha":"%s","run_id":%s}\n' "$GITHUB_RUN_ID" "$WORKFLOW_SHA" "$RUN_ID" \
+            >"$RUNNER_TEMP/pr-unblock-target-dispatched.json"
+          echo "name=pr-unblock-target-dispatched-$WORKFLOW_SHA-$RUN_ID" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.record.outputs.name != '' && steps.record.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-unblock-target-dispatched.json
+
+      - name: Record the dispatched run
+        if: >-
+          (always() && steps.record.outputs.name != '' && steps.record.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record.outputs.name }}
+          path: ${{ runner.temp }}/pr-unblock-target-dispatched.json
           retention-days: 1
           if-no-files-found: error
 
