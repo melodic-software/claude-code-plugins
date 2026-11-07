@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- **Demo**: run `refunds export --month 2026-09` and see only September refunds.",
+      "why": "bold field"
+    },
+    {
+      "answer": "Demo: export one month, only that month's refunds appear.",
+      "why": "plain field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What should each slice demonstrate? I left that field blank.",
+      "why": "near miss: asks, shows no Demo line"
+    },
+    {
+      "answer": "Scope: S. Frontier: yes.",
+      "why": "no Demo"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}
