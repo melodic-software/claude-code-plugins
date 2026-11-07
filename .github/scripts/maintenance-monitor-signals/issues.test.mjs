@@ -112,6 +112,7 @@ test("each collect source maps to the signals it feeds, and an unknown gap leave
   assert.deepEqual([...unreadSignals(["post-merge reports: x"])], ["11 post-merge unreadable"]);
   assert.deepEqual([...unreadSignals(["pr-merge sweep: x"])], ["3 throttling", "5 held PRs", "8 throughput", "12 listing held"]);
   assert.deepEqual([...unreadSignals(["pr-merge listed sweep: x"])], ["5 held PRs", "8 throughput"]);
+  assert.deepEqual([...unreadSignals(["stalled stops: x"])], ["10 stalled lane stop", "8 throughput"]);
   assert.deepEqual([...unreadSignals(["lane holds: x"])], ["13 lane holds"]);
   assert.deepEqual(new Set(unreadSignals(["new source: x"])), new Set(SIGNALS));
   assert.equal(unreadSignals([]).size, 0);
@@ -210,6 +211,7 @@ test("every detector's signal is a rolling family or logged only, and an unknown
     mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })),
     sweep: { url: "u", live: true, startedAt: "2026-10-19T16:30:00Z", candidates: 3, results: [{ pr: 1, updatedAt: "2026-10-17T00:00:00Z" }] },
     laneMerges: { lastMergedAt: null },
+    openLanePulls: [1],
     audits: [{ workflow: "w", run: { id: 1, url: "u", conclusion: "failure", createdAt: "t" } }],
     status: { components: [{ name: "Actions", status: "major_outage" }], incidents: [] },
     laneStops: [{ id: 1, outcome: "funding", issue: 3, createdAt: "t", url: "u" }],

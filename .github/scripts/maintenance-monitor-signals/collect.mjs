@@ -619,13 +619,17 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const listed = await queryRepo(
       graphql,
       repo,
-      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number headRefOid comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number headRefOid author { __typename login } comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
     );
     if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
     const total = listed.pullRequests.totalCount ?? 0;
     if (total > LIMITS.stalledPulls) {
       gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
     }
+    // The lanes App's open PRs feed signal 8, which counts only its candidates.
+    data.openLanePulls = (listed.pullRequests?.nodes ?? [])
+      .filter((node) => restComment(node).user.login === agentIdentity)
+      .map((node) => node.number);
     const pulls = (listed.pullRequests?.nodes ?? []).map((node) => ({
       number: node.number,
       head: { sha: node.headRefOid },

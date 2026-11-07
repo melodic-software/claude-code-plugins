@@ -124,7 +124,7 @@ const SOURCES = {
   "pr-merge listed sweep": ["5 held PRs", "8 throughput"],
   "lane merges": ["8 throughput"],
   "lane stops": ["9 lane stop"],
-  "stalled stops": ["10 stalled lane stop"],
+  "stalled stops": ["10 stalled lane stop", "8 throughput"],
   "post-merge reports": ["11 post-merge unreadable"],
   "lane holds": ["13 lane holds"],
   audits: ["6 report-only audit"],

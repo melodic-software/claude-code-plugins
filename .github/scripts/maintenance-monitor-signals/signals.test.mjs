@@ -358,28 +358,47 @@ test("signal 7: Actions degraded with no incident fires; other components and ol
   );
 });
 
-test("signal 8: no lane merge for 3 hours with countable PRs fires", () => {
+const laneRow = row(8301, "2026-10-19T12:00:00Z", { reason: "ineligible:hold-label:do-not-merge" });
+const ownerRow = (pr) => row(pr, "2026-10-19T16:00:00Z", { reason: "ineligible:not-adopted:updated-fresh" });
+
+test("signal 8: no lane merge for 3 hours with a lane PR among the candidates fires", () => {
   const found = throughputFindings({
     ...base,
-    sweep: sweep([]),
+    sweep: sweep([laneRow, ownerRow(8302)], { candidates: 2 }),
     laneMerges: { lastMergedAt: "2026-10-19T13:30:00Z" },
+    openLanePulls: [8301],
   });
   assert.deepEqual(
-    found.map((f) => f.key),
-    ["throughput-zero"],
+    found.map((f) => [f.key, f.summary.includes("counts 1 lane candidate of 2")]),
+    [["throughput-zero", true]],
+  );
+  assert.deepEqual(found[0].facts, ["#8301: ineligible:hold-label:do-not-merge"]);
+});
+
+test("signal 8: owner PRs in the adoption wait are not lane throughput", () => {
+  // pr-merge run 42387774793: three owner PRs refused not-adopted:updated-fresh, no lane PR listed.
+  assert.deepEqual(
+    throughputFindings({
+      ...base,
+      sweep: sweep([ownerRow(13956), ownerRow(13957), ownerRow(13937)], { candidates: 3 }),
+      laneMerges: { lastMergedAt: "2026-10-19T06:01:16Z" },
+      openLanePulls: [13936],
+    }),
+    [],
   );
 });
 
-test("signal 8: a recent merge, no countable PR, or a report-only lane stays quiet", () => {
-  const quiet = (sweepValue, lastMergedAt) =>
-    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt } });
-  assert.deepEqual(quiet(sweep([]), "2026-10-19T14:00:00Z"), []);
+test("signal 8: a recent merge, no countable PR, an unread lane list, or a report-only lane stays quiet", () => {
+  const quiet = (sweepValue, lastMergedAt, openLanePulls = [8301]) =>
+    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt }, openLanePulls });
+  assert.deepEqual(quiet(sweep([laneRow]), "2026-10-19T14:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { candidates: 0 }), "2026-10-19T10:00:00Z"), []);
-  assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z"), []);
+  assert.deepEqual(quiet(sweep([laneRow], { live: false }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(null, "2026-10-19T10:00:00Z"), []);
+  assert.deepEqual(quiet(sweep([laneRow]), "2026-10-19T10:00:00Z", null), []);
   // A sweep over 70 minutes old means pr-merge is not running (the kill
   // switch, say), which this signal does not judge.
-  assert.deepEqual(quiet(sweep([], { startedAt: "2026-10-19T15:00:00Z" }), "2026-10-19T10:00:00Z"), []);
+  assert.deepEqual(quiet(sweep([laneRow], { startedAt: "2026-10-19T15:00:00Z" }), "2026-10-19T10:00:00Z"), []);
 });
 
 test("signal 8: a stall keeps its fingerprint until a merge lands", () => {
@@ -387,8 +406,9 @@ test("signal 8: a stall keeps its fingerprint until a merge lands", () => {
     throughputFindings({
       ...base,
       now: new Date(iso),
-      sweep: sweep([], { startedAt: iso }),
+      sweep: sweep([laneRow], { startedAt: iso }),
       laneMerges: { lastMergedAt: "2026-10-19T10:00:00Z" },
+      openLanePulls: [8301],
     })[0].fingerprint;
   assert.equal(at("2026-10-19T14:41:00Z"), at("2026-10-19T18:41:00Z"));
 });

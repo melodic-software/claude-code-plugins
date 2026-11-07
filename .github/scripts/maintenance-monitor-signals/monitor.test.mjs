@@ -43,6 +43,7 @@ const incident = (status) => ({
   shortlink: "https://stspg.io/x",
   components: ["Actions"],
 });
+const laneCandidate = { pr: 1, enqueued: false, merged: false, reason: "ci-status:failure", updatedAt: "2026-10-19T16:00:00Z" };
 const held = (pr) => ({ pr, enqueued: false, merged: false, reason: "risk:MED", updatedAt: "2026-10-18T06:00:00Z" });
 
 // [signal, first evidence, new evidence]
@@ -67,8 +68,8 @@ const CASES = [
   ],
   [
     "8 throughput",
-    { sweep: sweep([]), laneMerges: { lastMergedAt: "2026-10-19T10:00:00Z" } },
-    { sweep: sweep([]), laneMerges: { lastMergedAt: "2026-10-19T09:00:00Z" } },
+    { sweep: sweep([laneCandidate]), laneMerges: { lastMergedAt: "2026-10-19T10:00:00Z" }, openLanePulls: [1] },
+    { sweep: sweep([laneCandidate]), laneMerges: { lastMergedAt: "2026-10-19T09:00:00Z" }, openLanePulls: [1] },
   ],
 ];
 

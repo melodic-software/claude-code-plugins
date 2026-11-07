@@ -74,7 +74,7 @@ function fakeApi(routes) {
     const first = /pullRequests\(states: OPEN, baseRefName: "main", first: (\d+)/.exec(query);
     if (first) {
       const pulls = resolve(`/repos/${repo}/pulls?state=open&base=main&sort=updated&direction=desc&per_page=10000&page=1`);
-      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({ number: pull.number, isDraft: pull.draft === true, headRefOid: pull.head.sha, comments: commentPage(comments(pull.number)) }));
+      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({ number: pull.number, isDraft: pull.draft === true, headRefOid: pull.head.sha, author: pull.author ?? null, comments: commentPage(comments(pull.number)) }));
       return { data: { repository: { pullRequests: { totalCount: pulls.length, nodes } } } };
     }
     const repository = {};
@@ -700,6 +700,25 @@ test("stalled stops: more open PRs than the read covers is a gap naming the true
   assert.match(api.queries[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
   assert.match(api.queries[0].query, /comments\(last: 100\)/);
   assert.ok(!api.calls.some((p) => /\/pulls\?state=open|\/issues\/\d+\/comments/.test(p)));
+});
+
+test("stalled stops: the same query names the lanes App's open PRs for signal 8, a Bot login put back in REST form", async () => {
+  const pulls = [
+    { ...idle(9001, 3), author: { __typename: "Bot", login: "melodic-automation-lanes" } },
+    { ...idle(9002, 3), author: { __typename: "User", login: "kyle-sexton" } },
+    { ...idle(9003, 3), author: { __typename: "User", login: "melodic-automation-lanes" } },
+    { ...idle(9004, 3), author: null },
+  ];
+  const api = fakeApi([[/\/pulls\?state=open/, openPulls(pulls)], [/\/issues\/9\d{3}\/comments/, []], ...routes()]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.openLanePulls, [9001]);
+  assert.equal(api.calls.filter((p) => p === GRAPHQL).length, 1);
+  assert.match(api.queries[0].query, /author \{ __typename login \}/);
+});
+
+test("stalled stops: an unread open-PR list leaves signal 8 no lane list", async () => {
+  const data = await collect(input(fakeApi([[GRAPHQL, new Error("GraphQL: HTTP 502")], ...routes()])));
+  assert.equal(data.openLanePulls, undefined);
 });
 
 // Review finding on #10252: the read spent up to 3 + 40 + 20 calls of the
