@@ -4046,7 +4046,8 @@ def close_capped(
     """`verify_evidence.capped_close` for the gate's pull request at its
     head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
     label hold it open, and the issue's hold labels
-    (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
+    (`merge_policy.issue_hold_labels`) or Work status
+    (`config.issue_status`) keep it so. Any hold the gate reads on
     a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
     member's veto; an unreadable one holds) keeps it open first,
     as enable-auto-merge.mjs decide() does. An unreadable human-gated label
@@ -4076,6 +4077,7 @@ def close_capped(
         attempts=config.verify_cap_attempts,
         holds=("do-not-merge", label),
         issue_holds=merge_policy.issue_hold_labels(config, label),
+        **({"issue_status": config.issue_status} if config.issue_status else {}),
     )
 
 
@@ -4839,11 +4841,13 @@ def unattended_enqueue(
             main_sha=main_sha,
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
+        work_status = inputs.get("issue_status")
         opt_in = merge_policy.recheck_lane_issue(
             repo,
             number,
             issue=getattr(eligible, "issue", None),
             holds=inputs.get("issue_holds") or (),
+            **({"status": work_status} if work_status else {}),
         )
     else:
         opt_in = merge_policy.recheck_opt_in(
