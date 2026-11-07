@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-cloud-host-unverified-line
+graders:
+  - name: 'unverified-line'
+    type: 'regex'
+    pattern: 'live-UI step unverified on this host'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'recognizes-cloud'
+    type: 'llm'
+    criteria: 'The reply verifies a change in a cloud session. It meets the legacy expectations: "Recognizes the run is on a cloud execution target" "The report contains the line live-UI step unverified on this host".'
+    focus: 'last_message'

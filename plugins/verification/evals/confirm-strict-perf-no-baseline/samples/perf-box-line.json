@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 tokenizer | unit ok | live ok | NOT VERIFIED: no baseline |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "perf: not verified"
+    },
+    {
+      "answer": "| perf | n/a |"
+    },
+    {
+      "answer": "| Perf | None. No `/verification:measure` baseline was captured at planning time, and the performance plugin is not enabled. | Missing |"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Evidence loop: 3/3"
+    },
+    {
+      "answer": "- `Evidence loop: 3/3`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Evidence loop: 3/3 cap reached, last NEEDS WORK"
+    },
+    {
+      "answer": "Evidence loop: 2/3"
+    }
+  ]
+}

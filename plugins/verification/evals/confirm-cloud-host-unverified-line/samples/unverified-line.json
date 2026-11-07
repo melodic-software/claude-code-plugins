@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "- live-UI step unverified on this host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live UI unverified on this machine"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

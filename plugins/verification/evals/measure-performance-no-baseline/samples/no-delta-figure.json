@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Cannot quantify improvement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "About 30% faster."
+    },
+    {
+      "answer": "a 2x speedup"
+    }
+  ]
+}

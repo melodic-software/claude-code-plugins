@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: confirm-lessons-routed
+graders:
+  - name: 'routes-map-refresh'
+    type: 'regex'
+    pattern: '/?app-control:map refresh[`\s]+weekly-timesheet-export'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'routes-codify'
+    type: 'regex'
+    pattern: '/?corrections:codify'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-other-route'
+    type: 'regex'
+    pattern: 'instruction-placement|write-for-agents'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'lessons-table'
+    type: 'llm'
+    criteria: 'The reply reports a finished drive with two lessons. It meets the legacy expectations: "The report lists each lesson with its scope and route" "Edits no control skill file itself and names no instruction-placement or write-for-agents skill".'
+    focus: 'trace'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "touched features not matched (app-control not installed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "touched features: cart/total"
+    },
+    {
+      "answer": "app-control is not installed"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-strict-perf-merge-base-ab
+graders:
+  - name: 'names-snapshot'
+    type: 'regex'
+    pattern: '/?performance:snapshot'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-merge-base'
+    type: 'regex'
+    pattern: 'merge[- ]base'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'merge-base-ab'
+    type: 'llm'
+    criteria: 'The reply fills a strict perf box with no planning-time baseline. It meets the legacy expectations: "Uses an interleaved merge-base versus head run because no planning-time baseline exists" "Checks out the merge base in a second worktree and runs through /performance:snapshot" "Does not accept a single after-change timing as perf evidence".'
+    focus: 'last_message'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Screenshots stay in the run directory; the manifest cites a Reproduction block."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "screenshot: /var/folders/x/app/.work/x/scratch/shot1.png"
+    },
+    {
+      "answer": "trace at /tmp/run-e2e/trace.zip"
+    }
+  ]
+}

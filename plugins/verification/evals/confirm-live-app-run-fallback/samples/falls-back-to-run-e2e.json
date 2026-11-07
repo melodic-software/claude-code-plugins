@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Falling back to `/testing:run-e2e` because /run could not launch it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I checked the diff statically instead."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
