@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is retired but still keeps the view local (it sets medium: terminal); set it in docs/conventions/rendered-views.local.yaml instead; per user, the adhd plugin's medium option also works"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is retired but still keeps the view local"
+    },
+    {
+      "answer": "notice: ~/.claude/rendered-views.md is no longer read; set it in docs/conventions/rendered-views.local.yaml instead"
+    }
+  ]
+}

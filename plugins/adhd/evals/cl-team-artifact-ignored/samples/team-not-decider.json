@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "view: auto (plugin default)\nnotice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: artifact (team)"
+    },
+    {
+      "answer": "view: auto (team docs/conventions/rendered-views.yaml)"
+    }
+  ]
+}

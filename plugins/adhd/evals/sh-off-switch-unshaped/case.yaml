@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: sh-off-switch-unshaped
+context:
+  history_file: history.jsonl
+graders:
+  - name: prose-paragraph
+    type: regex
+    pattern: '^(?![ \t]*(?:[-*+>]|\d+[.)]|#|\||```))[^\n]{240,}$'
+    flags: 'm'
+    target: 'last_message'
+  - name: no-next-closer
+    type: regex
+    pattern: '(?:^|\n)[ \t]*(?:[-*>]\s*)?(?:\*\*)?Next(?:\*\*)?\s*:[^\n]*\s*$'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-size-label
+    type: regex
+    pattern: '^\s*(?:[-*]\s*)?(?:\*\*)?(?:size|small|medium|large)(?:\*\*)?\s*[:.]'
+    flags: 'mi'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: unshaped-prose
+    type: llm
+    criteria: 'Earlier in the session /adhd:shape was on; the user then said "stop shaping" and asked what the N+1 query problem means for their ORM setup. The reply meets the legacy expectations: "The subsequent answer is ordinary unshaped prose, not the shaped format" and "Does not continue applying the shaping rules after the off-switch". It fails if it opens on a command, compresses the answer to a numbered action list, gives a Small/Medium/Large size, or ends on a single "Next:" action.'
+    focus: 'last_message'

@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: cl-resolver-default-decision-table
+context:
+  history_file: history.jsonl
+graders:
+  - name: resolver-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?view-settings\.mjs(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\bresolve\b(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?--lane(?:\s|=)+(?:\\"|'')?adhd:clarify\b'
+    min: 1
+    arm: 'with-only'
+  - name: report-line
+    type: regex
+    pattern: 'view: auto \(plugin default\)'
+    target: 'last_message'
+  - name: table-or-file
+    type: regex
+    pattern: '\bItem\b[^\n]*\bRecommendation\b[^\n]*\bAlternative\b[^\n]*\bWhat you(?:''|’)re deciding\b|/[^\s`"\''()]*\.html?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-artifact-claim
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!not be )(?<!cannot be )(?<!can''t be )(?<!can’t be )(?<!never be )(?<!won''t be )(?<!won’t be )\b(?:published|publishing)\b[^\n.]{0,40}\bartifacts?\b|\bclaude\.ai/(?:artifact|public)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: table-shape
+    type: llm
+    criteria: 'Judge the decision table the assistant produced for Round 4 (items Q12 to Q15) in this turn, in its reply or in an HTML file it wrote with a tool call, and not the template table in the skill instructions. It meets the legacy expectations: "Produces a decision table with the columns item | recommendation | alternative | what-you''re-deciding"; "Uses distinct numbering: the table''s own row number for answer-mapping and the original item number as a back-link"; "Recommendation/alternative cells carry verbatim operative terms, not paraphrase". An added Basis column passes.'
+    focus: 'trace'
+  - name: form-from-table
+    type: llm
+    criteria: 'Legacy expectation: "With the resolver''s medium null, picks the form from its rendering table by artifact-surface availability and content size". In this run the resolver printed a null medium (view: auto (plugin default)), the Artifact tool is absent, and the target holds four decisions. Passing forms: a local HTML file in the OS temp directory whose path the reply hands back, or structured terminal markdown when no file surface is useful or writable. It fails if the reply claims a published artifact, claims a file that no tool call wrote, or claims a decision table was rendered when only prose was produced.'
+    focus: 'trace'
