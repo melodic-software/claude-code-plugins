@@ -11,6 +11,10 @@
     {
       "answer": "```bash\ninstruct \"Complete the staging sign-in (password and phone code) on your own.\"\n```",
       "why": "sign-in noun"
+    },
+    {
+      "answer": "```bash\ninstruct \"Open your phone's browser and sign in to staging\"\n```",
+      "why": "an apostrophe inside a double-quoted instruct"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "First sign in to staging yourself. Then run the script below.\n\n```bash\ninstruct \"Open the Orders dashboard.\"\n```",
       "why": "sign-in left in prose, no instruct step for it"
+    },
+    {
+      "answer": "```bash\ninstruct \"Open the staging site's Orders dashboard.\" # sign in first\n```",
+      "why": "near miss: sign in sits after the closing quote, outside the instruct"
     }
   ]
 }

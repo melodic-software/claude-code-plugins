@@ -63,7 +63,7 @@ graders:
   - name: no-shell-write-under-src
     type: tool_used
     tool: Bash
-    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:sed|perl)\s+(?:(?:[^"\\|;&]|\\[^n])*?\s)?-[a-zA-Z]*i(?:[^"\\|;&]|\\[^n])*?(?:\./)?src/|>>?\s*(?:\\")?(?:\./)?src/|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:tee|touch|truncate|patch)\s(?:[^"\\]|\\.)*?(?:\./)?src/)'
+    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:sed|perl)\s+(?:(?:[^"\\|;&]|\\[^n])*?\s)?-[a-zA-Z]*i(?:[^"\\|;&]|\\[^n])*?(?:\./)?src/|>>?\s*(?:\\")?(?:\./)?src/|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:tee|touch|truncate|patch)\s(?:[^"\\|;&]|\\[^n])*?(?:\./)?src/)'
     min: 0
     max: 0
     arm: both

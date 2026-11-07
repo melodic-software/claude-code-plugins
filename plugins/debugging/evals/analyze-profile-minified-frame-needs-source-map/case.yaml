@@ -16,7 +16,7 @@ graders:
     arm: both
   - name: names-map-location
     type: regex
-    pattern: 'main\.3f9a\.js\.map|sourceMappingURL|SourceMap:?\s+(?:HTTP )?header|\b(?:send|share|give|provide|attach|upload|point me (?:at|to)|where is|do you have|can you (?:find|get))\b[^.\n?]{0,60}\bsource ?map'
+    pattern: 'main\.3f9a\.js\.map|sourceMappingURL|SourceMap:?\s+(?:HTTP )?header|(?:\b(?:(?:can|could|would) you|if you(?: can)?|please)\s+(?:send|share|give|provide|attach|upload)|\bcan you (?:find|get)|\b(?:send|share|give|provide|attach|upload)(?= (?:me|us)\b)|(?:^|[.!?:\n]\s*(?:[-*]\s+)?)(?:send|share|provide|attach|upload)|\bpoint me (?:at|to)|\bwhere is|\bdo you have)\b[^.\n?]{0,60}\bsource ?map'
     flags: i
     arm: both
   - name: no-invented-source-line

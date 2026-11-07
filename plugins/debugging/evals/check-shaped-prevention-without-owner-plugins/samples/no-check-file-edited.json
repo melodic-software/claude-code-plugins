@@ -16,6 +16,19 @@
         }
       ],
       "why": "an edit outside any check config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/billing/invoice.py",
+            "old_string": "def invoice_total(lines):",
+            "new_string": "def invoice_total(lines):  # float money is banned: see pyproject.toml"
+          }
+        }
+      ],
+      "why": "near miss: names pyproject.toml in the edit text, but edits billing code"
     }
   ],
   "fail": [
@@ -44,6 +57,19 @@
         }
       ],
       "why": "edits a flake8 config by relative path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/pyproject.toml",
+            "old_string": "[tool.ruff]\n",
+            "new_string": "[tool.ruff]\n\n[tool.ruff.lint.flake8-tidy-imports.banned-api]\n\"builtins.float\".msg = \"use decimal.Decimal for money\"\n"
+          }
+        }
+      ],
+      "why": "adds a float-money rule to this case's pyproject.toml"
     }
   ]
 }

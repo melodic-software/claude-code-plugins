@@ -51,6 +51,18 @@
         }
       ],
       "why": "-i on grep after a pipe, not on sed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sqlite3 \"$db\" \"select name, count(*) from samples group by name\" | tee \"${work:?}/top.txt\" && grep -n formatPrice src/checkout/render.js",
+            "description": "Save the ranking, then find the caller"
+          }
+        }
+      ],
+      "why": "tee writes the work dir; src/ appears only in a later read-only command"
     }
   ],
   "fail": [
@@ -89,6 +101,18 @@
         }
       ],
       "why": "tee into src/ after an escaped newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sqlite3 \"$db\" \"select 1\" | tee \"${work:?}/top.txt\" src/pricing/top.txt && ls",
+            "description": "Save the ranking twice"
+          }
+        }
+      ],
+      "why": "near miss: the same tee also names a file under src/ before the separator"
     }
   ]
 }

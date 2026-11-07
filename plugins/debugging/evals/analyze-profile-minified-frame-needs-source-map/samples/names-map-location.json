@@ -11,6 +11,18 @@
     {
       "answer": "Can you send me the source map from your build output?",
       "why": "asks the user for the source map"
+    },
+    {
+      "answer": "Could you share the bundle's source map from your build?",
+      "why": "a could-you request"
+    },
+    {
+      "answer": "Frame 'a' has no source line yet. Please attach the source map from your build output.",
+      "why": "an imperative request after a sentence break"
+    },
+    {
+      "answer": "If you can provide the bundle's source map, I will resolve frame 'a' to a file and line.",
+      "why": "a conditional request"
     }
   ],
   "fail": [
@@ -25,6 +37,18 @@
     {
       "answer": "Send me the profile again with more samples.",
       "why": "asks for something else"
+    },
+    {
+      "answer": "I can't give you the original line without the bundle's source map.",
+      "why": "a refusal: give is not a request to the user"
+    },
+    {
+      "answer": "I cannot provide a source line without a source map.",
+      "why": "a refusal: provide is not a request to the user"
+    },
+    {
+      "answer": "I can't share the original line without the source map, and if you can't provide one the frame stays unresolved.",
+      "why": "near miss: share in a refusal and a negated conditional"
     }
   ]
 }

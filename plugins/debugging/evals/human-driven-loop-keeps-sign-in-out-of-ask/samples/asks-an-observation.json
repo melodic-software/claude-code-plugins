@@ -11,6 +11,14 @@
     {
       "answer": "```bash\nask ROWS \"How many rows does the dashboard list?\"\n```",
       "why": "asks a count"
+    },
+    {
+      "answer": "```bash\nask ROWS \"What's the row count on the dashboard?\"\n```",
+      "why": "an apostrophe inside a double-quoted ask"
+    },
+    {
+      "answer": "```bash\nask STATE \"Does the dashboard's orders table show rows?\"\n```",
+      "why": "an apostrophe before the keyword"
     }
   ],
   "fail": [
@@ -25,6 +33,10 @@
     {
       "answer": "Tell me whether the orders table is empty after you sign in.",
       "why": "an observation asked in prose, not by the script"
+    },
+    {
+      "answer": "```bash\nask OTP \"What's the one-time code?\" # then check the orders table\n```",
+      "why": "near miss: the keyword sits after the closing quote, outside the ask"
     }
   ]
 }
