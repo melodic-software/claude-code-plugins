@@ -1,5 +1,5 @@
 ---
-description: "Legacy follow-our-standards 2 (prompt verbatim plus one line naming the change). The scaffold has a short CONTRIBUTING.md, no CLAUDE.md and no standards source, and src/orders.py repeats its tax logic. Graders: skill-fired (with-only), reads-contributing and falls-back (llm) for exp 1, states-baseline-resolved (exp 2), no-fabricated-source (llm, exp 3). Needs --scaffold --allow-tools Edit."
+description: "Legacy follow-our-standards 2 (prompt verbatim plus one line naming the change). The scaffold has a short CONTRIBUTING.md, no CLAUDE.md and no standards source, and src/orders.py repeats its tax logic. Graders: skill-fired (with-only), reads-contributing (a Read of CONTRIBUTING.md or its text in a tool result; a Glob that only lists it fails) and falls-back (llm) for exp 1, states-baseline-resolved (exp 2), no-fabricated-source (llm, exp 3). Needs --scaffold --allow-tools Edit."
 tags: [discipline, follow-our-standards, outcome, scaffold, no-network]
 max_turns: 15
 timeout_seconds: 400

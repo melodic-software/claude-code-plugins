@@ -3,7 +3,7 @@ name: swa-fork-writes-trusted
 graders:
   - name: same-tool-pool
     type: regex
-    pattern: '\b(?:same|exact|full|identical|every)\b[^\n.]{0,80}\btools?\b|\btools?\b[^\n.]{0,80}\b(?:cannot|can''t|can not) be (?:narrowed|restricted|limited)\b|\b(?:cannot|can''t|can not|does not|doesn''t)\b[^\n.]{0,40}\b(?:narrow|restrict|limit)\w*\b[^\n.]{0,60}\btools?\b'
+    pattern: '\b(?:same|exact|full|identical)\b(?:(?!\bonly\b|\bread\b)[^\n.]){0,80}\btools?\b|\btools?\b[^\n.]{0,80}\b(?:cannot|can''t|can not) be (?:narrowed|restricted|limited)\b|\b(?:cannot|can''t|can not|does not|doesn''t)\b[^\n.]{0,40}\b(?:narrow|restrict|limit)\w*\b[^\n.]{0,60}\btools?\b'
     flags: 'i'
     target: last_message
   - name: trusted-not-enforced

@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: digest-tiers
     type: regex
-    pattern: '(?=[\s\S]*\bcore\b)(?=[\s\S]*\bsituational\b)(?=[\s\S]*(?:\bnever[- ]?(?:batch(?:ed)?|tier|run)\b|`never`|\*\*never\*\*|\bnever\b[ \t]*(?:\*\*)?[ \t]*[:|(-]|\bnot batched\b|\binvoked directly\b))'
+    pattern: '(?=[\s\S]*\bcore\b)(?=[\s\S]*\bsituational\b)(?=[\s\S]*(?:\bnever[- ]?(?:batch(?:ed)?|tier|run)\b|`never`|\*\*never\*\*|\bnever\b[ \t]*(?:\*\*)?[ \t]*[:|(—–-]|\bnot batched\b|\binvoked directly\b))'
     flags: 'i'
     target: last_message
   - name: no-inline-correctors

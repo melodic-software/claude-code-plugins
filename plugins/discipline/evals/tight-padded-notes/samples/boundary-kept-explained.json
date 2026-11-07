@@ -16,6 +16,18 @@
     },
     {
       "answer": "Kept the TypeError check.\nBecause of style."
+    },
+    {
+      "answer": "Kept the `raise TypeError` boundary check.",
+      "why": "names the check and keeps it, gives no reason"
+    },
+    {
+      "answer": "Left the guard untouched.",
+      "why": "no reason"
+    },
+    {
+      "answer": "Kept the input validation.",
+      "why": "no reason"
     }
   ]
 }

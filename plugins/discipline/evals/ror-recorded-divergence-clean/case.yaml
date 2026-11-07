@@ -3,7 +3,7 @@ name: ror-recorded-divergence-clean
 graders:
   - name: reports-clean
     type: regex
-    pattern: '(?:^|[.!?\n])(?:(?!\bnot\b|n''t\b)[^.!?\n])*\bclean\b|\bno (?:finding|second way|parallel way|violation)s?\b|\bnothing to (?:correct|fix|flag)\b'
+    pattern: '(?:^|[.!?\n])(?:(?!\bnot\b|n''t\b)[^.!?\n])*(?:\bclean\b|\bno (?:finding|second way|parallel way|violation)s?\b|\bnothing to (?:correct|fix|flag)\b)'
     flags: 'i'
     target: last_message
   - name: no-fabricated-finding

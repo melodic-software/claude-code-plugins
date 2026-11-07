@@ -5,6 +5,10 @@
     },
     {
       "answer": "Fork tools cannot be narrowed the way a named subagent's tools field can."
+    },
+    {
+      "answer": "- Forks get the same tools as this session, including Edit, Write, and Bash.",
+      "why": "a real smoke reply"
     }
   ],
   "fail": [
@@ -13,6 +17,14 @@
     },
     {
       "answer": "Each fork is told to make no writes."
+    },
+    {
+      "answer": "Every fork gets only read tools, so they cannot touch your tree.",
+      "why": "the containment claim, with every and tools"
+    },
+    {
+      "answer": "Each fork gets the same read-only tools, so your tree is safe.",
+      "why": "same tools narrowed to read-only"
     }
   ]
 }

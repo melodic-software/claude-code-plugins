@@ -9,6 +9,10 @@
     {
       "answer": "Audit result: clean. The divergence is recorded in ADR 0042 and still holds.",
       "why": "plain clean report"
+    },
+    {
+      "answer": "**Audit:** I found nothing to correct, but I haven't verified anything.",
+      "why": "a real smoke reply: the negation follows the clean statement"
     }
   ],
   "fail": [
@@ -26,6 +30,14 @@
     {
       "answer": "It isn't a clean split yet; the ADR still names the old client.",
       "why": "negated clean"
+    },
+    {
+      "answer": "I can't confirm there are no findings without the code.",
+      "why": "refusal: a negation before no findings"
+    },
+    {
+      "answer": "I'm not reporting it as clean; with no code to read there is nothing to flag.",
+      "why": "refusal: a negation before nothing to flag in the same sentence"
     }
   ]
 }

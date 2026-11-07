@@ -11,7 +11,8 @@ graders:
     arm: 'with-only'
   - name: reads-contributing
     type: regex
-    pattern: '"name":"(?:Read|Grep|Glob)","input":\{[^\n]*?CONTRIBUTING'
+    pattern: '"name":"Read","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?CONTRIBUTING|^(?=[^\n]*"type":"tool_result")[^\n]*?Keep pull requests small'
+    flags: 'm'
     target: 'trace'
   - name: states-baseline-resolved
     type: regex

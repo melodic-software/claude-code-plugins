@@ -10,7 +10,7 @@ graders:
     target: last_message
   - name: routes-compress
     type: regex
-    pattern: '\bcompress\b|\bsemantic[- ]diff\b'
+    pattern: '\bcompress (?:capability|skill|plugin)\b|\bsemantic[- ]diff\b|\bdocs-hygiene\b'
     flags: 'i'
     target: last_message
   - name: no-invented-standard
