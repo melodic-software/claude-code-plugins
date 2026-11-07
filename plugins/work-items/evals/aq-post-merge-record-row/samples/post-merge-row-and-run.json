@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#1401 lists as a [post-merge] row with its issue link and the failing run https://github.com/example/repo/actions/runs/7002/attempts/2, although no escalation marker is on it.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "| Kind | Item | Failing run |\n|---|---|---|\n| **[post-merge]** | #1401 | [attempt 2](https://github.com/example/repo/actions/runs/7002/attempts/2) |",
+      "why": "markdown table with link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#1401 lists as [human-gated]: no escalation marker, so it is parked. Failing run: https://github.com/example/repo/actions/runs/7002/attempts/2.",
+      "why": "near miss: wrong row kind"
+    },
+    {
+      "answer": "#1401 is a [post-merge] row; the run it names failed.",
+      "why": "row without the failing run link"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#1301 lists as an [escalated] row with its issue link and the run link https://github.com/example/repo/actions/runs/7001 its hand-back comment carries; the lane adds no separate hand-back row kind.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "| Kind | Item | Run |\n|---|---|---|\n| **[escalated]** | #1301 | [run 7001](https://github.com/example/repo/actions/runs/7001) |",
+      "why": "markdown table with link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#1301 [escalated]: the work-resolve-issue run stopped partway (see its comment). #1302 is not listed.",
+      "why": "near miss: row listed without the run link"
+    },
+    {
+      "answer": "#1302 [escalated]: usage-limit stop, run https://github.com/example/repo/actions/runs/7002.",
+      "why": "wrong item and wrong run"
+    }
+  ]
+}
