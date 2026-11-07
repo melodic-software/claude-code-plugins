@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Ask for a shorter duration, about 150ms.",
+      "why": "duration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Make it faster.",
+      "why": "near miss: no term"
+    }
+  ]
+}

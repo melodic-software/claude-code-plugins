@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "They are not the same: a clip has a hard edge.",
+      "why": "not the same"
+    },
+    {
+      "answer": "They differ on the edge.",
+      "why": "differ"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Yes, clip and mask are the same thing.",
+      "why": "near miss: agrees they are the same"
+    }
+  ]
+}
