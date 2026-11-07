@@ -317,7 +317,9 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
@@ -339,25 +341,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -373,16 +356,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
@@ -751,7 +735,9 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
@@ -773,25 +759,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -807,16 +774,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
@@ -1132,7 +1100,9 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # with no tool call proved nothing and runs again, up to three times. The
+      # without making every call proved nothing and runs again, up to three times;
+      # still short after three, the job stops as unproven, never as a policy
+      # failure (policy-probe.mjs judges the stream). The
       # stream stays in a file that is never printed and is removed after the
       # checks.
       - name: Probe that the policy denies those reads
@@ -1154,25 +1124,6 @@ jobs:
           [ -n "$credential" ] || { echo "::error::the leg's credential is empty"; exit 1; }
           out=$(mktemp)
           trap 'rm -f "$out"' EXIT
-          probe_facts() {
-            jq -r -R -s 'def token: tostring | if test("^[a-z_]{1,40}$") then . else "other" end;
-              [split("\n")[] | select(. != "")] as $lines
-              | [$lines[] | fromjson? | objects] as $m
-              | ($m | map(select(.type == "result")) | last) as $r
-              | [$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use") | .name | tostring
-                  | if IN("Read", "Grep", "Glob") then . else "other" end] as $calls
-              | "result=\(if $r == null then "none" else "present" end)"
-                + " subtype=\($r.subtype // "none" | token) terminal_reason=\($r.terminal_reason // "none" | token)"
-                + " is_error=\(if $r.is_error == null then "none" else ($r.is_error | tostring) end | if IN("true", "false", "none") then . else "other" end)"
-                + " api_error_status=\($r.api_error_status // "none" | tostring | if test("^([0-9]{3}|none)$") then . else "other" end)"
-                + " num_turns=\($r.num_turns // "none" | tostring | if test("^([0-9]{1,4}|none)$") then . else "other" end)"
-                + " tool_calls=\(if ($calls | length) == 0 then "none" else ($calls | join(",")) end)"
-                + " denials=\($r.permission_denials // [] | length) unparsable_lines=\(($lines | length) - ($m | length))"' "$out" 2>/dev/null || echo "unreadable"
-          }
-          denied() {
-            jq -e -R -s --arg t "$1" --arg p "$2" '[split("\n")[] | fromjson? | objects] | last(.[] | select(.type == "result")) | any(.permission_denials[]?; .tool_name == $t and ((.tool_input.file_path // .tool_input.path // "") | startswith($p)))' "$out" >/dev/null 2>&1 ||
-              { echo "::error::the managed policy did not record a denied $1 of $2, so no case runs (probe: $(probe_facts))"; exit 1; }
-          }
           for attempt in 1 2 3; do
             status=0
             claude -p "This is the CI runner's permission self-test, run by the repository's own workflow before any eval case. The runner's managed policy denies reads of /proc and of the runner's install directory, so each call below is expected to come back denied, and the test passes only when Claude Code records all four denials. No file content is wanted or used. Make exactly these four tool calls, in order, and no other: the Read tool on /proc/self/environ; the Read tool on $RUNNER_ROOT/.runner; the Grep tool with pattern policy-probe and path /proc/self/environ; the Glob tool with pattern environ and path /proc/self. Then reply with one line saying which calls were denied." \
@@ -1188,16 +1139,17 @@ jobs:
               echo "::notice::the probe ended on the credential's own stop; the next leg runs the pass"
               exit 0
             fi
-            jq -e -R -s '[split("\n")[] | fromjson? | objects] as $m | ($m | map(select(.type == "result")) | last) as $r
-              | $r != null and $r.subtype == "success"
-              and ([$m[] | select(.type == "assistant") | .message.content[]? | objects | select(.type == "tool_use")] | length) == 0' "$out" >/dev/null 2>&1 || break
-            echo "::notice::the probe's session made no tool call, so it proved nothing about the policy (attempt $attempt of 3)"
+            judged=0
+            reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?
+            [ "$judged" -eq 3 ] || break
+            echo "::notice::$reason (attempt $attempt of 3)"
           done
           printf '%s\n' "$verdict" >>"$GITHUB_OUTPUT"
-          denied Read /proc/self/environ
-          denied Read "$RUNNER_ROOT/.runner"
-          denied Grep /proc/self
-          denied Glob /proc/self
+          case $judged in
+            0) echo "$reason" ;;
+            3) echo "::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs (last attempt: $reason)"; exit 1 ;;
+            *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
+          esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
       # eval-browser-dispatch.yml.
