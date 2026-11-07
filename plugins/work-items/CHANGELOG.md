@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.1.1] - 2026-11-07
+
+### Changed
+
+- The work `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Twenty new `wk-` cases cover the claim before dispatch and a lost race, a remapped recurring role label, the dispatch and pull-request lifecycle (worker-side worktree, `create --pushed`, a held draft, the PR owner, the review findings, the babysit hand-off), an unbound tracker, item text and an untrusted `## Agent Brief` as data, the lease renewal duty, and CI mode's required and CI-left checks, resume, `remaining`, pushback and its stop codes. Each is a described run graded on the reply. Legacy cases 13 and 18 are held on #8635 for an owner decision on their graders.
+
+- The work-loop `evals.json` file is retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Twenty-seven new `wl-` cases cover the admission gate (hard gates, the in-flight check, the labeler precondition, the provenance and provenance-removal holds, body edit-time escalation), the objection window and who can object or answer, item text as data, the intake sweep's disclaimer and its never-admit rule, the adaptive cap and the rate-limit pause, account switches while paused, the no-progress stall, the drain exits and `--scope` lanes. Each is a described cycle graded on the reply. Legacy cases 6, 26, 27 and 28 were already covered by the `wl-` ports. Legacy cases 10, 12, 18 and 20 are held on #8635 for an owner decision on their graders.
+
 ## [12.1.0] - 2026-11-07
 
 ### Added
