@@ -2990,6 +2990,20 @@ def issue_status_write(repo: str, issue: int, field_id: int, state: str) -> list
     ]
 
 
+def issue_status_clear(repo: str, issue: int, field_id: int) -> list[str]:
+    """The gh arguments that clear issue `issue`'s Work status field
+    `field_id` (write-status.mjs restart), so the next set sends the
+    field_added that starts a run."""
+    return [
+        "api",
+        "-X",
+        "DELETE",
+        f"repos/{repo}/issues/{issue}/issue-field-values/{field_id}",
+        "-H",
+        f"X-GitHub-Api-Version: {FIELD_API_VERSION}",
+    ]
+
+
 def issue_status_reader(
     repo: str, status: IssueStatusConfig | None, branch: str | None = None
 ) -> Callable[[int], str | None] | None:

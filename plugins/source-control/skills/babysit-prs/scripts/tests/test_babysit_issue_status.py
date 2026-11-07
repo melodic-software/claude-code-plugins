@@ -137,6 +137,7 @@ def setter(actor_id: int, login: str, kind: str = "Bot") -> dict[str, Any]:
 WORK_STATUS = {"fullDatabaseId": str(FIELD)}
 # A Work status POST's answer with the field at confirmed (pr-pipeline.yaml).
 CONFIRMED_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 86380002}}]
+AGENT_READY_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 84879220}}]
 
 
 def field_event(
@@ -697,9 +698,9 @@ class TheCappedClose(unittest.TestCase):
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
                 f"POST {base}/comments",
                 f"POST {base}/issue-field-values",
-                f"DELETE {base}/labels/agent-ready",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
+            "the park writes the field alone, no agent-ready label removal",
         )
         self.assertEqual(
             world.writes[2][4:],
@@ -746,21 +747,53 @@ class TheCappedClose(unittest.TestCase):
             world.calls(),
             [
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
-                f"DELETE {base}/labels/agent-ready",
                 f"POST {base}/comments",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
-            "no park or field write over the hold; agent-ready comes off at the cap"
-            " before the record a rerun would stop at",
+            "no park, field or label write over the hold",
         )
         # Both records say the hold, neither says parked, and the issue's
         # marker names no attempt, so a rerun restarts nothing.
-        for index in (0, 2):
+        for index in (0, 1):
             body = world.body(index)
             self.assertIn("held at Work status `needs-human`", body)
             self.assertNotIn("parked at", body)
-        self.assertNotIn("parked", world.body(2).splitlines()[0])
-        self.assertNotIn("attempt=", world.body(2).splitlines()[0])
+        self.assertNotIn("parked", world.body(1).splitlines()[0])
+        self.assertNotIn("attempt=", world.body(1).splitlines()[0])
+
+    def test_a_restart_clears_then_sets_the_field_with_no_label_write(self) -> None:
+        # write-status.mjs restart: DELETE the field value, then POST
+        # agent-ready (option 84879220 in pr-pipeline.yaml).
+        world = World()
+        world.field_rows = AGENT_READY_ROWS
+        result = self.run_close(world, lambda *a: "agent-ready")
+        self.assertEqual(result["restarted"], [CAPPED_ISSUE])
+        base = f"repos/{CAPPED_REPO}/issues/{CAPPED_ISSUE}"
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
+                f"POST {base}/comments",
+                f"DELETE {base}/issue-field-values/{FIELD}",
+                f"POST {base}/issue-field-values",
+                f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
+            ],
+            "the restart goes through the field alone, no label call",
+        )
+        self.assertEqual(
+            world.writes[2][4:], ["-H", "X-GitHub-Api-Version: 2026-03-10"]
+        )
+        self.assertIn("issue_field_values[][value]=agent-ready", world.writes[3])
+
+    def test_a_restart_set_that_does_not_land_raises_before_the_close(self) -> None:
+        world = World()
+        world.field_rows = CONFIRMED_ROWS
+        with self.assertRaises(RuntimeError) as raised:
+            self.run_close(world, lambda *a: "agent-ready")
+        self.assertIn("Work status not set to agent-ready", str(raised.exception))
+        self.assertNotIn(
+            f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}", world.calls()
+        )
 
     def test_a_held_field_keeps_it_open(self) -> None:
         world = World()
