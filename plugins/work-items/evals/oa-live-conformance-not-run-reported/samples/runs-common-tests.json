@@ -45,6 +45,17 @@
         }
       ],
       "why": "lists it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/adapters/tasker/common.sh tools/work-item-tracker/adapters/tasker/common.test.sh"
+          }
+        }
+      ],
+      "why": "reads both files, from review"
     }
   ]
 }
