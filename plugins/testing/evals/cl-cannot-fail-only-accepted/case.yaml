@@ -32,7 +32,7 @@ graders:
     target: { source: file, path: .work/testing-cleanup/shop.tests/decisions.md }
   - name: records-keep-reason
     type: regex
-    pattern: '\bPrice_feed_resolves\b[^\n]*\bkeep: throw is the only oracle\b'
+    pattern: '\bPrice_feed_resolves\b[^\n]*\bkeep:[^\n]*\bthrow is the only oracle\b'
     target: { source: file, path: .work/testing-cleanup/shop.tests/decisions.md }
   - name: proposes-two-deletions
     type: regex

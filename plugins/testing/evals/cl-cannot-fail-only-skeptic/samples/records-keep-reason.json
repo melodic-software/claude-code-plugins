@@ -7,6 +7,10 @@
     {
       "answer": "- Price_feed_resolves: keep: throw is the only oracle (Shop.Tests/WiringTests.cs:19)\n",
       "why": "list form"
+    },
+    {
+      "answer": "| Price_feed_resolves (WiringTests.cs:16) | rule-zero-assertion | `var s = provider.GetRequiredService<IPriceFeed>();` | can-fail | keep: DI resolution/constructor throw is the only oracle (WiringTests.cs:19) | n/a |\n",
+      "why": "words between keep: and the reason (the t4r skeptic row, which the llm grader passed)"
     }
   ],
   "fail": [
