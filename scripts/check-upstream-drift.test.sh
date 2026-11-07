@@ -415,6 +415,13 @@ want_rc "no gh" 2
 no_out "no gh"
 want_err "no gh" "gh"
 
+mkdir -p "$f/.github/actions/log-api-budget"
+cp "$SCRIPT_DIR/../.github/actions/log-api-budget/api-budget.bash" "$f/.github/actions/log-api-budget/"
+run_env PATH="$NO_PATH" RUNNER_TEMP="$f" --
+want_rc "no gh on a runner, where the api-budget gh function is defined" 2
+no_out "no gh on a runner, where the api-budget gh function is defined"
+want_err "no gh on a runner, where the api-budget gh function is defined" "gh is required"
+
 path_without jq
 run_env PATH="$NO_PATH" UPSTREAM_DRIFT_FIXTURE_DIR="$f/fx" --
 want_rc "no jq" 2
