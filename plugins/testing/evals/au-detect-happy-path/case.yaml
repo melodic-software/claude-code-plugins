@@ -18,10 +18,10 @@ graders:
   - name: ran-scanner
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
   - name: rules-and-denominator
     type: regex
-    pattern: '^(?=[\s\S]*testing/audit/rule-zero-assertion)(?=[\s\S]*testing/audit/rule-recomputed-expectation)(?=[\s\S]*testing/audit/rule-mock-only-oracle)(?=[\s\S]*(?:\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b[^.;|\n]{0,25}\b(?:examined|scanned|parsed|read|enumerated)\b|\b(?:examined|scanned|parsed|read)\b[^.;|\n]{0,25}\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b|\b\d+\s+examined of \d+|\btest (?:files|blocks)(?: parsed| examined)?[\s*_`:|]{1,8}\d+))'
+    pattern: '^(?=[\s\S]*(?:testing/audit/rule-zero-assertion))(?=[\s\S]*(?:testing/audit/rule-recomputed-expectation))(?=[\s\S]*(?:testing/audit/rule-mock-only-oracle))(?=[\s\S]*(?:(?:\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b[^.;|\n]{0,25}\b(?:examined|scanned|parsed|read|enumerated)\b|\b(?:examined|scanned|parsed|read)\b[^.;|\n]{0,25}\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b|\b\d+\s+examined of \d+|\btest (?:files|blocks)(?: parsed| examined)?[\s*_`:|]{1,8}\d+)))'
     flags: i
     target: last_message
   - name: meets-expectations

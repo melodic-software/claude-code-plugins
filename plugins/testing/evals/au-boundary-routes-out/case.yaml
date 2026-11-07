@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: au-boundary-routes-out
-description: 'Legacy audit 7. The user asks whether to use this audit or mutation testing, and whether it checks bash test suites for vacuous skips. The reply presents mutation-testing:audit as the dynamic complement and names the discriminating-skip gate for bash skips. skill-fired reads the Skill call, names-incumbents the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools.'
+description: 'Legacy audit 7. The user asks whether to use this audit or mutation testing, and whether it checks bash test suites for vacuous skips. The reply presents mutation-testing:audit as the dynamic complement and names the discriminating-skip gate for bash skips. Legacy expectation 2 (does not claim to audit bash test files) contradicts the current skill, which scans *.test.sh assertions, so it is not graded. skill-fired reads the Skill call, names-incumbents the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools.'
 tags: [testing, audit, boundary, no-network]
 expected_outcome: 'Distinguishes static detection from mutation-testing:audit as complements, does not claim to audit bash skips, and names check-discriminating-test-skips.sh.'
 execution:
-  prompt: 'Should I use this audit or mutation testing? And can it check our bash test suites for vacuous skips too?'
+  prompt: 'Should I use this audit or mutation testing? And can it check our bash test suites for vacuous skips too? Use the `testing:audit` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 15
   timeout_seconds: 420
@@ -15,8 +15,8 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: names-incumbents
     type: regex
-    pattern: '^(?=[\s\S]*mutation-testing:audit\b)(?=[\s\S]*check-discriminating-test-skips)'
+    pattern: '^(?=[\s\S]*(?:mutation-testing:audit\b))(?=[\s\S]*(?:check-discriminating-test-skips))'
     target: last_message
   - name: meets-expectations
     type: llm
-    criteria: 'The user asked whether to use this audit or mutation testing, and whether it checks bash test suites for vacuous skips. PASS only if the reply satisfies every legacy expectation: "Output distinguishes static can''t-fail detection from dynamic mutation analysis and presents them as complements" "Output does not claim to audit bash test files" "Output names the discriminating-skip gate as the incumbent for bash skip shapes". FAIL if any point is missing or contradicted.'
+    criteria: 'The user asked whether to use this audit or mutation testing, and whether it checks bash test suites for vacuous skips. PASS only if the reply satisfies every legacy expectation: "Output distinguishes static can''t-fail detection from dynamic mutation analysis and presents them as complements" "Output names the discriminating-skip gate as the incumbent for bash skip shapes". FAIL if any point is missing or contradicted.'

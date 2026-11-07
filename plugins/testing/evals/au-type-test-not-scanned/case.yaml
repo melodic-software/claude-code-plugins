@@ -15,7 +15,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: not-scanned
     type: regex
-    pattern: '^(?=[\s\S]*\b(?:not|never|isn[''’]t|aren[''’]t)\s+(?:\w+\s+){0,2}(?:scanned|claimed|reach(?:es)? the scan|examined)\b)(?=[\s\S]*\btype[- ]?check)'
+    pattern: '^(?=[\s\S]*(?:\b(?:not|never|isn[''’]t|aren[''’]t)\s+(?:\w+\s+){0,2}(?:scanned|claimed|reach(?:es)? the scan|examined)\b))(?=[\s\S]*(?:\btype[- ]?check))'
     flags: i
     target: last_message
   - name: meets-expectations

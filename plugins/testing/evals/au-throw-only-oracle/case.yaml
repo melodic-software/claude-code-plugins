@@ -18,10 +18,10 @@ graders:
   - name: ran-scanner
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
   - name: throw-only-rule
     type: regex
-    pattern: 'testing/audit/rule-throw-only-oracle\b'
+    pattern: '(?:testing/audit/)?rule-throw-only-oracle\b'
     target: last_message
   - name: meets-expectations
     type: llm

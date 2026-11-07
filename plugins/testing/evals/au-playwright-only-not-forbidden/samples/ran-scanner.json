@@ -21,6 +21,17 @@
         }
       ],
       "why": "quoted path with an env prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/plugin/skills/audit/scripts/cant-fail-scan.sh\"; echo \"exit=$?\""
+          }
+        }
+      ],
+      "why": "quoted path followed by a separator (the smoke run's shape)"
     }
   ],
   "fail": [

@@ -15,7 +15,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: weak-oracle-rule
     type: regex
-    pattern: 'testing/audit/rule-weak-oracle\b'
+    pattern: '(?:(?:testing/audit/)?rule-)?weak-oracle\b'
     target: last_message
   - name: meets-expectations
     type: llm

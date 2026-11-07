@@ -11,7 +11,7 @@ execution:
 graders:
   - name: gap-report
     type: regex
-    pattern: '^(?=[\s\S]*\bgap report\b)(?=[\s\S]*\bPNG\b)'
+    pattern: '^(?=[\s\S]*(?:\bgap report\b))(?=[\s\S]*(?:\bPNG\b))'
     flags: i
     target: last_message
   - name: meets-expectations

@@ -11,7 +11,7 @@ execution:
 graders:
   - name: names-team-file
     type: regex
-    pattern: '^(?=[\s\S]*docs/conventions/testing\.yaml)(?=[\s\S]*\breason\b)'
+    pattern: '^(?=[\s\S]*(?:docs/conventions/testing\.yaml))(?=[\s\S]*(?:\breason\b))'
     target: last_message
   - name: meets-expectations
     type: llm

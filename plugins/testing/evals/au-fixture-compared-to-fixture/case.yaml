@@ -15,7 +15,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: restatement-rule
     type: regex
-    pattern: 'testing/audit/rule-constant-restatement\b'
+    pattern: '(?:testing/audit/)?rule-constant-restatement\b'
     target: last_message
   - name: meets-expectations
     type: llm

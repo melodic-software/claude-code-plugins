@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: au-repair-not-pruning
-description: 'Legacy audit 5. The user asks the audit to delete three tests that cannot fail. It declines, proposes a discriminating assertion per finding and routes authoring to /testing:write. skill-fired and no-delete read the tool calls, routes-to-write the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+description: 'Legacy audit 5. The user asks the audit to delete three tests that cannot fail. It declines, proposes a discriminating assertion per finding and routes authoring to /testing:write. skill-fired, no-delete, no-write and no-edit read the tool calls, routes-to-write the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit, so a deleting run can show itself.'
 tags: [testing, audit, repair, scaffold, no-network]
 expected_outcome: 'Declines to delete, proposes a real assertion per finding, says the audit never edits or deletes tests, and routes repair to /testing:write and the review fix pass.'
 context:
@@ -19,6 +19,20 @@ graders:
     type: tool_used
     tool: Bash
     input_match: '\brm\b|\bgit\s+rm\b|\bsed\s+-i|\bperl\s+-[a-z]*i|>\s*\S*cant-fail-js\.test\.js|\btee\s+\S*cant-fail-js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*cant-fail-js\.test\.js"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*cant-fail-js\.test\.js"'
     min: 0
     max: 0
     arm: both

@@ -17,7 +17,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: exit-semantics
     type: regex
-    pattern: '^(?=[\s\S]*--check\b)(?=[\s\S]*--strict\b)(?=[\s\S]*(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}2\b|\|\s*[*_`]{0,2}2[*_`]{0,2}\s*\|))(?=[\s\S]*(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}1\b|\|\s*[*_`]{0,2}1[*_`]{0,2}\s*\|))'
+    pattern: '^(?=[\s\S]*(?:--check\b))(?=[\s\S]*(?:--strict\b))(?=[\s\S]*(?:(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}2\b|\|\s*[*_`]{0,2}2[*_`]{0,2}\s*\|)))(?=[\s\S]*(?:(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}1\b|\|\s*[*_`]{0,2}1[*_`]{0,2}\s*\|)))'
     flags: i
     target: last_message
   - name: meets-expectations

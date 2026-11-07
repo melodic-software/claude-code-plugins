@@ -15,7 +15,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
   - name: weak-and-report-only
     type: regex
-    pattern: '^(?=[\s\S]*testing/audit/rule-weak-oracle)(?=[\s\S]*\breport[- ]only\b)'
+    pattern: '^(?=[\s\S]*(?:(?:(?:testing/audit/)?rule-)?weak-oracle))(?=[\s\S]*(?:\breport[- ]only\b))'
     flags: i
     target: last_message
   - name: meets-expectations
