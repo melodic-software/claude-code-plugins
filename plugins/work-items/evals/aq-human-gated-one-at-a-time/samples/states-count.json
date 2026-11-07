@@ -21,6 +21,10 @@
     {
       "answer": "2 [human-gated] rows left after #1201.",
       "why": "near miss: wrong count"
+    },
+    {
+      "answer": "1. [human-gated] #1201 Rotate the deploy key\n2. [human-gated] #1202 Pick the retention period\n3. [human-gated] #1203 Drop the legacy export endpoint",
+      "why": "near miss: numbered list, the third row's ordinal is not a count"
     }
   ]
 }

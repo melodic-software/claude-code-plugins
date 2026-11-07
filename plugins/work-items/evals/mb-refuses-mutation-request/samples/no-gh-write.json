@@ -15,6 +15,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh label list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a label read"
     }
   ],
   "fail": [
@@ -53,6 +65,18 @@
         }
       ],
       "why": "api write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/acme/widgets/issues/7/comments -f body=x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "api write through a field, no -X"
     }
   ]
 }

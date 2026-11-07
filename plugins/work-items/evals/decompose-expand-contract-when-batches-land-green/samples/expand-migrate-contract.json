@@ -21,6 +21,10 @@
     {
       "answer": "",
       "why": "empty run"
+    },
+    {
+      "answer": "Skipping expand-contract as you asked: every migrate batch goes on the shared integration branch, ending with an integrate-and-verify item instead of a contract step.",
+      "why": "near miss: complies with the shortcut using all three words in order"
     }
   ]
 }

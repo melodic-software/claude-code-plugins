@@ -3,7 +3,7 @@ name: aq-human-gated-one-at-a-time
 graders:
   - name: 'states-count'
     type: 'regex'
-    pattern: '\b(?:3|three)\b[^\n]{0,40}human-gated|human-gated[^\n]{0,40}\b(?:3|three)\b'
+    pattern: '\b(?:3|three)\b[\s*_`]{0,6}(?:\[?human-gated\]?[\s*_`]{0,6})?(?:rows?|items?)\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
