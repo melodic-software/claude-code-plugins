@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Save-point engine for /session-flow:handoff: new / fill / validate / emit.
+"""Save-point engine for /session-flow:handoff: new / fill / amend / validate / emit.
 
 Owns every deterministic field of a handoff file so the model writes only the
 reasoning slots. `new` writes shape 3 by default: a hot file plus one archive
@@ -9,7 +9,8 @@ the predecessor sections the hot file does not carry. Shape 2 (`--shape 2`)
 stays writable, and shape-1 and shape-2 files validate and read unchanged.
 Stdlib only; Python 3.10+. Read-only on the repository except the files `new`
 creates (it never writes a `.gitignore` and never rewrites an existing
-handoff; it rewrites a hop file only on a retry by the same session).
+handoff; it rewrites a hop file only on a retry by the same session), and the
+hot file and hop file `fill` and `amend` rewrite.
 
 Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
@@ -17,6 +18,7 @@ Usage:
                       [--projects-root <dir>] [--repo-root <dir>] [--now <iso>]
                       [--shape 2|3] [--purpose <text>]
     save_point.py fill <file> --slots <json>
+    save_point.py amend <file> --json <json> [--now <iso>]
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
     save_point.py memory-root
@@ -29,7 +31,9 @@ Exit codes:
                 $CLAUDE_PLUGIN_DATA nor an installed cache layout), no session UUID / bridge-shaped
                 id, predecessor unreadable or outside the handoffs dir, target
                 already exists, a shape-3 predecessor continued as shape 2, or
-                a hop file owned by another session
+                a hop file owned by another session, or a same-session hop
+                file holding `## Amended …` or `## Retired …` content (run
+                `amend` instead)
               2 usage (neither or both of --previous / --no-previous, bad slug)
     fill      0 every slot replaced from the JSON, file written once, nothing
                 printed
@@ -44,6 +48,15 @@ Exit codes:
                 non-UTF-8-encodable value (names the key), or a failed write
               3 `handoff_shape` newer than `fill` knows: read it, do not
                 rewrite it
+    amend     0 written; prints the validate verdict, then the emit output (a
+                size FAIL never blocks the write)
+              1 refused, both files untouched: an unfilled skeleton, a no-op, a
+                carried section, an unknown section, a floor lowered, an entry
+                this hop added removed without a retire, a FAIL the amend would
+                add, or a file that is no longer the chain tip (prints the
+                successor's `amend` command)
+              2 usage, unreadable, not a shape-3 handoff, a malformed JSON
+                object, or a failed write
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped;
                 a shape-3 core alone over the byte cap: label UNVALIDATED)
               1 validation failure
@@ -63,8 +76,8 @@ Exit codes:
                 plugin data dir's `artifacts`)
               1 no git work tree and no plugin data dir
 
-Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` keeps
-the target its own line endings; stdout/stderr are reconfigured to UTF-8 so
+Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` and `amend`
+keep each file its own line endings; stdout/stderr are reconfigured to UTF-8 so
 the U+2500 rails survive a cp1252 pipe on Windows.
 """
 
@@ -451,9 +464,17 @@ def _die(code: int, message: str) -> int:
     return code
 
 
+def _universal(text: str) -> str:
+    """`text` as `Path.read_text` returns it: every `\\r\\n` and lone `\\r` a `\\n`."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _text_lines(text: str) -> list[str]:
+    return [line.rstrip("\r\n") for line in _universal(text).splitlines()]
+
+
 def _read_lines(path: Path) -> list[str]:
-    text = path.read_text(encoding="utf-8")
-    return [line.rstrip("\r\n") for line in text.splitlines()]
+    return _text_lines(path.read_text(encoding="utf-8"))
 
 
 def _line_parts(line: str) -> tuple[str, str]:
@@ -501,6 +522,8 @@ class Doc:
     has_frontmatter: bool = False
     body_start: int = 0
     sections: list[tuple[str, int, int]] = field(default_factory=list)
+    # Bytes on disk, or the size the file will have when built in memory.
+    size: int | None = None
 
     @property
     def basename(self) -> str:
@@ -1084,9 +1107,12 @@ def validate_doc(
     projects_root: Path | None,
     strict_transcript: bool,
     shallow: bool = False,
+    hop_text: str | None = None,
 ) -> tuple[Findings, int]:
     """Return findings plus the exit code (0/1/3). `shallow` skips the
-    predecessor walk (used when a successor validates its own predecessor)."""
+    predecessor walk (used when a successor validates its own predecessor);
+    `hop_text` stands in for this hop's file on disk (`amend` validates
+    before it writes)."""
     f = Findings()
     fm = doc.frontmatter
     shape = doc.shape
@@ -1152,7 +1178,7 @@ def validate_doc(
                     f.fail(f"predecessor {previous!r} unreadable: {exc}")
                     pred = None
     if shape == 3:
-        _validate_shape3(doc, f, previous, pred, projects_root)
+        _validate_shape3(doc, f, previous, pred, projects_root, hop_text)
     else:
         _validate_shape2(doc, f, previous, pred, projects_root)
 
@@ -1629,7 +1655,8 @@ def _section_bytes(doc: Doc, titles: tuple[str, ...]) -> int:
 
 def _cap_state(doc: Doc) -> tuple[int, int]:
     """The hot file's size on disk and the bytes its core sections hold."""
-    return len(doc.path.read_bytes()), _section_bytes(doc, CORE_3)
+    size = len(doc.path.read_bytes()) if doc.size is None else doc.size
+    return size, _section_bytes(doc, CORE_3)
 
 
 def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
@@ -1758,6 +1785,7 @@ def _validate_shape3(
     previous: str | None,
     pred: Doc | None,
     projects_root: Path | None,
+    hop_text: str | None = None,
 ) -> None:
     """The shape-3 checks: chain position, the fixed section order, the raw goal
     prefix, rule ids, the hop files on the chain path, nothing dropped between
@@ -1836,6 +1864,8 @@ def _validate_shape3(
     archived: str | None = None
     if not own.is_file():
         f.fail(f"archive: this hop's file {rel} is missing")
+    elif hop_text is not None:
+        archived = hop_text
     else:
         try:
             archived = own.read_text(encoding="utf-8")
@@ -2075,6 +2105,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         Path(args.projects_root).expanduser() if args.projects_root else None
     )
     findings, code = validate_doc(doc, projects_root, args.strict_transcript)
+    _print_verdict(doc, findings, code)
+    return code
+
+
+def _print_verdict(doc: Doc, findings: Findings, code: int) -> None:
     for level, message in findings.items:
         print(f"{level}: {message}")
     if code == 3:
@@ -2085,7 +2120,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
             label = "UNVALIDATED"
     count = f" ({len(findings.items)})" if findings.items else ""
     print(f"validate: {label}{count} {_posix(doc.path)}")
-    return code
 
 
 # --- emit -------------------------------------------------------------------------
@@ -2253,6 +2287,20 @@ def _apply_retire(
     return out, new_hop
 
 
+RETIRE_SHAPE = 'takes a list of {"ref": ..., "reason": ...} objects, each reason one non-empty line'
+
+
+def _retire_shape_ok(retire: object) -> bool:
+    return isinstance(retire, list) and all(
+        isinstance(item, dict)
+        and isinstance(item.get("ref"), str)
+        and isinstance(item.get("reason"), str)
+        and item["reason"].strip()
+        and not any(c in item["reason"] for c in "\r\n")
+        for item in retire
+    )
+
+
 def _write_atomic(path: Path, payload: bytes) -> OSError | None:
     """Write `payload` through a temporary file in `path`'s own directory, so an
     interrupted write leaves the file whole; `find-handoff` globs only `*.md`,
@@ -2344,18 +2392,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
     if retire is not None:
         if shape != 3:
             return _die(2, f"slots key 'retire' applies to shape-3 files only: {path}")
-        if not isinstance(retire, list) or not all(
-            isinstance(item, dict)
-            and isinstance(item.get("ref"), str)
-            and isinstance(item.get("reason"), str)
-            and item["reason"].strip()
-            and not any(c in item["reason"] for c in "\r\n")
-            for item in retire
-        ):
-            return _die(
-                2,
-                'slots key \'retire\' takes a list of {"ref": ..., "reason": ...} objects, each reason one non-empty line',
-            )
+        if not _retire_shape_ok(retire):
+            return _die(2, f"slots key 'retire' {RETIRE_SHAPE}")
     # Every exit-2 check runs over every key before the exit-1 check below, so a
     # payload carrying both defects exits 2 whatever order its keys arrive in.
     for key, value in values.items():
@@ -2494,6 +2532,434 @@ def cmd_fill(args: argparse.Namespace) -> int:
             return _die(2, f"cannot write {target} ({exc}); nothing written")
         done.append((target, before))
     return 0
+
+
+# --- amend ------------------------------------------------------------------------
+
+
+AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
+FLOOR_KEYS = tuple(spec.floor_key for spec in ID_SPECS)
+AMENDED_HEADING = "Amended"
+# Quoted text snippets and digits shift with every edit (sizes, line numbers,
+# truncated entries); an id names what a FAIL is about and stays.
+_SNIPPET_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
+_DIGITS_RE = re.compile(r"(\[[RQD]\d+\])|\d+")
+
+
+def _fail_key(message: str) -> str:
+    """A FAIL as its check kind and stable key."""
+    return _DIGITS_RE.sub(lambda m: m.group(1) or "", _SNIPPET_RE.sub("", message))
+
+
+def _fail_keys(findings: Findings) -> Counter[str]:
+    """Every FAIL's key; a size FAIL never counts."""
+    return Counter(
+        _fail_key(message)
+        for level, message in findings.items
+        if level == "FAIL" and not message.startswith("size:")
+    )
+
+
+def _previous_of(path: Path) -> str | None:
+    """`previous_handoff` from a file's frontmatter, reading no further."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            if fh.readline().strip() != "---":
+                return None
+            for line in fh:
+                if line.strip() == "---":
+                    return None
+                if line.startswith("previous_handoff:"):
+                    return _fm_value(line.split(":", 1)[1])
+    except OSError:
+        return None
+    return None
+
+
+def _successor(path: Path) -> Path | None:
+    """A handoff beside `path` naming it in `previous_handoff`, or None."""
+    for candidate in sorted(path.parent.glob("*.md")):
+        if (
+            candidate.name != path.name
+            and HANDOFF_NAME_RE.match(candidate.name)
+            and _previous_of(candidate) == path.name
+        ):
+            return candidate
+    return None
+
+
+def _not_tip(path: Path, successor: Path, payload: str) -> int:
+    return _die(
+        1,
+        f"{path.name} is not the chain tip: {_posix(successor)} names it in previous_handoff; nothing written. Amend the tip instead: python3 {_posix(Path(__file__))} amend {_posix(successor)} --json {payload}",
+    )
+
+
+def _value_lines(value: str) -> list[str]:
+    # `\n` only, as in `cmd_fill`: `str.splitlines()` also breaks on a lone `\r`.
+    return value.replace("\r\n", "\n").split("\n")
+
+
+def _next_span(doc: Doc) -> tuple[int, int] | None:
+    """`doc.lines` range of the resume region's `Next:` line and its headlines."""
+    start = doc.section_start("Resume prompt")
+    if start < 0:
+        return None
+    body = doc.section("Resume prompt") or []
+    origin = next(
+        (i for i, line in enumerate(body) if line.startswith("Handoff origin: ")), None
+    )
+    if origin is None or origin + 1 >= len(body):
+        return None
+    at = origin + 1
+    if body[at] not in ("Next:", NEXT_CLOSED):
+        return None
+    end = at + 1
+    while end < len(body) and not RAIL_RE.match(body[end].strip()):
+        end += 1
+    return start + 1 + at, start + 1 + end
+
+
+def _held_heading(doc: Doc) -> str | None:
+    """The first `## Amended …` or retire heading in a hop file with content
+    under it: what `amend` and `retire` wrote, which a rewrite would erase."""
+    for title, start, end in doc.sections:
+        if (title.startswith(AMENDED_HEADING) or title in RETIRE_HEADINGS) and any(
+            line.strip() for line in doc.lines[start + 1 : end]
+        ):
+            return title
+    return None
+
+
+def _amend_payload(raw: dict) -> str | None:
+    """Why the `--json` object is malformed, or None."""
+    unknown = sorted(key for key in raw if key not in AMEND_KEYS)
+    if unknown:
+        return f"key {unknown[0]!r} is not one of {', '.join(AMEND_KEYS)}"
+    sections, append = raw.get("sections", {}), raw.get("append", {})
+    if not isinstance(sections, dict) or not all(
+        isinstance(v, str) for v in sections.values()
+    ):
+        return "'sections' takes an object of section title to new body text"
+    if not isinstance(append, dict) or not all(
+        isinstance(v, list) and v and all(isinstance(s, str) for s in v)
+        for v in append.values()
+    ):
+        return "'append' takes an object of section title to a non-empty list of lines"
+    if "retire" in raw and not _retire_shape_ok(raw["retire"]):
+        return f"'retire' {RETIRE_SHAPE}"
+    nxt = raw.get("next")
+    if "next" in raw and (
+        not isinstance(nxt, list) or not nxt or not all(isinstance(s, str) for s in nxt)
+    ):
+        return "'next' takes a non-empty list of headline lines"
+    floors = raw.get("floors", {})
+    if not isinstance(floors, dict) or not all(
+        type(v) is int and v >= 1 for v in floors.values()
+    ):
+        return "'floors' takes an object of floor key to an integer from 1 up"
+    strings = [
+        *sections.values(),
+        *(s for v in append.values() for s in v),
+        *(raw.get("next") or []),
+        *(item["reason"] for item in raw.get("retire") or []),
+    ]
+    for value in strings:
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            return f"a value is not encodable as UTF-8 ({exc})"
+    return None
+
+
+def cmd_amend(args: argparse.Namespace) -> int:
+    """Fold a late event into a filled shape-3 hot file and its hop file.
+
+    Byte rules follow `cmd_fill`: bytes in, each file keeps its own line
+    terminators, `\\r\\n` becomes `\\n` in JSON values only, and every refusal
+    happens before any write. The result is validated in memory first; it is
+    written only when it adds no FAIL beyond the ones the file already had,
+    a size FAIL aside, since nothing lossy wins over size.
+    """
+    path = Path(args.file)
+    if not path.is_file():
+        return _die(2, f"not a file: {path}")
+    try:
+        before = path.read_bytes()
+        text = before.decode("utf-8")
+        doc = parse_doc(path)
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(2, f"cannot read {path}: {exc}")
+    if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
+        return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
+    if doc.shape != 3:
+        return _die(
+            2,
+            f"amend rewrites shape-3 hot files only (handoff_shape {doc.frontmatter.get('handoff_shape')!r}): {path}",
+        )
+    if any(FILL_MARK in line for line in doc.lines):
+        return _die(
+            1,
+            f"unfinished skeleton (a {FILL_MARK} slot remains); run `fill`, never `amend`, on it: {_posix(path)}",
+        )
+    now = _parse_now(args.now)
+    if now is None:
+        return _die(2, f"--now must be ISO-8601 UTC (got {args.now!r})")
+    successor = _successor(path)
+    if successor is not None:
+        return _not_tip(path, successor, args.json)
+
+    json_path = Path(args.json)
+    try:
+        raw = json.loads(json_path.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(2, f"cannot read amend file {json_path}: {exc}")
+    except ValueError as exc:
+        return _die(2, f"amend file is not valid JSON ({exc}): {_posix(json_path)}")
+    if not isinstance(raw, dict):
+        return _die(2, f"amend file must hold a JSON object: {_posix(json_path)}")
+    malformed = _amend_payload(raw)
+    if malformed:
+        return _die(2, f"{malformed}: {_posix(json_path)}")
+    sections: dict[str, str] = raw.get("sections", {})
+    append: dict[str, list[str]] = raw.get("append", {})
+    retire: list[dict[str, str]] = raw.get("retire") or []
+    next_lines: list[str] | None = raw.get("next")
+    floors: dict[str, int] = raw.get("floors", {})
+    if not (sections or append or retire or next_lines or floors):
+        return _die(1, f"nothing to amend in {_posix(json_path)}; no file written")
+    values = [
+        *sections.values(),
+        *(s for v in append.values() for s in v),
+        *(next_lines or []),
+    ]
+    if any(FILL_MARK in value for value in values):
+        return _die(1, f"a value carries the literal {FILL_MARK!r}; rewrite it without")
+    for title in sections:
+        if title in CARRIED_3:
+            return _die(
+                1,
+                f"section {title!r} is carried (written by `new`); amend rewrites only the Resume prompt's Next: headlines, through 'next'",
+            )
+        if title not in doc.titles:
+            return _die(1, f"section {title!r} is not in {_posix(path)}")
+    for title in append:
+        if title not in RETIRED_ENTRY_SECTIONS:
+            return _die(
+                1,
+                f"'append' adds lines to {' or '.join(RETIRED_ENTRY_SECTIONS)} only (got {title!r})",
+            )
+    for key, n in floors.items():
+        if key not in FLOOR_KEYS:
+            return _die(
+                1,
+                f"frontmatter: amend changes only the id floors ({', '.join(FLOOR_KEYS)}), not {key!r}",
+            )
+        current = _fm_int(doc, key)
+        if current is not None and n < current:
+            return _die(1, f"frontmatter: {key} only rises ({current} now, {n} asked)")
+
+    fm = doc.frontmatter
+    own = hop_file_path(
+        path.parent,
+        fm.get("chain_root", ""),
+        _fm_int(doc, "hop") or 0,
+        fm.get("session_id", ""),
+    )
+    rel = own.relative_to(path.parent).as_posix()
+    try:
+        hop_before = own.read_bytes()
+        hop_text = hop_before.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(1, f"cannot read this hop's file {rel} ({exc}); nothing written")
+
+    hot = text.splitlines(keepends=True)
+    hop = hop_text.splitlines(keepends=True)
+    term = (_line_parts(hot[0])[1] if hot else "") or "\n"
+    if retire:
+        refs = [(item["ref"], item["reason"].strip()) for item in retire]
+        moved = _apply_retire(hot, hop, refs, rel)
+        if isinstance(moved, str):
+            return _die(1, f"{moved}; nothing written")
+        hot, hop = moved
+    retired_doc = _content_doc(hot)
+
+    replaced: list[tuple[str, list[str]]] = []
+    for title, value in sections.items():
+        current = _content_doc(hot)
+        start = current.section_start(title)
+        end = next(e for name, _, e in current.sections if name == title)
+        filled = [i for i in range(start + 1, end) if current.lines[i].strip()] or [
+            start
+        ]
+        old = current.lines[filled[0] : filled[-1] + 1] if filled != [start] else []
+        new = _trim_blank(_value_lines(value))
+        if not new:
+            return _die(1, f"section {title!r}: an empty body is never written")
+        if new == old:
+            return _die(
+                1, f"section {title!r} already holds that text; nothing written"
+            )
+        if old:
+            hot[filled[0] : filled[-1] + 1] = [line + term for line in new]
+            replaced.append((title, old))
+        else:
+            hot[start + 1 : end] = [term, *(line + term for line in new), term]
+
+    for title, items in append.items():
+        end = _section_end(_content_doc(hot), title)
+        lines = [line for item in items for line in _value_lines(item)]
+        # A blank line keeps an appended amendment from joining the unit above.
+        lead = [term] if title == "Original goal" else []
+        hot[end:end] = [*lead, *(line + term for line in lines)]
+
+    if next_lines is not None:
+        span = _next_span(_content_doc(hot))
+        if span is None:
+            return _die(
+                1,
+                f"no 'Next:' line after 'Handoff origin:' in the resume region of {_posix(path)}",
+            )
+        a, b = span
+        old = _content_doc(hot).lines[a:b]
+        new = [line for item in next_lines for line in _value_lines(item)]
+        new = [NEXT_CLOSED] if new == [NEXT_CLOSED] else ["Next:", *new]
+        if new == old:
+            return _die(1, "the Next: headlines already read that way; nothing written")
+        hot[a:b] = [line + term for line in new]
+        replaced.append(("Resume prompt Next:", old))
+
+    # A retired id stays spent: the next hop's floor starts above it.
+    raised = dict(floors)
+    for item in retire:
+        m = RETIRE_REF_RE.match(item["ref"])
+        if m and m["prefix"]:
+            key = next(s.floor_key for s in ID_SPECS if s.prefix == m["prefix"])
+            raised[key] = max(raised.get(key, 0), int(m["n"]) + 1)
+    current = _content_doc(hot)
+    for key, n in raised.items():
+        have = _fm_int(current, key)
+        if have is not None and n <= have:
+            continue
+        at = next(
+            (
+                i
+                for i in range(1, current.body_start)
+                if current.lines[i].startswith(f"{key}:")
+            ),
+            None,
+        )
+        if at is None:
+            hot.insert(current.body_start - 1, f"{key}: {n}{term}")
+        else:
+            hot[at] = f"{key}: {n}{_line_parts(hot[at])[1]}"
+        current = _content_doc(hot)
+
+    pred = (
+        _sibling(path.parent, fm["previous_handoff"])
+        if fm.get("previous_handoff")
+        else None
+    )
+    amended = _content_doc(hot)
+    for title in sections:
+        if title in RETIRED_ENTRY_SECTIONS:
+            kept = set(_entry_units(amended, title)[0])
+            prior = set(_entry_units(pred, title)[0]) if pred else set()
+            for unit in _entry_units(retired_doc, title)[0]:
+                if unit not in kept and unit not in prior:
+                    return _die(
+                        1,
+                        f"section {title!r}: the rewrite removes an entry added this hop; retire it in the same call: {unit[0][:60]!r}",
+                    )
+        for spec in ID_SPECS:
+            if title not in spec.sections:
+                continue
+            kept_ids = {n for n, _, _ in _id_entries(amended, spec) if n is not None}
+            prior_ids = (
+                {n for n, _, _ in _id_entries(pred, spec) if n is not None}
+                if pred
+                else set()
+            )
+            for n, _, where in _id_entries(retired_doc, spec):
+                if where == title and n is not None and n not in kept_ids | prior_ids:
+                    return _die(
+                        1,
+                        f"section {title!r}: the rewrite removes [{spec.prefix}{n}], added this hop; retire it in the same call",
+                    )
+
+    if replaced:
+        hop_term = (_line_parts(hop[0])[1] if hop else "") or "\n"
+        if hop and not _line_parts(hop[-1])[1]:
+            hop[-1] += hop_term
+        stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for title, old in replaced:
+            hop += [
+                hop_term,
+                f"## {AMENDED_HEADING} {stamp} {title}{hop_term}",
+                hop_term,
+                *(line + hop_term for line in old),
+            ]
+    new_hot, new_hop = "".join(hot), "".join(hop)
+    if new_hot == text and new_hop == hop_text:
+        return _die(1, f"nothing to amend: {_posix(path)} would not change")
+
+    old_findings, _ = validate_doc(doc, None, False)
+    built = _doc_from_lines(path, _text_lines(new_hot))
+    built.size = len(new_hot.encode("utf-8"))
+    findings, code = validate_doc(built, None, False, hop_text=_universal(new_hop))
+    introduced = _fail_keys(findings) - _fail_keys(old_findings)
+    if introduced:
+        for level, message in findings.items:
+            if level == "FAIL" and _fail_key(message) in introduced:
+                print(f"FAIL: {message}", file=sys.stderr)
+        return _die(
+            1,
+            f"the amend adds a FAIL the file did not have; nothing written: {_posix(path)}",
+        )
+
+    writes = [
+        (target, payload.encode("utf-8"), original)
+        for target, payload, original in (
+            (own, new_hop, hop_text),
+            (path, new_hot, text),
+        )
+        if payload != original
+    ]
+    staged: list[tuple[Path, str]] = []
+    try:
+        for target, payload, _ in writes:
+            handle, tmp = tempfile.mkstemp(
+                dir=target.parent, prefix=".amend-", suffix=".tmp"
+            )
+            staged.append((target, tmp))
+            with os.fdopen(handle, "wb") as stream:
+                stream.write(payload)
+    except OSError as exc:
+        _unstage(staged)
+        return _die(2, f"cannot stage a write ({exc}); nothing written")
+    successor = _successor(path)
+    if successor is not None:
+        _unstage(staged)
+        return _not_tip(path, successor, args.json)
+    for index, (target, tmp) in enumerate(staged):
+        try:
+            os.replace(tmp, target)
+        except OSError as exc:
+            if index:
+                _write_atomic(own, hop_before)
+            _unstage(staged[index:])
+            return _die(2, f"cannot write {target} ({exc}); nothing written")
+    _print_verdict(built, findings, code)
+    sys.stdout.flush()
+    return cmd_emit(argparse.Namespace(file=str(path)))
+
+
+def _unstage(staged: list[tuple[Path, str]]) -> None:
+    for _, tmp in staged:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 # --- new --------------------------------------------------------------------------
@@ -3382,6 +3848,12 @@ def cmd_new(args: argparse.Namespace) -> int:
                     1,
                     f"hop file {_posix(hop_path)} belongs to session {owner or 'unknown'}, not {session_id}; never overwritten",
                 )
+            held = _held_heading(parse_doc(hop_path))
+            if held:
+                return _die(
+                    1,
+                    f"hop file {_posix(hop_path)} holds '## {held}' content a rewrite would erase; fold a late event in with `save_point.py amend <hot file> --json <path>`, never a second `new`",
+                )
         hop_path.parent.mkdir(parents=True, exist_ok=True)
         hop_path.write_text(
             hop_file_text(chain_root=root, hop=hop, session_id=session_id, pred=pred),
@@ -3413,7 +3885,7 @@ def _parse_now(raw: str | None) -> datetime | None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="save_point.py",
-        description="Handoff save-point engine: new / fill / validate / emit.",
+        description="Handoff save-point engine: new / fill / amend / validate / emit.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -3468,6 +3940,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON object keyed by slot name; an optional slot left out has its line deleted",
     )
     p_fill.set_defaults(func=cmd_fill)
+
+    p_amend = sub.add_parser(
+        "amend",
+        help="fold a late event into a filled shape-3 hot file and its hop file",
+    )
+    p_amend.add_argument("file")
+    p_amend.add_argument(
+        "--json",
+        required=True,
+        help="JSON object with any of: sections {title: body}, append {title: [lines]}, retire [{ref, reason}], next [lines], floors {key: n}",
+    )
+    p_amend.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
+    p_amend.set_defaults(func=cmd_amend)
 
     p_val = sub.add_parser(
         "validate", help="check a handoff file; PASS/WARN/FAIL lines on stdout"
