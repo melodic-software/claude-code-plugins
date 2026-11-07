@@ -6,7 +6,7 @@ set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 ws_init main src tests docs pyproject.toml
 mkdir -p src tests docs
-printf '[project]\nname = "prices"\nversion = "0.1.0"\n' >pyproject.toml
+printf '[project]\nname = "prices"\nversion = "0.1.0"\n\n[tool.pytest.ini_options]\npythonpath = ["."]\n' >pyproject.toml
 cat >docs/testing.md <<'EOF'
 # Testing
 

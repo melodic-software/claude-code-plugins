@@ -6,7 +6,7 @@ set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 ws_init main src tests pyproject.toml
 mkdir -p src tests
-printf '[project]\nname = "tags"\nversion = "0.1.0"\n\n[project.optional-dependencies]\ntest = ["pytest", "hypothesis"]\n' >pyproject.toml
+printf '[project]\nname = "tags"\nversion = "0.1.0"\n\n[project.optional-dependencies]\ntest = ["pytest", "hypothesis"]\n\n[tool.pytest.ini_options]\npythonpath = ["."]\n' >pyproject.toml
 cat >src/__init__.py <<'EOF'
 EOF
 cat >src/tags.py <<'EOF'

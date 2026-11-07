@@ -11,7 +11,7 @@ cat >web/package.json <<'EOF'
   "name": "account-web",
   "private": true,
   "scripts": { "test": "vitest run", "e2e": "playwright test" },
-  "devDependencies": { "@playwright/test": "1.63.0", "vitest": "4.0.6" }
+  "devDependencies": { "@playwright/test": "1.63.0", "@testing-library/react": "16.3.0", "vitest": "4.0.6" }
 }
 EOF
 cat >web/src/pages/Home.tsx <<'EOF'
@@ -73,6 +73,11 @@ export const routes = [
   { path: "/", element: <Home /> },
   { path: "/settings", element: <Settings onSave={saveEmail} /> },
 ];
+EOF
+cat >web/src/api.ts <<'EOF'
+export async function saveEmail(email: string): Promise<void> {
+  await fetch("/api/account/email", { method: "PUT", body: JSON.stringify({ email }) });
+}
 EOF
 g add -A
 g commit -q -m "settings page"
