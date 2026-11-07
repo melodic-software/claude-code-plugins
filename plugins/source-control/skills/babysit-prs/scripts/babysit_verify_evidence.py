@@ -5292,6 +5292,15 @@ def capped_close(
             parked,
             held.get(issue),
         )
+        base = f"repos/{repo}/issues/{issue}/labels"
+        if issue in held:
+            # At the cap: no attempt restarts when the hold clears. Before the
+            # record, since a rerun that finds the record writes no labels.
+            _gh_write(
+                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
+                f"#{issue} {AGENT_READY}",
+                missing_ok=True,
+            )
         if _marked(comments, identity, number) is None:
             _gh_write(
                 [
@@ -5304,7 +5313,6 @@ def capped_close(
                 ],
                 f"#{issue} record",
             )
-        base = f"repos/{repo}/issues/{issue}/labels"
         if labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
@@ -5327,13 +5335,6 @@ def capped_close(
                     ),
                     f"#{issue} Work status {STATUS_FIELD_CONFIRMED}",
                 )
-        if issue in held:
-            # At the cap: no attempt restarts when the hold clears.
-            _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
-                f"#{issue} {AGENT_READY}",
-                missing_ok=True,
-            )
         if labels == "none":
             continue
         if labels != "add":

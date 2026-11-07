@@ -715,20 +715,21 @@ class TheCappedClose(unittest.TestCase):
             world.calls(),
             [
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
-                f"POST {base}/comments",
                 f"DELETE {base}/labels/agent-ready",
+                f"POST {base}/comments",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
-            "no park or field write over the hold, and agent-ready comes off at the cap",
+            "no park or field write over the hold; agent-ready comes off at the cap"
+            " before the record a rerun would stop at",
         )
         # Both records say the hold, neither says parked, and the issue's
         # marker names no attempt, so a rerun restarts nothing.
-        for index in (0, 1):
+        for index in (0, 2):
             body = world.body(index)
             self.assertIn("held at Work status `needs-human`", body)
             self.assertNotIn("parked at", body)
-        self.assertNotIn("parked", world.body(1).splitlines()[0])
-        self.assertNotIn("attempt=", world.body(1).splitlines()[0])
+        self.assertNotIn("parked", world.body(2).splitlines()[0])
+        self.assertNotIn("attempt=", world.body(2).splitlines()[0])
 
     def test_a_held_field_keeps_it_open(self) -> None:
         world = World()
