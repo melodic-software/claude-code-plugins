@@ -40,7 +40,8 @@ names and the rest of the accessibility floor are the `accessibility` concern.
 
 Contents: `should-it-animate`, `name-the-purpose`, `cheapest-tool`, `properties`, `physicality`,
 `easing`, `duration`, `dropdown-example`, `springs`, `interruption-and-exit`, `page-load`,
-`stagger`, `reduced-motion`, `pointer-gating`, `personality`, `feel-check`, `never-ship`.
+`stagger`, `choreography`, `reduced-motion`, `pointer-gating`, `personality`, `feel-check`,
+`never-ship`.
 
 ## Should it animate: `should-it-animate`
 
@@ -373,13 +374,79 @@ sets no stagger of its own, write the resolved `animation.stagger_ms.interval`, 
 resolved `animation.stagger_ms.max_total`. Stagger is decoration: it never blocks interaction while
 it plays, and a list the user scrolls past all day does not stagger.
 
-Choreograph: when three elements would move simultaneously and clash, let one move at a time.
-Competing parallel motion is visual noise.
+How a stagger fits with the other elements moving on the same event is `choreography` below.
 
 **Audit: Suggestion.** A list or grid stagger interval over 50ms (or over the project's own
 stagger), or interval × count over `animation.stagger_ms.max_total`; a group entering all at once
 where a short stagger belongs. The larger offsets of a section entrance (behaviors.md
 `section-entrance`) are not this finding.
+
+## Choreography: `choreography`
+
+Applies once two or more elements move on the same event. The work is mostly subtraction: drop
+moving parts, then run what is left in parallel unless the order means something.
+
+1. **Give every moving element a role** before choosing any timing. The lead is the one thing the
+   user must notice: it moves first, furthest and longest. Support follows with smaller, shorter
+   motion. Decoration (badges, accents, dividers) only fades, or stays put. Everything else is
+   static, including a container whose content animates. Two candidates for lead is a hierarchy
+   problem in the design; say so instead of solving it with timing.
+2. **A container enters once.** A panel that slides in brings its content with it; its children
+   do not also stagger in.
+3. **Pick a relationship for each pair of moving parts:**
+   - *Together* (the default): parts of one object or one moment start at once, and so does any
+     pair whose order carries no meaning. An element leaving a group stops taking up space when it
+     starts leaving, so the neighbours slide into its slot during the exit (behaviors.md
+     `group-exit`); a view swapped inside one container crossfades the same way (behaviors.md
+     `view-swap`).
+   - *Overlap* (a stagger, `stagger` above): order means something (reading order, cause and
+     effect) and showing both at once would not look broken.
+   - *Sequence*: showing both at once would look broken, such as two dense views in a container
+     resizing on both axes, one element visibly passing through another, or a drawing whose
+     second stroke is the effect of the first. Start the second part slightly before the first ends
+     so the handoff reads as one gesture.
+   - *Carry*: when a child's own path cannot be controlled (a shared-layout transition), move its
+     parent and the child travels with it.
+4. **Stagger by importance, not by index alone.** Order follows importance (usually, but not always,
+   the DOM order; a heading and its first paragraph can share one beat). Vary distance and duration
+   by role, not only the start time: a group whose items all travel the same distance on the same
+   curve reads as mechanical. The interval stays within `stagger` above; easing the delays so they
+   shrink toward the end of the group reads more natural than equal gaps. Direction follows reading
+   order, or radiates from the point the user acted on.
+5. **One timing family per component.** The container and its inner parts share a duration role and
+   an easing family, set once (one shared token or config); inner content may take a lighter curve
+   of the same family.
+6. **Hook each secondary effect to a point in the lead's motion** (when it starts, lands or
+   settles), on the event that causes it, rather than to a delay picked by eye. Accents land with
+   the lead's arrival. When the same action repeats with its setup already in place, it skips the buildup and
+   plays at once.
+7. **Fit the timing to how much changed.** A container resizing by a large amount needs its
+   full duration and a small resize much less, within the same role; a small element can carry
+   more spring bounce than a large one. With only a few states, tune each transition by hand
+   rather than deriving one formula.
+8. **Direction and exit.** Forward moves content one way and back the other; switching between
+   sibling menus slides in from the side where the newly chosen trigger sits. A group leaves all at
+   once, with no reverse stagger, along the path it entered by (`exit` in behaviors.md).
+9. **Interruption.** A re-trigger mid-sequence stops every animation still running before starting
+   the next; never stack them. Anything that resumes afterwards (an idle loop) waits until every
+   reset animation has finished. A guard that only gates input (the buildup has finished) is not
+   rendered state. Rapid switching must never leave two views mounted.
+10. **Attention loops.** An idle hint that invites interaction holds off for several seconds at
+    first, repeats rarely, stops during interaction, and restarts once the reset completes.
+11. **Reduced motion collapses the choreography**: no delays, no movement, the group appears
+    together with at most an opacity change. When the sequence itself explains something, cut
+    from one frame to the next with no motion in between.
+
+Before writing code, write the timeline: each moving element, ordered by when it starts, with its
+role, start, duration, motion and relationship, then the elements deliberately left still and why. Pick
+the lightest tool that expresses the relationships (`cheapest-tool`); an imperative timeline API is
+for several elements coordinated across several events, never for a plain stagger. How the stack
+expresses each relationship is a run-time lookup in the stack's current documentation.
+
+**Audit: Suggestion.** A container that animates its own entrance while its children also stagger
+in; a staggered group whose lead, support and decoration all share one distance and curve; a group
+exit that staggers in reverse; a sequence that waits for one part to finish where the parts could
+run together.
 
 ## Reduced motion: `reduced-motion`
 
