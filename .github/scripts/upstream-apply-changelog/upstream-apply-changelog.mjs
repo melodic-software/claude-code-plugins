@@ -24,7 +24,9 @@ import { LANES_APP_LOGIN, matchesHoldPath } from "../pr-merge/merge-holds.mjs";
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SHA = /^[0-9a-f]{40}$/;
-const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
+// The handoff key grammar ci-mode.md states verbatim; a test holds the two equal.
+export const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
+const QUOTE_MAX = 120;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const branchFor = (plugin, release) => `changelog/${plugin}/v${release}`;
@@ -238,8 +240,21 @@ export function readPlan(text, ctx) {
   return validatePlan(plan, ctx);
 }
 
-// Every message names a field and its index, never a value: the plan is
-// model output and the scan job reports these before it scans anything.
+// A rejected value as inert log text: cut to QUOTE_MAX characters, then
+// JSON-quoted (CR, LF and every control character become escapes), with `%`
+// and anything outside printable ASCII escaped, so the `::error::` line it
+// lands in can neither decode a newline nor start a workflow command.
+export function quote(value) {
+  if (typeof value !== "string") return `(${value === null ? "null" : typeof value})`;
+  const text = JSON.stringify(value.slice(0, QUOTE_MAX)).replace(/[^\x20-\x24\x26-\x7e]/g, (c) =>
+    c === "%" ? "%25" : `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+  return value.length > QUOTE_MAX ? `${text}...` : text;
+}
+
+// Messages name a field and its index; a rejected key or plugin is shown only
+// through quote(), since the plan is model output and the scan job reports
+// these before it scans anything.
 export function validatePlan(plan, { release, baseSha }) {
   const fail = (why) => {
     throw new Error(`ci-plan.json: ${why}`);
@@ -259,7 +274,7 @@ export function validatePlan(plan, { release, baseSha }) {
   const seen = new Set();
   branches.forEach((b, i) => {
     const at = `branches[${i}]`;
-    if (!PLUGIN.test(b?.plugin ?? "")) fail(`${at}.plugin is malformed`);
+    if (!PLUGIN.test(b?.plugin ?? "")) fail(`${at}.plugin is malformed: ${quote(b?.plugin)}`);
     if (seen.has(b.plugin)) fail(`${at}.plugin repeats an earlier branch's plugin`);
     seen.add(b.plugin);
     if (b.branch !== branchFor(b.plugin, release)) fail(`${at}.branch is not changelog/<plugin>/v<release>`);
@@ -274,7 +289,7 @@ export function validatePlan(plan, { release, baseSha }) {
   const keys = new Set();
   handoffs.forEach((h, i) => {
     const at = `handoffs[${i}]`;
-    if (!KEY.test(h?.key ?? "") || !h.key.startsWith(`changelog:${release}..${release}:`)) fail(`${at}.key is malformed`);
+    if (!KEY.test(h?.key ?? "") || !h.key.startsWith(`changelog:${release}..${release}:`)) fail(`${at}.key is malformed: ${quote(h?.key)}`);
     if (keys.has(h.key)) fail(`${at}.key repeats an earlier handoff's key`);
     keys.add(h.key);
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);

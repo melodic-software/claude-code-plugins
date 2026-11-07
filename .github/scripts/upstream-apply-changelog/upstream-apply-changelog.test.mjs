@@ -17,11 +17,13 @@ import {
   fileReleaseHandoffs,
   handoffMarker,
   holdPathBranch,
+  KEY,
   loadHoldPaths,
   marksDone,
   netRawDiff,
   newestRelease,
   publishText,
+  quote,
   readNetChanges,
   readHoldPaths,
   readPlan,
@@ -157,6 +159,58 @@ test("a refusal names the field and index, never the plan's value", () => {
     () => checkRawLog(`:100644 100644 1 2 M\tplugins/hooks-kit/a\n:100644 100644 1 2 M\t${SECRET}`, "hooks-kit", 3),
     (e) => /branches\[3\] raw line 2/.test(e.message) && !e.message.includes(SECRET),
   );
+});
+
+test("a malformed key or plugin is refused with its value quoted", () => {
+  const bad = "changelog:2.1.300..2.1.300:Adopt:x";
+  assert.throws(
+    () => validatePlan(plan({ handoffs: [{ key: bad, title: "t", body: "b" }] }), ctx),
+    { message: 'ci-plan.json: handoffs[0].key is malformed: "changelog:2.1.300..2.1.300:Adopt:x"' },
+  );
+  const other = plan({ handoffs: [{ key: "changelog:2.1.299..2.1.299:adopt:x", title: "t", body: "b" }] });
+  assert.throws(() => validatePlan(other, ctx), { message: 'ci-plan.json: handoffs[0].key is malformed: "changelog:2.1.299..2.1.299:adopt:x"' });
+  assert.throws(() => validatePlan(plan({ handoffs: [{ title: "t", body: "b" }] }), ctx), { message: "ci-plan.json: handoffs[0].key is malformed: (undefined)" });
+  const plugged = plan();
+  plugged.branches[0].plugin = "Hooks Kit";
+  assert.throws(() => validatePlan(plugged, ctx), { message: 'ci-plan.json: branches[0].plugin is malformed: "Hooks Kit"' });
+});
+
+test("a quoted key cannot start a workflow command, decode a newline or run long", () => {
+  assert.equal(quote("x\r\n::set-output name=a::b"), String.raw`"x\r\n::set-output name=a::b"`);
+  assert.equal(quote("a%0Ab"), '"a%250Ab"');
+  assert.equal(quote("a\u2028b\u0085c"), "\"a\\u2028b\\u0085c\"");
+  assert.equal(quote("::error::x"), '"::error::x"');
+  assert.equal(quote("k".repeat(121)), `"${"k".repeat(120)}"...`);
+  assert.equal(quote("k".repeat(120)), `"${"k".repeat(120)}"`);
+});
+
+test("the scan job's error line shows a rejected key on one inert line", () => {
+  const dir = mkdtempSync(join(tmpdir(), "upstream-apply-changelog-key-"));
+  try {
+    writeFileSync(join(dir, "plan.json"), JSON.stringify(plan({ handoffs: [{ key: "x\n::set-output name=a::b%0A", title: "t", body: "b" }] })));
+    const run = () =>
+      execFileSync(process.execPath, [new URL("./upstream-apply-changelog.mjs", import.meta.url).pathname, "scan"], {
+        env: { PATH: process.env.PATH, IN: dir, RELEASE: "2.1.300", BASE_SHA: BASE, REPO_DIR: dir },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    assert.throws(run, (e) => {
+      assert.equal(e.stdout, String.raw`::error::ci-plan.json: handoffs[0].key is malformed: "x\n::set-output name=a::b%250A"` + "\n");
+      return true;
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ci-mode.md states the key grammar the validator enforces, with a valid example", () => {
+  const doc = readFileSync(new URL("../../../plugins/harness-ops/skills/changelog/context/ci-mode.md", import.meta.url), "utf8").replace(/\s+/g, " ");
+  const stated = [...doc.matchAll(/`(\^changelog:[^`]*)`/g)].map((m) => m[1]);
+  assert.deepEqual(stated, [KEY.source], "ci-mode.md states the key grammar once, equal to KEY");
+  assert.match(doc, /both sides of `\.\.` are the release being applied/, "ci-mode.md says the release fills both sides of ..");
+  const example = /for example `(changelog:[^`]+)`/.exec(doc)?.[1] ?? "";
+  const release = /^changelog:([0-9.]+)\.\./.exec(example)?.[1];
+  assert.equal(validatePlan(plan({ range: `${release}..${release}`, branches: [], handoffs: [{ key: example, title: "t", body: "b" }] }), { release, baseSha: BASE }).handoffs[0].key, example, "the example key passes the validator");
 });
 
 test("the publish text holds every pull request and issue string publish can post, decoded", async () => {

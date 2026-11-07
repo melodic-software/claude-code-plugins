@@ -24,7 +24,7 @@ keep `A..B`.
 | 1 Explore, 2 Research | as written | Unchanged. An uncited research claim leaves its row unverified |
 | 3 Scope gate | the user picks rows | The rule below picks; nothing is asked |
 | 4 Hand off | stage skills, user confirms filing | Branch rows run through the stage skills with `--unattended`; every other row is a handoff, filed by the workflow, not here |
-| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift` under their existing dedupe keys; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
+| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift`, each with a plan `key` in the grammar under The plan (lens `native-drift`, owner surface last) and its dedupe key as the `Drift key: <key>` line in its body; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
 
 ## Order and checkpoints
 
@@ -97,7 +97,11 @@ with two lines, `ci-plan: <path>` and `status: <status>`. A `no-range` stop has 
 it writes no plan and ends with `ci-plan: none` and `status: stopped`.
 
 Branch names and handoff keys derive from the range, lens and owner surface only, so a rerun of the
-same release reproduces them and the workflow can skip what already exists. `marker.advance` is
+same release reproduces them and the workflow can skip what already exists. Every handoff `key`,
+native-drift included, matches `^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$`, and
+both sides of `..` are the release being applied, for example
+`changelog:2.1.319..2.1.319:adopt:plugins/source-control/skills/pull-request/SKILL.md`.
+The workflow stops the release on any other key. `marker.advance` is
 always false: the marker moves in the ledger pull request once every row is in a final state
 ([decisions.md](decisions.md)), so the next run seeing the same release is expected.
 
