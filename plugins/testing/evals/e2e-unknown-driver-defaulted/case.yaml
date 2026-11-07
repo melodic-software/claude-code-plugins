@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-unknown-driver-defaulted
+description: 'Legacy run-e2e e2e-settings-10 (unknown-driver-value-named-and-defaulted). Names e2e_driver: puppeteer in docs/conventions/testing.yaml as rejected, resolves e2e_driver to auto from the default rather than playwright from userConfig, and continues. auto-from-default reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Names e2e_driver: puppeteer in docs/conventions/testing.yaml as rejected, resolves e2e_driver to auto from the default rather than playwright from userConfig, and continues.'
+execution:
+  prompt: '/testing:run-e2e the dashboard. docs/conventions/testing.yaml holds `e2e_driver: puppeteer`, and the e2e_driver userConfig option is set to playwright. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Report the resolved e2e_driver, its source and what happened to the rejected value, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: auto-from-default
+    type: regex
+    pattern: '\bauto\b[^.\n]{0,60}\bdefault\b|\bdefault\b[^.\n]{0,40}\bauto\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the dashboard. docs/conventions/testing.yaml holds `e2e_driver: puppeteer`, and the e2e_driver userConfig option is set to playwright. PASS only if the reply satisfies every legacy expectation: "Names docs/conventions/testing.yaml, e2e_driver and puppeteer as a rejected value" "Resolves e2e_driver to auto from the default, not playwright from userConfig" "Continues the run instead of stopping". FAIL if any point is missing or contradicted.'

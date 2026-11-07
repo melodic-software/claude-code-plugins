@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: e2e-mcp-server-no-ui
+description: 'Legacy run-e2e 2. Routes to the non-UI playbook and gives the JSON-RPC initialize stdio handshake as the live test, demanding no browser evidence. skill-fired reads the Skill call, initialize-handshake reads the reply; meets-expectations (llm) quotes the legacy expected output. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Routes to the non-UI playbook and gives the JSON-RPC initialize stdio handshake as the live test, demanding no browser evidence.'
+execution:
+  prompt: 'How do I live-test a change to an MCP server with no UI?'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?run-e2e"'
+  - name: initialize-handshake
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\binitialize\b))(?=[\s\S]*(?:\b(?:stdio|stdin|JSON-RPC)\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: How do I live-test a change to an MCP server with no UI? PASS only if the reply satisfies every legacy expectation: "Routes to context/non-ui.md. Maps the MCP-server surface to its smoke-test invocation: unit-level coverage plus the JSON-RPC initialize stdio-handshake pattern. Does not demand browser evidence for a non-UI surface.". FAIL if any point is missing or contradicted.'

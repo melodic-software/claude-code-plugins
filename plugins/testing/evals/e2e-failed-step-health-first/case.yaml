@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-failed-step-health-first
+description: 'Legacy run-e2e e2e-rules-01 (failed-drive-rechecks-health-first). After the Save timeout and the refused connection, the run re-runs the health check before reporting, and reports an environment failure with the health output rather than a product defect. environment-failure reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'After the Save timeout and the refused connection, the run re-runs the health check before reporting, and reports an environment failure with the health output rather than a product defect.'
+execution:
+  prompt: '/testing:run-e2e the profile page. Midway through the drive, clicking Save times out and the next navigation gets ''connection refused'' from the app''s port. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write how the run reports this, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: environment-failure
+    type: regex
+    pattern: '\benvironment failure\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the profile page. Midway through the drive, clicking Save times out and the next navigation gets ''connection refused'' from the app''s port. PASS only if the reply satisfies every legacy expectation: "Re-runs the health check after the failed step and before reporting any product failure" "Reports an environment failure with the health output, not a product defect, because the app stopped answering". FAIL if any point is missing or contradicted.'

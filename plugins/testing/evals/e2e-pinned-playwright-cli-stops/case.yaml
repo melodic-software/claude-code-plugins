@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-pinned-playwright-cli-stops
+description: 'Legacy run-e2e e2e-settings-03 (pinned-playwright-on-cli-target-stops). With e2e_driver pinned to playwright on a CLI target, the run stops with the verification-environment gap report naming the value, its file and the target, and switches to no other driver. gap-report reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With e2e_driver pinned to playwright on a CLI target, the run stops with the verification-environment gap report naming the value, its file and the target, and switches to no other driver.'
+execution:
+  prompt: '/testing:run-e2e the `invoice` command of this CLI tool. docs/conventions/testing.yaml pins `e2e_driver: playwright`. The tool has no browser UI. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what the run does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: gap-report
+    type: regex
+    pattern: '\bgap report\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the `invoice` command of this CLI tool. docs/conventions/testing.yaml pins `e2e_driver: playwright`. The tool has no browser UI. PASS only if the reply satisfies every legacy expectation: "Stops and writes the verification-environment gap report" "The gap report names the value playwright, its source file and the CLI target" "Does not fall back to another driver without being asked". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "curl -fsS --max-time 5 \"http://localhost:5000\" answered. State: skipped (app already running).",
+      "why": "skip state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "State: ran. Started a fresh instance on 5001.",
+      "why": "launches"
+    }
+  ]
+}

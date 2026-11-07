@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "git show '<sha>:docs/conventions/workspace-environment.md' gives scripts/ws.sh up and scripts/ws.sh info.",
+      "why": "git show"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Read docs/conventions/workspace-environment.md from the working tree and run its up command.",
+      "why": "working tree"
+    }
+  ]
+}

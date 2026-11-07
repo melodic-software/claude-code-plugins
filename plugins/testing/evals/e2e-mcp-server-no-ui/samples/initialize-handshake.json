@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Spawn the server and send a JSON-RPC `initialize` request on stdin; check the response line.",
+      "why": "handshake"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open the client and take a screenshot of the tool list.",
+      "why": "browser evidence"
+    }
+  ]
+}

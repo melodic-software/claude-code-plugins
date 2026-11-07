@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stop: gap report. Collision with the app on port 8080; reuse_running_instance is false (docs/conventions/testing.yaml).",
+      "why": "collision"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Starting a second instance on 8081 to avoid the app on 8080.",
+      "why": "second instance"
+    }
+  ]
+}

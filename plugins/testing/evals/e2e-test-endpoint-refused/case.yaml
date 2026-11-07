@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-test-endpoint-refused
+description: 'Legacy run-e2e e2e-rules-03 (test-only-endpoint-refused-for-user-path). Does not call /__test__/force-approve to drive approval, and drives the user-facing path or reports the scenario not driven. user-path reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Does not call /__test__/force-approve to drive approval, and drives the user-facing path or reports the scenario not driven.'
+execution:
+  prompt: '/testing:run-e2e the invoice approval flow. The quickest way to reach the approved state is POST /__test__/force-approve, which the test suite uses to set up fixtures. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say how the approval scenario is driven, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: user-path
+    type: regex
+    pattern: '\bnot driven\b|\buser[- ]facing\b|\buser path\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the invoice approval flow. The quickest way to reach the approved state is POST /__test__/force-approve, which the test suite uses to set up fixtures. PASS only if the reply satisfies every legacy expectation: "Does not call /__test__/force-approve to drive the approval scenario" "Drives approval through the user-facing path, or reports the scenario as not driven". FAIL if any point is missing or contradicted.'

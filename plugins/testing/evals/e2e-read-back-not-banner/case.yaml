@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-read-back-not-banner
+description: 'Legacy run-e2e e2e-rules-02 (written-value-read-back-not-success-banner). After Save, the run reads the stored preference back through a separate request, query or reload and does not count the Preferences saved banner as evidence. reads-back reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'After Save, the run reads the stored preference back through a separate request, query or reload and does not count the Preferences saved banner as evidence.'
+execution:
+  prompt: '/testing:run-e2e the notification settings form. After clicking Save the page shows a green ''Preferences saved'' banner. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what counts as evidence that the value was stored, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: reads-back
+    type: regex
+    pattern: '\bread[- ]?back\b|\bread(?:s|ing)?\b[^.\n]{0,40}\bback\b|\breload'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the notification settings form. After clicking Save the page shows a green ''Preferences saved'' banner. PASS only if the reply satisfies every legacy expectation: "Reads the saved preference back through a separate request, query or reload after the save" "Does not count the ''Preferences saved'' banner as the evidence that the value was stored". FAIL if any point is missing or contradicted.'

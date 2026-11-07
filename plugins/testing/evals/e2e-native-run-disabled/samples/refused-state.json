@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "State: invocation refused (disableBundledSkills). Axis: settings. Falling back to the documented start command.",
+      "why": "state line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "State: did not resolve in this session. Launching with npm run dev.",
+      "why": "another state"
+    }
+  ]
+}

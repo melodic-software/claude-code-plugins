@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-own-instance-false-unattended
+description: 'Legacy run-e2e own-instance-03 (false-with-entry-unattended-starts-own-instance). With reuse false and a declared entry, an unattended run does not stop with a collision report: it runs up then info, drives the info URL, and never drives the app already answering. own-instance reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With reuse false and a declared entry, an unattended run does not stop with a collision report: it runs up then info, drives the info URL, and never drives the app already answering.'
+execution:
+  prompt: '/testing:run-e2e --unattended the team calendar view. reuse_running_instance resolves to false. origin/main''s docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `make ws-up`, info: `make ws-info`). An app already answers at http://localhost:8080. After up, info prints APP_URL=http://localhost:51877. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer. Say what the run executes and which address it drives, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: own-instance
+    type: regex
+    pattern: '\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended the team calendar view. reuse_running_instance resolves to false. origin/main''s docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `make ws-up`, info: `make ws-info`). An app already answers at http://localhost:8080. After up, info prints APP_URL=http://localhost:51877. PASS only if the reply satisfies every legacy expectation: "Does not stop with a collision gap report" "Runs up and then info and drives http://localhost:51877" "Never drives the app already answering at http://localhost:8080". FAIL if any point is missing or contradicted.'

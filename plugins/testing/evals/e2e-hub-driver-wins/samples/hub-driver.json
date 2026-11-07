@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Driver: playwright, from the control skill's hub, which comes before e2e_driver.",
+      "why": "hub source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Driver: harness, from docs/conventions/testing.yaml e2e_driver.",
+      "why": "e2e_driver"
+    }
+  ]
+}

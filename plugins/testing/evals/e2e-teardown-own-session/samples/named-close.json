@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "playwright-cli -s='20261004153012-7f3a-the-search-page' close\ntest -s '/r/shot-1.png'",
+      "why": "named close"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "playwright-cli close-all",
+      "why": "close-all"
+    }
+  ]
+}

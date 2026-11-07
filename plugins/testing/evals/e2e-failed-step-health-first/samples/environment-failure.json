@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Health check after the failed step: connection refused. Environment failure, with the health output.",
+      "why": "environment failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product failure: Save times out on the profile page.",
+      "why": "product defect"
+    }
+  ]
+}

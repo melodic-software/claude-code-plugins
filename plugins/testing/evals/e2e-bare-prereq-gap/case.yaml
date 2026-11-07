@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-bare-prereq-gap
+description: 'Legacy run-e2e 1. With no app, orchestrator or Playwright CLI in the workspace, the run stops at the prerequisite check and writes the verification-environment gap report naming what is missing and how to provide it. gap-report reads the reply; meets-expectations (llm) quotes the legacy expected output. Needs --allow-tools Bash; graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With no app, orchestrator or Playwright CLI in the workspace, the run stops at the prerequisite check and writes the verification-environment gap report naming what is missing and how to provide it.'
+execution:
+  prompt: '/testing:run-e2e Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have."'
+  allowed_tools: [Read, Glob, Grep, Bash]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: gap-report
+    type: regex
+    pattern: '\bgap report\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e PASS only if the reply satisfies every legacy expectation: "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project''s orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run''s evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., ''npm install -g @playwright/cli''). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin''s skill for browser mechanics when enabled.". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Injected via network mocking. What broke: ... Decisions: ... What held up: ... Zoom used an approximation.",
+      "why": "three parts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll edit the member list markup with long names and screenshot it.",
+      "why": "edits markup"
+    }
+  ]
+}

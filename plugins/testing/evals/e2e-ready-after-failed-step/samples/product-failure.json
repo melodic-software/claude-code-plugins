@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Health and Ready pass after the timeout, so the Start timeout is a product failure; health output attached.",
+      "why": "product failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Environment failure: Start timed out.",
+      "why": "environment failure"
+    }
+  ]
+}

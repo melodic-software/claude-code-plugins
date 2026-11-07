@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-native-run-disabled
+description: 'Legacy run-e2e 4 (native-step-skip-when-bundled-run-disabled). With disableBundledSkills set, the Native step records invocation refused (disableBundledSkills) with its axis and enable path, falls back to the documented start command and does not retry run. refused-state reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With disableBundledSkills set, the Native step records invocation refused (disableBundledSkills) with its axis and enable path, falls back to the documented start command and does not retry run.'
+execution:
+  prompt: '/testing:run-e2e the login flow. disableBundledSkills is set in settings and the project has no orchestrator configuration. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the Native step result block and say how the app launches, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: refused-state
+    type: regex
+    pattern: 'invocation refused \(disableBundledSkills\)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. disableBundledSkills is set in settings and the project has no orchestrator configuration. PASS only if the reply satisfies every legacy expectation: "Opens the result block with ''invocation refused (disableBundledSkills)''" "Names the axis line (settings or environment)" "Names the enable path (disableBundledSkills, skillOverrides)" "Falls back to this skill''s own launch playbook, the project''s documented start command" "Does not retry the run invocation". FAIL if any point is missing or contradicted.'

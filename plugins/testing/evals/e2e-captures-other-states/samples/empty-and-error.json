@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Empty state (no saved searches), error state (duplicate name), the toast after Save. Not driven: network error (no fault injection).",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Happy path: save a search and see it listed.",
+      "why": "happy path only"
+    }
+  ]
+}

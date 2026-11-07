@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Own instance: make ws-up, make ws-info, drive http://localhost:51877.",
+      "why": "own instance"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drive the app at http://localhost:8080.",
+      "why": "reuses"
+    }
+  ]
+}

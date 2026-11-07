@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-own-instance-auto-unattended
+description: 'Legacy run-e2e own-instance-01 (unattended-auto-with-entry-starts-own-instance). On an unattended run with reuse auto and a declared entry, the run runs up then info, drives the APP_URL info reports, and never drives the app someone else started. own-instance reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'On an unattended run with reuse auto and a declared entry, the run runs up then info, drives the APP_URL info reports, and never drives the app someone else started.'
+execution:
+  prompt: '/testing:run-e2e --unattended the order history page. reuse_running_instance resolves to auto. origin/main''s docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `scripts/ws.sh up`, info: `scripts/ws.sh info`). An app already answers at http://localhost:3000, started by someone else. After up, info prints APP_URL=http://127.0.0.1:49210. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer. Say what the run executes and which address it drives, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: own-instance
+    type: regex
+    pattern: '\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended the order history page. reuse_running_instance resolves to auto. origin/main''s docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `scripts/ws.sh up`, info: `scripts/ws.sh info`). An app already answers at http://localhost:3000, started by someone else. After up, info prints APP_URL=http://127.0.0.1:49210. PASS only if the reply satisfies every legacy expectation: "Runs the entry''s up and then info" "Drives the APP_URL info reported, http://127.0.0.1:49210" "Never drives the app already answering at http://localhost:3000". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Kept as a new file beside the demo data: src/fixtures/order-summary.worst-case.json. Everything else reverted.",
+      "why": "kept and reverted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The demo data file now holds the worst-case values.",
+      "why": "overwrites demo data"
+    }
+  ]
+}

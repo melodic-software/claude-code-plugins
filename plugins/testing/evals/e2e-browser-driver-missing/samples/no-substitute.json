@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "browser_driver=pw-missing-tool (docs/conventions/testing.yaml) is not on PATH. Install it, or set browser_driver to a browser tool you have. No other browser tool is used as a silent substitute.",
+      "why": "both ways and substitute"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "pw-missing-tool is missing, so I'll use playwright-cli instead.",
+      "why": "substitutes"
+    }
+  ]
+}

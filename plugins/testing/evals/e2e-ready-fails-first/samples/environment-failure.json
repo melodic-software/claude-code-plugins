@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Ready exits 7 (Failed to connect to 127.0.0.1 port 5180): environment failure. No step driven.",
+      "why": "environment failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ready failed; driving the timer page anyway.",
+      "why": "drives"
+    }
+  ]
+}

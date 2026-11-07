@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-legacy-map-warns
+description: 'Legacy run-e2e feature-map-05 (legacy-map-warns-and-names-refresh). Warns that a legacy feature map is present at docs/maps/web, names /app-control:map refresh docs/maps/web without running it, and continues driving the export page without its Doctor. names-refresh reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Warns that a legacy feature map is present at docs/maps/web, names /app-control:map refresh docs/maps/web without running it, and continues driving the export page without its Doctor.'
+execution:
+  prompt: '/testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: docs/maps/web`, and docs/maps/web/SKILL.md is a legacy testing-format feature map whose index has Application, Launch, Driver, Doctor and Features fields. No .claude/skills/control-*/ directory exists. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what the run does with the map and the export page, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: names-refresh
+    type: regex
+    pattern: '/app-control:map refresh docs/maps/web\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: docs/maps/web`, and docs/maps/web/SKILL.md is a legacy testing-format feature map whose index has Application, Launch, Driver, Doctor and Features fields. No .claude/skills/control-*/ directory exists. PASS only if the reply satisfies every legacy expectation: "Warns that a legacy feature map is present at docs/maps/web and names /app-control:map refresh docs/maps/web without running it" "Continues the run, driving the export page the scenario names, without running the legacy map''s Doctor". FAIL if any point is missing or contradicted.'

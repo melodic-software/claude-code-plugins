@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "It starts its own instance: scripts/ws.sh up, then info, and drives http://127.0.0.1:49210.",
+      "why": "own instance"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It drives the app already at http://localhost:3000.",
+      "why": "reuses"
+    }
+  ]
+}

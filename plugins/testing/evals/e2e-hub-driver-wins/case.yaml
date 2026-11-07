@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-hub-driver-wins
+description: 'Legacy run-e2e feature-map-04 (map-driver-precedence). Drives with playwright, the control skill hub''s driving tool, not harness from e2e_driver, and reports the hub as the driver''s source. hub-driver reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Drives with playwright, the control skill hub''s driving tool, not harness from e2e_driver, and reports the hub as the driver''s source.'
+execution:
+  prompt: '/testing:run-e2e the export page. docs/conventions/testing.yaml sets `e2e_driver: harness`; the control skill''s hub names the driving tool playwright. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which driver the run uses and where it came from, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: hub-driver
+    type: regex
+    pattern: '\bplaywright\b[^.\n]{0,80}\b(?:from|named by|named in|per)\b[^.\n]{0,30}\bhub\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the export page. docs/conventions/testing.yaml sets `e2e_driver: harness`; the control skill''s hub names the driving tool playwright. PASS only if the reply satisfies every legacy expectation: "Drives with playwright, the hub''s driving tool, not harness from e2e_driver" "Reports the control skill''s hub as the source of the driver". FAIL if any point is missing or contradicted.'

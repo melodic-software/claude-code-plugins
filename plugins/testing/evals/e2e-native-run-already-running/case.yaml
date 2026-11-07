@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-native-run-already-running
+description: 'Legacy run-e2e 7 (native-step-skipped-app-already-running). With the app answering at the named localhost URL, the run probes it as one quoted argument, records skipped (app already running), invokes no run and drives the existing instance. running-skip reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With the app answering at the named localhost URL, the run probes it as one quoted argument, records skipped (app already running), invokes no run and drives the existing instance.'
+execution:
+  prompt: '/testing:run-e2e the login flow. No orchestrator governs the start, the bundled run skill resolves in this session, and the app already answers at http://localhost:5000. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the Native step result block and say what is driven, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: running-skip
+    type: regex
+    pattern: 'skipped \(app already running\)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. No orchestrator governs the start, the bundled run skill resolves in this session, and the app already answers at http://localhost:5000. PASS only if the reply satisfies every legacy expectation: "Probes the named localhost URL or port before invoking run, passing it as one quoted argument" "Records ''skipped (app already running)'' in the result block" "Does not invoke run" "Drives the existing instance and launches nothing". FAIL if any point is missing or contradicted.'

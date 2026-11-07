@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-nothing-affected
+description: 'Legacy run-e2e affected-03 (unattended-nothing-affected-capture-not-applicable). Launches nothing and invokes no drive feature run or map refresh, writes e2e-summary.json with capture status not-applicable and the note as its reason, and does not fail the run. not-applicable reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Launches nothing and invokes no drive feature run or map refresh, writes e2e-summary.json with capture status not-applicable and the note as its reason, and does not fail the run.'
+execution:
+  prompt: '/testing:run-e2e --unattended app=shop base=main Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: .claude/skills/control-shop/SKILL.md)`, whose features list is empty, whose unmatched_files is ["docs/notes.md"] and whose note is `control skill present, 1 files unmatched`. Write e2e-summary.json and say what else the run does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: not-applicable
+    type: regex
+    pattern: '\bnot-applicable\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended app=shop base=main PASS only if the reply satisfies every legacy expectation: "Launches nothing and invokes no /app-control:drive feature run" "Invokes no /app-control:map refresh" "Writes e2e-summary.json with capture status not-applicable and the note as its reason" "Reports no failed entry point and does not fail the run". FAIL if any point is missing or contradicted.'

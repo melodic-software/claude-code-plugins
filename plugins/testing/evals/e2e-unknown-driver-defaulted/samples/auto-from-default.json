@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "puppeteer is rejected, so e2e_driver resolves to auto from the default; the run continues.",
+      "why": "auto default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "puppeteer is rejected, so e2e_driver falls back to playwright from userConfig.",
+      "why": "userConfig value"
+    }
+  ]
+}

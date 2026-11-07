@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A declared entry means the run starts its own instance: make ws-up, make ws-info, then drive http://localhost:51877.",
+      "why": "own instance"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stop: gap report, collision with the app on 8080.",
+      "why": "stops"
+    }
+  ]
+}

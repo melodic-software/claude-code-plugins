@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A test-only endpoint skips the code under change, so approval goes through the user-facing Approve button.",
+      "why": "user path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "POST /__test__/force-approve, then check the invoice shows Approved.",
+      "why": "test endpoint"
+    }
+  ]
+}

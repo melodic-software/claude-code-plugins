@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "e2e_driver: playwright (userConfig)\nreuse_running_instance: auto (default)",
+      "why": "auto from default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "e2e_driver: playwright (userConfig)\nreuse_running_instance: auto",
+      "why": "no source"
+    }
+  ]
+}

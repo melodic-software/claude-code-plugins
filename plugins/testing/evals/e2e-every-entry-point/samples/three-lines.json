@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "start-a-timer | Start button | passed\nstart-a-timer | press t | passed\nstart-a-timer | POST /api/timers | not driven (no extension in the run)",
+      "why": "three lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "start-a-timer | Start button | passed",
+      "why": "one line"
+    }
+  ]
+}

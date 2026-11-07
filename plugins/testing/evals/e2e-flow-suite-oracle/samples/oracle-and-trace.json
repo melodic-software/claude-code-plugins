@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "npm run test:e2e is the oracle; screenshots are evidence. tracing-start before the drive; trace path listed.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll drive checkout and judge it from screenshots.",
+      "why": "screenshots as verdict"
+    }
+  ]
+}

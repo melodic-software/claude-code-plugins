@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "auto picks harness: e2e/password-reset.spec.ts covers the changed form, so it runs.",
+      "why": "harness"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "auto picks playwright: I drive the reset form with playwright-cli.",
+      "why": "playwright"
+    }
+  ]
+}

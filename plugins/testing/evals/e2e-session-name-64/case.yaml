@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-session-name-64
+description: 'Legacy run-e2e e2e-rules-06 (long-scenario-name-keeps-run-id). Produces a 64-character session name that keeps the whole 19-character run id at its start and uses only lower-case letters, digits and dashes. sixty-four reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Produces a 64-character session name that keeps the whole 19-character run id at its start and uses only lower-case letters, digits and dashes.'
+execution:
+  prompt: '/testing:run-e2e followed by a 200-character scenario: the words ''apply partial refund to a split shipment order '' repeated until the text is 200 characters long. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Give the exact browser session name, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: sixty-four
+    type: regex
+    pattern: '(?:\d{14}-[0-9a-f]{4}|<run[ -]id>)-apply-partial-refund-to-a-split-shipment-ord(?![a-z0-9-])'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e followed by a 200-character scenario: the words ''apply partial refund to a split shipment order '' repeated until the text is 200 characters long. PASS only if the reply satisfies every legacy expectation: "Produces a session name exactly 64 characters long" "Keeps the whole 19-character run id at the start of the name" "Uses only lower-case letters, digits and dashes in the name". FAIL if any point is missing or contradicted.'

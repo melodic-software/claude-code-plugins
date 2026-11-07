@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`resolve-config.sh e2e --user 'e2e_driver=playwright' ...` prints e2e_driver run docs/conventions/testing.yaml.",
+      "why": "command with --user"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "e2e_driver is run, from docs/conventions/testing.yaml, which outranks userConfig.",
+      "why": "no resolve command"
+    }
+  ]
+}

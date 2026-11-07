@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "This is an ordinary scenario, not the worst-case action: drive checkout with an expired card.",
+      "why": "ordinary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Worst-case action on the checkout flow: injecting extreme card data.",
+      "why": "runs the action"
+    }
+  ]
+}

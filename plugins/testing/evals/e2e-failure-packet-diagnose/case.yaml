@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-failure-packet-diagnose
+description: 'Legacy run-e2e 9 (failure-packet-handed-to-diagnose). Writes a failure packet with every field filled or explained, the expected outcome from the requirement, the trace path and trace action output, and the error-context aria snapshot, and passes it to /testing:diagnose. packet-to-diagnose reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Writes a failure packet with every field filled or explained, the expected outcome from the requirement, the trace path and trace action output, and the error-context aria snapshot, and passes it to /testing:diagnose.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The committed login.spec.ts fails: the expect on the welcome heading times out. Playwright is 1.63. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the failure packet and the hand-off, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: packet-to-diagnose
+    type: regex
+    pattern: '^(?=[\s\S]*(?:/testing:diagnose\b))(?=[\s\S]*(?:\baria\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. The committed login.spec.ts fails: the expect on the welcome heading times out. Playwright is 1.63. PASS only if the reply satisfies every legacy expectation: "Writes a failure packet with every field filled or explained" "States the expected outcome from the requirement, not from the app''s current behavior" "Includes the trace path and the trace action output for the failing action" "Includes the error-context aria snapshot" "Passes the packet to /testing:diagnose". FAIL if any point is missing or contradicted.'

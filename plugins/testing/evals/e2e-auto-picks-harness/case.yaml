@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-auto-picks-harness
+description: 'Legacy run-e2e e2e-settings-04 (auto-picks-harness-when-a-spec-covers-the-flow). With e2e_driver auto and a covering spec, the run picks harness, runs the spec rather than the playwright CLI, and names it in the evidence. picks-harness reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With e2e_driver auto and a covering spec, the run picks harness, runs the spec rather than the playwright CLI, and names it in the evidence.'
+execution:
+  prompt: '/testing:run-e2e the password-reset flow. e2e_driver resolves to auto. The repository has a Playwright Test suite, and e2e/password-reset.spec.ts exercises the reset form this branch changed. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say which driver auto picks and what runs, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: picks-harness
+    type: regex
+    pattern: '\bharness\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the password-reset flow. e2e_driver resolves to auto. The repository has a Playwright Test suite, and e2e/password-reset.spec.ts exercises the reset form this branch changed. PASS only if the reply satisfies every legacy expectation: "Picks harness as the driver" "Runs the covering spec rather than driving the flow through the playwright CLI" "The evidence names the spec that ran". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "env WORKSPACE_ID='acme-billing-feat-search' WORKSPACE_ROOT='/w/acme-billing-feat-search' scripts/ws.sh up",
+      "why": "both set"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "scripts/ws.sh up && eval \"$(scripts/ws.sh info)\"",
+      "why": "no variables, evals info"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "State: skipped (orchestrator governs the start). docker compose up launches the app.",
+      "why": "skip state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "State: ran. run launched the app beside docker compose.",
+      "why": "ran too"
+    }
+  ]
+}
