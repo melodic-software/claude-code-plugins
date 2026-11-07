@@ -9,7 +9,7 @@ graders:
     arm: 'with-only'
   - name: 'names-regression'
     type: 'regex'
-    pattern: '\bregression'
+    pattern: '\bregression|existing tests[^\n]{0,40}\bpass|full suite[^\n]{0,60}\b(?:pass|green)'
     flags: 'i'
     target: 'last_message'
   - name: 'symptom-and-regression'

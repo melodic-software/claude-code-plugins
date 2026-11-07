@@ -5,6 +5,9 @@
     },
     {
       "answer": "No regressions: the full suite still passes."
+    },
+    {
+      "answer": "| All existing tests pass | PASS (as reported) | 212 of 212 passed before the fix and after it. |"
     }
   ],
   "fail": [
@@ -13,6 +16,9 @@
     },
     {
       "answer": ""
+    },
+    {
+      "answer": "The new unit test passes."
     }
   ]
 }
