@@ -22,7 +22,7 @@ graders:
     input_match: 'symbolic-ref(?:[^"\\]|\\.)*refs/remotes/origin/HEAD'
   - name: 'config-line-fallback'
     type: 'regex'
-    pattern: 'no config:?\s*fallback defaults'
+    pattern: 'no config[:;]?\s*fallback defaults'
     flags: 'i'
     target: 'last_message'
   - name: 'baseline-run'

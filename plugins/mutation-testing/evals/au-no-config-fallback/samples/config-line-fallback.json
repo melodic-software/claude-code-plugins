@@ -3,6 +3,10 @@
     {
       "answer": "Config: no config: fallback defaults (tool: manual, diff-target: main from origin/HEAD)",
       "why": "the line"
+    },
+    {
+      "answer": "**Config:** no config; fallback defaults: `tool: manual`, `diff-target: origin/main`",
+      "why": "smoke reply at 79f933b"
     }
   ],
   "fail": [
