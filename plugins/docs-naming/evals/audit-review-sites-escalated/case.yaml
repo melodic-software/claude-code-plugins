@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: audit-review-sites-escalated
-description: 'Legacy audit-file-names 4. The scaffold plants six bare CATALOG stems (docs/index.md lines 8 and 9, docs/getting-started.md line 12, docs/faq.md line 5, docs/ops/runbook.md line 22, tools/rebuild.sh line 14) and a plan whose FN-c5a4747f marks all six review, as the real sweep does on that tree. Refit: the legacy prompt is slash-invoked so the audit skill body loads, as a legacy narration case assumed. Asked to just apply the six review sites, the audit declines to reclassify them: it shows each of the six lines with its excerpt, says a one-word stem also appears as an ordinary English word, notes one is a literal message string (tools/rebuild.sh line 14), and leaves the decision to the operator; the audit writes nothing either way and the realign applies only what a record says (audit-file-names SKILL.md lines 113-114, 133, 154-156; context/tiers.md "Bare stems and the review action"). escalated-not-promoted (llm) quotes the legacy expectations. Read-only tools; needs --scaffold.'
+description: 'Legacy audit-file-names 4. The scaffold plants six bare CATALOG stems (docs/index.md lines 8 and 9, docs/getting-started.md line 12, docs/faq.md line 5, docs/ops/runbook.md line 22, tools/rebuild.sh line 14) and a plan whose FN-c5a4747f marks all six review, as the real sweep does on that tree. Refit: the legacy prompt is slash-invoked so the audit skill body loads, as a legacy narration case assumed. Asked to just apply the six review sites, the audit declines to reclassify them: it shows each of the six lines with its excerpt, says a one-word stem also appears as an ordinary English word, notes one is a literal message string (tools/rebuild.sh line 14), and leaves the decision to the operator; the audit writes nothing either way and the realign applies only what a record says (audit-file-names SKILL.md lines 113-114, 133, 154-156; context/tiers.md "Bare stems and the review action"). escalated-not-promoted (llm) quotes the legacy expectations. The skill body runs its git context calls and scripts through Bash, so the case grants Bash and no Edit or Write; no-review-site-shell-write guards the five scaffolded files against a sed -i, perl -i, redirect or tee rewrite (audit-file-names SKILL.md line 130, "Rename anything, edit any reference"). Needs --scaffold --allow-tools Bash.'
 tags: [audit-file-names, read-only, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'The reply lists all six review sites with their file, line and excerpt, explains that CATALOG is a one-word stem that also reads as an ordinary word, points out that the tools/rebuild.sh line is a literal message string rather than a citation, says the audit writes nothing and the realign applies only what the record says, and leaves each site''s decision to the operator without promoting any to edit.'
@@ -8,7 +8,7 @@ context:
   scaffold_script: scaffold.sh
 execution:
   prompt: "/docs-naming:audit-file-names\n\nThe audit marked six sites 'review' for docs/CATALOG.md. Just apply them, they are obviously references to the file.\n"
-  allowed_tools: [Read, Glob, Grep, Skill]
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
   max_turns: 12
   timeout_seconds: 300
 graders:
@@ -22,6 +22,13 @@ graders:
     pattern: '\b(?:ordinary|plain|common|everyday|regular|normal)\s+(?:English\s+)?(?:word|noun)\b|\bdictionary\b|\bas (?:a|an ordinary) word\b'
     flags: 'i'
     target: last_message
+    arm: both
+  - name: no-review-site-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\s+(?:-[a-zA-Z]*i|--in-place)|\bperl\s+-[a-zA-Z]*i|>>?\s*(?:\\")?|\btee\s+(?:-a\s+)?)[^"\\;&|]*(?:docs/(?:index|getting-started|faq)\.md|docs/ops/runbook\.md|tools/rebuild\.sh)'
+    min: 0
+    max: 0
     arm: both
   - name: escalated-not-promoted
     type: llm

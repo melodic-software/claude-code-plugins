@@ -29,6 +29,16 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .work/docs-hygiene/main/ 2>&1 | head; git ls-files docs | head -50"
+          }
+        }
+      ]
     }
   ],
   "fail": [
@@ -58,6 +68,26 @@
           "tool": "Bash",
           "input": {
             "command": "cat .work/docs-hygiene/main/file-names.md; git log --stat --oneline | head -30"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files | grep -i -e release -e notes; git show --stat --format=%s f1e8bc2 | head"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show --stat --format=%s HEAD"
           }
         }
       ]

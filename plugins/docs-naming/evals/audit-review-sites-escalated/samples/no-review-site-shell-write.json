@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/ws status --porcelain | head -20"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat -n docs/index.md docs/getting-started.md docs/faq.md docs/ops/runbook.md tools/rebuild.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i -e 's/see CATALOG for/see catalog for/' -e 's/edit CATALOG by hand/edit catalog by hand/' docs/index.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e 's/Restart the CATALOG/Restart the catalog/' docs/ops/runbook.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed 's/CATALOG/catalog/' docs/faq.md.bak > docs/faq.md"
+          }
+        }
+      ]
+    }
+  ]
+}
