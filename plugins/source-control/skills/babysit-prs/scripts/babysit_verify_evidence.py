@@ -5186,9 +5186,10 @@ def capped_close(
     issue carried it (one that did not is recorded and not restarted); the pull
     request closes, so a closed one never leaves its issue without
     `agent-ready`. An issue that already had `attempts` fresh attempts
-    (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
-    (and, with `issue_status`, its Work status field at `confirmed`) with
-    `status: ready` and `agent-ready` off, before the close. A pull
+    (`merge.verify-cap-attempts`) is parked instead, before the close: with
+    `issue_status`, its Work status field at `confirmed` and no status label
+    written; without, `status: confirmed` with `status: ready` off; either
+    way `agent-ready` off. A pull
     request not open at `head`, not the lanes App's, or carrying a hold label
     (`holds`) is left alone, and so is one whose issue link the pr-merge lane
     does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
@@ -5424,7 +5425,14 @@ def capped_close(
                 ],
                 f"#{issue} record",
             )
-        if labels == "park":
+        if labels == "park" and issue_status is not None:
+            # A repository that keeps Work status in the field gets the field
+            # alone, before any label comes off (report-outcome.mjs
+            # applyHandBack); a write that does not land raises.
+            postmerge.set_issue_status(
+                repo, issue, issue_status, STATUS_FIELD_CONFIRMED
+            )
+        elif labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
                 f"#{issue} {STATUS_CONFIRMED}",
@@ -5439,13 +5447,6 @@ def capped_close(
                 f"#{issue} {STATUS_READY}",
                 missing_ok=True,
             )
-            if issue_status is not None:
-                _gh_write(
-                    merge_policy.issue_status_write(
-                        repo, issue, issue_status.field_id, STATUS_FIELD_CONFIRMED
-                    ),
-                    f"#{issue} Work status {STATUS_FIELD_CONFIRMED}",
-                )
         if labels == "none":
             continue
         if labels != "add":
