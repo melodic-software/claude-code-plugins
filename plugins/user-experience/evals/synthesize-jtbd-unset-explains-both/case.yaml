@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: synthesize-jtbd-unset-explains-both
+description: 'Legacy synthesize 4. With no team JTBD school, the skill explains both schools in plain words and recommends one with Basis:, without asking the user to choose (synthesize SKILL.md 59-62; synthesis.md 77-78). both-schools and basis-line grade the reply; legacy-synthesize-4 (llm) quotes the three legacy expectations.'
+tags: [synthesize, jtbd, legacy]
+runs: 3
+expected_outcome: 'Both jobs-to-be-done schools (jobs-to-be-done theory and Outcome-Driven Innovation) explained in plain words, one recommended for the invoicing tool with a Basis: line, and no question asking which school to use.'
+execution:
+  prompt: 'What jobs are our users hiring our invoicing tool for? Our team has no JTBD convention. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?synthesize"'
+    weight: 0.1
+  - name: 'both-schools'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*(?:outcome[- ]driven innovation|Ulwick|\bODI\b))[\s\S]*(?:jobs[- ]to[- ]be[- ]done theory|Christensen|Moesta|Klement)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'basis-line'
+    type: 'regex'
+    pattern: 'Basis\**:'
+    target: 'last_message'
+  - name: 'legacy-synthesize-4'
+    type: 'llm'
+    criteria: 'The run is asked what jobs users hire an invoicing tool for, with no team JTBD convention. It meets the legacy expectations: "The response explains both JTBD schools in plain words" "The response recommends one school with a Basis: line" "The response does not ask the user which JTBD school to use".'
+    focus: 'last_message'
