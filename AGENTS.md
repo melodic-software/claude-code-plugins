@@ -100,7 +100,7 @@ To run a skill here and record evidence, use `/app-control:drive claude-code-plu
 ## Running tests locally
 
 Run node suites with `node --test --test-concurrency=4`, and at most one full `.github` suite (about
-8,200 tests) per machine at a time, across every session on it: two in parallel froze a WSL host.
+8,200 tests) per machine at a time, across every session on it: two at once can exhaust the host.
 Start one only when the machine is not already loaded.
 
 ## Team standards
