@@ -55,7 +55,10 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
 - `seed.predecessor`: generator parameters for `build_predecessor_chain` (hops, `target_bytes`,
   goal, vision, `injections` at their hops, the newest hop's `final` hot-section text).
   `injections[].visible_in_reads` states whether the seeded reads show the entry;
-  `seed_history` refuses a case where they disagree.
+  `seed_history` refuses a case where they disagree. `shape: 3` builds hot files and hop files
+  through `save_point.py fill` instead of the default shape 2; its injections target
+  `amendment`, `trail`, `rules`, `open-questions` or `decisions`, and one with
+  `retire: {hop, reason}` is retired at that hop through `fill`'s `retire` list.
 - `seed.reads.pattern`: overrides the size-based read pattern (`whole`, `paged`, `partial`,
   `partial+constraints`).
 - `seed.history`: `after_reads` (the assistant turn after the reads) and `work` turns, in
@@ -82,6 +85,15 @@ Probe fields beyond `id`, `type`, `grade` and `check`:
   harness records each hop's handoff bytes as `hop_bytes` in the graded run, so per-hop growth
   is measured.
 - `reader`: per-arm delivery, `max_turns`, and the follow-up turn's `max_turns`.
+
+## Shape-3 cases
+
+- `re-writer-keeps-binding-amendment`: the predecessor's Original goal holds superseded, mixed
+  and still-binding amendments, none retired. The writer decides what to retire; the probes
+  check that the written hot file keeps the binding amendment and the mixed one's binding clause
+  (whole, or codified as a rule) and that the reader acts on both.
+- `re-retired-amendment`: the answer exists only in a retired amendment and a retired `[Q<n>]`
+  in hop 3's file, reached through the retire pointer under Review before you continue.
 
 ## Generated files
 

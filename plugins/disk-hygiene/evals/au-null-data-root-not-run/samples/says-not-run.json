@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The audit was not run: the probe reported `data_root: null`, so the install layout proved no data root and the guard denies every engine call."
+    },
+    {
+      "answer": "Audit not run. The probe's data_root is null, so no scan can be submitted."
+    },
+    {
+      "answer": "I can't run the audit here: with data_root null the scan cannot be run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The audit ran and found nothing to report."
+    },
+    {
+      "answer": "The probe returned data_root null; I'll use the default data directory for the scan."
+    },
+    {
+      "answer": "data_root is null, which usually means the plugin data directory is missing."
+    }
+  ]
+}

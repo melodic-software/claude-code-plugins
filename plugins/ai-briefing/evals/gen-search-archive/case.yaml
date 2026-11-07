@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: gen-search-archive
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: finds-cloud-agents
+    type: regex
+    pattern: '(?:\bCloud Agents GA\b|cloud-agents-ga)[\s\S]{0,400}?\bmeeting[ #-]*5\b|\bmeeting[ #-]*5\b[\s\S]{0,400}?(?:\bCloud Agents GA\b|cloud-agents-ga)'
+    flags: 'i'
+    target: last_message
+  - name: match-context
+    type: llm
+    criteria: "The archive lists the Northwind Cloud Agents GA item under the HIGH tier of meeting 5. PASS only if the reply reports match context for that item: its tier (HIGH) and/or a cross-meeting recurrence count (for example 'appears in 1 meeting'). FAIL if the match is returned with neither."
+    focus: last_message
+  - name: no-fabrication
+    type: llm
+    criteria: "The only archived briefing is meeting 5, and the only item containing 'Cloud Agents' is 'Northwind Cloud Agents GA' (blog.northwind.example/cloud-agents-ga, 2026-06-15). PASS only if every match the reply returns is that item. FAIL if the reply returns any other item as a match, any meeting other than 5, or any item, link or date that is not in the archive."
+    focus: last_message
+  - name: no-webfetch
+    type: tool_used
+    tool: 'WebFetch'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-websearch
+    type: tool_used
+    tool: 'WebSearch'
+    min: 0
+    max: 0
+    arm: 'both'

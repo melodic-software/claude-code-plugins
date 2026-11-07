@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/setup/scripts/kill_switch_probe.py\""
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v python3"
+          }
+        }
+      ]
+    }
+  ]
+}

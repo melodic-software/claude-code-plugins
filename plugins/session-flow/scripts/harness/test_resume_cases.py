@@ -73,9 +73,11 @@ def sections(path: Path) -> dict[str, str]:
     return {k: "\n".join(v) for k, v in found.items()}
 
 
-def test_seven_cases_are_committed():
+def test_nine_cases_are_committed():
     assert CASE_NAMES == sorted(
         [
+            "re-retired-amendment",
+            "re-writer-keeps-binding-amendment",
             "re-skipped-rule",
             "re-superseded-rule",
             "re-stale-github-fact",
@@ -162,6 +164,10 @@ def test_sizes_follow_the_audit(built, name):
     pred = spec["seed"]["predecessor"]
     sizes = [p.stat().st_size for p in chain]
     assert len(chain) == pred["hops"]
+    # The audit's growth and cumulative-share figures describe shape-2 chains; a
+    # shape-3 hot file moves its history into hop files instead.
+    if pred.get("shape") == 3:
+        return
     if pred.get("target_bytes"):
         assert abs(sizes[-1] - pred["target_bytes"]) <= 0.10 * pred["target_bytes"]
     growth = sorted(b - a for a, b in zip(sizes, sizes[1:]))
@@ -227,15 +233,47 @@ def test_history_reads_are_real_slices(built, name):
         assert turn["result"] + "\n" == want
 
 
+SHAPE3_TITLES = {
+    "amendment": ("Original goal", "**Amended"),
+    "trail": ("Direction changes", "- [h"),
+    "rules": ("Current rules", "- [R"),
+    "open-questions": ("Open questions", "- [Q"),
+    "decisions": ("Decisions in force", "- [D"),
+}
+
+
+def _landed_3(item: dict, chain: list[Path], newest: dict[str, str]) -> None:
+    """A shape-3 injection is in the newest hot file in its section's own form, or,
+    when retired, only in the retiring hop's file: the entry, then its reason."""
+    title, prefix = SHAPE3_TITLES[item["section"]]
+    retire = item.get("retire")
+    if retire is None:
+        first = item["text"].split("\n")[0]
+        lines = newest[title].split("\n")
+        assert any(
+            line.startswith(prefix) and line.endswith(first) for line in lines
+        ), item["id"]
+        return
+    assert item["text"] not in chain[-1].read_text(encoding="utf-8"), item["id"]
+    hop_files = list((chain[0].parent / "archive").glob(f"*/h{retire['hop']}-*.md"))
+    assert len(hop_files) == 1, hop_files
+    listed = hop_files[0].read_text(encoding="utf-8")
+    assert f"{item['text']}\nRetired: {retire['reason']}" in listed, item["id"]
+
+
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_injections_land_where_the_spec_says(built, name):
     spec, chain, history = built[name]
     newest = sections(chain[-1])
     seen = "\n".join(t["result"] for t in history if t["role"] == "tool")
+    shape = spec["seed"]["predecessor"].get("shape", 2)
     for item in spec["seed"]["predecessor"].get("injections", []):
         hop = item["hop"]
-        title = resume_cases.SECTION_SLOTS[item["section"]]
-        assert f"- [h{hop}] {item['text']}" in newest[title].split("\n")
+        if shape == 3:
+            _landed_3(item, chain, newest)
+        else:
+            title = resume_cases.SECTION_SLOTS[item["section"]]
+            assert f"- [h{hop}] {item['text']}" in newest[title].split("\n")
         assert item["text"] in chain[hop - 1].read_text(encoding="utf-8")
         if hop > 1:
             assert item["text"] not in chain[hop - 2].read_text(encoding="utf-8")

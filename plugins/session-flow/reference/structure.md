@@ -55,26 +55,29 @@ handoffs directory, named and discovered like every other handoff. The **hop fil
 `handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, is what this hop moved out of the hot
 file: `new` writes it once, with every predecessor section the hot file does not carry, verbatim.
 No reader globs the archive; a hot file names the archive section a question needs, and one
-targeted read (a search or a section read of one hop file) answers it. A hop file is never edited
-after its hop validates. Before validating, content this hop writes but the hot file cannot hold
-may be appended to this hop's own file; content from earlier hops is already in their files.
+targeted read (a search or a section read of one hop file) answers it. A hop file is
+append-only. Before validating, content this hop writes but the hot file cannot hold may be
+appended to this hop's own file; content from earlier hops is already in their files. After
+emit, only `save_point.py amend` changes the tip hop's pair: it appends each replaced section and
+each retired entry to the hop file under `## Amended …` and the retire headings, and never edits
+what is there. An earlier hop's file is never edited.
 
 Sections, in the one order `validate` checks:
 
 | Order | Section | Holds |
 |---|---|---|
-| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below |
-| 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
+| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below; an amendment leaves only as a retire listing |
+| 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; one retire pointer per hop file and retire heading, carried forward |
 | 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
 | 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
 | 5 | Completion criteria | observable goal-states with met/unmet marks |
 | 6 | Remaining actions, in order | every action still to take |
-| 7 | Open questions | each with its options, a recommendation and what it unblocks |
+| 7 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks |
 | 8 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
 | 9 | Observations | session-wide observations, summarized; detail stays in the archive or the transcript |
 | 10 | Pending commands | every command waiting on the user, verbatim |
 | 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
-| 12 | Decisions in force | the decisions the remaining actions depend on |
+| 12 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on |
 | 13 | Suggested skills | which skills to invoke for the remaining work, as in shape 2; the purpose argument selects them |
 | 14 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
 | 15 | Prior sessions | the last rows of the table, the newest describing the predecessor |
@@ -103,11 +106,39 @@ What the writer owns, since no script can judge it:
   state claim it recognizes.
 - **Over the size cap, move written content out.** `validate` names the cap and three sizes: the
   core (Original goal, Direction changes, Resumption brief, Current rules, Standing preferences),
-  which never moves; the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
+  which never moves to meet the cap; the carried part `new` writes (its frontmatter keys, Prior sessions, Resume
   prompt); and everything else, the written part. Shorten written sections, appending what they
   drop to this hop's file. When the core plus the carried part alone is over the cap, the file
   emits marked UNVALIDATED instead: never shorten the core or cut written sections for it. Past
   the Read page cap (25,000 tokens' worth) `validate` fails whatever the core holds.
+
+- **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
+  direction-change line, question or decision that is superseded, answered or done may leave the
+  hot file; every amendment that still binds stays. An amendment unit with any clause still
+  binding stays whole, or that clause is first written as a rule `[R<n>]` and the unit retired
+  `codified in [R<n>]`; a unit is never split. Retire through the `retire` list of `fill` (before
+  emit) or `amend` (after), never by deleting lines: each item is `{"ref": …, "reason": …}`, the
+  ref `[R<n>]`, `[Q<n>]`, `[D<n>]`, `[h<k>]#<i>` (the i-th line tagged `[h<k>]`) or `amendment#<i>`
+  (the i-th amendment unit in Original goal). The script copies the entry into this hop's file
+  under its heading, the entry verbatim, then `Retired: <reason>`:
+
+  | Hot-file section | Retire heading in the hop file |
+  |---|---|
+  | Original goal (amendment units) | `## Retired goal amendments` |
+  | Direction changes | `## Retired direction changes` |
+  | Open questions | `## Retired open questions` |
+  | Decisions in force | `## Retired decisions` |
+
+  `## Retired rules` also takes this listing, or its one-line form above. For every retire
+  heading but `## Retired rules`, Review before you continue carries a pointer line naming the hop
+  file and heading, `- Retired entries: <hop file> § <heading>`; the script writes it, and later
+  hops carry it forward like trail lines. `validate` fails an entry that is in neither the hot
+  file nor a retire listing with a reason.
+- **Questions and decisions carry ids.** `[Q<n>]` and `[D<n>]` work like rule ids: a carried
+  entry keeps its id, a new one takes the next unused id from the `next_question_id` /
+  `next_decision_id` floor the skeleton's slot names, and ids are never reused. The first hop that
+  adopts them seeds each floor above the highest `Q<n>` / `D<n>` in the predecessor's text. Once
+  the predecessor carries a floor, an entry without an id fails `validate`.
 
 **From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

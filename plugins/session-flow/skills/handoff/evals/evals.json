@@ -529,7 +529,7 @@
         "The response reads the `name-tournament` subagent's actual state before writing any save-point file",
         "The response identifies the tournament's result as something the handoff depends on, because the next action uses the chosen name",
         "No save-point is written and `new` is not run while the tournament runs; the response says it waits and writes once the result returns",
-        "The response does not hand-edit the handoff file afterwards to fold in a late result"
+        "Should a result still land after emit, the response folds it in with `save_point.py amend`, never a hand edit"
       ]
     },
     {

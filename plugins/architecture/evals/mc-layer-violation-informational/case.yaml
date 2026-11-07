@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: mc-layer-violation-informational
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: renders-by-layer
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?--group-by[\s=]+(?:\\"|'')?layer\b)(?=(?:[^"\\]|\\.)*?--layers[\s=]+(?:\\"|'')?host,[ ]?application,[ ]?domain(?:\\"|''|[ \t]|\\n|"))(?:[^"\\]|\\.)*?render-components\.sh'
+    min: 1
+  - name: violation-marked
+    type: regex
+    pattern: '^(?=[\s\S]*\nAddRelTag\("layer-violation")(?=[\s\S]*\nRel\(cmp_src_domain_Billing_Domain_Billing_Domain_csproj, cmp_src_application_Billing_Application_Billing_Application_csproj, [^\n]*\$tags="layer-violation")(?![\s\S]*\nRel\(cmp_src_application_Billing_Application_Billing_Application_csproj, [^\n]*layer-violation)(?![\s\S]*\nRel\(cmp_src_host_[^\n]*layer-violation)(?=[\s\S]*## Layer violations[\s\S]*\n\| Billing\.Domain \| Billing\.Application \| src/domain/Billing\.Domain/Billing\.Domain\.csproj: <ProjectReference )'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: shared-stays-undeclared
+    type: regex
+    pattern: '^(?![\s\S]*Boundary\([^)\n]*"(?:host|application|domain)"[^\n]*\{\n(?:[ \t]*Component\([^\n]*\n)*?[ \t]*Component\(cmp_src_shared_)[\s\S]*Component\(cmp_src_shared_Billing_Shared_Billing_Shared_csproj, "Billing\.Shared"'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: violations-quoted
+    type: llm
+    criteria: "map-components SKILL.md line 192, closing report: '**Layer violations**: the count, and that they are informational.' PASS only if the reply's report gives the layer violation count as 1 (as violations=1 or in words) and says the violations are informational, not a failure. FAIL if the count is missing or not 1, or the reply treats the violation as a failed run."
+    focus: last_message
+  - name: enforcement-elsewhere
+    type: regex
+    pattern: '\benforc\w*\b[^\n.]{0,160}\barchitecture[- ]tests?\b|\barchitecture[- ]tests?\b[^\n.]{0,160}\benforc\w*'
+    flags: 'i'
+    target: last_message

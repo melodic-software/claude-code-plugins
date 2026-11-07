@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Solstice AI\n\n### HIGH\n\n- **Solstice Code v3.6 adds native subagent checkpointing**\n- **Solstice Code v3.5 ships background tasks**\n\n### MED\n\n- Solstice AI's MCP registry adds 40 verified servers.\n\n## Meridian Labs\n\n### HIGH\n\n- **Meridian Desktop app enters public beta.**",
+      "why": "all three earlier items kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Solstice AI\n\n### HIGH\n\n- **Solstice Code v3.6 adds native subagent checkpointing**\n\n### MED\n\n- Solstice AI's MCP registry adds 40 verified servers.\n\n## Meridian Labs\n\n### HIGH\n\n- **Meridian Desktop app enters public beta.**",
+      "why": "v3.5 replaced by v3.6"
+    },
+    {
+      "answer": "## Solstice AI\n\n- Solstice Code v3.5 ships background tasks\n- Solstice Code v3.6 adds native subagent checkpointing\n\n## Meridian Labs\n\n- Meridian Agent CLI 0.9 adds an `--effort` flag",
+      "why": "MCP registry and Meridian Desktop dropped"
+    }
+  ]
+}

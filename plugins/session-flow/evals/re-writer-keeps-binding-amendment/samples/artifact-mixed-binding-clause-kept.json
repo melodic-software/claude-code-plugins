@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "handoff": "**Amended (owner, 2026-08-10):** Write the files under weekly/ in the reports bucket for now, and never include the internal_account_id column in any export.\n",
+      "why": "unit kept whole"
+    },
+    {
+      "handoff": "- [R6] Never include the internal_account_id column in any export.\n",
+      "why": "clause codified"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Retired goal amendments are in archive/x/h6-1a2b3c4d.md\n",
+      "why": "unit retired, clause lost"
+    },
+    {
+      "handoff": "**Amended (owner, 2026-08-10):** Write the files under weekly/ in the reports bucket for now.\n",
+      "why": "path clause only"
+    },
+    {
+      "handoff": "Do not export internal ids.\n",
+      "why": "clause outside a rule, paraphrased"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Yes: `testing/audit/rule-only-not-forbidden` fired at playwright.config.ts:3 (forbidOnly absent). Add `forbidOnly: !!process.env.CI`.",
+      "why": "rule and idiom"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: `testing/audit/rule-only-not-forbidden` fired. Add `forbidOnly: true`.",
+      "why": "a different value, not the scaffold idiom"
+    },
+    {
+      "answer": "Add `forbidOnly: !!process.env.CI` to the config.",
+      "why": "no rule id"
+    }
+  ]
+}

@@ -167,6 +167,37 @@ test("statusWriter leaveAgentReady writes only while the trusted field reads age
   }
 });
 
+test("statusWriter leaveAgentReady with orUnset also writes while no trusted state is set, and leaves any other state", async () => {
+  const human = 153232337;
+  for (const [why, w] of [
+    ["agent-ready", fieldWorld(84879220, human)],
+    ["unset", fieldWorld(null)],
+    ["agent-ready from an untrusted bot", fieldWorld(84879220, 209825114)],
+  ]) {
+    assert.equal((await (await writerOver(w.github)).leaveAgentReady(7, "needs-triage", { orUnset: true })).outcome, "written", why);
+    assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["needs-triage"], why);
+  }
+  for (const [why, w, state] of [
+    ["a person's needs-owner-decision", fieldWorld(84879218, human), "needs-owner-decision"],
+    ["a person's confirmed", fieldWorld(86380002, human), "confirmed"],
+  ]) {
+    assert.deepEqual(await (await writerOver(w.github)).leaveAgentReady(7, "needs-triage", { orUnset: true }), { outcome: "unchanged", state }, why);
+    assert.equal(w.posts().length, 0, why);
+  }
+});
+
+test("statusWriter leaveAgentReady with orUnset throws when the write does not land", async () => {
+  const w = fieldWorld(null);
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issue-field-values")) throw new Error("HTTP 500");
+    return w.github(method, path, body);
+  };
+  await assert.rejects(
+    () => writerOver(github).then(({ leaveAgentReady }) => leaveAgentReady(7, "needs-triage", { orUnset: true })),
+    (error) => error instanceof StatusWriteError && error.message === "#7's Work status field was not set to `needs-triage`: HTTP 500",
+  );
+});
+
 test("statusWriter set with keepHold leaves a listed human's hold and replaces any other state", async () => {
   const human = 153232337;
   const app = 337595936;

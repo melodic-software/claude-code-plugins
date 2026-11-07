@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-clean-suite-denominator
+description: 'Legacy audit 2. Discriminating JS, Python and C# tests: the scan finds nothing, and the reply reports the clean result with the files and blocks it examined. skill-fired and ran-scanner read the tool calls, clean-with-denominator the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, scaffold, no-network]
+expected_outcome: 'Runs the scanner, reports zero findings, and states how many test files and blocks it examined.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run the can''t-fail test audit. I believe my tests are genuinely discriminating.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
+  - name: clean-with-denominator
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b(?:no|zero|0)\s+(?:can[''’]?t[- ]fail\s+(?:tests?|findings)|findings|tests? (?:that )?can(?:not|[''’]t) fail)\b))(?=[\s\S]*(?:(?:\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b[^.;|\n]{0,25}\b(?:examined|scanned|parsed|read|enumerated)\b|\b(?:examined|scanned|parsed|read)\b[^.;|\n]{0,25}\b\d+\s+(?:test\s+)?(?:files?|blocks?)\b|\b\d+\s+examined of \d+|\btest (?:files|blocks)(?: parsed| examined)?[\s*_`:|]{1,8}\d+)))(?![\s\S]*\b(?:0|zero|no)\s+(?:of\s+\d+\s+)?test files?\b[^.;|\n]{0,25}\b(?:examined|scanned|read)\b)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for the can''t-fail audit of a suite they believe is discriminating. PASS only if the reply satisfies every legacy expectation: "Output runs the bundled cant-fail-scan.sh detector rather than reading and judging the test files directly" "Output reports zero findings without inventing any" "Output states the denominator — how many test files and test blocks the scan examined" "Output distinguishes a clean scan from a scan that examined nothing". FAIL if any point is missing or contradicted.'

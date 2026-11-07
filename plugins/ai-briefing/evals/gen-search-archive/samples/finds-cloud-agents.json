@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "## Meeting 5\n\n- **Northwind Cloud Agents GA** (HIGH): background agents run on Northwind-hosted infrastructure. <https://blog.northwind.example/cloud-agents-ga> (2026-06-15)",
+      "why": "grouped under the meeting heading"
+    },
+    {
+      "answer": "1 match. Northwind Cloud Agents GA, HIGH, meeting 5, 2026-06-15.",
+      "why": "inline label"
+    },
+    {
+      "answer": "Match: <https://blog.northwind.example/cloud-agents-ga> (archives/meeting-5.md, HIGH)",
+      "why": "URL with the archive file name"
+    },
+    {
+      "answer": "Meeting #5: Northwind Cloud Agents GA (HIGH).",
+      "why": "hash form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Searching for \"Cloud Agents\" in meeting 5... no matches found.",
+      "why": "the query words and the meeting, but no item returned"
+    },
+    {
+      "answer": "- **Northwind Cloud Agents GA** (HIGH): <https://blog.northwind.example/cloud-agents-ga>",
+      "why": "item without a meeting number"
+    },
+    {
+      "answer": "Meeting 6: Northwind IDE 4.1 ships inline Cloud Agent handoff.",
+      "why": "a different meeting and item"
+    }
+  ]
+}

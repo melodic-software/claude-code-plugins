@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| bash | FAIL | only C:\\Windows\\System32\\bash.exe resolves | Set CLAUDE_CODE_GIT_BASH_PATH, install Git for Windows, or put a bash.exe on PATH outside System32, Sysnative and WindowsApps |"
+    },
+    {
+      "answer": "bash: FAIL. Remediation: CLAUDE_CODE_GIT_BASH_PATH, a Git for Windows install, or a bash.exe that is not the WSL relay."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | PASS | C:\\Windows\\System32\\bash.exe |"
+    },
+    {
+      "answer": "bash: FAIL. Install Git for Windows."
+    },
+    {
+      "answer": "bash: FAIL. Set CLAUDE_CODE_GIT_BASH_PATH or reorder PATH ahead of System32."
+    }
+  ]
+}

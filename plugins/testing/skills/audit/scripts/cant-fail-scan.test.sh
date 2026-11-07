@@ -7,6 +7,7 @@
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # test-scope: plugins/testing/hooks/hooks.json
 # test-scope: plugins/mutation-testing/scripts/fixtures/dotnet-test-selection/*
+# test-scope: plugins/testing/evals/au-*/case.yaml
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
@@ -2195,9 +2196,9 @@ assert_contains "Surfaces counts the 4b report-only rules" "$out" \
   "testing/audit/rule-source-text-read 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 
 # (e), and 4b (f): every rule id the scanner can emit, the eight later
-# rules included, has a positive evals.json expectation.
-EVALS="$SCRIPT_DIR/../evals/evals.json"
-expected="$(jq -r '.evals[] | .expected_output, .expectations[]' "$EVALS")"
+# rules included, has a positive expectation in a native audit eval case: an
+# expected outcome, a grader pattern or an llm criterion, never a prompt.
+expected="$(grep -hE '^(expected_outcome|    pattern|    criteria):' "$SCRIPT_DIR"/../../../evals/au-*/case.yaml)"
 emitted="$({
   grep -ohE 'emit\([^,]*, "[a-z-]+"' "$SCRIPT_DIR/cant-fail-scan.awk" "$SCRIPT_DIR/runner-config-scan.awk"
   grep -ohE 'slug=[a-z-]+' "$SCRIPT_DIR/cant-fail-scan.sh"
@@ -2208,7 +2209,7 @@ else
   fail "(e) the emitted rule ids were extracted from the engines" "got: $emitted"
 fi
 while IFS= read -r slug; do
-  assert_contains "(e) evals.json expects testing/audit/rule-$slug" "$expected" "testing/audit/rule-$slug"
+  assert_contains "(e) an audit eval case expects testing/audit/rule-$slug" "$expected" "testing/audit/rule-$slug"
 done <<<"$emitted"
 
 # --- corpus grid: GRID.md rows and pair cells ---------------------------------

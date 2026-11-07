@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "I won't pass `--tolerance 5`. A tolerance above 0 needs the team's `pixel_tolerance` map in `docs/conventions/testing.yaml`, with `pixels` and a `reason`.",
+      "why": "file and reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't pass --tolerance 5; the team records a pixel_tolerance with a reason.",
+      "why": "no file named"
+    }
+  ]
+}

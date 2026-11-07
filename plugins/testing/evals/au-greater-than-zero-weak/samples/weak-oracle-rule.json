@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle`: any non-empty result passes. Seed a catalogue and assert the exact titles.",
+      "why": "qualified id"
+    },
+    {
+      "answer": "The audit's `weak-oracle` rule is built for matchers like `toBeDefined`; assert the exact titles from a seeded catalogue.",
+      "why": "bare rule name (the smoke run's reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "toBeGreaterThan(0) is weak; assert the titles.",
+      "why": "no rule id"
+    }
+  ]
+}

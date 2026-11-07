@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: su-python-below-floor-fails-closed
+description: 'Legacy setup 6, facts as data: python3 launches but reports 3.6.9, given in the prompt with no shell. The check FAILs on the floor parsed from MIN_PYTHON in skills/clean/scripts/hygiene.py (3.11), not a copy in the README, and fails closed because a version probe proves only that something executes (setup SKILL.md lines 50-59, 100-106). read-hygiene is a with-only indicator that a Read or Grep tool call opened hygiene.py (setup SKILL.md lines 27-28 allow either); fails-closed (llm) quotes the legacy expectations. Slash-invoked, so no Skill grader. Read-only: no tool grant needed; run with --disallow-tools Glob Grep if a Glob or Grep on the plugin dir reads INVALID.'
+tags: [setup, check, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The Python row FAILs, naming the floor 3.11 taken from MIN_PYTHON in hygiene.py, and the reply explains that an interpreter that launches but is below the floor is not proven able to run the guard, since a version probe proves only that something executes.'
+execution:
+  prompt: "/disk-hygiene:setup check\n\nThe check is for another machine, not this session. This session has no shell and no file-writing tool, so nothing can be probed or written here. Report the check table from these facts, gathered on that machine, then stop.\n\n- Ubuntu 18.04 host. node resolves to /usr/bin/node (v20.18.0); bash is /usr/bin/bash.\n- python3 resolves to /usr/bin/python3, and `/usr/bin/python3 --version` printed Python 3.6.9. Neither python nor py is on PATH.\n- Run under /usr/bin/python3, the kill-switch probe exited 1 with: SyntaxError: future feature annotations is not defined.\n- git 2.17.1 and lsof 4.89 are on PATH, and /proc/self/mountinfo is readable.\n- That machine's copy of the plugin is unmodified, the same files as the plugin loaded in this session.\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: read-hygiene
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{[^{}]*?"(?:file_path|path)":"[^"]*skills/clean/scripts/hygiene\.py"'
+    target: trace
+    arm: with-only
+  - name: floor-fail
+    type: regex
+    pattern: '^(?=[\s\S]*\bFAIL\b)[\s\S]*(?:(?:floor|MIN_PYTHON|>=|≥|minimum|requires?|needs?|at least)[^\n]{0,40}(?:\b3\.11\b(?!\.\d)|\(\s*3\s*,\s*11\s*\))|\b3\.11\b(?!\.\d)(?:\+|[^\n]{0,20}(?:floor|MIN_PYTHON|minimum|or (?:later|newer|above))))'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: fails-closed
+    type: llm
+    criteria: 'Pass only if all three legacy expectations hold. "Derives the required version from the MIN_PYTHON constant, not a copy in the README": the floor is named as MIN_PYTHON from hygiene.py (or the trace shows hygiene.py read for it). "Treats a launching-but-too-old interpreter as unproven guard execution and fails closed": the Python row is FAIL. "Explains that a version probe proves only that something executes": the reply says that an interpreter starting is not proof it can run the guard''s source.'
+    focus: trace
+    arm: both

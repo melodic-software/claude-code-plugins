@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: au-fixture-compared-to-fixture
+description: 'Legacy audit 22. An inline Jest test that compares two literals it bound itself, calling no code. The reply reports rule-constant-restatement, says no code under test is called, and proposes passing the fixture through the address code. skill-fired reads the Skill call, restatement-rule the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, audit, change-detector, no-network]
+expected_outcome: 'Reports testing/audit/rule-constant-restatement naming draft and want as literals, says nothing under test is called, and proposes asserting on what the address code returns.'
+execution:
+  prompt: 'Audit this test in src/address.test.ts: `import { expect, it } from ''@jest/globals''; it(''keeps the postcode'', () => { const draft = { street: ''4 Mill Lane'', postcode: ''LS6 2AB'' }; const want = { street: ''4 Mill Lane'', postcode: ''LS6 2AB'' }; expect(draft.postcode).toBe(want.postcode); });`'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: restatement-rule
+    type: regex
+    pattern: '(?:testing/audit/)?rule-constant-restatement\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an audit of a Jest test that binds draft and want as literals and compares draft.postcode to want.postcode. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-constant-restatement naming draft and want as literals bound in the test" "Output says no code under test is called in the test" "Output proposes calling the address code with the fixture and asserting on its result". FAIL if any point is missing or contradicted.'

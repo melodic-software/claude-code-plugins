@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "- **Unresolved**: 2 project references (`../Shared/Shared.csproj`, `../../../SiblingCheckout/Shared/Shared.csproj`); none of them were matched by file name."
+    },
+    {
+      "answer": "Neither reference was matched by name to legacy/Shared/Shared.csproj."
+    },
+    {
+      "answer": "They stay unresolved; I didn't match them by name."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Unresolved**: 2 project references.",
+      "why": "silent on name matching"
+    },
+    {
+      "answer": "The ../Shared reference was matched by name to legacy/Shared/Shared.csproj.",
+      "why": "says it matched"
+    },
+    {
+      "answer": "Unresolved: 2. Not great. They were matched by name to legacy/Shared.",
+      "why": "negation in an earlier sentence"
+    }
+  ]
+}

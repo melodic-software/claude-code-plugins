@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: au-null-data-root-not-run
+description: 'Legacy audit 2. The probe already printed data_root null, so the install layout proved no data root and the guard denies every engine call: the reply reports the audit as not run, states no engine command and no guessed or default data root (audit SKILL.md lines 41-42). skill-fired is a with-only indicator; the llm grader quotes the legacy expectations. Read-only: no tool grant needed.'
+tags: [audit, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The reply says plainly that the audit did not run because the probe reported data_root null. It states no hygiene.py command, passes or suggests no --data-root value, and offers no guessed or default data directory.'
+execution:
+  prompt: "Run a disk-hygiene audit report on /eval/work/scratch-audit.\n\nSession state so far: Linux host, a human at the keyboard. The disk-hygiene kill-switch probe already ran in this session and printed:\n\n```json\n{\"effective\": true, \"source\": \"default\", \"degraded\": false, \"hook_python\": \"/usr/bin/python3\", \"data_root\": null}\n```\n\nThis session has no shell and no file-writing tool, so nothing can be run or written here. State the exact next command(s) as text, or say why there is none, then stop.\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:disk-hygiene:)?audit"'
+    arm: with-only
+  - name: says-not-run
+    type: regex
+    pattern: '\b(?:audit|scan)\b[^\n.]{0,60}?\b(?:was|is|did|has|could|can)\s*(?:not|n''t)\s+(?:been\s+)?(?:run|ran|performed|done|be run)\b|\bnot run\b|\bcan(?:not|''t) run the (?:audit|scan)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-engine-command
+    type: regex
+    pattern: 'hygiene\.py["'']?\s+(?:scan|inventory|preview|plan|apply)\s+--\w'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-guessed-data-root
+    type: regex
+    pattern: '--data-root\s+["'']?[^\s"''<]'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-substitute-data-root
+    type: llm
+    criteria: 'Pass only if all three legacy expectations hold. "Submits no hygiene.py call" (the reply states no engine command to run). "Does not substitute a guessed or default data root" (it suggests no data directory path, default location, or way to make up a data_root value to run the scan with; naming a recovery step the guard or install names is fine). "States plainly that the audit did not run." Fail if the reply proposes running the scan with any data root it supplied itself.'
+    focus: last_message
+    arm: both

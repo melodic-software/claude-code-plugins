@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Annotate each assertion: `// cant-fail-ok: relation across rows`. The exemption is counted in the coverage block.",
+      "why": "the reason phrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Annotate it `// cant-fail-ok: policy table`.",
+      "why": "another reason"
+    },
+    {
+      "answer": "Delete it; it calls no code.",
+      "why": "deletion"
+    }
+  ]
+}

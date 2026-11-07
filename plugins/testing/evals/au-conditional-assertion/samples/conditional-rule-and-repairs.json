@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Both: `testing/audit/rule-conditional-assertion`. Assert `expect(rows).toHaveLength(3)` before the loop, and use `expect(() => parse('x')).toThrow(ParseError)` instead of the catch.",
+      "why": "both repairs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both: `testing/audit/rule-conditional-assertion`. Add a comment explaining the loop.",
+      "why": "no repair"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Use both: this audit is static; `mutation-testing:audit` runs mutants. Bash skips belong to `scripts/check-discriminating-test-skips.sh`.",
+      "why": "both incumbents"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use both: this audit is static; mutation-testing:audit runs mutants. It can also check your bash skips.",
+      "why": "no skip gate, claims bash skips"
+    }
+  ]
+}

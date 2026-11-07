@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "If the lighter borders are intended, recording a new baseline is your call, in a new directory; this one stays as captured.",
+      "why": "new directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If the lighter borders are intended, I can re-capture the baseline in place.",
+      "why": "overwrites in place"
+    },
+    {
+      "answer": "Accepting a new baseline is your call.",
+      "why": "no new directory"
+    }
+  ]
+}

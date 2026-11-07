@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "handoff": "## Review before you continue\n\n- Retired entries: archive/20260803T080000Z-handoff-report-export/h3-88b39a66.md § Retired goal amendments\n",
+      "why": "goal amendments pointer"
+    },
+    {
+      "handoff": "## Review before you continue\n\n- Retired entries: archive/20260803T080000Z-handoff-report-export/h3-88b39a66.md § Retired open questions\n- Read Current rules first.\n",
+      "why": "open questions pointer"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Review before you continue\n\n- Retired entries: archive/20260803T080000Z-handoff-report-export/h4-2f4b617b.md § Retired decisions\n",
+      "why": "pointer to another hop only"
+    },
+    {
+      "handoff": "- Retired entries: archive/20260803T080000Z-handoff-report-export/h3-88b39a66.md § Retired decisions\n",
+      "why": "hop 3 decisions pointer only"
+    },
+    {
+      "handoff": "## Review before you continue\n\n- Read Current rules first.\n",
+      "why": "no pointer"
+    }
+  ]
+}

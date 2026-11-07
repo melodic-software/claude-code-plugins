@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Layer violations: 1 (Billing.Domain -> Billing.Application). Informational only; enforcement belongs to your architecture tests, not this run."
+    },
+    {
+      "answer": "The mark is informational: the consumer's architecture tests are where that layering is enforced."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Layer violations: 1 (informational). The run exited 0."
+    },
+    {
+      "answer": "The Domain -> Application edge breaks the layering, so I failed the run to enforce it."
+    },
+    {
+      "answer": "Consider adding architecture tests. The layering is enforced. Here is why."
+    }
+  ]
+}

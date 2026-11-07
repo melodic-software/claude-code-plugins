@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: cvp-drive-route-captures
+description: 'Legacy check-visual-parity 5. A control skill and both /app-control:drive and /playwright:playwright are available. The reply captures through /app-control:drive capture --kind screenshot, starts the app no second way and names the drive route. drive-capture reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, route, app-control, no-network]
+expected_outcome: 'Captures through /app-control:drive capture --kind screenshot into the baseline directory, not the Playwright CLI, starts the app no other way, and names the drive route in the report.'
+execution:
+  prompt: '/testing:check-visual-parity baseline invoice list (empty). Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The project has .claude/skills/control-web/SKILL.md, whose Capture section names a screenshot tool, and both /app-control:drive and /playwright:playwright are among the available skills. Say how the state is captured and what the report says, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: drive-capture
+    type: regex
+    pattern: 'app-control:drive\s+capture\s+--kind\s+screenshot\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is a visual-parity baseline in a project with a control skill, where /app-control:drive and /playwright:playwright are both available. PASS only if the reply satisfies every legacy expectation: "Captures through /app-control:drive capture --kind screenshot" "Does not capture through the Playwright CLI while drive writes the PNG" "Does not start the app a second way beside drive''s launch" "Names the drive route in its report". FAIL if any point is missing or contradicted.'

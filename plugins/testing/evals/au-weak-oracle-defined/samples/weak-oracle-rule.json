@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle` (threshold: every assertion is a weak matcher). Assert `expect(row.name).toBe('Ada')`.",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "toBeDefined is a weak oracle; assert row.name instead.",
+      "why": "no rule id"
+    }
+  ]
+}

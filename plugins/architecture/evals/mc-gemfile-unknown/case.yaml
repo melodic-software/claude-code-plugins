@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: mc-gemfile-unknown
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: collects-graph
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?dependency-graph\.sh(?:\\"|'')?[ \t](?:[^"\\]|\\.)*?--out[\s=]+(?:\\"|'')?(?:[^"\\\s]*/)?docs/architecture/dependency-graph\.json\b'
+    min: 1
+  - name: graph-written-unknown
+    type: regex
+    pattern: '^(?=[\s\S]*"result"\s*:\s*"unknown")(?=[\s\S]*"nodes"\s*:\s*\[\s*\])(?=[\s\S]*"edges"\s*:\s*\[\s*\])'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: says-unknown-no-diagram
+    type: regex
+    pattern: '^(?![\s\S]*\n```)(?![\s\S]*\b(?:rails|sidekiq)\b)[\s\S]*\bunknown\b'
+    flags: 'i'
+    target: { source: file, path: docs/architecture/components.md }

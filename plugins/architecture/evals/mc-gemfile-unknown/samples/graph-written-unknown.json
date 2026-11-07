@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-11-07\",\n  \"result\": \"unknown\",\n  \"message\": \"Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\",\n  \"ecosystem\": \"unknown\",\n  \"node_threshold\": 40,\n  \"cycles_truncated\": false,\n  \"nodes\": [],\n  \"edges\": [],\n  \"cycles\": [],\n  \"findings\": []\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-11-07\",\n  \"result\": \"ok\",\n  \"message\": \"Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\",\n  \"ecosystem\": \"unknown\",\n  \"node_threshold\": 40,\n  \"cycles_truncated\": false,\n  \"nodes\": [],\n  \"edges\": [],\n  \"cycles\": [],\n  \"findings\": []\n}\n",
+      "why": "ok with an empty graph"
+    },
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-11-07\",\n  \"result\": \"unknown\",\n  \"message\": \"Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\",\n  \"ecosystem\": \"unknown\",\n  \"node_threshold\": 40,\n  \"cycles_truncated\": false,\n  \"nodes\": [\n    {\"id\":\"Gemfile\",\"name\":\"invoicing\",\"path\":\"Gemfile\",\"ecosystem\":\"ruby\",\"kind\":\"project\"},\n    {\"id\":\"pkg:rails\",\"name\":\"rails\",\"path\":\"Gemfile\",\"ecosystem\":\"ruby\",\"kind\":\"package\"}\n  ],\n  \"edges\": [],\n  \"cycles\": [],\n  \"findings\": []\n}\n",
+      "why": "nodes hand-built from the Gemfile"
+    }
+  ]
+}
