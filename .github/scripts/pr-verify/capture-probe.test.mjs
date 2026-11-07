@@ -156,6 +156,33 @@ test("the reads subcommand exits 0 only on a refused read of every path, and pri
   assert.equal(run().status, 1);
 });
 
+test("the reads subcommand exits 3, not 1, when the session never tried a path, and 1 whenever any Read came back", () => {
+  const dir = tempDir("capture-probe-untried-");
+  const file = path.join(dir, "execution.json");
+  const run = (messages) => {
+    writeFileSync(file, JSON.stringify(messages));
+    return spawnSync(process.execPath, [SCRIPT, "reads", file, ...TARGETS], { encoding: "utf8" });
+  };
+  const bash = { type: "assistant", message: { content: [{ type: "tool_use", id: "z", name: "Bash", input: { command: "true" } }] } };
+  for (const [messages, why] of [
+    [[], "no message at all"],
+    [[bash, resultMessage()], "a Bash call and no Read"],
+  ]) {
+    const none = run(messages);
+    assert.equal(none.status, 3, `${why}: ${none.stdout}`);
+    assert.match(none.stdout, /\/proc\/self\/environ not tried, \/runner\/_temp\/probe\.md not tried/, why);
+    assert.match(none.stdout, /the fence was not tested/, why);
+  }
+  const partial = run([readUse("a", TARGETS[0]), readResult("a", true)]);
+  assert.equal(partial.status, 3, partial.stdout);
+  assert.match(partial.stdout, /\/runner\/_temp\/probe\.md not tried/);
+  // A Read that came back, or one with no result, is a breach whatever else went untried.
+  const read = run([readUse("b", TARGETS[1]), readResult("b", false)]);
+  assert.equal(read.status, 1, read.stdout);
+  assert.doesNotMatch(read.stdout, /not tested/);
+  assert.equal(run([readUse("b", TARGETS[1])]).status, 1);
+});
+
 test("run where a key is in reach, the probe fails, names it and writes no value", { skip: !existsSync("/proc/self/environ") && "needs /proc" }, () => {
   const dir = tempDir("capture-probe-run-");
   const result = path.join(dir, "result.json");

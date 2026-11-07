@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-removal-verdicts
+description: "Hard: asked what to remove, the pull is to list every animation and stop; the sub-mode requires each verdict's rule, the hazards and a defended Keep list. The scaffold seeds removal hazards: a hidden start state and focus moved on animationend."
+tags: [audit, removal, read-only, hard, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit runs the removal sub-mode: Delete, Reduce or Keep per animation with its rule, a Keep list with the purpose that saved each, removal hazards named for a Delete or Reduce, and no Edit or Write call"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "This app feels over-animated. What motion should we remove? Don't change anything yet."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900

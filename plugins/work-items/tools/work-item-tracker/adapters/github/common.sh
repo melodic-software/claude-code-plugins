@@ -329,6 +329,36 @@ wit_gh_load_wont_do_labels() {
   fi
 }
 
+# wit_gh_load_status_trust — set WIT_GH_STATUS_TRUST from the binding's optional
+# config.github.status_trust (README "Work status trust"): empty when the key or the
+# binding is absent, else {trusted_actors, model, lanes_app} as one JSON object. Each
+# member must be a non-empty string and each path repo-relative, else exit 3.
+wit_gh_load_status_trust() {
+  local binding ejson
+  WIT_GH_STATUS_TRUST=""
+  binding="$(wit_find_binding)" || return 0
+  ejson="$(wit_effective_binding_json "$binding")" || {
+    echo "github: invalid binding at $binding; run /work-items:setup check" >&2
+    exit "$EX_CONFIG"
+  }
+  WIT_GH_STATUS_TRUST="$(jq -c '(.config.github // {}) as $g
+    | def text: type == "string" and length > 0;
+    def relative: text and (startswith("/") | not) and (split("/") | index("..") | not);
+    if ($g | type) != "object" or ($g | has("status_trust") | not) then null
+    elif ($g.status_trust | type) == "object" and ($g.status_trust.trusted_actors | relative)
+      and ($g.status_trust.model | relative) and ($g.status_trust.lanes_app | text)
+    then $g.status_trust | {trusted_actors, model, lanes_app}
+    else "bad" end' <<<"$ejson")"
+  case "$WIT_GH_STATUS_TRUST" in
+  null) WIT_GH_STATUS_TRUST="" ;;
+  '"bad"')
+    echo "github: config.github.status_trust must set trusted_actors and model (repo-relative paths) and lanes_app (a login)" >&2
+    exit "$EX_CONFIG"
+    ;;
+  *) ;;
+  esac
+}
+
 # wit_gh_annotate_blocker_reasons — stdin: one issue object or an array of them, as
 # `gh --json ...,blockedBy` returns it; stdout: the same JSON with `stateReason` set
 # on every CLOSED blocker node. That projection carries no stateReason or labels, so

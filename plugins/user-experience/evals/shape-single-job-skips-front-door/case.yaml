@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: shape-single-job-skips-front-door
+description: 'Legacy shape 8. A single research-instrument request goes to plan-user-research, not the shape front door (shape SKILL.md 2: one job alone goes to its skill). no-shape-fired and research-skill-fired grade the trace; legacy-shape-8 (llm) quotes the legacy expectation.'
+tags: [shape, routing, legacy]
+runs: 3
+expected_outcome: 'A Skill call to user-experience:plan-user-research and none to user-experience:shape, with a discussion guide for interviewing nurses about shift handover.'
+execution:
+  prompt: 'Write a discussion guide for interviewing nurses about shift handover. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'no-shape-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?shape"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'research-skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?plan-user-research"'
+    weight: 0.1
+  - name: 'legacy-shape-8'
+    type: 'llm'
+    criteria: 'The run is asked for a discussion guide for interviewing nurses about shift handover. It meets the legacy expectation: "No Skill call reaches user-experience:shape", and it gives the discussion guide.'
+    focus: 'trace'

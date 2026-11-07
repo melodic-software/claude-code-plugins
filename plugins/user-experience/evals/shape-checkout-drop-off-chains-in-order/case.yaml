@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: shape-checkout-drop-off-chains-in-order
+description: 'Legacy shape 4. A live checkout drop-off: shape states the stage, names the analytics access it lacks, then chains synthesize, structure and evaluate in that order, adding no tracking code (shape SKILL.md 89-93, 104-112 and 132-133). The read-only suite cannot run detect, so shape takes its degraded path (shape SKILL.md 37-40). synthesis-before-structure and structure-before-evaluation grade the Skill order, names-access and no-tracking-call the reply; legacy-shape-4 (llm) quotes the three legacy expectations.'
+tags: [shape, existing, chain, legacy]
+runs: 3
+expected_outcome: 'Stage existing with PostHog as evidence, a request for the funnel numbers or PostHog access, then Skill calls to synthesize (ranked hypotheses), structure (the checkout flow) and evaluate (fair-choice check) in that order, and no tracking code.'
+execution:
+  prompt: 'Our store app is live and users drop off at checkout. We have PostHog. Why are they leaving, and what should we change? This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?shape"'
+    weight: 0.1
+  - name: 'synthesis-before-structure'
+    type: 'tool_order'
+    before: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?synthesize"' }
+    after: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"' }
+  - name: 'structure-before-evaluation'
+    type: 'tool_order'
+    before: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"' }
+    after: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"' }
+  - name: 'names-access'
+    type: 'regex'
+    pattern: 'funnel (?:numbers|data|counts|report|export|steps?)|(?:PostHog|analytics) (?:access|export|data|funnel|dashboard)|dashboard access|access to (?:your |the )?(?:PostHog|analytics|funnel)|(?:step|drop-off) (?:counts|numbers|rates)|conversion (?:numbers|rates|data)|numbers (?:for|per|at) each (?:checkout )?step|PostHog\b[^\n]{0,40}\b(?:export|access|login|API key|share|read)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-tracking-call'
+    type: 'regex'
+    pattern: '\b(?:analytics|posthog|mixpanel|amplitude|segment|dataLayer)\s*\.\s*(?:track|capture|push|logEvent)\s*\(|\bgtag\s*\(|\btrack(?:Event)?\s*\(\s*[''\"]'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-shape-4'
+    type: 'llm'
+    criteria: 'The run is asked why users of a live store app drop off at checkout; the team has PostHog. It meets the legacy expectations: "The response names the analytics access or funnel numbers it would need" "Skill calls run in the order synthesize, structure, evaluate, with none of them before an earlier one in that order" "The response adds no tracking code".'
+    focus: 'trace'
