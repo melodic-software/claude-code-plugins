@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Target repo:** `acme-co/warehouse-api`, taken from `--repo`.",
+      "why": "bold label, code span"
+    },
+    {
+      "answer": "The run passes --repo acme-co/warehouse-api to morning-brief.sh, so every section reads that repo.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The brief targets melodic-software/claude-code-plugins, the default repo.",
+      "why": "hardcoded default"
+    },
+    {
+      "answer": "The brief targets acme-co/warehouse-app from the flag.",
+      "why": "near miss: wrong repo name"
+    }
+  ]
+}

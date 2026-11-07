@@ -5,21 +5,23 @@
 // GitHub reports them as OWNER or MEMBER, or when their numeric id is on the
 // default branch's trusted-actor list (our bots and Apps, and listed humans
 // whose membership is private). Anyone else is an outside actor: the issue or
-// pull request gets `security: outside-actor` and `needs-human`, and one
-// comment per outside actor names their login and the event kind and says a
-// person reviews it. Their text is never read, quoted or passed on.
+// pull request gets `security: outside-actor` and needs-human (an issue's Work
+// status field, write-status.mjs; a pull request's label), and one comment per
+// outside actor names their login and the event kind and says a person
+// reviews it. Their text is never read, quoted or passed on.
 //
 // An unreadable or malformed trusted-actor list flags the author: the check
-// fails closed. Labels are added on every untrusted event, so a person who
-// cleared `needs-human` hears of new outside activity; the payload's labels
-// may be stale, so the write never skips (adding a present label is a no-op).
+// fails closed. The label and needs-human are written on every untrusted
+// event, so a person who cleared needs-human hears of new outside activity;
+// the payload may be stale, so the write never skips (adding a present label
+// or setting the state the field holds is a no-op).
 // The comment is written
 // once per actor, found again by its marker, which counts only on a comment
 // github-actions[bot] wrote.
 //
 // Only a person on the trusted-actor list (kind human, matched by id, never a
 // Bot) removes `security: outside-actor`. Any other removal, a member's not on
-// the list included, puts both labels back and posts one comment per remover
+// the list included, puts it and needs-human back and posts one comment per remover
 // naming their login without a mention; an unreadable list puts them back too.
 //
 // Environment:
@@ -28,12 +30,15 @@
 //   GITHUB_EVENT_NAME     the triggering event
 //   GITHUB_EVENT_PATH     the event payload, read here and never by a shell
 //   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
+//   BASE_PATH             the default branch's checkout (default `.base`),
+//                         whose models.issue-status the field write reads
 //   GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
 export const LABEL = OUTSIDE_ACTOR_LABEL;
@@ -56,6 +61,10 @@ const ACTION = /^[a-z_]{1,32}$/;
 // push to a pull request, a reopen.
 const SENDER_ACTIONS = new Set(["edited", "synchronize", "reopened"]);
 
+// Whether the payload's item is a pull request, which an issue_comment on one
+// names under `issue`.
+const isPull = (payload) => Boolean(payload.pull_request ?? payload.issue?.pull_request);
+
 // The content's author and where it lives, from the event payload. Returns
 // null when the payload names no issue or pull request number.
 export function readEvent(eventName, payload) {
@@ -74,6 +83,7 @@ export function readEvent(eventName, payload) {
   const user = (bySender ? sender : content.user) ?? {};
   return {
     number,
+    pull: isPull(payload),
     kind: ACTION.test(payload.action ?? "") ? `${KINDS[eventName]} ${payload.action}` : KINDS[eventName],
     association: bySender ? undefined : content.author_association,
     id: Number.isInteger(user.id) ? user.id : null,
@@ -107,26 +117,39 @@ export function commentBody(author) {
 export const isOwnMarker = (comment, marker) =>
   comment?.user?.id === ACTIONS_BOT_ID && comment?.user?.type === "Bot" && String(comment.body ?? "").startsWith(marker);
 
-// Labels and comment are written independently, so one failing still leaves
-// the other; any failure is thrown after both were tried.
-export async function flag({ github, repository, author }) {
-  const base = `/repos/${repository}/issues/${author.number}`;
-  const marker = markerFor(author);
-  const [labeled, commented] = await Promise.allSettled([
-    github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
-    paginate(github, `${base}/comments`).then(async (comments) => {
-      if (comments.some((comment) => isOwnMarker(comment, marker))) {
-        return "labeled";
-      }
-      await github("POST", `${base}/comments`, { body: commentBody(author) });
-      return "commented";
-    }),
-  ]);
-  const failed = [labeled, commented].filter((result) => result.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(`flagging #${author.number} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
+// The label and the comment, then an issue's Work status hold, set through
+// `setStatus(number, state)` (write-status.mjs statusWriter's set); a pull
+// request's hold is the label. The field write needs resolve-config's
+// packages, so it comes last: when it fails, the label and comment are
+// already written. Each write is tried whatever the others did; any failure
+// is thrown after all were tried. Returns `comment`'s outcome.
+async function writeFlag({ github, base, item, setStatus, comment, what }) {
+  const results = await Promise.allSettled([comment(), github("POST", `${base}/labels`, { labels: item.pull ? [LABEL, NEEDS_HUMAN] : [LABEL] })]);
+  if (!item.pull) {
+    results.push(...(await Promise.allSettled([setStatus(item.number, NEEDS_HUMAN)])));
   }
-  return commented.value;
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    throw new Error(`${what} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
+  }
+  return results[0].value;
+}
+
+// The comment is written once per marker: a marker github-actions[bot]
+// already posted answers `seen` instead.
+const commentOnce = (github, base, marker, body, seen, posted) => async () => {
+  const comments = await paginate(github, `${base}/comments`);
+  if (comments.some((comment) => isOwnMarker(comment, marker))) {
+    return seen;
+  }
+  await github("POST", `${base}/comments`, { body });
+  return posted;
+};
+
+export async function flag({ github, repository, author, setStatus }) {
+  const base = `/repos/${repository}/issues/${author.number}`;
+  const comment = commentOnce(github, base, markerFor(author), commentBody(author), "labeled", "commented");
+  return writeFlag({ github, base, item: author, setStatus, comment, what: `flagging #${author.number}` });
 }
 
 // Who removed which label, from an `unlabeled` event's payload.
@@ -138,6 +161,7 @@ export function readRemoval(payload) {
   const sender = payload.sender ?? {};
   return {
     number,
+    pull: isPull(payload),
     label: payload.label?.name,
     id: Number.isInteger(sender.id) ? sender.id : null,
     login: typeof sender.login === "string" && LOGIN.test(sender.login) ? sender.login : null,
@@ -160,25 +184,15 @@ export function removalBody(remover) {
   ].join("\n");
 }
 
-export async function restore({ github, repository, remover }) {
+export async function restore({ github, repository, remover, setStatus }) {
   const base = `/repos/${repository}/issues/${remover.number}`;
-  const marker = removalMarkerFor(remover);
-  const [labeled, commented] = await Promise.allSettled([
-    github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
-    paginate(github, `${base}/comments`).then(async (comments) => {
-      if (comments.some((comment) => isOwnMarker(comment, marker))) {
-        return "restored";
-      }
-      await github("POST", `${base}/comments`, { body: removalBody(remover) });
-      return "restored and commented";
-    }),
-  ]);
-  const failed = [labeled, commented].filter((result) => result.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(`restoring ${LABEL} on #${remover.number} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
-  }
-  return commented.value;
+  const comment = commentOnce(github, base, removalMarkerFor(remover), removalBody(remover), "restored", "restored and commented");
+  return writeFlag({ github, base, item: remover, setStatus, comment, what: `restoring ${LABEL} on #${remover.number}` });
 }
+
+// The job token's Work status write, over the base checkout's config.
+const fieldSetter = (env, github) => async (number, state) =>
+  (await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY })).set(number, state);
 
 async function handleRemoval({ env, github, log, payload }) {
   const remover = readRemoval(payload);
@@ -200,7 +214,7 @@ async function handleRemoval({ env, github, log, payload }) {
     return 0;
   }
   const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-  const outcome = await restore({ github: client, repository: env.GITHUB_REPOSITORY, remover });
+  const outcome = await restore({ github: client, repository: env.GITHUB_REPOSITORY, remover, setStatus: fieldSetter(env, client) });
   log(`::warning::security-outside-actor: #${remover.number} id ${remover.id ?? "unknown"} is not a listed person; ${LABEL} ${outcome}`);
   return 0;
 }
@@ -229,7 +243,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       return 0;
     }
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const outcome = await flag({ github: client, repository: env.GITHUB_REPOSITORY, author });
+    const outcome = await flag({ github: client, repository: env.GITHUB_REPOSITORY, author, setStatus: fieldSetter(env, client) });
     log(`::warning::security-outside-actor: #${author.number} outside actor id ${author.id ?? "unknown"} ${outcome}`);
     return 0;
   } catch (error) {

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Capability-tier axis | **FAIL**: `capability-tier: frontier` absent; run `/work-items:setup apply` |",
+      "why": "table row"
+    },
+    {
+      "answer": "Probe 8 FAILs because capability-tier: frontier does not exist, so the work-loop reader fails closed to general tier.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Capability-tier axis | INFO: verify at triage time |",
+      "why": "near miss: INFO on a github binding"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Provenance label | FAIL |\n| Capability-tier axis | PASS |",
+      "why": "FAIL on the wrong probe"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Every carrier label carries a scannable barcode: falsified (regional carrier test)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Barcode assumption holds."
+    },
+    {
+      "answer": "orders-before-labels: falsified"
+    }
+  ]
+}

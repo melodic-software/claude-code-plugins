@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Append** `.work-item-tracker.local.json` as a line to `.gitignore` and announce the edit; no other line changes.",
+      "why": "markdown"
+    },
+    {
+      "answer": "Announced edit: appended .work-item-tracker.local.json to the repository .gitignore.",
+      "why": "past tense"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The override is tracked; stop and run git rm --cached, leaving .gitignore as it is.",
+      "why": "near miss: raises the tracked stop on an empty index probe"
+    },
+    {
+      "answer": "Stage .work-item-tracker.local.json and commit it with the binding.",
+      "why": "stages the override"
+    }
+  ]
+}

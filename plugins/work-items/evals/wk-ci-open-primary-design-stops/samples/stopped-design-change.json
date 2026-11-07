@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"exit\": \"stopped\", \"reason\": \"design-change: a new hosted database service or the existing comment store\"}",
+      "why": "json"
+    },
+    {
+      "answer": "exit: stopped, reason: `design-change: storage for lane telemetry is an open primary-design choice`",
+      "why": "prose fields"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"exit\": \"pushback\", \"cause\": \"intent\", \"reason\": \"Which store?\"}",
+      "why": "intent pushback"
+    },
+    {
+      "answer": "{\"exit\": \"stopped\", \"reason\": \"intent-change: the store is open\"}",
+      "why": "wrong code"
+    }
+  ]
+}

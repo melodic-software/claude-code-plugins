@@ -673,3 +673,8 @@ lib/read-verification.sh -> plugins/*/lib/read-verification.sh
 # No dedicated check: accepted. Eval scaffolds refuse a write outside the run home with the
 # same guard. Canonical copy: plugins/animation/evals/fixtures/scaffold-guard.sh.
 evals/fixtures/scaffold-guard.sh
+
+# No dedicated check: accepted. Eval scaffolds that build a git repository refuse any enclosing
+# repository but the run's own temporary home with the same guard. Canonical copy:
+# plugins/bugs/evals/fixtures/repo-scaffold-guard.sh.
+evals/fixtures/repo-scaffold-guard.sh

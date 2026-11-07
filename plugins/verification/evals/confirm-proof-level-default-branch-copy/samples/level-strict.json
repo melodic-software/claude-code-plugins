@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: strict (docs/conventions/verification.yaml at origin/main)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path (working tree)"
+    }
+  ]
+}

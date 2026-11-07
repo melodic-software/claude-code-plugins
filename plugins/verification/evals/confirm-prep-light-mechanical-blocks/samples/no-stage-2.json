@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Stage 1 FAILED; outcome verification did not run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Intent source: PLAN.md Brief (slugify)"
+    },
+    {
+      "answer": "### Plan Coverage"
+    }
+  ]
+}

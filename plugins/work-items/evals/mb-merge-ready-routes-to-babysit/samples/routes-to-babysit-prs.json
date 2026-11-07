@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No. The list is a glance; the authoritative gate is **`/source-control:babysit-prs`**.",
+      "why": "bold code span"
+    },
+    {
+      "answer": "Run /source-control:babysit-prs for the per-PR verdict before merging #412.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, CLEAN means it is safe to merge, so merge #412.",
+      "why": "no routing"
+    },
+    {
+      "answer": "Hand #412 to /source-control:babysit-loop for the verdict.",
+      "why": "near miss: the loop skill"
+    }
+  ]
+}

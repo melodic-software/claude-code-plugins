@@ -13,19 +13,21 @@ name: pr-unblock-dispatch
 # run failed), with no re-run of that run going and no infra-only first
 # failure's reconciler re-run still due, and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
-# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). It
-# also dispatches pr-refine.yml's fix-docs once per open, ready PR into main
-# that changes a Markdown file, carries no hold label and never had a fix-docs
-# check run, whoever opened it except Dependabot, the release App and the
-# standards-sync App, and not for a work-resolve-issue PR tidied in its own run
-# (within the tidy cutoffs), at most limits.fix-docs-per-run per run, from its own logged GraphQL
-# listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs);
-# limits.fix-docs-per-run 0 turns it off.
+# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs).
+# pr-refine.yml's fix-docs is started only by the PR's own event, in the refine
+# job below: once per open, ready PR into main that changes a Markdown file,
+# carries no hold label and never had a fix-docs check run, when the event's
+# sender is the lanes App or a listed human (no other sender's PR gets one),
+# except Dependabot, the release App and the standards-sync App, and not for a
+# work-resolve-issue PR tidied in its own run (within the tidy cutoffs)
+# (.github/scripts/pr-unblock/refine-event-dispatch.mjs over
+# fix-docs-dispatch.mjs); limits.fix-docs-per-run 0 turns it off.
 #
 # It also runs half-hourly, five minutes after each
 # maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed
 # gets fix-ci at the first tick after that failure, not at the next push to
-# main. A tick runs the same listings as a push run; heads the dispatch record
+# main. A tick runs the same listings as a push run and, like it, starts no
+# fix-docs; heads the dispatch record
 # holds are not read again. pr-unblock.yml's trigger gate and the broker accept
 # a dispatcher run started by a push, a schedule or a listed human, and for
 # pr-refine.yml alone a pull_request_target run (the refine job, ADR 0090).
@@ -34,9 +36,9 @@ name: pr-unblock-dispatch
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. A re-run of a scheduled run fails at the trigger
 # check, which handles no schedule event; the next tick replaces it. The
-# dispatched lane runs its own trigger gate, kill switch and config. Only the
-# fix-ci and fix-docs listings filter by author and hold label: fix-ci to spend
-# no model run on a PR the lane would skip, fix-docs to leave alone PRs whose
+# dispatched lane runs its own trigger gate, kill switch and config. Only
+# fix-ci and fix-docs filter by author and hold label: fix-ci to spend no
+# model run on a PR the lane would skip, fix-docs to leave alone PRs whose
 # files are generated or synced.
 #
 # The job token's rate-limit readings, from the script's own responses, are
@@ -62,8 +64,10 @@ on:
   schedule:
     - cron: "9,39 * * * *"
   workflow_dispatch: {}
-  # Starts fix-docs on a PR's own event instead of the next tick: the refine
-  # job below. pull_request_target runs this file and its checkout from main,
+  # Starts fix-docs on a PR's own event, the only start it has: the refine
+  # job below. From 2026-12-02 GitHub blocks pull_request_target in public
+  # repositories unless an Actions event policy allows it for this file;
+  # without one, fix-docs stops while reviews still run. pull_request_target runs this file and its checkout from main,
   # never the PR's copy (ADR 0090). Opened, reopened or turned ready, and a
   # push, which may add the PR's first Markdown file; a draft is skipped.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
@@ -94,7 +98,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # list open PRs and their mergeable state
       checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
-      actions: write # list and dispatch pr-unblock.yml and pr-refine.yml runs
+      actions: write # list and dispatch pr-unblock.yml runs
     env:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
@@ -262,7 +266,7 @@ jobs:
             exit 1
           }
 
-      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs
+      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs
         id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
@@ -358,8 +362,8 @@ jobs:
         with:
           tokens: github-token
 
-  # Dispatches pr-refine.yml's fix-docs for this PR when the push dispatcher's
-  # rule would (refine-event-dispatch.mjs), and records the dispatch for the
+  # Dispatches pr-refine.yml's fix-docs for this PR under fix-docs-dispatch.mjs's
+  # rule (refine-event-dispatch.mjs), and records the dispatch for the
   # trusted-trigger gate and the broker (ADR 0090). Four invariants, each
   # pinned in workflow-gates.test.mjs: main's code only, checked out at the
   # commit this file ran from, never the PR head; no PR text reaches a step,

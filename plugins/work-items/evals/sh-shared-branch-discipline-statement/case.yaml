@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-shared-branch-discipline-statement
+graders:
+  - name: 'names-integration-branch'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*integration/310-billing-migration\b)(?=[\s\S]*\b(?:defer\w*|one item (?:is )?in flight|single writer)\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship session does with the stated state. PASS only if it satisfies every point: (1) States that the integration-branch → single-PR mode is in effect, reading it from the container body''s execution-shape line, and names the shared branch from the **Integration branch:** line; (2) States the shared-branch discipline: seam claim before each item even in sequential work, mid-flight lease renewal, pull-before-start and push-before-close ordering; (3) Applies the one-item-in-flight rule: with a sibling sub-item actively claimed, reports the holder (the local machine) and defers rather than routing a second concurrent item onto the shared branch; (4) Says no per-item PRs are opened: a single PR at the end carries the journey; (5) Notes the standard /work-items:work default-branch worktree path does not apply to this shape; (6) Uses ''checkpoint'' for an item closed within the shared-branch flow rather than conflating item, checkpoint, and phase boundary. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

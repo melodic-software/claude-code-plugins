@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: mb-refuses-mutation-request
+graders:
+  - name: 'states-read-only'
+    type: 'regex'
+    pattern: 'read[\s*_`-]{0,6}only'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-gh-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgh\s+(?:-\S+\s+(?:[^-\s\\]\S*\s+)?)*(?:issue\s+(?:close|comment|edit|delete)|pr\s+(?:comment|merge|edit|close|review)|label\s+(?:create|edit|delete|clone)\b|api\b(?:(?:[^"\\]|\\.)*?(?:-X|--method)[\s=]*(?:POST|PATCH|PUT|DELETE)|(?!(?:[^"\\]|\\.)*?(?:-X|--method)[\s=]*GET\b)(?:[^"\\]|\\.)*?\s(?:-[fF]|--field|--raw-field|--input)[\s=]))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:morning-brief session does with the stated state. PASS only if it satisfies every point: (1) The response renders the read-only brief; (2) The response declines to close issues, post comments, merge, or edit labels; (3) The response states that this skill is read-only rather than performing the mutation anyway. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

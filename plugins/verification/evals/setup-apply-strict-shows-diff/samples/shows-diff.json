@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n-proof_level: path\n+proof_level: strict\n+written_against: verification@0.20.2\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It would change proof_level from path to strict."
+    },
+    {
+      "answer": "+proof_level: strict"
+    }
+  ]
+}

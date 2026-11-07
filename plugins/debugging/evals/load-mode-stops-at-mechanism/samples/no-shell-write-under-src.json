@@ -1,0 +1,118 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,20p' src/pricing/format.js",
+            "description": "Read the formatter"
+          }
+        }
+      ],
+      "why": "sed that prints"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn NumberFormat src/ 2>/dev/null",
+            "description": "Find formatter construction"
+          }
+        }
+      ],
+      "why": "a read of src/ with stderr to /dev/null"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat src/pricing/format.js > \"${work:?}/format.js.bak\"",
+            "description": "Copy out of src"
+          }
+        }
+      ],
+      "why": "redirect from src/, not into it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 'p' src/checkout/render.js | grep -i src/pricing",
+            "description": "Find the pricing import"
+          }
+        }
+      ],
+      "why": "-i on grep after a pipe, not on sed"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sqlite3 \"$db\" \"select name, count(*) from samples group by name\" | tee \"${work:?}/top.txt\" && grep -n formatPrice src/checkout/render.js",
+            "description": "Save the ranking, then find the caller"
+          }
+        }
+      ],
+      "why": "tee writes the work dir; src/ appears only in a later read-only command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/new Intl.NumberFormat/cachedFormat/' src/pricing/format.js",
+            "description": "Patch the formatter"
+          }
+        }
+      ],
+      "why": "sed -i on a src file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > src/pricing/format.js <<'EOF'\nconst cache = new Map();\nEOF",
+            "description": "Rewrite the formatter"
+          }
+        }
+      ],
+      "why": "heredoc redirect into src/"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls\ntee src/pricing/cache.js <<'EOF'\nmodule.exports = {};\nEOF",
+            "description": "Add a cache module"
+          }
+        }
+      ],
+      "why": "tee into src/ after an escaped newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sqlite3 \"$db\" \"select 1\" | tee \"${work:?}/top.txt\" src/pricing/top.txt && ls",
+            "description": "Save the ranking twice"
+          }
+        }
+      ],
+      "why": "near miss: the same tee also names a file under src/ before the separator"
+    }
+  ]
+}

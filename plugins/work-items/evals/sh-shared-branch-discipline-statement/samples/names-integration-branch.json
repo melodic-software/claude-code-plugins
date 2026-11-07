@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "One item in flight on `integration/310-billing-migration`: the local machine holds the live lease, so this session defers.",
+      "why": "branch plus the one-in-flight deferral"
+    },
+    {
+      "answer": "**Branch:** integration/310-billing-migration, single writer at a time; it defers while the local claim is live.",
+      "why": "bold label, single writer"
+    },
+    {
+      "answer": "- The shared branch is `integration/310-billing-migration`.\n- Each item is claimed through the seam before work starts.\n- Only one item is in flight at a time. An active claim on any sibling defers new claims.",
+      "why": "branch and deferral on separate lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shared branch: `integration/301-billing-migration`.",
+      "why": "near miss: wrong branch number"
+    },
+    {
+      "answer": "Shared branch: integration/310-billing (assumed by convention).",
+      "why": "near miss: truncated, guessed branch name"
+    },
+    {
+      "answer": "On `integration/310-billing-migration`, claim the next frontier item and start it alongside the local machine's.",
+      "why": "near miss: names the branch, claims a second concurrent item"
+    },
+    {
+      "answer": "- **Execution shape:** integration branch \u2192 single PR (recorded), on `integration/310-billing-migration`",
+      "why": "names the branch only, with no deferral (macro map row with markdown)"
+    },
+    {
+      "answer": "Every session works the shared branch integration/310-billing-migration, one checkpoint at a time.",
+      "why": "names the branch only, with no deferral (prose)"
+    }
+  ]
+}

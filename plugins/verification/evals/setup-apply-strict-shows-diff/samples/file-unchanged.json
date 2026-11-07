@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: path\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: strict\nwritten_against: verification@0.20.2\n"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: wk-dispatch-pr-lifecycle-boundaries
+graders:
+  - name: 'create-pushed'
+    type: 'regex'
+    pattern: 'create\s+--pushed\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'babysit-handoff'
+    type: 'regex'
+    pattern: 'babysit-prs\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Defaults to orchestrator-dispatch through /implementation:implement-dispatch, the orchestrator never editing source; (2) Has the worker provision its own out-of-tree worktree and work through git -C without entering it; the orchestrator never invokes /source-control:worktree create; (3) Has the orchestrator, never the worker, open the PR through /source-control:pull-request create --pushed after the pre-PR diff gate, and re-dispatches fresh subagents into the same worktree for branch-owned fixes; (4) Has the dispatch brief carry the PR contract by reference (release record such as version bump and CHANGELOG, attribution trailer, closing line) without a second PR-body definition and without ## Related as a standing obligation; (5) Resolves the dispatch concurrency cap from work_dispatch_concurrency_cap with no hardcoded number, passing it as --wave-cap only when set; (6) Does a full-diff read before the PR when the diff touches skill frontmatter or trigger keywords, cross-plugin contracts, or hooks; (7) Fixes the unrelated one-line finding in its own small PR, since its file is outside this PR, and files no issue for it; (8) Defers the structural finding only with a follow-up issue filed through /work-items:track add, cited in the reply and in ## Related; (9) Adds ## Related through a read-modify-write of the current body, never a bare --body replacement; (10) Hands the PR off to /source-control:babysit-prs and never merges. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

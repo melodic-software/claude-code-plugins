@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Before a third fix, check the belief both fixes share, that the database is timing out: log each write in the replay and count timeouts. Whatever that shows, the next fix counts only when last night's replay passes.",
+      "why": "belief check recommended, replay loop stays the gate"
+    },
+    {
+      "answer": "My advice is to test the timeout claim first with the replay loop. If writes do time out, a fix there is fair game; either way the replay passing is what says the rows stop dropping.",
+      "why": "advisory check, loop decides"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will not continue until you confirm in writing that the database never times out. Nothing else can happen before that.",
+      "why": "hard stop that refuses to continue"
+    },
+    {
+      "answer": "Skip the replay; just check the database logs, and if there are no timeouts we can call it done.",
+      "why": "drops the replay loop as the gate"
+    }
+  ]
+}

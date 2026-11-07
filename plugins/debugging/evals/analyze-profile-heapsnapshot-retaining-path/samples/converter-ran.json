@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "work=\"$(mktemp -d)\" && python3 \"/opt/eval/plugins/debugging/skills/analyze-profile/scripts/trace_to_sqlite.py\" --in heap/session-cache.heapsnapshot --out \"${work:?}/profile.db\"",
+            "description": "Convert the snapshot"
+          }
+        }
+      ],
+      "why": "the converter on the snapshot"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; d=json.load(open('heap/session-cache.heapsnapshot')); print(d['strings'])\"",
+            "description": "Parse the snapshot by hand"
+          }
+        }
+      ],
+      "why": "a hand-written parser, no converter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,40p' /opt/eval/plugins/debugging/skills/analyze-profile/scripts/trace_to_sqlite.py",
+            "description": "Read the converter"
+          }
+        }
+      ],
+      "why": "reads the converter, never runs it"
+    }
+  ]
+}

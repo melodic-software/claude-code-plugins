@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff -- tests/fixtures/order.json\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/opt/eval/ws/orders/pricing.py\",\"old_string\":\"    return round(subtotal - order[\\\"discount\\\"], 2)\",\"new_string\":\"    if order[\\\"discount\\\"] < 0:\\n        raise ValueError(\\\"negative discount\\\")\\n    return round(subtotal - order[\\\"discount\\\"], 2)\"}}]}}",
+      "why": "diff first, fix after"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show HEAD:tests/fixtures/order.json\"}}]}}",
+      "why": "a diff and no fix at all"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/orders/pricing.py\"}}]}}",
+      "why": "only a read of pricing.py"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/opt/eval/ws/orders/pricing.py\",\"old_string\":\"x\",\"new_string\":\"y\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff\"}}]}}",
+      "why": "edits pricing.py before the diff"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i 's/- order/- max(0, order/' orders/pricing.py\"}}]}}",
+      "why": "sed -i fix with no diff at all"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug I changed the discount value ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -m unittest discover -s tests\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{\"file_path\":\"orders/pricing.py\",\"content\":\"def order_total(order):\\n    pass\\n\"}}]}}",
+      "why": "Write of pricing.py after a test run but no diff"
+    }
+  ]
+}

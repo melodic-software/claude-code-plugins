@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-seed-write-stops-on-title-collision
+graders:
+  - name: 'title-collision-stops'
+    type: 'regex'
+    pattern: '(?:(?:duplicate[sd]?|duplicating)|collision|collid\w*|not unique|non-unique)[^\n]{0,80}\btitles?\b[^\n]{0,160}\b(?:stop\w*|asks?|prompt\w*|merge|replace|pick)\b|\btitles?\b[^\n]{0,80}(?:(?:duplicate[sd]?|duplicating)|collision|collid\w*|not unique|non-unique)[^\n]{0,160}\b(?:stop\w*|asks?|prompt\w*|merge|replace|pick)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Treats the request to seed a sensible recurring schedule as the opt-in, without re-offering seeding; (2) Writes the schedule to the consumer''s tracked project-root .github/recurring-schedule.json with the {"items": []} root; (3) Verifies every final id and every final title is unique and stops on a collision rather than writing duplicates (here the custom item''s title duplicates the dependency-manifest candidate''s, so it stops and prompts before writing); (4) Ensures the load-bearing recurring label exists via the bound provider''s label listing rather than treating it as optional; (5) Does not write into the plugin directory or plugin data directory. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

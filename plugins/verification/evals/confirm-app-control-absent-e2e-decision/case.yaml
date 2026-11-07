@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-app-control-absent-e2e-decision
+graders:
+  - name: 'fallback-line'
+    type: 'regex'
+    pattern: 'touched features not matched \(app-control not installed\)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-path-category'
+    type: 'regex'
+    pattern: 'e2e-(?:app-runtime|ui-frontend|runtime-config)|e2e-\*|runtime-affecting path'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'e2e-from-paths'
+    type: 'llm'
+    criteria: 'The reply decides touched features and whether /testing:run-e2e runs without app-control. It meets the legacy expectations: "Does not match src/cart/total.ts against the control skill''s sources globs itself" "Decides whether /testing:run-e2e runs from the e2e-* path categories and the other Stage 2 triggers, with no touched feature".'
+    focus: 'last_message'

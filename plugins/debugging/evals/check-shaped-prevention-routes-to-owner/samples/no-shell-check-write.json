@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat pyproject.toml",
+            "description": "Read the ruff config"
+          }
+        }
+      ],
+      "why": "reads the config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn utcnow reports/ 2>/dev/null > /dev/null && echo found",
+            "description": "Search for the banned call"
+          }
+        }
+      ],
+      "why": "redirects to /dev/null only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> pyproject.toml <<'EOF'\n[tool.ruff.lint.flake8-tidy-imports.banned-api]\n\"datetime.datetime.utcnow\".msg = \"banned\"\nEOF",
+            "description": "Add a banned-api rule"
+          }
+        }
+      ],
+      "why": "appends a lint rule"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .githooks && tee .githooks/pre-commit <<'EOF'\n#!/bin/sh\nEOF",
+            "description": "Add a hook"
+          }
+        }
+      ],
+      "why": "tee into a hooks dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/line-length = 100/line-length = 100\\nextend-select = [\"TID\"]/' pyproject.toml",
+            "description": "Turn on the banned-api rule"
+          }
+        }
+      ],
+      "why": "sed -i on pyproject.toml"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No. **Lane telemetry** prints `no telemetry issue found` and **Queues** prints `no queue labels found`; the other sections render.",
+      "why": "bold labels, code spans"
+    },
+    {
+      "answer": "The Queues section says \"no queue labels found\", the telemetry section says \"no telemetry issue found\", and the rest still renders.",
+      "why": "reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: with no telemetry issue the script exits 5 and the brief fails.",
+      "why": "says it fails"
+    },
+    {
+      "answer": "No. The telemetry section prints no telemetry issue found, and the Queues section shows each label at 0.",
+      "why": "near miss: one empty state right, queues shown as zero rows"
+    }
+  ]
+}

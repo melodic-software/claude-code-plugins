@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Report: ready refused because PR 813 carries `do-not-merge`.",
+      "why": "names the label"
+    },
+    {
+      "answer": "The do-not-merge label stays.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ready refused; PR 813 left as a draft.",
+      "why": "no reason"
+    },
+    {
+      "answer": "A hold label blocked it.",
+      "why": "unnamed label"
+    }
+  ]
+}

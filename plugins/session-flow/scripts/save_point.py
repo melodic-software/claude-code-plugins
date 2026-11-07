@@ -160,7 +160,8 @@ ARCHIVE_TYPE = "handoff-archive"
 HOT_FILE_MAX_BYTES = 24_600
 # The Read tool's page cap, 25,000 tokens ("cap 25000" in its truncation banner),
 # at the lowest audited density above (2.34 bytes per token), so no audited file
-# under it overflows one Read. A hot file over it FAILs even when its core alone
+# under it overflows one default Read; past it the Read returns only the first page
+# unless the reader passes allow_large. A hot file over it FAILs even when its core alone
 # passes the hot-file cap: the core's UNVALIDATED pass ends here.
 READ_CAP_BYTES = 58_500
 # GitHub state claims in a shape-3 hot file (validate WARNs): an issue or pull
@@ -1418,7 +1419,7 @@ def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
         )
         return (
             "FAIL",
-            f"size: {size} bytes is over the {READ_CAP_BYTES}-byte Read page cap, so one Read cannot hold this file; {fix} ({parts})",
+            f"size: {size} bytes is over the {READ_CAP_BYTES}-byte Read page cap, so the resume prompt's default Read returns only the first page, with a PARTIAL view notice; {fix} ({parts})",
         )
     if size <= HOT_FILE_MAX_BYTES:
         return None

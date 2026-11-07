@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-run-per-item-prs-land-one-at-a-time
+graders:
+  - name: 'excludes-held-354'
+    type: 'regex'
+    pattern: '#354\b[^\n]{0,160}\b(?:skip(?:s|ped)?|(?:exclude[sd]?|excluding)|left out|leaves? (?:it )?out|out of the run|held elsewhere)|\b(?:skip(?:s|ped)?|(?:exclude[sd]?|excluding)|leaves? out|left out|held elsewhere)\b[^\n]{0,160}#354\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship run session does with the stated state. PASS only if it satisfies every point: (1) Excludes and reports the item claimed by another session (#354) rather than claiming or dispatching it; (2) Asks the user to approve the drafted item list before claiming; (3) Hands the items to /implementation:implement-dispatch''s item-list mode on the default base; (4) Gives each item its own PR against the default branch; (5) Lands one PR at a time through /source-control:pull-request, bringing the next current with the default branch before it merges; (6) Merges only on the user''s go-ahead. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

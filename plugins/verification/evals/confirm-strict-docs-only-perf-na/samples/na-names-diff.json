@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| perf | n/a: the diff touches only docs/onboarding.md, no runtime code path |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| perf | not needed |"
+    },
+    {
+      "answer": "docs/onboarding.md changed"
+    },
+    {
+      "answer": "| Perf | Not applicable. No performance claim was made. |"
+    }
+  ]
+}

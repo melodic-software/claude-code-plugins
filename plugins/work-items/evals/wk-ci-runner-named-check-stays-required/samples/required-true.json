@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"skill linter refused in this sandbox\", \"required\": true}]",
+      "why": "json"
+    },
+    {
+      "answer": "not_done: skill linter, required: true",
+      "why": "prose field"
+    },
+    {
+      "answer": "- **required:** `true`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"lint-skills, left to the PR's CI\", \"required\": false}]",
+      "why": "left to CI"
+    },
+    {
+      "answer": "The linter is required but could not run.",
+      "why": "no field"
+    }
+  ]
+}

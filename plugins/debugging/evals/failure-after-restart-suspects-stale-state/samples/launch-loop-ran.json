@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 sync_client.py; echo exit=$?",
+            "description": "Launch the client"
+          }
+        }
+      ],
+      "why": "launches the client"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat state/profile.lock\npython3 sync_client.py 2>&1 | grep -c 'unable to open profile'",
+            "description": "Launch and count the error"
+          }
+        }
+      ],
+      "why": "launch after an escaped newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la state state/cache",
+            "description": "List the state files"
+          }
+        }
+      ],
+      "why": "lists state, never launches"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,60p' sync_client.py",
+            "description": "Read the client"
+          }
+        }
+      ],
+      "why": "reads sync_client.py, never launches it"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "One merged attention view, oldest first within each kind, rows tagged [escalated], [intake], [human-gated], and a report-only [won't-do]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "**Human-gated role:** `blocked-on-human` (from `config.role_labels`), so the escalated and parked rows key on that label.",
+      "why": "markdown label and code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The binding remaps the role, but the view lists items labeled needs-human: one [escalated], one [human-gated].",
+      "why": "near miss: queries the default literal, never names the remapped label"
+    },
+    {
+      "answer": "Four [intake] rows, one [escalated], one [human-gated], one [won't-do].",
+      "why": "no role resolution stated"
+    }
+  ]
+}

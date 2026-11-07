@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: confirm-live-workers-two-split
+graders:
+  - name: 'report-line'
+    type: 'regex'
+    pattern: 'live_workers[`*_]*\s*:\s*[`*_]*2\b[^\n]*verification\.yaml'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-price'
+    type: 'regex'
+    pattern: '\$\s?\d|\b\d+(?:\.\d+)?\s?USD\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'two-worker-split'
+    type: 'llm'
+    criteria: 'The reply plans a two-worker live drive. It meets the legacy expectations: "Resolves live_workers to 2 from docs/conventions/verification.yaml on origin/main" "Splits the four entry points across two workers with no entry point given to both" "Gives each worker distinct session names" "Reports measured tokens and wall time per worker and states no price or cost" "Checks for a missing entry point against the merged report of both workers".'
+    focus: 'last_message'

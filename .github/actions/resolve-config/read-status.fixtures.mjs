@@ -19,9 +19,11 @@ export const STRANGER_ID = 99;
 export const TRUSTED_ACTORS = { version: 1, actors: [{ id: HUMAN_ID, login: "person", kind: "human" }] };
 
 // `github` with issue field reads answered from `fields`: issue number ->
-// {state, setter, named} (setter defaults to HUMAN_ID, and named, the option
-// name the newest field event left, to state), or an Error the read throws.
-// An issue `fields` omits holds no value. Every other call goes to `github`.
+// {state, setter, named, nodes} (setter defaults to HUMAN_ID, named, the
+// option name the newest field event left, to state, and nodes, the GraphQL
+// field event nodes, to one change event naming them), or an Error the read
+// throws. An issue `fields` omits holds no value. Every other call goes to
+// `github`.
 export function withFields(github, fields = {}) {
   return async (method, path, body, ...rest) => {
     const read = /\/issues\/([0-9]+)\/issue-field-values$/.exec(path);
@@ -32,9 +34,9 @@ export function withFields(github, fields = {}) {
       }
       return entry ? [{ issue_field_id: FIELD, single_select_option: { id: OPTION[entry.state] } }] : [];
     }
-    if (method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
+    if (method === "POST" && path === "/graphql" && body?.variables?.number !== undefined && /IssueFieldAddedEvent/.test(body?.query ?? "")) {
       const entry = fields[String(body.variables.number)];
-      const nodes = entry && !(entry instanceof Error) ? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
+      const nodes = !entry || entry instanceof Error ? [] : (entry.nodes ?? [{ __typename: "IssueFieldChangedEvent", newValue: entry.named ?? entry.state, actor: { databaseId: entry.setter ?? HUMAN_ID }, issueField: { fullDatabaseId: String(FIELD) } }]);
       return { data: { repository: { issue: { timelineItems: { nodes } } } } };
     }
     return github(method, path, body, ...rest);

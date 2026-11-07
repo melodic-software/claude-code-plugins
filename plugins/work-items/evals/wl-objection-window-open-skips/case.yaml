@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-objection-window-open-skips
+graders:
+  - name: 'window-open-line'
+    type: 'regex'
+    pattern: 'objection window open:[\s*_`]{0,6}#?301\b[\s*_`]{0,6}until[\s*_`]{0,6}2026-10-06T09:00(?::00)?Z'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Does not dispatch #301 while its window is open; (2) Changes none of #301''s labels and posts no escalation; (3) Does not wait or sleep in the cycle for the window to end; (4) Does not count the skip toward the no-progress streak; (5) Lists objection window open: #301 until 2026-10-06T09:00:00Z in the cycle report. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

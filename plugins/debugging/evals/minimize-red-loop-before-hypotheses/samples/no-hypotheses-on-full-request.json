@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Not hypotheses yet. Shrink the request first, one element per replay, until only the elements that keep it red are left. Phase 3 ranks causes against that small case.",
+      "why": "minimizing first, hypotheses deferred"
+    },
+    {
+      "answer": "Next: minimize. Cut body fields, headers and config one at a time with a replay after each cut; once nothing more can go, we rank causes against what is left.",
+      "why": "no cause named before minimizing"
+    },
+    {
+      "answer": "**2. Minimize**\n- Then for the 8 config values, change one at a time back to its default and re-run. Config interactions are the likeliest place for surprises. Record any value whose removal turns the loop green.\n- Stop when removing any remaining element turns the loop green. The result is the minimal request, which becomes the Phase 5 regression test.\n\n**3. Then Phase 3**\nPost a ranked table of 3 to 5 causes, each with an observable \"refuted if\" result. The minimized set drives the ranking.",
+      "why": "smoke dg1c reply (3 of 3 judges failed it under the old 'lists as likely' clause): a remark ordering the cuts, with the Phase 3 table deferred until after minimizing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Likely causes, ranked: 1) the discount_code field is null, 2) the X-Tenant header is missing, 3) the tax config is off. Start by testing the null discount_code.",
+      "why": "ranks causes against the full request"
+    },
+    {
+      "answer": "Shrink it later; first check whether the 500 comes from the inventory service by stubbing it out.",
+      "why": "tests a cause before minimizing"
+    },
+    {
+      "answer": "Minimize first, one element per replay. My bet is the null discount_code field: test that first, then cut the rest.",
+      "why": "near miss: plans minimizing but names a culprit to test before it"
+    }
+  ]
+}

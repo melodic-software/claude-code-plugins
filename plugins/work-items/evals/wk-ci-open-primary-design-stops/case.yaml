@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-ci-open-primary-design-stops
+graders:
+  - name: 'stopped-design-change'
+    type: 'regex'
+    pattern: '(?=[\s\S]*"?exit"?[\s*_`]*[:=][\s*_`"]*stopped\b)(?=[\s\S]*design-change:)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Makes no edit; (2) Writes exit as stopped; (3) Opens reason with design-change:; (4) Does not pick one of the two options and build it; (5) Does not write a pushback with cause intent for this design question. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

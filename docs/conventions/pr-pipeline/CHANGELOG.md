@@ -1,5 +1,70 @@
 # Changelog for the PR pipeline convention
 
+## [9.7.0] - 2026-11-07
+
+### Added
+
+- `loop.findings-after-first-review` (`blocking-only`, the default, or `all`): what a CI review lane reports on a head after the first one it reviewed whole. The schema declares it and resolve-config emits it with its default.
+
+## [9.6.1] - 2026-11-07
+
+### Changed
+
+- The `pr-unblock` dispatcher's open pull request listing no longer reads the fields only `fix-docs`
+  uses: each pull request's files, line counts and head-commit signer. `fix-docs` still reads them
+  through its one-pull-request query.
+
+## [9.6.0] - 2026-11-07
+
+### Changed
+
+- CI `fix-docs` starts only on a pull request's own `pull_request_target` event, through
+  `pr-unblock-dispatch.yml`'s `refine` job. A push to `main`, the half-hourly tick and a hand run
+  of the dispatcher no longer dispatch it. A pull request the event run skips waits for its next
+  push, reopen or ready flip, and so does one whose hold label comes off. `limits.fix-docs-per-run`
+  still turns it off at `0`; any other value turns it on, since each event offers one pull request.
+
+### Fixed
+
+- A hosted review's `wait-refine` job no longer ends its wait on a head read that showed a moved
+  head when a second read shows this head again. At the start, and at every poll, such a read now
+  resumes the wait for this head's Refine instead of reviewing at once.
+
+## [9.5.0] - 2026-11-07
+
+### Changed
+
+- An issue's Work status is read from and written to the Work status field; status labels no longer decide it, though a hold label still holds on top of it. `write-status.mjs` drops the label mirror (`statusMirror`, `labelsAfter`, `writeStatus`), and `check-born-triaged` fails when resolve-config's dependencies do not install.
+
+### Fixed
+
+- The hill-climb lane's draft pull request body no longer cuts a pass summary in half. A summary longer than 24000 characters is now cut at its last whitespace inside the cap, before the existing `(cut at 24000 characters; ...)` line; one token longer than the cap is still cut at the cap, never inside a surrogate pair.
+
+## [9.4.0] - 2026-11-07
+
+### Added
+
+- The hosted review lanes wait for this head's Refine before reviewing: a `wait-refine` job waits
+  up to 40 minutes for the `pr-refine` run this head's `pull_request_target` dispatcher started,
+  skips the review when the head moved meanwhile (that push starts the new head's review), and
+  reviews on every other outcome, a failed read included.
+
+## [9.3.0] - 2026-11-07
+
+### Added
+
+- `models.issue-status.bot-setters`: the bot accounts whose Work status value counts for every state but agent-ready, here github-actions[bot] and the melodic- Apps of `trusted-actors.json`. The config reader rejects a third-party bot, the lanes App and a repeated id (`undefined-status`); a melodic- entry `trusted-actors.json` no longer lists as that bot stops counting, so its value reads as unset. agent-ready still counts only from a listed human or the lanes App.
+- `intake-reenter` starts on `issues: field_added` and `field_removed` for the Work status field from a person. When a listed human moves a hold that exists only on the field to none or needs-triage, on an issue with no status label but `needs-triage`, it adds `needs-triage`, sets the field to needs-triage when the release left it empty, and dispatches intake once.
+- resolve-config's `fieldEvents` reads each Work status field event's actor, time and values; `write-status.mjs`'s `statusWriter` sets a named state and throws `StatusWriteError` when the write does not land.
+
+## [9.2.0] - 2026-11-07
+
+### Added
+
+- The pr-run-activity convention describes the `refine` job of `pr-unblock-dispatch.yml`, which
+  starts fix-docs on a pull request's own `pull_request_target` event under the push dispatcher's
+  once-per-PR rule and records the dispatch for the trusted-trigger gate.
+
 ## [9.1.4] - 2026-11-07
 
 ### Fixed

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "objection window open: #301 until 2026-10-06T09:00:00Z",
+      "why": "the line"
+    },
+    {
+      "answer": "- `objection window open: #301 until 2026-10-06T09:00:00Z`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **Objection window open:** `#301 until 2026-10-06T09:00:00Z`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "objection: #301 -> escalated",
+      "why": "escalated"
+    },
+    {
+      "answer": "#301 is inside its objection window until 2026-10-06T09:00:00Z.",
+      "why": "no report line"
+    }
+  ]
+}

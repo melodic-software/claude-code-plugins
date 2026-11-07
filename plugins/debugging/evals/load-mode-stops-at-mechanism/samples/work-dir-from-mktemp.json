@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "work=\"$(mktemp -d)\" && python3 \"/opt/eval/plugins/debugging/skills/analyze-profile/scripts/trace_to_sqlite.py\" --in profiles/checkout.cpuprofile --out \"${work:?}/profile.db\"",
+            "description": "Convert the profile"
+          }
+        }
+      ],
+      "why": "mktemp -d in the conversion call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mktemp -d \"/opt/eval/tmp/profile.XXXXXX\"",
+            "description": "Make the work directory"
+          }
+        }
+      ],
+      "why": "mktemp -d with a template"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p /tmp/profile && python3 trace_to_sqlite.py --in profiles/checkout.cpuprofile --out /tmp/profile/profile.db",
+            "description": "Convert into a fixed directory"
+          }
+        }
+      ],
+      "why": "a fixed directory, not one mktemp made"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mktemp /tmp/profile.db.XXXX",
+            "description": "Make a temp file"
+          }
+        }
+      ],
+      "why": "mktemp without -d makes a file"
+    }
+  ]
+}

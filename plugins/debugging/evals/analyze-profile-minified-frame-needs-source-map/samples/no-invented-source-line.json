@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I can't give a source line yet. `a` is a minified name and line 1 of main.3f9a.js is the whole minified bundle, so the frame maps to no source line until the bundle's source map resolves it. The map is usually main.3f9a.js.map beside the bundle, or named by a sourceMappingURL comment at its end; send it to me, or the build's dist folder, and I'll resolve the frame to a file, function and line.",
+      "why": "declines, names the map, invents nothing"
+    },
+    {
+      "answer": "Unresolved frame: `a` (main.3f9a.js:1). Only the source map for main.3f9a.js can turn this into an original file and line. Where is your build output? With the .map file I can resolve it.",
+      "why": "lists the unresolved frame and asks for the map"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Frame `a` is most likely `formatPrice` in src/pricing/format.ts around line 42; confirm with the source map.",
+      "why": "guesses an original file and line"
+    },
+    {
+      "answer": "The source line is line 1 of main.3f9a.js.",
+      "why": "presents the minified line as the source line"
+    }
+  ]
+}

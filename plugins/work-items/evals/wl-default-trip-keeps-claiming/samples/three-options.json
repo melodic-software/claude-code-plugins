@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
+      "why": "all three"
+    },
+    {
+      "answer": "You can continue as is, switch accounts, or set LOOP_LANE_RATE_LIMIT_PAUSE=1 to opt-in.",
+      "why": "reworded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paused until resets_at; switch accounts to continue.",
+      "why": "no opt-in option"
+    },
+    {
+      "answer": "Continuing; nothing else to do.",
+      "why": "only one option"
+    },
+    {
+      "answer": "The opt-in is unset, so the lane continues claiming. Switch accounts if the window runs out.",
+      "why": "review example: names the unset opt-in, not the option"
+    }
+  ]
+}
