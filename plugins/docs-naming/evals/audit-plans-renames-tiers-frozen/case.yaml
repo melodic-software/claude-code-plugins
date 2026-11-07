@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: audit-plans-renames-tiers-frozen
-description: 'Legacy audit-file-names 1 and 3, merged on one fixture: three offending names (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) cited from current files, an ADR in the historical tier (links-and-paths) and CHANGELOG.md in the released tier (none). The run inventories, sweeps and emits the plan into .work/docs-hygiene/main/file-names.md, prints the form table before the findings, lists both review sites (docs/index.md lines 8 and 9) singly, states the 4 report sites plainly, says the tree is unchanged, and names /docs-naming:realign-file-names (audit-file-names SKILL.md lines 47-126; context/tiers.md). Nothing is renamed or edited. ran-inventory is the with-only indicator; rows-and-tiers (llm, trace) quotes the legacy expectations the regexes do not decide. ran-sweep and ran-emit are with-only indicators beside ran-inventory. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy audit-file-names 1 and 3, merged on one fixture: three offending names (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) cited from current files, an ADR in the historical tier (links-and-paths) and CHANGELOG.md in the released tier (none). The run inventories, sweeps and emits the plan into .work/docs-hygiene/main/file-names.md, prints the form table before the findings, lists both review sites (docs/index.md lines 8 and 9) singly, states the 4 report sites plainly, says the tree is unchanged, and names /docs-naming:realign-file-names (audit-file-names SKILL.md lines 47-126; context/tiers.md). Nothing is renamed or edited. ran-inventory is the with-only indicator; rows-and-tiers (llm, trace) quotes the legacy expectations the regexes do not decide, and says-unchanged (llm) quotes its one legacy line. ran-sweep and ran-emit are with-only indicators beside ran-inventory. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [audit-file-names, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'inventory.sh, sweep.sh and emit-findings.sh run and the plan lands at .work/docs-hygiene/main/file-names.md. The reply shows the form table (released none, historical links-and-paths, current all) before the three findings, quotes each site''s form, tier and action from the sweep, lists docs/index.md lines 8 and 9 as review sites individually, says the 4 report sites (CHANGELOG.md and the ADR''s prose) are left as written, says nothing was renamed or edited, and names /docs-naming:realign-file-names as the next step. No git mv, mv or Edit runs.'
@@ -33,15 +33,14 @@ graders:
     arm: both
   - name: report-count-stated
     type: regex
-    pattern: '\b(?:4|four)\b[^\n]{0,80}?\b(?:report|frozen|untouched|not (?:be )?(?:edited|rewritten|touched)|(?:left|stays?|remains?) (?:alone|as written|unchanged)|listed)\b|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?\b(?:4|four)\b'
+    pattern: '\b(?:4|four)\b[^\n|]{0,80}?\b(?:report|frozen|untouched|not (?:be )?(?:edited|rewritten|touched)|(?:left|stays?|remains?) (?:alone|as written|unchanged)|listed)\b|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b[^\n]{0,20}?\b(?:4|four)\b'
     flags: 'i'
     target: last_message
     arm: both
   - name: says-unchanged
-    type: regex
-    pattern: '\b(?:nothing|no files?)\b[^\n.]{0,40}?\b(?:was |were |has been |have been |got )?(?:renamed|edited|changed|moved|touched|modified)\b|\b(?:tree|working tree|repository) (?:is|was|stays|remains|left) (?:unchanged|untouched|byte-identical)\b|\bunchanged\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'Pass only if this legacy expectation holds: "The response states that nothing was renamed or edited."'
+    focus: last_message
     arm: both
   - name: names-realign
     type: regex

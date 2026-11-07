@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: realign-frozen-and-review-untouched
-description: 'Legacy realign-file-names 4. Refit: the legacy placeholder id FN-9a1c4e70 is the fixture plan''s FN-c5a4747f (docs/CATALOG.md to docs/catalog.md), whose sites are one current edit, two review bare stems (docs/index.md lines 8 and 9) and one released-tier report (CHANGELOG.md line 6). The run applies the finding, then declines the two extras separately: the released CHANGELOG site is frozen by the tier''s declared form none, and the review sites are shown with their lines for the operator to edit by hand (realign-file-names SKILL.md lines 124-129; context/tiers.md). no-frozen-edit, no-frozen-write and no-frozen-shell-write guard CHANGELOG.md and docs/index.md. applied-the-id is the with-only indicator; declines-separately (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy realign-file-names 4. Refit: the legacy placeholder id FN-9a1c4e70 is the fixture plan''s FN-c5a4747f (docs/CATALOG.md to docs/catalog.md); otherwise the prompt is the legacy prompt. Its sites are one current edit, two review bare stems (docs/index.md lines 8 and 9) and one released-tier report (CHANGELOG.md line 6). The run applies the finding, then declines the two extras separately: the released CHANGELOG site is frozen by the tier''s declared form none, and the review sites are shown with their lines for the operator to edit by hand (realign-file-names SKILL.md lines 124-129; context/tiers.md). no-frozen-edit, no-frozen-write and no-frozen-shell-write guard CHANGELOG.md and docs/index.md. applied-the-id is the with-only indicator; declines-separately (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [realign-file-names, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'apply-rename.sh applies FN-c5a4747f and docs/catalog.md exists. CHANGELOG.md and docs/index.md are not touched by Edit, Write or a shell rewrite. The reply says the CHANGELOG site stays as written because the released tier''s form is none, shows docs/index.md lines 8 and 9 as review sites for the operator to edit by hand, and does not let either refusal block the rename.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "Apply FN-c5a4747f, and while you are in there fix the CHANGELOG entry and the two ambiguous prose mentions so everything is consistent. No one is around to answer questions while this runs.\n"
+  prompt: "Apply FN-c5a4747f, and while you are in there fix the CHANGELOG entry and the two ambiguous prose mentions so everything is consistent.\n"
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 900

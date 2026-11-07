@@ -19,6 +19,16 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -1 && git diff --name-status HEAD"
+          }
+        }
+      ]
     }
   ],
   "fail": [
@@ -38,6 +48,16 @@
           "tool": "Bash",
           "input": {
             "command": "git -C /opt/eval/ws log --follow --name-status -- docs/Release_Notes.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/docs-hygiene/main/file-names.md; git log --stat --oneline | head -30"
           }
         }
       ]

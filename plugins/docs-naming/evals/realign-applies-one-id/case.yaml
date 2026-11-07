@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: realign-applies-one-id
-description: 'Legacy realign-file-names 1. Refit: the legacy placeholder id FN-9a1c4e70 is the fixture plan''s real id FN-c60eb30e (docs/Release_Notes.md to docs/release-notes.md; ids are content hashes the audit''s emitter computes). The run presents that finding (pair, site counts by tier, review sites, form table) before acting, applies only that id with apply-rename.sh, reports the APPLIED, EDITED, SKIPPED, DRIFTED and REGENERATED rows as written, runs the orphan sweep (git grep for the old name, since docs-hygiene is not loaded), and leaves the two sibling findings pending with their files unmoved (realign-file-names SKILL.md lines 48-102; context/apply-recipe.md). applied-the-id is the with-only indicator; present-first (llm, trace) grades the order. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy realign-file-names 1. Refit: the legacy placeholder id FN-9a1c4e70 is the fixture plan''s real id FN-c60eb30e (docs/Release_Notes.md to docs/release-notes.md; ids are content hashes the audit''s emitter computes); otherwise the prompt is the legacy prompt. The id named in the prompt is the acceptance, applied without a second ask (SKILL.md lines 63-64). The run presents that finding (pair, site counts by tier, review sites, form table) before acting, applies only that id with apply-rename.sh, reports the APPLIED, EDITED, SKIPPED, DRIFTED and REGENERATED rows as written, runs the orphan sweep (git grep for the old name, since docs-hygiene is not loaded), and leaves the two sibling findings pending with their files unmoved (realign-file-names SKILL.md lines 48-102; context/apply-recipe.md). applied-the-id is the with-only indicator; present-first (llm, trace) grades the order. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [realign-file-names, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'FN-c60eb30e is presented, then apply-rename.sh runs with that one id and docs/release-notes.md exists. The reply reports the five output rows as the script wrote them, and a git grep for docs/Release_Notes.md or Release_Notes.md runs as the orphan sweep. No apply-rename.sh call names another id, and docs/Rate_Limits.md and docs/CATALOG.md are not moved; their records stay pending.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "The audit wrote a plan with three findings. Apply FN-c60eb30e. No one is around to answer questions while this runs.\n"
+  prompt: "The audit wrote a plan with three findings. Apply FN-c60eb30e.\n"
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 900

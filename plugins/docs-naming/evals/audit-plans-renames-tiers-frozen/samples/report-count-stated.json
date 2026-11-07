@@ -8,6 +8,9 @@
     },
     {
       "answer": "Report sites: 4."
+    },
+    {
+      "answer": "| Report sites | 4 |"
     }
   ],
   "fail": [
@@ -19,6 +22,12 @@
     },
     {
       "answer": "2 review sites need a human."
+    },
+    {
+      "answer": "| `docs/CATALOG.md` \u2192 `docs/catalog.md` | 4 | 1 current (edit), 2 current (review), 1 released (report) |"
+    },
+    {
+      "answer": "- **CHANGELOG.md:** 3 sites are marked `report`. The ADR has one `report` site."
     }
   ]
 }

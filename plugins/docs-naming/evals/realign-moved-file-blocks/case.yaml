@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: realign-moved-file-blocks
-description: 'Legacy realign-file-names 3. Refit: the legacy placeholder id FN-43878f0d is the fixture plan''s FN-c60eb30e; the scaffold moves docs/Release_Notes.md to docs/guides/notes.md in a commit after the audit. apply-rename.sh exits 1 ("no longer tracked at this root; the fix is a re-audit, not a guess"); the reply reports the block as written, names the gone path, gives re-auditing as the remedy, and neither retries with other arguments, guesses or searches for the new location, nor edits anything (realign-file-names SKILL.md lines 111-113; context/apply-recipe.md step 2). no-guess (llm, trace) quotes the legacy expectations. no-write guards Write; no-file-search rejects a find -name/-path or git log --follow hunt for the moved file. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy realign-file-names 3. Refit: the legacy placeholder id FN-43878f0d is the fixture plan''s FN-c60eb30e; the scaffold moves docs/Release_Notes.md to docs/guides/notes.md in a commit after the audit. apply-rename.sh exits 1 ("no longer tracked at this root; the fix is a re-audit, not a guess"); the reply reports the block as written, names the gone path, gives re-auditing as the remedy, and neither retries with other arguments, guesses or searches for the new location, nor edits anything (realign-file-names SKILL.md lines 111-113; context/apply-recipe.md step 2). no-guess (llm, trace) quotes the legacy expectations. no-write guards Write; no-file-search rejects a find -name/-path, or a git log --follow, --stat, --name-status, --name-only or --find-renames hunt, for the moved file. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [realign-file-names, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'apply-rename.sh runs once for FN-c60eb30e and exits 1. The reply says docs/Release_Notes.md is no longer tracked, names a re-audit (/docs-naming:audit-file-names) as the remedy, does not guess where the file went or look for it, and makes no edit or git mv.'
@@ -53,7 +53,7 @@ graders:
   - name: no-file-search
     type: tool_used
     tool: Bash
-    input_match: '\bfind\b(?:[^"\\]|\\.)*-i?(?:name|path)\b|\bgit\s+(?:-C\s+\S+\s+)?log\b(?:[^"\\]|\\.)*--follow'
+    input_match: '\bfind\b(?:[^"\\]|\\.)*-i?(?:name|path)\b|\bgit\s+(?:-C\s+\S+\s+)?log\b(?:[^"\\;&|]|\\.)*--(?:follow|stat|name-status|name-only|find-renames)\b'
     min: 0
     max: 0
     arm: both

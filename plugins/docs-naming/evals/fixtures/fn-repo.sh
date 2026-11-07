@@ -3,6 +3,7 @@
 #   audit-tree              three offending names cited across the current, historical and released tiers
 #   collision               audit-tree plus docs/BETA.md beside docs/beta.md
 #   plan-pending            audit-tree plus the audit's plan, every finding pending
+#   plan-six-review         plan-pending with six review sites for docs/CATALOG.md
 #   plan-moved              plan-pending, then docs/Release_Notes.md moved and committed elsewhere
 #   setup-malformed         a tracked team layer whose line 2 is a flow mapping
 #   setup-empty             a repository with no docs-naming layer
@@ -101,11 +102,81 @@ MD
 MD
 }
 
+six_review_tree() {
+  audit_tree
+  mkdir -p docs/ops tools
+  printf '\n## Pick a type\n\nEach shipment has one type.\nTypes decide the label.\n\nSteps:\n\nOpen CATALOG and pick a shipment type.\n' >>docs/getting-started.md
+  printf '# FAQ\n\n## Sizes\n\nWhy is the CATALOG so long?\n' >docs/faq.md
+  {
+    printf '# Runbook\n'
+    for n in $(seq 2 21); do printf 'Step %s: check the dashboard.\n' "${n}"; done
+    printf 'Restart the CATALOG service after a deploy.\n'
+  } >docs/ops/runbook.md
+  {
+    printf '#!/usr/bin/env bash\n'
+    for n in $(seq 2 13); do printf ': step %s\n' "${n}"; done
+    printf 'echo "CATALOG rebuilt"\n'
+  } >tools/rebuild.sh
+}
+
+# The CATALOG record: its two review sites, or (six) the six review sites of six_review_tree.
+catalog_record() {
+  if [[ "${1}" == six ]]; then
+    cat <<'PLAN'
+### FN-c5a4747f `docs/CATALOG.md` to `docs/catalog.md`
+
+- **Status:** pending
+- **Collision:** none
+- **References:** 8 site(s) in 6 file(s)
+- **By tier:** 1 current (edit), 6 current (review), 1 released (report)
+- **Needs a human:** 6 site(s) marked review
+- **Generated touched:** none
+- **Sites:**
+
+| file | line | form | tier | action | excerpt |
+|---|---|---|---|---|---|
+| `CHANGELOG.md` | 6 | md-link | released | report | - Linked the [catalog](docs/CATALOG.md) from the guide. |
+| `docs/getting-started.md` | 3 | md-link | current | edit | Install the service, then read the [release notes](Release_Notes.md) and the [catalog](CATALOG.md). |
+| `docs/faq.md` | 5 | bare-stem | current | review | Why is the CATALOG so long? |
+| `docs/getting-started.md` | 12 | bare-stem | current | review | Open CATALOG and pick a shipment type. |
+| `docs/index.md` | 8 | bare-stem | current | review | The catalog lists every shipment type; see CATALOG for the full list. |
+| `docs/index.md` | 9 | bare-stem | current | review | Ask in the docs channel before you edit CATALOG by hand. |
+| `docs/ops/runbook.md` | 22 | bare-stem | current | review | Restart the CATALOG service after a deploy. |
+| `tools/rebuild.sh` | 14 | bare-stem | current | review | echo "CATALOG rebuilt" |
+
+PLAN
+    return
+  fi
+  cat <<'PLAN'
+### FN-c5a4747f `docs/CATALOG.md` to `docs/catalog.md`
+
+- **Status:** pending
+- **Collision:** none
+- **References:** 4 site(s) in 3 file(s)
+- **By tier:** 1 current (edit), 2 current (review), 1 released (report)
+- **Needs a human:** 2 site(s) marked review
+- **Generated touched:** none
+- **Sites:**
+
+| file | line | form | tier | action | excerpt |
+|---|---|---|---|---|---|
+| `CHANGELOG.md` | 6 | md-link | released | report | - Linked the [catalog](docs/CATALOG.md) from the guide. |
+| `docs/getting-started.md` | 3 | md-link | current | edit | Install the service, then read the [release notes](Release_Notes.md) and the [catalog](CATALOG.md). |
+| `docs/index.md` | 8 | bare-stem | current | review | The catalog lists every shipment type; see CATALOG for the full list. |
+| `docs/index.md` | 9 | bare-stem | current | review | Ask in the docs channel before you edit CATALOG by hand. |
+
+PLAN
+}
+
+# The audit's plan for audit_tree, every finding pending; plan six swaps in the six-review CATALOG record.
 plan() {
+  local scanned=7
+  [[ "${1:-two}" == six ]] && scanned=9
   mkdir -p .work/docs-hygiene/main
   printf '*\n' >.work/.gitignore
   head="$(git rev-parse HEAD)"
-  sed "s/@HEAD@/${head}/" >.work/docs-hygiene/main/file-names.md <<'PLAN'
+  {
+    sed -e "s/@HEAD@/${head}/" -e "s/@SCANNED@/${scanned}/" <<'PLAN'
 ---
 type: docs-naming-file-name-findings
 schema: 1
@@ -114,7 +185,7 @@ branch: main
 head: @HEAD@
 config: resolved
 roots: docs
-files_scanned: 7
+files_scanned: @SCANNED@
 findings: 3
 collisions: 0
 ---
@@ -148,23 +219,9 @@ this file by id and never resurrects a decision.
 | `docs/getting-started.md` | 3 | md-link | current | edit | Install the service, then read the [release notes](Release_Notes.md) and the [catalog](CATALOG.md). |
 | `docs/index.md` | 5 | md-link | current | edit | \| [Release notes](Release_Notes.md) \| what shipped \| |
 
-### FN-c5a4747f `docs/CATALOG.md` to `docs/catalog.md`
-
-- **Status:** pending
-- **Collision:** none
-- **References:** 4 site(s) in 3 file(s)
-- **By tier:** 1 current (edit), 2 current (review), 1 released (report)
-- **Needs a human:** 2 site(s) marked review
-- **Generated touched:** none
-- **Sites:**
-
-| file | line | form | tier | action | excerpt |
-|---|---|---|---|---|---|
-| `CHANGELOG.md` | 6 | md-link | released | report | - Linked the [catalog](docs/CATALOG.md) from the guide. |
-| `docs/getting-started.md` | 3 | md-link | current | edit | Install the service, then read the [release notes](Release_Notes.md) and the [catalog](CATALOG.md). |
-| `docs/index.md` | 8 | bare-stem | current | review | The catalog lists every shipment type; see CATALOG for the full list. |
-| `docs/index.md` | 9 | bare-stem | current | review | Ask in the docs channel before you edit CATALOG by hand. |
-
+PLAN
+    catalog_record "${1:-two}"
+    cat <<'PLAN'
 ### FN-6f3ce017 `docs/Rate_Limits.md` to `docs/rate-limits.md`
 
 - **Status:** pending
@@ -181,6 +238,7 @@ this file by id and never resurrects a decision.
 | `docs/index.md` | 6 | backtick-path | current | edit | \| `docs/Rate_Limits.md` \| request budgets \| |
 
 PLAN
+  } >.work/docs-hygiene/main/file-names.md
 }
 
 case "${mode}" in
@@ -197,6 +255,13 @@ plan-pending)
   g add -A
   g commit -q -m "chore: seed"
   plan
+  exit 0
+  ;;
+plan-six-review)
+  six_review_tree
+  g add -A
+  g commit -q -m "chore: seed"
+  plan six
   exit 0
   ;;
 plan-moved)
