@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- **#12**: rewrite its marker to `<!-- recurring-schedule id=ci-action-pins -->` (read-modify-write of the body)",
+      "why": "markdown list"
+    },
+    {
+      "answer": "Edit the body of #12 so the marker names ci-action-pins.",
+      "why": "verb first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#12 is closed; ci-action-pins starts fresh when next_due arrives.",
+      "why": "near miss: closes the renamed row's item instead of rewriting the marker"
+    },
+    {
+      "answer": "Rewrite the marker on #15 to ci-action-pins, since its title matched.",
+      "why": "wrong item, matched by title"
+    }
+  ]
+}
