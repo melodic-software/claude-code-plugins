@@ -181,6 +181,7 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   for (const [label, overrides] of [
     ["a push to main", { "github.event.workflow_run.event": "push" }],
     ["a hand-started tick", { "github.event.workflow_run.event": "workflow_dispatch" }],
+    ["a pull request's refine run", { "github.event.workflow_run.event": "pull_request_target", "github.event.workflow_run.head_branch": "feat/x" }],
     ["another branch", { "github.event.workflow_run.head_branch": "feat/x" }],
     ["another repository", { "github.event.workflow_run.repository.full_name": "fork/claude-code-plugins" }],
     ["another workflow's schedule", { "github.event.workflow_run.path": ".github/workflows/maintenance-reconcile-lost-runs.yml" }],
@@ -1428,4 +1429,225 @@ for (const [activity, select] of [
       proceed,
     );
   }
+});
+
+// The pull_request_target refine job of pr-unblock-dispatch.yml starts Refine
+// under the four invariants of owner decision Q12 (ADR 0090). Comment lines
+// are dropped, so only what the job runs is read.
+const refineLines = () => jobBlock(DISPATCHER, "refine").filter((line) => !/^\s*#/.test(line));
+
+test("pr-unblock-dispatch.yml starts the refine job on a ready same-repository PR's event into main, and the listing job never on one", () => {
+  const text = readFileSync(new URL(`../../workflows/${DISPATCHER}`, import.meta.url), "utf8");
+  assert.match(text, /\n {2}pull_request_target: # zizmor: ignore\[dangerous-triggers\]\n {4}types: \[opened, reopened, ready_for_review, synchronize\]\n {4}branches: \[main\]\n/);
+  const refine = (event, draft = false, head = "o/r") =>
+    evaluate(jobGate(DISPATCHER, "refine").gate, {
+      "github.event_name": event,
+      "github.event.pull_request.draft": draft,
+      "github.event.pull_request.head.repo.full_name": head,
+      "github.repository": "o/r",
+    });
+  assert.equal(refine("pull_request_target"), true);
+  assert.equal(refine("pull_request_target", true), false, "a draft");
+  assert.equal(refine("pull_request_target", false, "fork/r"), false, "a fork PR");
+  assert.equal(refine("push"), false);
+  // A pull_request_target run's ref is the base branch, main.
+  const listing = (event) => evaluate(jobGate(DISPATCHER, "dispatch").gate, { "github.ref": "refs/heads/main", "github.event_name": event });
+  assert.equal(listing("pull_request_target"), false);
+  for (const event of ["push", "schedule", "workflow_dispatch"]) {
+    assert.equal(listing(event), true, event);
+  }
+});
+
+test("refine invariant 1: it checks out only the commit its workflow file ran from, never the PR head", () => {
+  const lines = refineLines();
+  const checkouts = lines.filter((line) => /^ {8}uses: actions\/checkout@/.test(line)).length;
+  assert.equal(checkouts, 1, "one checkout");
+  const refs = lines.filter((line) => /^\s+ref: /.test(line)).map((line) => line.trim());
+  assert.deepEqual(refs, ["ref: ${{ github.workflow_sha }}"], "every ref: is the workflow commit");
+  assert.ok(!lines.some((line) => /^\s+repository: /.test(line)), "no checkout of another repository");
+  const body = lines.join("\n");
+  assert.doesNotMatch(body, /github\.head_ref|pull_request\.head\.(?:sha|ref)|merge_commit_sha|refs\/pull\//, "no head ref or SHA");
+  assert.match(body, /\n {10}persist-credentials: false\n/);
+  // A run: step could fetch and check out the head itself, so each script is
+  // pinned whole: any change to one needs this test changed with it.
+  const runs = {};
+  let step = "";
+  for (let at = 0; at < lines.length; at += 1) {
+    step = /^ {6}- name: (.*)$/.exec(lines[at])?.[1] ?? step;
+    const inline = /^ {8}run: (.*)$/.exec(lines[at]);
+    if (!inline) continue;
+    const script = inline[1] === "|" ? [] : [inline[1]];
+    for (const line of lines.slice(at + 1)) {
+      if (line !== "" && !line.startsWith("          ")) break;
+      script.push(line.slice(10));
+    }
+    runs[step] = script.join("\n").trimEnd();
+  }
+  assert.deepEqual(runs, {
+    "Install resolve-config's dependencies": "npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config",
+    "Dispatch pr-refine for this PR": "node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs",
+    "Name the dispatched-run record": [
+      'RUN_ID=$(head -n 1 "$RUN_IDS_FILE" 2>/dev/null) || RUN_ID=""',
+      'if [ -z "$RUN_ID" ]; then',
+      '  echo "no run dispatched"',
+      "  exit 0",
+      "fi",
+      'if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then',
+      '  echo "::error::the run id or the workflow commit is malformed"',
+      "  exit 1",
+      "fi",
+      `printf '{"dispatcher_run_id":%s,"workflow_sha":"%s","run_id":%s}\\n' "$GITHUB_RUN_ID" "$WORKFLOW_SHA" "$RUN_ID" \\`,
+      '  >"$RUNNER_TEMP/pr-unblock-target-dispatched.json"',
+      'echo "name=pr-unblock-target-dispatched-$WORKFLOW_SHA-$RUN_ID" >>"$GITHUB_OUTPUT"',
+    ].join("\n"),
+  });
+});
+
+// The modules the refine job's script loads, statically or through
+// import(new URL(...)), read no event text from the environment. A module
+// whose own entry point reads one (feedback-dispatch.mjs's main reads its
+// workflow_run event) passes only while every read sits inside its exported
+// main and nothing in the graph imports that main or the whole module.
+const EVENT_READ = /GITHUB_EVENT_PATH|GITHUB_HEAD_REF|GITHUB_REF_NAME/g;
+
+function mainBody(source) {
+  const start = source.search(/^export (?:async )?function main\(/m);
+  if (start === -1) return null;
+  const rest = source.slice(start + 1);
+  const end = rest.search(/^(?:export |function |async function |const |let |if \()/m);
+  return [start, end === -1 ? source.length : start + 1 + end];
+}
+
+test("refine invariant 2: refine-event-dispatch.mjs and every module it loads read no head ref or event file", () => {
+  const sources = new Map();
+  const imports = [];
+  const queue = [new URL("./refine-event-dispatch.mjs", import.meta.url)];
+  while (queue.length > 0) {
+    const url = queue.pop();
+    if (sources.has(url.href)) continue;
+    const source = readFileSync(url, "utf8");
+    sources.set(url.href, source);
+    for (const match of source.matchAll(/^\s*(?:import|export)\s([^;]*?)\sfrom\s+"(\.{1,2}\/[^"]+)"/gm)) {
+      imports.push({ from: url.href, names: match[1], target: new URL(match[2], url).href });
+      queue.push(new URL(match[2], url));
+    }
+    for (const match of source.matchAll(/^\s*import\s+"(\.{1,2}\/[^"]+)"/gm)) {
+      queue.push(new URL(match[1], url));
+    }
+    for (const match of source.matchAll(/new URL\("(\.{1,2}\/[^"]+\.mjs)", import\.meta\.url\)/g)) {
+      imports.push({ from: url.href, names: "*", target: new URL(match[1], url).href });
+      queue.push(new URL(match[1], url));
+    }
+  }
+  const hrefs = [...sources.keys()];
+  assert.ok(hrefs.some((href) => href.endsWith("/fix-docs-dispatch.mjs")), "the walk reaches fix-docs-dispatch.mjs");
+  assert.ok(hrefs.some((href) => href.endsWith("/resolve-config.mjs")), "the walk reaches resolve-config.mjs through import(new URL(...))");
+  const [entry] = hrefs;
+  for (const [href, source] of sources) {
+    const reads = [...source.matchAll(EVENT_READ)];
+    if (reads.length === 0) continue;
+    // The job runs the entry module's main, so it has no exemption.
+    assert.notEqual(href, entry, `${href} reads event text`);
+    const main = mainBody(source);
+    assert.ok(main && reads.every((read) => read.index > main[0] && read.index < main[1]), `${href} reads event text outside its main`);
+    for (const edge of imports.filter((entry) => entry.target === href)) {
+      assert.doesNotMatch(edge.names, /\*|\bmain\b/, `${edge.from} loads ${href}'s main`);
+    }
+  }
+});
+
+test("refine invariant 2: no PR text reaches a step; run: holds no expression and env: only numbers and SHAs", () => {
+  const lines = refineLines();
+  // Every run: script, inline or block, is free of ${{ }}.
+  for (let at = 0; at < lines.length; at += 1) {
+    if (/^ {8}run: /.test(lines[at])) {
+      const script = [lines[at]];
+      for (const line of lines.slice(at + 1)) {
+        if (line !== "" && !line.startsWith("          ")) break;
+        script.push(line);
+      }
+      assert.doesNotMatch(script.join("\n"), /\$\{\{/, `run: at line ${at}`);
+    }
+  }
+  // Each expression is one the job needs; the event supplies two numbers alone.
+  const allowed = new Set([
+    "github.event.pull_request.number",
+    "github.event.sender.id",
+    "github.run_attempt",
+    "github.workflow_sha",
+    "github.token",
+    "github.workspace",
+    "runner.temp",
+    "vars.AUTOMATION_LANES_APP_SENDER_ID",
+    "vars.CLAUDE_LANES_DISABLED",
+    "vars.CLAUDE_LANES_REPO_DISABLED",
+    "steps.record.outputs.name",
+  ]);
+  const used = [...lines.join("\n").matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((match) => match[1].trim());
+  assert.ok(used.includes("github.event.pull_request.number"));
+  for (const expression of used) {
+    assert.ok(allowed.has(expression), `expression ${expression} is not one the refine job may read`);
+  }
+});
+
+test("refine invariant 3: exactly actions: write and contents: read, on the job, with no workflow-level grant", () => {
+  const text = readFileSync(new URL(`../../workflows/${DISPATCHER}`, import.meta.url), "utf8");
+  assert.deepEqual(text.match(/^permissions:.*$/gm), ["permissions: {}"], "the workflow grants nothing");
+  const lines = refineLines();
+  const at = lines.indexOf("    permissions:");
+  assert.notEqual(at, -1, "the job sets permissions");
+  const grants = [];
+  for (const line of lines.slice(at + 1)) {
+    if (!line.startsWith("      ")) break;
+    grants.push(line.trim().replace(/\s*#.*$/, ""));
+  }
+  assert.deepEqual(grants.sort(), ["actions: write", "contents: read"]);
+  assert.equal(lines.filter((line) => /^\s+permissions:/.test(line)).length, 1, "no other permissions block");
+});
+
+test("refine invariant 4: no secret and no token beyond GITHUB_TOKEN; only the listed actions run", () => {
+  const lines = refineLines();
+  const body = lines.join("\n");
+  assert.doesNotMatch(body, /secrets\.|secrets\[|id-token|toJSON\(secrets\)/);
+  const uses = lines.filter((line) => /^\s+(?:- )?uses: /.test(line)).map((line) => line.trim().replace(/^- /, "").replace(/\s*#.*$/, ""));
+  const allowed = /^uses: (?:actions\/(?:checkout|upload-artifact)@[0-9a-f]{40}|\.\/\.base\/\.github\/actions\/(?:setup-pinned-node|check-kill-switch|scan-upload|log-api-budget))$/;
+  for (const use of uses) {
+    assert.match(use, allowed, `${use} is not an action the refine job may run`);
+  }
+  const tokens = [...body.matchAll(/^\s+([A-Z_]*TOKEN): (.*)$/gm)].map((match) => `${match[1]}: ${match[2]}`);
+  assert.deepEqual(tokens, ["GITHUB_TOKEN: ${{ github.token }}", "API_BUDGET_TOKEN: github-token"]);
+});
+
+test("refine: the record is named from the workflow commit and the dispatched run id alone", () => {
+  const step = stepBlock(DISPATCHER, "refine", "Name the dispatched-run record");
+  const env = step.slice(step.indexOf("        env:") + 1, step.findIndex((line) => line.startsWith("        run:"))).map((line) => line.trim());
+  assert.deepEqual(env, ["WORKFLOW_SHA: ${{ github.workflow_sha }}", "RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id"]);
+  assert.ok(stepBlock(DISPATCHER, "refine", "Dispatch pr-refine for this PR").includes("          RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id"));
+  const dir = mkdtempSync(join(tmpdir(), "refine-record-"));
+  try {
+    const record = (id, sha = "b".repeat(40)) => {
+      writeFileSync(join(dir, "ids"), id);
+      writeFileSync(join(dir, "out"), "");
+      const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", stepScript(step)], {
+        env: { PATH: process.env.PATH, WORKFLOW_SHA: sha, RUN_IDS_FILE: join(dir, "ids"), RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "out"), GITHUB_RUN_ID: "42" },
+        encoding: "utf8",
+      });
+      return { status: result.status, out: readFileSync(join(dir, "out"), "utf8") };
+    };
+    // ADR 0090's form, pr-unblock-target-dispatched-<commit>-<run id>.
+    assert.deepEqual(record("9001\n"), { status: 0, out: `name=pr-unblock-target-dispatched-${"b".repeat(40)}-9001\n` });
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, "pr-unblock-target-dispatched.json"), "utf8")), { dispatcher_run_id: 42, workflow_sha: "b".repeat(40), run_id: 9001 });
+    assert.deepEqual(record(""), { status: 0, out: "" }, "no dispatch, no record");
+    assert.equal(record("9001x\n").status, 1, "a malformed id");
+    assert.equal(record("9001\n", "main").status, 1, "a malformed commit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refine: one run per PR at a time, a newer event cancelling the run going, within a time limit", () => {
+  const lines = jobBlock(DISPATCHER, "refine");
+  const at = lines.indexOf("    concurrency:");
+  assert.deepEqual(lines.slice(at + 1, at + 3), ["      group: pr-unblock-dispatch-refine-${{ github.event.pull_request.number }}", "      cancel-in-progress: true"]);
+  assert.ok(lines.includes("    timeout-minutes: 10"));
 });
