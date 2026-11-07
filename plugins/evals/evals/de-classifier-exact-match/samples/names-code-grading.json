@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Grading: exact match against the golden label, which is free and deterministic.",
+      "why": "exact match"
+    },
+    {
+      "answer": "This criterion is code-graded: compare the returned label with the expected one.",
+      "why": "code-graded"
+    },
+    {
+      "answer": "Use an Exact-Match check per case.",
+      "why": "casing and hyphen"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Have an LLM judge decide whether each label fits the ticket.",
+      "why": "near miss: LLM judge only"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "What accuracy do you see today?",
+      "why": "a question instead of a method"
+    }
+  ]
+}

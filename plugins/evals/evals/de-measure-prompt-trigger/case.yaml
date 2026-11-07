@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: de-measure-prompt-trigger
+description: "Triggering case, hard. Source: legacy design case 8 (natural-language-trigger). The prompt names no skill. It matches design's eval-suite triggers and methodology's 'measure prompt quality', so skill-fired accepts either. Why hard: the base model suggests prompt tweaks or monitoring; this plugin starts with success criteria and frames the measurement as a graded suite with a baseline."
+tags: [design, triggering, hard]
+runs: 3
+expected_outcome: "An evals skill fires without a slash command, and the reply starts with success-criteria questions and frames the measurement as a graded eval suite run against a baseline, not prompt advice or one-off spot checks"
+execution:
+  prompt: "We keep changing our support-bot prompt and have no idea whether it's getting better or worse. Can you set up some way to measure it?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:design|(?:evals:)?methodology)"'
+    min: 1
+    arm: with-only
+  - name: criteria-first
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Begins with success-criteria questions rather than emitting eval cases or prompt advice immediately". PASS if, before any eval case or prompt advice, the reply asks the user about success criteria (what a good reply is, which failures matter, what target or baseline exists). Asking which model or stack the bot uses alongside those questions is fine. FAIL if it leads with eval cases, prompt-editing tips or monitoring tools and asks no criteria question first. Example PASS: "First, what makes a support reply good for you: correct policy, tone, speed? Do you have any numbers today?" Example FAIL: "Add few-shot examples and lower the temperature."'
+  - name: graded-suite-baseline
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Frames the measurement as a graded eval suite with a baseline, not one-off manual spot checks". PASS if the reply proposes a fixed set of cases graded the same way on every prompt change, scored against a baseline (the current prompt or the first run). FAIL if it proposes only reading some replies by hand after each change, A/B traffic or dashboards, with no graded case set or no baseline. Example PASS: "We will build a fixed case set, grade each case, record the current prompt as the baseline, and rerun it on every change." Example FAIL: "After each change, skim twenty replies and see if they look better."'

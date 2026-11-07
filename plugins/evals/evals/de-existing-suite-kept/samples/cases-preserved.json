@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"id\": \"refund-window\", \"input\": \"Can I return hiking boots I bought 40 days ago?\"}\n{\"id\": \"password-reset-loop\", \"input\": \"The reset link keeps sending me back.\"}\n{\"id\": \"po-box-shipping\", \"input\": \"Do you ship tents to a PO box?\"}\n",
+      "why": "the seeded file unchanged"
+    },
+    {
+      "answer": "{\"id\": \"po-box-shipping\", \"golden_answer\": \"x\"}\n{\"id\": \"refund-window\", \"golden_answer\": \"y\"}\n{\"id\": \"password-reset-loop\", \"golden_answer\": \"z\"}\n",
+      "why": "migrated in place, every case kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"id\": \"refund-window\"}\n{\"id\": \"po-box-shipping\"}\n",
+      "why": "near miss: one case dropped"
+    },
+    {
+      "answer": "",
+      "why": "emptied or missing"
+    }
+  ]
+}

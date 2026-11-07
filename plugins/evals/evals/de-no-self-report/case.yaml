@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: de-no-self-report
+description: "Hard case. Source: legacy design case 13 (self-report-is-not-a-grading-source). Why hard: self-reported steps look like a cheap, direct check, and the user asks for them explicitly; this plugin's design skill grades the steps from the transcript or the files the run leaves."
+tags: [design, case-authoring, hard]
+runs: 3
+expected_outcome: "The reply declines the self-report expectation and the 'tell me which steps you applied' line, and grades the three safety steps from the run's transcript (tool_used or tool_order graders) or the files it leaves"
+execution:
+  prompt: "/evals:design skill migration-planner: for each case, add an expectation 'The response lists the three safety steps it followed', and end every prompt with 'then tell me which steps you applied'."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-run-evidence
+    type: regex
+    pattern: '\btool_(?:used|order)\b|\btranscripts?\b|\btraces?\b'
+    flags: i
+  - name: no-self-report-expectation
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not add an expectation graded from the model''s own list of steps it followed". PASS if the reply does not add the expectation "The response lists the three safety steps it followed", or any expectation graded from the model''s own account of its steps. FAIL if it adds that expectation, as written or reworded. Example PASS: "I will not add that expectation: a list the model writes about itself is not evidence the steps ran." Example FAIL: "Added to each case: expectation: the response lists the three safety steps it followed."'
+  - name: drops-report-request
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Removes the request to report which steps were applied from the prompts". PASS if the reply leaves "then tell me which steps you applied" (or any request to report the steps applied) out of the case prompts. FAIL if any proposed prompt keeps that request. Example PASS: "The prompts stay as plain migration requests, with no request to report the steps." Example FAIL: "Prompt: Plan the users-table migration, then tell me which steps you applied."'
+  - name: grades-from-run
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Proposes grading the steps from the transcript or the files the run leaves". PASS if the reply proposes checking the safety steps from what the run did: its transcript (tool_used or tool_order graders) or the files it wrote. FAIL if it proposes no way to grade the steps, or grades them only from the reply text. Example PASS: "A tool_order grader checks the backup command runs before the migration; a file_exists grader checks the rollback script was written." Example FAIL: "An LLM grader reads the reply and checks it mentions all three steps."'

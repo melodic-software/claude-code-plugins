@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: de-no-golden-answer-refused
+description: "Hard case. Source: legacy design case 4 (refuses-golden-answer-free-case); the prompt names a non-Claude stack so the Claude API route does not apply. Why hard: the user asks for the shortcut, so writing the case without an expected answer looks helpful; this plugin's design skill refuses a case that cannot be graded and offers a rubric instead."
+tags: [design, golden-answer, hard]
+runs: 3
+expected_outcome: "The reply does not emit the case without a golden answer or rubric, says a case that cannot be graded is not an eval, and offers rubric instructions (what a correct summary must include or exclude) or an LLM-graded rubric to keep the case"
+execution:
+  prompt: "/evals:design app: our report summarizer runs on a self-hosted Llama model. Add a case with the prompt 'summarize our Q3 report' but skip the expected answer, we'll know a good summary when we see it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-rubric
+    type: regex
+    pattern: '\brubrics?\b'
+    flags: i
+  - name: no-ungraded-case
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not emit a case lacking both a golden answer and a rubric". PASS if every case the reply emits or proposes for the Q3 report prompt carries a golden answer or a rubric, or the reply emits no case until one exists. FAIL if the reply adds or shows the case with neither, even with a note to fill it in later. Example PASS: "I will not add it without a rubric. Here is one: a correct summary names Q3 revenue, the margin change and the two risks, and invents no figure." Example FAIL: "Added: {\"input\": \"summarize our Q3 report\", \"golden_answer\": null}."'
+  - name: offers-rubric
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Offers rubric-instructions or an LLM-rubric alternative rather than just refusing". PASS if the reply offers a way to keep the case: rubric instructions stating what a correct summary must include or exclude, or an LLM-graded rubric. FAIL if it only refuses, or only asks for the full expected summary text. Example PASS: "Give me the three facts a good summary must contain and I will grade it with an LLM rubric." Example FAIL: "A case needs an expected answer, so I cannot add this one."'

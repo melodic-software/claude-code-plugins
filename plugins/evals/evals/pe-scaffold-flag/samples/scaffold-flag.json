@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nclaude plugin eval ./my-plugin --trust-plugin --keep-temp --scaffold --json results.json\n```",
+      "why": "flag mid-command"
+    },
+    {
+      "answer": "env TMPDIR=$HOME/.ev claude plugin eval \"$PWD/my-plugin\" --scaffold",
+      "why": "flag last, env prefix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin eval ./my-plugin --trust-plugin --keep-temp --json results.json",
+      "why": "near miss: no --scaffold"
+    },
+    {
+      "answer": "Add --scaffold to your command.",
+      "why": "flag named, no command"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Drop the inline (?i) and add `flags: i` to the grader.",
+      "why": "in backticks"
+    },
+    {
+      "answer": "flags: 'i'",
+      "why": "quoted value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Keep (?i); it is only a warning.",
+      "why": "near miss: no flags key"
+    },
+    {
+      "answer": "Set flags: im for multiline.",
+      "why": "a different flag set"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
