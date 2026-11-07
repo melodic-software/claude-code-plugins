@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .work/probe/baselines/x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '.work/\\n' >> .gitignore"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo .work/ | tee -a .gitignore"
+          }
+        }
+      ]
+    }
+  ]
+}

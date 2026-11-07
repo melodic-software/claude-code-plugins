@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 tokenizer | unit ok | live ok | NOT VERIFIED: no baseline |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "perf: not verified"
+    },
+    {
+      "answer": "| perf | n/a |"
+    }
+  ]
+}

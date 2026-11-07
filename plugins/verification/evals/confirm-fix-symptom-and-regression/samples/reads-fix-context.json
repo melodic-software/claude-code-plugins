@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/verification/skills/confirm/context/fix.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/verification/skills/confirm/context/refactor.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Run `mytool --help` as a user would."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the unit tests."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

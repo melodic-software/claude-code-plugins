@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "/corrections:codify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/instruction-placement:audit"
+    },
+    {
+      "answer": "/docs-hygiene:write-for-agents"
+    }
+  ]
+}

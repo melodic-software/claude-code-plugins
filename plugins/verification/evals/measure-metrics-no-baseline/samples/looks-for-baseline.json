@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "{\"name\":\"Glob\",\"input\":{\"pattern\":\".work/**/baselines/*\"}}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.ts\"}}"
+    }
+  ]
+}

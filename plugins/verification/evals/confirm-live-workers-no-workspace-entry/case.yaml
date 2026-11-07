@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-live-workers-no-workspace-entry
+graders:
+  - name: 'report-line'
+    type: 'regex'
+    pattern: 'live_workers[`*_]*\s*:\s*[`*_]*3\b[^\n]*userConfig'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-missing-entry'
+    type: 'regex'
+    pattern: '(?:no|without|missing|absent)[^\n]{0,60}workspace[- ]environment|workspace[- ]environment[^\n]{0,80}(?:absent|missing|not (?:declared|present|found))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'one-worker-why'
+    type: 'llm'
+    criteria: 'The reply plans a live drive asked for three workers. It meets the legacy expectations: "Resolves live_workers to 3 from userConfig" "Runs one worker, not three" "States that no Workspace environment entry exists on origin''s default branch as the reason".'
+    focus: 'last_message'

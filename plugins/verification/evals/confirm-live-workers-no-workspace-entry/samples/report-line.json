@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 3 (userConfig); 1 worker ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live_workers: 1 (default)"
+    },
+    {
+      "answer": "live_workers: 3"
+    }
+  ]
+}

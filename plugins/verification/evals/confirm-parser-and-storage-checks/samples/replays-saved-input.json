@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Parser: replay a saved real CSV file through the changed parser and compare the parsed records."
+    },
+    {
+      "answer": "Replay a captured input file through the new parser."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Parser: the unit tests cover it."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

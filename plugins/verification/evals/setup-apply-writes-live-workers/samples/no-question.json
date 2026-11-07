@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 3, untracked."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do you want me to commit it?"
+    }
+  ]
+}

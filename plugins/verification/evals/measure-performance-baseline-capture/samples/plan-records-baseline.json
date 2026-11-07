@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "## Baseline\n\nbaseline: parse_rows 41.3 ms mean (sd 1.9 ms, 10 runs); target <= 40.5 ms\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan\n\n### Phase 1: hoist the strip [TODO]\n"
+    },
+    {
+      "answer": "baseline: to be captured\n"
+    }
+  ]
+}

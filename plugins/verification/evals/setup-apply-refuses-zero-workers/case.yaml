@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: setup-apply-refuses-zero-workers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-apply'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?live_workers=0'
+    min: 1
+  - name: 'no-yes'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?--yes'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'file-unchanged'
+    type: 'regex'
+    pattern: '^live_workers: 2$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/verification.yaml }
+  - name: 'names-minimum'
+    type: 'regex'
+    pattern: 'at least 1|whole number|positive integer|>= ?1'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-substitute'
+    type: 'llm'
+    criteria: 'The run applies live_workers=0 over an existing value of 2. It meets the legacy expectations: "Reports that live_workers=0 was refused because it is not a whole number of at least 1" "Does not write a different value in place of 0".'
+    focus: 'last_message'

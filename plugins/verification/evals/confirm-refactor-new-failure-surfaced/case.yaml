@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: confirm-refactor-new-failure-surfaced
+graders:
+  - name: 'reads-refactor-context'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"[^"]*context/refactor\.md"'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-failing-test'
+    type: 'regex'
+    pattern: 'test_po_box_line'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'verdict-not-preserved'
+    type: 'regex'
+    pattern: '\b(?:NOT CONFIRMED|BEHAVIORAL CHANGE DETECTED)\b'
+    target: 'last_message'
+  - name: 'behavior-preserved'
+    type: 'llm'
+    criteria: 'The reply checks a refactor where one test newly fails. It meets the legacy expectations: "Confirms behavior preservation — same pre-existing tests pass, no semantic change" "Treats a newly-failing test as a behavioral change to surface, not a pass". It fails if it calls the refactor preserved or CONFIRMED, or excuses test_po_box_line as flaky or unrelated without evidence.'
+    focus: 'last_message'

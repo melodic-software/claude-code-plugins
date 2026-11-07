@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: strict (userConfig; docs/conventions/verification.yaml at origin/main says path)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path (docs/conventions/verification.yaml)"
+    },
+    {
+      "answer": "strict"
+    }
+  ]
+}

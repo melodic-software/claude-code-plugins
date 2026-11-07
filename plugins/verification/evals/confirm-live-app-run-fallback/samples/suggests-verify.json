@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "You can run `/verify` yourself alongside this."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/verification:confirm outcome"
+    },
+    {
+      "answer": "verify the app"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: BEHAVIORAL CHANGE DETECTED**"
+    },
+    {
+      "answer": "Verdict: NOT CONFIRMED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: LIKELY PRESERVED"
+    },
+    {
+      "answer": "Verdict: CONFIRMED"
+    },
+    {
+      "answer": "not confirmed yet"
+    }
+  ]
+}

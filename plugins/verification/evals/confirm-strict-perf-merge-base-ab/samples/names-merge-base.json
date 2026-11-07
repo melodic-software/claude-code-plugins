@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Check out the merge base in a second worktree."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Compare against main."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

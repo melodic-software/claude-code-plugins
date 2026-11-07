@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: measure-performance-baseline-capture
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-bench'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bpython3?\b(?:[^"\\]|\\.)*?\bbench\.py'
+    min: 1
+  - name: 'baseline-file'
+    type: 'file_exists'
+    path: '**/baselines/*'
+  - name: 'plan-records-baseline'
+    type: 'regex'
+    pattern: 'baseline[^\n]*\d+(?:\.\d+)?\s*ms'
+    flags: 'i'
+    target: { source: file, path: .work/fast-rows/PLAN.md }
+  - name: 'names-noise'
+    type: 'regex'
+    pattern: '\bnoise|variance|run-to-run|spread'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'pre-change-capture'
+    type: 'llm'
+    criteria: 'The run captures a performance baseline before a planned 2% parse speed-up. It meets the legacy expectations: "Captures the PRE-change state (multiple runs, mean ± std, warm-up discarded) — does not measure after the change and call it a baseline" "Stores measurements in the topic''s memory-tier baselines directory and records baseline + target in the plan" "Surfaces the noise-floor argument BEFORE the work if projected savings sit within run-to-run variance". It fails if it edits textkit/rows.py before or while capturing.'
+    focus: 'trace'

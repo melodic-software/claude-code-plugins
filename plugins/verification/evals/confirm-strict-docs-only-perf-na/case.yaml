@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-strict-docs-only-perf-na
+graders:
+  - name: 'dispatches-verifier'
+    type: 'tool_used'
+    tool: 'Agent'
+    min: 1
+    arm: 'with-only'
+  - name: 'na-names-diff'
+    type: 'regex'
+    pattern: '(?:n/a|not applicable)[^\n]{0,160}docs/onboarding\.md|docs/onboarding\.md[^\n]{0,160}(?:n/a|not applicable)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'reasoned-na'
+    type: 'llm'
+    criteria: 'The reply fills strict proof boxes for a docs-only change. It meets the legacy expectations: "Writes a perf not-applicable line that names why, in terms checkable against the diff" "Has the fresh-context verifier check that line against the diff" "Does not treat ''not needed'' or ''small change'' as a reason".'
+    focus: 'trace'

@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-proof-level-user-strict-wins
+graders:
+  - name: 'report-line-strict'
+    type: 'regex'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*strict\b[^\n]*userConfig'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'proof-box-table'
+    type: 'regex'
+    pattern: '^\|[^\n]*\bunit\b[^\n]*\blive\b[^\n]*\bperf'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'user-strict-boxes'
+    type: 'llm'
+    criteria: 'The reply verifies a two-phase plan. It meets the legacy expectations: "Resolves proof_level to strict with userConfig as the supplying layer" "Does not let the repository''s path lower the user''s strict" "Fills unit, live and perf boxes for each of the two plan phases". A box filled with a reasoned not-applicable line, or NOT VERIFIED, counts as filled.'
+    focus: 'last_message'

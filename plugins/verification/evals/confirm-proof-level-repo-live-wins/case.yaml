@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-proof-level-repo-live-wins
+graders:
+  - name: 'report-line-live'
+    type: 'regex'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*live\b[^\n]*verification\.yaml[^\n]*origin/main'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'runs-help'
+    type: 'regex'
+    pattern: '--help'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'repo-live-raises-path'
+    type: 'llm'
+    criteria: 'The reply verifies a CLI help-text change. It meets the legacy expectations: "Resolves proof_level to live, not path" "Names the repository file at the default branch as the supplying layer" "Runs the real CLI command because live requires it for any runnable surface".'
+    focus: 'last_message'

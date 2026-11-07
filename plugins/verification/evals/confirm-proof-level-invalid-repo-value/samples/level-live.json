@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: live (userConfig; docs/conventions/verification.yaml dropped: thorough)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path (default)"
+    }
+  ]
+}

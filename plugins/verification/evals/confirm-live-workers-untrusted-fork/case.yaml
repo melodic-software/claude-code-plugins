@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-live-workers-untrusted-fork
+graders:
+  - name: 'names-fork'
+    type: 'regex'
+    pattern: '\bfork\b|untrusted'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'untrusted-one-worker'
+    type: 'llm'
+    criteria: 'The reply plans a live drive for a fork pull request. It meets the legacy expectations: "Runs one worker, not three, although the Workspace environment entry exists" "Names the fork pull request (untrusted input outside a passed cloud-host probe) as the reason one worker ran" "The report states that 3 workers were asked for".'
+    focus: 'last_message'

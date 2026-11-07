@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "| INFO | Ignore state | no match |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| FAIL | Ignore state | .work/ is not ignored |"
+    }
+  ]
+}
