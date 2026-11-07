@@ -78,10 +78,28 @@ eval_logger() {
   mkdir -p tools
   cat >tools/run.sh <<'EOF'
 #!/usr/bin/env bash
-# Records each command the skill runs, one line per call, and passes.
+# The repository's check runner: tools/run.sh <ecosystem> <phase> [<file>...]. Every phase checks the
+# named files (all tracked files when none are named) for merge-conflict markers, trailing
+# whitespace and a missing final newline, and fails on any. Each call is appended to .calls.log, the
+# runner's audit trail.
 set -euo pipefail
-printf '%s\n' "$*" >>"$(dirname "${BASH_SOURCE[0]}")/../.calls.log"
-echo "$1 $2: ok"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${root}"
+printf '%s\n' "$*" >>.calls.log
+eco="$1" phase="$2"
+shift 2
+if [[ $# -eq 0 ]]; then
+  mapfile -t files < <(git ls-files)
+  set -- "${files[@]}"
+fi
+bad=0
+for f in "$@"; do
+  [[ -f "${f}" ]] || { echo "${f}: no such file" >&2; bad=1; continue; }
+  if grep -nE '^(<<<<<<<|>>>>>>>)|[[:blank:]]$' "${f}" >&2; then bad=1; fi
+  if [[ -s "${f}" && -n "$(tail -c1 "${f}")" ]]; then echo "${f}: no final newline" >&2; bad=1; fi
+done
+[[ ${bad} -eq 0 ]] || { echo "${eco} ${phase}: FAIL" >&2; exit 1; }
+echo "${eco} ${phase}: $# file(s) checked, ok"
 EOF
   printf '.calls.log\n' >>.gitignore
 }
