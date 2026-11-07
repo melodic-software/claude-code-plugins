@@ -3493,6 +3493,24 @@ def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, hea
     assert retired.returncode == 0, out(retired)
 
 
+def test_ids_a_one_line_question_listing_still_needs_a_pointer(tmp_path):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    heading = "Retired open questions"
+    edit(hop2, QUESTION + "\n", "None. Settled this hop.\n")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n- [Q1] settled on blue\n")
+    unpointed = strict(hop2)
+    assert unpointed.returncode == 1, out(unpointed)
+    assert f"retires entries under '## {heading}'" in out(unpointed), out(unpointed)
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired entries: {archived.name} § {heading}\n",
+    )
+    pointed = strict(hop2)
+    assert pointed.returncode == 0, out(pointed)
+
+
 def test_retire_through_fill_moves_each_ref_and_validates(tmp_path):
     repo = make_repo(tmp_path)
     filled, hot, archived = fill_hop2(
@@ -3516,7 +3534,7 @@ def test_retire_through_fill_moves_each_ref_and_validates(tmp_path):
     assert UNIT_BULLET in text and TRAIL_START in text
     rel = f"archive/{HOP1.removesuffix('.md')}/h2-{SID_B[:8]}.md"
     for heading in (GOAL_HEADING, TRAIL_HEADING, "Retired open questions"):
-        assert f"- Retired this hop: {rel} § {heading}\n" in text, heading
+        assert f"- Retired entries: {rel} § {heading}\n" in text, heading
     sections = _sections_by_hand(archived.read_text(encoding="utf-8"))
     assert (
         sections[GOAL_HEADING]

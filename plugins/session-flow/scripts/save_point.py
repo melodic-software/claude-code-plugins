@@ -1960,9 +1960,7 @@ def _check_retire_pointers(
     review = doc.section("Review before you continue") or []
     name = rel.rsplit("/", 1)[-1]
     for heading in POINTED_HEADINGS:
-        listed = any(
-            r is not None for _, r in _retired_listings(archived or "", heading)
-        )
+        listed = _retired_listings(archived or "", heading)
         if listed and not any(name in line and heading in line for line in review):
             f.fail(
                 f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'"
@@ -2237,7 +2235,7 @@ def _apply_retire(
         end = _section_end(doc, review)
         if end < 0:
             return f"no '## {review}' section to point at {rel}"
-        out.insert(end, f"- Retired this hop: {rel} § {heading}{term}")
+        out.insert(end, f"- Retired entries: {rel} § {heading}{term}")
 
     new_hop = list(hop)
     term = (_line_parts(new_hop[0])[1] if new_hop else "") or "\n"
