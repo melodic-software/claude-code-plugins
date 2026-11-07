@@ -2940,27 +2940,32 @@ def issue_status(
     return None
 
 
+# The Work status that stays with its label until its readers move to the field.
+AGENT_READY_STATE = "agent-ready"
+
+
 def status_label_names(
     state: str | None, names: list[str], config: IssueStatusConfig | None
 ) -> list[str]:
-    """`names` (an issue's labels) as its Work status `state` may change them
-    (read-status.mjs statusLabels): with a status label on the issue, only a
-    hold state the labels lack adds its labels; with none, any state but the
-    last in order adds its labels. Labels are never removed."""
+    """`names` (an issue's labels) as its Work status `state` decides them
+    (read-status.mjs statusLabels). With no state, `names` unchanged. With
+    one: every queue-state label (a state neither held nor agent-ready) is
+    dropped, hold labels and agent-ready are kept, and the state's first label
+    is added unless present or the state is agent-ready."""
     if state is None or config is None:
         return names
     labels = dict(config.labels)
-
-    def folded(states: Iterable[str]) -> set[str]:
-        return {n.casefold() for s in states for n in labels.get(s, ())}
-
-    carried = [n for n in names if n.casefold() in folded(labels)]
-    if not carried:
-        return names if state == config.order[-1] else [*names, *labels[state]]
-    holds = folded(HOLD_STATES)
-    if state in HOLD_STATES and not any(n.casefold() in holds for n in carried):
-        return [*names, *labels[state]]
-    return names
+    queue = {
+        n.casefold()
+        for s, group in labels.items()
+        if s != AGENT_READY_STATE and s not in HOLD_STATES
+        for n in group
+    }
+    kept = [n for n in names if n.casefold() not in queue]
+    label = next(iter(labels.get(state, ())), None)
+    if state == AGENT_READY_STATE or label is None:
+        return kept
+    return kept if any(n.casefold() == label.casefold() for n in kept) else [*kept, label]
 
 
 # The REST version that documents issue-field-values.

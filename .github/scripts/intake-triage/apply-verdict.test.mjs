@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
-import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
+import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -238,6 +239,17 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [NEEDS_DECISION]);
     assert.deepEqual(result.remove, [READY]);
     assert.deepEqual(result.fieldWrites, []);
+  });
+
+  // The field-first names drop a queue label the Work status field hides, so
+  // the issue's own labels decide which stale status labels come off.
+  test("a held verdict removes stale status: ready and status: confirmed labels the field hides", () => {
+    const verdict = parseVerdict(ESCALATED_BODY, DIMS);
+    const shown = ["needs-human", "needs-triage"];
+    const own = ["needs-human", READY, "status: confirmed"];
+    const base = { fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans };
+    assert.deepEqual(planWrites(verdict, { ...base, labels: shown, rawLabels: own }).remove, [READY, "needs-triage", "status: confirmed"]);
+    assert.deepEqual(planWrites(verdict, { ...base, labels: shown }).remove, ["needs-triage"], "without its own labels only the shown floor label goes");
   });
 
   for (const hold of ["needs-human", "status: needs-info", NEEDS_DECISION]) {
@@ -939,8 +951,14 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
     }
     return null;
   };
-  return { github, calls };
+  // write-status.mjs statusWriter's `set`, recorded among the calls in order.
+  const setStatus = async (number, state, options) => {
+    calls.push({ method: "STATUS", path: `#${number}`, body: state, fields: options?.fields });
+  };
+  return { github, calls, setStatus };
 }
+// The Work status writes among `calls`.
+const states = (calls) => calls.filter(({ method }) => method === "STATUS").map(({ body }) => body);
 const laneComment = (body = laneBody(), overrides = {}) => ({
   id: 99,
   body,
@@ -962,6 +980,8 @@ const go = (fake, env = ENV) =>
     github: fake.github,
     dimensionsConfig: DIMS,
     fieldSetters: noSetters,
+    setStatus: fake.setStatus,
+    statusConfig: STATUS_CONFIG,
     log: () => {},
   });
 const writes = (calls) => calls.filter((call) => call.method !== "GET");
@@ -981,15 +1001,39 @@ describe("run", () => {
     const done = writes(fake.calls);
     assert.deepEqual(
       done.map(({ method, path }) => `${method} ${path}`),
-      ["POST /repos/o/r/issues/7/issue-field-values", "POST /repos/o/r/issues/7/labels"],
+      ["POST /repos/o/r/issues/7/issue-field-values", "STATUS #7"],
     );
     assert.deepEqual(done[0].body.issue_field_values, [
       { field_id: 15462270, value: "Small" },
       { field_id: 48625720, value: "Low" },
       { field_id: 48625721, value: "Known" },
     ]);
-    assert.deepEqual(done[1].body.labels, [READY]);
+    assert.equal(done[1].body, "ready", "the Work status field takes the place of the status: ready label");
     assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/labels")), "no repository label read");
+  });
+
+  test("a ready write a person's late hold answers held stops the run: no late label removal, no admission comment, no admission", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
+    const admitted = [];
+    const logged = [];
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      setStatus: async (number, state, options) => (options?.keepHold ? { outcome: "held", state: "needs-human" } : fake.setStatus(number, state, options)),
+      statusConfig: STATUS_CONFIG,
+      admitIssue: async () => admitted.push("admit") && { outcome: "admitted", reasons: [] },
+      log: (line) => logged.push(line),
+    });
+    assert.deepEqual(admitted, [], "admission never runs");
+    assert.deepEqual(result.admission, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
+    assert.deepEqual(logged, ["apply-verdict: #7 left as is (a person's Work status needs-human holds it); no admission"]);
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["POST /repos/o/r/issues/7/issue-field-values"],
+      "only the field values; needs-triage stays and no comment is written",
+    );
   });
 
   test("an issue holding only an old class label reads no events", async () => {
@@ -1005,9 +1049,9 @@ describe("run", () => {
     assert.equal(result.outcome, "needs-decision");
     assert.deepEqual(
       writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
-      ["POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/labels"],
+      ["POST /repos/o/r/issues/7/comments", "STATUS #7"],
     );
-    assert.deepEqual(writes(fake.calls)[1].body, { labels: [NEEDS_DECISION] });
+    assert.equal(writes(fake.calls)[1].body, "needs-owner-decision");
   });
 
   // A manual dispatch skips intake-reenter, so a parked issue reaches a held
@@ -1016,8 +1060,8 @@ describe("run", () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "status: confirmed" }] }, comments: [laneComment(ESCALATED_BODY)] });
     assert.equal((await go(fake)).outcome, "needs-decision");
     assert.deepEqual(
-      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${body?.labels ? ` ${body.labels}` : ""}`),
-      ["POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/labels status: needs-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed"],
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+      ["POST /repos/o/r/issues/7/comments", "STATUS #7 needs-owner-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed"],
     );
   });
 
@@ -1475,7 +1519,7 @@ describe("run", () => {
     assert.match(result.summary, /- Reasons comment: not written \(/);
   });
 
-  test("a hold that landed after the first read is in the labels the Work status field mirrors", async () => {
+  test("a hold that landed after the first read decides the Work status written", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
       comments: [laneComment()],
@@ -1489,11 +1533,9 @@ describe("run", () => {
       }
       return answer;
     };
-    const mirrored = [];
-    const mirrorStatus = async (number, change) => mirrored.push(labelsAfter(change.had, change.add, change.remove));
-    await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} });
+    await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
     assert.equal(reads, 2, "the refusal re-read the labels");
-    assert.ok(mirrored[0].includes(OUTSIDE_ACTOR_LABEL) && mirrored[0].includes("needs-human"), JSON.stringify(mirrored));
+    assert.deepEqual(states(fake.calls), ["needs-human"], "the late hold keeps needs-human, which the field reads");
   });
 
   // security-outside-actor/flag.mjs adds needs-human as github-actions[bot] on
@@ -1566,23 +1608,35 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
-  for (const [who, id] of [
-    ["the lanes App", LANES_APP],
-    ["a person", HUMAN],
-  ]) {
-    test(`a needs-human ${who} also applied after this run started keeps the hold beside the bot's`, async () => {
-      const fake = fakeGitHub({
-        issue: { labels: [{ name: "needs-human" }] },
-        comments: [laneComment()],
-        events: [
-          { event: "labeled", label: { name: "needs-human" }, actor: { id }, created_at: "2026-10-22T12:03:00Z" },
-          { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
-        ],
-      });
-      assert.equal((await go(fake)).outcome, "needs-decision");
-      assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  test("a needs-human a person also applied after this run started keeps the hold beside the bot's", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T12:03:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+      ],
     });
-  }
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  // The lanes App writes the triage run's labels into the Work status field,
+  // so on a re-run its field event after `since` is the triage's own add.
+  test("a needs-human the lanes App wrote into the field after this run started counts as the triage run's", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:03:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: LANES_APP }, created_at: "2026-10-22T12:04:00Z" },
+      ],
+    });
+    const result = await go(fake);
+    assert.equal(result.outcome, "ready");
+    assert.deepEqual(result.plan.refused, ["needs-human"]);
+    assert.deepEqual(states(fake.calls), ["ready"]);
+  });
 
   // A removal whose time cannot be read lifts nothing that held before.
   test("a person's needs-human before this run, removed at an unreadable time, keeps the hold when the bot adds it again", async () => {
@@ -1784,11 +1838,9 @@ describe("run", () => {
         }
         return fake.github(method, path, body);
       };
-      const mirrored = [];
-      const mirrorStatus = async (number, change) => mirrored.push(labelsAfter(change.had, change.add, change.remove));
-      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} });
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
       assert.ok(result.reasonsError, "the run fails");
-      assert.deepEqual(mirrored, [[]], "the mirror sees only status: ready come off");
+      assert.deepEqual(states(fake.calls), ["needs-triage"], "status: ready comes off and no hold is written");
       const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
       assert.deepEqual(
         labelWrites.map(({ method, path }) => `${method} ${path}`),
@@ -1807,10 +1859,10 @@ describe("run", () => {
       }
       return fake.github(method, path, body);
     };
-    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, log: () => {} });
     assert.equal(result.outcome, "ready");
     assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "the lane comment is never edited");
-    assert.ok(writes(fake.calls).some(({ method, path, body }) => method === "POST" && path === "/repos/o/r/issues/7/labels" && body.labels.includes(READY)));
+    assert.deepEqual(states(fake.calls), ["ready"]);
     assert.ok(result.reasonsError, "the failure is on the result");
     assert.match(result.summary, /- Reasons comment: not written \(/);
   });
@@ -1863,22 +1915,58 @@ describe("run", () => {
     assert.ok(!edited.body.body.includes("needs-decision"), edited.body.body);
   });
 
-  test("takes needs-triage off after the verdict's labels", async () => {
+  test("takes needs-triage off after the verdict's Work status", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
     assert.equal((await go(fake)).outcome, "ready");
-    const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
-    const removal = done.indexOf("DELETE /repos/o/r/issues/7/labels/needs-triage");
-    assert.ok(removal > done.indexOf("POST /repos/o/r/issues/7/labels"), done.join("\n"));
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`);
+    assert.deepEqual(done.slice(-2), ["STATUS #7 ready", "DELETE /repos/o/r/issues/7/labels/needs-triage"], done.join("\n"));
   });
 
-  test("mirrors the labels it leaves into the Work status field after its label writes", async () => {
-    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
-    const mirrorStatus = async (number, change) => fake.calls.push({ method: "MIRROR", path: String(number), body: labelsAfter(change.had, change.add, change.remove) });
-    assert.equal((await run({ env: ENV, github: fake.github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} })).outcome, "ready");
-    const done = writes(fake.calls);
-    const mirrored = done.findIndex((call) => call.method === "MIRROR");
-    assert.ok(mirrored > done.findLastIndex((call) => call.path.includes("/labels")), JSON.stringify(done));
-    assert.ok(!done[mirrored].body.includes("needs-triage") && done[mirrored].body.includes("status: ready"), JSON.stringify(done[mirrored].body));
+  // The triage run's own hold labels (the reusable's) stay on the issue and
+  // reach the field as their state, the strongest first (models.issue-status order).
+  for (const [labels, state] of [
+    [["needs-human"], "needs-human"],
+    [["status: needs-info"], "needs-reporter-info"],
+    [["needs-human", "status: needs-info"], "needs-human"],
+    [["status: needs-decision"], "needs-owner-decision"],
+  ]) {
+    test(`a held verdict writes the triage run's ${labels.join(" and ")} as ${state}, keeping the labels`, async () => {
+      const fake = fakeGitHub({ issue: { labels: labels.map((name) => ({ name })) }, comments: [laneComment(ESCALATED_BODY)] });
+      assert.equal((await go(fake)).outcome, "needs-decision");
+      assert.deepEqual(states(fake.calls), [state]);
+      assert.ok(!writes(fake.calls).some(({ method, path }) => method === "DELETE" && labels.some((name) => path.endsWith(encodeURIComponent(name)))), "the labels stay");
+      assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/labels")), "no status label is added");
+    });
+  }
+
+  // The issue carries no hold label and no label event: its field holds
+  // needs-owner-decision, which a person set.
+  test("a hold that exists only on the Work status field blocks a ready verdict", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    // A real time on the field event, an hour before this run started, so
+    // labelSetters replays it in order as an earlier person's hold.
+    const node = { __typename: "IssueFieldAddedEvent", createdAt: "2026-10-22T11:00:00Z", value: "needs-owner-decision", actor: { __typename: "User", login: "kyle-sexton", databaseId: HUMAN }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } };
+    const github = withFields(fake.github, { 7: { state: "needs-owner-decision", setter: HUMAN, nodes: [node] } });
+    const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
+    const statusOf = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors, log: () => {} });
+    const fields = async () => ({ [String(STATUS_CONFIG["field-id"])]: HUMAN });
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} });
+    assert.equal(result.outcome, "needs-decision");
+    assert.ok(result.plan.reasons.includes(`held by ${NEEDS_DECISION}`), JSON.stringify(result.plan.reasons));
+    const [written] = fake.calls.filter(({ method }) => method === "STATUS");
+    assert.equal(written.body, "needs-owner-decision");
+    assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
+  });
+
+  // A Work status read that fails could hide a person's hold, so the App's
+  // own hold is not lifted and nothing is written.
+  test("a failed Work status read lifts no App hold and writes nothing", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()] });
+    const github = withFields(fake.github, { 7: new Error("HTTP 502") });
+    const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
+    const statusOf = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors, log: () => {} });
+    await assert.rejects(run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} }), { name: "StatusReadError" });
+    assert.deepEqual(writes(fake.calls), []);
   });
 
   test("posts the reasons on the issue when it sets needs-decision", async () => {

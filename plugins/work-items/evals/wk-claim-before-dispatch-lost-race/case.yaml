@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-claim-before-dispatch-lost-race
+graders:
+  - name: 'lost-race-advances'
+    type: 'regex'
+    pattern: 'exit(?:s|ed)?(?:\s+code)?[\s*_`]{0,6}7[^\n]{0,200}(?:\bnext\b|\badvanc\w*|#41\b)|(?:\bnext\b|\badvanc\w*|#41\b)[^\n]{0,200}exit(?:s|ed)?(?:\s+code)?[\s*_`]{0,6}7'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Runs an idempotent session-start reclaim before selecting and never releases the live lease; (2) Selects exactly one item to work, from the frontier through list-frontier; (3) Acquires the item through the seam claim verb (assignee plus lease), not a label hold; (4) On the lost race (claim exit 7) advances to the next candidate rather than retrying #40; (5) Treats the seam claim as a prerequisite of any dispatch; (6) States that autonomous execution defaults to orchestrator-dispatch (a scope-fenced subagent in its own out-of-tree worktree, the orchestrator never editing source), the interactive all-inline path being /implementation:implement; (7) Follows the consuming project''s development workflow and reads the domain rules before editing. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

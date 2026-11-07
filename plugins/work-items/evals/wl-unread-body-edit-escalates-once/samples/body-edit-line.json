@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "body edit: #53 (body edit-time read failed: HTTP 502: Bad Gateway) -> escalated",
+      "why": "the line"
+    },
+    {
+      "answer": "`body edit: #53 (body edit-time read failed: HTTP 502: Bad Gateway) → escalated`",
+      "why": "code span, unicode arrow"
+    },
+    {
+      "answer": "- **Body edit:** `#53 (body edit-time read failed: HTTP 502: Bad Gateway) -> escalated`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "labeler check failed: #53 (body edit-time read failed: HTTP 502: Bad Gateway)",
+      "why": "refused each cycle instead"
+    },
+    {
+      "answer": "body edit: #53 -> escalated",
+      "why": "drops the reason"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "labeler check failed: #43 (timeline read failed, exit 8)",
+      "why": "the line"
+    },
+    {
+      "answer": "`labeler check failed: #43 (exit 8)`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **labeler check failed:** `#43 (exit 8)`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "labeler refused: #43",
+      "why": "wrong line"
+    },
+    {
+      "answer": "#43 could not be checked.",
+      "why": "no report line"
+    }
+  ]
+}

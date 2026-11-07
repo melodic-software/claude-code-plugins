@@ -100,7 +100,15 @@ const fenced = (text) => {
   return `${fence}text\n${text.replace(/\n+$/, "")}\n${fence}`;
 };
 
-const cut = (text) => (text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX)}\n(cut at ${SUMMARY_MAX} characters; the run's win artifact holds the whole file)\n` : text);
+// Cut at the last whitespace within SUMMARY_MAX; a single longer token is cut hard, never inside a
+// surrogate pair.
+const cut = (text) => {
+  if (text.length <= SUMMARY_MAX) return text;
+  const head = text.slice(0, SUMMARY_MAX + 1);
+  const at = head.search(/\s\S*$/);
+  const kept = at > 0 ? head.slice(0, at).trimEnd() : head.slice(0, SUMMARY_MAX).replace(/[\uD800-\uDBFF]$/, "");
+  return `${kept}\n(cut at ${SUMMARY_MAX} characters; the run's win artifact holds the whole file)\n`;
+};
 
 // The draft's body. Everything quoted from the run sits in a fence: a summary can quote a run's
 // error text, so it may carry no live markdown, link or mention.

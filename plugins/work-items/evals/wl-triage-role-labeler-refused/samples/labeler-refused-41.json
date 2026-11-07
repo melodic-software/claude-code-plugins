@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "labeler refused: #41 \"agent-ready\" applied by quill-ops (triage)",
+      "why": "the line"
+    },
+    {
+      "answer": "- `labeler refused: #41 \"agent-ready\" applied by quill-ops (read, triage)`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **labeler refused:** `#41 \"agent-ready\" applied by quill-ops (triage)`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#41 refused: agent-ready applied by quill-ops (triage).",
+      "why": "not the report line"
+    },
+    {
+      "answer": "labeler check failed: #41 (triage)",
+      "why": "the other line, no actor"
+    }
+  ]
+}
