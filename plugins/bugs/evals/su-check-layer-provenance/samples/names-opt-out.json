@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`lanes: []` in the personal override is an opt-out."
+    },
+    {
+      "answer": "It opts out of every lane."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The personal override is empty."
+    },
+    {
+      "answer": "No lanes."
+    }
+  ]
+}

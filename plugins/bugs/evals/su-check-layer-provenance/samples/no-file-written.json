@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs/conventions/bugs.yaml",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .claude/bugs.local.md docs/conventions/bugs.md 2>&1; cat README.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "stderr merge before a read is not a write"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p docs/conventions && printf x > docs/conventions/bugs.yaml",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "redirect into the team file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'lanes: []' | tee docs/conventions/bugs.yaml",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "tee into the team file"
+    }
+  ]
+}

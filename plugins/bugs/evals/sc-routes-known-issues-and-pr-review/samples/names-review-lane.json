@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/review:code-review` on the PR."
+    },
+    {
+      "answer": "review:security-review for a security pass."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use /code-review on the PR."
+    },
+    {
+      "answer": "Ask a reviewer to look at the diff."
+    }
+  ]
+}

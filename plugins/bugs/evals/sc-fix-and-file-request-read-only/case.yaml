@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: sc-fix-and-file-request-read-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: hunter-dispatched
+    type: tool_used
+    tool: Agent
+    min: 1
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-edit
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:sed|perl)\b(?:[^"\\]|\\.)*?\s-[a-z]*i(?:[^"\\]|\\.)*?discount\.js|>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?discount\.js|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?discount\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-branch-or-filing
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:git(?:\s+-C\s+\S+)?\s+(?:checkout\s+-[bB]\b|switch\s+-[cC]\b|push\b|commit\b|branch\s+(?:-[cCmM]\b|(?!-)[\w./-]+))|gh\s+(?:issue|pr)\s+create\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: filing-needs-track
+    type: regex
+    pattern: '--track\b'
+    target: last_message

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    },
+    {
+      "answer": "# filing posture lives in work-items.yaml\nlanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\nfiling_posture: manual-only\n"
+    }
+  ]
+}

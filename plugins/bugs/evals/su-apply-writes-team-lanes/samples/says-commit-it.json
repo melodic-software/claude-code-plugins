@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Commit docs/conventions/bugs.yaml so teammates get it."
+    },
+    {
+      "answer": "Stage it with `git add docs/conventions/bugs.yaml`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The file is written."
+    },
+    {
+      "answer": "It is not ignored."
+    }
+  ]
+}

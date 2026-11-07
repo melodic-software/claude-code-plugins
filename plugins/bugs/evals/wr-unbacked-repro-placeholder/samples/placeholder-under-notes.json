@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "## Steps to reproduce\n\n(unknown — needs reporter confirmation)\n\n## Notes\n\n- Steps to reproduce are (unknown — needs reporter confirmation)."
+    },
+    {
+      "answer": "Which records came out stale, and when did the job last run?"
+    },
+    {
+      "answer": "## Steps to reproduce\n\n(unknown — needs reporter confirmation)\n\n**Notes**: repro unknown, needs reporter confirmation."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Steps to reproduce\n\n(unknown — needs reporter confirmation)\n\n## Expected behavior\n\nFresh records."
+    },
+    {
+      "answer": "## Steps to reproduce\n\n(unknown — needs reporter confirmation)\n\n## Notes\n\nThe job runs nightly."
+    }
+  ]
+}
