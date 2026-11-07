@@ -3,6 +3,17 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.6] - 2026-11-07
+
+### Fixed
+
+- run learn-style's scripts as single Bash calls and read `style.json` with Read
+
+  Each `pydeps.py run` call runs alone, with no `cd`, `--help` or other command
+  chained to it; the skill never probes the host Python or its packages, never
+  runs `pydeps.py install`, and never lists the plugin data directory, and it
+  reads a pack's `style.json` with the Read tool instead of `python3 -c`.
+
 ## [1.0.5] - 2026-11-06
 
 ### Changed

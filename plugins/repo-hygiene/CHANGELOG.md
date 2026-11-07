@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.6] - 2026-11-07
+
+### Fixed
+
+- name the files setup reads instead of searching the plugin directory
+
+  setup reads the clean skill, clean-common.sh, exec-bash.mjs and the README
+  with the Read tool by their plugin-root paths, never globs, greps or lists the
+  plugin directory, and runs each probe as its own Bash call. It no longer looks
+  for a hooks manifest the plugin does not ship.
+
 ## [0.21.5] - 2026-11-06
 
 ### Changed
