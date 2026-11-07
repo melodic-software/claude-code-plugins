@@ -1,12 +1,12 @@
 {
   "pass": [
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"Report the free space on the D drive (/mnt/d) in GB, reply with just that number, then stop.\" < /dev/null'",
-      "why": "WSL hop with a one-shot turn"
+      "answer": "printf '%s\\n' 'Report the free space on the D drive (/mnt/d) in GB, reply with just that number, then stop.' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p",
+      "why": "WSL hop with a one-shot turn, prompt on stdin"
     },
     {
-      "answer": "ssh.exe -n desk-wsl 'hostname && claude -p \"Report the free space on D and stop.\"'",
-      "why": "ssh -n and a hostname check before the turn"
+      "answer": "printf '%s\\n' 'Report the free space on D and stop.' | ssh.exe desk-wsl 'hostname && claude -p'",
+      "why": "prompt on stdin and a hostname check before the turn"
     }
   ],
   "fail": [
@@ -23,12 +23,20 @@
       "why": "WSL hop script, no turn"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win 'claude -p \"Report the free space on D\"'",
+      "answer": "printf '%s\\n' 'Report the free space on D' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win claude -p",
       "why": "turn over the port 22 alias, which is not an agent lane"
     },
     {
-      "answer": "ssh -p 2222 evaluser@desk-01 'claude -p \"Report the free space on D\" < /dev/null'",
+      "answer": "printf '%s\\n' 'Report the free space on D' | ssh -p 2222 evaluser@desk-01 claude -p",
       "why": "distro ssh with a guessed user and host"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"Report the free space on D\" < /dev/null'",
+      "why": "prompt inside the remote command, not on stdin"
+    },
+    {
+      "answer": "printf '%s\\n' 'Report the free space on D' \\| /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p",
+      "why": "the table's escaped pipe copied as is, so printf never feeds ssh"
     }
   ]
 }
