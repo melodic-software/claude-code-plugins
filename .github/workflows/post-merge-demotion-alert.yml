@@ -62,7 +62,8 @@ name: post-merge-demotion-alert
 # deleted; it holds the rung off until those lines are back on main, a pull
 # request that references it merges into main (babysit_merge_policy.py
 # `_lift`), or a person closes it. The close-cleared job closes a lifted
-# canary, revert or read-back record and removes its label.
+# canary, revert or read-back record, which ends its Work status hold, and
+# removes a legacy needs-human label if one is left.
 #
 # The canary push run also labels the push's merges on a record-mode path of
 # pr-pipeline.yaml's post-merge.paths (an agent session's merge through the
