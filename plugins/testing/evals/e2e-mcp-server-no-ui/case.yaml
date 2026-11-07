@@ -4,7 +4,7 @@ description: 'Legacy run-e2e 2. Routes to the non-UI playbook and gives the JSON
 tags: [testing, run-e2e, no-network]
 expected_outcome: 'Routes to the non-UI playbook and gives the JSON-RPC initialize stdio handshake as the live test, demanding no browser evidence.'
 execution:
-  prompt: 'How do I live-test a change to an MCP server with no UI?'
+  prompt: 'How do I live-test a change to an MCP server with no UI? Use the `testing:run-e2e` skill if you have it.'
   allowed_tools: [Read, Glob, Grep]
   max_turns: 10
   timeout_seconds: 300

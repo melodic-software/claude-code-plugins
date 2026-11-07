@@ -11,7 +11,7 @@ execution:
 graders:
   - name: own-instance
     type: regex
-    pattern: '\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b'
+    pattern: '\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b|\bis not reused\b|\bdoes not adopt it\b'
     flags: i
     target: last_message
   - name: meets-expectations

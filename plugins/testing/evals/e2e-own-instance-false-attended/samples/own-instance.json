@@ -3,6 +3,10 @@
     {
       "answer": "A declared entry means the run starts its own instance: make ws-up, make ws-info, then drive http://localhost:51877.",
       "why": "own instance"
+    },
+    {
+      "answer": "reuse_running_instance is false, so the app already answering at http://localhost:8080 is not reused.",
+      "why": "not reused (the smoke reply, which the llm grader passed)"
     }
   ],
   "fail": [

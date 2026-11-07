@@ -3,6 +3,10 @@
     {
       "answer": "puppeteer is rejected, so e2e_driver resolves to auto from the default; the run continues.",
       "why": "auto default"
+    },
+    {
+      "answer": "**Resolved `e2e_driver`: `auto`. Its source is the bundled default.**",
+      "why": "two sentences (the smoke reply, which the llm grader passed)"
     }
   ],
   "fail": [

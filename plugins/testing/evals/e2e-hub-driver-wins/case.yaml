@@ -11,7 +11,7 @@ execution:
 graders:
   - name: hub-driver
     type: regex
-    pattern: '\bplaywright\b[^.\n]{0,80}\b(?:from|named by|named in|per)\b[^.\n]{0,30}\bhub\b'
+    pattern: '\bplaywright\b[^.\n]{0,80}\b(?:from|named by|named in|per)\b[^.\n]{0,30}\bhub\b|\bplaywright\b[^\n]{0,10}\.\s+It comes from (?:the )?control skill[''’]s hub\b'
     flags: i
     target: last_message
   - name: meets-expectations

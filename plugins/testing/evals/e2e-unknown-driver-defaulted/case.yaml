@@ -11,7 +11,7 @@ execution:
 graders:
   - name: auto-from-default
     type: regex
-    pattern: '\bauto\b[^.\n]{0,60}\bdefault\b|\bdefault\b[^.\n]{0,40}\bauto\b'
+    pattern: '\bauto\b[^.\n]{0,60}\bdefault\b|\bdefault\b[^.\n]{0,40}\bauto\b|\bauto\b[^\n]{0,10}\.\s+Its source is the (?:bundled )?default\b'
     flags: i
     target: last_message
   - name: meets-expectations

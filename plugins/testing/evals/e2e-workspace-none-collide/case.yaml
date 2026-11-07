@@ -11,7 +11,7 @@ execution:
 graders:
   - name: warns-collision
     type: regex
-    pattern: '\bcollid(?:e|es|ing)\b|\bcollision'
+    pattern: '\bcollid(?:e|es|ing)\b|\bcollision|\bport\s+\d+\s+may already be taken\b'
     flags: i
     target: last_message
   - name: meets-expectations

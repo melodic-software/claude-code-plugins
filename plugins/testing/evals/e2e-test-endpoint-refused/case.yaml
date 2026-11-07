@@ -11,7 +11,7 @@ execution:
 graders:
   - name: user-path
     type: regex
-    pattern: '\bnot driven\b|\buser[- ]facing\b|\buser path\b'
+    pattern: '\bnot driven\b|\buser[- ]facing\b|\buser path\b|\breal UI\b'
     flags: i
     target: last_message
   - name: meets-expectations
