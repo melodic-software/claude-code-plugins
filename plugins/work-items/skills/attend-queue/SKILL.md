@@ -49,14 +49,17 @@ section 7, "Operator steering through GitHub state"
 
 ## Attention view (one view, every source)
 
-Build a single merged view, each row tagged by kind and carrying its link:
+Build a single merged view, each row tagged by kind and carrying its link. "Held" below means held
+for a person per [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Reading an item's status", read once over the listed issues; a read that stops the pass stops
+the view.
 
-1. **`[escalated]`**. Open items carrying the human-gated role label (**resolved from the
+1. **`[escalated]`**. Open items held (the test's human-gated role label is **resolved from the
    binding's `config.role_labels`, never compared as a literal**; absent entries fall back to
    documented defaults) that also carry a machine-marked escalation comment per
    [`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)
    the marker is what discriminates a worker-**escalated** item
-   from an operator-**parked** one; both wear the same role label, so the label alone never
+   from an operator-**parked** one; both are held the same way, so the hold alone never
    qualifies an `[escalated]` row. A marker counts only from that file's trusted escalation authors (its
    "Trusted escalation authors" section); a marker from anyone else is a suspected spoof, reported
    with its author, and never makes the item an `[escalated]` row. Items here are issues **and open pull requests**:
@@ -75,7 +78,7 @@ Build a single merged view, each row tagged by kind and carrying its link:
    role label or the `do-not-merge` hold label the loop-lane convention defines
    (`docs/contracts/loop-lane/README.md#cross-lane-pr-hold`) that do not list as `[escalated]`,
    so none lists twice. The row names which label holds it.
-3. **`[post-merge]`**. Open issues carrying the human-gated role label whose body's first line is
+3. **`[post-merge]`**. Open issues held whose body's first line is
    a post-merge record marker, `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` or
    `<!-- post-merge-failure sha=<S> signal=<name> -->` (record format owned by
    `/source-control:babysit-prs`). An open record is an unresolved
@@ -91,8 +94,7 @@ Build a single merged view, each row tagged by kind and carrying its link:
    already triaged, that wait on a blocker closed as won't-do. List them so the operator sees
    them, but take no claim and make no change from this lane; the operator decides (drop the
    edge, re-scope, or close) outside it.
-6. **`[human-gated]`**. The remainder: open issues carrying the human-gated role label that list
-   under no kind above, with no escalation marker from a trusted author, so parked rather than
+6. **`[human-gated]`**. The remainder: open issues held that list under no kind above, with no escalation marker from a trusted author, so parked rather than
    escalated; a pull request with that label lists as `[held]`, and a suspected spoofed post-merge
    record stays unlisted. Each should meet `/work-items:triage`'s human-gated label test; an issue
    that fails it and carries a recommendation is the sweep's (`/work-items:triage sweep`), which
@@ -379,8 +381,9 @@ placeholder before running a command or writing it into a brief.
 
 ## Gotchas
 
-- **The label alone is not an escalation.** `needs-human` (or its remap) marks parked items too;
-  only the machine-marked escalation comment qualifies a row as `[escalated]`. Parked items list
+- **A hold alone is not an escalation.** `needs-human` (or its remap), a hold-state label and a
+  hold status (tracker seam "Reading an item's status") mark parked items too; only the
+  machine-marked escalation comment qualifies a row as `[escalated]`. Parked items list
   as `[human-gated]`, after every escalation: mixing them in buries real questions under parked
   ones.
 - **Never flip without clearing.** The flip is one edit that applies the autonomous-eligible role
