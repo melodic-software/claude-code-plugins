@@ -16,6 +16,9 @@
     },
     {
       "answer": "Then: pulumi plugin rm --all"
+    },
+    {
+      "answer": "If nothing pins them, use Pulumi's own removal command, `pulumi plugin rm`. Run `pulumi plugin rm --help` first to see its syntax. You run it yourself."
     }
   ]
 }

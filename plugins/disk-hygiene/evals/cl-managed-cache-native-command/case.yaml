@@ -37,7 +37,7 @@ graders:
     arm: both
   - name: no-manual-deletion-command
     type: regex
-    pattern: '(?:^|[\s`])(?:rm|rmdir|unlink)\s+[-/"'']|Remove-Item|\bfind\b[^\n]*\s-delete\b'
+    pattern: '(?<!\bplugin)(?:^|[\s`])(?:rm|rmdir|unlink)\s+[-/"'']|Remove-Item|\bfind\b[^\n]*\s-delete\b'
     flags: 'mi'
     match: not_contains
     target: last_message

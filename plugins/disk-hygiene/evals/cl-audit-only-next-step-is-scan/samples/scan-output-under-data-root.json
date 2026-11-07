@@ -8,6 +8,9 @@
     },
     {
       "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/data/runs/a1/snapshot.json --data-root /opt/eval/data"
+    },
+    {
+      "answer": "```text\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/scratch-audit\" \\\n  --output \"/opt/eval/data/runs/scratch-audit-001/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" \\\n  --data-root \"/opt/eval/data\"\n```"
     }
   ],
   "fail": [
@@ -19,6 +22,9 @@
     },
     {
       "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --data-root /opt/eval/data\n\nThe snapshot goes to /opt/eval/data/runs/r1/snapshot.json."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/work/scratch-audit/runs/r1/snapshot.json --data-root /opt/eval/data"
     }
   ]
 }

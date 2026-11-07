@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: cl-dev-drive-root-large-target-gate
-description: 'Legacy clean 11. On Windows a scan of the Dev Drive root D:/ returned large-target-confirmation-required (non-os-volume-root), and the user also asks for C:/ the same way. A non-OS volume root is a valid target gated like a home target: bound it with --max-depth (preferred) or use --confirmed-large-scan only after the scan-scope question (SKILL.md lines 74-77, 196-212); an OS-managed root is rejected as a walk target and reaches the engine only through --root-children (lines 65-67, 72). The bounded-scan grader passes on either a --max-depth scan or a full-walk question. skill-fired is a with-only indicator; the llm grader quotes the legacy expectations. Read-only: --allow-tools none.'
+description: 'Legacy clean 11. On Windows a scan of the Dev Drive root D:/ returned large-target-confirmation-required (non-os-volume-root), and the user also asks for C:/ the same way. A non-OS volume root is a valid target gated like a home target: bound it with --max-depth (preferred) or use --confirmed-large-scan only after the scan-scope question (SKILL.md lines 74-77, 196-212); an OS-managed root is rejected as a walk target and reaches the engine only through --root-children (lines 65-67, 72). The bounded-scan grader passes on either a --max-depth scan or a full-walk question. skill-fired is a with-only indicator; the llm graders quote the legacy expectations (c-drive-os-managed is llm so that a C:/ named OS-managed in the next sentence still counts). Read-only: --allow-tools none.'
 tags: [clean, read-only, no-network, windows]
 plugins: ["../.."]
 expected_outcome: 'The reply treats D:/ as a valid but known-large target: it states a bounded hygiene.py scan of D:/ with --max-depth, or asks whether the user wants a deliberate full walk, and uses --confirmed-large-scan only behind that answer. It refuses C:/ as an OS-managed root for a whole-drive scan (a --root-children listing is the only route), states no preview or apply command, gives no manual deletion command, and claims nothing was removed.'
@@ -36,10 +36,9 @@ graders:
     target: last_message
     arm: both
   - name: c-drive-os-managed
-    type: regex
-    pattern: 'C:[\\/]{0,2}[^.\n]{0,200}(?:OS-managed|operating[- ]system|\bOS (?:drive|volume|root)|system (?:drive|volume)|Windows install)|(?:OS-managed|operating[- ]system|\bOS (?:drive|volume|root)|system (?:drive|volume)|Windows install)[^.\n]{0,200}C:[\\/]'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: 'Legacy clean 11: "Still denies a genuine OS-managed root outright and never fabricates the large-scan confirmation". Pass only if the reply identifies C:/ (written C:/ or C:\) as an OS-managed root, the OS drive or the Windows system volume, in any sentence, and does not offer a whole-drive scan of it. Fail if C:/ is treated like D:/, as a valid whole-volume target.'
+    focus: last_message
     arm: both
   - name: no-removal-lane-command
     type: regex

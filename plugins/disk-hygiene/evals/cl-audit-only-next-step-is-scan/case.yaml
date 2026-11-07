@@ -22,7 +22,7 @@ graders:
     arm: both
   - name: scan-output-under-data-root
     type: regex
-    pattern: 'hygiene\.py\W{1,12}scan\b(?=(?:[^\n]*\\\n)*[^\n]*--data-root\W+\S)(?:[^\n]*\\\n)*[^\n]*--output\W+(?![^\s"''`]*scratch-audit)[^\s"''`]*/runs/[^\s"''`]+'
+    pattern: 'hygiene\.py\W{1,12}scan\b(?=(?:[^\n]*\\\n)*[^\n]*--data-root\W+\S)(?:[^\n]*\\\n)*[^\n]*--output\W+(?![^\s"''`]*/work/scratch-audit/)[^\s"''`]*/runs/[^\s"''`]+'
     target: last_message
     arm: both
   - name: no-removal-lane-command
