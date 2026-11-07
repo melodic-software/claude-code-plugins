@@ -125,12 +125,31 @@ CORE_3 = (
     "Current rules",
     "Standing preferences",
 )
-RULE_SECTIONS = ("Current rules", "Standing preferences")
-RULE_ID_RE = re.compile(r"^\[R(\d+)\]\s*")
-# The hop-file section that lists each rule id leaving the hot file, with why.
-# The hop file already holds the predecessor's whole Current rules, so only this
-# section proves a rule was retired rather than dropped to meet the cap.
-RETIRED_RULES = "Retired rules"
+
+
+@dataclass(frozen=True)
+class IdSpec:
+    """One family of `[<prefix><n>]` ids: the hot-file sections holding them,
+    the hop-file heading listing each id that leaves with why (the hop file
+    already holds the predecessor's whole section, so only this heading proves
+    a retirement rather than a drop to meet the cap), and the frontmatter key
+    holding the next unused id."""
+
+    prefix: str
+    sections: tuple[str, ...]
+    retired_heading: str
+    floor_key: str
+
+
+ID_SPECS = (
+    IdSpec(
+        "R", ("Current rules", "Standing preferences"), "Retired rules", "next_rule_id"
+    ),
+    IdSpec("Q", ("Open questions",), "Retired open questions", "next_question_id"),
+    IdSpec("D", ("Decisions in force",), "Retired decisions", "next_decision_id"),
+)
+RULES = ID_SPECS[0]
+RETIRED_RULES = RULES.retired_heading
 # Core sections whose entries carry no id: an entry leaves the hot file only when
 # this hop's file lists it verbatim under the paired heading, then a
 # `Retired: <reason>` line. Matched only under that heading, since the hop file
@@ -143,6 +162,22 @@ AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
 RETIRED_PREFIX = "Retired:"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
+# Retire headings whose listings Review before you continue must point at.
+# `## Retired rules` keeps its one-line shape and needs no pointer, so chains
+# that retired rules before pointers existed still validate.
+POINTED_HEADINGS = (
+    *(spec.retired_heading for spec in ID_SPECS[1:]),
+    *RETIRED_ENTRY_SECTIONS.values(),
+)
+RETIRE_HEADINGS = (RETIRED_RULES, *POINTED_HEADINGS)
+HOP_NAME_RE = re.compile(r"\bh\d+-[0-9a-f]{8}\.md\b")
+# A `retire` ref: an id, a trail tag with an optional 1-based ordinal among the
+# lines carrying it, or the 1-based ordinal of an Original goal amendment unit.
+RETIRE_REF_RE = re.compile(
+    r"^\[(?P<prefix>[RQD])(?P<n>\d+)\]$"
+    r"|^\[(?P<tag>h\d+(?:-h?\d+)?)\](?:#(?P<tag_ord>\d+))?$"
+    r"|^amendment#(?P<ord>\d+)$"
+)
 # A retired rule's reason names its new home: another rule, a promotion target,
 # or a file path.
 NEW_HOME_RE = re.compile(
@@ -164,7 +199,7 @@ FRONTMATTER_KEYS_3 = (
     "hop",
     "archive",
     "archive_from",
-    "next_rule_id",
+    *(spec.floor_key for spec in ID_SPECS),
     "repo",
 )
 # Shape 3 keeps the predecessor's last rows only; older rows live in hop files.
@@ -547,8 +582,11 @@ def legacy_chain(pred: Doc, limit: int = 1000) -> list[str]:
 
 
 def parse_doc(path: Path) -> Doc:
-    doc = Doc(path=path, lines=_read_lines(path))
-    lines = doc.lines
+    return _doc_from_lines(path, _read_lines(path))
+
+
+def _doc_from_lines(path: Path, lines: list[str]) -> Doc:
+    doc = Doc(path=path, lines=lines)
     idx = 0
     if lines and lines[0].strip() == "---":
         idx = 1
@@ -1352,55 +1390,78 @@ def _chain_position(pred: Doc | None, name: str) -> tuple[str, int, int]:
     return walked[0], hop, hop
 
 
-def _rule_entries(doc: Doc) -> list[tuple[int | None, Entry, str]]:
-    found: list[tuple[int | None, Entry, str]] = []
-    for title in RULE_SECTIONS:
-        for entry in parse_entries(doc.section(title) or []):
-            if entry.exempt:
-                continue
-            m = RULE_ID_RE.match(entry.text)
-            found.append((int(m.group(1)) if m else None, entry, title))
-    return found
+def _id_of(spec: IdSpec, text: str) -> tuple[int | None, str]:
+    """The `[<prefix><n>]` id leading `text` and the text after it."""
+    m = re.match(rf"^\[{spec.prefix}(\d+)\]\s*", text)
+    return (int(m.group(1)), text[m.end() :]) if m else (None, text)
 
 
-def _retired_rules(archived: str) -> dict[int, str]:
-    """Rule id to reason, from the hop file's `## Retired rules` section only."""
+def _id_entries(doc: Doc, spec: IdSpec) -> list[tuple[int | None, Entry, str]]:
+    return [
+        (_id_of(spec, entry.text)[0], entry, title)
+        for title in spec.sections
+        for entry in parse_entries(doc.section(title) or [])
+        if not entry.exempt
+    ]
+
+
+def _retired_ids(archived: str, spec: IdSpec) -> dict[int, str]:
+    """Id to reason, from the hop file's `spec.retired_heading` section only: an
+    entry followed by its `Retired:` line, or one line `- [<prefix><n>] <reason>`."""
     found: dict[int, str] = {}
-    inside = False
-    for line in archived.splitlines():
-        if line.startswith("## "):
-            inside = line[3:].strip() == RETIRED_RULES
-            continue
-        if inside:
-            m = re.match(r"^- \[R(\d+)\]\s*(.*)$", line.strip())
-            if m:
-                found[int(m.group(1))] = m.group(2).strip()
+    for lines, reason in _retired_listings(archived, spec.retired_heading):
+        n, rest = _id_of(spec, BULLET_RE.sub("", lines[0].strip(), count=1))
+        if n is not None:
+            found[n] = rest.strip() if reason is None else reason
     return found
+
+
+def _next_id(pred: Doc | None, spec: IdSpec) -> int:
+    """The first `spec` id this hop may assign. Monotonic along the chain: the
+    predecessor's floor, so an id retired from the hot file is never offered
+    again, and one past every id the predecessor holds. With no floor yet, a
+    question or decision floor starts above every `Q<n>` / `D<n>` the
+    predecessor's text names; rule floors predate that seeding."""
+    if pred is None:
+        return 1
+    floor = _fm_int(pred, spec.floor_key) if pred.shape == 3 else None
+    ids = (
+        [n for n, _, _ in _id_entries(pred, spec) if n is not None]
+        if pred.shape == 3
+        else []
+    )
+    if floor is None and spec is not RULES:
+        text = "\n".join(pred.lines)
+        ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
+    return max(floor or 1, max(ids, default=0) + 1)
+
+
+def _amendment_spans(
+    lines: list[str],
+) -> tuple[list[tuple[int, int]], list[str]]:
+    """An Original goal body split into its amendment units, as `(start, end)`
+    line ranges, and its other non-blank lines. A unit is a `**Amended…:**` (or
+    `- **Amended…:**`) line plus the lines after it up to a blank line, the next
+    marker, `Opening ask:` or another `**` line."""
+    spans: list[list[int]] = []
+    plain: list[str] = []
+    inside = False
+    for i, line in enumerate(lines):
+        if AMENDMENT_RE.match(line):
+            spans.append([i, i + 1])
+            inside = True
+        elif inside and line.strip() and not line.startswith(("**", "Opening ask:")):
+            spans[-1][1] = i + 1
+        else:
+            inside = False
+            if line.strip():
+                plain.append(line)
+    return [(a, b) for a, b in spans], plain
 
 
 def _amendment_units(lines: list[str]) -> tuple[list[tuple[str, ...]], list[str]]:
-    """An Original goal body split into its amendment units and its other
-    non-blank lines. A unit is a `**Amended…:**` (or `- **Amended…:**`) line plus
-    the lines after it up to a blank line, the next marker, `Opening ask:` or
-    another `**` line."""
-    units: list[list[str]] = []
-    plain: list[str] = []
-    current: list[str] | None = None
-    for line in lines:
-        if AMENDMENT_RE.match(line):
-            current = [line]
-            units.append(current)
-        elif (
-            current is not None
-            and line.strip()
-            and not line.startswith(("**", "Opening ask:"))
-        ):
-            current.append(line)
-        else:
-            current = None
-            if line.strip():
-                plain.append(line)
-    return [tuple(unit) for unit in units], plain
+    spans, plain = _amendment_spans(lines)
+    return [tuple(lines[a:b]) for a, b in spans], plain
 
 
 def _entry_units(doc: Doc, title: str) -> tuple[list[tuple[str, ...]], list[str]]:
@@ -1461,10 +1522,11 @@ def _chain_hop_paths(pred: Doc, start: int):
 
 
 def _retire_reasons(archived: str) -> list[str]:
-    """Every non-empty `Retired:` reason under a verbatim-entry retire heading."""
+    """Every non-empty `Retired:` reason under a retire heading other than
+    `## Retired rules`."""
     return [
         reason
-        for heading in RETIRED_ENTRY_SECTIONS.values()
+        for heading in POINTED_HEADINGS
         for _, reason in _retired_listings(archived, heading)
         if reason
     ]
@@ -1518,7 +1580,7 @@ def _check_retired_entries(
                 report(
                     f"{title}: predecessor entry left this file without a retirement; keep it here, or list it verbatim in {rel} under '## {heading}' followed by 'Retired: <why it no longer binds>': {unit[0][:60]!r}"
                 )
-    rules = {rid for rid, _, _ in _rule_entries(doc) if rid is not None}
+    rules = {rid for rid, _, _ in _id_entries(doc, RULES) if rid is not None}
     for reason in _retire_reasons(text):
         m = CODIFIED_RE.search(reason)
         if m and int(m.group(1)) not in rules:
@@ -1527,7 +1589,7 @@ def _check_retired_entries(
             )
     retired_rules = {
         rid: reason
-        for rid, reason in _retired_rules(text).items()
+        for rid, reason in _retired_ids(text, RULES).items()
         if not NEW_HOME_RE.search(reason)
     }
     if not retired_rules:
@@ -1751,13 +1813,18 @@ def _validate_shape3(
                 f"frontmatter: repo {fm['repo']!r} must equal the Handoff origin's first slot {slots[0]!r}"
             )
 
-    seen: set[int] = set()
-    for rule_id, entry, title in _rule_entries(doc):
-        if rule_id is None:
-            f.fail(f"{title}: entry without a [R<n>] id: {entry.text[:60]!r}")
-        elif rule_id in seen:
-            f.fail(f"{title}: duplicate rule id [R{rule_id}]")
-        seen.add(rule_id or 0)
+    for spec in ID_SPECS:
+        seen: set[int] = set()
+        for n, entry, title in _id_entries(doc, spec):
+            if n is None:
+                # Id-less questions and decisions stay valid until the
+                # skeleton asks for their ids.
+                if spec is RULES:
+                    f.fail(f"{title}: entry without a [R<n>] id: {entry.text[:60]!r}")
+            elif n in seen:
+                f.fail(f"{title}: duplicate id [{spec.prefix}{n}]")
+            else:
+                seen.add(n)
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
@@ -1793,6 +1860,7 @@ def _validate_shape3(
             )
         _check_carry_3(doc, f, pred, start, hop == start, rel, archived, report)
         _check_hop_path(f, pred, start)
+    _check_retire_pointers(doc, f, pred, rel, archived, report)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     verdict = _size_finding(doc, rel)
@@ -1823,25 +1891,27 @@ def _check_carry_3(
         _check_retired_entries(doc, f, pred, start, rel, archived, report)
         if archived is None:
             return
-        own = {rid: e for rid, e, _ in _rule_entries(doc) if rid is not None}
-        retired = _retired_rules(archived)
-        for rule_id, entry, title in _rule_entries(pred):
-            if rule_id is None:
-                continue
-            prior = _squash(entry.text)
-            if rule_id in own:
-                if _squash(own[rule_id].text) != prior and prior not in arch:
+        for spec in ID_SPECS:
+            own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
+            retired = _retired_ids(archived, spec)
+            for n, entry, title in _id_entries(pred, spec):
+                if n is None:
+                    continue
+                ref = f"[{spec.prefix}{n}]"
+                prior = _squash(entry.text)
+                if n in own:
+                    if _squash(own[n].text) != prior and prior not in arch:
+                        report(
+                            f"{title}: changed entry {ref} has no prior text in {rel}; an entry rewritten in place keeps its predecessor text there"
+                        )
+                elif prior not in arch:
                     report(
-                        f"{title}: changed rule [R{rule_id}] has no prior text in {rel}; a rule rewritten in place keeps its predecessor text there"
+                        f"{title}: predecessor entry {ref} is in neither this file nor {rel}"
                     )
-            elif prior not in arch:
-                report(
-                    f"{title}: predecessor rule [R{rule_id}] is in neither this file nor {rel}"
-                )
-            elif not retired.get(rule_id):
-                report(
-                    f"{title}: predecessor rule [R{rule_id}] left this file without a retirement; keep it here, or list it in {rel} under '## {RETIRED_RULES}' as '- [R{rule_id}] <why it no longer binds>'. A rule never leaves to meet the size cap"
-                )
+                elif not retired.get(n):
+                    report(
+                        f"{title}: predecessor entry {ref} left this file without a retirement; keep it here, or list it in {rel} under '## {spec.retired_heading}' (the entry verbatim, then 'Retired: <why it no longer binds>'). An entry never leaves to meet the size cap"
+                    )
         return
     if first_split:
         lines = _section_lines(doc, "Original goal")
@@ -1869,6 +1939,41 @@ def _check_carry_3(
                 report(
                     f"{title}: predecessor entry is in neither this file nor {rel}: {entry.text[:60]!r}"
                 )
+
+
+def _retire_pointers(doc: Doc) -> list[str]:
+    """The Review before you continue lines naming a hop file and a retire
+    heading."""
+    return [
+        line
+        for line in doc.section("Review before you continue") or []
+        if HOP_NAME_RE.search(line) and any(h in line for h in RETIRE_HEADINGS)
+    ]
+
+
+def _check_retire_pointers(
+    doc: Doc, f: Findings, pred: Doc | None, rel: str, archived: str | None, report
+) -> None:
+    """A reader reaches every retired entry: this hop's file is pointed at for
+    each heading it retired entries under, and the predecessor's pointers carry
+    forward verbatim, so every earlier hop's retirements stay reachable."""
+    review = doc.section("Review before you continue") or []
+    name = rel.rsplit("/", 1)[-1]
+    for heading in POINTED_HEADINGS:
+        listed = any(
+            r is not None for _, r in _retired_listings(archived or "", heading)
+        )
+        if listed and not any(name in line and heading in line for line in review):
+            f.fail(
+                f"Review before you continue: {rel} retires entries under '## {heading}'; add a line naming {name} and '{heading}'"
+            )
+    if pred is None or pred.shape != 3:
+        return
+    for line in _retire_pointers(pred):
+        if line not in review:
+            report(
+                f"Review before you continue: the predecessor's retire pointer is missing; carry it verbatim: {line[:60]!r}"
+            )
 
 
 def _check_hop_path(f: Findings, pred: Doc, start: int) -> None:
@@ -2031,6 +2136,145 @@ def cmd_emit(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- retire -----------------------------------------------------------------------
+
+
+def _locate_ref(doc: Doc, m: re.Match[str]) -> tuple[str, int, int] | str | None:
+    """`(retire heading, start, end)` of the `doc.lines` a retire ref names,
+    None when `doc` lacks it, or why the ref is ambiguous."""
+    if m["prefix"]:
+        spec = next(s for s in ID_SPECS if s.prefix == m["prefix"])
+        for title in spec.sections:
+            base = doc.section_start(title) + 1
+            for entry in parse_entries(doc.section(title) or []):
+                if not entry.exempt and _id_of(spec, entry.text)[0] == int(m["n"]):
+                    at = base + entry.first_index
+                    return spec.retired_heading, at, at + len(entry.lines)
+        return None
+    if m["tag"]:
+        title = "Direction changes"
+        hits = [
+            i
+            for i, line in enumerate(doc.section(title) or [])
+            if (t := TRAIL_TAG_RE.match(line)) and t.group(1) == m["tag"]
+        ]
+        if m["tag_ord"]:
+            k = int(m["tag_ord"])
+            hits = hits[k - 1 : k] if k else []
+        elif len(hits) > 1:
+            return f"{len(hits)} lines carry [{m['tag']}]; add '#<ordinal>'"
+        if not hits:
+            return None
+        at = doc.section_start(title) + 1 + hits[0]
+        return RETIRED_ENTRY_SECTIONS[title], at, at + 1
+    title = "Original goal"
+    spans, _ = _amendment_spans(doc.section(title) or [])
+    k = int(m["ord"])
+    if not 1 <= k <= len(spans):
+        return None
+    base = doc.section_start(title) + 1
+    return RETIRED_ENTRY_SECTIONS[title], base + spans[k - 1][0], base + spans[k - 1][1]
+
+
+def _content_doc(raw: list[str]) -> Doc:
+    return _doc_from_lines(Path(), [_line_parts(line)[0] for line in raw])
+
+
+def _section_end(doc: Doc, title: str) -> int:
+    """One past the last non-blank line of `title`'s section, or -1."""
+    for name, start, end in doc.sections:
+        if name == title:
+            while end > start + 1 and not doc.lines[end - 1].strip():
+                end -= 1
+            return end
+    return -1
+
+
+def _apply_retire(
+    hot: list[str], hop: list[str], refs: list[tuple[str, str]], rel: str
+) -> tuple[list[str], list[str]] | str:
+    """Retire each `(ref, reason)`: copy the bytes the ref names into the hop
+    file `rel` under its retire heading, the entry verbatim then `Retired:
+    <reason>`, drop them from the hot file, and point Review before you continue
+    at each heading used. Both files are lists of lines with their own
+    terminators; returns the new lists, or why nothing can be written. A ref the
+    hot file no longer holds is copied from the predecessor's section in the hop
+    file."""
+    hot_doc, hop_doc = _content_doc(hot), _content_doc(hop)
+    removals: list[tuple[int, int]] = []
+    listings: dict[str, list[list[str]]] = {}
+    for ref, reason in refs:
+        m = RETIRE_REF_RE.match(ref)
+        if not m:
+            return f"retire ref {ref!r} is not [R<n>], [Q<n>], [D<n>], [h<k>]#<i> or amendment#<i>"
+        source, found = hot_doc, _locate_ref(hot_doc, m)
+        if found is None:
+            source, found = hop_doc, _locate_ref(hop_doc, m)
+        if isinstance(found, str):
+            return f"retire ref {ref!r}: {found}"
+        if found is None:
+            return f"retire ref {ref!r} names nothing in this file or {rel}"
+        heading, a, b = found
+        entry = source.lines[a:b]
+        if any(listed[:-1] == entry for listed in listings.get(heading, [])):
+            return f"retire ref {ref!r} repeats an earlier ref"
+        if source is hot_doc:
+            removals.append((a, b))
+        listings.setdefault(heading, []).append([*entry, f"{RETIRED_PREFIX} {reason}"])
+
+    out = list(hot)
+    for a, b in sorted(removals, reverse=True):
+        del out[a:b]
+        if 0 < a < len(out) and not out[a - 1].strip() and not out[a].strip():
+            del out[a]
+    term = (_line_parts(out[0])[1] if out else "") or "\n"
+    review = "Review before you continue"
+    for heading in listings:
+        doc = _content_doc(out)
+        name = rel.rsplit("/", 1)[-1]
+        if any(name in line and heading in line for line in doc.section(review) or []):
+            continue
+        end = _section_end(doc, review)
+        if end < 0:
+            return f"no '## {review}' section to point at {rel}"
+        out.insert(end, f"- Retired this hop: {rel} § {heading}{term}")
+
+    new_hop = list(hop)
+    term = (_line_parts(new_hop[0])[1] if new_hop else "") or "\n"
+    if new_hop and not _line_parts(new_hop[-1])[1]:
+        new_hop[-1] += term
+    for heading, entries in listings.items():
+        block: list[str] = []
+        for entry in entries:
+            block += [term, *(line + term for line in entry)]
+        end = _section_end(_content_doc(new_hop), heading)
+        if end < 0:
+            new_hop += [term, f"## {heading}{term}", *block]
+        else:
+            new_hop[end:end] = block
+    return out, new_hop
+
+
+def _write_atomic(path: Path, payload: bytes) -> OSError | None:
+    """Write `payload` through a temporary file in `path`'s own directory, so an
+    interrupted write leaves the file whole; `find-handoff` globs only `*.md`,
+    so a `.fill-*.tmp` left by a crash is never read as a handoff."""
+    tmp = None
+    try:
+        handle, tmp = tempfile.mkstemp(dir=path.parent, prefix=".fill-", suffix=".tmp")
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(payload)
+        os.replace(tmp, path)
+    except OSError as exc:
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        return exc
+    return None
+
+
 # --- fill -------------------------------------------------------------------------
 
 
@@ -2096,6 +2340,24 @@ def cmd_fill(args: argparse.Namespace) -> int:
             2,
             f"slots file must hold a JSON object keyed by slot name, not a {type(values).__name__}: {_posix(slots_path)}",
         )
+    # `retire` names no slot: it moves entries to this hop's file after the
+    # substitution (`_apply_retire`).
+    retire = values.pop("retire", None)
+    if retire is not None:
+        if shape != 3:
+            return _die(2, f"slots key 'retire' applies to shape-3 files only: {path}")
+        if not isinstance(retire, list) or not all(
+            isinstance(item, dict)
+            and isinstance(item.get("ref"), str)
+            and isinstance(item.get("reason"), str)
+            and item["reason"].strip()
+            and not any(c in item["reason"] for c in "\r\n")
+            for item in retire
+        ):
+            return _die(
+                2,
+                'slots key \'retire\' takes a list of {"ref": ..., "reason": ...} objects, each reason one non-empty line',
+            )
     # Every exit-2 check runs over every key before the exit-1 check below, so a
     # payload carrying both defects exits 2 whatever order its keys arrive in.
     for key, value in values.items():
@@ -2199,25 +2461,40 @@ def cmd_fill(args: argparse.Namespace) -> int:
         for position, part in enumerate(parts):
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
+    writes: list[tuple[Path, str, bytes]] = []
+    if retire:
+        own = hop_file_path(
+            path.parent,
+            doc.frontmatter.get("chain_root", ""),
+            _fm_int(doc, "hop") or 0,
+            doc.frontmatter.get("session_id", ""),
+        )
+        rel = own.relative_to(path.parent).as_posix()
+        try:
+            before = own.read_bytes()
+            hop_text = before.decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return _die(
+                1, f"retire: cannot read this hop's file {rel} ({exc}); nothing written"
+            )
+        refs = [(item["ref"], item["reason"].strip()) for item in retire]
+        moved = _apply_retire(out, hop_text.splitlines(keepends=True), refs, rel)
+        if isinstance(moved, str):
+            return _die(1, f"{moved}; nothing written")
+        out, hop_lines = moved
+        writes.append((own, "".join(hop_lines), before))
     # Every value was encode-checked above and the source decoded cleanly, so
-    # the encode below cannot raise. The bytes land in a temporary file in the
-    # target's own directory and are replaced into place, so an interrupted
-    # write leaves the handoff whole rather than truncated; `find-handoff` globs
-    # only `*.md`, so a `.fill-*.tmp` left by a crash is never read as a handoff.
-    payload = "".join(out).encode("utf-8")
-    tmp = None
-    try:
-        handle, tmp = tempfile.mkstemp(dir=path.parent, prefix=".fill-", suffix=".tmp")
-        with os.fdopen(handle, "wb") as stream:
-            stream.write(payload)
-        os.replace(tmp, path)
-    except OSError as exc:
-        if tmp is not None:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-        return _die(2, f"cannot write {path} ({exc}); nothing written")
+    # the encodes below cannot raise. The hop file is written before the hot
+    # file and restored when the hot file's write fails.
+    writes.append((path, "".join(out), text.encode("utf-8")))
+    done: list[tuple[Path, bytes]] = []
+    for target, payload, before in writes:
+        exc = _write_atomic(target, payload.encode("utf-8"))
+        if exc is not None:
+            for written, original in done:
+                _write_atomic(written, original)
+            return _die(2, f"cannot write {target} ({exc}); nothing written")
+        done.append((target, before))
     return 0
 
 
@@ -2655,16 +2932,6 @@ def hop_file_text(
     return "\n".join(lines) + "\n"
 
 
-def _next_rule_id(pred: Doc | None) -> int:
-    """The first rule id this hop may assign. Monotonic along the chain: the
-    predecessor's own `next_rule_id` floor, so an id retired from the hot file
-    is never offered again, and one past every id the predecessor holds."""
-    if pred is None or pred.shape != 3:
-        return 1
-    ids = [rid for rid, _, _ in _rule_entries(pred) if rid is not None]
-    return max(_fm_int(pred, "next_rule_id") or 1, max(ids, default=0) + 1)
-
-
 def build_skeleton_3(
     *,
     purpose: str | None = None,
@@ -2681,7 +2948,8 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape == 3
-    next_id = _next_rule_id(pred)
+    floors = {spec.floor_key: _next_id(pred, spec) for spec in ID_SPECS}
+    next_id = floors[RULES.floor_key]
     fm = [
         "---",
         "type: handoff",
@@ -2698,7 +2966,7 @@ def build_skeleton_3(
         f"hop: {hop}",
         f"archive: {ARCHIVE_DIR}/{_stem(root)}/",
         f"archive_from: {start}",
-        f"next_rule_id: {next_id}",
+        *(f"{key}: {value}" for key, value in floors.items()),
         f"repo: {origin}",
         "---",
     ]
@@ -2764,10 +3032,11 @@ def build_skeleton_3(
     section(
         "Review before you continue",
         [
+            *(_retire_pointers(pred) if carried else []),
             slot(
                 "review",
                 f"what to read before the next action, tailored to it: each archive section by file and heading (this hop's moved sections are in {hop_rel}), each instruction file a preference points at, and each command that re-reads live state; 'None.' plus a reason when this file suffices",
-            )
+            ),
         ],
     )
 

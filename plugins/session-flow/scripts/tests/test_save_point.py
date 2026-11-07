@@ -2872,7 +2872,7 @@ def test_shape3_duplicate_rule_id_fails(tmp_path):
     hop1 = s3_hop(repo, tmp_path, values={"rules": rules})
     result = strict(hop1)
     assert result.returncode == 1, out(result)
-    assert "duplicate rule id [R1]" in out(result), out(result)
+    assert "Current rules: duplicate id [R1]" in out(result), out(result)
 
 
 def test_shape3_rule_without_an_id_fails(tmp_path):
@@ -3371,3 +3371,243 @@ def test_retire_a_rule_a_retired_entry_points_at_needs_its_new_home(
     result = strict(hop3)
     assert result.returncode == 0, out(result)
     assert ("[R1] is retired in" in out(result)) is warned, out(result)
+
+
+# --- shape 3: question and decision ids, retire by reference, Review pointers --------
+#
+# Expected values come from PLAN.md AC3-AC5: `[Q<n>]` / `[D<n>]` ids with
+# `next_question_id` / `next_decision_id` floors seeded above the highest
+# `Q<n>` / `D<n>` in the predecessor; a predecessor id leaves only when listed with a
+# reason; `retire` refs name `[R|Q|D<n>]`, `[h<k>]` plus ordinal, or an amendment
+# ordinal; a hop that retired entries points at its file and heading under Review
+# before you continue, and those pointers carry forward.
+
+QUESTION = (
+    "- [Q1] Which color? Options blue or red; recommend blue; unblocks the paint."
+)
+DECISION = "- [D1] Paint before polish, because polish needs dry paint."
+ID_VALUES = {**RETIRE_VALUES, "open-questions": QUESTION, "decisions": DECISION}
+
+
+def frontmatter_int(path: Path, key: str) -> int:
+    match = re.search(rf"^{key}: (\d+)$", path.read_text(encoding="utf-8"), re.M)
+    assert match, key
+    return int(match.group(1))
+
+
+def id_chain(repo: Path, tmp_path: Path) -> tuple[Path, Path]:
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    assert strict(hop1).returncode == 0, out(strict(hop1))
+    hop2 = s3_hop(
+        repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z", values=ID_VALUES
+    )
+    return hop2, hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+
+
+def fill_hop2(repo: Path, tmp_path: Path, retire: list[dict[str, str]], **values: str):
+    """Hop 2's skeleton over an id-carrying hop 1, filled through `fill` with a
+    `retire` key; returns the fill result, the hot file and its hop file."""
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    instructions = slot_instructions(target.read_text(encoding="utf-8"))
+    merged = {**ID_VALUES, **values}
+    payload: dict[str, object] = {
+        name: merged.get(name, SHAPE3_VALUES.get(name))
+        for name, instruction in instructions.items()
+        if not instruction.startswith("optional:")
+    }
+    payload["retire"] = retire
+    filled = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    return filled, target, hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+
+
+def test_ids_new_writes_question_and_decision_floors(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    assert frontmatter_int(hop1, "next_question_id") == 1
+    assert frontmatter_int(hop1, "next_decision_id") == 1
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={
+            "open-questions": "- [Q2] Which color? (Q14 in the old notes)",
+            "decisions": "- [D5] Paint first.",
+        },
+    )
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    assert frontmatter_int(hop3, "next_question_id") == 3
+    assert frontmatter_int(hop3, "next_decision_id") == 6
+
+
+def test_ids_first_adopting_hop_seeds_above_the_predecessor_text(tmp_path):
+    repo = make_repo(tmp_path)
+    values = {"open-questions": "- Q14: which color?", "decisions": "- D3 holds."}
+    hop1 = s3_hop(repo, tmp_path, values=values)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert frontmatter_int(hop2, "next_question_id") == 15
+    assert frontmatter_int(hop2, "next_decision_id") == 4
+
+
+def test_ids_an_id_less_question_or_decision_never_fails(tmp_path):
+    repo = make_repo(tmp_path)
+    values = {"open-questions": "- Which color?", "decisions": "- Paint first."}
+    result = strict(s3_hop(repo, tmp_path, values=values))
+    assert result.returncode == 0 and "WARN" not in out(result), out(result)
+    duplicate = {"open-questions": "- [Q1] Which color?\n- [Q1] Which size?"}
+    other = tmp_path / "dup"
+    twice = strict(s3_hop(make_repo(other), other, values=duplicate))
+    assert twice.returncode == 1, out(twice)
+    assert "Open questions: duplicate id [Q1]" in out(twice), out(twice)
+
+
+@pytest.mark.parametrize(
+    "entry, heading",
+    [(QUESTION, "Retired open questions"), (DECISION, "Retired decisions")],
+    ids=["question", "decision"],
+)
+def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, heading):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    ref = entry[2:6]
+    edit(hop2, entry + "\n", "None. Settled this hop.\n")
+    dropped = strict(hop2)
+    assert dropped.returncode == 1, out(dropped)
+    assert f"{ref} left this file without a retirement" in out(dropped), out(dropped)
+    assert f"'## {heading}'" in out(dropped), out(dropped)
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        "## Review before you continue\n\n- x\n",
+    )
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{entry}\nRetired: settled on blue\n")
+    unpointed = strict(hop2)
+    assert unpointed.returncode == 1, out(unpointed)
+    assert f"retires entries under '## {heading}'" in out(unpointed), out(unpointed)
+    edit(hop2, "- x\n", f"- Retired: {archived.name} § {heading}\n")
+    retired = strict(hop2)
+    assert retired.returncode == 0, out(retired)
+
+
+def test_retire_through_fill_moves_each_ref_and_validates(tmp_path):
+    repo = make_repo(tmp_path)
+    filled, hot, archived = fill_hop2(
+        repo,
+        tmp_path,
+        [
+            {"ref": "[Q1]", "reason": "answered: blue"},
+            {"ref": "[R2]", "reason": "promoted to AGENTS.md"},
+            {"ref": "amendment#2", "reason": "superseded by the gadget plan"},
+            {"ref": "[h1]#2", "reason": "the widget shipped"},
+            {"ref": "[h1-h11]", "reason": "summarized in the start line"},
+        ],
+        **{"open-questions": SHAPE3_VALUES["open-questions"]},
+    )
+    assert filled.returncode == 0, err(filled)
+    result = strict(hot)
+    assert result.returncode == 0, out(result)
+    text = hot.read_text(encoding="utf-8")
+    for gone in (UNIT_PAREN, TRAIL_NARROW, TRAIL_RANGE, "- [R2] Never push to main."):
+        assert gone not in text, gone
+    assert UNIT_BULLET in text and TRAIL_START in text
+    rel = f"archive/{HOP1.removesuffix('.md')}/h2-{SID_B[:8]}.md"
+    for heading in (GOAL_HEADING, TRAIL_HEADING, "Retired open questions"):
+        assert f"- Retired this hop: {rel} § {heading}\n" in text, heading
+    sections = _sections_by_hand(archived.read_text(encoding="utf-8"))
+    assert (
+        sections[GOAL_HEADING]
+        == f"{UNIT_PAREN}\nRetired: superseded by the gadget plan"
+    )
+    assert sections[TRAIL_HEADING] == (
+        f"{TRAIL_NARROW}\nRetired: the widget shipped\n\n"
+        f"{TRAIL_RANGE}\nRetired: summarized in the start line"
+    )
+    assert sections["Retired open questions"] == f"{QUESTION}\nRetired: answered: blue"
+    assert sections["Retired rules"] == (
+        "- [R2] Never push to main.\nRetired: promoted to AGENTS.md"
+    )
+
+
+@pytest.mark.parametrize(
+    "retire, code, needle",
+    [
+        ([{"ref": "[Q9]", "reason": "gone"}], 1, "names nothing"),
+        (
+            [{"ref": "[h1]", "reason": "gone"}],
+            1,
+            "2 lines carry [h1]; add '#<ordinal>'",
+        ),
+        ([{"ref": "amendment#9", "reason": "gone"}], 1, "names nothing"),
+        ([{"ref": "Q1", "reason": "gone"}], 1, "is not [R<n>]"),
+        (
+            [{"ref": "[Q1]", "reason": "a"}, {"ref": "[Q1]", "reason": "b"}],
+            1,
+            "repeats",
+        ),
+        ([{"ref": "[Q1]", "reason": " "}], 2, "each reason one non-empty line"),
+        ([{"ref": "[Q1]"}], 2, "each reason one non-empty line"),
+    ],
+    ids=["unknown", "ambiguous", "ordinal", "syntax", "repeat", "blank", "no-reason"],
+)
+def test_retire_refusals_leave_both_files_byte_identical(
+    tmp_path, retire, code, needle
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    before = (target.read_bytes(), archived.read_bytes())
+    payload = {**required_slots(target.read_text(encoding="utf-8")), "retire": retire}
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert result.returncode == code, err(result)
+    assert needle in err(result), err(result)
+    assert (target.read_bytes(), archived.read_bytes()) == before
+
+
+def test_retire_through_fill_keeps_each_files_crlf(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    target = Path(out(made).strip())
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    for path in (target, archived):
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    payload = {
+        **required_slots(target.read_text(encoding="utf-8")),
+        "retire": [
+            {"ref": "amendment#2", "reason": "superseded"},
+            {"ref": "[Q1]", "reason": "answered"},
+        ],
+    }
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert result.returncode == 0, err(result)
+    for path in (target, archived):
+        data = path.read_bytes()
+        assert data.count(b"\n") == data.count(b"\r\n"), path
+    assert f"{UNIT_PAREN}\r\nRetired: superseded\r\n".encode() in archived.read_bytes()
+
+
+def test_retire_pointers_carry_forward_verbatim(tmp_path):
+    repo = make_repo(tmp_path)
+    filled, hot, _ = fill_hop2(
+        repo, tmp_path, [{"ref": "amendment#2", "reason": "superseded"}]
+    )
+    assert filled.returncode == 0, err(filled)
+    assert strict(hot).returncode == 0, out(strict(hot))
+    pointer = next(
+        line for line in hot.read_text(encoding="utf-8").split("\n") if "§" in line
+    )
+    hop3 = s3_hop(
+        repo, tmp_path, hot, sid=SID_C, now="2026-09-03T10:00:00Z", values=ID_VALUES
+    )
+    assert pointer + "\n" in hop3.read_text(encoding="utf-8")
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+    edit(hop3, pointer + "\n", "")
+    dropped = strict(hop3)
+    assert dropped.returncode == 1, out(dropped)
+    assert "the predecessor's retire pointer is missing" in out(dropped), out(dropped)
