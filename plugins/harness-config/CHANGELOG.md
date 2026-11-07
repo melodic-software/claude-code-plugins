@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.2.1] - 2026-11-07
+
+### Fixed
+
+- audit-permission-grants states that, with the Bash sandbox on, Claude Code 2.1.319 loads nested `.claude/skills` only from the start folder or after `/cd`; audit-permission-state's cloud-session note also points at `/permissions` (#14033).
+
 ## [3.2.0] - 2026-11-06
 
 ### Added

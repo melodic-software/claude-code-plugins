@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.5.1] - 2026-11-07
+
+### Fixed
+
+- The save-point's loop-aware re-arm counts a self-paced `/loop` as stopped once a finished iteration made no reschedule on Claude Code 2.1.319 or later (unless `CLAUDE_CODE_LOOP_KEEPALIVE=1`), and counts Claude cancelling a fixed-interval loop as its stop (#14033).
+
 ## [7.5.0] - 2026-11-07
 
 ### Added
