@@ -1,6 +1,12 @@
 schema_version: "1.1"
 name: confirm-refactor-large-reshape-equivalence
 graders:
+  - name: 'reads-refactor-context'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"[^"]*context/refactor\.md"'
+    min: 1
+    arm: 'with-only'
   - name: 'names-restructure'
     type: 'regex'
     pattern: '\bRestructure\b'

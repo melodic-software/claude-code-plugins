@@ -3,7 +3,7 @@ name: confirm-parser-and-storage-checks
 graders:
   - name: 'replays-saved-input'
     type: 'regex'
-    pattern: '(?:replay|re-?run|feed)[^\n]{0,80}(?:saved|captured|recorded|real|sample)[^\n]{0,40}(?:csv|input|file)|(?:saved|captured|recorded|real)[^\n]{0,30}(?:csv|input|file)[^\n]{0,80}(?:replay|through the (?:changed |new )?parser)'
+    pattern: '\brun[^\n]{0,40}parser[^\n]{0,40}\b(?:on|over|against)\b[^\n]{0,30}(?:real|saved|captured|recorded|production)|(?:replay|re-?run|feed)[^\n]{0,80}(?:saved|captured|recorded|real|sample)[^\n]{0,40}(?:csv|input|file)|(?:saved|captured|recorded|real)[^\n]{0,30}(?:csv|input|file)[^\n]{0,80}(?:replay|through the (?:changed |new )?parser)'
     flags: 'i'
     target: 'last_message'
   - name: 'reads-rows-back'

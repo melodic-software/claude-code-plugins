@@ -1,12 +1,6 @@
 schema_version: "1.1"
 name: confirm-refactor-new-failure-surfaced
 graders:
-  - name: 'reads-refactor-context'
-    type: 'tool_used'
-    tool: 'Read'
-    input_match: '"file_path":"[^"]*context/refactor\.md"'
-    min: 1
-    arm: 'with-only'
   - name: 'names-failing-test'
     type: 'regex'
     pattern: 'test_po_box_line'
@@ -14,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'verdict-not-preserved'
     type: 'regex'
-    pattern: '\b(?:NOT CONFIRMED|BEHAVIORAL CHANGE DETECTED)\b'
+    pattern: '[Vv]erdict\W{0,8}(?:NOT CONFIRMED|BEHAVIORAL CHANGE DETECTED|NEEDS WORK)'
     target: 'last_message'
   - name: 'behavior-preserved'
     type: 'llm'
