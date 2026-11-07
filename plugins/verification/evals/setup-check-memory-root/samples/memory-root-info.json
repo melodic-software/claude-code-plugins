@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| INFO | Memory root | `.work/` (no declared root) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| PASS | Memory root | docs/ |"
+    },
+    {
+      "answer": "| INFO | Ignore state | no rule matches .work/probe/baselines/x |"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
