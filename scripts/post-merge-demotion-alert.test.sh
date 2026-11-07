@@ -468,7 +468,7 @@ fix_lines() {
 # field_posts: the Work status writes (issue-field-values), apart from posts().
 field_posts() { grep -c '^POST repos/o/r/issues/[0-9]*/issue-field-values$' <<<"$LOG"; }
 posts() { echo $(($(grep -c '^POST ' <<<"$LOG") - $(fix_lines | grep -c .) - $(field_posts))); }
-# held_needs_human: the record (the first POST, issue 900 + its log line) got
+# held_needs_human: the record (the first POST, record 900 + its log line) got
 # Work status needs-human.
 held_needs_human() {
   local first n

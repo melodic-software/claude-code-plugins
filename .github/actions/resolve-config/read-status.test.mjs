@@ -152,7 +152,7 @@ const label = (event, name, actor, created_at, id = null) => ({ id, event, label
 const personActor = { id: HUMAN_ID, login: "person", type: "User" };
 const appActor = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
 
-// `github` answering the REST event list of issue 7 with `rest`.
+// `github` answering the REST event list of number 7 with `rest`.
 function restEvents(rest, calls = []) {
   return async (method, path) => {
     calls.push(`${method} ${path}`);
