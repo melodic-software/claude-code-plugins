@@ -263,7 +263,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
 - `save_point.py amend <file> --json <path>` folds an event that arrives after emit into a
-  validated shape-3 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
+  filled shape-3 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
   written sections), `append` (`{title: [lines]}`, adding lines to Original goal or Direction
   changes), `retire` (`[{ref, reason}]`, as `fill` takes it), `next` (new `Next:` lines) and
   `floors` (raising id floors only). It appends what it replaces to this hop's file, validates

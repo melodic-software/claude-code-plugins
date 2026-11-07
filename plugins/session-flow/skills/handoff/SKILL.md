@@ -252,6 +252,8 @@ After emit and until `/clear` or a successor `new`, check each task notification
 peer message or subagent result against the handoff. When one changes a section (a criterion, a
 remaining action, Environment, an open question, `Next:`), fold it in with
 `save_point.py amend <file> --json <path>` (engine doc, `amend`); `amend --help` lists its keys.
+Write the JSON beside the handoff as `<same stem>.amend.json`; the `.slots.json` stays the record
+of the fill.
 Never hand-edit the file and never re-run `new` to fold an event in. An event that changes nothing
 needs no amend; say so in one line. `amend` prints the verdict and the new rails: end the turn on
 those rails, pasted verbatim, under the same output-order rule as the first emit. Amending is the

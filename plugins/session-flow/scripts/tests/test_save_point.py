@@ -3506,6 +3506,30 @@ def test_ids_an_id_less_entry_passes_when_the_predecessor_has_no_floor(tmp_path)
     assert "without a [" not in out(result), out(result)
 
 
+def test_ids_amend_refuses_an_id_less_entry_once_the_predecessor_carries_the_floor(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    before = (hop2.read_bytes(), archived.read_bytes())
+    idless = amend(
+        hop2, tmp_path, {"sections": {"Open questions": "- Which size?"}}, now=AMEND_NOW
+    )
+    assert idless.returncode == 1, out(idless) + err(idless)
+    assert "Open questions: entry without a [Q<n>] id" in out(idless) + err(idless)
+    assert (hop2.read_bytes(), archived.read_bytes()) == before
+    with_id = amend(
+        hop2,
+        tmp_path,
+        {"sections": {"Open questions": "- [Q1] Which size?"}},
+        now=AMEND_NOW,
+    )
+    assert with_id.returncode == 0, out(with_id) + err(with_id)
+    assert "- [Q1] Which size?" in hop2.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize(
     "entry, heading",
     [(QUESTION, "Retired open questions"), (DECISION, "Retired decisions")],

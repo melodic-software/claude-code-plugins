@@ -11,6 +11,12 @@
         "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n"
       },
       "why": "unchanged"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n# integer cents, never float() or / 100\n"
+      },
+      "why": "comment obeying the rule"
     }
   ],
   "fail": [

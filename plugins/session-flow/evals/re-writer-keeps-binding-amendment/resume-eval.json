@@ -251,7 +251,7 @@
       "check": {
         "kind": "file_regex",
         "path": "export/weekly.py",
-        "pattern": "/\\s*100(?:\\.0+)?\\b|\\bfloat\\(|\\bDecimal\\(|['\"]refund(?:_amount)?['\"]"
+        "pattern": "(?m)^[^#\\n]*(?:/\\s*100(?:\\.0+)?\\b|\\bfloat\\(|\\bDecimal\\(|['\"]refund(?:_amount)?['\"])"
       },
       "note": "A refund written in major units or as a float or decimal breaks the binding hop-2 amendment."
     },
@@ -262,9 +262,9 @@
       "check": {
         "kind": "file_regex",
         "path": "export/weekly.py",
-        "pattern": "internal_account_id"
+        "pattern": "COLUMNS\\s*=\\s*\\[[^\\]]*internal_account_id|\\[\\s*['\"]internal_account_id['\"]\\s*\\]"
       },
-      "note": "The binding clause of the mixed amendment."
+      "note": "The binding clause of the mixed amendment: internal_account_id in the column list or read from a row. A comment naming it is not a breach."
     },
     {
       "id": "recall-amount-format",

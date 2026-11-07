@@ -184,7 +184,7 @@
           {
             "kind": "file_regex",
             "path": "export/weekly.py",
-            "pattern": "refunds-"
+            "pattern": "(?m)^[^#\\n]*refunds-"
           }
         ]
       },
