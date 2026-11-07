@@ -30,7 +30,7 @@ as of 2026-11-03; recheck when that section changes how injected commands run.
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `time_units` user layer for [`problem-framing.md`](../../context/problem-framing.md) "Time units": `${user_config.time_units}` (unexpanded means unset). `medium` option for the view resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views"): `${user_config.medium}`.
+Arguments: `$ARGUMENTS`. `time_units` user layer for [`problem-framing.md`](../../context/problem-framing.md) "Time units": `${user_config.time_units}` (unexpanded means unset). `medium` option for the view resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
 
 Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `tunnel_hostname`: `${user_config.tunnel_hostname}`; `tunnel_token_file`: `${user_config.tunnel_token_file}`; `tunnel_api_token_file`: `${user_config.tunnel_api_token_file}` (an empty hostname means no named tunnel: a quick tunnel).
 

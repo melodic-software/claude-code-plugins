@@ -1,0 +1,7 @@
+---
+bump: patch
+---
+
+### Fixed
+
+- `/discovery:blindspot`'s medium resolver command takes `--option "<option>"` in place of the `${user_config.medium}` token, and the skill passes `""` when the `medium` option reads empty or unsubstituted ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
