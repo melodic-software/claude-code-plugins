@@ -4,7 +4,7 @@
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-bash "${here}/../fixtures/scaffold-guard.sh" .git .gitignore README.md docs src
+bash "${here}/../fixtures/repo-scaffold-guard.sh" .git .gitignore README.md docs src
 git init -q
 git config user.email eval@example.invalid
 git config user.name eval
