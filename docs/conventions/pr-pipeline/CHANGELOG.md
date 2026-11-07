@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.4] - 2026-11-07
+
+### Fixed
+
+- The pr-pipeline convention's signal 13 row names each lane's own run cap (`holdRuns` in
+  `HOLD_LANES`) instead of a flat 6 green runs per lane.
+
 ## [9.1.3] - 2026-11-07
 
 ### Fixed
