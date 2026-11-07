@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- **Progress:** `4/7` sub-items closed; 0 in flight; 1 blocked",
+      "why": "macro map row with markdown"
+    },
+    {
+      "answer": "Four of seven are done: 4 of 7 sub-items closed, two on the frontier.",
+      "why": "prose form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Progress:** `3/7` sub-items closed; 1 blocked",
+      "why": "near miss: wrong closed count"
+    },
+    {
+      "answer": "Progress: 4 closed, 2 open, 1 blocked.",
+      "why": "no closed/total rollup"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- **Execution shape:** integration branch → single PR (recorded), on `integration/310-billing-migration`",
+      "why": "macro map row with markdown"
+    },
+    {
+      "answer": "Every session works the shared branch integration/310-billing-migration, one checkpoint at a time.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shared branch: `integration/301-billing-migration`.",
+      "why": "near miss: wrong branch number"
+    },
+    {
+      "answer": "Shared branch: integration/310-billing (assumed by convention).",
+      "why": "near miss: truncated, guessed branch name"
+    }
+  ]
+}
