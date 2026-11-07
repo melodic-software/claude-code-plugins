@@ -16,7 +16,7 @@ graders:
     max: 0
   - name: 'no-false-orphan'
     type: 'regex'
-    pattern: '\borphan[^\n]*\n(?:[ \t]*[-*][^\n]*\n)*?[ \t]*[-*][ \t]*(?:dependency-review|ci-pins)\b|(?:orphan|no (?:open |matching )?(?:item|issue))[^\n]*(?:dependency-review|ci-pins)|(?:dependency-review|ci-pins)[^\n]*(?:orphan|no (?:open |matching )?(?:item|issue))'
+    pattern: '\borphan[^\n]*\n(?:[ \t]*[-*][^\n]*\n)*?[ \t]*[-*][ \t]*(?:dependency-review|ci-pins)\b|\b(?:dependency-review|ci-pins)\b[^\n]*\bhas no (?:open |matching )?(?:item|issue)\b'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'

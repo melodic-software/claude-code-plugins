@@ -122,6 +122,17 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
       return [];
     }
     if (method === "POST" && path === `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`) return null;
+    if (method === "POST" && path === `${base}/comments`) {
+      const posted = { id: 9000 + shaped.length, user: { login: "github-actions[bot]", id: ACTIONS_BOT.id, type: "Bot" }, body: body.body };
+      shaped.push(posted);
+      return posted;
+    }
+    if (method === "DELETE" && one) {
+      const at = shaped.findIndex((c) => String(c.id) === one[1]);
+      if (at < 0) throw new GitHubError(404, `DELETE ${path}`);
+      shaped.splice(at, 1);
+      return null;
+    }
     if (method === "POST" && path === `${base}/issue-field-values`) {
       const value = body.issue_field_values[0].value;
       fieldNodes.push(fieldNode("IssueFieldAddedEvent", ACTIONS_BOT, { value }));
@@ -130,7 +141,7 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
     throw new Error(`unexpected ${method} ${path}`);
   }
   const dispatches = () => writes.filter(([, path]) => path.endsWith("/dispatches"));
-  return { github, writes, dispatches, labels: () => [...current].sort(), field: () => fieldState(fieldNodes) };
+  return { github, writes, dispatches, labels: () => [...current].sort(), field: () => fieldState(fieldNodes), comments: () => shaped };
 }
 
 const run = (w, commentId, env = {}) =>
@@ -820,44 +831,89 @@ const runField = (w, action, sender = OWNER) =>
   run(w, "", { EVENT_NAME: "issues", EVENT_ACTION: action, SENDER_ID: String(sender.id), COMMENT_ID: "", BASE_PATH: ROOT });
 const heldBy = (actor = LANES_APP, value = "needs-human") => fieldNode("IssueFieldAddedEvent", actor, { value });
 const changed = (actor, previousValue, newValue) => fieldNode("IssueFieldChangedEvent", actor, { previousValue, newValue });
-const removed = (actor) => fieldNode("IssueFieldRemovedEvent", actor);
+const removed = (actor, createdAt) => fieldNode("IssueFieldRemovedEvent", actor, createdAt ? { createdAt } : {});
 const fieldWrites = (w) => w.writes.filter(([, path]) => path === FIELD_WRITE);
+// The release records the job token left on the issue, by their first line.
+const records = (w) => w.comments().filter((c) => c.user.login === "github-actions[bot]").map((c) => c.body.split("\n")[0]);
+// The record's first line names the person whose event left the hold and that event's time.
+const OWNER_RELEASE = `<!-- intake-reenter:release ${OWNER.id} 2026-11-06T00:00:00Z -->`;
 
-test("a listed human moving a field-only hold to needs-triage adds the needs-triage claim, writes no field, and dispatches once", async () => {
+test("a listed human moving a field-only hold to needs-triage records the release, writes no label or field, and dispatches once", async () => {
   const w = world({ labels: ["priority: medium"], fieldNodes: [heldBy(), changed(OWNER, "needs-human", "needs-triage")] });
   assert.equal(await runField(w, "field_added"), 0);
-  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  assert.deepEqual(w.labels(), ["priority: medium"], "no status label is written");
   assert.deepEqual(fieldWrites(w), [], "the field is already at the floor");
-  expectDispatched(w);
-  assert.equal(await runField(w, "field_added"), 0, "a queued second run finds the claim");
+  assert.deepEqual(records(w), [OWNER_RELEASE]);
   expectDispatched(w);
 });
 
-test("a listed human clearing a field-only hold dispatches once, then sets the field to needs-triage", async () => {
+test("a re-run of the same release finds its record and dispatches nothing", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)] });
   assert.equal(await runField(w, "field_removed"), 0);
-  assert.deepEqual(w.labels(), ["needs-triage"]);
   expectDispatched(w);
-  assert.deepEqual(fieldWrites(w).map(([method, , body]) => [method, body]), [["POST", { issue_field_values: [{ field_id: 48484079, value: "needs-triage" }] }]]);
-  const order = w.writes.map(([method, path]) => `${method} ${path.split("/").at(-1)}`);
-  assert.deepEqual(order, ["POST labels", "POST issue-field-values", "POST dispatches"], "claim, field, then dispatch");
   w.writes.length = 0;
-  assert.equal(await runField(w, "field_removed"), 0, "a queued second run stops");
-  assert.deepEqual(w.writes, []);
+  assert.equal(await runField(w, "field_removed"), 0, "the re-run walks past its own field write to the same release");
+  assert.deepEqual(w.writes, [], "no record, field write or dispatch");
+  assert.deepEqual(records(w), [OWNER_RELEASE]);
 });
 
-test("a person's hold set after a field release's claim keeps the field, takes the claim back, and dispatches nothing", async () => {
+test("a removal then a needs-triage add by the same person is one release, whichever run reads it", async () => {
   const fieldNodes = [heldBy(), removed(OWNER)];
   const w = world({ labels: [], fieldNodes });
   const github = async (method, path, body) => {
     const answer = await w.github(method, path, body);
-    if (method === "POST" && path.endsWith("/labels")) fieldNodes.push(heldBy(OWNER, "needs-owner-decision"));
+    if (method === "POST" && path.endsWith("/comments")) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-triage", createdAt: "2026-11-06T00:05:00Z" }));
+    return answer;
+  };
+  assert.equal(await runField({ ...w, github }, "field_removed"), 0, "the add lands after the first run's record");
+  assert.equal(await runField(w, "field_added"), 0, "the queued run for the add finds the removal's record");
+  expectDispatched(w);
+  assert.deepEqual(records(w), [OWNER_RELEASE]);
+});
+
+test("a later, separate release of a new hold dispatches again", async () => {
+  const fieldNodes = [heldBy(), removed(OWNER)];
+  const w = world({ labels: [], fieldNodes });
+  assert.equal(await runField(w, "field_removed"), 0);
+  fieldNodes.push(fieldNode("IssueFieldChangedEvent", LANES_APP, { previousValue: "needs-triage", newValue: "needs-human", createdAt: "2026-11-07T00:00:00Z" }));
+  fieldNodes.push(removed(OWNER, "2026-11-07T01:00:00Z"));
+  assert.equal(await runField(w, "field_removed"), 0);
+  assert.equal(w.dispatches().length, 2, "one dispatch per release");
+  assert.deepEqual(records(w), [OWNER_RELEASE, `<!-- intake-reenter:release ${OWNER.id} 2026-11-07T01:00:00Z -->`]);
+  assert.deepEqual(w.labels(), []);
+});
+
+test("a release on an issue that still carries an earlier needs-triage label dispatches once", async () => {
+  const w = world({ labels: ["needs-triage"], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed"), 0);
+  expectDispatched(w);
+});
+
+test("a listed human clearing a field-only hold records it, sets the field to needs-triage, then dispatches once", async () => {
+  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)] });
+  assert.equal(await runField(w, "field_removed"), 0);
+  assert.deepEqual(w.labels(), []);
+  expectDispatched(w);
+  assert.deepEqual(fieldWrites(w).map(([method, , body]) => [method, body]), [["POST", { issue_field_values: [{ field_id: 48484079, value: "needs-triage" }] }]]);
+  const order = w.writes.map(([method, path]) => `${method} ${path.split("/").at(-1)}`);
+  assert.deepEqual(order, ["POST comments", "POST issue-field-values", "POST dispatches"], "record, field, then dispatch");
+  const body = w.comments().at(-1).body;
+  assert.ok(!body.includes("**Decision recorded.**"), "the record is no decision");
+});
+
+test("a person's hold set after a field release's record keeps the field, takes the record back, and dispatches nothing", async () => {
+  const fieldNodes = [heldBy(), removed(OWNER)];
+  const w = world({ labels: [], fieldNodes });
+  const github = async (method, path, body) => {
+    const answer = await w.github(method, path, body);
+    if (method === "POST" && path.endsWith("/comments")) fieldNodes.push(heldBy(OWNER, "needs-owner-decision"));
     return answer;
   };
   assert.equal(await runField({ ...w, github }, "field_removed"), 0);
   assert.equal(w.field(), "needs-owner-decision", "the person's later hold stands");
   assert.deepEqual(fieldWrites(w), [], "no field write");
-  assert.deepEqual(w.labels(), [], "the needs-triage claim comes back off");
+  assert.deepEqual(records(w), [], "the record comes back off");
+  assert.deepEqual(w.labels(), []);
   assert.deepEqual(w.dispatches(), []);
 });
 
@@ -869,13 +925,15 @@ test("every hold state released by a listed human re-enters", async () => {
   }
 });
 
-test("a failed dispatch after a field release takes the claim back, and a re-run dispatches once", async () => {
+test("a failed dispatch after a field release takes the record back, writes no status label, and a re-run dispatches once", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${DISPATCH}` });
   assert.equal(await runField(w, "field_removed"), 1);
-  assert.deepEqual(w.labels(), [], "the claim comes back off");
-  assert.equal(fieldWrites(w).length, 1, "the field was set before the dispatch");
+  assert.deepEqual(records(w), [], "the record comes back off");
+  assert.deepEqual(w.labels(), [], "no status label");
+  assert.equal(w.field(), "needs-triage", "the field stays as written");
   assert.equal(await runField(w, "field_removed"), 0, "the re-run walks past its own field write");
-  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.deepEqual(records(w), [OWNER_RELEASE]);
+  assert.deepEqual(w.labels(), []);
   assert.equal(w.dispatches().length, 2, "the failed call and the re-run's");
   assert.equal(fieldWrites(w).length, 1, "the field already reads needs-triage");
 });
@@ -907,7 +965,7 @@ test("a listed human who removes a hold and then sets needs-triage releases it",
   assert.deepEqual(fieldWrites(w), []);
 });
 
-test("a field write that fails takes the claim back and fails the run, and a re-run dispatches once", async () => {
+test("a field write that fails takes the record back and fails the run, and a re-run dispatches once", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER)], fail: `POST ${FIELD_WRITE}` });
   const lines = [];
   const code = await main({
@@ -918,7 +976,8 @@ test("a field write that fails takes the claim back and fails the run, and a re-
   assert.equal(code, 1);
   assert.equal(w.dispatches().length, 0);
   assert.ok(lines.some((line) => line.startsWith("::error title=intake-reenter::#42's Work status field was not set")), lines.join("\n"));
-  assert.deepEqual(w.labels(), [], "the claim comes back off");
+  assert.deepEqual(records(w), [], "the record comes back off");
+  assert.deepEqual(w.labels(), []);
   assert.equal(await runField(w, "field_removed"), 0);
   expectDispatched(w);
   assert.equal(w.field(), "needs-triage");

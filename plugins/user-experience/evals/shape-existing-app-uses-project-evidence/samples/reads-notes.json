@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Evidence: research/onboarding-interviews.md (research, untrusted)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Evidence: the research/ folder with onboarding notes."
+    },
+    {
+      "answer": "Evidence: none found."
+    }
+  ]
+}

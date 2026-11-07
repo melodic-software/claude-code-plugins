@@ -182,7 +182,7 @@ track-stats)
 {
   "items": [
     {"id": "dependency-review", "title": "Review dependency pins", "cadence": "monthly", "category": "general", "last_checked": "2026-08-01", "next_due": "2026-09-01"},
-    {"id": "docs-sweep", "title": "Sweep docs for stale links", "cadence": "quarterly", "category": "docs", "last_checked": "2026-10-01", "next_due": "2027-01-01"}
+    {"id": "docs-sweep", "title": "Sweep docs for stale links", "cadence": "quarterly", "category": "docs", "last_checked": "2026-10-01", "next_due": "2099-01-01"}
   ]
 }
 JSON
@@ -201,7 +201,7 @@ track-remap)
   "items": [
     {"id": "dependency-review", "title": "Review dependency pins", "cadence": "monthly", "category": "general", "last_checked": "2026-08-01", "next_due": "2026-09-01"},
     {"id": "ci-pins", "title": "Check CI pins", "cadence": "monthly", "category": "general", "last_checked": "2026-09-01", "next_due": "2026-10-01"},
-    {"id": "docs-sweep", "title": "Sweep docs for stale links", "cadence": "quarterly", "category": "docs", "last_checked": "2026-10-01", "next_due": "2027-01-01"}
+    {"id": "docs-sweep", "title": "Sweep docs for stale links", "cadence": "quarterly", "category": "docs", "last_checked": "2026-10-01", "next_due": "2099-01-01"}
   ]
 }
 JSON

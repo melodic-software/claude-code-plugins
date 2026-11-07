@@ -220,7 +220,7 @@ the former default-on pause).
    the snapshot is one read, and an item created between two reads would otherwise be captured yet
    never tested. **A snapshot counts only when every read behind it is complete**: an errored,
    truncated, or unparsable read aborts the cycle with no state change and never satisfies the
-   drain exit; a truncated one escalates at once ([reference/snapshot-reads.md](reference/snapshot-reads.md), read first).
+   drain exit; a truncated one escalates at once, and drain mode adds a status read ([reference/snapshot-reads.md](reference/snapshot-reads.md), read first).
    Pass the resolved `--scope` label to both reads as `--label`, then apply the `--shard <i>/<n>`
    partition to the retained ids before any later step reads the snapshot. The drain exit is
    evaluated against this filtered snapshot. New automated intake arriving mid-cycle is
@@ -282,7 +282,8 @@ the former default-on pause).
    same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
-   whose marker already stands while it still wears the human-gated label (a marker left after
+   whose marker already stands while it is still held for a person per the tracker seam's
+   "Reading an item's status" (a marker left after
    the operator answered and returned the item to the frontier is not standing), an idempotent label re-convergence,
    is not a new escalation, so the cycle files no second comment and writes no second record.
    **Record before marker is load-bearing, not incidental**: a stop between the two then loses the
@@ -355,7 +356,7 @@ a surviving literal `${user_config.…}` placeholder means the key is unset, so 
 default). A PR open longer than that stops silently excluding its item: it is still not dispatched,
 and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
 number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
-marker read suppresses duplicates only while the item still wears the human-gated label; an item
+marker read suppresses duplicates only while the item is still held for a person; an item
 back on the frontier gets a fresh marker naming the PR, and the labeled item leaves the
 autonomous frontier. The cycle report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
 A failed check has no age and stays excluded. The escalation is not progress: it does not reset

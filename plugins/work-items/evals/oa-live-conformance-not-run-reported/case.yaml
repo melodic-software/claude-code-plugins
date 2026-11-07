@@ -11,12 +11,12 @@ graders:
   - name: 'runs-common-tests'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '(?:\b(?:bash|sh)[ \t]+[^\n;|&]*|(?:^|[;&|(][ \t]*)[^\s;|&]*)common\.test\.sh\b'
+    input_match: '(?:(?:^|[\s;&|(\"])(?:bash|sh)[ \t]+[^\n;|&]*|(?:^|[;&|(\"][ \t]*)[^\s;|&]*)common\.test\.sh\b'
     min: 1
   - name: 'no-conformance-run'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '(?:\b(?:bash|sh)[ \t]+[^\n;|&]*|(?:^|[;&|(][ \t]*)[^\s;|&]*)run-conformance\.sh\b'
+    input_match: '(?:(?:^|[\s;&|(\"])(?:bash|sh)[ \t]+[^\n;|&]*|(?:^|[;&|(\"][ \t]*)[^\s;|&]*)run-conformance\.sh\b'
     min: 0
     max: 0
   - name: 'says-not-run'

@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "user-experience:evaluator",
+            "description": "Evaluate flow",
+            "prompt": "Artifact: /w/.work/password-reset/user-flow.md\nMethod: cognitive walkthrough, per /p/reference/evaluation.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "user-experience:evaluator",
+            "prompt": "Run a Cognitive Walkthrough of password-reset-flow.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "user-experience:evaluator",
+            "prompt": "Artifact: /w/.work/password-reset/user-flow.md\nMethod: heuristic evaluation"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "user-experience:evaluator",
+            "prompt": "Method: cognitive walkthrough per /p/reference/evaluation.md. The flow: 1. Forgot password link 2. Email form ..."
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "prompt": "Cognitive walkthrough of /w/.work/password-reset/user-flow.md"
+          }
+        }
+      ]
+    }
+  ]
+}

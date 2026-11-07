@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'names-exit-6'
     type: 'regex'
-    pattern: '\bexit(?:s|ed|ing)?(?:[ \t]+(?:code|status|with))?[ \t`]*6\b'
+    pattern: '\bexit(?:s|ed|ing)?(?:[ \t]+(?:code|status|with))*[ \t`]*6\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

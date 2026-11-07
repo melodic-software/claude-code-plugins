@@ -21,6 +21,17 @@
         }
       ],
       "why": "reads the binding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/work-item-tracker/conformance/run-conformance.sh"
+          }
+        }
+      ],
+      "why": "reads the runner, from review"
     }
   ],
   "fail": [
