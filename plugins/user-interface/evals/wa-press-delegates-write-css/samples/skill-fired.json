@@ -5,11 +5,11 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "user-interface:write-css"
+            "skill": "user-interface:write-animation"
           }
         }
       ],
-      "why": "write-css fired"
+      "why": "write-animation fired"
     }
   ],
   "fail": [
@@ -26,7 +26,7 @@
           }
         }
       ],
-      "why": "audit, not write-css"
+      "why": "audit, not write-animation"
     }
   ]
 }

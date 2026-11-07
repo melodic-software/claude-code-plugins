@@ -9,7 +9,7 @@
       "why": "uses the project's tokens"
     },
     {
-      "answer": ":root { --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1); --motion-medium: 240ms; }",
+      "answer": ":root { --motion-ease-exit: cubic-bezier(0.3, 0, 1, 1); --motion-medium: 220ms; }",
       "why": "quotes the project's own exit and medium tokens"
     }
   ],
@@ -21,6 +21,10 @@
     {
       "answer": "--ease-out: cubic-bezier(0.23, 1, 0.32, 1);",
       "why": "a parallel easing token"
+    },
+    {
+      "answer": "--motion-fast-duration: 90ms;",
+      "why": "near miss: a parallel token whose name starts with a project token"
     }
   ]
 }
