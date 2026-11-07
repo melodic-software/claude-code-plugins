@@ -115,12 +115,12 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   }
 }
 
-// A REST reader over the shared budgeted fetch: ETag reuse keeps each repeat
-// poll a 304 off the primary rate limit, and the rate guard records spend.
-export function createApi({ token, repository, apiUrl = "https://api.github.com", fetch }) {
+// A REST reader over budgetedFetch: ETag reuse keeps each repeat poll a 304
+// off the primary rate limit, and the rate guard records spend.
+export function createApi({ token, repository, apiUrl = "https://api.github.com", budget }) {
   return {
     async get(path) {
-      const response = await fetch(`${apiUrl}/repos/${repository}/${path}`, {
+      const response = await budget.fetch(`${apiUrl}/repos/${repository}/${path}`, {
         headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
       });
       if (!response.ok) throw new Error(`GET ${path} returned ${response.status}`);
@@ -132,7 +132,7 @@ export function createApi({ token, repository, apiUrl = "https://api.github.com"
 export async function main(env, { api, now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = (line) => console.log(line) } = {}) {
   const input = readEnv(env);
   const budget = api ? null : budgetedFetch({ log });
-  const client = api ?? createApi({ token: env.GITHUB_TOKEN, repository: input.repository, apiUrl: env.GITHUB_API_URL || undefined, fetch: budget.fetch });
+  const client = api ?? createApi({ token: env.GITHUB_TOKEN, repository: input.repository, apiUrl: env.GITHUB_API_URL || undefined, budget });
   const result = await decide(input, { api: client, now, sleep, log });
   appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nreason=${result.reason}\n`);
   if (budget) log(budget.summary());

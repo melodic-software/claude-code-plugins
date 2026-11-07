@@ -11,7 +11,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { decide, main, readEnv } from "./wait-refine.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
+import { createApi, decide, main, readEnv } from "./wait-refine.mjs";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -181,6 +183,74 @@ test("malformed env throws before any read", () => {
     assert.throws(() => readEnv({ ...ENV, ...bad }), Error, JSON.stringify(bad));
   }
   assert.deepEqual(readEnv({ ...ENV, WAIT_POLL_SECONDS: "5" }), { ...INPUT, pollMs: 5_000 });
+});
+
+// The production reader: createApi over budgetedFetch and a holding rate
+// guard, against a fake GitHub that answers each route in turn (holding its
+// last answer), `304` meaning "not modified" for a conditional repeat.
+function production(routes, { hold = true } = {}) {
+  const sent = [];
+  const lines = [];
+  let failed = 0;
+  let t = 0;
+  const seen = new Map();
+  const fetch = async (url, init = {}) => {
+    const prefix = `https://api.github.com/repos/${REPO}/`;
+    assert.ok(url.startsWith(prefix), url);
+    const path = url.slice(prefix.length);
+    sent.push({ path, etag: init.headers?.["If-None-Match"] ?? null, auth: init.headers?.Authorization });
+    const answers = routes[path];
+    assert.ok(answers, `unexpected read ${path}`);
+    const n = seen.get(path) ?? 0;
+    seen.set(path, n + 1);
+    const answer = answers[Math.min(n, answers.length - 1)];
+    if (answer === 304) return new Response(null, { status: 304 });
+    const [status, body, headers = {}] = answer;
+    return new Response(JSON.stringify(body), { status, headers: { etag: `"${path}-${n}"`, ...headers } });
+  };
+  const sleep = async (ms) => {
+    t += ms;
+  };
+  const log = (line) => lines.push(line);
+  const latch = createRateLimitLatch({ now: () => t, log, fail: () => (failed += 1), limits: () => ({}), stopFile: null, sleep, hold });
+  const api = createApi({ token: "t", repository: REPO, budget: budgetedFetch({ fetch, log, sleep, now: () => t, random: () => 0, latch }) });
+  return { sent, lines, failed: () => failed, deps: { api, now: () => t, sleep, log } };
+}
+
+const ok = (body) => [200, body];
+
+test("over budgetedFetch, repeat polls go out conditional and a 304 reads as the last answer", async () => {
+  const p = production({
+    "pulls/7": [ok(pull()), 304],
+    [LIST]: [ok({ workflow_runs: [dispatcherRun()] })],
+    [`actions/runs/${DISPATCHER_ID}/artifacts?per_page=100`]: [ok(record())],
+    [`actions/runs/${REFINE_ID}`]: [ok(refineRun({ status: "in_progress", conclusion: null })), 304, ok(refineRun())],
+  });
+  assert.deepEqual(await decide(INPUT, p.deps), { proceed: true, reason: "refine-success" });
+  assert.deepEqual(
+    p.sent.filter((s) => s.path === `actions/runs/${REFINE_ID}`).map((s) => s.etag),
+    [null, `"actions/runs/${REFINE_ID}-0"`, `"actions/runs/${REFINE_ID}-0"`],
+  );
+  assert.ok(p.sent.every((s) => s.auth === "Bearer t"));
+});
+
+test("over budgetedFetch, a head read fresh after a 200 moves the decision", async () => {
+  const p = production({
+    "pulls/7": [ok(pull()), ok(pull(MOVED))],
+    [LIST]: [ok({ workflow_runs: [dispatcherRun()] })],
+    [`actions/runs/${DISPATCHER_ID}/artifacts?per_page=100`]: [ok(record())],
+    [`actions/runs/${REFINE_ID}`]: [ok(refineRun())],
+  });
+  assert.deepEqual(await decide(INPUT, p.deps), { proceed: false, reason: "head-moved" });
+});
+
+test("over a holding rate guard, a rate-limited read reviews and fails nothing", async () => {
+  const limited = [403, { message: "API rate limit exceeded for installation ID 1." }, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }];
+  const p = production({ "pulls/7": [limited] });
+  assert.deepEqual(await decide(INPUT, p.deps), { proceed: true, reason: "read-error" });
+  assert.equal(p.failed(), 0, "the guard does not fail the step under API_BUDGET_HOLD");
+  assert.deepEqual(p.lines.filter((line) => line.startsWith("::error::")), []);
+  assert.ok(p.lines.some((line) => line.startsWith(`::warning::wait-refine #7 ${HEAD}: a read failed`)));
 });
 
 test("main writes proceed and reason to GITHUB_OUTPUT", async () => {
