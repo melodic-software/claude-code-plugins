@@ -12,6 +12,7 @@ expected_outcome: 'Re-running against an existing schedule preserves each existi
 Today is 2026-11-07. AGENTS.md binds no convention home. The tracker key of docs/conventions/work-items.yaml binds github with config.lease_ttl_hours 24 and no config.role_labels; no .work-item-tracker.json exists. jq is installed and `gh repo view --json owner,name` resolves to acme/widget. .gitignore carries a docs/conventions/work-items.local.yaml line. The label set holds recurring, provenance: untrusted and capability-tier: frontier, `backfill-capability-tier-labels.sh check` reports no candidates, and no label-as-code owner is declared. The repo contains package.json, eslint.config.js and .github/workflows/ci.yml.
 
 .github/recurring-schedule.json is committed and carries three items:
+
 - dependency-review, quarterly, last_checked 2026-09-01, next_due 2026-11-30
 - ci-pin-review, quarterly, last_checked 2026-07-01, next_due 2026-09-29 (overdue)
 - security-review, semi-annual, last_checked 2026-06-01, next_due 2026-11-28

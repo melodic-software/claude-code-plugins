@@ -14,6 +14,7 @@ Today is 2026-11-07. AGENTS.md binds no convention home. The tracker key of docs
 .github/recurring-schedule.json is committed and carries three rows: ci-pin-review (title Review CI workflow pins), security-review (title Security review) and lint-config-review (title Review linter config). Over the interview the user renames ci-pin-review to id ci-action-pins with title Review CI action pins, drops security-review, drops lint-config-review, and otherwise accepts every RECOMMENDED answer and adds nothing.
 
 Listing open items labeled recurring, with bodies, returns:
+
 - #12, body carries `<!-- recurring-schedule id=ci-pin-review -->`
 - #18, body carries `<!-- recurring-schedule id=security-review -->`
 - #15, titled Review linter config, body carries `<!-- recurring-schedule id=lint-config -->`
