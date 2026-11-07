@@ -115,8 +115,16 @@ const ciStatusJobs = (draftStep) => ({
 const DRAFT_JOBS = ciStatusJobs("success");
 const READY_JOBS = ciStatusJobs("skipped");
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal, commentPages = {} } = {}) {
   const github = async (method, apiPath, body) => {
+    // A later page of an issue's comments: commentPages[number][cursor] is
+    // the comments connection GitHub returns after that cursor.
+    if (apiPath === "/graphql" && body.query.includes("after: $after")) {
+      const { number, after } = body.variables;
+      const page = commentPages[number]?.[after];
+      if (page === undefined) throw new Error("POST /graphql failed with status 502");
+      return { data: { repository: { issue: { number, comments: page } } } };
+    }
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
     const jobsOfRun = /\/actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/.exec(apiPath);
@@ -624,14 +632,13 @@ test("a whole job list that every re-read returns the same way stays red", async
   }
 });
 
-// A list longer than the query reads (comments(first: 100), closing issues
-// first: 10, a jobs page of 100, another associatedPullRequests page) fails
-// every re-read the same way, so it stays red instead of holding unseen.
+// A list longer than the query reads (closing issues first: 10, a jobs page
+// of 100, another associatedPullRequests page, comments past COMMENT_PAGES
+// pages) fails every re-read the same way, so it stays red instead of holding
+// unseen.
 test("an answer past what the query reads stays red", async () => {
-  const overComments = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
   const identity = (base) => base;
   const cases = {
-    "an issue with 101 comments": { issues: [overComments] },
     "jobs past one page of 100": { jobs: { total_count: 101, jobs: READY_JOBS.jobs } },
     "11 closing issues": { issues: [ISSUE], github: (base) => async (method, apiPath, body) => {
       const answer = await base(method, apiPath, body);
@@ -648,6 +655,10 @@ test("an answer past what the query reads stays red", async () => {
     assert.match(error.message, /could not be read/, `${name}: ${error.message}`);
     assertRed(closing(error), error);
   }
+  // Past the page cap the message names the cap, not an unread list.
+  const over = await thrown(resolve({ issues: [{ ...ISSUE, comments: { totalCount: 1001, nodes: [] } }] }));
+  assert.equal(over.message, "#7: the issue has 1001 comments, more than the 1000 (10 pages) this read takes");
+  assertRed(closing(over), over);
 });
 
 test("run as the step, a resolver that gets no answer from GitHub exits 0 with the held notice and proceed=false", async () => {
@@ -1921,6 +1932,27 @@ test("the linked issues record each body's last editor", async () => {
 test("an issue whose comments are cut off fails the read", async () => {
   const cut = { ...ISSUE, comments: { totalCount: 101, nodes: [] } };
   await assert.rejects(resolve({ issues: [cut] }), { message: "#7: the issue's comments could not be read" });
+});
+
+// #9867 had 144 comments: two GraphQL pages of at most 100.
+test("an issue with more comments than one page resolves with every page's spec comments", async () => {
+  const bot = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
+  const person = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const comment = (id, author, body = `noise ${id}`) => ({ databaseId: id, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", body, lastEditedAt: null, author, editor: null });
+  const firstNodes = [comment(1, person, "first-page criterion"), ...Array.from({ length: 99 }, (_, i) => comment(2 + i, bot))];
+  const secondNodes = [...Array.from({ length: 43 }, (_, i) => comment(101 + i, bot)), comment(144, person, "second-page criterion")];
+  const busy = { ...ISSUE, comments: { totalCount: 144, pageInfo: { hasNextPage: true, endCursor: "c100" }, nodes: firstNodes } };
+  const commentPages = { 7: { c100: { totalCount: 144, pageInfo: { hasNextPage: false, endCursor: "c144" }, nodes: secondNodes } } };
+  const resolved = await resolve({ issues: [busy], commentPages });
+  assert.equal(resolved.reason, "ok");
+  assert.deepEqual(resolved.linkedIssues, [{ ...LINKED, spec_comments: [{ id: 1, updated_at: "2026-10-01T00:00:00Z" }, { id: 144, updated_at: "2026-10-01T00:00:00Z" }] }]);
+  assert.deepEqual(resolved.specText.map(({ comments }) => comments), [["first-page criterion", "second-page criterion"]]);
+  // A next page that never comes, or one GitHub fails, stops the read.
+  const stalled = { 7: { c100: { totalCount: 144, pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } };
+  const held = await thrown(resolve({ issues: [busy], commentPages: stalled }));
+  assert.equal(held.message, "#7: the issue's comments could not be read");
+  assert.equal(held.incomplete, true);
+  await assert.rejects(resolve({ issues: [busy] }), { message: "POST /graphql failed with status 502" });
 });
 
 test("main writes the outputs, the linked issues and the spec text the workflow reads", async () => {
