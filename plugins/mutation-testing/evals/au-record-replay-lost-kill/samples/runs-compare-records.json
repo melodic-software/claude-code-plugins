@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/compare-records.sh .work/before.tsv .work/after.tsv",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "the script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "diff .work/before.tsv .work/after.tsv",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "a diff by hand"
+    }
+  ]
+}

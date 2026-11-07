@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: au-exercised-uncommitted-test
+description: 'Legacy audit uncommitted. untracked-listed grades how the set is built, no-commit-request (llm) that the dirty-target stop does not fire on a test; legacy-audit-uncommitted (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Agent.'
+plugins: ["../..", "testing-stub"]
+tags: [audit, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'The untracked test joins the set through git status --porcelain --untracked-files=all; no request to commit it; four no-assertion survivors and the exercised scope line.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'I just wrote scenarios/no_assertion/test_app.py and have not committed it. Run /mutation-testing:audit --exercised.'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+  max_turns: 80
+  timeout_seconds: 1800
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'untracked-listed'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'git status --porcelain --untracked-files=all'
+  - name: 'testing-audit-called'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"testing:audit"'
+  - name: 'scope-line'
+    type: 'regex'
+    pattern: 'Scope[*_`]*:[*_`\s]*exercised,\s*changed tests as one set'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'cause-no-assertion'
+    type: 'regex'
+    pattern: '\bno[- ]assertion\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-commit-request'
+    type: 'llm'
+    criteria: 'PASS only if the run proceeds without asking the user to commit or stash the new test file. FAIL if it stops to ask for a commit or stash.'
+    focus: 'last_message'
+  - name: 'legacy-audit-uncommitted'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:audit on a scaffolded repository, asked: “I just wrote scenarios/no_assertion/test_app.py and have not committed it. Run /mutation-testing:audit --exercised.”. It meets the legacy expectation: "Builds the changed files from the committed range plus the working tree, listing untracked files individually (`git status --porcelain --untracked-files=all`), so the uncommitted test is in the set rather than missed by `git diff <diff-target>...HEAD`. Does not ask the user to commit the test first: the dirty-target stop applies only to the mapped production files about to be mutated, and app.py is clean. Proceeds as for the committed case: four survivors, each with cause `no-assertion`, and the exercised scope line in the report."'
+    focus: 'trace'

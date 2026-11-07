@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "846675cd2cbd91bd: personal-only, not applied (INFO)",
+      "why": "status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "personal entry applied",
+      "why": "applied"
+    },
+    {
+      "answer": "personal-only",
+      "why": "half"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -1 .work/before.tsv",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "reads the before record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x > .work/after.tsv",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "writes the after record"
+    }
+  ]
+}

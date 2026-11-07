@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "K0 3  K1 0",
+      "why": "two spaces"
+    },
+    {
+      "answer": "K0 3 K1 0",
+      "why": "one space"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "K0 3  K1 3",
+      "why": "no loss"
+    },
+    {
+      "answer": "K0 0 K1 0",
+      "why": "empty K0"
+    }
+  ]
+}

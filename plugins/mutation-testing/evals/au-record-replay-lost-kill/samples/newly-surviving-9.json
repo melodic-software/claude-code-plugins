@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "newly-surviving app.py:9 statement-removal",
+      "why": "the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "newly-surviving app.py:8 statement-removal",
+      "why": "another line"
+    }
+  ]
+}

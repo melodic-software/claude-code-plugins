@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A fresh-context subagent classifies each survivor.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will classify each survivor myself.",
+      "why": "same context"
+    },
+    {
+      "answer": "A new chat could look at them.",
+      "why": "no term"
+    }
+  ]
+}

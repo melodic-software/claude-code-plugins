@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/before.tsv"
+      ],
+      "why": "as required"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "opposite"
+    }
+  ]
+}

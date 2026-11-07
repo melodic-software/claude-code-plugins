@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Tracked, not ignored | PASS |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Shared | yes |",
+      "why": "near miss"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Or I can continue this run with tool: manual.",
+      "why": "offer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install it and run again.",
+      "why": "no offer"
+    }
+  ]
+}

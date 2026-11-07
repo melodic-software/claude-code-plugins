@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Retired team file | INFO | .claude/mutation-testing.md is retired |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Team file | PASS | .claude/mutation-testing.md |",
+      "why": "read as team layer"
+    }
+  ]
+}

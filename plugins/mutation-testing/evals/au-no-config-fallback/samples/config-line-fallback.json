@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Config: no config: fallback defaults (tool: manual, diff-target: main from origin/HEAD)",
+      "why": "the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Config: team file docs/conventions/mutation-testing.yaml",
+      "why": "a layer"
+    },
+    {
+      "answer": "No config found.",
+      "why": "not the label"
+    }
+  ]
+}

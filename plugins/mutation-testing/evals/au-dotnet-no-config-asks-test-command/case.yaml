@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: au-dotnet-no-config-asks-test-command
+description: 'Legacy audit no_config_test_command. no-dotnet-test and asks-test-command grade the never-guess rule; legacy-audit-no_config_test_command (llm) quotes the legacy expectation. The unattended clause is not exercised. Needs --scaffold --allow-tools Bash Agent.'
+tags: [audit, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Asks for the test command, or proposes one and waits, before any baseline; never runs a bare dotnet test it inferred.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run mutation testing on this .NET repository with /mutation-testing:audit. There is no mutation-testing config at any layer.'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+  max_turns: 60
+  timeout_seconds: 1500
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'no-dotnet-test'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'dotnet\s+test\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'asks-test-command'
+    type: 'regex'
+    pattern: '\btest[- ]command\b[^\n?]{0,160}\?|\b(?:which|what)\b[^\n?]{0,80}\b(?:command|runner)\b[^\n?]{0,80}\?|\b(?:confirm|tell me|give me|provide|supply|share|send)\b[^\n]{0,80}\bcommand\b|\bneed (?:a|the|your) test[- ]command\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-audit-no_config_test_command'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:audit on a scaffolded repository, asked: “Run mutation testing on this .NET repository with /mutation-testing:audit. There is no mutation-testing config at any layer.”. It meets the legacy expectation: "Falls back to the defaults for everything except the test command, which it never guesses. Before any baseline run it asks the user for the test command, or proposes one and waits for confirmation, and states the confirmed command before the baseline run and on the report''s Config line. Never runs a bare `dotnet test` or any other whole-tree test command it inferred, because in a .NET repository that can run test projects that reset or write shared environments. Running unattended with no test command, it stops and asks for one rather than telling the user to run setup."'
+    focus: 'trace'

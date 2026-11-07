@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: pr-diff-scoping-at-scale
+description: 'Legacy principles 5. cites-7-and-820 grades the cited figures; legacy-principles-5 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'Whole-repo mutation is impractical; the industrial fix is diff-scoping, one mutant per line, arid suppression and review-time surfacing, with a median of 7 mutants per changelist against 820; reference/scaling-and-suppression.md is read.'
+execution:
+  prompt: 'Is mutation testing too slow to use on a real codebase? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'loads-scaling'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/scaling-and-suppression\.md'
+  - name: 'cites-7-and-820'
+    type: 'regex'
+    pattern: '\b7\b[^\n]{0,120}\b820\b|\b820\b[^\n]{0,120}\b7\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-principles-5'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “Is mutation testing too slow to use on a real codebase?”. It meets the legacy expectation: "Explains that naive whole-repo mutation testing is impractical and that the industrial fix is architectural: diff-scope to changed lines, at most one mutant per line, suppress arid nodes, surface at review time. Cites the median 7 mutants per changelist against 820 for traditional mutagenesis. Loads reference/scaling-and-suppression.md."'
+    focus: 'trace'

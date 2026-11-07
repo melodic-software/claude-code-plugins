@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "read-only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/reviews/feature-x",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "memory-tier write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > x-mutation-survivors.md <<'EOF'\nEOF",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "findings file"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "malformed: missing claim",
+      "why": "status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "invalid entries are skipped",
+      "why": "no status name"
+    }
+  ]
+}

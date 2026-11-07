@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: se-arid-entry-missing-keys
+description: 'Legacy setup 5. runs-suppression-lint (with-only), reports-malformed and names-missing-keys (llm) grade the verdict; legacy-setup-5 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'No: suppression-lint.sh over the record reports the entry malformed, naming check and claim, as a FAIL; all five keys are required.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup check. My arid record has an entry with sites, reason and date but no check or claim. Does it suppress?'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'runs-suppression-lint'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'suppression-lint\.sh[^"]*mutation-testing-arid\.md'
+    arm: 'with-only'
+  - name: 'reports-malformed'
+    type: 'regex'
+    pattern: '\bmalformed\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-missing-keys'
+    type: 'llm'
+    criteria: 'PASS only if the reply says the entry does not suppress and names check and claim as the missing required keys. FAIL if it says the entry suppresses or names other keys as missing.'
+    focus: 'last_message'
+  - name: 'legacy-setup-5'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup check run on a scaffolded repository (A configured Python repo whose arid record has one entry with no check or claim). It meets the legacy expectation: "No. Grades the record by running `bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" .claude/mutation-testing-arid.md` rather than deriving anything by hand, and reports that entry''s `malformed` line and the missing required keys it names, as a FAIL. States that all five keys (check, claim, sites, reason, date) are required and that an entry missing any is malformed and does not suppress -- a partial parse would let the audit suppress a mutant on a location match the contract never authorized. Reads the probe''s outcome from the lint''s exit code: 1 because an entry failed, with 0 for a record whose every entry passes (an absent record and an empty suppressions mapping included) and 2 for a record it cannot grade at all. Does not re-derive the finding_id by hand either; the same run reports a `mismatch` line naming the id the constituents actually hash to."'
+    focus: 'trace'

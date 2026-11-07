@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Estimated wall-clock: 0h 1m. Proceed with the full run?",
+      "why": "asks"
+    },
+    {
+      "answer": "Confirm to run the 6 mutants.",
+      "why": "confirm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Full run complete: 2 of 6 mutants survived.",
+      "why": "ran without asking"
+    },
+    {
+      "answer": "Estimated wall-clock: 0h 1m.",
+      "why": "no question"
+    }
+  ]
+}

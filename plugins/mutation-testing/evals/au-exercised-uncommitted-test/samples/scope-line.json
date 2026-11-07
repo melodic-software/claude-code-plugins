@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Scope: exercised, changed tests as one set",
+      "why": "the scope line"
+    },
+    {
+      "answer": "**Scope:** exercised, changed tests as one set",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Scope: diff vs main",
+      "why": "near miss"
+    }
+  ]
+}

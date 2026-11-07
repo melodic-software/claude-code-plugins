@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Save them with `/plugin configure mutation-testing@melodic-software`.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit your settings.json.",
+      "why": "wrong route"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blind spot: a restated expected value passes; see testing/judge/rule-restated-expectation.",
+      "why": "names the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Blind spot: a copied formula is not caught.",
+      "why": "rule not named"
+    },
+    {
+      "answer": "testing/judge/rule-restated",
+      "why": "truncated"
+    }
+  ]
+}

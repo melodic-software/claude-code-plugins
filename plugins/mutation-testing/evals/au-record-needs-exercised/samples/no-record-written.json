@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .work",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x > .work/before.tsv",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "writes the record"
+    }
+  ]
+}

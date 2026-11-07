@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Gradle only filters by name (`--tests`).",
+      "why": "the flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Gradle filters tests.",
+      "why": "no flag"
+    }
+  ]
+}

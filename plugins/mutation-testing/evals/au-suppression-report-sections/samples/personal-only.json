@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "personal-only, not applied: promote it to the team record",
+      "why": "status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "personal entries are ignored",
+      "why": "no status name"
+    }
+  ]
+}

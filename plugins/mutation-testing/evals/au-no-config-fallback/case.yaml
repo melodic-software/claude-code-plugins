@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: au-no-config-fallback
+description: 'Legacy audit no_config_fallback. diff-target-from-origin-head, config-line-fallback and baseline-run grade the fallback; legacy-audit-no_config_fallback (llm) quotes the legacy expectation. The narrated pytest command is python3 -m unittest here: pytest is not installed on the eval host. Needs --scaffold --allow-tools Bash Agent.'
+tags: [audit, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Falls back without refusing: tool manual, the diff target from git symbolic-ref of origin/HEAD, the changed source files, the effort cap; states the test command before the baseline; the Config line reads no config: fallback defaults.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run mutation testing on my branch with /mutation-testing:audit. There is no docs/conventions/mutation-testing.yaml, no .local.md personal override and no mutation-testing userConfig value. The test command is `python3 -m unittest {tests}`.'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+  max_turns: 60
+  timeout_seconds: 1500
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'diff-target-from-origin-head'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'symbolic-ref[^"]*refs/remotes/origin/HEAD'
+  - name: 'config-line-fallback'
+    type: 'regex'
+    pattern: 'no config:?\s*fallback defaults'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'baseline-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '-m\s+unittest\b'
+  - name: 'legacy-audit-no_config_fallback'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:audit on a scaffolded repository, asked: “Run mutation testing on my branch with /mutation-testing:audit. There is no docs/conventions/mutation-testing.yaml, no .local.md personal override and no mutation-testing userConfig value. The test command is `python3 -m unittest {tests}`.”. It meets the legacy expectation: "Does not refuse and does not send the user to /mutation-testing:setup apply. Resolves every config layer, finds none, and falls back: `tool: manual`, the diff target resolved with `git symbolic-ref --short refs/remotes/origin/HEAD` rather than a hardcoded main or master, `mutate` set to the changed source files minus test code, and the effort-derived mutant cap since no `max-mutants` is set. States `python -m pytest {tests}` as the test command to the user before the baseline run, with `{tests}` filled by test paths rather than left empty. The scope report''s Config line reads `no config: fallback defaults` and lists each default, the resolved diff target included."'
+    focus: 'trace'

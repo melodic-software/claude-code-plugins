@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Which test command should I use? I would propose `dotnet test tests/Shop.Tests/Shop.Tests.csproj`.",
+      "why": "asks"
+    },
+    {
+      "answer": "Please confirm the test command before I run the baseline.",
+      "why": "confirm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran dotnet test: 2 passed.",
+      "why": "ran it"
+    },
+    {
+      "answer": "Mutation run complete.",
+      "why": "no ask"
+    }
+  ]
+}

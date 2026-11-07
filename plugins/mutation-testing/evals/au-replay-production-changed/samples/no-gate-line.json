@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No Gate line: the replay was refused.",
+      "why": "explains"
+    },
+    {
+      "answer": "Refused before any mutant.",
+      "why": "plain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Gate: block",
+      "why": "a gate"
+    },
+    {
+      "answer": "**Gate:** pass",
+      "why": "bold gate"
+    }
+  ]
+}

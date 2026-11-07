@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-crash-restore-terminal
+description: 'Legacy audit 6. names-porcelain-snapshot and failed-restore-terminal (llm) grade the two core rules; legacy-audit-6 (llm) quotes the legacy expectation. Needs --allow-tools Bash.'
+tags: [audit, no-network, legacy]
+runs: 3
+expected_outcome: 'Compares against the Phase 0 git status --porcelain snapshot, a tracked-path difference is a failed restore, the timing follows the write regime, and a failed restore is terminal: no triage, report or findings file, a failure naming each unrestored path and the recovery command.'
+execution:
+  prompt: 'My /mutation-testing:audit run crashed halfway through. How does the audit decide whether my source was restored, and what does it report?'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'names-porcelain-snapshot'
+    type: 'regex'
+    pattern: 'git status --porcelain'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'failed-restore-terminal'
+    type: 'llm'
+    criteria: 'PASS only if the reply says a failed restore ends the run: no further mutants, no survivor triage, no ranked report and no findings file, with a failure that names the unrestored paths. FAIL if it says the run reports the mutants it finished as a partial result after a failed restore.'
+    focus: 'last_message'
+  - name: 'legacy-audit-6'
+    type: 'llm'
+    criteria: 'The run is a question about /mutation-testing:audit asked with no repository to run on: “My /mutation-testing:audit run crashed halfway through. How does the audit decide whether my source was restored, and what does it report?”. It meets the legacy expectation: "Compares the after-state against the Phase 0 `git status --porcelain` snapshot rather than asserting a clean tree, so unrelated work in progress does not produce a false restore failure, and treats any difference in a TRACKED path as a failed restore -- tracked rather than merely mutated, since an adjacent modified tracked file breaks the same invariant, while untracked scratch output does not. Scopes WHEN the comparison runs to the resolved write regime rather than promising a per-revert check everywhere: after every revert only where mutants are applied to tracked source one at a time (`tool: manual`, with the trap''s exit paths carrying it too, since a trap fires outside the loop); once at the end where the tool writes out of tree or rewrites the working file whole. Explains that under mutant schemata there is no per-mutant revert to observe -- the tool writes every mutant once and selects one at run time -- so an end-of-run comparison loses nothing there, and never substitutes the tool''s own exit status for the comparison. A failed restore is TERMINAL in every regime: no further mutants, no triage, no ranked report, and no findings file even under --persist-findings. Returns a failure verdict naming every unrestored path and the recovery command instead of a normal-looking outcome, citing the liveness-assertion contract''s fail-loud rule -- persisting there would hand an apply relay findings whose `Location`s assert a restored tree while tracked source sits mutated. Distinguishes this from a partial run: mutants that never ran are named as not-run, but a run cut short by a failed restore reports failure, not a partial result."'
+    focus: 'last_message'

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/suppression-lint.sh .claude/mutation-testing-arid.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "the lint"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/mutation-testing-arid.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "reads it by hand"
+    }
+  ]
+}

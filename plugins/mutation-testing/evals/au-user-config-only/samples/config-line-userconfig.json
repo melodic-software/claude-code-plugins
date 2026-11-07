@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Config: max-mutants: 5 (userConfig), operators: narrow (userConfig), tool: manual (fallback)",
+      "why": "the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Config: max-mutants: 5 (team)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "userConfig is unset",
+      "why": "no value"
+    }
+  ]
+}

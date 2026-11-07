@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Run `git add docs/conventions/mutation-testing.yaml .claude/mutation-testing-arid.md`?",
+      "why": "offer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stage the files.",
+      "why": "no command"
+    }
+  ]
+}

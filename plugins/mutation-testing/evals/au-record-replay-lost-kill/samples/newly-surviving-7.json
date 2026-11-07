@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "newly-surviving app.py:7 comparison-inversion",
+      "why": "the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "newly-surviving app.py:8 statement-removal",
+      "why": "another line"
+    }
+  ]
+}

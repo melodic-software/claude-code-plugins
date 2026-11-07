@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Tool present | PASS | manual |",
+      "why": "a row"
+    },
+    {
+      "answer": "| 4 | **FAIL** | baseline red |",
+      "why": "bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All checks passed.",
+      "why": "no table"
+    },
+    {
+      "answer": "PASS: tool present",
+      "why": "not a table cell"
+    }
+  ]
+}

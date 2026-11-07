@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| app.py:8 | statement-removal | productive | unclassified |",
+      "why": "table cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| app.py:8 | statement-removal | productive | other |",
+      "why": "different cause"
+    }
+  ]
+}

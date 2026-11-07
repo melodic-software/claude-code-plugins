@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "stale: the finding is gone",
+      "why": "status"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "old entries are dropped",
+      "why": "no status name"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: au-suppression-report-sections
+description: 'Legacy audit 8. One grader per legacy status (applied, personal-only, malformed, stale) plus promotion-remedy (llm); legacy-audit-8 (llm) quotes the legacy expectation. A Q&A form: no run here carries suppression records. Needs --allow-tools Bash.'
+tags: [audit, no-network, legacy]
+runs: 3
+expected_outcome: 'Two sections: every applied entry with reason, date and layer; every entry that did not apply, as personal-only-not-applied with promotion as the remedy, malformed with the missing key or hash mismatch, and stale.'
+execution:
+  prompt: 'Show me what /mutation-testing:audit reports about suppressions in a run: what got suppressed, and what did not?'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'applied-section'
+    type: 'regex'
+    pattern: '\bapplied\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'personal-only'
+    type: 'regex'
+    pattern: 'personal-only'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'malformed'
+    type: 'regex'
+    pattern: '\bmalformed\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'stale'
+    type: 'regex'
+    pattern: '\bstale\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'promotion-remedy'
+    type: 'llm'
+    criteria: 'PASS only if the reply names promotion to the team layer as the remedy for a personal-only entry. FAIL if it calls a personal-only entry applied or offers no remedy.'
+    focus: 'last_message'
+  - name: 'legacy-audit-8'
+    type: 'llm'
+    criteria: 'The run is a question about /mutation-testing:audit asked with no repository to run on: “Show me what /mutation-testing:audit reports about suppressions in a run: what got suppressed, and what did not?”. It meets the legacy expectation: "Emits both suppression sections: every applied entry with its reason, date, and contributing layer, AND every entry that did not apply -- personal-only-not-applied with promotion named as the remedy, malformed with the missing key or constituent/key hash mismatch named, and stale entries whose finding is gone or whose operator was retired. Treats these as contract obligations rather than optional report detail, since a suppression the contract declined to enact matters as much as one that applied."'
+    focus: 'last_message'

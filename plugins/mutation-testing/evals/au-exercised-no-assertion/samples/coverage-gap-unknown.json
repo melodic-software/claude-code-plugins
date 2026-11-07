@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Coverage: unknown, gap: unknown",
+      "why": "both unknown"
+    },
+    {
+      "answer": "| app.py | score 0% | coverage unknown | gap unknown |",
+      "why": "table cells"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Coverage: 100%, gap: -100",
+      "why": "numbers"
+    },
+    {
+      "answer": "Coverage is not known yet.",
+      "why": "not the unknown label"
+    }
+  ]
+}

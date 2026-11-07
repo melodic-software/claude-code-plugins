@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: au-exercised-calls-sut-unclassified
+description: 'Legacy audit calls_sut. none-input-gap (llm) grades the tie-break; legacy-audit-calls_sut (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Agent.'
+plugins: ["../..", "testing-stub"]
+tags: [audit, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'All four mutants survive, each unclassified, quoting the assertion whose expected side calls price_with_tax and naming testing/judge/rule-restated-expectation; none is input-gap.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run /mutation-testing:audit --exercised. app.py and docs/conventions/mutation-testing.yaml are committed on main; this branch adds scenarios/calls_sut/test_app.py, which asserts price_with_tax(150) equals a value it got by calling price_with_tax(150).'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+  max_turns: 80
+  timeout_seconds: 1800
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'testing-audit-called'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"testing:audit"'
+  - name: 'baseline-run'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '-m\s+unittest\b'
+  - name: 'cause-unclassified'
+    type: 'regex'
+    pattern: '\bunclassified\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'blind-spot-line'
+    type: 'regex'
+    pattern: 'testing/judge/rule-restated-expectation'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'none-input-gap'
+    type: 'llm'
+    criteria: 'PASS only if every one of the four survivors on app.py lines 7-10 is unclassified and none is labeled input-gap, with the reason that the expected value comes from calling the code under test. FAIL if any survivor is labeled input-gap or no-assertion.'
+    focus: 'last_message'
+  - name: 'legacy-audit-calls_sut'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:audit on a scaffolded repository, asked: “Run /mutation-testing:audit --exercised. app.py and docs/conventions/mutation-testing.yaml are committed on main; this branch adds scenarios/calls_sut/test_app.py, which asserts price_with_tax(150) equals a value it got by calling price_with_tax(150).”. It meets the legacy expectation: "All four mutants on lines 7-10 survive, because both sides of the assertion run the mutated code. Each productive survivor gets cause `unclassified`, quoting the assertion line whose expected side calls the mutated function, and names testing/judge/rule-restated-expectation as the owner of that check. None is labeled `input-gap`: the test has an assertion, but its expected value comes from the code under test, so the fix is the oracle, not another input. The report''s blind-spot line states that a clean run would not clear a restated or copied expected value either."'
+    focus: 'trace'

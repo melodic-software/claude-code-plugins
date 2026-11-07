@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| test-command | FAIL | no {tests} placeholder |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| test-command | PASS |",
+      "why": "pass"
+    }
+  ]
+}

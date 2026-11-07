@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "846675cd2cbd91bd: malformed (missing check, claim)",
+      "why": "the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "the entry is incomplete",
+      "why": "no status"
+    }
+  ]
+}

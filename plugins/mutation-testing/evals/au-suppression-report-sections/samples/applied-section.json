@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Applied suppressions: each with reason, date and layer.",
+      "why": "applied"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Suppressions: none.",
+      "why": "no applied section"
+    }
+  ]
+}

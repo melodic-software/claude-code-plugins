@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "prompt": "classify this survivor"
+          }
+        }
+      ],
+      "why": "a subagent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no subagent"
+    }
+  ]
+}

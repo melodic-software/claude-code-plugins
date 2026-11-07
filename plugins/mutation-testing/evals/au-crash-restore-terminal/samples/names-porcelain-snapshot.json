@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "It compares `git status --porcelain` against the Phase 0 snapshot.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It checks that the tree is clean.",
+      "why": "clean-tree assertion"
+    }
+  ]
+}

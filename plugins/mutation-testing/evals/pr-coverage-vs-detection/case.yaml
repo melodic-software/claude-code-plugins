@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: pr-coverage-vs-detection
+description: 'Legacy principles 1. Answers from the quick decision guide: no-reference-load grades the no-load claim, routes-to-setup the routing; legacy-principles-1 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'Coverage measures execution and mutation testing measures fault detection; the covered-code score (test strength, Covered Code MSI) is the number to read; routes to /mutation-testing:setup; no reference file is read.'
+execution:
+  prompt: 'My coverage is 95% but I don''t trust these tests. Is mutation testing what I want? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'no-reference-load'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'routes-to-setup'
+    type: 'regex'
+    pattern: '/?mutation-testing:setup\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-principles-1'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “My coverage is 95% but I don''t trust these tests. Is mutation testing what I want?”. It meets the legacy expectation: "Explains that coverage measures execution while mutation testing measures fault detection, so a high-coverage low-mutation-score file is exercised but not checked. Names the covered-code score (test strength / Covered Code MSI) as the number to look at and explains why the plain score mixes weak tests with absent tests. Routes to /mutation-testing:setup to configure a tool. Answers from the quick decision guide without loading a reference file."'
+    focus: 'trace'

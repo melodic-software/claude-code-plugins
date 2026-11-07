@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "resolve it with `pwd -P` from the nearest existing ancestor",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "resolve the real path",
+      "why": "no command"
+    }
+  ]
+}

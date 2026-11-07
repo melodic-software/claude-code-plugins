@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "oracle gap = mutation score - code coverage",
+      "why": "the formula"
+    },
+    {
+      "answer": "mutation score - coverage",
+      "why": "short form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "coverage - mutation score",
+      "why": "inverted"
+    },
+    {
+      "answer": "mutation score / coverage",
+      "why": "ratio"
+    }
+  ]
+}

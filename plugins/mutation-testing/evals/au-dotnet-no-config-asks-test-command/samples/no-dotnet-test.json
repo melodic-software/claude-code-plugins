@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dotnet --version",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "version probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dotnet test",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "bare dotnet test"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dotnet test tests/Shop.Tests/Shop.Tests.csproj",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "inferred project"
+    }
+  ]
+}

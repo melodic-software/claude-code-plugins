@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "falls back to tool: manual",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "falls back to defaults",
+      "why": "unnamed"
+    }
+  ]
+}

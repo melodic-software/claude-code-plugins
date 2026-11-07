@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`git rev-parse --show-toplevel` under the ambient environment",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "git rev-parse --git-dir",
+      "why": "other flag"
+    }
+  ]
+}

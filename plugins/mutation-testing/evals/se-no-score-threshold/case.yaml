@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: se-no-score-threshold
+description: 'Legacy setup 4. no-threshold-written and no-threshold-edit grade that no field is added, offers-alternative (llm) the alternative; legacy-setup-4 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'No threshold field: the reasons (equivalent-mutant ceiling, score purchasable by suppression) and the alternative (report the covered-code score, rank by oracle gap, route survivors to the test lane).'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup apply. Configure it to fail the build if mutation score drops below 75%.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: 'no-threshold-written'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: 'threshold|min(?:imum)?[-_]?score|break[-_]?(?:at|below)|\b75\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-threshold-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: 'threshold|min(?:imum)?[-_]?score|break[-_]?(?:at|below)|\b75\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'offers-alternative'
+    type: 'llm'
+    criteria: 'PASS only if the reply offers the alternative to a score gate: report the covered-code score, rank files by oracle gap, and route survivors to the test lane. FAIL if it refuses without an alternative or adds a threshold.'
+    focus: 'last_message'
+  - name: 'legacy-setup-4'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup apply run on a scaffolded repository (A configured Python repo). It meets the legacy expectation: "Explains that the config deliberately has no score-threshold field, with the reasoning: an unknowable ceiling from equivalent mutants, and score being purchasable by suppression so a gate selects for suppression over testing. Offers the alternative -- report the covered-code score, rank by oracle gap, route survivors to the test lane. Does not silently add a threshold field, and does not refuse without offering the alternative."'
+    focus: 'trace'

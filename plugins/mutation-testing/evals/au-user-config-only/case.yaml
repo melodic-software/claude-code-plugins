@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: au-user-config-only
+description: 'Legacy audit user_config_only. config-line-userconfig and no-home-config-read grade the user layer; legacy-audit-user_config_only (llm) quotes the legacy expectation. The narration stays in the prompt; the pytest command is python3 -m unittest here. Needs --scaffold --allow-tools Bash Agent.'
+tags: [audit, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Reads the user layer from userConfig, not a ~/.claude file: at most 5 mutants, the narrow operators, the Config line naming userConfig for both and fallback for tool and diff target.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run mutation testing on my branch with /mutation-testing:audit. There is no docs/conventions/mutation-testing.yaml and no .local.md personal override. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python3 -m unittest {tests}`.'
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+  max_turns: 60
+  timeout_seconds: 1500
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:audit"'
+  - name: 'config-line-userconfig'
+    type: 'regex'
+    pattern: 'max-mutants:?\s*5[^\n]{0,60}userConfig|userConfig[^\n]{0,120}max-mutants:?\s*5'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-home-config-read'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '(?:~|\$HOME|/home/[^/"]+|/root)/\.claude/mutation-testing\.md'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-audit-user_config_only'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:audit on a scaffolded repository, asked: “Run mutation testing on my branch with /mutation-testing:audit. There is no docs/conventions/mutation-testing.yaml and no .local.md personal override. The userConfig values render as operators: narrow and max_mutants: 5. The test command is `python3 -m unittest {tests}`.”. It meets the legacy expectation: "Does not refuse and does not send the user to /mutation-testing:setup apply. Reads the user layer from the plugin''s userConfig values, not from a ~/.claude/mutation-testing.md file, and uses them: at most 5 mutants and the narrow operator set. The scope report''s Config line names `userConfig` as the source of `max-mutants: 5` and `operators: narrow`, and marks the keys no layer sets as fallback defaults: `tool: manual` and the diff target resolved from origin/HEAD. States `python -m pytest {tests}` as the test command before the baseline run; it does not read a test command from userConfig."'
+    focus: 'trace'

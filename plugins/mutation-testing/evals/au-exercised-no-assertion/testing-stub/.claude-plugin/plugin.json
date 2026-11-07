@@ -1,0 +1,5 @@
+{
+  "name": "testing",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the testing plugin: the audit skill's --file adapter line."
+}
