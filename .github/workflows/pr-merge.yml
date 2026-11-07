@@ -1164,6 +1164,7 @@ jobs:
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
           kill-switch-ok: true
+          rate-limit-hold-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
@@ -2459,6 +2460,7 @@ jobs:
           pr-number: ${{ github.actor_id == '41898282' && inputs.pr || '' }}
           superseded-ok: true
           kill-switch-ok: true
+          rate-limit-hold-ok: true
 
       # The verdict reader of a scheduled or hand-started run ties untied
       # FAILs as the gate job does: the head-ref map and the carried run

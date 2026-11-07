@@ -323,6 +323,58 @@ test("a github-rate-limited Retry-After past the 1-minute budget fails at once, 
   assert.ok(reset >= before + BUDGET + 1 && reset <= afterRun + BUDGET + 1, `reset ${match[1]}`);
 });
 
+// Outage posture element 1: a wait past the budget is an unknown that holds
+// under element 2, not a sleep and, for a caller that opts in, not a red.
+test("with rate-limit-hold-ok, a github-rate-limited Retry-After past the budget holds green with a notice and no token", () => {
+  const run = request({ ...ISSUE_LANE, RATE_LIMIT_HOLD_OK: "true" }, rateLimited(BUDGET + 1), {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.auth.length, 1, "one broker request, no resend");
+  assert.deepEqual(run.sleeps, [], "no wait past the budget is taken");
+  assert.equal(run.output, "skip-reason=rate-limited\n", "skip-reason set, no token or failure-reason");
+  assert.match(
+    run.stdout,
+    /^::notice title=Lane token hold::lane-token-held: the broker answered 503 github-rate-limited after its retries; GitHub's secondary rate limit \(core\) resets at \S+, past the 1-minute retry budget; this run takes no token/m,
+  );
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.match(run.summary, /^- lane-token-held: /m);
+});
+
+test("with rate-limit-hold-ok, github-rate-limited on all three requests holds green after waits within the budget", () => {
+  const run = request({ ...ISSUE_LANE, RATE_LIMIT_HOLD_OK: "true" }, rateLimited(20));
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.auth.length, 3);
+  assert.ok(run.sleeps.reduce((a, b) => a + b, 0) <= BUDGET, `sleeps: ${run.sleeps}`);
+  assert.equal(run.output, "skip-reason=rate-limited\n");
+});
+
+test("without rate-limit-hold-ok, the same rate limit past the budget still fails red", () => {
+  const run = request(ISSUE_LANE, rateLimited(BUDGET + 1), {});
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /^::error::lane-token-denied: /m);
+  assert.doesNotMatch(run.output, /skip-reason/);
+});
+
+test("with rate-limit-hold-ok, github-unavailable and mint-unavailable still fail red", () => {
+  for (const answer of [GITHUB_UNAVAILABLE, { status: "503", body: { reason: "mint-unavailable", detail: "d" } }]) {
+    const run = request({ ...ISSUE_LANE, RATE_LIMIT_HOLD_OK: "true" }, answer);
+    assert.equal(run.status, 1, `${answer.body.reason}: ${run.stdout}`);
+    assert.doesNotMatch(run.output, /skip-reason/);
+  }
+});
+
+test("check mode with rate-limit-hold-ok holds a rate limit past the budget with no allow", () => {
+  const run = request({ ...CHECK, RATE_LIMIT_HOLD_OK: "true" }, rateLimited(BUDGET + 1));
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.output, "skip-reason=rate-limited\n");
+});
+
+test("a rate-limit-hold-ok other than true or false fails before the broker request", () => {
+  const run = request({ ...ISSUE_LANE, RATE_LIMIT_HOLD_OK: "yes" }, rateLimited(BUDGET + 1));
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 0);
+  assert.match(run.stdout, /::error::rate-limit-hold-ok must be true or false/);
+});
+
 // mint-unavailable comes after the broker reserved the job's one mint.
 test("a 503 mint-unavailable is not retried and fails red saying it is final", () => {
   const run = request(ISSUE_LANE, { status: "503", body: { error: "unavailable", reason: "mint-unavailable", detail: "d" } }, {});

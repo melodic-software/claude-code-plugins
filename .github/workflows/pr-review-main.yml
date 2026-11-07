@@ -89,6 +89,13 @@ defaults:
   run:
     shell: bash
 
+env:
+  # How old the trusted-text job's read may be when a leg takes it
+  # (take-shared-text.sh): past it the leg reads its own. It covers the read
+  # job's 10-minute timeout and the key leg's start; a later leg that waited
+  # out a key leg's 22-minute model step reads its own.
+  SHARED_TEXT_MAX_AGE_MINUTES: "20"
+
 jobs:
   # The PR's file list and, for a lane-source PR, the trigger gate, read once
   # per run for both of the review job's lanes. Its outputs are only what the gate computed (a
@@ -557,6 +564,7 @@ jobs:
       main-sha: ${{ steps.hash.outputs.main-sha }}
       pr-number: ${{ steps.hash.outputs.pr-number }}
       head-sha: ${{ steps.hash.outputs.head-sha }}
+      read-at: ${{ steps.hash.outputs.read-at }}
     steps:
       - name: Check out the trigger job's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -649,11 +657,13 @@ jobs:
         run: |
           main=$(git -C .base rev-parse --verify HEAD)
           sum=$(sha256sum "$FILE" | awk '{ print $1 }')
-          if ! [[ $main =~ ^[0-9a-f]{40}$ && $sum =~ ^[0-9a-f]{64}$ && $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+          # When select-trusted-text wrote the file: the end of the read.
+          read_at=$(stat -c %Y "$FILE")
+          if ! [[ $main =~ ^[0-9a-f]{40}$ && $sum =~ ^[0-9a-f]{64}$ && $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $read_at =~ ^[1-9][0-9]{0,11}$ ]]; then
             echo "::notice::the shared read left a malformed record; each leg reads its own"
             exit 0
           fi
-          { echo "sha256=$sum"; echo "main-sha=$main"; echo "pr-number=$PR_NUMBER"; echo "head-sha=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+          { echo "sha256=$sum"; echo "main-sha=$main"; echo "pr-number=$PR_NUMBER"; echo "head-sha=$HEAD_SHA"; echo "read-at=$read_at"; } >>"$GITHUB_OUTPUT"
 
       - name: Log the API budget
         if: always() && steps.node.outcome == 'success'
@@ -1026,6 +1036,7 @@ jobs:
           SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
           SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
           SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -1951,6 +1962,7 @@ jobs:
           SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
           SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
           SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -2850,6 +2862,7 @@ jobs:
           SHARED_MAIN: ${{ needs.trusted-text.outputs.main-sha }}
           SHARED_PR: ${{ needs.trusted-text.outputs.pr-number }}
           SHARED_HEAD: ${{ needs.trusted-text.outputs.head-sha }}
+          SHARED_READ_AT: ${{ needs.trusted-text.outputs.read-at }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
