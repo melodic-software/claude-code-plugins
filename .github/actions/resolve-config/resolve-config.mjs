@@ -126,7 +126,7 @@ export async function fieldEvents(github, repository, number) {
     throw new Error("the issue's field events answer holds no event list");
   }
   // `full`: the window held its limit, so older events went unread.
-  return Object.assign(eventsFrom(nodes), { full: nodes.length >= FIELD_EVENT_LIMIT });
+  return Object.defineProperty(eventsFrom(nodes), "full", { value: nodes.length >= FIELD_EVENT_LIMIT });
 }
 
 function eventsFrom(nodes) {

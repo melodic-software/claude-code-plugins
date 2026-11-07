@@ -1866,7 +1866,7 @@ describe("admit", () => {
         return [{ issue_field_id: FIELD, single_select_option: { id: 86380004 } }];
       }
       if (method === "POST" && path === "/graphql" && body.query.includes("IssueFieldAddedEvent")) {
-        const nodes = field ? [{ __typename: "IssueFieldAddedEvent", actor: { databaseId: field.setter }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
+        const nodes = field ? [{ __typename: "IssueFieldAddedEvent", value: "needs-human", actor: { databaseId: field.setter }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
         return { data: { repository: { issue: { timelineItems: { nodes } } } } };
       }
       return fake.github(method, path, body, ...rest);
