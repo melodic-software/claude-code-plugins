@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| category:export | 2 |",
+      "why": "table row"
+    },
+    {
+      "answer": "export: 2 open",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| category:export | 3 |",
+      "why": "counts the closed item"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

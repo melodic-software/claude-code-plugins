@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The 2% target is inside the run-to-run noise (sd 4.6%)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Baseline captured."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

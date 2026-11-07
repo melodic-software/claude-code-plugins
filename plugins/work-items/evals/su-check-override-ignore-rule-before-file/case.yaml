@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-check-override-ignore-rule-before-file
+graders:
+  - name: 'override-rule-fail'
+    type: 'regex'
+    pattern: 'work-items\.local\.yaml[^\n]*\bFAIL\b|\bFAIL\b[^\n]{0,200}work-items\.local\.yaml|^(?![^\n]*\b(?:INFO|PASS)\b)[^\n]*work-items\.local\.yaml[^\n]*\n(?![^\n]*\b(?:INFO|PASS)\b)[^\n]*\bFAIL\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Probes git check-ignore --no-index on docs/conventions/work-items.local.yaml without requiring the file to exist; (2) Missing ignore rule is FAIL, not skipped as INFO; (3) Counts only a repository .gitignore match, not info/exclude or core.excludesFile; (4) Remediation is apply appending the gitignore line. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

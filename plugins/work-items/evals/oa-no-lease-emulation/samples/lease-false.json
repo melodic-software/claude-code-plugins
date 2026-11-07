@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Declare `features.leases: false` and set claim, renew-lease, release and reclaim to false.",
+      "why": "declares false"
+    },
+    {
+      "answer": "The lease verbs all go to false in the manifest, with the reason recorded.",
+      "why": "verbs false"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sure, we can emulate the lease with a claim comment, so leases stay true.",
+      "why": "emulates"
+    },
+    {
+      "answer": "Leases are possible with comments.",
+      "why": "no false"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

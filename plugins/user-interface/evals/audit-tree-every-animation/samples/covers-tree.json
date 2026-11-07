@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "cards.css:2 ... sidebar.css:1 ... src/pages/home.css:4",
+      "why": "all three files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "cards.css:2 and sidebar.css:1",
+      "why": "near miss: the pages file is missing"
+    }
+  ]
+}

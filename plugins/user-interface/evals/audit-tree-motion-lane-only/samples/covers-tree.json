@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "card.css:3 ... modal.css:1",
+      "why": "both files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "card.css:3 only",
+      "why": "near miss: modal.css missing"
+    }
+  ]
+}

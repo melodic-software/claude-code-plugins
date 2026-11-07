@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This goes to /user-interface:write-animation.",
+      "why": "slash form"
+    },
+    {
+      "answer": "That is the animation-authoring concern; I routed it to user-interface:write-animation.",
+      "why": "concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is a fade-in for the cards: `.card { animation: in 200ms; }`",
+      "why": "near miss: no route named"
+    }
+  ]
+}

@@ -153,7 +153,10 @@ export function fileReach(messages, targets) {
 }
 
 // `reads <execution file> <path>...`: exits 0 only when every path's Read was
-// refused, and prints each path's status, never a file's content.
+// refused; 1 when any Read came back or went unanswered, whatever else went
+// untried; 3 when none did but a path was never tried, so the session left
+// the fence untested rather than showing it open. Prints each path's status,
+// never a file's content.
 function reads(argv) {
   let messages;
   try {
@@ -164,7 +167,13 @@ function reads(argv) {
   }
   const { clean, reach } = fileReach(messages, argv.slice(4));
   console.log(`capture-probe: driver file tools: ${reach.map(({ target, status }) => `${target} ${status}`).join(", ")}`);
-  return clean ? 0 : 1;
+  if (clean) return 0;
+  if (reach.some(({ status }) => status === "read" || status === "unknown")) return 1;
+  if (reach.some(({ status }) => status === "not tried")) {
+    console.log("capture-probe: the session made no Read call on a path above, so the fence was not tested there");
+    return 3;
+  }
+  return 1;
 }
 
 export async function main({ env = process.env, cwd = process.cwd(), procRoot = "/proc", argv = process.argv } = {}) {

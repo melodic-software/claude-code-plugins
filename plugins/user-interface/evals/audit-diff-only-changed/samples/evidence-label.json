@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Important | ... | ... | Layout property animated (`motion`); verified from code |",
+      "why": "verified label"
+    },
+    {
+      "answer": "This one needs a device recording to confirm.",
+      "why": "device label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Tested in Chrome device emulation, looks fine.",
+      "why": "near miss: emulation is not the label"
+    }
+  ]
+}

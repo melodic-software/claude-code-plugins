@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Save button: feedback, occasional tier.",
+      "why": "a purpose word"
+    },
+    {
+      "answer": "Settings modal: spatial consistency, it scales from the gear.",
+      "why": "spatial consistency"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Add a fade to the settings modal.",
+      "why": "near miss: no purpose named"
+    }
+  ]
+}

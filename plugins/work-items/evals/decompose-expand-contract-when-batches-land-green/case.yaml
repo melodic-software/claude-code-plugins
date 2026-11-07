@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-expand-contract-when-batches-land-green
+graders:
+  - name: 'expand-migrate-contract'
+    type: 'regex'
+    pattern: '\bexpand\b[\s\S]{0,600}?\bmigrat\w*[\s\S]{0,600}?\bcontract\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Sequences the rename as expand -> migrate -> contract rather than skipping to an integration branch ; (2) Does not share an integration branch or add an integrate-and-verify item when each batch can merge green independently ; (3) Holds the approval gate: presents the breakdown and never publishes an unapproved one. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Parser: replay a saved real CSV file through the changed parser and compare the parsed records."
+    },
+    {
+      "answer": "Replay a captured input file through the new parser."
+    },
+    {
+      "answer": "Parser check: run the new parser on real CSV fixtures and compare the output to expected values that come from outside the diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Parser: the unit tests cover it."
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Parser: run the new parser on a minimal sample written for the test."
+    }
+  ]
+}

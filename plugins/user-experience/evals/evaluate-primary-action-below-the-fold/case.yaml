@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: evaluate-primary-action-below-the-fold
+description: 'Legacy evaluate 7. Live-app fold check: the answering task at phone, tablet and desktop sizes, with the answer buttons below the fold at desktop reported as a finding with size, distance and severity (evaluation.md 100-104). No browser runs in an eval, so the prompt gives a teammate''s per-size button positions as facts. three-sizes grades the reply; legacy-evaluate-7 (llm) quotes the three legacy expectations.'
+tags: [evaluate, live-app, legacy]
+runs: 3
+expected_outcome: 'A finding with a severity that the Yes and No buttons sit below the fold at desktop (1,180 px down a 900 px window, about 280 px below), on screen at phone and tablet, with a recommendation to bring the primary action on screen.'
+execution:
+  prompt: 'Expert-review the live interview page at http://localhost:3000/interview/3. Each question shows an enlarged product screenshot above the Yes and No answer buttons. Run an expert review of the answering task. No browser is connected in this run, so treat these measurements from a teammate''s walk of the answering task as facts: at a phone size (390 by 844 px) the Yes and No buttons start 620 px down the page; at a tablet size (820 by 1180 px), 960 px down; at a desktop size (1440 by 900 px), where the screenshot is shown 1,000 px tall, 1,180 px down. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    weight: 0.1
+  - name: 'three-sizes'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\bphone\b)(?=[\s\S]*\btablet\b)[\s\S]*\bdesktop\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-evaluate-7'
+    type: 'llm'
+    criteria: 'The run is an expert review of a live page, with per-size button positions given as facts. It meets the legacy expectations: "The review checks the task at a phone, a tablet and a desktop size" "The review reports the answer buttons as below the fold at desktop size, as a finding with a severity rating" "The finding states how far down the page the buttons sit or that they need scrolling, and recommends bringing the primary action on screen".'
+    focus: 'last_message'

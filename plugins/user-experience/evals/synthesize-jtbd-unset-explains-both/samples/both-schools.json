@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Jobs-to-be-done theory (Christensen) looks at progress; Outcome-Driven Innovation (Ulwick) maps outcomes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Using Outcome-Driven Innovation, the core job is getting paid on time."
+    },
+    {
+      "answer": "Jobs to be done: get paid on time."
+    }
+  ]
+}

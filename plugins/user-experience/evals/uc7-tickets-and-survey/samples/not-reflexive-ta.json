@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Method: thematic analysis with AI-suggested codes, not reflexive thematic analysis."
+    },
+    {
+      "answer": "This is not reflexive thematic analysis."
+    },
+    {
+      "answer": "Thematic analysis with AI-suggested codes rather than reflexive thematic analysis."
+    },
+    {
+      "answer": "This isn't reflexive thematic analysis."
+    },
+    {
+      "answer": "Method: thematic analysis with AI-suggested codes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Method: reflexive thematic analysis (Braun and Clarke)."
+    },
+    {
+      "answer": "I ran a reflexive thematic analysis over the tickets."
+    }
+  ]
+}

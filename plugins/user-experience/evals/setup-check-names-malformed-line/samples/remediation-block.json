@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "```yaml\n  disable:\n    - job: synthesis\n      id: dovetail\n```"
+    },
+    {
+      "answer": "Rewrite it as `- job: synthesis` with `id: dovetail` on the next line."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rewrite the entry in block style."
+    },
+    {
+      "answer": "- {job: synthesis, id: dovetail}"
+    },
+    {
+      "answer": "- job: synthesis, id: dovetail"
+    }
+  ]
+}
