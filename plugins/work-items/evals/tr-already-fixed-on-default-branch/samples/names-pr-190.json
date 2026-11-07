@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Closed as already implemented by #190 (guard empty timezone list).",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closed as already implemented.",
+      "why": "no PR"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

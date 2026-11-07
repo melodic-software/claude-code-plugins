@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: status: confirmed is missing, a provisioning gap for the label owner.",
+      "why": "gap"
+    },
+    {
+      "answer": "The repository needs that label provisioned first.",
+      "why": "provisioned"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the status: confirmed label and applied it.",
+      "why": "creates it"
+    },
+    {
+      "answer": "Applied status: ready instead.",
+      "why": "substitutes"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

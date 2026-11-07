@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_repro_count=3 (repository)",
+      "why": "the settings line"
+    },
+    {
+      "answer": "Settings: `triage_repro_count=3` (repository, read from `origin/main`)",
+      "why": "code span and a note, from smoke b2"
+    },
+    {
+      "answer": "Settings: triage_repro_count=3 (repository), triage_objection_window_hours=0 (default)",
+      "why": "in the full line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=3 (userConfig)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "triage_repro_count resolves to something else",
+      "why": "no value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

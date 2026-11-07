@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`set-dimensions.sh <id> size=quick complexity=plain uncertainty=settled`",
+      "why": "keys"
+    },
+    {
+      "answer": "set-dimensions.sh with uncertainty=settled, size=quick, complexity=plain",
+      "why": "any order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "set-dimensions.sh size=101 complexity=201 uncertainty=301",
+      "why": "option ids"
+    },
+    {
+      "answer": "Applies size: small and agent-ready.",
+      "why": "size label"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

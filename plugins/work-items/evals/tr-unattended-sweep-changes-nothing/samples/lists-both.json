@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "- #660 (RECOMMENDED in body)\n- #661 (RECOMMENDED in body)",
+      "why": "both listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- #660 (RECOMMENDED in body)",
+      "why": "one missing"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

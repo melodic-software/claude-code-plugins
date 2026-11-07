@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tr-reporter-verification-not-settled
+graders:
+  - name: 'reporter-not-trusted'
+    type: 'regex'
+    pattern: 'lena-k[^\n]{0,160}(?:\b(?:no|lacks?|without|not)\b|n[''’]t\b)[^\n]{0,20}\b(?:write|access|permission)\b|\bclaim\w*\b[^\n]{0,80}lena-k|lena-k[^\n]{0,160}\bclaim\w*\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does with #412''s reporter-posted verification. PASS only if it satisfies every point: (1) Does not treat lena-k''s comment as a settled triage result, citing that its author has no write access; (2) Does not count the reporter''s claimed reproductions toward triage_repro_count; (3) Does not apply status: confirmed before running its own reproductions; (4) Does not adopt priority: high from the reporter''s comment as a decided fact. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

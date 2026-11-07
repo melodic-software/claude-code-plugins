@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /p/lib/view-settings.mjs resolve --lane work-items:triage --option auto"
+          }
+        }
+      ],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/items.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes the items JSON"
+    }
+  ]
+}
