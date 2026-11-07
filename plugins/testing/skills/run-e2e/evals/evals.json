@@ -434,6 +434,34 @@
       ]
     },
     {
+      "id": "affected-05",
+      "name": "unattended-mask-hand-off-values-source-fails-keeps-summary-out",
+      "prompt": "/testing:run-e2e --unattended app=shop base=main trusted-root=/srv/trusted/shop\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, with one entry point, `Add to cart button`, driven true. That hub's `## Mask` holds only the line ``The driving tool's `## Mask`.``, and its `Driving tool:` line names `.claude/skills/control-browser/SKILL.md`, which exists inside /srv/trusted/shop. That target's `## Mask` has mask lines and the line ``values: `cli/browser whoami` ``; the command exits 1 with no output. The /app-control:drive cart run records one screenshot, and its report.json lists nothing in publishable, since the same source failed for drive. The text of e2e-summary.json holds no email address, bearer token, key-shaped secret or PEM header.",
+      "expected_output": "The run drives the cart entry point through /app-control:drive with --trusted-root /srv/trusted/shop and writes e2e-summary.json with route drive, capture status ran and an empty publishable list from the cart report.json. For the summary scan it follows the hub's hand-off to /srv/trusted/shop/.claude/skills/control-browser/SKILL.md, never the checkout's copy, and runs that target's `cli/browser whoami` values source. The source exits 1, so the scan cannot use the values and e2e-summary.json stays out of publishable, even though the generic credential pattern alone would find nothing: the run does not treat the hand-off as a hub with no values: line. The report names the failed values source without quoting any value, and the run does not fail for it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the Mask in effect from the hand-off target /srv/trusted/shop/.claude/skills/control-browser/SKILL.md, not from the checkout",
+        "Does not scan e2e-summary.json with the generic credential pattern alone as if the hub had no values: line",
+        "Keeps e2e-summary.json out of publishable because the target's values source exited 1",
+        "Leaves publishable empty, as the cart report.json's publishable list is, and names the failed values source without failing the run"
+      ]
+    },
+    {
+      "id": "affected-06",
+      "name": "unattended-mask-hand-off-none-source-publishes-clean-summary",
+      "prompt": "/testing:run-e2e --unattended app=shop base=main trusted-root=/srv/trusted/shop\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, with one entry point, `Add to cart button`, driven true. That hub's `## Mask` holds only the line ``The driving tool's `## Mask`.``, and its `Driving tool:` line names `.claude/skills/control-browser/SKILL.md`, which exists inside /srv/trusted/shop. That target's `## Mask` has mask lines and the line ``values: `cli/browser whoami` ``; the command prints exactly one line, `none: API-key auth has no signed-in account`, and exits 0. The /app-control:drive cart run records one screenshot, and its report.json lists `shot-1.png`, `report.public.md` and `report.public.json` in publishable. The text of e2e-summary.json holds no email address, bearer token, key-shaped secret or PEM header.",
+      "expected_output": "The run drives the cart entry point through /app-control:drive with --trusted-root /srv/trusted/shop and writes e2e-summary.json with route drive and capture status ran. For the summary scan it follows the hub's hand-off to /srv/trusted/shop/.claude/skills/control-browser/SKILL.md and runs that target's `cli/browser whoami` source, which resolves with no values because it printed one `none:` line and exited 0. With no values to scan for, the generic credential pattern alone scans the summary text and finds nothing, so publishable holds the three paths from the cart report.json, under the cart run directory, and then e2e-summary.json last.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the Mask in effect from the hand-off target /srv/trusted/shop/.claude/skills/control-browser/SKILL.md, not from the checkout",
+        "Treats the source's single `none: API-key auth has no signed-in account` line with exit 0 as resolved with no values, not as a failed source",
+        "Scans e2e-summary.json with the generic credential pattern",
+        "Lists shot-1.png, report.public.md and report.public.json from the cart report.json, then e2e-summary.json last in publishable"
+      ]
+    },
+    {
       "id": "affected-02",
       "name": "app-control-absent-touched-features-not-matched",
       "prompt": "/testing:run-e2e the cart page. This branch changes shop/cart/basket.py, and .claude/skills/control-shop/ exists with an index whose cart feature lists `shop/cart/**` in its sources.\n\nContext, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: \"No, I'm good. Just use what you have.\"",
