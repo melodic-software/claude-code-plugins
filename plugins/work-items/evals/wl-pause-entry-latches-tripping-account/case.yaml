@@ -3,7 +3,7 @@ name: wl-pause-entry-latches-tripping-account
 graders:
   - name: 'account-switch-unknown'
     type: 'regex'
-    pattern: 'account-switch:\W{0,3}unknown\b'
+    pattern: 'account-switch:[\s*_`]{0,6}unknown\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

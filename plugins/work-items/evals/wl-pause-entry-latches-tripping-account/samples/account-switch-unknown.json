@@ -7,6 +7,10 @@
     {
       "answer": "`account-switch: unknown`",
       "why": "code span"
+    },
+    {
+      "answer": "- **account-switch:** `unknown`. No address or fingerprint is printed.",
+      "why": "the wb1a reply line its first smoke rejected: a bold label with the value in a code span"
     }
   ],
   "fail": [
