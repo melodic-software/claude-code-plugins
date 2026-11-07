@@ -1,0 +1,128 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" new --topic retry-backoff --no-previous"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json",
+            "content": "{\"environment\": \"ci-wait.sh running in the background; result pending.\"}"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" fill /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md --slots /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" validate /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md && python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" emit /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/amend.json",
+            "content": "{\"sections\": {\"Remaining actions, in order\": \"1. Fix test_backoff_cap: cap delayFor at 30000 ms.\"}}"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" amend /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md --json /tmp/w/.work/handoffs/amend.json"
+          }
+        }
+      ],
+      "why": "slots record the check as running"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/amend.json",
+            "content": "{\"sections\": {\"Remaining actions, in order\": \"1. Fix test_backoff_cap: cap delayFor at 30000 ms.\"}}"
+          }
+        }
+      ],
+      "why": "failure only in the amend payload"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" new --topic retry-backoff --no-previous"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json",
+            "content": "{\"remaining\": \"1. Fix test_backoff_cap: cap delayFor at 30000 ms.\"}"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" fill /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md --slots /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" validate /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md && python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" emit /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md"
+          }
+        }
+      ],
+      "why": "result landed before emit and went into fill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" new --topic retry-backoff --no-previous"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json",
+            "content": "{\"environment\": \"ci-wait.sh running in the background; result pending.\"}"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json",
+            "content": "{\"remaining\": \"1. Fix test_backoff_cap: cap delayFor at 30000 ms.\"}"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" fill /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md --slots /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.slots.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" validate /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md && python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" emit /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md"
+          }
+        }
+      ],
+      "why": "early result in a rewritten slots file"
+    }
+  ]
+}
