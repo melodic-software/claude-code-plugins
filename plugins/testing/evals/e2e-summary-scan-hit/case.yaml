@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-summary-scan-hit
+description: 'Legacy run-e2e affected-04 (unattended-summary-scan-hit-keeps-summary-out). Scans e2e-summary.json with the hub''s mask values and the generic credential pattern, keeps it out of publishable for the hit without quoting it, lists only receipts/receipts-1.png, and does not fail the run. credential-hit-unquoted reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Scans e2e-summary.json with the hub''s mask values and the generic credential pattern, keeps it out of publishable for the hit without quoting it, lists only receipts/receipts-1.png, and does not fail the run.'
+execution:
+  prompt: '/testing:run-e2e --unattended app=shop base=main. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: .claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `receipts`, with one entry point, `Email the receipt to qa.lead@example.com`, driven true. The /app-control:drive receipts run records its steps and one screenshot, and its report.json lists only `receipts-1.png` in publishable, since its own post-check found the email address in both public reports. The hub''s `## Mask` `values:` source resolves. Write the e2e-summary.json publishable list and what the report says about it, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: credential-hit-unquoted
+    type: regex
+    pattern: '^(?=[\s\S]*(?:e2e-summary\.json))(?=[\s\S]*(?:\bcredential pattern\b))(?![\s\S]*qa\.lead@example\.com)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended app=shop base=main. PASS only if the reply satisfies every legacy expectation: "Scans the text of e2e-summary.json with the hub''s mask values and the generic credential pattern" "Keeps e2e-summary.json out of publishable because of the email address, naming a credential pattern hit without quoting it" "Lists only receipts/receipts-1.png, taken from the receipts report.json''s publishable list" "Writes no resolved mask value to any file and does not fail the run for the hit". FAIL if any point is missing or contradicted.'

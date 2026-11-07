@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A declared entry means the run starts its own instance: make ws-up, make ws-info, then drive http://localhost:51877.",
+      "why": "own instance"
+    },
+    {
+      "answer": "reuse_running_instance is false, so the app already answering at http://localhost:8080 is not reused.\n2. make ws-info prints APP_URL=http://localhost:51877.\n**Address driven:** http://localhost:51877",
+      "why": "not reused (the smoke reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "reuse_running_instance is false, so the app at http://localhost:8080 is not reused. Stop: gap report naming the collision on port 8080.",
+      "why": "collision stop that also says not reused (review counter-reply)"
+    },
+    {
+      "answer": "Stop: gap report, collision with the app on 8080.",
+      "why": "stops"
+    }
+  ]
+}

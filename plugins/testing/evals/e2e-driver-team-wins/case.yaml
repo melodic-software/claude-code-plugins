@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-driver-team-wins
+description: 'Legacy run-e2e e2e-settings-01 (driver-team-yaml-wins-over-userconfig). Resolves e2e_driver through scripts/resolve-config.sh e2e with the userConfig values passed by --user, reports run from docs/conventions/testing.yaml, and does not drive with playwright. resolve-command reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Resolves e2e_driver through scripts/resolve-config.sh e2e with the userConfig values passed by --user, reports run from docs/conventions/testing.yaml, and does not drive with playwright.'
+execution:
+  prompt: '/testing:run-e2e the checkout flow. The repository''s docs/conventions/testing.yaml holds `e2e_driver: run`, and the testing plugin''s e2e_driver userConfig option is set to playwright. No personal override exists. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say how e2e_driver is resolved, its value and source, and what drives, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: resolve-command
+    type: regex
+    pattern: '^(?=[\s\S]*(?:resolve-config\.sh))(?=[\s\S]*(?:--user\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the checkout flow. The repository''s docs/conventions/testing.yaml holds `e2e_driver: run`, and the testing plugin''s e2e_driver userConfig option is set to playwright. No personal override exists. PASS only if the reply satisfies every legacy expectation: "Resolves e2e_driver through scripts/resolve-config.sh e2e, passing the userConfig values with --user" "Reports e2e_driver as run, supplied by docs/conventions/testing.yaml" "Does not drive with playwright". FAIL if any point is missing or contradicted.'

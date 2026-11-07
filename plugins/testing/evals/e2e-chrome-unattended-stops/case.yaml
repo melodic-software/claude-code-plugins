@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-chrome-unattended-stops
+description: 'Legacy run-e2e e2e-settings-07 (chrome-unattended-stops). With e2e_driver chrome from the personal override on an unattended run, the run opens no Claude in Chrome and stops with the gap report naming chrome, the file and the unattended run, substituting no driver. gap-report reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With e2e_driver chrome from the personal override on an unattended run, the run opens no Claude in Chrome and stops with the gap report naming chrome, the file and the unattended run, substituting no driver.'
+execution:
+  prompt: '/testing:run-e2e --unattended the billing settings page. The personal override .claude/testing.local.yaml sets `e2e_driver: chrome`. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer. Say what the run does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: gap-report
+    type: regex
+    pattern: '\bgap report\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended the billing settings page. The personal override .claude/testing.local.yaml sets `e2e_driver: chrome`. PASS only if the reply satisfies every legacy expectation: "Does not open Claude in Chrome" "Stops with the gap report naming chrome, the personal override file and the unattended run" "Does not substitute another driver". FAIL if any point is missing or contradicted.'

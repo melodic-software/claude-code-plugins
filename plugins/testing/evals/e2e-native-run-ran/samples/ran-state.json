@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Native step: run\nState: ran\nOutside-scope changes: none",
+      "why": "ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Native step: run\nState: skipped (app already running)",
+      "why": "skipped"
+    }
+  ]
+}

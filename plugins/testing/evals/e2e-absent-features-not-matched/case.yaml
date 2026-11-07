@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-absent-features-not-matched
+description: 'Legacy run-e2e affected-02 (app-control-absent-touched-features-not-matched). Does not match shop/cart/basket.py against the index''s sources globs, reports touched features not matched (app-control not installed), drives the cart page itself, and does not stop for the missing plugin. not-matched reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Does not match shop/cart/basket.py against the index''s sources globs, reports touched features not matched (app-control not installed), drives the cart page itself, and does not stop for the missing plugin.'
+execution:
+  prompt: '/testing:run-e2e the cart page. This branch changes shop/cart/basket.py, and .claude/skills/control-shop/ exists with an index whose cart feature lists `shop/cart/**` in its sources. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the run''s report, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: not-matched
+    type: regex
+    pattern: 'touched features not matched \(app-control not installed\)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the cart page. This branch changes shop/cart/basket.py, and .claude/skills/control-shop/ exists with an index whose cart feature lists `shop/cart/**` in its sources. PASS only if the reply satisfies every legacy expectation: "Does not read the index''s sources globs to match shop/cart/basket.py" "Reports `touched features not matched (app-control not installed)`" "Drives the cart page the scenario names on own driving" "Does not stop or report an error for the missing plugin". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "recording and browser_mode merge per key across the user-global, team and personal override layers; a subagent drives and returns evidence paths only.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll open the browser myself with the default recording off.",
+      "why": "no subagent, no layers"
+    }
+  ]
+}

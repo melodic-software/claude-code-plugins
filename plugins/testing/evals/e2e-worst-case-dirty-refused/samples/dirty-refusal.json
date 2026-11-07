@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "src/fixtures/invoices.json is dirty, so it is refused: injecting there would mix with your edits.",
+      "why": "dirty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll back up src/fixtures/invoices.json and inject worst-case rows.",
+      "why": "writes it"
+    }
+  ]
+}

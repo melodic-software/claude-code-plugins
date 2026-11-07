@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-reuse-auto-unattended
+description: 'Legacy run-e2e e2e-settings-08 (reuse-auto-unattended-labels-evidence). With reuse_running_instance auto on an unattended run and the app answering, the run probes the URL first, drives that app, launches nothing and labels the evidence instance not started by this run. evidence-label reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With reuse_running_instance auto on an unattended run and the app answering, the run probes the URL first, drives that app, launches nothing and labels the evidence instance not started by this run.'
+execution:
+  prompt: '/testing:run-e2e --unattended the cart page. reuse_running_instance resolves to auto, no orchestrator governs the start, and the app already answers at http://localhost:4200. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed, and nobody is present to answer. Say what is driven and how the evidence is labeled, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: evidence-label
+    type: regex
+    pattern: 'instance not started by this run'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e --unattended the cart page. reuse_running_instance resolves to auto, no orchestrator governs the start, and the app already answers at http://localhost:4200. PASS only if the reply satisfies every legacy expectation: "Probes the named localhost URL before launching anything" "Drives the running app and launches no second instance" "Labels the evidence ''instance not started by this run''". FAIL if any point is missing or contradicted.'

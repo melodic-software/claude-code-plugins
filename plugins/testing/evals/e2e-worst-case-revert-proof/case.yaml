@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-worst-case-revert-proof
+description: 'Legacy run-e2e 11 (worst-case-file-revert-proven). Both snapshots include untracked and ignored files, the fixture is restored from a byte-for-byte copy, and the report states the cmp result of the revert proof. revert-proof reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Both snapshots include untracked and ignored files, the fixture is restored from a byte-for-byte copy, and the report states the cmp result of the revert proof.'
+execution:
+  prompt: '/testing:run-e2e worst-case src/components/MemberList (its data comes from src/fixtures/members.json). Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. List the commands around the injection and revert and the report''s revert proof, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: revert-proof
+    type: regex
+    pattern: '^(?=[\s\S]*(?:--untracked-files=all\b))(?=[\s\S]*(?:--ignored\b))(?=[\s\S]*(?:\bcmp\b))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e worst-case src/components/MemberList (its data comes from src/fixtures/members.json). PASS only if the reply satisfies every legacy expectation: "Both snapshots include untracked and ignored files (--untracked-files=all --ignored)" "The fixture is restored from a byte-for-byte copy, not rewritten from memory" "The report states the cmp result of the revert proof". FAIL if any point is missing or contradicted.'

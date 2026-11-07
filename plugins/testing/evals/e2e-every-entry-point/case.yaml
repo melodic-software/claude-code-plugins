@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: e2e-every-entry-point
+description: 'Legacy run-e2e feature-map-03 (every-entry-point-of-touched-feature). Takes the touched feature from affected.json, drives the keyboard shortcut and the API entry point as well as the button, and reports one line per entry point. three-lines reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Takes the touched feature from affected.json, drives the keyboard shortcut and the API entry point as well as the button, and reports one line per entry point.'
+execution:
+  prompt: '/testing:run-e2e app=timer the dashboard start button. This branch changes src/timers/start.ts. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves. /app-control:drive affected writes an affected.json whose control_skill is `control-timer (project: .claude/skills/control-timer/SKILL.md)` and whose features list one entry, id `start-a-timer`, matched_files ["src/timers/start.ts"], with three entry points, each driven true: the dashboard `Start` button, pressing `t` on the dashboard, and `POST /api/timers` from the browser extension. When the run says it goes through /app-control:drive, the user answers: "Fine, go ahead." Assume each entry point drove and passed. Write the per-entry-point report lines, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: three-lines
+    type: regex
+    pattern: '(?:start-a-timer\s*\|[^\n]*\|\s*(?:passed|failed|not driven)[^\n]*(?:\n|$)[\s\S]*?){3}'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e app=timer the dashboard start button. This branch changes src/timers/start.ts. PASS only if the reply satisfies every legacy expectation: "Takes the touched feature from affected.json rather than matching the index''s sources globs itself" "Drives the keyboard shortcut and the API entry point as well as the button" "Reports one line per listed entry point with passed, failed or not driven and a reason". FAIL if any point is missing or contradicted.'

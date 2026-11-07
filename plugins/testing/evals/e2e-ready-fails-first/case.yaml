@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-ready-fails-first
+description: 'Legacy run-e2e feature-map-01 (control-skill-ready-before-first-drive). Runs the control skill''s Ready before the first drive step and reports an environment failure carrying its exit 7 output, driving no step. environment-failure reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Runs the control skill''s Ready before the first drive step and reports an environment failure carrying its exit 7 output, driving no step.'
+execution:
+  prompt: '/testing:run-e2e the timer page. .claude/skills/control-timer/SKILL.md exists; its ## Ready section is `curl -fsS http://127.0.0.1:5180/healthz` and its driving tool is playwright. That Ready exits 7 with `Failed to connect to 127.0.0.1 port 5180`. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what the run does and reports, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: environment-failure
+    type: regex
+    pattern: '\benvironment failure\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the timer page. .claude/skills/control-timer/SKILL.md exists; its ## Ready section is `curl -fsS http://127.0.0.1:5180/healthz` and its driving tool is playwright. That Ready exits 7 with `Failed to connect to 127.0.0.1 port 5180`. PASS only if the reply satisfies every legacy expectation: "Runs the control skill''s Ready command before the first drive step" "Reports an environment failure carrying Ready''s exit 7 output and drives no step". FAIL if any point is missing or contradicted.'

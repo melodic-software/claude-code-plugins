@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The banner is the app's claim; the read-back is a fresh GET of the preferences.",
+      "why": "read-back"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The green 'Preferences saved' banner confirms the value was stored.",
+      "why": "trusts the banner"
+    }
+  ]
+}

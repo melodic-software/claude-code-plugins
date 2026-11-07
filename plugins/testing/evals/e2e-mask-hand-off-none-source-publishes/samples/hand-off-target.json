@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The Mask in effect comes from the hand-off target /srv/trusted/shop/.claude/skills/control-browser/SKILL.md.",
+      "why": "names the trusted target"
+    },
+    {
+      "answer": "That target, `.claude/skills/control-browser/SKILL.md` inside `/srv/trusted/shop`, was found.",
+      "why": "path and trusted root split, from smoke t3fix (llm PASS)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Mask comes from the checkout's .claude/skills/control-browser/SKILL.md.",
+      "why": "the checkout's copy, not the trusted root"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

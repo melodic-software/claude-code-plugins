@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Warning: legacy feature map at docs/maps/web; `/app-control:map refresh docs/maps/web` converts it. Continuing with the export page.",
+      "why": "refresh named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Running the legacy map's Doctor, then driving the export page.",
+      "why": "runs Doctor"
+    }
+  ]
+}

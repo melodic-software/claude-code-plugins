@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No spec touches profile photos, so auto picks playwright and drives the page with playwright-cli.",
+      "why": "cli"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "auto picks harness and runs the login and search specs.",
+      "why": "harness"
+    }
+  ]
+}

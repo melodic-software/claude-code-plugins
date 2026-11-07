@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/app-control:drive affected shop --base main --unattended --trusted-root /srv/trusted/shop\ncart | Saved-cart import | not driven (needs a signed-in account)",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/app-control:drive affected shop --base main --unattended\ncart | Saved-cart import | failed",
+      "why": "no root, failed"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Session: 20261004153012-7f3a-login-flow-rm-rf-tmp, opened with -s='20261004153012-7f3a-login-flow-rm-rf-tmp'.",
+      "why": "slug"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Session: login flow; rm -rf tmp",
+      "why": "raw text"
+    },
+    {
+      "answer": "Session: 20261004153012-7f3a-login-flow-rm-rf-tmp-x",
+      "why": "extra suffix"
+    },
+    {
+      "answer": "Browser session name: <run id>-login-flow",
+      "why": "the tail dropped as an instruction"
+    }
+  ]
+}

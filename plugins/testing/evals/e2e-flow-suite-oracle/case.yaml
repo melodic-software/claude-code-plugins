@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-flow-suite-oracle
+description: 'Legacy run-e2e 8 (flow-suite-is-the-oracle). Runs the committed checkout spec through npm run test:e2e first and reports its result as the verdict, labels screenshots and the ad-hoc drive as evidence, and starts a trace before the drive, listing its path. oracle-and-trace reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'Runs the committed checkout spec through npm run test:e2e first and reports its result as the verdict, labels screenshots and the ad-hoc drive as evidence, and starts a trace before the drive, listing its path.'
+execution:
+  prompt: '/testing:run-e2e the checkout flow. The project has a committed @playwright/test suite under e2e/ with a checkout.spec.ts, and its README documents `npm run test:e2e`. The app is running. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what runs, what decides the verdict, and the artifacts, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: oracle-and-trace
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\boracle\b))(?=[\s\S]*(?:\btrac(?:e|ing)\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the checkout flow. The project has a committed @playwright/test suite under e2e/ with a checkout.spec.ts, and its README documents `npm run test:e2e`. The app is running. PASS only if the reply satisfies every legacy expectation: "Runs the committed spec through the project''s documented command before driving the app ad hoc" "Reports the spec''s pass or fail as the scenario verdict" "Labels screenshots and the ad-hoc drive as evidence, not the oracle" "Starts a trace before the ad-hoc drive and lists the trace path as an artifact". FAIL if any point is missing or contradicted.'

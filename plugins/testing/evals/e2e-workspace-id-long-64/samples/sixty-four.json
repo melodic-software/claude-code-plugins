@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "q4-ledger-reconciliation-20261004153012-7f3a-apply-partial-refun",
+      "why": "64 characters"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "q4-ledger-reconciliation-q4-ledger-reconciliation-q4-ledger-reco-20261004153012-7f3a-apply",
+      "why": "workspace part not cut"
+    },
+    {
+      "answer": "q4-ledger-reconciliation-20261004153012-7f3a-apply-partial-refund-to",
+      "why": "not cut to 64"
+    }
+  ]
+}

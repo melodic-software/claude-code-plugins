@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-native-run-orchestrator
+description: 'Legacy run-e2e 6 (native-step-skipped-orchestrator-governs). With docker-compose governing the start, the Native step records skipped (orchestrator governs the start), run is not invoked, and the orchestrator is the one launch path. orchestrator-skip reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With docker-compose governing the start, the Native step records skipped (orchestrator governs the start), run is not invoked, and the orchestrator is the one launch path.'
+execution:
+  prompt: '/testing:run-e2e the login flow. The project''s docker-compose configuration governs the start, and the bundled run skill resolves in this session. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Write the Native step result block and say how the app launches, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: orchestrator-skip
+    type: regex
+    pattern: 'skipped \(orchestrator governs the start\)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the login flow. The project''s docker-compose configuration governs the start, and the bundled run skill resolves in this session. PASS only if the reply satisfies every legacy expectation: "Records ''skipped (orchestrator governs the start)'' in the result block" "Does not invoke run" "Launches through the orchestrator path only, one launch path". FAIL if any point is missing or contradicted.'

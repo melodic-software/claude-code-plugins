@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-workspace-none-collide
+description: 'Legacy run-e2e e2e-workspace-02 (no-entry-keeps-start-command-and-warns-about-collisions). With no Workspace environment entry, the run uses npm run dev on port 5173, says parallel workspaces may collide, and runs no workspace verb. warns-collision reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With no Workspace environment entry, the run uses npm run dev on port 5173, says parallel workspaces may collide, and runs no workspace verb.'
+execution:
+  prompt: '/testing:run-e2e the signup form. The repository has no docs/conventions/workspace-environment.md on its default branch; its README documents `npm run dev` on port 5173 as the start command. Two other worktrees of this repository exist. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say how the app starts and anything you warn about, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: warns-collision
+    type: regex
+    pattern: '\bcollid(?:e|es|ing)\b|\bcollision|\bport\s+\d+\s+may already be taken\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the signup form. The repository has no docs/conventions/workspace-environment.md on its default branch; its README documents `npm run dev` on port 5173 as the start command. Two other worktrees of this repository exist. PASS only if the reply satisfies every legacy expectation: "Uses the documented start command and its documented address" "States that parallel workspaces may collide" "Runs no workspace verb". FAIL if any point is missing or contradicted.'

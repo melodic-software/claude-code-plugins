@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stop with the gap report: e2e_driver chrome from .claude/testing.local.yaml cannot run unattended.",
+      "why": "gap report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "chrome needs a person, so I'll drive with playwright-cli instead.",
+      "why": "substitutes"
+    }
+  ]
+}

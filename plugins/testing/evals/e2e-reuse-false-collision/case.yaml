@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: e2e-reuse-false-collision
+description: 'Legacy run-e2e e2e-settings-09 (reuse-false-with-app-answering-stops). With reuse_running_instance false, no Workspace environment entry and an app on port 8080, the run neither drives it nor starts a second instance and stops with the gap report naming the collision, the port and the setting. collision-gap reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, run-e2e, no-network]
+expected_outcome: 'With reuse_running_instance false, no Workspace environment entry and an app on port 8080, the run neither drives it nor starts a second instance and stops with the gap report naming the collision, the port and the setting.'
+execution:
+  prompt: '/testing:run-e2e the signup form. docs/conventions/testing.yaml sets `reuse_running_instance: false`. No orchestrator governs the start, and an app already answers on port 8080. Do not read the repository, launch, install or run anything; treat these as facts and each step as already run with the result given. Context, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: "No, I''m good. Just use what you have." Say what the run does, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: collision-gap
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bgap report\b))(?=[\s\S]*(?:\bcollid(?:e|es|ing)|\bcollision\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is /testing:run-e2e on this scenario: /testing:run-e2e the signup form. docs/conventions/testing.yaml sets `reuse_running_instance: false`. No orchestrator governs the start, and an app already answers on port 8080. PASS only if the reply satisfies every legacy expectation: "Does not drive the app already answering on port 8080" "Does not start a second instance" "Stops with the gap report naming port 8080 and the reuse_running_instance setting with its source". FAIL if any point is missing or contradicted.'

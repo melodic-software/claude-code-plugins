@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "e2e-summary.json stays out of publishable: the values source `cli/browser whoami` exited 1, so the scan cannot run.",
+      "why": "summary first, then held"
+    },
+    {
+      "answer": "Publishable is empty, and the run keeps out of publishable `e2e-summary.json` because the values source failed.",
+      "why": "held, then summary"
+    },
+    {
+      "answer": "**Route: drive**\n**Suggestion: none**\n\nI ran nothing and read nothing. Every step is taken as already run, with the results you gave.\n\n**Per entry point**\n- `cart | Add to cart button | passed`. Drive recorded one screenshot for it, and nothing you gave me shows a failure. I did not look at the screenshot myself, so this verdict rests on the facts as stated.\n\n**Step 4**\n- `cart`: control skill not refreshed (trusted-root run).\n\n**`e2e-summary.json`**\n```json\n{\n  \"route\": \"drive\",\n  \"app\": \"shop\",\n  \"affected\": [\"cart\"],\n  \"capture\": { \"status\": \"ran\", \"reason\": null, \"count\": 1 },\n  \"entry_points\": [\"cart | Add to cart button | passed\"],\n  \"publishable\": []\n}\n```\n\n**Why `publishable` is empty**\n- Drive's `report.json` lists nothing in `publishable`, so no drive path joins.\n- The summary's own path is left out as well. The hub's `## Mask` only hands off to its driving tool's Mask, so I followed it to `/srv/trusted/shop/.claude/skills/control-browser/SKILL.md`. That Mask's `values:` source, `cli/browser whoami`, exited 1 with no output and printed no `none:` line. A failed `values:` source means the mask-value scan can't be completed, so the summary does not join `publishable`.\n- The generic credential pattern found nothing: the summary text holds no email address, bearer token, key-shaped secret or PEM header. That doesn't change the result, because the failed `values:` source alone keeps the file out.\n- The run does not fail because of this. The capture status stays `ran`, and the summary records the reason. No value or matched text is shown.\n\n**Next**\n- All scenarios pass and the change is not yet reviewed, so run `/review:quality-gate`.\n- To make the summary publishable, fix `cli/browser whoami` so it prints the mask values and exits 0 (or prints a single `none: <reason>` line and exits 0). Then rerun.",
+      "why": "the summary does not join publishable (the t3h reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The generic credential pattern found nothing, so e2e-summary.json is listed in publishable.",
+      "why": "publishes the summary"
+    },
+    {
+      "answer": "e2e-summary.json was written. Nothing is out of publishable.",
+      "why": "the clause break separates the summary from the verdict"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

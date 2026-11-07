@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "State: skipped (unattended). Drive `sync` under script(1); save the transcript and exit code.",
+      "why": "skip state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "State: ran. run launched the terminal app.",
+      "why": "invokes run"
+    }
+  ]
+}
