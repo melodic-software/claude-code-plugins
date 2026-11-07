@@ -485,11 +485,12 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. Three surfaces are configurable: the **detached observer** (eight keys, all defaulting
+`userConfig`. Four surfaces are configurable: the **detached observer** (eight keys, all defaulting
 to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
 (five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds), and `cloud_route`, whether the workflow's continuation advice offers a
-cloud session (see the options reference below):
+two drift-check bounds), `cloud_route`, whether the workflow's continuation advice offers a
+cloud session, and `retro_offer`, whether the workflow's wrap-up offers a retro (see the options
+reference below):
 
 | Key | Default | Effect |
 |---|---|---|
@@ -607,6 +608,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `transcript_scope` | string | `"worktree"` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 | `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
+| `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |
 | `recommend_skills_exclude` | string | `"none"` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
 | `orient_catch_up_word_cap` | number<br>*min 150* | `250` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
 

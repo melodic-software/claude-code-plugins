@@ -14,7 +14,9 @@ Don't wait to be asked. Suggest as soon as primary work is done.
 
 3. **Retrospective.** `/session-flow:retro` for substantive sessions (full analysis), `/session-flow:retro quick` when
    context is limited, and `/corrections:codify` when a specific mistake recurred mid-session and
-   the `corrections` plugin is installed (otherwise the retro's own codification step covers it)
+   the `corrections` plugin is installed (otherwise the retro's own codification step covers it).
+   When SKILL.md resolved `retro_offer` to `off`, offer no retro here or in the table below;
+   `/corrections:codify` is not a retro and is still suggested
 
 4. **Plugin audit offer.** If the session invoked at least one plugin skill and `plugin-quality` is
    enabled, offer `/plugin-quality:audit session` in one line. Offer only; the operator runs it
@@ -26,6 +28,6 @@ Don't wait to be asked. Suggest as soon as primary work is done.
 | Code modified, no PR exists | Pre-PR sequence, then create the PR |
 | PR exists, CI running | Monitor CI before leaving |
 | Work unfinished, session ending | `/session-flow:handoff` |
-| Any session with substantive work | `/session-flow:retro` (full or quick based on context budget) |
-| Session had errors or surprises | `/corrections:codify` when the `corrections` plugin is installed, else `/session-flow:retro` (propose a check or a line for a recurring mistake) |
+| Any session with substantive work, `retro_offer` not `off` | `/session-flow:retro` (full or quick based on context budget) |
+| Session had errors or surprises | `/corrections:codify` when the `corrections` plugin is installed, else `/session-flow:retro` unless `retro_offer` is `off` (propose a check or a line for a recurring mistake) |
 | Session invoked at least one plugin skill, `plugin-quality` enabled | One-line offer of `/plugin-quality:audit session` (never run it) |
