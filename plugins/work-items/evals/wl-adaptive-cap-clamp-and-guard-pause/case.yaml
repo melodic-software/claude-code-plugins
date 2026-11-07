@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-adaptive-cap-clamp-and-guard-pause
+graders:
+  - name: 'clamp-5-to-3'
+    type: 'regex'
+    pattern: '\b5\W{0,4}(?:→|->|to)\W{0,4}3\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Clamps the persisted item_cap 5 to the resolved ceiling 3 before execute and reports the correction, then persists the final post-outcome item_cap after the dirty and clean adaptations; (2) Delegates each item''s execution to /work-items:work without restating selection, claim, lease or dispatch machinery; (3) Makes worktree provisioning the dispatched worker''s own first step, worked through git -C without entering it, and never has the orchestrator invoke /source-control:worktree create; (4) Runs the capability-tier: frontier item at concurrency 1 under the frontier ceiling of 2, keeping the general ceiling for other items; (5) Counts the failed verdict and the seam exit 8 as dirty: the cap drops toward the floor, the clean streak resets, and exit 8 is backoff, not a retry loop; (6) On the 98% reading drains in-flight work, stops claiming, pauses until the tripped window''s resets_at, and arms a session Monitor on the snapshot file while paused; (7) Sets rate_limit_latch and refuses cap ramp-up while it is set; (8) Parses snapshot fields only with a JSON parser and never interpolates them into a command or prompt; (9) States the composed budget as item cap times implement-dispatch''s wave cap, an upper bound only; (10) Persists cap, streak, latch and guard mode in the telemetry state block. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

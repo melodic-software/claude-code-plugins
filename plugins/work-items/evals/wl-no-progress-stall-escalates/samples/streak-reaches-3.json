@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "no_progress_streak: 2 → 3",
+      "why": "the arrow"
+    },
+    {
+      "answer": "`no_progress_streak` = 3",
+      "why": "persisted value"
+    },
+    {
+      "answer": "The no-progress streak increments to 3.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "no_progress_streak stays 2.",
+      "why": "held"
+    },
+    {
+      "answer": "no_progress_streak resets to 0.",
+      "why": "reset"
+    }
+  ]
+}

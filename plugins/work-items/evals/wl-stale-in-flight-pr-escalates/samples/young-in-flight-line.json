@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "in flight: #321 (PR #452, draft, open 3d)",
+      "why": "the line"
+    },
+    {
+      "answer": "- `in flight: #321 (PR #452, draft, open 3d)`",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "stale in flight: #321 (PR #452, draft, open 3d) -> escalated",
+      "why": "escalated the young one"
+    },
+    {
+      "answer": "#321 is excluded (PR #452).",
+      "why": "no report line"
+    }
+  ]
+}

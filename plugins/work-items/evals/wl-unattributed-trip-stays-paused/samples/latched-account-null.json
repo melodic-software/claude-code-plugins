@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "latched_account stays null",
+      "why": "prose"
+    },
+    {
+      "answer": "`latched_account`: null",
+      "why": "field"
+    },
+    {
+      "answer": "latched_account = null",
+      "why": "assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "latched_account = 3f2a9c01d4e5b677",
+      "why": "set"
+    },
+    {
+      "answer": "latched_account is set to the .claude.json fingerprint.",
+      "why": "latched now"
+    }
+  ]
+}

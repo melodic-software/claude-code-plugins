@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "body edit: #51 (body edited after admission) -> escalated",
+      "why": "the line"
+    },
+    {
+      "answer": "`body edit: #51 (edited 2h after agent-ready) → escalated`",
+      "why": "unicode arrow"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "labeler refused: #51 (body edited after admission)",
+      "why": "refused, not escalated"
+    },
+    {
+      "answer": "body edit: #51 (body edited after admission)",
+      "why": "no escalation"
+    }
+  ]
+}
