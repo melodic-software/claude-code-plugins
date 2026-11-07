@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"exit\": \"pushback\", \"cause\": \"intent\", \"reason\": \"Which reader is the report for, and how is better checked?\"}",
+      "why": "json"
+    },
+    {
+      "answer": "exit: pushback, cause: intent",
+      "why": "prose fields"
+    },
+    {
+      "answer": "- **exit:** `pushback`\n- **cause:** `intent`",
+      "why": "bold labels"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"exit\": \"pushback\", \"reason\": \"What does better mean?\"}",
+      "why": "no cause"
+    },
+    {
+      "answer": "{\"exit\": \"stopped\", \"cause\": \"intent\"}",
+      "why": "stopped"
+    }
+  ]
+}
