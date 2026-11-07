@@ -354,7 +354,13 @@ test("the check names the release and hit names on every failure, never a value,
   fails(check({ result: clean, env: { LEG_OUTCOME: "failure", LEG_CLASS: "install-failed" } }), "a failed leg, even with a clean result on disk");
   fails(check({ result: clean, env: { CLI_VERSION: "2.1.319" } }), "another CLI");
   leg("read");
-  fails(check({ result: clean }), "a Read that came back");
+  const read = check({ result: clean });
+  fails(read, "a Read that came back");
+  assert.match(read.stdout, /file tools were not refused/);
+  writeFileSync(EXECUTION_FILE, "[]");
+  const untried = check({ result: clean });
+  fails(untried, "a leg that made no Read call");
+  assert.match(untried.stdout, /^::error::Claude Code 2\.1\.320: the subprocess scrub probe failed: the leg made no Read call on \/proc or the runner's temp directory, so its file-tool fence was not tested$/m);
 });
 
 const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} # \S/m;

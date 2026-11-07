@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: shape-idea-stage-states-assumptions
+description: 'Legacy shape 1. At idea stage shape states the stage with its signal, labels claims about users as assumptions, and chains plan-user-research before synthesize (shape SKILL.md 46-49 and 89-91). The read-only suite cannot run detect, so shape takes its degraded path (shape SKILL.md 37-40). stage-idea grades the reply, research-before-synthesis the Skill order; legacy-shape-1 (llm) quotes the three legacy expectations.'
+tags: [shape, idea, chain, legacy]
+runs: 3
+expected_outcome: 'Stage stated as idea with the no-code signal, claims about users labeled assumptions to test, and a plan-user-research Skill call before any synthesize call, which yields proto-personas labeled assumption-based.'
+execution:
+  prompt: 'We have an idea for a habit-tracking app and no code yet. Who is it for, and how do we find out what they need? This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?shape"'
+    weight: 0.1
+  - name: 'stage-idea'
+    type: 'regex'
+    pattern: '\bstage\b\W{0,6}(?:is\s+)?\W{0,4}idea\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'research-before-synthesis'
+    type: 'tool_order'
+    before: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?plan-user-research"' }
+    after: { tool: 'Skill', input_match: '"skill"\s*:\s*"(?:user-experience:)?synthesize"' }
+  - name: 'legacy-shape-1'
+    type: 'llm'
+    criteria: 'The run is asked who an unbuilt habit-tracking app is for and how to learn what they need. It meets the legacy expectations: "The response states the app''s stage as idea and names the signal behind it" "The response labels claims about the users as assumptions to test" "A Skill call to user-experience:plan-user-research comes before any Skill call to user-experience:synthesize".'
+    focus: 'trace'

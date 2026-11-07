@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "**Stage:** idea (signals: ...)"
+    },
+    {
+      "answer": "Stage: `idea`"
+    },
+    {
+      "answer": "The stage is idea."
+    },
+    {
+      "answer": "**Stage:** **idea**"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At this stage, the idea work comes first."
+    },
+    {
+      "answer": "Stage: existing"
+    }
+  ]
+}

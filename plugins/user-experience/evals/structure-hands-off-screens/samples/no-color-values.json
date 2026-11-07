@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "I leave colors to /user-interface:design."
+    },
+    {
+      "answer": "Item #123 in the backlog"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Primary button: #2563EB, white label."
+    },
+    {
+      "answer": "background: rgb(37, 99, 235)"
+    }
+  ]
+}
