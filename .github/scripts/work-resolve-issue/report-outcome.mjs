@@ -2252,6 +2252,11 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // (`leaveAgentReady`) after its comment.
 async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {}, stateOf } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  // A host-run or attended stop carries both: its label goes on first, so the
+  // issue is held off the lane before Work status leaves agent-ready.
+  if (plan.addLabels.length) {
+    await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
+  }
   if (plan.status) {
     // A park leaves a hold a person set during the run (write-status.mjs
     // keepHold): the issue stays as that person left it.
@@ -2260,9 +2265,7 @@ async function applyHandBack(github, repo, plan, { setStatus = async () => {}, l
       console.log(`report-outcome: issue #${plan.issueNumber} left as is: a person's Work status ${moved.state} holds it`);
       return;
     }
-  } else if (plan.addLabels.length) {
-    await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
-  } else {
+  } else if (!plan.addLabels.length) {
     await comment();
   }
   if (TRIAGE_AGAIN.has(plan.exit)) {

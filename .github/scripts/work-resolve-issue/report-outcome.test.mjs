@@ -3855,6 +3855,8 @@ test("main still reports a stop that opens no PR when merge: human's labeler can
     assert.equal(await main({ env: env(dir), fetch, sleep: async () => {} }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.equal(parseOutcomeMarker(comment).outcome, "host-run");
+    // The stop sets Work status to confirmed and still adds its host-run label.
+    assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/77/labels") && c.body?.labels?.includes("host-run")), JSON.stringify(calls.map((c) => `${c.method} ${c.path}`)));
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
   });
 });
