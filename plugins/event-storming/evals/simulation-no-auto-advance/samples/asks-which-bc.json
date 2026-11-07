@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Which bounded context should we Process Model next: Shipment Booking, Fleet Dispatch or Freight Billing?", "why": "question"},
+    {"answer": "The winner scopes to Freight Billing. Which context do you want to explore first?", "why": "which context"},
+    {"answer": "Please pick a context to explore next.", "why": "imperative ask"},
+    {"answer": "Reply with the bounded context you want next.", "why": "reply-with ask"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Next I'll run Process Modeling on Freight Billing.", "why": "no ask"},
+    {"answer": "What happens next is Process Modeling.", "why": "echoes the prompt, no question"}
+  ]
+}

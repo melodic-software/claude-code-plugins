@@ -22,10 +22,9 @@ name: pr-refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): only fix-docs-head's head read sets
-# it, since an unread head holds green and starts nothing. handoff-evidence.sh
-# sets it itself for the fix-docs reads. lane-hold.mjs's reads still end red, a
-# run fix-docs-dispatch.mjs counts toward limit-stops-per-head.
+# API_BUDGET_HOLD (outage posture element 2): only fix-docs-head's head read and
+# hold check set it, since an unread head or hold holds green and starts
+# nothing. handoff-evidence.sh sets it itself for the fix-docs reads.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -249,6 +248,7 @@ jobs:
   # A head it cannot read (a failed read, a rate limit past the guard's budget,
   # or an answer with no SHA) holds (outage posture element 2): one notice,
   # unread=true, no head-sha, so nothing after it starts but fix-docs-head-held.
+  # A hold whose reads meet a GitHub fault holds the same way, with no held.
   # It starts only when the plan job planned fix-docs.
   fix-docs-head:
     needs: [dispatcher-current, plan]
@@ -264,7 +264,8 @@ jobs:
       pull-requests: read
     outputs:
       head-sha: ${{ steps.head.outputs.sha }}
-      unread: ${{ steps.head.outputs.unread }}
+      unread: ${{ steps.head.outputs.unread || steps.hold.outputs.unread }}
+      hold-unread: ${{ steps.hold.outputs.unread }}
       held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
@@ -327,6 +328,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      # A GitHub fault on its reads holds: a notice, unread=true, no held
+      # (lane-hold.mjs), so only fix-docs-head-held starts.
       - name: Check the human-gated hold
         id: hold
         if: steps.head.outputs.sha != ''
@@ -335,6 +338,9 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: fix-docs
+          # A rate limit past the guard's budget refuses the read with a
+          # notice, and the step holds.
+          API_BUDGET_HOLD: "1"
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
       - name: Log the API budget at the end
@@ -345,13 +351,13 @@ jobs:
         with:
           tokens: github-token
 
-  # Job-level evidence that fix-docs-head held on an unread head, or the plan
-  # on unread changed files: the run ends green, and fix-docs-dispatch.mjs
-  # (heldHead) reads this job's conclusion, as it reads a handoff hold, to
-  # dispatch the PR again until limit-stops-per-head runs went red or held.
-  # Monitor signal 13 counts its titled notice (signals.mjs HOLD_LANES). It
-  # needs plan and fix-docs-head alone, jobs that run no head code, so nothing
-  # forges it.
+  # Job-level evidence that fix-docs-head held on an unread head or hold, or
+  # the plan on unread changed files: the run ends green, and
+  # fix-docs-dispatch.mjs (heldHead) reads this job's conclusion, as it reads a
+  # handoff hold, to dispatch the PR again until limit-stops-per-head runs went
+  # red or held. Monitor signal 13 counts its titled notice (signals.mjs
+  # HOLD_LANES). It needs plan and fix-docs-head alone, jobs that run no head
+  # code, so nothing forges it.
   fix-docs-head-held:
     needs: [plan, fix-docs-head]
     if: >-
@@ -364,10 +370,13 @@ jobs:
       - name: Note the hold
         env:
           PR_NUMBER: ${{ inputs.pr-number }}
+          HOLD_UNREAD: ${{ needs.fix-docs-head.outputs.hold-unread }}
           PLAN_HELD: ${{ needs.plan.outputs.held }}
         run: |
+          what="head"
+          [[ $HOLD_UNREAD != true ]] || what="human-gated hold"
           if [[ $PLAN_HELD != true ]]; then
-            echo "::notice title=PR head hold::the head of #$PR_NUMBER could not be read; fix-docs did not run, and the next dispatcher tick sends the PR again"
+            echo "::notice title=PR head hold::the $what of #$PR_NUMBER could not be read; fix-docs did not run, and the next dispatcher tick sends the PR again"
           else
             echo "::notice title=PR head hold::the changed files of #$PR_NUMBER could not be read; no Refine pass ran, and the next dispatcher tick sends the PR again"
           fi

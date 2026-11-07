@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: simulation-board-url-needs-miro
+description: "Legacy simulation existing-board-mode-requires-miro. --discover-bcs with a board URL and, as in every run, no Miro tool. simulation SKILL.md lines 67-68: modes that read an existing board, --discover-bcs with a board URL among them, 'require Miro. If it's absent, say so and offer path 2' (install and enable the miro plugin), 'since there is no board to read'. Slash-invoked, so no Skill grader. needs-miro (llm, legacy line quoted) needs the reply to say reading the board requires Miro, in any wording; offers-install-miro needs installing, enabling or connecting Miro; no-markdown-degrade (llm) fails an offer to run discovery in structured-markdown mode instead, while asking for a board export the user supplies passes (line 132, and legacy simulation 8's last expectation); no-agent-dispatch fails any Agent call."
+tags: [event-storming, simulation, outcome, degradation, no-network]
+expected_outcome: "The reply says reading the board needs Miro, points the user at installing or enabling the miro plugin, and does not fall back to structured-markdown mode."
+execution:
+  prompt: "/event-storming:simulation --discover-bcs https://miro.com/app/board/abc123"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: needs-miro
+    type: llm
+    criteria: 'Legacy simulation 3: "Output states that this board-reading mode requires a Miro server because there is an existing board to read". PASS when the reply says that reading the board at the given URL, or running --discover-bcs on it, needs Miro (the miro plugin or its tools), in any wording, including that without Miro the board cannot be read. FAIL when the reply never ties reading the board to Miro, says Miro is not needed to read it, or only mentions the miro.com URL.'
+    focus: 'last_message'
+  - name: offers-install-miro
+    type: regex
+    pattern: '(?<!n''t )(?<!not )(?<!n''t need to )(?<!not need to )(?<!no need to )\b(?:install|installs|installing|enable|enables|enabling|connect|connects|connecting|set up|configure)\b[^\n.]{0,60}(?<![/.])\bmiro\b(?!\.com)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-markdown-degrade
+    type: llm
+    criteria: 'Legacy simulation 3: "Output does not fall back to structured-markdown mode for this read-existing-board request". PASS when the reply does not offer to run the bounded-context discovery in structured-markdown mode in place of reading the board; asking the user to supply an export of the board''s items instead passes. FAIL when the reply offers or starts structured-markdown mode, or generates bounded contexts without board data.'
+    focus: 'last_message'
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

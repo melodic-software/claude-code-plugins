@@ -149,6 +149,15 @@ inputs:
       event stopped.
     required: false
     default: ""
+  fault-reason:
+    description: >
+      `true` writes reason `read-fault` for a stop a read GitHub failed to
+      answer caused (a 5xx or 429, a rate-guard stop, or no answer), where
+      the reason is otherwise the one a refusal at that read gives. proceed
+      stays `false` either way, and a refusal on an answer GitHub gave keeps
+      its reason. Empty keeps every stop's own reason.
+    required: false
+    default: ""
   require-pr:
     description: >
       `true` gates a PR as described above. `false` checks only the actors
@@ -163,7 +172,7 @@ outputs:
     description: "`true` when the lane may proceed, otherwise `false`."
     value: ${{ steps.check.outputs.proceed }}
   reason:
-    description: "`ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author` or `list-unreadable`."
+    description: "`ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable`, or `read-fault` with fault-reason `true`."
     value: ${{ steps.check.outputs.reason }}
   pr-number:
     description: The resolved PR number; empty unless proceed is `true`.
@@ -206,5 +215,6 @@ runs:
         REQUIRE_KIND: ${{ inputs.require-kind }}
         APP_LABEL: ${{ inputs.app-label }}
         REQUIRE_PR: ${{ inputs.require-pr }}
+        FAULT_REASON: ${{ inputs.fault-reason }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"

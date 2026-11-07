@@ -69,6 +69,13 @@ here without opening the script:
 The script's constants are the one place to correct when the schema moves, under the drift record
 its header carries; this list follows them.
 
+The history-file check is this skill's own FAIL, not a load rejection: a multi-record
+`context.history_file` whose records do not form one `uuid`/`parentUuid` chain is a FAIL, and so
+is a record that is not JSON. Chain the records: a `uuid` on each, `parentUuid: null` on the first
+and the previous record's `uuid` on each later one. A record that is not a `user`, `assistant` or
+`system` message and carries no `uuid` (a `summary` or `file-history-snapshot` line) is off the
+chain and skipped. Why the chain matters is in the script's history-file drift record.
+
 **WARN is an authoring mistake the suite loads with** and then scores badly on: `target: files`
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two paid types, with no

@@ -30,6 +30,7 @@ condition 1 and the actor and author parts of condition 2).
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 | `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
+| `fault-reason` | empty | `true` writes reason `read-fault` for a stop that a read GitHub failed to answer caused (a 5xx or 429, a rate-guard stop, or no answer); `proceed` stays `false`, and a refusal on an answer GitHub gave keeps its reason |
 | `reconciler-workflow` | empty | The lost-run reconciler's workflow path: a `github-actions[bot]` re-run proceeds only as its recorded re-run; empty stops every such re-run |
 
 ## Rules
@@ -262,7 +263,7 @@ that cannot stops it with `untrusted-rerunner`.
 | Output | Values |
 |---|---|
 | `proceed` | `true` or `false` |
-| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
+| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable`, or `read-fault` with `fault-reason: true` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
 
 Reasons are checked in the order list and denied ids, event and PR, head lag, fork, base, denied actor, actor,

@@ -698,21 +698,48 @@ describe("decide", () => {
     assert.doesNotMatch(text, /agent-ready/);
   });
 
-  // A standing recurring item links to its schedule row by `[Maintenance] {title}`.
+  // A recurring item links to its schedule row by its body's marker, never its title.
   describe("a recurring item whose schedule row needs an operator", () => {
     const row = (id, precondition) => ({ id, title: "Re-run the ablation", cadence: "quarterly", ...(precondition && { precondition }) });
-    const recurring = issueOf({ title: "[Maintenance] Re-run the ablation", labels: [{ name: READY }, { name: "recurring" }] });
+    const recurring = issueOf({
+      title: "chore(harness-config): re-run the ablation",
+      body: `<!-- recurring-schedule id=ablation -->\n${BODY}`,
+      labels: [{ name: READY }, { name: "recurring" }],
+    });
     const CONFIRM = "its recurring schedule row ablation needs an operator's confirmation (requires_operator_confirmation)";
+    const confirming = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
 
     test("is refused when its row sets requires_operator_confirmation", () => {
-      const schedule = { items: [row("ablation", { id: "frontier-release-since-last-checked", requires_operator_confirmation: true })] };
-      assert.deepEqual(decide(facts({ issue: recurring, schedule })), { verdict: "refuse", reasons: [CONFIRM] });
+      assert.deepEqual(decide(facts({ issue: recurring, schedule: confirming })), { verdict: "refuse", reasons: [CONFIRM] });
     });
 
-    test("is admitted when its row has no such flag, or no row matches its title", () => {
-      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })], [{ ...row("other"), title: "Something else" }], []]) {
+    test("is admitted when its row has no such flag", () => {
+      for (const items of [[row("ablation")], [row("ablation", { id: "x", requires_operator_confirmation: false })]]) {
         assert.deepEqual(decide(facts({ issue: recurring, schedule: { items } })), { verdict: "admit", reasons: [] }, JSON.stringify(items));
       }
+    });
+
+    test("is refused when no marker names a schedule row", () => {
+      const legacy = issueOf({ title: "[Maintenance] Re-run the ablation", labels: recurring.labels });
+      const inline = { ...recurring, body: `see <!-- recurring-schedule id=ablation --> above\n${BODY}` };
+      const cases = [
+        [recurring, { items: [{ ...row("other"), title: "Something else" }] }],
+        [recurring, { items: [] }],
+        [legacy, { items: [row("ablation")] }],
+        [inline, { items: [row("ablation")] }],
+      ];
+      for (const [issue, schedule] of cases) {
+        const result = decide(facts({ issue, schedule }));
+        assert.equal(result.verdict, "refuse", issue.body);
+        assert.match(result.reasons.join(), /no `<!-- recurring-schedule id=<id> -->` line names a row/);
+      }
+    });
+
+    test("matches by the marker, not the title", () => {
+      const retitled = { ...recurring, title: "chore: something unrelated" };
+      assert.deepEqual(decide(facts({ issue: retitled, schedule: confirming })), { verdict: "refuse", reasons: [CONFIRM] });
+      const crlf = { ...recurring, body: `<!-- recurring-schedule id=ablation -->\r\n${BODY}` };
+      assert.deepEqual(decide(facts({ issue: crlf, schedule: confirming })), { verdict: "refuse", reasons: [CONFIRM] });
     });
 
     test("is refused when the schedule could not be read", () => {

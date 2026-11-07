@@ -632,7 +632,8 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head. A
+`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
@@ -2684,7 +2685,8 @@ no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-
 key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
 `claude-code-version` (the version `package-lock.json` pins, which the capture installs),
 `driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
-tokens one capture job may spend, cache tokens counted in full), `max-tokens-ceiling` (the largest
+tokens the driven session of one capture job may spend, cache tokens counted in full),
+`driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
 `max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
 `max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
 `max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
@@ -3461,7 +3463,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models

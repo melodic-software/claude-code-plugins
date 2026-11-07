@@ -280,7 +280,7 @@ plugins/evals/skills/methodology/reference/*.md
 plugins/event-storming/*.md
 plugins/event-storming/skills/*/SKILL.md
 plugins/event-storming/skills/*/reference/*.md
-plugins/event-storming/skills/simulation/evals/fixtures/*.md
+plugins/event-storming/evals/fixtures/*.md
 plugins/firecrawl/README.md
 plugins/firecrawl/CHANGELOG.md
 plugins/firecrawl/skills/*/SKILL.md

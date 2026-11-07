@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "1. Big Picture (Chaotic Exploration, Enforce Timeline, ...)", "why": "names Big Picture"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "1. Process Modeling on checkout\n2. Design-Level", "why": "no Big Picture"}
+  ]
+}

@@ -65,7 +65,7 @@ const ALLOWED = new Map([
     "pr-review-main.yml:record",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],
-  // Steps whose own gh calls run unwrapped, on the plugin release App's
+  // Steps whose own gh calls run unwrapped, on the release App's
   // token, which has no api-budget token name yet.
   [
     "dependabot-fragments.yml:write",

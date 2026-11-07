@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "This is the architect's homework after the board is done.", "why": "homework"},
+    {"answer": "Post-workshop analysis, not a workshop phase.", "why": "post-workshop"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "In this workshop phase the participants draw the boundaries.", "why": "framed as a workshop phase"}
+  ]
+}
