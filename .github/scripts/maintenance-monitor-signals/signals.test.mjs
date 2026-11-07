@@ -8,12 +8,14 @@ import { test } from "node:test";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { closing } from "../intake-triage/apply-verdict.mjs";
+import { closing as resolverClosing, HELD_STEP } from "../pr-verify/resolve-pr.mjs";
 import {
   auditFindings,
   ceilingFindings,
   detect,
   ejectionFindings,
   heldFindings,
+  holdJob,
   HOLD_LANES,
   holdRule,
   laneHoldFindings,
@@ -593,7 +595,7 @@ test("signal 13: intake-triage's held verdict parses to a fixed reason with no i
   // Its error line and another title's held: text are no hold.
   const red = closing({ error: new Error("models.issue-dimensions maps no option 7") }).lines[0];
   assert.equal(parseHold("apply-verdict", /::(.*)$/.exec(red)[1]), null);
-  assert.equal(parseHold("pr-verify", "held: pr-verify could not resolve the pull request: x failed with status 502"), null);
+  assert.equal(parseHold("pr-verify-capture", "held: pr-verify-capture could not resolve the pull request: x failed with status 502"), null);
   assert.equal(parseHold("apply-verdict", "apply-verdict does not apply (off); nothing written"), null);
 });
 
@@ -618,12 +620,16 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
   assert.ok(HOLD_LANES.find((l) => l.lane === "work-resolve-issue").jobs.includes("pick-slot"));
 });
 
-test("signal 13: pr-refine's unread PR head hold parses to the PR and a fixed reason", () => {
+test("signal 13: pr-refine's unread PR head or hold parses to the PR and a fixed reason", () => {
   // fix-docs-head-held's step, read from the workflow itself, so producer and
   // parser are one contract.
   const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
-  const step = /echo "(::notice title=PR head hold::[^"]*)"/.exec(workflow)[1].replace("$PR_NUMBER", "7");
+  const template = /echo "(::notice title=PR head hold::[^"]*)"/.exec(workflow)[1].replace("$PR_NUMBER", "7");
+  const step = template.replace("$what", "head");
   assert.deepEqual(parseHold(...annotation(step)), { item: "#7", reason: "PR head unread" });
+  // lane-hold.mjs's fault hold: the step names the hold, not the head.
+  assert.match(workflow, /\[\[ \$HOLD_UNREAD != true \]\] \|\| what="human-gated hold"/);
+  assert.deepEqual(parseHold(...annotation(template.replace("$what", "human-gated hold"))), { item: "#7", reason: "PR hold unread" });
   assert.equal(parseHold("PR head hold", "no PR head SHA read for #7; fix-docs does not run"), null);
   assert.equal(parseHold("Handoff evidence hold", annotation(step)[1]), null);
   assert.ok(HOLD_LANES.find((l) => l.lane === "pr-refine").jobs.includes("fix-docs-head-held"));
@@ -644,6 +650,43 @@ test("signal 13: pr-refine's refine-failed warning parses to the pass and its cl
   // record-passes, in the workflow, runs the script that prints the warning.
   const workflow = readFileSync(new URL("../../workflows/pr-refine.yml", import.meta.url), "utf8");
   assert.match(workflow, /\n {2}record-passes:\n[\s\S]*?run: node \.base\/\.github\/scripts\/pr-refine\/log-pass-records\.mjs\n/);
+});
+
+test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reasons with no item", () => {
+  // Each from its producer: resolve-pr.mjs closing, and pr-verify.yml's
+  // `Note the hold` step after the trigger gate in each of its three jobs.
+  const resolver = resolverClosing(new GitHubError(502, "GET /repos/o/r/pulls/7"), {});
+  assert.deepEqual(parseHold(...annotation(resolver.lines[0])), { item: null, reason: "resolver fault" });
+  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+  const gates = [...workflow.matchAll(/echo "(::notice title=pr-verify::held: pr-verify's trigger gate[^"]*)"/g)].map((m) => m[1]);
+  assert.equal(gates.length, 3);
+  for (const line of gates) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "trigger gate fault" });
+  // A notice that is no hold, and another lane's title, parse to nothing.
+  assert.equal(parseHold("pr-verify", "pr-verify judged #7: PASS"), null);
+  assert.equal(parseHold("intake-sweep", annotation(gates[0])[1]), null);
+  const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
+  assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
+  for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+});
+
+test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason, in every select step", () => {
+  // Each `Select a lane-source pull request` step's notice, read from the
+  // workflow itself, so producer and parser are one contract.
+  const workflow = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
+  const notices = [...workflow.matchAll(/echo "(::notice title=pr-review-main::held: [^"]*)"/g)].map((m) => m[1].replace("$retry_call_unknown", "HTTP 502"));
+  assert.equal(notices.length, 4, "the trigger job's select step and each of three legs'");
+  for (const line of notices) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "file list unread" });
+  // Another title's text, and a pr-review-main notice that is no hold, parse to nothing.
+  assert.equal(parseHold("pr-verify", annotation(notices[0])[1]), null);
+  assert.equal(parseHold("pr-review-main", "the file list read 12 files"), null);
+  const lane = HOLD_LANES.find((l) => l.lane === "pr-review-main");
+  assert.deepEqual([lane.workflow, lane.holdStep], ["pr-review-main.yml", "Note the hold"]);
+  for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
+  // A matrix leg is listed as `<job> (<values>)` and counts as that job.
+  assert.equal(holdJob(lane.jobs, "review (claude-review, claude-review)"), true);
+  assert.equal(holdJob(lane.jobs, "trigger"), true);
+  assert.equal(holdJob(lane.jobs, "review-handoffs"), false);
+  assert.equal(holdJob(lane.jobs, "record"), false);
 });
 
 const held = (lane, runId, { item = null, reason = "closed-issue listing failed", hour = 10 } = {}) => ({

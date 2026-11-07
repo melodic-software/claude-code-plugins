@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Start with a Big Picture session across the whole claims business.", "why": "names Big Picture"},
+    {"answer": "Run Big-Picture EventStorming first.", "why": "hyphenated"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Start with Process Modeling on the claims intake flow.", "why": "another format"}
+  ]
+}

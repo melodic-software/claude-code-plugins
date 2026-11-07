@@ -1,5 +1,53 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.1] - 2026-11-07
+
+### Fixed
+
+- The PR capture's key proxy allows the `fallback-credit-2` beta, which Claude Code sends on some requests. The proxy refused it with a 403, so those captures failed at "Check the probe".
+
+## [9.1.0] - 2026-11-07
+
+### Added
+
+- The trusted-trigger gate accepts a `pull_request_target` run of the unblock dispatcher that vouches for one `pr-refine.yml` run, proven by the pull request entry and a record naming the `main` commit it ran (ADR 0090). No workflow carries the trigger yet.
+
+## [9.0.0] - 2026-11-06
+
+### Changed
+
+- **Breaking:** `pr-pipeline.schema.json` requires `merge.verify-capture.proxy.driver-token-cap`, so a `pr-pipeline.yaml` whose `proxy` lacks it fails validation; add it. It bounds the tokens the capture job's trusted driver legs may spend through the key proxy's loopback port, apart from `token-cap`, which now bounds only the driven session ([#13724](https://github.com/melodic-software/claude-code-plugins/issues/13724)).
+
+## [8.63.3] - 2026-11-06
+
+### Fixed
+
+- The pull-request unblock section names every case `fix-docs-head-held` runs for: an unread head or human-gated hold, and a plan that could not read the changed files.
+
+## [8.63.2] - 2026-11-06
+
+### Fixed
+
+- pr-merge's candidate listing matches trusted-actors.json's accounts by numeric id (`User.databaseId`, `Bot.databaseId`) instead of login, so a renamed App's pull requests stay candidates without a change to the list. It reads the open pull requests in one paginated GraphQL query, at most 10 pages of 100, with the open count on each page, which drops the separate count read: one call fewer per try. A list of exactly 1000 open pull requests now lists; more than 1000 still holds the run green.
+
+## [8.63.1] - 2026-11-06
+
+### Changed
+
+- Every pipeline reader of the tracker's human-gated role label (ci-status's holds, the merge queue's early holds, pr-merge, pr-unblock and its dispatcher, the activity runners, report-escalation, report-outcome, the release label holds) reads the `tracker` mapping of the base's `docs/conventions/work-items.yaml` instead of `.work-item-tracker.json`, still from the trusted base or default-branch checkout and still `needs-human` when the file binds none. The issue lanes' lease steps let the work-item tracker seam find the binding in the default-branch checkout. This repository's `.work-item-tracker.json` is removed.
+
+## [8.63.0] - 2026-11-06
+
+### Changed
+
+- CI `fix-docs` is on again: `limits.fix-docs-per-run` is `2`, for every pull request not tidied in its own run. A `work-resolve-issue` pull request tidied in its own run (within the tidy cutoffs) is skipped: the lanes App's on a lane branch whose file count, added plus removed lines, paths and areas are within `resolve-issue`'s `tidy.cutoffs`. One over any cutoff is dispatched, and so are the App's other pull requests and a person's on a branch with a lane name.
+- pr-refine's plan job reads the base config through resolve-config's own loader, with its schema and file checks, instead of a `yq` conversion.
+
+### Removed
+
+- Intake no longer proposes or applies a work class. The triage rubric asks for none, and `apply-verdict` adds no `work-class:` label, swaps or takes off none on the issue, no longer reads the repository's labels, and no longer rewords the lane comment. Untrusted provenance still holds: the `untrusted` flag, or the legacy `work-class: untrusted-provenance` proposal on the lane comment's second line, writes `provenance: untrusted`, and either label on an issue still holds it.
+- `admission-rules.json` drops its unread `classes` key.
+
 ## [8.62.0] - 2026-11-06
 
 ### Added

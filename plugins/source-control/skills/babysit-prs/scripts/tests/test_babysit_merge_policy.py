@@ -3900,9 +3900,9 @@ class InFlight(unittest.TestCase):
         # A gate floor never lowers the policy floor.
         self.assertEqual(gate.floor_from(anchor + policy.timedelta(days=1)).day, 2)
 
-    def test_a_merge_that_jumped_to_page_one_mid_read_is_not_clear(self) -> None:
-        # Local review of ed841af72: an unverified auto-merge on a later page
-        # updated during the walk moves to page 1 behind the cursor.
+    def test_a_merge_that_jumped_to_page_one_mid_read_is_counted(self) -> None:
+        # An unverified auto-merge on a later page updated during the walk
+        # moves to page 1 behind the cursor; the re-read of page 1 finds it.
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))
         jumped = merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")
@@ -3924,7 +3924,7 @@ class InFlight(unittest.TestCase):
         gh.graphql["PolicyRecentMerges"] = answer
         result = self.flight()
         self.assertFalse(result.clear)
-        self.assertTrue(result.reason.startswith("unreadable"), result.reason)
+        self.assertEqual(result.reason, "unverified-auto-merge:#1")
 
     def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
         # Codex P1 on #7335: a comment on an old bot-queued merge moves its
@@ -5802,7 +5802,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_a_listed_app_is_adopted_with_no_idle_wait(self) -> None:
         # Owner decision 2026-10-22: a trusted App's PR (the release App's)
         # is adopted at once; only a person may still be working on theirs.
-        app = {"login": "melodic-plugin-release[bot]", "id": 337859524, "type": "Bot"}
+        app = {"login": "melodic-release[bot]", "id": 337859524, "type": "Bot"}
         fresh = owner_pr(user=app)
         self.assertIsNone(
             self.refusal(
@@ -6277,7 +6277,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         # the spec the same run wrote: it needs a closing issue. The release
         # App's script-written body does not (adoption.spec-from-body-apps).
         release = {
-            "login": "melodic-plugin-release[bot]",
+            "login": "melodic-release[bot]",
             "id": 337859524,
             "type": "Bot",
         }
@@ -7024,7 +7024,7 @@ class ForeignPaths(unittest.TestCase):
         # author and signature alone, the weaker case.
         app = owner_pr(
             user={
-                "login": "melodic-plugin-release[bot]",
+                "login": "melodic-release[bot]",
                 "id": 337859524,
                 "type": "Bot",
             }

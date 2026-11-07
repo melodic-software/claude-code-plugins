@@ -33,10 +33,13 @@
 //   plan step names each record, the workflow uploads them, and only then does
 //   the act step re-run the run, so the record exists before the re-run. The
 //   same holds for each CI re-run that carries a record.
-// - Held: a pr-verify run whose first attempt a GitHub fault held green
-//   (resolve-pr.mjs closing): it succeeded with a `held: ` notice and no
-//   verdict. Re-run once, as a lane run is, with the same record, so a hold
-//   is retried on the next pass that reads. Its succeeded runs are listed
+// - Held: a pr-verify or pr-review-main run whose first attempt a GitHub
+//   fault held green (resolve-pr.mjs closing; pr-review-main's unread file
+//   list): it succeeded with a `held: ` notice and no verdict. Re-run once, as
+//   a lane run is, with the same record, so a hold is retried on the next pass
+//   that reads; one where any job's verdict write started is held for a
+//   person, and a pr-review-main run waits out the upstream gate, as a lost
+//   lane run does. Their succeeded runs are listed
 //   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
 //   earlier: the last pass that read, or the oldest first attempt that pass
 //   saw still going, inside the lookback. At most FAULT_HELD_READS of them
@@ -337,13 +340,15 @@ export const RECORDED_LANES = new Map([
 // The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
 // runs none, so no outage holds its re-run.
 export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
-// The recorded lane whose resolver holds green on a GitHub fault
-// (resolve-pr.mjs closing), and how far back its succeeded runs are listed for
-// a hold. The listing starts earlier when the last pass that read did, since
-// a pass idle through an outage reads nothing and carries nothing, and holds
-// cluster in exactly those outages, or when a run created earlier was still
-// going then (its three jobs can take about 17 hours).
-export const FAULT_HELD_LANE = ".github/workflows/pr-verify.yml";
+// The recorded lanes that hold green on a GitHub fault, each with HELD_STEP
+// and a `held: ` notice: pr-verify's resolver (resolve-pr.mjs closing) and
+// pr-review-main's file-list read (its `Select a lane-source pull request`
+// steps). Also how far back their succeeded runs are listed for a hold. The
+// listing starts earlier when the last pass that read did, since a pass idle
+// through an outage reads nothing and carries nothing, and holds cluster in
+// exactly those outages, or when a run created earlier was still going then
+// (pr-verify's three jobs can take about 17 hours).
+export const FAULT_HELD_LANES = new Set([".github/workflows/pr-verify.yml", ".github/workflows/pr-review-main.yml"]);
 export const FAULT_HELD_HOURS = 6;
 // The succeeded runs whose jobs one pass reads, oldest first; the rest wait
 // for the next pass, so a pass after a long outage adds a bounded load.
@@ -500,11 +505,11 @@ const isLostLane = (r, since) =>
   LANE_LOST.has(r.conclusion) &&
   r.run_attempt === 1 &&
   Date.parse(r.created_at) >= since;
-// A pr-verify run that may have held green on a GitHub fault: it concludes
-// success, so it is never lost, and only its jobs tell (faultHeld). Only its
-// first attempt is re-run, as a lost lane run's is.
+// A pr-verify or pr-review-main run that may have held green on a GitHub
+// fault: it concludes success, so it is never lost, and only its jobs tell
+// (faultHeld). Only its first attempt is re-run, as a lost lane run's is.
 const isFaultHeld = (r, since) =>
-  r.path === FAULT_HELD_LANE &&
+  FAULT_HELD_LANES.has(r.path) &&
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
   SHA.test(r.head_sha ?? "") &&
@@ -736,17 +741,20 @@ async function holdReason(call, repo, run, judge, settled, carry = new Map(), ke
   // started, the judgment may be a FAIL the run then failed to write or
   // upload, and a re-run would judge the head a second time.
   if (started.some((s) => s.name === WRITE_STEP)) {
-    return { reason: "after its verdict write started, so a re-run would judge the head again", settle: true };
+    return { reason: WRITTEN, settle: true };
   }
   return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 && (jobs.length > 0 || settled) } : undefined;
 }
 
-// Whether a succeeded pr-verify first attempt held on a GitHub fault: a job
-// that ran HELD_STEP, which runs only then, with the resolver's `held: `
-// notice among its check-run annotations (heldNoted), so only a held run's
-// annotations are read. `final` when no hold shows on a whole listing whose
-// every job's steps listed, which a completed attempt never changes. An
-// unreadable listing throws.
+// Whether a succeeded first attempt held on a GitHub fault: a job that ran
+// HELD_STEP, which runs only then, with the lane's `held: ` notice among its
+// check-run annotations (heldNoted), so only a held run's annotations are
+// read. `final` when no hold shows on a whole listing whose every job's steps
+// listed, which a completed attempt never changes. A held run where any job's
+// verdict write started is `written`: a later leg held after another wrote,
+// and a re-run would judge that head again (holdReason holds it the same
+// way). An unreadable listing throws.
+export const WRITTEN = "after its verdict write started, so a re-run would judge the head again";
 async function faultHeld(call, repo, run) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -755,6 +763,10 @@ async function faultHeld(call, repo, run) {
   const marked = listing.jobs.filter(
     (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
   );
+  const steps = listing.jobs.flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []));
+  if (marked.length > 0 && steps.some((step) => step?.name === WRITE_STEP && step.conclusion != null && step.conclusion !== "skipped")) {
+    return { held: false, final: true, written: true };
+  }
   for (const job of marked) {
     if (heldNoted(await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`))) {
       return { held: true, final: false };
@@ -1325,32 +1337,40 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
-  // pr-verify runs a GitHub fault held green (faultHeld), each re-run once
-  // like a lost lane run, and only while the status page shows Actions
-  // operational (main reads nothing otherwise). The listing starts at the
-  // carried `heldFrom`, or FAULT_HELD_HOURS back, whichever is earlier, inside
-  // the lookback. A run with no hold is settled, so each succeeded run's jobs
-  // are read once. `heldSince` is where the next pass starts: FAULT_HELD_HOURS
-  // back, or the oldest run this pass did not read.
+  // Runs a GitHub fault held green (faultHeld), each re-run once like a lost
+  // lane run, and only while the status page shows Actions operational (main
+  // reads nothing otherwise). Each lane's listing starts at the carried
+  // `heldFrom`, or FAULT_HELD_HOURS back, whichever is earlier, inside the
+  // lookback. A run with no hold is settled, so each succeeded run's jobs are
+  // read once, at most FAULT_HELD_READS a pass across the lanes, oldest first.
+  // `heldSince` is where the next pass starts: FAULT_HELD_HOURS back, or the
+  // oldest run this pass did not read.
   const recent = now - FAULT_HELD_HOURS * 3_600_000;
   const heldStart = Math.max(since, Math.min(recent, heldFrom ?? recent));
   let heldSince = recent;
-  try {
-    const heldCreated = encodeURIComponent(`>=${new Date(heldStart).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
-    const file = FAULT_HELD_LANE.slice(FAULT_HELD_LANE.lastIndexOf("/") + 1);
-    // Newest first; past the page cap the newest runs are kept, and the
-    // older ones are named, never read.
-    const listed = [];
-    for (let page = 1; page <= LANE_RUN_PAGES; page += 1) {
-      const batch = await runsPage("GET", `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success&per_page=100&page=${page}`);
-      listed.push(...batch);
-      if (batch.length < 100) {
-        break;
+  const heldCreated = encodeURIComponent(`>=${new Date(heldStart).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+  const listed = [];
+  for (const lanePath of FAULT_HELD_LANES) {
+    try {
+      const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
+      // Newest first; past the page cap the newest runs are kept, and the
+      // older ones are named, never read.
+      for (let page = 1; page <= LANE_RUN_PAGES; page += 1) {
+        const batch = await runsPage("GET", `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success&per_page=100&page=${page}`);
+        listed.push(...batch);
+        if (batch.length < 100) {
+          break;
+        }
+        if (page === LANE_RUN_PAGES) {
+          say(`${lanePath}: more than ${LANE_RUN_PAGES * 100} succeeded runs since ${new Date(heldStart).toISOString()}; only the newest are read for a hold`);
+        }
       }
-      if (page === LANE_RUN_PAGES) {
-        say(`${FAULT_HELD_LANE}: more than ${LANE_RUN_PAGES * 100} succeeded runs since ${new Date(heldStart).toISOString()}; only the newest are read for a hold`);
-      }
+    } catch (error) {
+      noteFailure(`${lanePath} held runs`, error);
+      heldSince = heldStart;
     }
+  }
+  try {
     const unread = [];
     for (const r of listed.filter((run) => isFaultHeld(run, heldStart)).sort(byAge)) {
       if (settled.has(r.id)) {
@@ -1361,16 +1381,26 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
     for (const [i, r] of unread.entries()) {
       if (i === FAULT_HELD_READS) {
-        say(`${FAULT_HELD_LANE}: ${unread.length - i} succeeded runs wait for the next pass's hold check`);
+        say(`${unread.length - i} succeeded runs wait for the next pass's hold check`);
         heldSince = Math.min(heldSince, Date.parse(r.created_at));
         break;
       }
       try {
-        const { held, final } = await faultHeld(call, repo, r);
-        if (held) {
+        const { held, final, written } = await faultHeld(call, repo, r);
+        if (written) {
+          settle.push({ id: r.id, reason: WRITTEN });
+          sayHeld(r, WRITTEN);
+        } else if (held) {
           // Kept in the next pass's listing until its re-run takes a place.
           heldSince = Math.min(heldSince, Date.parse(r.created_at));
-          lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
+          // A gated lane's re-run during an npm or Actions outage would
+          // spend its one re-run on a run the upstream gate stops again.
+          const hold = GATED_LANES.has(r.path) ? await gateHold() : "";
+          if (hold) {
+            say(`lane run ${r.id} (${r.path}) held on a GitHub fault; waiting, ${hold}`);
+          } else {
+            lanes.push({ kind: "fault-held", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha, created_at: r.created_at, record: rerunRecordName(r.id, 2, r.head_sha) });
+          }
         } else if (final) {
           settle.push({ id: r.id, reason: "" });
         }
@@ -1380,18 +1410,20 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       }
     }
   } catch (error) {
-    noteFailure(`${FAULT_HELD_LANE} held runs`, error);
+    noteFailure("held runs", error);
     heldSince = heldStart;
   }
-  // A pr-verify run still going can hold in a later job, its three jobs each
-  // up to 346 minutes, after FAULT_HELD_HOURS have passed, so the next pass
+  // A run still going can hold in a later job (pr-verify's three jobs each run
+  // up to 346 minutes) after FAULT_HELD_HOURS have passed, so the next pass
   // lists back to the oldest first attempt not yet completed. The lane listing
   // above already read those runs (LANE_LIST_STATUSES, inside the lookback),
   // so this adds no read; when it failed, the next pass starts where this one did.
-  if (laneFailures.has(FAULT_HELD_LANE)) {
-    heldSince = Math.min(heldSince, heldStart);
-  } else {
-    for (const r of laneRuns.get(FAULT_HELD_LANE).values()) {
+  for (const lanePath of FAULT_HELD_LANES) {
+    if (laneFailures.has(lanePath)) {
+      heldSince = Math.min(heldSince, heldStart);
+      continue;
+    }
+    for (const r of laneRuns.get(lanePath).values()) {
       if (r.status !== "completed" && r.event === "workflow_run" && r.head_branch === "main" && r.run_attempt === 1 && isTime(r.created_at)) {
         heldSince = Math.min(heldSince, Date.parse(r.created_at));
       }

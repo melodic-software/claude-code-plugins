@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: methodology-unsure-asks-first
+description: "Legacy methodology no-args-asks-rather-than-dumps. An unsure user with no format filter. methodology SKILL.md line 37: 'Don't dump information. Ask questions.'; Step 2 asks the goal and lines 108-112 the clarifying questions (new or existing system, understand the problem or design a solution, how many perspectives). asks-clarifying needs one such question in the reply; no-early-commit (llm) fails a reply that picks a format before the user answers or emits several formats' reference material. The legacy third expectation (when it converges, it biases toward Big Picture) needs the user's answer, a second turn, and is held. The prompt asks for questions in the reply, since an AskUserQuestion call never reaches the last message. Natural-language prompt so the Skill call is visible."
+tags: [event-storming, methodology, outcome, discovery, no-network]
+expected_outcome: "The model loads the methodology skill and asks one or more clarifying questions about the goal instead of dumping reference material, without picking a format yet."
+execution:
+  prompt: "Use the EventStorming facilitation reference from the event-storming plugin. help me with eventstorming, i'm not really sure what i need. Put any question for me in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?methodology"'
+    arm: with-only
+  - name: asks-clarifying
+    type: regex
+    pattern: '[^\n?]*\b(?:accomplish|goal|goals|new (?:project|system|product)|existing (?:system|process|project|business)|understand (?:the )?problem|design (?:a )?solution|how many (?:people|perspectives|stakeholders))\b[^\n?]*\?'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-early-commit
+    type: llm
+    criteria: 'Legacy methodology 6: "Output asks the user one or more clarifying questions to narrow the goal instead of emitting all format reference material at once" and "Output does not commit to a specific format before establishing the user''s goal". PASS when the reply asks about the user''s goal or situation and leaves the format open; naming formats as answer options inside the question passes. FAIL when the reply picks a format for the user (for example "let''s run a Big Picture session") before they answer, or emits the reference material for several formats instead of asking.'
+    focus: 'last_message'

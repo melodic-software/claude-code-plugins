@@ -1,0 +1,7 @@
+{
+  "name": "recurring-schedule",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

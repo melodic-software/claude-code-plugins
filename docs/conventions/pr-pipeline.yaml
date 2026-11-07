@@ -1277,11 +1277,11 @@ adoption:
   # against its title and body, as a person's is. Any other App (a model
   # writes its body, the lanes App's included) needs a closing issue, since
   # the run that wrote the diff would also write its spec. Ids from
-  # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
+  # trusted-actors.json: melodic-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
   # Apps that enqueue and merge their own PRs: pr-merge writes no reasons
   # comment or risk escalation on one, as no one acts on it (ADR 0048). Its
-  # score still holds pr-merge's own merge. melodic-plugin-release[bot].
+  # score still holds pr-merge's own merge. melodic-release[bot].
   self-merging-apps: [337859524]
 
 # Review bots, besides claude[bot] and the review lanes, whose review threads
@@ -1514,10 +1514,11 @@ merge:
   # API (pr-verify-capture.yml). claude-code-version must equal the version
   # package-lock.json pins (workflow.test.mjs checks it), and the change that
   # bumps it re-measures `betas` and `body-keys` from the driven session's
-  # requests in the same pull request. token-cap is provisional, a judgment
-  # of about six entry points at roughly 30k tokens per turn with cache
-  # tokens counted in full, until measured runs set it. max-tokens-ceiling is
-  # also the driven session's CLAUDE_CODE_MAX_OUTPUT_TOKENS, so it never asks
+  # requests in the same pull request. token-cap bounds the driven session,
+  # which runs pull request code; driver-token-cap bounds the trusted driver
+  # legs. Both are provisional until a full measured capture sets them, at
+  # measured use × 1.5 rounded up to the next 100,000 (#13724).
+  # max-tokens-ceiling is also the driven session's CLAUDE_CODE_MAX_OUTPUT_TOKENS, so it never asks
   # for more than the proxy allows. max-in-flight is at least 2: the main and
   # title requests run at once. max-preflight-requests bounds the messages
   # requests that reach the proxy's upstream count_tokens call, which the
@@ -1533,13 +1534,14 @@ merge:
       driven-small-model: claude-haiku-5-5
       models: [claude-opus-5-5, claude-haiku-5-5]
       token-cap: 1500000
+      driver-token-cap: 6000000
       max-tokens-ceiling: 16000
       max-body-bytes: 8388608
       max-in-flight: 4
       max-count-tokens-requests: 50
       max-preflight-requests: 1000
       upstream-timeout-ms: 600000
-      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15]
+      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15, fallback-credit-2]
       body-keys: [context_management, max_tokens, messages, metadata, model, output_config, stream, system, thinking, tools]
       block-types: [text, image, document, tool_use, tool_result, thinking, redacted_thinking]
   # Dependabot pull requests answer to this switch, not report-only: tier auto

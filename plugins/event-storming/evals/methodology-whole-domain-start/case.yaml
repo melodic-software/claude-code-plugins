@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: methodology-whole-domain-start
+description: "Legacy methodology recommend-big-picture-for-domain-discovery. A team wants to explore a whole insurance-claims business and find its bounded contexts. methodology SKILL.md Step 2 maps 'Explore a whole business/domain' to Big Picture, line 114 says 'almost always start with Big Picture', and line 106 names both the reference path (/event-storming:methodology --<format>) and the agentic path (/event-storming:simulation). recommends-big-picture and starts-broad need Big Picture as the start; no-narrow-start fails a reply that starts at Design-Level or Process Modeling (rejecting phrases such as 'rather than jumping to' exempt); names-both-paths needs methodology --big-picture and event-storming:simulation; no-catalog-dump (llm) fails a walk through every format. Natural-language prompt so the Skill call is visible."
+tags: [event-storming, methodology, outcome, routing, no-network]
+expected_outcome: "The model loads the methodology skill and recommends starting broad with Big Picture, names /event-storming:methodology --big-picture for facilitation guidance and /event-storming:simulation to run it, and does not list every format."
+execution:
+  prompt: "Use the EventStorming facilitation reference from the event-storming plugin. I want to explore our whole insurance-claims business, figure out what we don't understand yet, and find the natural bounded contexts. Where do we start with EventStorming?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:event-storming:)?methodology"'
+    arm: with-only
+  - name: recommends-big-picture
+    type: regex
+    pattern: '\bbig[- ]picture\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: starts-broad
+    type: regex
+    pattern: '\b(?:start|starts|started|starting|begin|begins|began|begun|beginning|kick off|kicks off|kicked off|kicking off|open|opens|opened|opening)\s+(?:with|at|from|by)\s+[*_]{0,2}(?:an?\s+|the\s+)?(?:\w+\s+){0,2}?[*_]{0,2}big[- ]picture\b|\btransition funnel\b|\balmost always\b[^\n.]{0,40}\bbig[- ]picture\b|\bbig[- ]picture\b[^\n.]{0,40}\b(?:first|broadest|widest)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-narrow-start
+    type: regex
+    pattern: '(?<!n''t )(?<!not )(?<!never )(?<!than )(?<!of )(?<!before )(?<!without )\b(?:start|starts|started|starting|begin|begins|began|begun|beginning)\s+(?:with|at|by)\s+(?:a\s+|the\s+)?(?:design[- ]level|process[- ]model)|(?<!n''t )(?<!not )(?<!never )(?<!than )(?<!of )\bjump(?:s|ed|ing)?\s+(?:straight\s+|directly\s+)?(?:in)?to\s+(?:a\s+|the\s+)?(?:design[- ]level|process[- ]model)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: names-both-paths
+    type: regex
+    pattern: '^(?=[\s\S]*\bmethodology\W{0,4}--big-picture\b)(?=[\s\S]*\bevent-storming:simulation\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-catalog-dump
+    type: llm
+    criteria: 'Legacy methodology 1: "Output does not dump the full catalog of all formats as an undifferentiated information dump". PASS when the reply recommends a starting format for the stated goal and mentions other formats, if at all, only as later steps or in a short aside. FAIL when the reply walks through every EventStorming format (Big Picture, Process Modeling, Design-Level, Retrospective, Value Exploration, Induction, UX-Driven) as a set of options for the user to choose among.'
+    focus: 'last_message'

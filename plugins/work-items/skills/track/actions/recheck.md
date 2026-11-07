@@ -15,7 +15,7 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
    legacy repo-root JSON binding) at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` when the file or entry is
    absent (the documented default, no warning). Stop on a malformed, empty, or non-string
-   configured value. Use the resolved string in the search below.
+   configured value. Use the resolved string in the item read below.
 
 1. **Find the item in the recurring schedule:**
 
@@ -40,7 +40,7 @@ EVAL="${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-schedule-precondition.sh"
 
 Refuse to advance `last_checked`/`next_due` or close the associated issue when the helper exits `2` (`needs-confirmation`) or `1` (`unmet`). Surface the printed prompt inline instead.
 
-1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today. If it's already in the future, the recurring-issues automation has already advanced it and re-advancing would skip a cycle.
+1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today. If it's already in the future, an earlier recheck this cycle already advanced it (the recurring-issues automation only files items and never edits the schedule), and re-advancing would skip a cycle.
 
 Cadence-to-days values: the Cadence Duration Table in [`add.md`](add.md#cadence-duration-table).
 
@@ -50,16 +50,17 @@ Re-read the current file from disk immediately before writing (the schedule is s
 
 - Set `last_checked` to today's date (always)
 - If `next_due <= today`: set `next_due` to today + cadence days
-- If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
+- If `next_due > today`: leave `next_due` unchanged (already advanced this cycle)
 
 1. **Close the associated item** (if one exists). Search for open items with the resolved
-   recurring-maintenance label (adapter: "Search items",
-   `label:<resolved recurring-maintenance label>` + the `[Maintenance]` title, bare read). Provider
-   search is substring/prefix, not exact-title equality, so **filter the results to the item whose
-   title equals `[Maintenance] {title}` exactly** before closing. Otherwise a shorter title
-   (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close
-   only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment
-   "Rechecked YYYY-MM-DD. Next due: <next_due>.".
+   recurring-maintenance label (adapter: "List items", `--label <resolved recurring-maintenance
+   label>`, with bodies, bare read), and **keep only the item whose body has the matched row's
+   `<!-- recurring-schedule id=<id> -->` line**, the `id` equal exactly
+   ([`reference/issue-conventions.md`](../../../reference/issue-conventions.md)
+   "Recurring marker"). Never match by title: a title search would let a row titled `Review CI`
+   close the item for `Review CI workflow pins`. Close only that item, with a recheck comment
+   (adapter: "Close item"), reason `completed`, comment "Rechecked YYYY-MM-DD. Next due:
+   <next_due>.".
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
 
@@ -67,5 +68,5 @@ Re-read the current file from disk immediately before writing (the schedule is s
 
 - Cadence is a minimum interval. On-demand rechecks are always valid.
 - The recurring-issues automation will create a new item when `next_due` arrives.
-- If the schedule file was recently updated by the workflow's PR, pull latest first.
+- If another PR recently updated the schedule file, pull latest first.
 - The schedule file edit is a working-tree change. It gets committed and pushed with the PR for the work that triggered the recheck. If rechecking without other changes, commit from your feature branch and open a PR: `git add .github/recurring-schedule.json && git commit -m "chore: advance recurring schedule for <item>"` (never commit directly to main).

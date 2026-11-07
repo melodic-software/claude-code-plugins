@@ -1072,6 +1072,98 @@ test("a main-run review whose verdict write started in any lane is held with its
   }
 });
 
+// A pr-review-main run whose file list did not read: the select held green,
+// with the notice the workflow prints (read from it, so producer and reader
+// are one contract) and its Note the hold step, in `holder`. `wrote` adds a
+// key leg that wrote the other lane's verdict before a later leg held.
+const MAIN_HELD_NOTE = /echo "::notice title=pr-review-main::(held: [^"]*)"/
+  .exec(readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8"))[1]
+  .replace("$retry_call_unknown", "failed 3 times");
+const mainHeldJobs = ({ holder = "trigger", marked = true, notes = [{ annotation_level: "notice", title: "pr-review-main", message: MAIN_HELD_NOTE }], wrote = false } = {}) => [
+  ...(wrote
+    ? [
+        {
+          id: 8000,
+          name: "review (claude-security-review)",
+          status: "completed",
+          conclusion: "success",
+          steps: [
+            { name: "Set up job", status: "completed", conclusion: "success" },
+            { name: REVIEW_STEP, status: "completed", conclusion: "success" },
+            { name: WRITE_STEP, status: "completed", conclusion: "success" },
+            { name: "Complete job", status: "completed", conclusion: "success" },
+          ],
+        },
+      ]
+    : []),
+  {
+    id: 8001,
+    name: holder,
+    status: "completed",
+    conclusion: "success",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Check the trigger", status: "completed", conclusion: "success" },
+      { name: "Select a lane-source pull request", status: "completed", conclusion: "success" },
+      { name: "Note the hold", status: "completed", conclusion: marked ? "success" : "skipped" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
+    ],
+    notes,
+  },
+];
+const mainHeldRun = (id, job = {}, opts = {}) => mainReviewRun(id, { conclusion: "success", created: "2026-10-19T19:40:00Z", ...opts }, mainHeldJobs(job));
+
+test("a main-run review held green on an unread file list is recorded and re-run once", async () => {
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainHeldRun(311)] });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [311]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-311-2-${MAIN_TIP}`, "", ""]);
+  // A later leg's hold is read the same way.
+  assert.deepEqual((await reconcile({ pulls: [], runs: [mainHeldRun(311, { holder: "review-subscription (claude-review)" })] })).reruns, [311]);
+});
+
+test("a succeeded main-run review with no hold, or with no held notice, is not re-run, and one with no marker is settled", async () => {
+  const unmarked = await reconcile({ pulls: [], runs: [mainHeldRun(312, { marked: false })], carry: null });
+  assert.equal(unmarked.code, 0);
+  assert.deepEqual(unmarked.reruns, []);
+  assert.ok(unmarked.calls.every((c) => !c.includes("/check-runs/")));
+  assert.deepEqual(unmarked.settled.runs, [{ id: 312, reason: "" }]);
+  const unnoted = await reconcile({ pulls: [], runs: [mainHeldRun(313, { notes: [{ annotation_level: "notice", message: "lane source changed: true" }] })] });
+  assert.deepEqual(unnoted.reruns, []);
+  assert.deepEqual((await reconcile({ pulls: [], runs: [mainHeldRun(314, {}, { attempt: 2 })] })).reruns, []);
+});
+
+// One lane's leg wrote its verdict before the other's later leg held: a
+// re-run of the whole run would review the written lane's head again.
+test("a held main-run review where a verdict write started in another job is held for good with its reason", async () => {
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns, outputs, settled } = await reconcile({ pulls: [], runs: [mainHeldRun(315, { holder: "review-subscription (claude-review)", wrote: true })], carry: null, env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+    assert.deepEqual(settled.runs, [{ id: 315, reason: "after its verdict write started, so a re-run would judge the head again" }]);
+    assert.match(readFileSync(summary, "utf8"), /lane run 315 \(\.github\/workflows\/pr-review-main\.yml\) ended success after its verdict write started/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a held main-run review waits out the upstream gate and is listed again next pass, while a held pr-verify run is re-run", async () => {
+  const upstream = { ...UPSTREAM_OK, [NPM_COMPONENTS]: NPM_OUTAGE };
+  const runs = [mainHeldRun(316)];
+  const { code, reruns, outputs, settled } = await reconcile({ pulls: [], runs, upstream, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+  // Not settled, so the next pass reads it again and, with the gate clear, re-runs it.
+  assert.deepEqual(settled.runs, []);
+  assert.deepEqual((await reconcile({ pulls: [], runs, carry: JSON.stringify(settled) })).reruns, [316]);
+  assert.deepEqual((await reconcile({ pulls: [], runs: [heldRun(317)], upstream })).reruns, [317]);
+});
+
 test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, newest first", async () => {
   const { reruns, outputs } = await reconcile({
     pulls: [],
@@ -1886,10 +1978,10 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     assert.equal(count("POST /graphql"), 1);
     // The pulls page, one run listing per head, the cancelled and failure
     // listings for each of pr-verify and pr-review-main, one repository-wide
-    // listing for each of the other seven statuses, one held pr-verify
-    // listing, one intake listing, one stopped-verdict listing and the one
-    // pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 1 + 1 + 1 + 1);
+    // listing for each of the other seven statuses, one held-run listing
+    // for each of pr-verify and pr-review-main, one intake listing, one
+    // stopped-verdict listing and the one pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 2 + 1 + 1 + 1);
   });
 });
 

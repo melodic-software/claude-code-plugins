@@ -38,15 +38,16 @@ self-hosted-runner:
 # Remove when actionlint knows the key and the pinned actionlint is bumped.
 # Trade-off: actionlint cannot check the key's value.
 #
-# `field_added` is an `issues` activity type GitHub fires when an issue field
-# value is set or updated
+# `field_added` and `field_removed` are `issues` activity types GitHub fires
+# when an issue field value is set or updated, and cleared
 # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issues),
-# but actionlint 1.7.12, the latest release, rejects it with
-# `invalid activity type "field_added" for "issues" Webhook event`; the ignore
-# matches only that type on that event. claude-code-plugins
-# work-resolve-issue.yml starts on the Work status field through it (#13484).
-# Remove when actionlint lists the type and the pinned actionlint is bumped.
-# Trade-off: none beyond that type; any other unknown activity type still fails.
+# but actionlint 1.7.12, the latest release, rejects them with
+# `invalid activity type "field_added" for "issues" Webhook event` (and the
+# same for `field_removed`); each ignore matches only that type on that event.
+# claude-code-plugins work-resolve-issue.yml starts on the Work status field
+# through `field_added`, and intake-reenter.yml through both.
+# Remove when actionlint lists the types and the pinned actionlint is bumped.
+# Trade-off: none beyond those types; any other unknown activity type still fails.
 paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
@@ -54,3 +55,4 @@ paths:
       - 'unexpected key "queue" for "concurrency" section'
       - 'unexpected key "cache-mode" for "job" section'
       - 'invalid activity type "field_added" for "issues" Webhook event'
+      - 'invalid activity type "field_removed" for "issues" Webhook event'

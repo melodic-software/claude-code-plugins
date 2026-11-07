@@ -207,10 +207,13 @@ test("the done marker uploads only when publish says the release is done", () =>
   assert.match(step[0], /\n {8}if: steps\.publish\.outcome == 'success' && steps\.publish\.outputs\.done == 'true'\n/);
 });
 
-// ci-workflows check-key-credit (gate.cjs at the pinned SHA): skip-key is
-// `true` only while the newest marker named by its `marker` output,
+// ci-workflows select-model-credential's start call (check-key-credit's
+// gate.cjs at the pinned SHA): next-leg is `subscription` only while the
+// newest marker named by its `marker` output,
 // `key-credit-stop-<workflow file>-<key-job>`, is inside the window; the
 // model job uploads that name after a credit-stop handoff.
+// credential-legs.test.mjs holds every leg's start and credential to the
+// expressions before the action.
 const WORKFLOW = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
 const jobOf = (id) => {
   const match = new RegExp(`^ {2}${id}:\\n[\\s\\S]*?(?=^ {2}\\S|(?![\\s\\S]))`, "m").exec(WORKFLOW);
@@ -235,7 +238,7 @@ const CHECK_STEP = "Check the probe";
 test("the scrub probe runs once per release the gate takes, on a read-only token, and nothing waits on it", () => {
   const job = jobOf(PROBE_JOB);
   assert.match(job, /^ {4}needs: gate$/m);
-  assert.match(job, /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.skip-key != 'true' && github\.run_attempt == '1'$/m);
+  assert.match(job, /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
   assert.match(job, /^ {4}cache-mode: read$/m);
   assert.deepEqual(/^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1].trim().split("\n").map((line) => line.trim().split(" #")[0]), ["contents: read"]);
   // Only the later probe legs wait on a probe; no publishing job does.
@@ -256,8 +259,8 @@ test("the scrub probe runs on each credential a model leg may use, after the sam
     assert.equal(ifOf(stepIn(job, CHECK_STEP)), "always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'", job);
   }
   const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim();
-  assert.match(folded("scrub-probe-subscription"), /needs\.scrub-probe\.outputs\.handoff == 'true' \|\| needs\.scrub-probe\.outputs\.credential-present == 'false' \|\| needs\.gate\.outputs\.skip-key == 'true'/);
-  assert.match(folded("scrub-probe-fallback"), /needs\.scrub-probe-subscription\.outputs\.handoff == 'true'/);
+  assert.match(folded("scrub-probe-subscription"), /\(needs\.scrub-probe\.outputs\.next-leg == 'subscription' \|\| needs\.gate\.outputs\.next-leg == 'subscription'\)/);
+  assert.match(folded("scrub-probe-fallback"), /needs\.scrub-probe-subscription\.outputs\.next-leg == 'fallback'/);
 });
 
 test("the key reaches the probe's run-claude-cli step alone, and that step runs the release's CLI after isolation", () => {
@@ -354,61 +357,49 @@ test("the check names the release and hit names on every failure, never a value,
   fails(check({ result: clean }), "a Read that came back");
 });
 
-test("the gate reads the key's credit history at the pinned check-key-credit once a release is picked", () => {
-  assert.equal(WORKFLOW.match(/check-key-credit@/g).length, 1);
+const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} # \S/m;
+
+test("the gate reads the key's credit history through select-model-credential's start call once a release is picked", () => {
+  assert.doesNotMatch(WORKFLOW, /check-key-credit@/);
   const gate = stepIn("gate", "Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
   assert.equal(ifOf(gate), "steps.gate.outputs.proceed == 'true'");
   assert.match(gate, /^ {8}continue-on-error: true$/m);
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # \S/m);
+  assert.match(gate, SELECT);
   assert.doesNotMatch(gate, /secrets\./);
+  assert.match(gate, /^ {10}leg: start$/m);
   assert.match(gate, /^ {10}key-job: model$/m);
-  assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \|\| '1' \}\}$/m);
+  // The window's default lives only in the action: an empty variable is its 1 hour.
+  assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \}\}$/m);
+  assert.match(gate, /^ {10}reset-at: \$\{\{ vars\.KEY_CREDIT_RESET_AT \}\}$/m);
   assert.match(gate, /^ {10}probe-minutes: "0"$/m);
   assert.ok(indexIn("gate", "Pick the release") < indexIn("gate", "Read the key's credit history"));
   assert.ok(indexIn("gate", "Report the credit skip") > indexIn("gate", "Read the key's credit history"));
   assert.match(jobOf("gate"), /^ {6}actions: read\b/m);
+  // Every credential call is the same pinned action.
+  const uses = [...WORKFLOW.matchAll(/^ {8}uses: (melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@.*)$/gm)].map((m) => m[1]);
+  assert.equal(new Set(uses).size, 1, uses.join("\n"));
 });
 
-test("a skipped key runs no key leg, records no start in the gate, and says which run and when the window ends", () => {
+test("a skipped key runs no key leg, records no start in the gate, and names the run whose credit stop holds it off", (t) => {
   assert.ok(!jobOf("gate").includes("upstream-apply-changelog-started"));
-  assert.match(jobOf("gate"), /^ {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}$/m);
+  assert.match(jobOf("gate"), /^ {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}$/m);
   assert.match(jobOf("gate"), /^ {6}credit-marker: \$\{\{ steps\.credit\.outputs\.marker \}\}$/m);
-  assert.match(jobOf("model"), /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.skip-key != 'true' && github\.run_attempt == '1'$/m);
+  assert.match(jobOf("model"), /^ {4}if: needs\.gate\.outputs\.proceed == 'true' && needs\.gate\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
   const report = stepIn("gate", "Report the credit skip");
-  assert.equal(ifOf(report), "steps.credit.outputs.skip-key == 'true'");
+  assert.equal(ifOf(report), "steps.credit.outputs.next-leg == 'subscription'");
+  assert.equal(ifOf(stepIn("gate", "Report the skipped key leg")), "steps.credit.outputs.next-leg == 'subscription'");
   assert.match(report, /ORIGIN_RUN: \$\{\{ steps\.credit\.outputs\.origin-run \}\}/);
-  assert.match(report, /line="[^"]*\$ORIGIN_RUN[^"]*window ends at \$\{ends:-[^}]+\}"/);
-});
-
-test("the window's end is dated from the marker's upload, and an unread upload time names none", (t) => {
-  const run = stepIn("gate", "Report the credit skip").split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
+  const run = report.split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(join(tmpdir(), "credit-skip-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const fake = join(dir, "gh");
-  writeFileSync(fake, '#!/bin/sh\nprintf "%s\\n" "$FAKE_CREATED"\n', { mode: 0o755 });
   const summary = join(dir, "summary.md");
-  const notice = (created, hours = "1") =>
-    execFileSync("bash", ["-e", "-c", run], {
-      encoding: "utf8",
-      env: {
-        PATH: `${dir}:${process.env.PATH}`,
-        FAKE_CREATED: created,
-        WINDOW_HOURS: hours,
-        ORIGIN_RUN: "41760968895",
-        MARKER,
-        RELEASE: "2.1.318",
-        GITHUB_SERVER_URL: "https://github.com",
-        GITHUB_REPOSITORY: "o/r",
-        GITHUB_STEP_SUMMARY: summary,
-      },
-    });
-  const out = notice("2026-11-04T02:28:10Z");
-  assert.match(out, /^::notice::.*actions\/runs\/41760968895;.*2\.1\.318.*1-hour window ends at 2026-11-04T03:28Z$/m);
-  // The job summary carries the same line, without the annotation prefix.
+  const out = execFileSync("bash", ["-e", "-c", run], {
+    encoding: "utf8",
+    env: { PATH: process.env.PATH, ORIGIN_RUN: "41760968895", RELEASE: "2.1.318", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_STEP_SUMMARY: summary },
+  });
+  assert.match(out, /^::notice::ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run https:\/\/github\.com\/o\/r\/actions\/runs\/41760968895; release 2\.1\.318 runs on the subscription token/m);
   assert.equal(readFileSync(summary, "utf8"), out.replace(/^::notice::/, ""));
-  assert.match(notice("2026-11-04T02:28:10Z", "3"), /3-hour window ends at 2026-11-04T05:28Z$/m);
-  assert.match(notice(""), /window ends at an unread time$/m);
 });
 
 test("the model job uploads the gate's marker only after the leg's credit-stop handoff, scanned, for one day", () => {
@@ -559,28 +550,13 @@ test("a key handoff writes a job summary line naming the subscription leg that t
 
 test("the subscription leg runs after a key handoff, an empty key or a credit-gate skip, and the fallback leg after a subscription handoff", () => {
   const folded = (job) => (/^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobOf(job))?.[1] ?? "").replace(/\s+/g, " ").trim().replace(/^\$\{\{ (.*) \}\}$/, "$1");
-  const sub = folded("model-subscription").replace("!cancelled() && ", "");
-  const base = { "needs.gate.outputs.proceed": "true" };
-  const runsSub = (over) => evalIf(sub.replace("github.run_attempt == '1'", "true"), { ...base, ...over });
-  assert.equal(runsSub({ "needs.model.outputs.handoff": "true" }), true);
-  assert.equal(runsSub({ "needs.model.outputs.credential-present": "false" }), true);
-  assert.equal(runsSub({ "needs.gate.outputs.skip-key": "true" }), true, "a credit-stopped key goes straight to the subscription");
-  assert.equal(runsSub({ "needs.model.outputs.handoff": "false" }), false);
-  assert.equal(runsSub({ "needs.gate.outputs.proceed": "", "needs.gate.outputs.skip-key": "true" }), false);
-  const fb = folded("model-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
-  const ready = { ...base, "needs.model-subscription.outputs.fallback-ready": "true" };
-  assert.equal(evalIf(fb, { ...ready, "needs.model-subscription.outputs.handoff": "true" }), true);
-  assert.equal(evalIf(fb, { ...ready, "needs.model-subscription.outputs.credential-present": "false" }), true, "an empty subscription token hands to the fallback leg");
-  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.credential-present": "false", "needs.model-subscription.outputs.fallback-ready": "false" }), false, "with every token empty no fallback leg starts");
-  assert.match(stepIn("model-subscription", "Check the credential"), /::notice::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs/);
-  assert.equal(evalIf(fb, { ...base, "needs.model-subscription.outputs.handoff": "false" }), false);
-  assert.equal(evalIf(fb, { ...base }), false, "a subscription leg that never checked its token hands nothing on");
+  // Each leg starts on the leg the one before it names (credential-legs.test.mjs
+  // drives these through every state).
+  assert.equal(folded("model-subscription"), "!cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.model.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription')");
+  assert.equal(folded("model-fallback"), "!cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1' && needs.model-subscription.outputs.next-leg == 'fallback'");
   // The empty-token run counts toward the cap once, on the fallback leg.
   assert.equal(evalIf(startWrite("model-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
   assert.equal(evalIf(startWrite("model-fallback"), leg({ "steps.run.outcome": "success" })), true);
-  const probeFb = folded("scrub-probe-fallback").replace("!cancelled() && ", "").replace("github.run_attempt == '1'", "true");
-  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false", "needs.scrub-probe-subscription.outputs.fallback-ready": "true" }), true, "the probe follows the same rule");
-  assert.equal(evalIf(probeFb, { ...base, "needs.scrub-probe-subscription.outputs.credential-present": "false", "needs.scrub-probe-subscription.outputs.fallback-ready": "false" }), false);
   assert.match(jobOf("model-subscription"), /^ {4}needs: \[gate, model\]$/m);
   assert.match(jobOf("model-fallback"), /^ {4}needs: \[gate, model-subscription\]$/m);
   // One credential per leg, each passed to run-claude-cli alone.
@@ -596,11 +572,12 @@ test("the subscription leg runs after a key handoff, an empty key or a credit-ga
 });
 
 // The legs are the key leg's steps but for the credential, the marker, the
-// handoff report, the leg record's fallback reason and the seal's job id.
+// handoff report, the leg record's fallback reason, the seal's job id and the
+// next-leg call the fallback leg, the last, does not make.
 test("the subscription and fallback legs repeat the key leg's steps", () => {
   const shape = (job) =>
     stepsOf(job)
-      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential)\n/.test(s))
+      .filter((s) => !/^ {6}- name: (?:Write the key's credit-stop marker|Scan the key's credit-stop marker for credentials|Upload the key's credit-stop marker|Report the key's handoff|Report the subscription's handoff|Check the credential|Pick the next leg)\n/.test(s))
       .map((s) =>
         s
           .replace(/^ *#.*(?:\n|$)/gm, "")
