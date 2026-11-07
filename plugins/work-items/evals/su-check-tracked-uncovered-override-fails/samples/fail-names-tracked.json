@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override (legacy) | **FAIL**: `.work-item-tracker.local.json` is tracked; run `git rm --cached -- .work-item-tracker.local.json` and rotate any committed credential |",
+      "why": "table row"
+    },
+    {
+      "answer": "The override is tracked in the index, which is the more serious FAIL; no ignore rule covers it either.",
+      "why": "prose, tracked before FAIL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override (legacy) | FAIL: no .gitignore rule covers it, file untracked; apply appends the line |",
+      "why": "near miss: FAIL names only the missing rule"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override (legacy) | PASS |",
+      "why": "PASS"
+    }
+  ]
+}

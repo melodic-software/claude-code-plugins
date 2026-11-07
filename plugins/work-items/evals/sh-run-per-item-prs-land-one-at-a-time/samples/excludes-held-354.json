@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| `#354` | **skipped as held elsewhere** | another session holds a live lease |",
+      "why": "report row with markdown"
+    },
+    {
+      "answer": "Leave out #354, which another session holds, and draft the list for #351 to #353.",
+      "why": "verb before the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claim #351, #352, #353 and #354, then dispatch all four.",
+      "why": "near miss: claims the held item"
+    },
+    {
+      "answer": "Draft the item list for all four ready items and claim them after approval.",
+      "why": "no exclusion named"
+    },
+    {
+      "answer": "#354 is claimed by another session with a live lease; claim all four after approval.",
+      "why": "near miss: repeats the prompt fact, then claims the held item"
+    }
+  ]
+}
