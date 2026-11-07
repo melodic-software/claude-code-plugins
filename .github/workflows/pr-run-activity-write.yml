@@ -1426,8 +1426,8 @@ jobs:
           }
           echo "labels=$labels" >>"$GITHUB_OUTPUT"
 
-      # Issue mode, apply-patch: the labels the activity needs present (an
-      # issue's agent-ready), read before the head checkout replaces .base.
+      # Issue mode, apply-patch: the labels the activity needs present, read
+      # before the head checkout replaces .base.
       - name: Read the required labels
         id: required-labels
         if: >-
@@ -1436,7 +1436,10 @@ jobs:
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
-          required=$(jq -ce '[(.selected["applies-when"].labels // [])[] | strings]' "$RESOLVED") || {
+          # agent-ready lives on the Work status field: this job's resolve-config
+          # selection already required it from the field, and the raw label
+          # list apply-patch reads would never hold it.
+          required=$(jq -ce '[(.selected["applies-when"].labels // [])[] | strings | select(. != "agent-ready")]' "$RESOLVED") || {
             echo "::error::cannot read the activity's labels list from the resolved config"
             exit 1
           }
