@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A fork receives the main conversation's exact tool pool, write tools included."
+    },
+    {
+      "answer": "Fork tools cannot be narrowed the way a named subagent's tools field can."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The forks are read-only."
+    },
+    {
+      "answer": "Each fork is told to make no writes."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "For batch prose work, the docs-hygiene compress capability's semantic-diff check is the safety net."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "For batch work, run this skill on each file."
+    }
+  ]
+}

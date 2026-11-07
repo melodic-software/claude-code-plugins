@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/CONTRIBUTING.md\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Glob\",\"input\":{\"pattern\":\"CONTRIBUTING*\"}}]}}\n",
+      "why": "finds it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/src/orders.py\"}}]}}\n",
+      "why": "the change only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"CONTRIBUTING.md is short.\"}]}}\n",
+      "why": "named, never read"
+    }
+  ]
+}

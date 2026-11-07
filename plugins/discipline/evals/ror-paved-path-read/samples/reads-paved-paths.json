@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/docs/standards/paved-paths.md\"}}]}}\n",
+      "why": "Read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"Scheduled\",\"path\":\"docs/standards/paved-paths.md\"}}]}}\n",
+      "why": "Grep"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"| PP-02 | Scheduled jobs | use the jobs/ registry |\"}]}}\n",
+      "why": "content in a result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/docs/standards/README.md\"}}]}}\n",
+      "why": "the index only"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"docs/standards/paved-paths.md lists scheduled jobs\"}}\n",
+      "why": "the prompt"
+    }
+  ]
+}

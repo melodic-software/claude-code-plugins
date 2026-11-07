@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "From-memory API claims (reported by do-your-research and mind-your-maxims): retracted and disclosed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "From-memory API claims (reported by do-your-research): retracted."
+    }
+  ]
+}

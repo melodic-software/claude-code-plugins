@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: fos-no-source-baseline
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?follow-our-standards"'
+    min: 1
+    arm: 'with-only'
+  - name: reads-contributing
+    type: regex
+    pattern: '"name":"(?:Read|Grep|Glob)","input":\{[^\n]*?CONTRIBUTING'
+    target: 'trace'
+  - name: states-baseline-resolved
+    type: regex
+    pattern: '\b(?:portable baseline|baseline(?: principles)?|CONTRIBUTING(?:\.md)?|(?:repo|repository)(?:''s)? own conventions)\b[^\n]{0,80}\b(?:resolved|source|applies|applied|governs?|fallback|falls? back)\b|\b(?:resolved|source|fall(?:s|ing)? back)\b[^\n]{0,80}\b(?:portable baseline|baseline|CONTRIBUTING(?:\.md)?|own conventions)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: falls-back
+    type: llm
+    criteria: 'Legacy expectation: "Falls back to the repo''s own conventions and the portable baseline when no external source is declared". PASS only if the reply audits src/orders.py against the repository''s own CONTRIBUTING file and the portable baseline principles (for example DRY / single source of truth, cohesion, SOLID, clean code) rather than failing or stopping. FAIL if it stops because no standards are declared, or audits against a source that does not exist.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-fabricated-source
+    type: llm
+    criteria: 'Legacy expectation: "Does not fabricate or assume a specific organization''s standards repository". PASS only if the reply names no organization standards repository, document or URL that the workspace does not contain. FAIL if it cites or assumes one.'
+    focus: 'last_message'
+    arm: 'both'

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Write call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a Write call"
+    }
+  ]
+}

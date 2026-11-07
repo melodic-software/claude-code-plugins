@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: tight-no-prose-standard
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: flags-gap
+    type: regex
+    pattern: '(?=[\s\S]*\b(?:gap|upstream|candidate)\b)[\s\S]*?(?:\bno\b|\bnot an?\b|\bwithout an?\b|\black(?:s|ing)? an?\b|\bthere(?:''s| is) no\b|\b(?:doesn''t|does not|don''t|do not) (?:have|declare)\b)[^\n.]{0,60}\b(?:standard|convention|rubric)s?\b'
+    flags: 'i'
+    target: last_message
+  - name: routes-compress
+    type: regex
+    pattern: '\bcompress\b|\bsemantic[- ]diff\b'
+    flags: 'i'
+    target: last_message
+  - name: no-invented-standard
+    type: llm
+    criteria: 'The user asked which naming or criteria standard governs the prose cuts, in a project that declares none. The reply meets the legacy expectations: "Does not fabricate or assert a markdown-terseness standard that does not exist"; "Flags the missing prose-terseness convention as a gap / candidate upstream addition"; "Routes batch prose reduction to the compress capability''s semantic-diff discipline". It fails if it names or cites a standard, style guide or numbered rubric as the one in force here.'
+    focus: last_message

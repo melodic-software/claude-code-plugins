@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: swa-dedup-root-cause
+context:
+  history_file: history.jsonl
+graders:
+  - name: forks-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: '\"subagent_type\":\"fork\"'
+    min: 2
+  - name: reporters-named
+    type: regex
+    pattern: '(?=[\s\S]*do-your-research)(?=[\s\S]*mind-your-maxims)'
+    target: last_message
+  - name: dedup-shape
+    type: llm
+    criteria: 'The trace is a sweep-all batch over a session that rests on two unverified from-memory claims about a payments API. It meets the legacy expectations: "Merges ledger entries that share a root cause into one finding instead of correcting the same cause multiple times"; "Keeps each reporter''s distinct remedy keyed to its reporting corrector and applies every remedy at its own rank"; "Reports the merged finding once with attribution to all reporting correctors, and keeps the forks'' ledgers independent (merge only at consolidation)". It fails if the claims are reported or corrected once per corrector, if a reporter''s remedy (for example a reader-facing uncertainty disclosure) is dropped, or if the forks were dispatched so that later ones could read earlier ledgers without that being disclosed.'
+    focus: trace

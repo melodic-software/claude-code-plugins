@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "No audits ran and no corrections were applied: zero member dispatches, zero corrective writes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No audits ran."
+    },
+    {
+      "answer": "The batch completed with no corrections needed."
+    }
+  ]
+}

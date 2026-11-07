@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Never-batched: scrutinize-dont-coast (invoke it directly)."
+    },
+    {
+      "answer": "scrutinize-dont-coast is excluded from the batch by its tier."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "scrutinize-dont-coast: clean."
+    },
+    {
+      "answer": "Never-batched correctors exist."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: tight-cross-doc-duplication
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-point-dont-copy
+    type: regex
+    pattern: '^(?![^\n]*\b(?:do not|don''t|never|without|instead of) (?:use |invoke |name |naming |using |route to )?[`/]*(?:discipline:)?point-dont-copy)[^\n]*\bpoint-dont-copy\b'
+    flags: 'mi'
+    target: last_message
+  - name: refunds-keeps-policy
+    type: regex
+    pattern: '(?=[\s\S]*\b14[ -]days?\b)(?=[\s\S]*\boriginal payment method\b)(?=[\s\S]*\bstore credit\b)'
+    flags: 'i'
+    target: { source: file, path: docs/refunds.md }
+  - name: faq-keeps-policy
+    type: regex
+    pattern: '(?=[\s\S]*\b14[ -]days?\b)(?=[\s\S]*\boriginal payment method\b)(?=[\s\S]*\bstore credit\b)'
+    flags: 'i'
+    target: { source: file, path: docs/faq.md }
+  - name: refunds-filler-cut
+    type: regex
+    pattern: '\bit is (?:worth noting|important to note)\b|\bbasically\b|\bin order to\b|\bas (?:previously|already) mentioned\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: { source: file, path: docs/refunds.md }
+  - name: faq-filler-cut
+    type: regex
+    pattern: '\bit is (?:worth noting|important to note)\b|\bbasically\b|\bin order to\b|\bas (?:previously|already) mentioned\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: { source: file, path: docs/faq.md }

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Clean: one way, and the divergence is recorded."
+    },
+    {
+      "answer": "No findings."
+    },
+    {
+      "answer": "Audit result: clean. The divergence is recorded in ADR 0042 and still holds.",
+      "why": "plain clean report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Finding: the divergence is a second way."
+    },
+    {
+      "answer": "Not clean yet.",
+      "why": "negated"
+    },
+    {
+      "answer": "The recorded divergence is real, but I'm not reporting it as clean until the ADR is checked.",
+      "why": "declines to report clean: a negation earlier in the sentence"
+    },
+    {
+      "answer": "It isn't a clean split yet; the ADR still names the old client.",
+      "why": "negated clean"
+    }
+  ]
+}
