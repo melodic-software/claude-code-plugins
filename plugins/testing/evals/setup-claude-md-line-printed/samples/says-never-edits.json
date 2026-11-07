@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The setup skill never edits CLAUDE.md or AGENTS.md, so here is the line to paste yourself:",
+      "why": "states the rule"
+    },
+    {
+      "answer": "I did not change `CLAUDE.md`: setup only prints the instruction line.",
+      "why": "past-tense denial naming the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added the line to CLAUDE.md under a new Testing heading.",
+      "why": "edited the file"
+    },
+    {
+      "answer": "I won't run apply here; I'll edit CLAUDE.md with the instruction line instead.",
+      "why": "the negation belongs to another verb across a clause break"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: setup-claude-md-line-printed
+description: 'Legacy setup 3, invoked as `/testing:setup` because the skill is disable-model-invocation and a natural request cannot load it. Asked to add a line to CLAUDE.md, the skill leaves CLAUDE.md alone, prints the optional instruction line from check''s instruction section for the user to paste, and says it never edits CLAUDE.md or AGENTS.md. claude-md-unchanged reads CLAUDE.md, ran-setup-check the Bash calls, says-never-edits the reply; meets-expected-output (llm) quotes the legacy expected output. Needs --scaffold --allow-tools Bash Write Edit (Write and Edit are granted so the must-not graders can fail).'
+tags: [testing, setup, instruction-line, scaffold, no-network]
+expected_outcome: 'CLAUDE.md is byte-for-byte unchanged; setup.sh check ran; the reply prints the instruction line for the user to paste and says the skill never edits CLAUDE.md or AGENTS.md.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:setup Add a line to our CLAUDE.md telling Claude to write tests that can fail.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: claude-md-unchanged
+    type: regex
+    pattern: '^# Orders service\n\nRun the tests with `pytest`\.\n$'
+    target: { source: file, path: CLAUDE.md }
+  - name: ran-setup-check
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+check\b'
+    arm: with-only
+  - name: says-never-edits
+    type: regex
+    pattern: '\b(?:never|does(?:n''t| not)|won''t|will not|cannot|can''t|do(?:n''t| not)|did(?:n''t| not)|ha(?:ve|s)(?:n''t| not))\s+(?:\w+\s+){0,2}?(?:edit|edits|touch|touches|write to|writes to|modify|modifies|change|changes)\b[^.;|\n]{0,40}?\bCLAUDE\.md\b'
+    flags: i
+    target: last_message
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The run is `/testing:setup` asked to add a line to CLAUDE.md telling Claude to write tests that can fail, in a repository with a root CLAUDE.md. PASS only if the run matches the legacy expected output: "Does not edit CLAUDE.md. Prints the optional instruction line from check''s instruction section for the user to paste themselves, and states that the setup skill never edits CLAUDE.md or AGENTS.md." FAIL if any part is missing or contradicted.'
