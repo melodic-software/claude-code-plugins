@@ -13,7 +13,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-3'
     type: 'llm'
-    criteria: 'The answer offers no tool other than Pencil for the handoff: the figma@claude-plugins-official, canva@claude-plugins-official, sketch and penpot rows stay deferred in the merged routes'
+    criteria: 'The answer offers no route other than Pencil to install or connect for the handoff: the figma@claude-plugins-official, canva@claude-plugins-official, sketch and penpot rows stay deferred in the merged routes. Naming apps that can open a file the answer would write itself, such as an SVG, is not an offer of those tools'
     focus: 'trace'
   - name: 'expectation-4'
     type: 'llm'
