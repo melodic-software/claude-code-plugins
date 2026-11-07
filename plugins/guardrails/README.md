@@ -1428,8 +1428,8 @@ install command:
 claude plugin install guardrails@<marketplace> --config hardcoded_path_check_enabled=false
 ```
 
-Option scoping (user vs project settings, and the per-repository escape hatch)
-per "How to set these" below.
+How options are scoped (user versus project settings, and the per-repository
+escape hatch) is covered under "How to set these" below.
 
 One further option tunes the hooks' shared plumbing rather than a single guard:
 
