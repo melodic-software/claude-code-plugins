@@ -2821,6 +2821,50 @@ def test_shape3_goal_appends_a_new_amendment_below_the_copied_section(tmp_path):
     assert goal.endswith(amendment)
 
 
+def _amendment(n: int) -> str:
+    return f'- **Amended (verbatim, 2026-08-{n:02d}):** "Also do part {n}."'
+
+
+def test_shape3_goal_moves_amendments_past_the_newest_five_to_the_hop_file(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    hop1 = s3_hop(repo, tmp_path)
+    first = _amendment(1) + "\n  and keep part 1 small.\n\n  then part 1 ends."
+    older = "\n\n".join([first, *(_amendment(n) for n in range(2, 7))])
+    edit(hop1, "Do the thing please.\n", f"Do the thing please.\n\n{older}\n")
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={"goal-new": _amendment(7)},
+    )
+    h2 = hop_file(handoffs, HOP1, 2, SID_B)
+    goal = _sections_by_hand(hop2.read_text(encoding="utf-8"))["Original goal"]
+    assert "part 1" not in goal, goal
+    assert all(_amendment(n) in goal for n in range(2, 8)), goal
+    pointer = f"- **Earlier amendments:** the older dated amendments, verbatim and still binding, are in {h2.relative_to(handoffs).as_posix()} § Earlier amendments"
+    assert f"Do the thing please.\n\n{pointer}\n\n{_amendment(2)}" in goal, goal
+    assert f"## Earlier amendments\n\n{first}\n" in h2.read_text(encoding="utf-8")
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    h3 = hop_file(handoffs, HOP1, 3, SID_C)
+    goal3 = _sections_by_hand(hop3.read_text(encoding="utf-8"))["Original goal"]
+    assert pointer not in goal3 and _amendment(2) not in goal3, goal3
+    assert "h3-cccccccc.md § Earlier amendments" in goal3, goal3
+    assert f"## Earlier amendments\n\n{pointer}\n{_amendment(2)}\n" in h3.read_text(
+        encoding="utf-8"
+    )
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+
+    edit(h3, f"{_amendment(2)}\n", "")
+    lost = strict(hop3)
+    assert lost.returncode == 1, out(lost)
+    assert "are not verbatim in" in out(lost) and "h3-cccccccc.md" in out(lost), out(lost)
+
+
 def test_shape3_crlf_predecessor_goal_compares_by_line_content(tmp_path):
     repo = make_repo(tmp_path)
     hop1 = s3_hop(repo, tmp_path)

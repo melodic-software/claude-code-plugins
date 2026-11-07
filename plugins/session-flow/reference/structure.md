@@ -63,7 +63,7 @@ Sections, in the one order `validate` checks:
 
 | Order | Section | Holds |
 |---|---|---|
-| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below |
+| 1 | Original goal | the goal quote, the owner's intent and vision, the newest five dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below as `- **Amended (verbatim, <YYYY-MM-DD>):** "<quote>"` |
 | 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
 | 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
 | 4 | Resumption brief | where the work stands and the single next action; a stated purpose is its first line, `Purpose: <text>`, which `new --purpose` writes |
@@ -104,6 +104,16 @@ What the writer owns, since no script can judge it:
   shorten the other sections, appending what they drop to this hop's file. A core alone over the
   cap still emits, marked UNVALIDATED, until the file passes the Read page cap (25,000 tokens'
   worth); past that, `validate` fails whatever the core holds.
+
+What `new` owns, so the core cannot grow without bound:
+
+- **The Original goal keeps the newest five amendments.** An amendment is one bullet starting
+  `- **Amended`, its continuation lines indented. When the predecessor's goal holds more than
+  five, `new` moves each older one, verbatim, to this hop's file under `## Earlier amendments`,
+  with the predecessor's own `- **Earlier amendments:**` pointer first, and puts one new pointer
+  bullet in their place. The pointers chain back through the hop files. A moved amendment still
+  binds. `validate` fails a hot file whose goal dropped amendments that are missing from this
+  hop's file.
 
 **From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

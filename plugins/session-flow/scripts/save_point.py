@@ -130,6 +130,17 @@ RULE_ID_RE = re.compile(r"^\[R(\d+)\]\s*")
 # The hop file already holds the predecessor's whole Current rules, so only this
 # section proves a rule was retired rather than dropped to meet the cap.
 RETIRED_RULES = "Retired rules"
+# A dated owner amendment in a shape-3 Original goal is one bullet,
+# `- **Amended (verbatim, <YYYY-MM-DD>):** "<quote>"`, continuation lines
+# indented. The hot file keeps the newest AMENDMENTS_KEPT verbatim; `new` moves
+# each older one, verbatim, to the new hop file under `## Earlier amendments`
+# and leaves one pointer bullet in its place. A moved amendment still binds.
+# PROVISIONAL: no eval has measured how many amendments a resume needs in view;
+# 5 bounds the goal's growth.
+AMENDMENTS_KEPT = 5
+AMENDMENT_PREFIX = "- **Amended"
+EARLIER_AMENDMENTS = "Earlier amendments"
+EARLIER_POINTER = f"- **{EARLIER_AMENDMENTS}:** "
 # Sections `new` writes and the writer cannot shorten (frontmatter aside).
 CARRIED_3 = ("Prior sessions", "Resume prompt")
 # The frontmatter keys `new` writes; any other line, and text before the first
@@ -1345,19 +1356,73 @@ def _rule_entries(doc: Doc) -> list[tuple[int | None, Entry, str]]:
     return found
 
 
-def _retired_rules(archived: str) -> dict[int, str]:
-    """Rule id to reason, from the hop file's `## Retired rules` section only."""
-    found: dict[int, str] = {}
+def _archive_section(archived: str, title: str) -> list[str]:
+    """The lines under one `## <title>` heading of a hop file."""
+    found: list[str] = []
     inside = False
     for line in archived.splitlines():
         if line.startswith("## "):
-            inside = line[3:].strip() == RETIRED_RULES
+            inside = line[3:].strip() == title
             continue
         if inside:
-            m = re.match(r"^- \[R(\d+)\]\s*(.*)$", line.strip())
-            if m:
-                found[int(m.group(1))] = m.group(2).strip()
+            found.append(line)
     return found
+
+
+def _retired_rules(archived: str) -> dict[int, str]:
+    """Rule id to reason, from the hop file's `## Retired rules` section only."""
+    found: dict[int, str] = {}
+    for line in _archive_section(archived, RETIRED_RULES):
+        m = re.match(r"^- \[R(\d+)\]\s*(.*)$", line.strip())
+        if m:
+            found[int(m.group(1))] = m.group(2).strip()
+    return found
+
+
+def _split_goal(lines: list[str]) -> tuple[list[str], list[str], int]:
+    """A shape-3 predecessor's Original goal split for the next hop: the lines
+    the hot file keeps, the lines its hop file takes (the predecessor's own
+    pointer first, so the pointers chain back through the hop files), and where
+    the new pointer goes in the kept lines. Nothing moves until the goal holds
+    more than AMENDMENTS_KEPT amendments."""
+    spans: list[tuple[int, int]] = []
+    for i, line in enumerate(lines):
+        if line.startswith(AMENDMENT_PREFIX):
+            end = j = i + 1
+            while j < len(lines) and (not lines[j].strip() or lines[j][:1] in " \t"):
+                if lines[j].strip():
+                    end = j + 1
+                j += 1
+            spans.append((i, end))
+    if len(spans) <= AMENDMENTS_KEPT:
+        return lines, [], -1
+    spans = spans[:-AMENDMENTS_KEPT]
+    spans += [
+        (i, i + 1) for i, line in enumerate(lines) if line.startswith(EARLIER_POINTER)
+    ]
+    spans.sort()
+    moved = [line for start, end in spans for line in lines[start:end]]
+    drop: set[int] = set()
+    for start, end in spans:
+        if end < len(lines) and not lines[end].strip():
+            end += 1
+        drop.update(range(start, end))
+    kept = [line for i, line in enumerate(lines) if i not in drop]
+    at = sum(1 for i in range(spans[0][0]) if i not in drop)
+    return kept, moved, at
+
+
+def _carried_goal(pred: Doc, hop_rel: str) -> tuple[list[str], list[str]]:
+    """The Original goal lines hop `hop_rel` carries off a shape-3 predecessor,
+    and the amendment lines that hop's file takes instead."""
+    kept, moved, at = _split_goal(_section_lines(pred, "Original goal"))
+    if not moved:
+        return kept, moved
+    pointer = (
+        f"{EARLIER_POINTER}the older dated amendments, verbatim and still binding, "
+        f"are in {hop_rel} § {EARLIER_AMENDMENTS}"
+    )
+    return [*kept[:at], pointer, "", *kept[at:]], moved
 
 
 def _squash(text: str) -> str:
@@ -1634,9 +1699,18 @@ def _check_carry_3(
     arch = _squash(archived or "")
     if pred.shape == 3:
         pred_goal = _section_lines(pred, "Original goal")
-        if _section_lines(doc, "Original goal")[: len(pred_goal)] != pred_goal:
+        goal = _section_lines(doc, "Original goal")
+        carried, moved = _carried_goal(pred, rel)
+        if goal[: len(carried)] == carried and moved:
+            if archived is not None and _squash("\n".join(moved)) not in _squash(
+                "\n".join(_archive_section(archived, EARLIER_AMENDMENTS))
+            ):
+                report(
+                    f"Original goal: the amendments past the newest {AMENDMENTS_KEPT} left this file but are not verbatim in {rel} under '## {EARLIER_AMENDMENTS}'"
+                )
+        elif goal[: len(pred_goal)] != pred_goal:
             report(
-                "Original goal: does not start with the predecessor's section byte for byte (copy it off disk, append a new owner amendment below it, never rewrite)"
+                f"Original goal: does not start with the predecessor's section byte for byte, less the amendments past the newest {AMENDMENTS_KEPT} that `new` moves to {rel} (copy it off disk, append a new owner amendment below it, never rewrite)"
             )
         trail = _section_lines(pred, "Direction changes")
         if _section_lines(doc, "Direction changes")[: len(trail)] != trail:
@@ -2486,6 +2560,10 @@ def hop_file_text(
     for title, start, end in pred.sections:
         if title not in skip:
             lines += ["", f"## {title}", "", *_trim_blank(pred.lines[start + 1 : end])]
+    if pred.shape == 3:
+        _, moved, _ = _split_goal(_section_lines(pred, "Original goal"))
+        if moved:
+            lines += ["", f"## {EARLIER_AMENDMENTS}", "", *moved]
     return "\n".join(lines) + "\n"
 
 
@@ -2550,7 +2628,7 @@ def build_skeleton_3(
     )
     goal_new = slot(
         "goal-new",
-        "optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten; delete this line when nothing changes",
+        "optional: a new owner amendment as '- **Amended (verbatim, <YYYY-MM-DD>):** \"<quote>\"', continuation lines indented, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten; delete this line when nothing changes",
     )
     if pred is None or pred.section("Original goal") is None:
         goal = [
@@ -2590,7 +2668,7 @@ def build_skeleton_3(
                 f"{ASK_POINTER}{root} § Original goal (shape-1 root, no verbatim ask recorded)"
             )
     elif carried:
-        goal = [*_section_lines(pred, "Original goal"), "", goal_new]
+        goal = [*_carried_goal(pred, hop_rel)[0], "", goal_new]
     else:
         goal = [*_dereferenced_goal(pred, root), "", goal_new]
     section("Original goal", goal)

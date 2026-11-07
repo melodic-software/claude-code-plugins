@@ -292,7 +292,8 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   per the structure doc, `--previous` passed explicitly, never auto-picked); omitted otherwise
   (`--no-previous`), including when the directory holds only unrelated-task handoffs. When
   present, `new` opened that file from disk THIS turn: it copied the `Original goal` over
-  unchanged and moved the predecessor's other sections into this hop's file, so nothing was
+  unchanged, less any amendment past the newest five, which it moved verbatim to this hop's
+  file, and moved the predecessor's other sections into this hop's file, so nothing was
   rebuilt from the conversation; a changed rule was rewritten in place under its id, a new one
   took the next id, and a new owner amendment went below the copied goal
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
