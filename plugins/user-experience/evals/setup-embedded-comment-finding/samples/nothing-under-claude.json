@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "docs/conventions/user-experience.yaml"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/settings.json"
+      ]
+    },
+    {
+      "answer": [
+        ".claude/settings.local.json"
+      ]
+    }
+  ]
+}

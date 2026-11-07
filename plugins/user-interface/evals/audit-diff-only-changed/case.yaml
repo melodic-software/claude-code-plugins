@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-diff-only-changed
+description: "Routine. Needs --scaffold --allow-tools Bash: the scaffold commits src/menu.css and src/toast.css, then leaves an uncommitted change to src/menu.css only. The diff-scope review reports only src/menu.css findings, each with a severity, a file:line and its evidence label, edits nothing and says so."
+tags: [audit, diff, read-only, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit reviews only src/menu.css, the file the working diff changes, makes no Edit or Write call and no shell edit, says the review is read-only, and labels each finding with a severity, a file:line and verified from code or needs a device recording"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Review the animations in my current changes before I open the PR."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900

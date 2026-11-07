@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: quiet-rename-variable
+description: 'Legacy shape 3. A code edit with no user-experience question does not reach /user-experience:shape. no-shape-fired grades the trace; legacy-shape-3 (llm) quotes the legacy expectation.'
+tags: [quiet, control, legacy]
+runs: 3
+expected_outcome: 'No Skill call reaches user-experience:shape.'
+execution:
+  prompt: 'Rename the variable `cnt` to `count` across src/utils.ts.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: 'no-shape-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?shape"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-shape-3'
+    type: 'llm'
+    criteria: 'The run is asked to rename a variable in src/utils.ts. It meets the legacy expectation: "No Skill call reaches user-experience:shape". It also fails if the reply turns the request into UX work.'
+    focus: 'trace'

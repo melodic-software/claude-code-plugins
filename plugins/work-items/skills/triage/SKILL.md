@@ -175,6 +175,13 @@ a bucket (the bucket names are the `state` values the board page reads):
 
 Report a `blocked by won't-do` item for the operator to decide (drop the edge, re-scope, or close); an already-triaged item is not re-run through the state machine. The field and which close reasons count per adapter: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract". An adapter that cannot read close reasons reports `0`, so this bucket stays empty there.
 
+Each label above stands for the item's status per
+[`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Reading an item's status", read once over the listing before bucketing: on field storage a set
+value places the item (`needs-triage` is `raw marker`, `needs-reporter-info` is `needs-info
+reply`), a disagreeing label does not, and `unlabeled` also needs an unset value. A read that stops
+the pass stops the view.
+
 Within each bucket, list the oldest item first, one line per item.
 
 List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. The `blocked by won't-do` bucket reads the count from the listing rows, whatever labels the item carries: an item already triaged still lands there, and one that also fits an earlier bucket is listed once, under the earlier bucket. **Defensive skip** (the first three buckets only): drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (a verification, needs-info or other triage comment from an earlier pass, with or without the AI disclaimer, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. Before listing, resolve `triage_outside_prs` ("Outside-PR intake" under "Triage settings"). When it resolves `true`, list outside PRs in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. When it resolves `false`, the default, list issues only and skip the PR listing read. The setting and that limit apply to this listing only; a PR named explicitly gets triaged whatever the setting and whoever opened it. Present as a compact table.
@@ -202,8 +209,8 @@ is named (file, key, value) and also means off. Report
 `Settings: triage_stale_reporter_info_days=<n> (repository)`, or `=off`.
 
 When it is set to `<n>`, list after the buckets, from the same listing after the
-lane-infrastructure exclusion, each open item carrying `needs-reporter-info` that passes both
-filters. Take the reporter from the item's author and the comments with their authors and dates
+lane-infrastructure exclusion, each open item whose status is `needs-reporter-info` (its label, or
+on field storage its value when set, per the tracker seam rule above) that passes both filters. Take the reporter from the item's author and the comments with their authors and dates
 from adapter "List item comments".
 
 - **Write-access filter.** Its reporter lacks write access: neither the tracker seam's write
@@ -230,12 +237,13 @@ Closed: no reply in <n> days to the request for information. Reply with the deta
 
 ## Human-gated sweep (`sweep`)
 
-Re-checks items already wearing the human-gated role label (resolved from `config.role_labels`, as
-triage workflow step 5, Apply outcome, resolves it) against the label test. It runs no state
-machine and changes no label but that one.
+Re-checks items already held by the human-gated role label (resolved from `config.role_labels`, as
+triage workflow step 5, Apply outcome, resolves it) or a `needs-human` status against the label
+test. It runs no state machine and changes nothing but that label and that status.
 
-1. **List** open issues carrying the label (adapter: "List items", label filter), after the
-   lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
+1. **List** open issues carrying the label (adapter: "List items", label filter) and, on field
+   storage, open issues whose status is `needs-human` (tracker seam "Reading an item's status"),
+   after the lane-infrastructure exclusion. Skip pull requests and every item whose label a rule set, a
    queue reads, or a person put back:
    - `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
      `provenance: signal`;
@@ -259,11 +267,15 @@ machine and changes no label but that one.
 4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
    from those `<n>` items. On yes, for each item in turn, claim it ("Claim before the first write"),
    post the comment below, remove the label, then hand the claim back; a failed post leaves that
-   item's label in place. Items the operator excludes keep it. The
+   item's label in place. When status lives in the field and the item's status is a hold state,
+   set Work status `confirmed` before removing the label ("Lifting a hold" in the tracker seam's
+   "Reading an item's status"); a failed write leaves its labels and field as they were and is
+   reported. Items
+   the operator excludes keep it. The
    edit applies no other label, so the item ends with no role label, and the objection window of
    triage workflow step 5, which only an autonomous-eligible label edit triggers, does not apply.
-   `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can pick it
-   from there. The issue lane and the work loop do not admit it: they admit only on the
+   Once no hold remains, the field included, `list-frontier --autonomous` lists it again, and an
+   attended `/work-items:work` run can pick it from there. The issue lane and the work loop do not admit it: they admit only on the
    autonomous-eligible role label. A person who wants a lane to take it applies the
    autonomous-eligible role label to it directly: with no role label and no trusted marker,
    `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for a

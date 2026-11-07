@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Apply this change to src/drawer.css?",
+      "why": "asks to apply"
+    },
+    {
+      "answer": "Reply yes to apply it, or skip to move on?",
+      "why": "asks for a yes"
+    },
+    {
+      "answer": "Shall I make this edit? (y/n)",
+      "why": "y/n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Applied the fix to src/drawer.css.",
+      "why": "near miss: applied, no question"
+    },
+    {
+      "answer": "Want me to look at anything else?",
+      "why": "near miss: a question, not about applying a change"
+    }
+  ]
+}
