@@ -6,7 +6,7 @@
 #   uncommitted  the test is left untracked on that branch
 #   on-main      the test is committed on main, and the branch changes nothing
 #
-# Measured states per scenario (one mutant per line, python -m unittest):
+# Measured states per scenario (one mutant per line, python3 -m unittest):
 #   M1 line 7 comparison inversion, M2-M4 lines 8-10 statement removal.
 #   no_assertion: all four survive, cause no-assertion.
 #   boundary: M2 survives (input-gap: no input above the threshold); M1, M3, M4 are killed.
@@ -40,7 +40,7 @@ mutate:
 operators: default
 timeout-ms: 10000
 baseline-suite-ms: 200
-test-command: python -m unittest {tests}
+test-command: python3 -m unittest {tests}
 YAML
 
 write_test() {
