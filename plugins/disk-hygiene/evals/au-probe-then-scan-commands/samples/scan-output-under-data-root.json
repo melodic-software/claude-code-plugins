@@ -22,6 +22,10 @@
     },
     {
       "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target \"/eval/work/scratch-audit\" --output \"/eval/work/scratch-audit/runs/scratch-audit-1/snapshot.json\" --data-root \"<data_root>\""
+    },
+    {
+      "answer": "\"<hook-python>\" \".../hygiene.py\" scan --target /eval/work/scratch-audit --output /tmp/runs/a1/snapshot.json --data-root <data_root>",
+      "why": "a runs directory outside the data root"
     }
   ]
 }
