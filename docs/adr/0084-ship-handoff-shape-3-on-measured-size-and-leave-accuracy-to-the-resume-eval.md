@@ -1,6 +1,7 @@
 # Ship handoff shape 3 on measured size and leave accuracy to the resume eval
 
-- Status: accepted
+- Status: accepted; Decision 6 (the unbounded core) is superseded by
+  [ADR 0091](0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md)
 - Date: 2026-10-24
 - Related: [#9238](https://github.com/melodic-software/claude-code-plugins/issues/9238) (the
   hot-file and archive redesign). The harness and its cases are described in

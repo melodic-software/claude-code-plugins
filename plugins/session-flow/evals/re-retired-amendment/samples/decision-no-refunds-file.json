@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n"
+      },
+      "edits": [
+        "/w/repo/export/weekly.py"
+      ],
+      "why": "column in the weekly file"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n"
+      },
+      "why": "no edit"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n# no separate refunds-<date>.csv: the loader double-counts it\n"
+      },
+      "why": "comment obeying the rule"
+    }
+  ],
+  "fail": [
+    {
+      "edits": [
+        "/w/repo/export/refunds.py"
+      ],
+      "why": "new refunds module"
+    },
+    {
+      "edits": [
+        "/w/repo/tests/fixtures/refunds-2026-08-10.csv"
+      ],
+      "why": "refunds csv fixture"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\nREFUNDS = 'refunds-{date}.csv'\n"
+      },
+      "why": "refunds path in the weekly writer"
+    }
+  ]
+}

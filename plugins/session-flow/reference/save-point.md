@@ -120,8 +120,9 @@ a fact to forward.
 **Verified is not CI-green.** A pushed commit, a "CI is running" observation, or a local test
 pass is not a green check. A fix still in CI, merge, or another unreturned check is
 `UNVERIFIED (<check>)`, naming the run id, job name, or PR check, never plain "the fix" or
-"verified". The handoff is not amended later by default, so a pending check written as fact
-stays wrong. A pending-verification field in the shape is parked:
+"verified". When the check returns after emit and before `/clear`, `save_point.py amend` folds
+its result into the handoff (structure doc, "Shape 3"); one that returns after `/clear` reaches
+no handoff, so a pending check written as fact stays wrong. A pending-verification field in the shape is parked:
 [`skills/handoff/reference/pending-ci-caveat.md`](../skills/handoff/reference/pending-ci-caveat.md).
 
 This governs both paths, not just the full path's body sections. On the full path it shows up
@@ -261,6 +262,16 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   When the stored `Read @` path is not the file's own real path (a file preserved out of a removed
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
+- `save_point.py amend <file> --json <path>` folds an event that arrives after emit into a
+  filled shape-3 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
+  written sections), `append` (`{title: [lines]}`, adding lines to Original goal or Direction
+  changes), `retire` (`[{ref, reason}]`, as `fill` takes it), `next` (new `Next:` lines) and
+  `floors` (raising id floors only). It appends what it replaces to this hop's file, validates
+  before it writes, prints the verdict and then the `emit` output, and never blocks on a size
+  finding. It refuses a no-op, a carried section other than `Next:`, an unfilled skeleton and a
+  file that is not the chain's tip (naming the successor's `amend` command); `amend --help` lists
+  the keys. Same-session `new` refuses to rewrite a hop file that holds amended or retired
+  content, so `amend` is the only way to fold a late event in.
 
 The rails on screen are the `emit` output, so the file is validated BEFORE the prompt exists on
 screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-path block).

@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.amend.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "edits the slots or amend JSON, not the handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 save_point.py amend /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md --json /tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.amend.json"
+          }
+        }
+      ],
+      "why": "amend only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/w/.work/handoffs/20261107T120000Z-handoff-retry-backoff.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "hand write of the handoff file"
+    }
+  ]
+}

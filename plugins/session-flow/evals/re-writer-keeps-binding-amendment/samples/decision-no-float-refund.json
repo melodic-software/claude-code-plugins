@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n"
+      },
+      "why": "integer cents column"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n"
+      },
+      "why": "unchanged"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n# integer cents, never float() or / 100\n"
+      },
+      "why": "comment obeying the rule"
+    }
+  ],
+  "fail": [
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n\n\ndef refund(row):\n    return row['refund_cents'] / 100\n"
+      },
+      "why": "major units"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n\n\ndef refund(row):\n    return float(row['refund_cents'])\n"
+      },
+      "why": "float"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund', 'currency']\n"
+      },
+      "why": "refund column without cents"
+    }
+  ]
+}

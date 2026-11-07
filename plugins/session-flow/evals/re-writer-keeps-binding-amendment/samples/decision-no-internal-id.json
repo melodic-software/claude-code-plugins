@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n"
+      },
+      "why": "refund only"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n"
+      },
+      "why": "unchanged"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'refund_cents', 'currency']\n# never export internal_account_id\n"
+      },
+      "why": "comment obeying the rule"
+    }
+  ],
+  "fail": [
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'internal_account_id', 'refund_cents', 'currency']\n"
+      },
+      "why": "internal id added"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'currency']\n\n\ndef key(row):\n    return row['internal_account_id']\n"
+      },
+      "why": "internal id read from a row"
+    },
+    {
+      "files": {
+        "export/weekly.py": "import csv\n\nCOLUMNS = ['date', 'account', 'amount_cents', 'internal_account_id', 'currency']\n"
+      },
+      "why": "internal id only"
+    }
+  ]
+}

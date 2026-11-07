@@ -102,7 +102,9 @@ INTERPRETER_RE = re.compile(
 )
 # The three read-only save_point.py subcommands. A resuming hop legitimately runs
 # `validate` over its predecessor before invoking the skill.
-READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit|memory-root)\b")
+READ_ONLY_SAVE_POINT_RE = re.compile(
+    r"save_point\.py\S*\s+(?:validate|emit|memory-root)\b"
+)
 COMMAND_SEPARATOR_RE = re.compile(r"[;|&\n]+")
 
 
@@ -382,6 +384,11 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
     """Replace every FILL slot in a freshly-created skeleton with deterministic
     filler that satisfies validate_doc."""
     lines = path.read_text(encoding="utf-8").split("\n")
+    # Shape 3 ids its open questions and decisions; each hop rewrites the same ids,
+    # their prior text staying in the hop file.
+    ids = {"open-questions": "Q", "decisions": "D"}
+    if frontmatter_value(path, "handoff_shape") != "3":
+        ids = {}
     out: list[str] = []
     counter = 0
     for line in lines:
@@ -448,6 +455,17 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             continue
         if slot in ("trail", "trail-new"):
             out.append(f"- [h{hop}] {filler_line(slot, counter, size.width)}")
+            continue
+        if slot in ids:
+            count, width = (
+                (CUMULATIVE_ENTRIES_PER_HOP, CUMULATIVE_ENTRY_WIDTH)
+                if slot == "decisions"
+                else (size.pad_lines, size.width)
+            )
+            out.extend(
+                f"- [{ids[slot]}{i + 1}] {filler_line(slot, counter + i, width)}"
+                for i in range(count)
+            )
             continue
         if slot.endswith("-new") and slot[: -len("-new")] in CUMULATIVE_SLOTS:
             base = slot[: -len("-new")]
