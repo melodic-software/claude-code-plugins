@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Add `.claude/**/*.local.*` to .gitignore."
+    },
+    {
+      "answer": "```gitignore\n.claude/**/*.local.*\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `.claude/bugs.local.md` to .gitignore."
+    },
+    {
+      "answer": "Ignore `*.local.md`."
+    }
+  ]
+}

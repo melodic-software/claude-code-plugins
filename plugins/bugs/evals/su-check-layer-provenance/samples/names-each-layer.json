@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| user-global `~/.claude/bugs.md` | absent |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `.claude/bugs.local.md` | ignored |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Team `docs/conventions/bugs.yaml` declares entrypoints; the personal override opts out."
+    },
+    {
+      "answer": "user-global absent; personal override present."
+    }
+  ]
+}

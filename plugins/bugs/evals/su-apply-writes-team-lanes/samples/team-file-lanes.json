@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    },
+    {
+      "answer": "# lanes for /bugs:scan\nlanes:\n  - globs: ['src/billing/**']\n    name: billing\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "lanes: []\n"
+    },
+    {
+      "answer": "lanes:\n  - name: everything\n    globs:\n      - '**/*.ts'\n"
+    },
+    {
+      "answer": "filing_posture: allowed\n"
+    }
+  ]
+}

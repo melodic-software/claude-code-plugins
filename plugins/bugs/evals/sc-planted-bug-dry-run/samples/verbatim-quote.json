@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```js\n  if (totalCents > 10000) return 0.1;\n```"
+    },
+    {
+      "answer": "`if (totalCents > 10000) return 0.1;`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`if (totalCents >= 10000) return 0.1;`"
+    },
+    {
+      "answer": "The comparison `totalCents > 10000` misses the boundary."
+    }
+  ]
+}

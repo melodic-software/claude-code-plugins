@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Recommended `output_dir`: `docs/agent-reports/` (AGENTS.md names it)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommended `output_dir`: `docs/bug-reports/`."
+    },
+    {
+      "answer": "Use a docs/agent folder."
+    }
+  ]
+}

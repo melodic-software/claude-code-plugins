@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Use `/harness-ops:known-issues` for that."
+    },
+    {
+      "answer": "harness-ops:known-issues looks it up."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Check the Claude Code issue tracker."
+    },
+    {
+      "answer": "Use harness-ops known issues."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Severity justification\n\nCustomers are charged a 25.00 fee they do not owe on their due date."
+    },
+    {
+      "answer": "**Severity**: high (wrongly bills customers on the due date)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Severity justification\n\nThe reporter is upset and this is urgent."
+    },
+    {
+      "answer": "**Severity**: high"
+    }
+  ]
+}

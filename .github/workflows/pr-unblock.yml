@@ -1896,12 +1896,13 @@ jobs:
       patch-human-gate: ${{ needs.address-feedback-select.outputs.human-gate }}
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
-  # The adjudicator's key-credit gate (ci-workflows check-key-credit,
-  # gate.cjs: one artifact-list call for the marker adjudicate-feedback
-  # uploads after a key leg's credit stop). A credit stop inside
-  # vars.KEY_CREDIT_WINDOW_HOURS (1 hour unset) starts every slot on the
-  # subscription, with no refused key attempt first. No secret, no model, no
-  # checkout; every failure runs the key (skip-key empty). Probing is off.
+  # Whether the adjudicator's key is still out of credit, and so which leg
+  # every slot starts on (ci-workflows select-model-credential, its start
+  # call: check-key-credit's one artifact-list call for the marker
+  # adjudicate-feedback uploads after a key leg's credit stop). A credit stop
+  # inside the window names the subscription leg, with no refused key attempt
+  # first. No secret, no model, no checkout; every failure runs the key
+  # (next-leg empty). Probing is off.
   adjudicate-key-credit:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
     # adjudicate-feedback's own condition: a round with a disputed reply.
@@ -1914,23 +1915,26 @@ jobs:
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
       marker: ${{ steps.credit.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: adjudicate-feedback
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -2057,55 +2061,48 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/adjudicate-models.json
 
-      # Which legs can run, never a secret's value. The key runs unless it
-      # is empty or adjudicate-key-credit skipped it; key-reason says why a
-      # slot starts on the subscription.
+      # Which legs can run, never a secret's value (ci-workflows
+      # select-model-credential, one call per leg for the whole job). The key
+      # runs unless it is empty or adjudicate-key-credit named the
+      # subscription leg. Each slot's next-leg calls take these states.
       - name: Check the API key
         id: key
         if: steps.models.outcome == 'success'
-        env:
-          KEY: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.adjudicate-key-credit.outputs.skip-key }}
-        run: |
-          key=$KEY
-          reason=""
-          if [ "$SKIP_KEY" = true ]; then
-            key=false
-            reason=credit-stop
-          elif [ "$KEY" != true ]; then
-            echo "::warning::PR_UNBLOCK_CLAUDE_API_KEY is empty; the subscription leg adjudicates"
-            reason=no-key
-          fi
-          { echo "key=$key"; echo "key-reason=$reason"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: pr-unblock
+          credential-set: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.adjudicate-key-credit.outputs.next-leg }}
 
-      # The subscription and fallback tokens' presence, and whether any leg
-      # can start a slot.
-      - name: Check the subscription tokens
-        id: token
+      - name: Check the subscription token
+        id: sub
         if: steps.models.outcome == 'success'
-        env:
-          KEY_USABLE: ${{ steps.key.outputs.key }}
-          TOKEN: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          any=false
-          if [ "$KEY_USABLE" = true ] || [ "$TOKEN" = true ] || [ "$FALLBACK" = true ]; then any=true; fi
-          if [ "$any" != true ]; then
-            echo "::warning::no Claude credential is usable; no disputed thread is adjudicated"
-          elif [ "$TOKEN" != true ]; then
-            echo "::warning::PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg adjudicates in its place"
-          fi
-          { echo "token=$TOKEN"; echo "fallback=$FALLBACK"; echo "any=$any"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: pr-unblock
+          credential-set: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+
+      - name: Check the fallback token
+        id: fb
+        if: steps.models.outcome == 'success'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: pr-unblock
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
-        if: steps.token.outputs.any == 'true'
+        if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
-        if: steps.token.outputs.any == 'true'
+        if: steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
@@ -2127,7 +2124,7 @@ jobs:
       # (workflow-gates.test.mjs pins the count and their grants).
 
       - name: Stage disputed thread 0
-        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        if: (steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true') && fromJSON(steps.prepare.outputs.count || '0') > 0
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/0
         run: |
@@ -2136,7 +2133,7 @@ jobs:
 
       - name: Adjudicate disputed thread 0
         id: judge-0
-        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2202,9 +2199,22 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
+      # Whether the subscription leg judges thread 0: after the key leg's
+      # handoff, or when the key did not run.
+      - name: Pick disputed thread 0's next leg
+        id: next-0
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.key.outputs.state }}
+          handoff: ${{ steps.judge-0.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-0.outputs.handoff-reason }}
+
       - name: Adjudicate disputed thread 0 on the subscription
         id: judge-0-subscription
-        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && (steps.judge-0.outcome == 'skipped' || steps.judge-0.outputs.handoff == 'true')
+        if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2217,7 +2227,7 @@ jobs:
           prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
           preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
           subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
-          fallback-ready: ${{ steps.token.outputs.fallback }}
+          fallback-ready: ${{ steps.sub.outputs.fallback-ready }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -2269,14 +2279,25 @@ jobs:
           handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
           known-failure-class: ${{ steps.judge-0-subscription.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-0.outputs.handoff-reason || steps.key.outputs.key-reason }}
+          fallback-reason: ${{ steps.next-0.outputs.next-reason }}
+
+      # Whether the fallback leg judges thread 0: after the subscription
+      # leg's handoff, or when its token is empty. The subscription state is
+      # the job's one call, so it counts only when this slot reached that leg.
+      - name: Pick disputed thread 0's next leg after the subscription
+        id: next-0-subscription
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.next-0.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
+          handoff: ${{ steps.judge-0-subscription.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-0-subscription.outputs.handoff-reason }}
 
       - name: Adjudicate disputed thread 0 on the fallback token
         id: judge-0-fallback
-        if: >-
-          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
-          && (steps.judge-0-subscription.outputs.handoff == 'true'
-          || steps.token.outputs.token != 'true' && (steps.judge-0.outcome == 'skipped' || steps.judge-0.outputs.handoff == 'true'))
+        if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2340,7 +2361,7 @@ jobs:
           handoff: ${{ steps.judge-0-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-0-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-0-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.next-0-subscription.outputs.next-reason }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
@@ -2358,7 +2379,7 @@ jobs:
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
       - name: Stage disputed thread 1
-        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        if: (steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true') && fromJSON(steps.prepare.outputs.count || '0') > 1
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/1
         run: |
@@ -2367,7 +2388,7 @@ jobs:
 
       - name: Adjudicate disputed thread 1
         id: judge-1
-        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2433,9 +2454,22 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
+      # Whether the subscription leg judges thread 1: after the key leg's
+      # handoff, or when the key did not run.
+      - name: Pick disputed thread 1's next leg
+        id: next-1
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.key.outputs.state }}
+          handoff: ${{ steps.judge-1.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-1.outputs.handoff-reason }}
+
       - name: Adjudicate disputed thread 1 on the subscription
         id: judge-1-subscription
-        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && (steps.judge-1.outcome == 'skipped' || steps.judge-1.outputs.handoff == 'true')
+        if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2448,7 +2482,7 @@ jobs:
           prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
           preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
           subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
-          fallback-ready: ${{ steps.token.outputs.fallback }}
+          fallback-ready: ${{ steps.sub.outputs.fallback-ready }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -2500,14 +2534,25 @@ jobs:
           handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
           known-failure-class: ${{ steps.judge-1-subscription.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-1.outputs.handoff-reason || steps.key.outputs.key-reason }}
+          fallback-reason: ${{ steps.next-1.outputs.next-reason }}
+
+      # Whether the fallback leg judges thread 1: after the subscription
+      # leg's handoff, or when its token is empty. The subscription state is
+      # the job's one call, so it counts only when this slot reached that leg.
+      - name: Pick disputed thread 1's next leg after the subscription
+        id: next-1-subscription
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.next-1.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
+          handoff: ${{ steps.judge-1-subscription.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-1-subscription.outputs.handoff-reason }}
 
       - name: Adjudicate disputed thread 1 on the fallback token
         id: judge-1-fallback
-        if: >-
-          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
-          && (steps.judge-1-subscription.outputs.handoff == 'true'
-          || steps.token.outputs.token != 'true' && (steps.judge-1.outcome == 'skipped' || steps.judge-1.outputs.handoff == 'true'))
+        if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2571,7 +2616,7 @@ jobs:
           handoff: ${{ steps.judge-1-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-1-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-1-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.next-1-subscription.outputs.next-reason }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
@@ -2589,7 +2634,7 @@ jobs:
           cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
 
       - name: Stage disputed thread 2
-        if: steps.token.outputs.any == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        if: (steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true') && fromJSON(steps.prepare.outputs.count || '0') > 2
         env:
           SLOT_DIR: ${{ runner.temp }}/adjudicate/2
         run: |
@@ -2598,7 +2643,7 @@ jobs:
 
       - name: Adjudicate disputed thread 2
         id: judge-2
-        if: steps.key.outputs.key == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2664,9 +2709,22 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
+      # Whether the subscription leg judges thread 2: after the key leg's
+      # handoff, or when the key did not run.
+      - name: Pick disputed thread 2's next leg
+        id: next-2
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.key.outputs.state }}
+          handoff: ${{ steps.judge-2.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-2.outputs.handoff-reason }}
+
       - name: Adjudicate disputed thread 2 on the subscription
         id: judge-2-subscription
-        if: steps.token.outputs.token == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && (steps.judge-2.outcome == 'skipped' || steps.judge-2.outputs.handoff == 'true')
+        if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2679,7 +2737,7 @@ jobs:
           prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
           preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
           subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
-          fallback-ready: ${{ steps.token.outputs.fallback }}
+          fallback-ready: ${{ steps.sub.outputs.fallback-ready }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -2731,14 +2789,25 @@ jobs:
           handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
           known-failure-class: ${{ steps.judge-2-subscription.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-2.outputs.handoff-reason || steps.key.outputs.key-reason }}
+          fallback-reason: ${{ steps.next-2.outputs.next-reason }}
+
+      # Whether the fallback leg judges thread 2: after the subscription
+      # leg's handoff, or when its token is empty. The subscription state is
+      # the job's one call, so it counts only when this slot reached that leg.
+      - name: Pick disputed thread 2's next leg after the subscription
+        id: next-2-subscription
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.next-2.outputs.next-leg == 'subscription' && steps.sub.outputs.state || '' }}
+          handoff: ${{ steps.judge-2-subscription.outputs.handoff }}
+          handoff-reason: ${{ steps.judge-2-subscription.outputs.handoff-reason }}
 
       - name: Adjudicate disputed thread 2 on the fallback token
         id: judge-2-fallback
-        if: >-
-          steps.token.outputs.fallback == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
-          && (steps.judge-2-subscription.outputs.handoff == 'true'
-          || steps.token.outputs.token != 'true' && (steps.judge-2.outcome == 'skipped' || steps.judge-2.outputs.handoff == 'true'))
+        if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -2802,7 +2871,7 @@ jobs:
           handoff: ${{ steps.judge-2-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.judge-2-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.judge-2-subscription.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.next-2-subscription.outputs.next-reason }}
 
       # The answering leg's verdict, from the one leg with structured output.
       # A leg in another permission mode, or with no init message, keeps no
