@@ -11,7 +11,7 @@ execution:
 graders:
   - name: terms-of-art
     type: regex
-    pattern: '\b(?:linearizab\w*|PACELC|quorums?|eventual(?:ly)?[- ]consisten\w*|consensus|split[- ]brain)\b'
+    pattern: '\b(?:linearizab\w*|PACELC|quorums?|eventual(?:ly)?[- ](?:consistent|consistency)|consensus|split[- ]brain)\b'
     flags: 'i'
     target: last_message
   - name: climbs-rung
