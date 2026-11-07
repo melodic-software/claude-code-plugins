@@ -27,7 +27,8 @@ name: pr-review-hosted
 # its success on the head and fails while the hold label is on (github-iac
 # ADR 0017).
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: its steps gate the review
+# API_BUDGET_HOLD (outage posture element 2): only the wait-refine step sets it,
+# since wait-refine.mjs reviews on a refused call. The other steps gate the review
 # (check-trusted-trigger, the upstream status) or end red on a failed read.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
@@ -231,11 +232,86 @@ jobs:
         with:
           tokens: github-token
 
+  # The review waits for this head's Refine (pr-refine.yml fix-docs), so it
+  # judges tidied code. It waits here, inside this pull_request run, because
+  # ci-status and the other review readers find only pull_request runs on the
+  # head, and a Refine started with GITHUB_TOKEN fires no workflow_run event
+  # that could start a review after it. A head that moved while it waited is
+  # not reviewed: the push that moved it, Refine's or another, starts the
+  # new head's review. Every other outcome reviews, and a failed or timed-out
+  # job leaves proceed empty, which reviews too
+  # (.github/scripts/pr-review/wait-refine.mjs).
+  wait-refine:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      actions: read # the dispatcher and pr-refine runs and the dispatch record
+      contents: read # check out the default branch for the script
+      pull-requests: read # the pull request's live head
+    outputs:
+      proceed: ${{ steps.wait.outputs.proceed }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::error::the tip of $TIP_BRANCH did not resolve"; exit 1; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          # wait-refine.mjs and the modules it imports.
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/log-api-budget/
+            /.github/actions/setup-pinned-node/
+            /.github/scripts/pr-review/
+            /.github/scripts/pr-unblock/request-budget.mjs
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Wait for this head's Refine
+        id: wait
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          API_BUDGET_HOLD: "1"
+        run: node .base/.github/scripts/pr-review/wait-refine.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   pr-review:
-    needs: [resolve-model, kill-switch]
+    needs: [resolve-model, kill-switch, wait-refine]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
-    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' }}
+    # Only wait-refine's proceed=false (the head moved while it waited) skips
+    # the review.
+    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' && needs.wait-refine.outputs.proceed != 'false' }}
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the claude-review-status check) writes.
     permissions:
