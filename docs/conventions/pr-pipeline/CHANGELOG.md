@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.1] - 2026-11-07
+
+### Fixed
+
+- The PR capture's key proxy allows the `fallback-credit-2` beta, which Claude Code sends on some requests. The proxy refused it with a 403, so those captures failed at "Check the probe".
+
+## [9.1.0] - 2026-11-07
+
+### Added
+
+- The trusted-trigger gate accepts a `pull_request_target` run of the unblock dispatcher that vouches for one `pr-refine.yml` run, proven by the pull request entry and a record naming the `main` commit it ran (ADR 0090). No workflow carries the trigger yet.
+
 ## [9.0.0] - 2026-11-06
 
 ### Changed

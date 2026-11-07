@@ -150,6 +150,14 @@
         ".github/workflows/pr-review-main.yml#review-fallback"
       ]
     },
+    "trusted-text-pr-review-main": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-review-main/take-shared-text.sh runs in each leg of .github/workflows/pr-review-main.yml (review, review-subscription, review-fallback), which downloads it by name from its own run attempt and takes it only when its sha256 and what it was read for match the leg"
+      ],
+      "reason": "Read only within its own run, whose legs end within a few hours; 1 day is the minimum. It holds the pull request text select-trusted-text kept, already public on the pull request, and is scanned before upload.",
+      "scan": "upload"
+    },
     "pr-merge-dispatched-*": {
       "retention-days": 30,
       "readers": [
