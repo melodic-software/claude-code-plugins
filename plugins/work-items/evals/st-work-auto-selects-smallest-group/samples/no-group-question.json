@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Auto-selected lib/ (1 marker). Filed it as item #1 and removed the marker.",
+      "why": "no question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which group should I work first?",
+      "why": "asks"
+    },
+    {
+      "answer": "Groups: lib (1), src (2). Which folder do you want?",
+      "why": "asks for folder"
+    }
+  ]
+}

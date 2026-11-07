@@ -227,7 +227,7 @@ def format_row(row, width):
 PY
   cat >lib/stream.py <<'PY'
 def export(ledger):
-    # TODO: stream large exports instead of loading the whole ledger into memory
+    # TODO: move exports onto the platform async job queue (needs a new worker service and a schema migration)
     return list(ledger.rows())
 PY
   cat >docs/plan.md <<'MD'
