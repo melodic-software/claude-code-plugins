@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Response is how quickly the spring tries to reach its target.",
+      "why": "how quickly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Yes, response is the duration in seconds.",
+      "why": "near miss: a flat duration"
+    }
+  ]
+}
