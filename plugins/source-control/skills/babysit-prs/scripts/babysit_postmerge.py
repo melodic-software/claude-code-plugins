@@ -3829,6 +3829,73 @@ def file_quarantines(
         issue["notes"].append(note)
 
 
+_UNREAD = object()
+# The Work status state a demotion record is filed at.
+NEEDS_HUMAN_STATE = "needs-human"
+
+
+def _issue_status(owner: str, name: str) -> policy.IssueStatusConfig | None:
+    """The default branch's `models.issue-status`, or None when it sets none,
+    sets a malformed one, or cannot be read: the record then carries the
+    human-gated label, which holds it as the field would."""
+    try:
+        text = _default_branch_text(owner, name, policy.CONFIG_PATH)
+        status = policy._issue_status_config(text) if text is not None else None
+    except PostMergeReadError:
+        return None
+    return status if status is not None and not status.error else None
+
+
+def _hold_record(
+    owner: str,
+    name: str,
+    number: int,
+    status: policy.IssueStatusConfig,
+    role_label: str,
+) -> None:
+    """Set record `number`'s Work status field to `NEEDS_HUMAN_STATE`. When
+    the write fails or GitHub keeps another option than the one `status`
+    maps, add `role_label` instead, which holds it as well, and raise
+    `PostMergeWriteError`."""
+    option = next((o for o, s in status.options if s == NEEDS_HUMAN_STATE), None)
+    try:
+        if option is None:
+            raise PostMergeWriteError(f"maps no option to {NEEDS_HUMAN_STATE}")
+        rows = _write(
+            policy.issue_status_write(
+                f"{owner}/{name}", number, status.field_id, NEEDS_HUMAN_STATE
+            ),
+            f"#{number} Work status",
+        )
+        kept = next(
+            (
+                json_object(r.get("single_select_option")).get("id")
+                for r in map(json_object, json_array(rows))
+                if r.get("issue_field_id") == status.field_id
+            ),
+            None,
+        )
+        if str(kept) != option:
+            raise PostMergeWriteError(
+                f"GitHub kept option {kept} for {NEEDS_HUMAN_STATE}, not {option}"
+            )
+    except PostMergeWriteError as exc:
+        _write(
+            [
+                "api",
+                "-X",
+                "POST",
+                f"repos/{owner}/{name}/issues/{number}/labels",
+                "-f",
+                f"labels[]={role_label}",
+            ],
+            f"#{number} {role_label}",
+        )
+        raise PostMergeWriteError(
+            f"#{number} Work status not set ({exc}); {role_label} added"
+        ) from exc
+
+
 def remediate(
     repo: str,
     verdict: PostMergeVerdict,
@@ -3898,6 +3965,8 @@ def remediate(
         report["errors"].append(f"dequeue: {exc}")
 
     created = 0
+    # `models.issue-status`, read when the first record is filed.
+    status: Any = _UNREAD
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
         existing = _demotion_issues(
@@ -3934,6 +4003,8 @@ def remediate(
                     and f.merge.number != failure.merge.number
                 ]
                 body = _issue_body(failure, {m.number: m for m in also}.values())
+                if status is _UNREAD:
+                    status = _issue_status(owner, name)
                 issue = _write(
                     [
                         "api",
@@ -3945,11 +4016,12 @@ def remediate(
                         "-f",
                         f"body={body}",
                         # The lanes App's issue starts intake triage on its
-                        # own; the human-gated label keeps admission off it
-                        # (admit.mjs STOP_HOLDS), so it never becomes lane
-                        # work.
-                        "-f",
-                        f"labels[]={role_label}",
+                        # own; the human-gated label, or the Work status
+                        # field set to needs-human below (which admission
+                        # reads as that label, read-status.mjs statusLabels),
+                        # keeps admission off it (admit.mjs STOP_HOLDS), so
+                        # it never becomes lane work.
+                        *(() if status else ("-f", f"labels[]={role_label}")),
                     ],
                     "file the demotion issue",
                 )
@@ -3967,6 +4039,8 @@ def remediate(
                 # later pass would.
                 existing.append(records[failure.marker])
                 notes_by_issue[filed] = []
+                if status:
+                    _hold_record(owner, name, filed, status, role_label)
                 continue
             records[failure.marker] = match
             number = match.get("number")

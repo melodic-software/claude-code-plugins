@@ -4819,6 +4819,8 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 AGENT_READY = "agent-ready"
 STATUS_READY = "status: ready"
 STATUS_CONFIRMED = "status: confirmed"
+# The Work status state a parked issue's field is set to.
+STATUS_FIELD_CONFIRMED = "confirmed"
 
 
 def _inert(text: str) -> str:
@@ -5048,6 +5050,7 @@ def capped_close(
     attempts: int,
     holds: tuple[str, ...] = (),
     issue_holds: tuple[str, ...] = (),
+    issue_status: merge_policy.IssueStatusConfig | None = None,
     reason: str = CLOSE_VERIFY,
 ) -> dict[str, Any]:
     """Close a lanes App pull request the verifier refuses for good
@@ -5065,12 +5068,14 @@ def capped_close(
     request closes, so a closed one never leaves its issue without
     `agent-ready`. An issue that already had `attempts` fresh attempts
     (`merge.verify-cap-attempts`) is parked instead, at `status: confirmed`
-    with `status: ready` and `agent-ready` off, before the close. A pull
+    (and, with `issue_status`, its Work status field at `confirmed`) with
+    `status: ready` and `agent-ready` off, before the close. A pull
     request not open at `head`, not the lanes App's, or carrying a hold label
     (`holds`) is left alone, and so is one whose issue link the pr-merge lane
     does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
-    or whose issue carries an `issue_holds` label (`issue_hold_refusal`; none
-    resolved refuses). A pull request is closed at the cap once: one reopened
+    or whose issue carries an `issue_holds` label or, with `issue_status`, a
+    held Work status (`issue_hold_refusal`; no label resolved refuses). A
+    pull request is closed at the cap once: one reopened
     after its record stays open, and a rerun after a failed close writes no
     issue label, except putting back an `agent-ready` the newest removal of
     which was the lanes App's own at or after its record (`_lane_removals`);
@@ -5078,8 +5083,8 @@ def capped_close(
     wrote the record stopped before the label came off.
     FAIL findings come only from runs of verified origin. Raises
     `RuntimeError` on a failed
-    write or a failed issue read, `PostMergeReadError` on a failed comments
-    read."""
+    write or a failed issue or Work status read, `PostMergeReadError` on a
+    failed comments read."""
     identity = reader.agent_identity or ""
     refusal: str | None
     detail: str | None
@@ -5121,8 +5126,26 @@ def capped_close(
         live = reader._closing_issues(number)
     except _Unreadable as exc:
         raise RuntimeError(f"issue link: {exc}") from exc
+    read_status = issue_status and merge_policy.issue_status_reader(
+        reader.repo, issue_status, reader.branch
+    )
+
+    # Each issue's Work status from the hold read, for the park below.
+    states: dict[int, str | None] = {}
+
+    def status(issue: int) -> str | None:
+        try:
+            states[issue] = read_status(issue) if read_status else None
+        except merge_policy.PolicyReadError as exc:
+            raise RuntimeError(f"#{issue} Work status: {exc}") from exc
+        return states[issue]
+
     for node in live.values():
-        if (refused := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
+        if (
+            refused := merge_policy.issue_hold_refusal(
+                node, issue_holds, read_status and status
+            )
+        ) is not None:
             return {"closed": False, "reason": refused}
     issues = sorted(n for n in live if type(n) is int)
     try:
@@ -5171,8 +5194,14 @@ def capped_close(
         if found is not None and found[0][3] is not None:
             prior, since = found
             attempt, parked = (int(prior[3]), int(prior[4])), bool(prior[5])
+            # The field's say as read-status.mjs statusLabels gives it.
             names = {
-                label.lower() for label in merge_policy._label_names(live[issue]) or []
+                label.lower()
+                for label in merge_policy.status_label_names(
+                    states.get(issue),
+                    list(merge_policy._label_names(live[issue]) or []),
+                    issue_status,
+                )
             }
             if parked:
                 # Written once: the park labels go on again only while unfinished.
@@ -5272,6 +5301,13 @@ def capped_close(
                 f"#{issue} {STATUS_READY}",
                 missing_ok=True,
             )
+            if issue_status is not None:
+                _gh_write(
+                    merge_policy.issue_status_write(
+                        repo, issue, issue_status.field_id, STATUS_FIELD_CONFIRMED
+                    ),
+                    f"#{issue} Work status {STATUS_FIELD_CONFIRMED}",
+                )
         if labels == "none":
             continue
         if labels != "add":
@@ -5338,6 +5374,13 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
             holds=holds,
             issue_holds=issue_holds,
             reason=args.reason,
+            **(
+                {"issue_status": status}
+                if isinstance(
+                    status := config.issue_status, merge_policy.IssueStatusConfig
+                )
+                else {}
+            ),
         )
     except (
         RuntimeError,
