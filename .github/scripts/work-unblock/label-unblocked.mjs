@@ -820,9 +820,9 @@ function admissionGate(status) {
 }
 
 // Adds agent-ready to a ready issue within the gate's room, its Work status
-// set to agent-ready and a legacy admission-deferred or status: confirmed
-// label (`had`, its own label names) taken off, else sets it deferred unless
-// it already reads deferred (`deferred`).
+// set to agent-ready first unless a person's hold kept it, and a legacy
+// admission-deferred or status: confirmed label (`had`, its own label names)
+// taken off, else sets it deferred unless it already reads deferred (`deferred`).
 async function admit({ github, repo, number, gate, deferred, had, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   if (!(await gate.take())) {
@@ -832,8 +832,11 @@ async function admit({ github, repo, number, gate, deferred, had, writer = NO_WR
     console.log(`label-unblocked: #${number} admission deferred: ${gate.why()}`);
     return;
   }
+  if ((await writer.set(number, "agent-ready", { keepHold: true }))?.outcome === "held") {
+    console.log(`label-unblocked: #${number} held by a person, not admitted`);
+    return;
+  }
   await github("POST", `${base}/labels`, { labels: [LABEL] });
-  await writer.set(number, "agent-ready");
   await unlabel(github, base, had, [DEFERRED_LABEL, CONFIRMED]);
   console.log(`label-unblocked: #${number} labeled ${LABEL}`);
 }

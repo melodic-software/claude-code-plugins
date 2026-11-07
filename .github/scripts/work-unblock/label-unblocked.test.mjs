@@ -397,10 +397,10 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("the last blocker closing sets the Work status field to agent-ready after the label write", async () => {
+test("the last blocker closing sets the Work status field to agent-ready before the label write", async () => {
   const { github, calls, writer } = oneDependent();
   assert.equal(await main({ env: envFor(), github, writer }), 0);
-  assert.deepEqual(writes(calls), [labeled(20), "SET 20 agent-ready"]);
+  assert.deepEqual(writes(calls), ["SET 20 agent-ready", labeled(20)]);
 });
 
 test("the last blocker closing leaves an umbrella with an open sub-issue unlabeled, and labels it once none is open", async () => {
@@ -543,7 +543,7 @@ test("the Work status field decides an issue with no status label; agent-ready s
   assert.deepEqual(writes(parked.calls), []);
   const ready = oneDependent({ labels: [] });
   assert.equal(await main({ env: envFor(), ...withStatus(ready, { 20: { state: "agent-ready" } }), writer: ready.writer }), 0);
-  assert.deepEqual(writes(ready.calls), [labeled(20), "SET 20 agent-ready"]);
+  assert.deepEqual(writes(ready.calls), ["SET 20 agent-ready", labeled(20)]);
 });
 
 test("a Work status read that fails admits nothing for that issue: a warning, no write, a green run", async (t) => {
@@ -3995,7 +3995,7 @@ test("a sweep reads a fix issue's comments and events once when the recurrence c
 // deferred issue's Work status is deferred, which each sweep revisits
 // oldest first; restarts and re-fires of admitted issues are never paced.
 const deferredLabel = (n) => `SET ${n} deferred`;
-const readied = (n) => [labeled(n), `SET ${n} agent-ready`];
+const readied = (n) => [`SET ${n} agent-ready`, labeled(n)];
 const undeferred = (n) => `DELETE /repos/${REPO}/issues/${n}/labels/admission-deferred`;
 // n queued issues that no lane PR names.
 const queuedN = (n) => Array.from({ length: n }, (_, i) => 100 + i);
@@ -4853,7 +4853,7 @@ test("a field-only ready a listed human or the App set is admitted by admitDefer
   for (const setter of [GRAPH_OWNER, GRAPH_APP]) {
     const fake = fieldOnlyDeferred([fieldEvent(setter, "ready", null, 7), fieldEvent(GRAPH_OWNER, "deferred", "ready", 8)]);
     assert.equal(await fieldSweep(fake), 0, setter.login);
-    assert.deepEqual(writes(fake.calls), [labeled(25), "SET 25 agent-ready"], setter.login);
+    assert.deepEqual(writes(fake.calls), ["SET 25 agent-ready", labeled(25)], setter.login);
     assert.ok(fake.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/25/events`)), "the REST events are read beside the field's");
   }
 });
@@ -4923,7 +4923,7 @@ test("a person's admission-deferred label that sync-status wrote into the field 
   const personAdd = { id: 501, event: "labeled", label: { name: DEFERRED }, actor: OWNER, created_at: "2026-11-08T02:00:00Z" };
   const fake = fieldOnlyDeferred([fieldEvent(GRAPH_OWNER, "ready", null, 1), fieldEvent(GRAPH_APP, "deferred", "ready", "2026-11-08T02:00:30Z")], { labels: [DEFERRED], events: [personAdd] });
   assert.equal(await fieldSweep(fake), 0);
-  assert.deepEqual(writes(fake.calls), [labeled(25), "SET 25 agent-ready", `DELETE /repos/${REPO}/issues/25/labels/admission-deferred`]);
+  assert.deepEqual(writes(fake.calls), ["SET 25 agent-ready", labeled(25), `DELETE /repos/${REPO}/issues/25/labels/admission-deferred`]);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
 });
@@ -5034,6 +5034,38 @@ test("a person's hold set after the sweep read the App's needs-human stops the R
   const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
   assert.equal(await sweep({ github, actions: github, writer, statusOf: fake.statusOf, now: Date.parse(FIELD_AT(3)) }), 0);
   assert.deepEqual(writes(fake.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsMergedComment(7805) })}`], "no field write and agent-ready stays");
+});
+
+test("a person's hold set after the read of a ready issue stops its admission at the field write, and without one it is admitted", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(String(line)));
+  const admitted = async (raced) => {
+    const fieldValues = { 20: [...SMALL_LOW_KNOWN, workRow("ready")] };
+    const nodes = [fieldEvent(GRAPH_OWNER, "ready", null, 7)];
+    const fake = withFieldHistory(world({ ...oneDependentWorld([]), fieldValues }), { 20: nodes });
+    const github = async (method, path, body, ...rest) => {
+      if (method === "POST" && path === `/repos/${REPO}/issues/20/issue-field-values`) {
+        fake.calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+        return [fieldRow(STATUS_CONFIG["field-id"], OPTION[body.issue_field_values[0].value])];
+      }
+      return fake.github(method, path, body, ...rest);
+    };
+    const statusOf = Object.assign(async (...args) => {
+      const names = await fake.statusOf(...args);
+      if (raced) {
+        fieldValues[20] = [...SMALL_LOW_KNOWN, workRow("needs-owner-decision")];
+        nodes.push(fieldEvent(GRAPH_OWNER, "needs-owner-decision", "ready", 8));
+      }
+      return names;
+    }, fake.statusOf);
+    const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
+    assert.equal(await main({ env: envFor(), github, writer, statusOf, admission: admissionFor() }), 0);
+    return writes(fake.calls);
+  };
+  const fieldWrite = `POST /repos/${REPO}/issues/20/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: STATUS_CONFIG["field-id"], value: "agent-ready" }] })}`;
+  assert.deepEqual(await admitted(false), [fieldWrite, labeled(20)], "the field is set to agent-ready, then the label");
+  assert.deepEqual(await admitted(true), [], "no agent-ready label and no field write");
+  assert.ok(logs.includes("label-unblocked: #20 held by a person, not admitted"), logs.join("\n"));
 });
 
 // Owner decision Q85 (#9668): the work class gates nothing, so a class an
@@ -5837,7 +5869,7 @@ test("a status: ready only in the Work status puts an issue in no queue through 
     return states ? [] : [{ number: 26, created_at: "2026-10-10T00:00:00Z", labels: ["status: ready"], state: "ready" }];
   };
   assert.equal(await sweep({ github: field.github, writer: field.writer, statusOf: field.statusOf, byStatus, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(field.calls), [labeled(26), "SET 26 agent-ready"]);
+  assert.deepEqual(writes(field.calls), ["SET 26 agent-ready", labeled(26)]);
   assert.deepEqual(listings, [["deferred"], undefined]);
   // Without the field listing the same issue reads as in no state and is not decided.
   const bare = readyWorld({ items: [readyIssue(26, { labels: [] })], events: { 26: [] } });

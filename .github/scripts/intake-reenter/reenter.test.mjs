@@ -826,6 +826,21 @@ test("a listed human clearing a field-only hold dispatches once, then sets the f
   assert.deepEqual(w.writes, []);
 });
 
+test("a person's hold set after a field release's claim keeps the field, takes the claim back, and dispatches nothing", async () => {
+  const fieldNodes = [heldBy(), removed(OWNER)];
+  const w = world({ labels: [], fieldNodes });
+  const github = async (method, path, body) => {
+    const answer = await w.github(method, path, body);
+    if (method === "POST" && path.endsWith("/labels")) fieldNodes.push(heldBy(OWNER, "needs-owner-decision"));
+    return answer;
+  };
+  assert.equal(await runField({ ...w, github }, "field_removed"), 0);
+  assert.equal(w.field(), "needs-owner-decision", "the person's later hold stands");
+  assert.deepEqual(fieldWrites(w), [], "no field write");
+  assert.deepEqual(w.labels(), [], "the needs-triage claim comes back off");
+  assert.deepEqual(w.dispatches(), []);
+});
+
 test("every hold state released by a listed human re-enters", async () => {
   for (const hold of ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"]) {
     const w = world({ labels: [], fieldNodes: [heldBy(LANES_APP, hold), changed(OWNER, hold, "needs-triage")] });

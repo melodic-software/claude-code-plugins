@@ -244,7 +244,8 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
 
 // The Work status field path: a listed human's release (fieldReleases) adds
 // `needs-triage`, the claim a second run finds, sets the field to
-// needs-triage when the release left it empty, and dispatches intake once. A
+// needs-triage when the release left it empty, and dispatches intake once; a
+// hold a person set since then keeps the field and takes the label back. A
 // failed field write or dispatch takes the label back and fails the run, so
 // a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
@@ -266,7 +267,12 @@ async function releaseField({ client, repository, base, issue, humans, lanesAppI
   await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
   try {
     if (release.to === null) {
-      await (await statusWriter({ env, github: client, repository })).set(Number(issue.number), NEEDS_TRIAGE);
+      const moved = await (await statusWriter({ env, github: client, repository })).set(Number(issue.number), NEEDS_TRIAGE, { keepHold: true });
+      if (moved?.outcome === "held") {
+        await removeLabel(client, base, NEEDS_TRIAGE);
+        log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the release changes nothing; nothing dispatched`);
+        return 0;
+      }
     }
     await dispatch(client, repository, issue);
   } catch (error) {
