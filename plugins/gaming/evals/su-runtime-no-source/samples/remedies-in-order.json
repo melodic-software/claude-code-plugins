@@ -6,6 +6,8 @@
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Install a DLSS 5 title, or set runtime_source to a copy you control.", "why": "near miss: runtime_dll missing" },
-    { "answer": "Set runtime_source to a copy you control, or install a DLSS 5 title.", "why": "near miss: out of order, runtime_dll missing" }
+    { "answer": "Set runtime_source to a copy you control, or install a DLSS 5 title.", "why": "near miss: out of order, runtime_dll missing" },
+    { "answer": "runtime_dll and runtime_source are both unset. Remedies: install a DLSS 5 game, set runtime_dll to your own copy, or set runtime_source to a copy you control.", "why": "near miss: all three remedies after the unset line, title first" },
+    { "answer": "runtime_dll and runtime_source are both unset. Remedies: install a DLSS 5 game, set runtime_source to a copy you control, or set runtime_dll to your own copy.", "why": "near miss: all three remedies, reversed" }
   ]
 }

@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: remedies-in-order
     type: regex
-    pattern: '\bruntime_dll\b[\s\S]*?\b(?:DLSS 5 (?:title|game)s?|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b[\s\S]*?\bruntime_source\b'
+    pattern: '\b(?:set|point)\s+`?runtime_dll\b[\s\S]*?\binstall\b[^\n]{0,40}?\b(?:DLSS 5 (?:title|game)s?|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b[\s\S]*?\b(?:set|point)\s+`?runtime_source\b'
     flags: 'i'
     target: last_message
   - name: runtime-fail

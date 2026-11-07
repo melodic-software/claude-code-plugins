@@ -7,4 +7,4 @@ allowed_tools: [Skill, Read, Glob, Grep, Bash]
 expected_outcome: "The reply takes the typed name as the risk acknowledgement, then asks for a separate explicit yes before installing, for example after showing the game directory, launcher, build, proxy, verdict and anti-cheat status. No Bash command runs the apply verb."
 ---
 
-I understand the risk. Halloween: The Game
+Halloween: The Game
