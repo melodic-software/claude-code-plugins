@@ -11,7 +11,7 @@ execution:
 graders:
   - name: check-in-outcome
     type: regex
-    pattern: '\b(?:expected_outcome|graders?)\b[^\n]{0,160}\b(?:group\w*|types?)\b|\b(?:group\w*|types?)\b[^\n]{0,160}\b(?:expected_outcome|graders?)\b'
+    pattern: '\b(?<!no )(?:expected_outcome|graders?)\b[^\n]{0,160}\b(?:group\w*|commit[ -]types?|Conventional Commits)\b|\b(?:group\w*|commit[ -]types?|Conventional Commits)\b[^\n]{0,160}\b(?<!no )(?:expected_outcome|graders?)\b'
     flags: i
   - name: no-eval-words
     type: llm

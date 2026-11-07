@@ -11,7 +11,7 @@ execution:
 graders:
   - name: prompt-md-overrides
     type: regex
-    pattern: '\bprompt\.md\b[^\n]{0,80}\b(?:overrid\w*|wins|takes precedence|beats)\b|\b(?:overrid\w*|takes precedence over)\b[^\n]{0,80}\bcase\.yaml\b'
+    pattern: '\bprompt\.md\b(?:(?!\bnot\b|n[''’]t\b|\boverridden\b)[^\n]){0,80}\b(?:overrides|wins|takes precedence|beats)\b|\b(?:overrides|takes precedence over)\b[^\n]{0,80}\bcase\.yaml\b'
     flags: i
   - name: edit-prompt-md
     type: llm

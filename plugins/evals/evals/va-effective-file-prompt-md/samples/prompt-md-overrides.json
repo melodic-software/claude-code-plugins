@@ -25,6 +25,14 @@
     {
       "answer": "Lower runs to 50 or less.",
       "why": "no file named"
+    },
+    {
+      "answer": "prompt.md is overridden by case.yaml, so change case.yaml.",
+      "why": "near miss: the reversed direction"
+    },
+    {
+      "answer": "prompt.md doesn't override case.yaml, so case.yaml wins.",
+      "why": "near miss: the negated direction"
     }
   ]
 }

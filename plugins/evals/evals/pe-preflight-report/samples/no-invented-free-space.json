@@ -21,6 +21,10 @@
     {
       "answer": "| Field | Value |\n|---|---|\n| cli_version | unknown |\n| floor_met | unknown |\n| git_version | unknown |\n| platform | unknown |\n| sandbox_backend | unknown |\n| target_type | plugin |\n| suite_tools | read-only |\n| same_model | yes (tested haiku, judge haiku) |\n| estimate_usd | roughly 1.2 |\n| ceiling | 5 USD |\n| leftover_sandboxes | unknown |\n| tmp_free | 41G |\n\nwarning: the judge is the model under test; pass a different --judge-model",
       "why": "table with an invented free-space value"
+    },
+    {
+      "answer": "leftover_sandboxes:  0 sandboxes",
+      "why": "near miss: an invented 0 for a path the probe could not read"
     }
   ]
 }

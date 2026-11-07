@@ -15,6 +15,10 @@
     {
       "answer": "",
       "why": "empty is not a yes"
+    },
+    {
+      "answer": "No: equal arms are a null measurement.\n\nDefinitely add cases the model fails without the plugin.",
+      "why": "a later line starting with Definitely is the authoring fix, not agreement"
     }
   ],
   "fail": [

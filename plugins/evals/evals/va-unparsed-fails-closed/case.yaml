@@ -11,7 +11,7 @@ execution:
 graders:
   - name: simplify-anchor
     type: regex
-    pattern: '\b(?:simplif|remov|inline|inlining|expand|replac|drop|rewrit|spell)\w*\b[^\n]{0,80}\b(?:anchors?|aliases?)\b|\b(?:anchors?|aliases?)\b[^\n]{0,80}\b(?:simplif|remov|inline|inlining|expand|replac|drop|rewrit|spell)\w*'
+    pattern: '\b(?:simplif|remov|inline|inlining|replac|drop|rewrit|spell)\w*\b[^\n]{0,80}\b(?:anchors?|aliases?)\b|\b(?:anchors?|aliases?)\b[^\n]{0,80}\b(?:simplif|remov|inline|inlining|replac|drop|rewrit|spell)\w*'
     flags: i
   - name: not-fine
     type: llm

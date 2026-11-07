@@ -16,7 +16,7 @@ graders:
     pattern: '\bcli_version[`*]*[ \t]*[:|][\s\S]*?\bfloor_met[`*]*[ \t]*[:|][\s\S]*?\bgit_version[`*]*[ \t]*[:|][\s\S]*?\bplatform[`*]*[ \t]*[:|][\s\S]*?\bsandbox_backend[`*]*[ \t]*[:|][\s\S]*?\btarget_type[`*]*[ \t]*[:|][\s\S]*?\bsuite_tools[`*]*[ \t]*[:|][\s\S]*?\bsame_model[`*]*[ \t]*[:|][\s\S]*?\bestimate_usd[`*]*[ \t]*[:|][\s\S]*?\bceiling[`*]*[ \t]*[:|][\s\S]*?\bleftover_sandboxes[`*]*[ \t]*[:|][\s\S]*?\btmp_free[`*]*[ \t]*[:|]'
   - name: no-invented-free-space
     type: regex
-    pattern: '\btmp_free[`*]*[ \t]*[:|][ \t`*|]*\d'
+    pattern: '\b(?:tmp_free|leftover_sandboxes)[`*]*[ \t]*[:|][ \t`*|]*\d'
     match: not_contains
   - name: cli-version-not-asserted
     type: regex

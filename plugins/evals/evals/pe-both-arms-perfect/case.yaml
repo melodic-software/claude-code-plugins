@@ -11,7 +11,7 @@ execution:
 graders:
   - name: not-yes
     type: regex
-    pattern: '^[ \t*_#>]*(?:Yes|Yeah|Yep|Absolutely|Definitely|Congrat\w*|Nice|Excellent)\b'
+    pattern: '^[ \t*_#>]*(?:Yes|Yeah|Yep|Absolutely|Congrat\w*)\b'
     flags: mi
     match: not_contains
   - name: not-evidence

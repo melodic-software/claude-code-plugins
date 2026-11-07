@@ -25,6 +25,10 @@
     {
       "answer": "Run the CLI; it has the full parser.",
       "why": "the other route only"
+    },
+    {
+      "answer": "Don't ignore it: the validator's parser does not expand YAML anchors, so it never read that case. Run claude plugin eval, which has the full parser.",
+      "why": "near miss: explains the anchor limit, offers only the CLI route"
     }
   ]
 }

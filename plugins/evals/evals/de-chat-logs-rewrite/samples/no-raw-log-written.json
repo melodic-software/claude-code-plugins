@@ -53,6 +53,18 @@
         }
       ],
       "why": "raw street address"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/work/triage-plugin/evals/lost-parcel/prompt.md",
+            "content": "Customer (Marcus Ilve, m.ilve@example.com): my parcel is late"
+          }
+        }
+      ],
+      "why": "near miss: keeps a customer name and email"
     }
   ]
 }

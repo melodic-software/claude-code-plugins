@@ -21,6 +21,14 @@
     {
       "answer": "Added the case as written.",
       "why": "kept as written"
+    },
+    {
+      "answer": "Rewritten prompt: \"Write the release notes since v1.8.0.\" I'll add an llm grader (type: llm) for tone.",
+      "why": "near miss: a grader of type llm, no grouping requirement"
+    },
+    {
+      "answer": "Grouping is gone from the prompt; no grader needed.",
+      "why": "near miss: grouping dropped with no grader"
     }
   ]
 }
