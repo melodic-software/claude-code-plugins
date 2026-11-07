@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL attribution-r002: `.claude/provenance.local.json` is a retired personal override the detectors never read.",
+      "why": "label before the id"
+    },
+    {
+      "answer": "| attribution-r002 | .claude/provenance.local.json | migrate | FAIL |",
+      "why": "table row"
+    },
+    {
+      "answer": "- attribution-r002 (`.claude/provenance.local.json`)\n  Fail: migrate its missing key.",
+      "why": "label on the next line, title case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "WARN attribution-r002: `.claude/provenance.local.json` is retired.",
+      "why": "reported as WARN"
+    },
+    {
+      "answer": "FAIL attribution-r001: `.claude/provenance.json` is retired.",
+      "why": "the team-layer record, not r002"
+    },
+    {
+      "answer": "`.claude/provenance.local.json` is retired; it failed to load as a layer.",
+      "why": "verb, not the label"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL attribution-r003 `.claude/attribution.json`: retired, migrate it whole into docs/conventions/attribution.yaml.",
+      "why": "label before the id"
+    },
+    {
+      "answer": "| attribution-r003 | .claude/attribution.json | migrate | FAIL |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Layers in effect: team `.claude/attribution.json` (excluded_paths, budgets.corpus_fetch_ceiling).",
+      "why": "presented as a live layer"
+    },
+    {
+      "answer": "INFO attribution-r003 `.claude/attribution.json`: retired, migrate it.",
+      "why": "reported as INFO"
+    },
+    {
+      "answer": "FAIL attribution-r004 `.claude/attribution.local.json`: retired.",
+      "why": "the personal-override record, not r003"
+    }
+  ]
+}

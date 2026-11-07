@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: setup-set-one-key-narration
+graders:
+  - name: 'only-named-key'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Changes only the named key and leaves every other existing key intact" and "Does NOT rewrite the file from the full default schema, which would turn unmentioned keys into accidental decisions". PASS only if the reply changes or proposes changing only stamp_expiry_days, keeps excluded_paths and budgets.corpus_fetch_ceiling as they are, and describes a per-key edit rather than a file regenerated from the default schema. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'team-layer-default'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Writes to the team layer by default, and to the personal override only when the user asked for it". PASS only if the reply targets the team layer (docs/conventions/attribution.yaml, or attribution.yaml in the convention home) and not the personal override, which the user did not ask for. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'reports-effective-value'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Reports the resulting effective value and the layer it now comes from". PASS only if the reply reports the resulting effective stamp_expiry_days of 90 and names the team layer as where it comes from. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'reports-value-90'
+    type: 'regex'
+    pattern: '\bstamp_expiry_days\b[^\n]{0,40}?\b90\b'
+    target: 'last_message'
+  - name: 'no-shell-write-override'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?attribution\.local\.ya?ml(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'

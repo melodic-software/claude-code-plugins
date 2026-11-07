@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/p/skills/audit/scripts/check-stamps.sh\" --trigger-less",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bare measurement"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/p/skills/audit/scripts/check-stamps.sh --paths-file /tmp/run/files.txt --trigger-less --json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "with a paths file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/p/skills/audit/scripts/check-stamps.sh\" --show-config",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config probe only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/p/skills/audit/scripts/check-stamps.sh --paths-file /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stamp check without the trigger-less flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n trigger-less /opt/p/skills/setup/reference/keys.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads about the flag"
+    }
+  ]
+}

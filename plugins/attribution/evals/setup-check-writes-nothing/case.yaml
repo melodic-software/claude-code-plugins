@@ -46,3 +46,7 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'show-config-detectors'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Runs list-corpus.sh --show-config and check-stamps.sh --show-config rather than reading the config files directly". PASS only if the trace runs both list-corpus.sh --show-config and check-stamps.sh --show-config and the effective values the reply reports come from that output, not from a hand parse of the YAML in its place. FAIL if either detector''s --show-config does not run.'
+    focus: 'trace'

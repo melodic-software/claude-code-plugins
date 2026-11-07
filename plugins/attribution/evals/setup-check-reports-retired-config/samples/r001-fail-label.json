@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Retired conventions: FAIL attribution-r001 `.claude/provenance.json` (migrate to docs/conventions/attribution.yaml).",
+      "why": "label before the id"
+    },
+    {
+      "answer": "| Record | File | Action | Severity |\n|---|---|---|---|\n| attribution-r001 | .claude/provenance.json | migrate | **FAIL** |",
+      "why": "table row"
+    },
+    {
+      "answer": "- `.claude/provenance.json` (attribution-r001)\n  Severity: FAIL, the detectors never read it.",
+      "why": "label on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Retired conventions: WARN attribution-r001 `.claude/provenance.json` (migrate when convenient).",
+      "why": "reported as WARN"
+    },
+    {
+      "answer": "Retired conventions: attribution-r001 `.claude/provenance.json` should be migrated.",
+      "why": "no severity label"
+    },
+    {
+      "answer": "| attribution-r001 | .claude/provenance.json | migrate | INFO |\n| check-stamps | ok | | FAIL |",
+      "why": "INFO on the record's own row, FAIL on another row"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: setup-json-layer-moves-whole
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'r003-is-fail'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Reports .claude/attribution.json as the retired config attribution-r003, a FAIL to migrate, not as a layer the detectors read". PASS only if the reply reports .claude/attribution.json as the retired config attribution-r003 at FAIL with migrate as the action, and does not present it as a layer in effect. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'r003-fail-label'
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*(?:attribution-r003|\.claude/attribution\.json)[^\n]*(?:\n[^\n]*)?\b(?:FAIL|Fail)\b|^(?![^\n]*\b(?:WARN|INFO)\b)[^\n]*\b(?:FAIL|Fail)\b[^\n]*(?:attribution-r003|\.claude/attribution\.json)'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'carries-every-key'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Carries every key of the JSON file into the new YAML file unchanged, not only stamp_expiry_days" and "Shows the carried-over keys in the check report before apply writes". PASS only if the YAML the reply proposes, or the trace writes, for docs/conventions/attribution.yaml carries excluded_paths (drafts/**) and budgets.corpus_fetch_ceiling 40 unchanged alongside stamp_expiry_days 90, and the reply shows those carried keys before any write of that file. FAIL if a key is dropped or changed, or the file is written before the carried keys are shown.'
+    focus: 'trace'
+  - name: 'no-clean'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*)?(?:sudo[ \t]+)?(?:xargs[ \t]+)?(?:(?:/\S*/)?(?:rm|mv|unlink|shred)|git(?:[ \t]+-C[ \t]+\S+)?[ \t]+(?:rm|mv))\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:(?:provenance|attribution)(?:\.local)?\.json|\.claude(?:/\*[^\s"\\]*|/?(?=[\s"\\])))|(?:[^"\\]|\\.)*?(?<=\s)--clean\b|(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*)?find\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:(?:provenance|attribution)(?:\.local)?\.json|\.claude(?:/\*[^\s"\\]*|/?(?=[\s"\\])))(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:-delete\b|-exec[ \t]+rm\b))'
+    min: 0
+    max: 0
+    arm: 'both'

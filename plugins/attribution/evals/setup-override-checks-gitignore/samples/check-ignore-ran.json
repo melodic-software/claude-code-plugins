@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -q \"/ws/docs/conventions/attribution.local.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the documented probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /ws check-ignore -v docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "verbose form with -C"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .gitignore",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads .gitignore by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -q \"/ws/docs/conventions/attribution.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "probes the team layer, not the override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n attribution.local.yaml .gitignore",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "greps instead of check-ignore"
+    }
+  ]
+}

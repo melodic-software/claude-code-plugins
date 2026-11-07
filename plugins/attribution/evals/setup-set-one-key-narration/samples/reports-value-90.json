@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Effective `stamp_expiry_days`: 90, from the team layer (docs/conventions/attribution.yaml).",
+      "why": "key and value"
+    },
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| stamp_expiry_days | 90 | team |",
+      "why": "table row"
+    },
+    {
+      "answer": "stamp_expiry_days changes from 180 to 90 in the team layer.",
+      "why": "old and new value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Effective `stamp_expiry_days`: 180, from the bundled default.",
+      "why": "unchanged value reported"
+    },
+    {
+      "answer": "Set the expiry window to 90 days in the team layer.",
+      "why": "key not named"
+    },
+    {
+      "answer": "stamp_expiry_days is set in the team layer.\n\nexcluded_paths keeps its 90 entries.",
+      "why": "90 on another line, not the key's value"
+    }
+  ]
+}

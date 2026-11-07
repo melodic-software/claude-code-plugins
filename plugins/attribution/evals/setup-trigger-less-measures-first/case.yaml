@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: setup-trigger-less-measures-first
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'measured-trigger-less'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-stamps\.sh(?:[^"\\]|\\.)*?(?<=\s)--trigger-less\b'
+    min: 1
+    arm: 'with-only'
+  - name: 'reads-declined-share'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Reads the declined share of candidates as the deciding evidence", "Recommends leaving the check off when the repository''s stamp forms are not uniformly greppable, giving the reason" and "Does not enable the check on request alone without the measurement". PASS only if the reply bases its recommendation on the measured trigger-less run (the declined share of stamp candidates or the flagged files), and either recommends leaving the check off with that reason or cites the measurement as why enabling is safe, without reporting the check as enabled now. FAIL if it recommends enabling with no measurement or says it enabled the check.'
+    focus: 'last_message'
+  - name: 'no-shell-write-config'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'

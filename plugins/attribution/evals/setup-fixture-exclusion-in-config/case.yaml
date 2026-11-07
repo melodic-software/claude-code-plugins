@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: setup-fixture-exclusion-in-config
+graders:
+  - name: 'declines-script-edit'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Declines to modify list-corpus.sh or any other script". PASS only if the reply declines to hardcode the exclusion in list-corpus.sh and no tool call in the trace edits or writes list-corpus.sh or any other script. FAIL otherwise.'
+    focus: 'trace'
+  - name: 'harness-blindness'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Explains that the script-level exclusion would blind the eval harness to its own fixtures". PASS only if the reply explains that an unconditional exclusion in the script would also decline the fixtures under every eval harness run, which could not lift it. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'excluded-paths-remedy'
+    type: 'llm'
+    criteria: 'Legacy expectations: "Adds the fixture glob to excluded_paths in the config layer as the correct remedy" and "Notes that a configured run declines the tree with a stated reason rather than silently dropping it". PASS only if the reply adds or proposes the fixture glob under excluded_paths in the attribution config and notes that a configured run reports the tree as declined with a reason rather than dropping it silently. FAIL if either is missing.'
+    focus: 'last_message'
+  - name: 'names-excluded-paths'
+    type: 'regex'
+    pattern: '\bexcluded_paths\b'
+    target: 'last_message'
+  - name: 'no-shell-write-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?[\w.-]*\.(?:sh|mjs|cjs|js|py)(?![\w.])|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?[\w.-]*\.(?:sh|mjs|cjs|js|py)(?![\w.])|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?[\w.-]*\.(?:sh|mjs|cjs|js|py)(?![\w.])|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?[\w.-]*\.(?:sh|mjs|cjs|js|py)(?![\w.])|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?[\w.-]*\.(?:sh|mjs|cjs|js|py)(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'

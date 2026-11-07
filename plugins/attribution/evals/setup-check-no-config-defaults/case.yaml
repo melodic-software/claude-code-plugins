@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: setup-check-no-config-defaults
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'defaults-not-error'
+    type: 'llm'
+    criteria: 'Legacy expectation: "Treats all three layers absent as a valid state that yields the bundled defaults, not as an error". PASS only if the reply says no attribution layer exists and the bundled defaults are the effective values, and does not report that absence as an error or a FAIL. Asking which initial keys to set is fine. FAIL otherwise.'
+    focus: 'last_message'
+  - name: 'no-shell-write-config'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'
