@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Skipped: the API version header and payment_method_types (no docs fetched)."
+    },
+    {
+      "answer": "Surfaces 2 and 3 are unaudited."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All three surfaces match the vendor docs."
+    },
+    {
+      "answer": "You were only able to fetch one page.",
+      "why": "echo"
+    }
+  ]
+}

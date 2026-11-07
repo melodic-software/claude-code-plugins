@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Find what is wrong.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Find what is wrong.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "x",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Find what is wrong.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ]
+}

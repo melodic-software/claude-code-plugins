@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: pfp-postgres-clean
+graders:
+  - name: reports-clean
+    type: regex
+    pattern: '(?<!\bnot )\bclean\b|\bno (?:finding|findings|selection sin|sin|change needed|switch)\b|\b(?:keep|keeping|stays?|stick with|confirm(?:s|ed)?)\b[^\n]{0,40}\bPostgre(?:s|SQL)\b|\bPostgre(?:s|SQL)\b[^\n]{0,60}\b(?:fits|is the right (?:choice|fit|tool)|holds up|stands|well[- ]fitted)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-churn
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Confirms a choice that was problem-derived and field-surveyed rather than manufacturing a switch", "Does not treat interrogation as a mandate to change a well-fitted tool" and "Reports clean, treating firing the skill as a re-anchor not an accusation". It fails if it recommends replacing Postgres, invents a finding against the choice, or frames the user as having done something wrong.'
+    focus: last_message

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This is a pre-build plan stress-test, which is /planning:devils-advocate's job."
+    },
+    {
+      "answer": "Devil's advocate owns attacking a plan before it is built; it is not installed, so here is prose guidance."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are the holes in the plan: the backfill races the dual-write."
+    },
+    {
+      "answer": "Use /review:quality-gate for this."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "notes/semantics-map.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "packages/services/src/index.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

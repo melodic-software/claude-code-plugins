@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Don't wait for a third copy."
+    },
+    {
+      "answer": "Two copies is already duplication."
+    },
+    {
+      "answer": "This skill pins the threshold at two."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wait for a third copy before consolidating."
+    },
+    {
+      "answer": "It's fine for now; consolidate if a third appears."
+    }
+  ]
+}

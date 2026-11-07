@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "useDefineForClassFields: false has no recorded rationale. Your call: adopt the default (true for ES2022), or keep it and record why in an ADR."
+    },
+    {
+      "answer": "`useDefineForClassFields` is an undocumented divergence. Either document the reason in docs/adr/, or drop the override.",
+      "why": "record first, adopt second"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "useDefineForClassFields: false is undocumented; your call.",
+      "why": "names neither option"
+    },
+    {
+      "answer": "useDefineForClassFields is undocumented. strict false is backed by ADR 0003; keep it and drop nothing.",
+      "why": "both words come from the strict paragraph"
+    }
+  ]
+}

@@ -18,6 +18,10 @@ graders:
     pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:tangent(?:s|ial)?|off[- ]topic|irrelevant|digression)\b|\bnot what (?:Dana|she|they) asked\b|\b(?:Poetry|Hatch|PDM|packaging[- ]tool)\b[^\n]{0,120}(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:cut|removed?|drop(?:ped)?|deleted?|unneeded|not needed|relation|relevance)\b|(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:cut|removed?|drop(?:ped)?|deleted?)\b[^\n]{0,120}\b(?:Poetry|Hatch|PDM|packaging[- ]tool)\b'
     flags: 'i'
     target: last_message
+  - name: names-relation
+    type: regex
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n''t )(?<!n''t a )(?<!\bno )\bRelation\b|\brelevan(?:ce|t)\b[^\n.]{0,60}\b(?:fail|failure|finding|violat)'
+    target: last_message
   - name: answer-first-in-file
     type: regex
     pattern: '(?:##[ \t]*Draft reply[^\n]*\n|^)[\s\S]{0,400}?\b(?:yes|can drop|can be dropped|ok to drop|safe to drop)\b'

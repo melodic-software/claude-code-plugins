@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "What I called the \"payout run\" is a settlement batch."
+    },
+    {
+      "answer": "> The payout run slipped because the PSP moved the cutoff.\n\nIn project terms: the settlement batch closed early."
+    },
+    {
+      "answer": "The settlement batch closed at 17:00 UTC."
+    },
+    {
+      "answer": "I said `payout run`; the glossary term is settlement batch."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The payout run slipped by one settlement batch."
+    },
+    {
+      "answer": "Payout runs close at 17:00 UTC."
+    }
+  ]
+}

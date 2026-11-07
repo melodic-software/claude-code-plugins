@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: pfp-orm-incumbency
+graders:
+  - name: incumbency-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )\bincumben(?:cy|t)\b'
+    flags: 'i'
+    target: last_message
+  - name: date-helper-flagged
+    type: regex
+    pattern: '\bdate[- ]?pars\w*[\s\S]{0,300}?\b(?:already (?:solved|exists|provided|served)|native|built[- ]in|standard library|stdlib|Intl|Temporal|date-fns|Luxon|dayjs|Day\.js|java\.time|datetime|NodaTime|chrono|vetted|well[- ]served)\b'
+    flags: 'i'
+    target: last_message
+  - name: routes-reason-dont-recite
+    type: regex
+    pattern: 'reason[- ]dont[- ]recite|reason, don''?t recite'
+    flags: 'i'
+    target: last_message
+  - name: fit-rederived
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Names the incumbency sin and re-derives fit rather than assuming the repo''s existing tool", "Flags hand-building an already-solved, well-served problem as a finding" and "Distinguishes its narrow selection lens from the broader reason-dont-recite incumbency corrector". It fails if it approves the ORM for the new service because the repo already uses it, without stating (or asking for) the new service''s requirements and judging the ORM against them.'
+    focus: last_message

@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: sdc-plan-routes-devils-advocate
+context:
+  history_file: history.jsonl
+graders:
+  - name: names-devils-advocate
+    type: regex
+    pattern: '\bdevil(?:s|[''’]s)?[- ]?advocate\b'
+    flags: 'i'
+    target: last_message
+  - name: plan-not-output
+    type: llm
+    criteria: 'The user asks to poke holes in a migration plan before any of it is built, through the scrutinize-dont-coast skill, which re-examines output already produced. The reply meets the legacy expectations: "Distinguishes ''stress-test a plan before building'' from re-examining already-produced output"; "Routes to /planning:devils-advocate (or degrades to prose guidance when it is not installed)"; "Does not misclassify a pre-implementation plan as finished output to scrutinize". Naming /planning:devils-advocate and then giving prose guidance on stress-testing the plan passes, because that skill is not installed here. It fails if it treats the plan as produced output under scrutiny without drawing that distinction.'
+    focus: last_message

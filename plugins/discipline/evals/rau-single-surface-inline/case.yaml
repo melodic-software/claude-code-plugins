@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: rau-single-surface-inline
+graders:
+  - name: no-agent
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: no-task
+    type: tool_used
+    tool: Task
+    min: 0
+    max: 0
+    arm: both
+  - name: stays-inline
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Recognizes a single surface does not justify the fan-out''s subagent cost", "Runs the inline recheck rather than the fan-out tier" and "Does not manufacture a broad fan-out where an inline recheck suffices".'
+    focus: last_message

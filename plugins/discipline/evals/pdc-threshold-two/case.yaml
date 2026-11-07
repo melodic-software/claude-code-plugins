@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: pdc-threshold-two
+graders:
+  - name: two-is-enough
+    type: regex
+    pattern: '\b(?:don''?t|do not|no need to|no reason to|not)\b[^\n]{0,20}\bwait\b[^\n]{0,60}\b(?:third|3rd)\b|\b(?:two|second|2nd)\b[^\n]{0,60}\b(?:copies|copy|places|docs)\b[^\n]{0,60}\b(?:already|is|counts?|enough)\b[^\n]{0,40}\bduplicat\w*|\bthreshold\b[^\n]{0,40}\b(?:two|2)\b'
+    flags: 'i'
+    target: last_message
+  - name: consolidate-and-point
+    type: regex
+    pattern: '\b(?:consolidat\w*|single source|one source|one (?:canonical|shared) (?:place|doc|file|copy)|extract\w*)\b[\s\S]{0,200}?\b(?:point\w*|link\w*|cite\w*|references?|referenced|referencing)\b|(?<!n''t )(?<!\bnot )\breplac\w*\b[^\n]{0,40}\bcop(?:y|ies)\b[^\n]{0,40}\bpointer\b'
+    flags: 'i'
+    target: last_message
+  - name: threshold-two
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Treats two copies as duplication to resolve now, not something to tolerate until a third appears", "Recommends consolidating to a single source and pointing at it" and "Leaves room for a merits-based legitimate-divergence exception rather than an absolute rule".'
+    focus: last_message
