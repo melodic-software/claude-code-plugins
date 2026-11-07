@@ -84,18 +84,18 @@ issue whose comment is a decision (first line `**Decision recorded.**`, by a hum
 trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
 `status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
 a decision, whether admission parked it there or a person confirmed it, or on a
-`status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
-nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `status: needs-decision`, removing that label the same way. A listed human's change of the Work
+`status: needs-info` issue whose comment is by the issue's author or a listed human. It sets the
+Work status field to `needs-triage` and writes no label. A decision on an issue that carries
+`needs-human` changes nothing; a listed human's removal of `needs-human` re-enters an issue with no
+`status:` label or at `status: needs-decision` the same way. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
 `needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
 event that left the hold, which a re-run of that release finds, and the field is set to
 `needs-triage` before the dispatch when the release left it empty. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
-cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. A blocker stops blocking once it is a pull request
+cannot start a model run with each reply. A dispatch skips the born-triaged check. Work status at `needs-triage` is
+the claim, so a second answer dispatches nothing. A blocker stops blocking once it is a pull request
 merged in this repository, or an issue closed, for any reason, by a listed human or, in this
 repository only, a merge (owner decision Q95, `blockerDone` in `.github/scripts/intake-triage/admit.mjs`):
 the lanes follow that rule, not the work-items tracker's `blocked_by_count`, which still counts a
