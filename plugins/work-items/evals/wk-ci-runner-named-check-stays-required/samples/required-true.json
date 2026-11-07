@@ -7,6 +7,10 @@
     {
       "answer": "not_done: skill linter, required: true",
       "why": "prose field"
+    },
+    {
+      "answer": "- **required:** `true`",
+      "why": "bold label"
     }
   ],
   "fail": [

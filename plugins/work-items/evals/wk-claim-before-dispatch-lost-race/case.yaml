@@ -3,7 +3,7 @@ name: wk-claim-before-dispatch-lost-race
 graders:
   - name: 'lost-race-advances'
     type: 'regex'
-    pattern: 'exit(?:s|ed)?\W{0,3}7[^\n]{0,200}(?:\bnext\b|\badvanc\w*|#41\b)|(?:\bnext\b|\badvanc\w*|#41\b)[^\n]{0,200}exit(?:s|ed)?\W{0,3}7'
+    pattern: 'exit(?:s|ed)?(?:\s+code)?[\s*_`]{0,6}7[^\n]{0,200}(?:\bnext\b|\badvanc\w*|#41\b)|(?:\bnext\b|\badvanc\w*|#41\b)[^\n]{0,200}exit(?:s|ed)?(?:\s+code)?[\s*_`]{0,6}7'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

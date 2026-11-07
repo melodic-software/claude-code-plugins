@@ -3,7 +3,7 @@ name: wk-ci-keep-refs-decision-names-remaining
 graders:
   - name: 'remaining-names-part-b'
     type: 'regex'
-    pattern: '"?remaining"?\s*[:=]\s*\[\s*"[^"\n]*(?:part b|migrat\w*|caller)'
+    pattern: '"?remaining"?[\s*_`]*[:=][\s*_`]*\[\s*"[^"\n]*(?:part b|migrat\w*|caller)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

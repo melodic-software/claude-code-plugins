@@ -3,7 +3,7 @@ name: wk-ci-unrunnable-suite-left-to-ci
 graders:
   - name: 'suite-false-exit-done'
     type: 'regex'
-    pattern: '(?=[\s\S]*"?required"?\s*[:=]\s*false\b)(?=[\s\S]*"?exit"?\s*[:=]\s*"?done\b)'
+    pattern: '(?=[\s\S]*"?required"?[\s*_`]*[:=][\s*_`"]*false\b)(?=[\s\S]*"?exit"?[\s*_`]*[:=][\s*_`"]*done\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

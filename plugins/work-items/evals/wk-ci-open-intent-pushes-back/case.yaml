@@ -3,7 +3,7 @@ name: wk-ci-open-intent-pushes-back
 graders:
   - name: 'pushback-intent'
     type: 'regex'
-    pattern: '(?=[\s\S]*"?exit"?\s*[:=]\s*"?pushback\b)(?=[\s\S]*\"?cause\"?\s*[:=]\s*\"?intent\b)'
+    pattern: '(?=[\s\S]*"?exit"?[\s*_`]*[:=][\s*_`"]*pushback\b)(?=[\s\S]*\"?cause\"?[\s*_`]*[:=][\s*_`\"]*intent\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

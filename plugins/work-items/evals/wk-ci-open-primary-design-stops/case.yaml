@@ -3,7 +3,7 @@ name: wk-ci-open-primary-design-stops
 graders:
   - name: 'stopped-design-change'
     type: 'regex'
-    pattern: '(?=[\s\S]*"?exit"?\s*[:=]\s*"?stopped\b)(?=[\s\S]*design-change:)'
+    pattern: '(?=[\s\S]*"?exit"?[\s*_`]*[:=][\s*_`"]*stopped\b)(?=[\s\S]*design-change:)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

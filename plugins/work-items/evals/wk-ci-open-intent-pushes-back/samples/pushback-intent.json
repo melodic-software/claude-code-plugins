@@ -7,6 +7,10 @@
     {
       "answer": "exit: pushback, cause: intent",
       "why": "prose fields"
+    },
+    {
+      "answer": "- **exit:** `pushback`\n- **cause:** `intent`",
+      "why": "bold labels"
     }
   ],
   "fail": [

@@ -3,7 +3,7 @@ name: wk-ci-runner-named-check-stays-required
 graders:
   - name: 'required-true'
     type: 'regex'
-    pattern: '"?required"?\s*[:=]\s*true\b'
+    pattern: '"?required"?[\s*_`]*[:=][\s*_`"]*true\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

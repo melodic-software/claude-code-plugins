@@ -3,7 +3,7 @@ name: wk-ci-refs-parent-still-closes
 graders:
   - name: 'remaining-empty'
     type: 'regex'
-    pattern: '"?remaining"?\s*[:=]\s*\[\s*\]'
+    pattern: '"?remaining"?[\s*_`]*[:=][\s*_`]*\[\s*\]'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

@@ -7,6 +7,10 @@
     {
       "answer": "exit: done",
       "why": "prose field"
+    },
+    {
+      "answer": "- **exit:** `done`",
+      "why": "bold label"
     }
   ],
   "fail": [

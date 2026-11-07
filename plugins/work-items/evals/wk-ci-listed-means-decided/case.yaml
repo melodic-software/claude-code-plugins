@@ -3,7 +3,7 @@ name: wk-ci-listed-means-decided
 graders:
   - name: 'exit-done'
     type: 'regex'
-    pattern: '"?exit"?\s*[:=]\s*"?done\b'
+    pattern: '"?exit"?[\s*_`]*[:=][\s*_`"]*done\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
