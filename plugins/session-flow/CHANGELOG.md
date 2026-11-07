@@ -1,5 +1,20 @@
 # Changelog: session-flow plugin
 
+## [7.5.0] - 2026-11-07
+
+### Added
+
+- `save_point.py amend <file> --json <path>` folds a late event into a filled shape-3 hot file. The JSON object takes `sections` (replace a written section; the old body goes to this hop's file under `## Amended <UTC> <title>`), `append` (add lines to Original goal or Direction changes, archiving nothing), `retire` (the `fill` retire operation), `next` (rewrite the Resume prompt's Next: headlines, old lines archived) and `floors` (raise an id floor; a retired id raises its own). It refuses before any write: an unfilled skeleton, a no-op, a carried or unknown section, a lowered floor, removing an entry this hop added without retiring it, a FAIL the amend would add, and a file that is no longer the chain tip (it prints the successor's `amend` command). A size FAIL never blocks the write; each file keeps its line endings, and the command prints the validate verdict, then the resume prompt (#13847).
+
+- Resume-eval cases `re-writer-keeps-binding-amendment` and `re-retired-amendment` on shape-3 predecessors, and the plugin-eval case `ho-late-event-amends` (#13847).
+
+### Changed
+
+- `save_point.py new` refuses to rewrite a same-session hop file that holds `## Amended` or `## Retired …` content, and names `amend` (#13847).
+
+- `save_point.py validate` fails an Open questions or Decisions in force entry without a `[Q<n>]` / `[D<n>]` id when the predecessor already carries the `next_question_id` / `next_decision_id` floor; chains started before the floors still validate. The goal, trail, question and decision slot texts name the `retire` refs, the retire headings and the ids (#13847).
+- `/session-flow:handoff` checks each task notification, Monitor event, peer message or subagent result that lands after emit and until `/clear`, folds one that changes a section in with `save_point.py amend`, and ends the turn on the re-emitted rails. An amendment unit with a still-binding clause stays whole or is codified as `[R<n>]` first; a rule or preference leaves the hot file only when retired or promoted, never to meet the size cap. The save-point and structure references describe `amend`, the append-only hop file, the four retire headings, the ids and the retire pointer (#13847).
+
 ## [7.4.0] - 2026-11-07
 
 ### Added
