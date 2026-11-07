@@ -91,15 +91,18 @@ exactly fails the command with no capture and no sidecar.
 ## Mask
 
 Each line is a JavaScript regular expression the driver matches case-insensitively within one
-screen row. It replaces every match, and every `values:` value anywhere on the screen (ignoring
-case, whitespace, `|` and box drawing), with `*`. Shapes as of Claude Code 2.1.316, from
+screen row. It masks every match, and every `values:` value anywhere on the screen (ignoring
+case, whitespace, `|` and box drawing), with `*` from its first cell through the end of that row's
+segment: up to the next box-drawing cell (U+2500 to U+257F), which stays, or the row's last column.
+Text after a value in its segment is masked too, so neither the stars nor where the row resumes
+shows the value's length. Shapes as of Claude Code 2.1.316, from
 `driver/fixtures/`, rewrites of real screens with every value invented; recheck when a release
 changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 
 - email | [A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+
 - organization | (?<=Organization:[ \t]+)[^ \t](?:.*[^ \t])?
 - login method | (?<=Login method:[ \t]+)[^ \t](?:.*[^ \t])?
-- banner plan | (?<=· )Claude[ \t]+(?:Max|Pro|Team|Enterprise)(?![A-Za-z0-9_])
+- banner plan | (?<=·[ \t]+)Claude[ \t]+[^\u2500-\u257F]*[^ \t\u2500-\u257F]
 - session id | (?<=Session ID:[ \t]+)[^ \t]+
 - cwd | (?<=cwd:[ \t]+)[^ \t](?:.*[^ \t])?
 - home path | (?:/home|/Users|[a-z]:\\Users)(?:/|\\)[^ \t]+

@@ -15,7 +15,7 @@ export const tokens = (n: number): string => {
 }
 
 export const headerText = (v: LiveView): string =>
-  `◆ context ${tokens(v.used)} of ${tokens(v.window)}${v.compactsAt !== undefined ? ` · compacts at ${tokens(v.compactsAt)}` : ''} ${Math.round(v.percent)}%`
+  `◆ context budget ${tokens(v.used)} of ${tokens(v.window)}${v.compactsAt !== undefined ? ` · compacts at ${tokens(v.compactsAt)}` : ''} ${Math.round(v.percent)}%`
 
 const entry = (c: LiveCategory): string =>
   `${c.name} ${tokens(c.tokens)} ${c.deferred ? 'deferred' : `${Math.round(c.percent)}%`}`

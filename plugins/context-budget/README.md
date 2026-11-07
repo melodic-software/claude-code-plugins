@@ -46,7 +46,7 @@ unsupported below that, and the plugin ships no shim
 The `live_display` option picks where it shows:
 
 - `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
-  `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
+  `◆ context budget <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
   only when auto-compaction is on. Each category follows with its tokens, percent and color;
   deferred categories are listed dimmed with "deferred" in place of a percent.
 - `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
