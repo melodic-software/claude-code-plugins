@@ -137,11 +137,12 @@ printed brief is the record; the page is a view of it. The brief holds issue and
 JSON data. Never hand-write the page or add script to it. A scheduled run or CI prints the brief
 only, and so does a resolved medium that builds no page.
 
-A team file never publishes. When the repository's tracked rendered-views file names a medium,
-`artifact` included, still run the resolver and take its medium: it ignores the team value and
+A team file never publishes. When the repository's tracked rendered-views file names a publishing
+medium such as `artifact`, still run the resolver and take its medium: it ignores that team value and
 prints a notice saying a team file never publishes. Print that notice, never read or weigh the team
 file yourself, and never hand the page to the Artifact tool on its value; with nothing else set,
-build the page to a local temp file and give its path.
+build the page to a local temp file and give its path. A team value that does not publish, such as
+`terminal`, is one the resolver keeps; take it as the resolver reports it.
 
 `context/view.md` writes this skill's
 directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, the plugin root as `<plugin-root>`, which
