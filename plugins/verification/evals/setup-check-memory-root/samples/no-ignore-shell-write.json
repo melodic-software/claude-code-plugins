@@ -9,6 +9,26 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .work/probe/baselines/x 2>/dev/null; cat .gitignore"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .work/probe/baselines/x 2>&1 || true; ls .work/.gitignore"
+          }
+        }
+      ]
     }
   ],
   "fail": [
@@ -28,6 +48,16 @@
           "tool": "Bash",
           "input": {
             "command": "echo .work/ | tee -a .gitignore"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '*' > \".work/.gitignore\""
           }
         }
       ]

@@ -10,8 +10,8 @@ graders:
     target: 'last_message'
   - name: 'no-ignore-fail'
     type: 'regex'
-    pattern: '\bFAIL\b[^\n]*(?:ignore|guard)|(?:ignore|guard)[^\n]*\bFAIL\b(?![^\n]*\bnot\b)'
-    flags: 'i'
+    pattern: '(?:^|\|)[ \t*]*FAIL[ \t*]*(?:\||:)[^\n]*(?:ignore|guard)|(?:ignore|guard)[^\n]*\|[ \t*]*FAIL[ \t*]*(?:\||$)'
+    flags: 'im'
     match: 'not_contains'
     target: 'last_message'
   - name: 'no-memory-root'
@@ -28,7 +28,7 @@ graders:
   - name: 'no-ignore-shell-write'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:[^"\\]|\\.)*?\.gitignore'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:\\"|'')?[^\s;|&"''\\]*\.gitignore'
     min: 0
     max: 0
     arm: 'both'

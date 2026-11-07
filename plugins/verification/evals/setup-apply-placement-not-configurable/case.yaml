@@ -29,7 +29,7 @@ graders:
   - name: 'no-ignore-shell-write'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:[^"\\]|\\.)*?\.gitignore'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:\\"|'')?[^\s;|&"''\\]*\.gitignore'
     min: 0
     max: 0
     arm: 'both'
