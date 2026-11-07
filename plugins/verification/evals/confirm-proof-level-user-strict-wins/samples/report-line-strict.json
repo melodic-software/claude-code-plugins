@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "proof_level: strict (userConfig; docs/conventions/verification.yaml at origin/main says path)"
+    },
+    {
+      "answer": "proof_level: strict (user option; the repository file says path)"
     }
   ],
   "fail": [
@@ -10,6 +13,9 @@
     },
     {
       "answer": "strict"
+    },
+    {
+      "answer": "- `proof_level: strict`\n  - The user option is `strict`. `origin/main`'s `docs/conventions/verification.yaml` says `path`."
     }
   ]
 }

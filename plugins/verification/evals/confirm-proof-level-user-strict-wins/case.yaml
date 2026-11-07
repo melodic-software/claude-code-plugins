@@ -3,7 +3,7 @@ name: confirm-proof-level-user-strict-wins
 graders:
   - name: 'report-line-strict'
     type: 'regex'
-    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*strict\b[^\n]*userConfig'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*strict\b[^\n]*(?:userConfig|user option)'
     flags: 'i'
     target: 'last_message'
   - name: 'proof-box-table'

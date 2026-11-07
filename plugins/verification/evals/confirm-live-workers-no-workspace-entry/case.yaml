@@ -3,7 +3,7 @@ name: confirm-live-workers-no-workspace-entry
 graders:
   - name: 'report-line'
     type: 'regex'
-    pattern: 'live_workers[`*_]*\s*:\s*[`*_]*3\b[^\n]*userConfig'
+    pattern: 'live_workers[`*_]*\s*:\s*[`*_]*3\b[^\n]*(?:userConfig|user option)'
     flags: 'i'
     target: 'last_message'
   - name: 'names-missing-entry'
