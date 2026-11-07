@@ -1,18 +1,18 @@
 {
   "pass": [
     {
-      "answer": "## Post-mortem: checkout timed out above $1k\n\n**Cause:** the pricing client retried RATE_LIMITED with no bound (41213 calls in one request).\n**Fix:** capped at 3 attempts (`MAX_ATTEMPTS`).\n**Regression test:** test/client.test.js.\n\nThis goes in the PR description.\n\nview: file (plugin default)\n\nThe interactive view, built by the plugin's build-view.mjs from the post-mortem above: /opt/eval/tmp/debug-post-mortem-1a2b.html",
-      "why": "record first, then the built view"
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug is finished: ... I would like to click through the hypotheses rather than read the post-mortem, so once the post-mortem is written, yes, build the interactive view.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/notes/checkout-timeout-postmortem.md\",\"content\":\"# Post-mortem: checkout times out for orders over $1k\\n\\n## Symptom\\n`POST /checkout` with a total over $1,000 returned no response (30 s timeout). Smaller orders were fine.\\n\\n## Hypotheses\\n| Rank | Cause | Prediction | Verdict | Evidence |\\n|---|---|---|---|---|\\n| 1 | Pricing client retries RATE_LIMITED with no bound | Pricing call count climbs without limit; capping retries clears the timeout | CONFIRMED | 41213 pricing calls in one request; after the cap, 3 attempts and a 503 in 412 ms |\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"node \\\"/opt/eval/plugins/debugging/lib/view-settings.mjs\\\" resolve --lane debugging:debug --option file\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t2\",\"content\":\"view: file (plugin default)\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"node \\\"/opt/eval/plugins/debugging/scripts/build-view.mjs\\\" <<'JSON'\\n{\\\"title\\\": \\\"Checkout times out for orders over $1k\\\"}\\nJSON\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t3\",\"content\":\"/opt/eval/tmp/debugging-views/post-mortem.html\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"The post-mortem is written, and the interactive view is built.\\n\\n**Open the view:** `/opt/eval/tmp/debugging-views/post-mortem.html`\\n\\n**Post-mortem:** `notes/checkout-timeout-postmortem.md`. Cause: quote() retried RATE_LIMITED with no limit.\"}]}}",
+      "why": "smoke dg1a trace: post-mortem written to notes before the resolver and builder run; the reply then lists the view first"
     }
   ],
   "fail": [
     {
-      "answer": "Here is your interactive view: /opt/eval/tmp/view.html. It has the hypotheses to click through.",
-      "why": "view without a post-mortem"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"node \\\"/opt/eval/plugins/debugging/scripts/build-view.mjs\\\" <<'JSON'\\n{\\\"title\\\": \\\"Checkout times out\\\"}\\nJSON\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"/opt/eval/tmp/debugging-views/post-mortem.html\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/notes/checkout-timeout-postmortem.md\",\"content\":\"# Post-mortem\\n\\nCause: unbounded RATE_LIMITED retry in the pricing client.\\n\"}}]}}",
+      "why": "near miss: the builder runs before the post-mortem is written"
     },
     {
-      "answer": "## Post-mortem\n\nCause: unbounded retry; fix: 3 attempts; test: test/client.test.js.\n\nHere is the page:\n\n```html\n<html><body><h1>Hypotheses</h1></body></html>\n```",
-      "why": "hand-written markup for the page"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/notes/checkout-timeout-postmortem.md\",\"content\":\"# Post-mortem\\n\\nCause: unbounded RATE_LIMITED retry in the pricing client.\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/post-mortem.html\",\"content\":\"<html><body><h1>Hypotheses</h1></body></html>\"}}]}}",
+      "why": "record first, then a hand-written page instead of the builder"
     }
   ]
 }
