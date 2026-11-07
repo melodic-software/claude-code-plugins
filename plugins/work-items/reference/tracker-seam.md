@@ -85,7 +85,7 @@ ways:
 | Kind | Where |
 |------|-------|
 | **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), single-item fetch (identity/state/`parent_id`/`created_at`, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
-| **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
+| **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/<provider>/README.md`, `<provider>` being the bound item id's prefix (for example `local-markdown`, `github`): one Read of that path, never a Glob or Grep of the plugin directory |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,
 `schema_version, id, title, state, assignees, labels, type, blocked_by_count,

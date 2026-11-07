@@ -19,7 +19,7 @@ The seam, operation routing, label taxonomy, canonical-role remapping, recurring
 memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Coordination goes through the
-seam; provider mechanics route through the bound adapter's operations reference; the core inlines no
+seam; provider mechanics route through the bound adapter's operations reference (one Read of `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/<provider>/README.md`, `<provider>` being the bound item id's prefix such as `local-markdown` or `github`, never a Glob or Grep of the plugin directory); the core inlines no
 provider commands, with one deliberate exception below: the telemetry upsert calls `gh` from this
 plugin's own `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`, mandated by the loop-lane
 convention because an installed plugin cannot invoke a sibling plugin's script.
@@ -330,7 +330,7 @@ the former default-on pause).
 
 ## Admission gate (fail-closed)
 
-The gate does not decide by work class. A candidate that passes the in-flight check, the objection
+The gate does not decide by work class: nothing applies or reads a `work-class:` label (one Read of `${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`, never a Glob or Grep of the plugin directory). A candidate that passes the in-flight check, the objection
 window, the labeler precondition and the hard gates below is admitted, whatever its other labels.
 Of the provenance labels, only `provenance: signal` or `provenance: untrusted` holds a
 candidate for a person: `list-frontier --autonomous` already drops each
@@ -342,7 +342,7 @@ whose latest removal of any of them came from an actor below `write` is held the
 open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply
 `/work-items:work`'s "Exclude in-flight frontier candidates (open linked PR)" rule in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
-as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
+as written, through the bound adapter's "Open linked PRs" operation (one Read of `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/<provider>/README.md`): the closing-keyword linkage is
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
 binding with no PR host keeps it. An excluded candidate is not dispatched,
 and within the age bound below it is not escalated and this cycle changes none of its labels. The
@@ -398,7 +398,7 @@ Hard gates:
   absence counts only when someone allowed to grant admission removed it. For each candidate, and
   for each of `provenance: untrusted`, its legacy name (an `untrusted-provenance` label: read its exact value from `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh) and pass that value verbatim), and
   `provenance: signal`, run the bound adapter's "Label-removal provenance" operation (GitHub: the
-  adapter README section of that name). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
+  section of that name, one Read of `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). Its latest-removal read names the actor of the label's latest removal, and its actor-permission read
   reads that actor's permission with the labeler precondition's permission mapping. A candidate whose latest removal of
   any of these labels came from an actor below `write` (a triage or read actor, `none`, or a permission
   that does not read) is human-gated: step 5 escalates it as `kind=escalated`, and it is never
