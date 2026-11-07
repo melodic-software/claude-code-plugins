@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/README.md\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/CLAUDE.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/README.md\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"Applies|\\\\.md\",\"path\":\"docs/standards/README.md\",\"output_mode\":\"content\"}}]}}\n",
+      "why": "Grep that reads the index rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/error-handling.md\"}}]}}\n",
+      "why": "skipped the index"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Glob\",\"input\":{\"pattern\":\"docs/standards/*.md\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"docs/standards/README.md\\ndocs/standards/naming.md\"}]}}\n",
+      "why": "Glob lists the index but never reads it"
+    }
+  ]
+}

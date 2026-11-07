@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ror-stale-retry-replace
+graders:
+  - name: routes-reason-dont-recite
+    type: regex
+    pattern: 'reason[- ]dont[- ]recite|reason, don''?t recite'
+    flags: 'i'
+    target: last_message
+  - name: routes-do-your-research
+    type: regex
+    pattern: 'do[- ]your[- ]research'
+    flags: 'i'
+    target: last_message
+  - name: migrate-named
+    type: regex
+    pattern: '\bmigrat\w*\b'
+    flags: 'i'
+    target: last_message
+  - name: not-blind-conformity
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Does not demand blind conformity to the incumbent way", "Treats missing rationale / staleness as first-class grounds to replace and routes to reason-dont-recite / do-your-research" and "Requires replace-and-migrate over a silent second way when replacement is warranted". It fails if it tells the user to copy the five-retry approach because it is established, or approves a new retry approach for the new code while the old one stays.'
+    focus: last_message

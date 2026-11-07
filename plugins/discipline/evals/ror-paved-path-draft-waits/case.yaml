@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ror-paved-path-draft-waits
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write-paved-paths
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*paved-paths\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit-paved-paths
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*paved-paths\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-paved-paths
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>{1,2}[ \t]*(?:\\"|'')?[^"\s|;&\\'']*paved-paths\.md|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^\"\\]|\\.)*?paved-paths\.md|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))sed\b(?:[^\"\\]|\\.)*?\s-i(?:[^\"\\]|\\.)*?paved-paths\.md|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|mv)\b(?:[^\"\\]|\\.)*?paved-paths\.md(?:\\\"|'')?[ \t]*(?:\"|\\n|;|&|\|))'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-yes
+    type: regex
+    pattern: '\b(?:shall I|should I|want me to|okay to|ok to|may I|do you want|say yes|reply yes|confirm\w*|go ahead)\b'
+    flags: 'i'
+    target: last_message
+  - name: draft-replaces-entry
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Drafts the entry with the concern, the chosen way as a pointer to the registry and wrapper, and the enforcing check or none", "Changes the existing scheduled-jobs entry instead of adding a second entry for the same concern" and "Shows the draft and asks the user to confirm".'
+    focus: last_message

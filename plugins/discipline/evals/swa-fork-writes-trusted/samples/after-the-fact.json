@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Comparing the tree before and after is detection after the fact."
+    },
+    {
+      "answer": "A diff can detect a fork that wrote; it does not prevent it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A diff guarantees nothing changes."
+    }
+  ]
+}
