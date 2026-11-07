@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Findings in db/migrations/001_create_users.sql.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"db/migrations/001_create_users.sql\"}}]}}",
+      "why": "reading is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"db/migrations/001_create_users.sql\",\"old_string\":\"ease-in\",\"new_string\":\"ease-out\"}}]}}",
+      "why": "an edit"
+    }
+  ]
+}

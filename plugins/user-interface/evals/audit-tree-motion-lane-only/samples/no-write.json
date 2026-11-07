@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Findings in src/components/card.css.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"src/components/card.css\"}}]}}",
+      "why": "the bare audit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"src/components/card.css\",\"content\":\".x { transition: opacity 200ms ease-out; }\"}}]}}",
+      "why": "a rewrite"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"src/components/card.css --fix\"}}]}}",
+      "why": "near miss: the right skill asked to fix when the request did not ask"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/animation/performance.md"
+          }
+        }
+      ],
+      "why": "read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/animation/behaviors.md"
+          }
+        }
+      ],
+      "why": "another file"
+    }
+  ]
+}

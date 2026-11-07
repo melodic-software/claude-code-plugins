@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Notice, the general term is a toast.",
+      "why": "toast"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That's a Notice.",
+      "why": "near miss: no general term"
+    }
+  ]
+}
