@@ -19,7 +19,7 @@ cat >.claude/mutation-testing-arid.local.md <<'MD'
 
 ```yaml
 suppressions:
-  846675cd2cbd91bd:
+  a778cd5cef81d582:
     check: mutation-testing/operator/SBR
     claim: arid(kind=log-call)
     sites:
