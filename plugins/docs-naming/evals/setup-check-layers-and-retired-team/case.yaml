@@ -47,7 +47,7 @@ graders:
     arm: both
   - name: r001-not-fail
     type: regex
-    pattern: 'docs-naming-r001[^\n.]{0,60}?(?:\|\s*[*_`]*FAIL\b|:\s*[*_`]*FAIL\b|\b(?:is|was|reports?|returns?|shows?|(?:reported|marked|flagged)\s+as)\s+(?:an?\s+)?[*_`]*FAIL\b)|\|\s*[*_`]*FAIL[*_`]*\s*\|[^\n]{0,60}docs-naming-r001'
+    pattern: 'docs-naming-r001[*_`]*(?:\s*\([^)\n]{0,60}\))?[*_`]*\s*(?:\|\s*[*_`]*FAIL\b|:\s*[*_`]*FAIL\b|(?:is|was|reports?|returns?|shows?|(?:is\s+)?(?:reported|marked|flagged)\s+as)\s+(?:an?\s+)?[*_`]*FAIL\b)|\|\s*[*_`]*FAIL[*_`]*\s*\|[^\n]{0,60}docs-naming-r001'
     flags: 'i'
     match: not_contains
     target: last_message

@@ -29,6 +29,12 @@
     },
     {
       "answer": "docs-naming-r001 is INFO instead of FAIL, not as FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is report-only (INFO); only a `migrate` finding is FAIL."
+    },
+    {
+      "answer": "docs-naming-r001: INFO (report-only; migrate: FAIL)"
     }
   ],
   "fail": [
