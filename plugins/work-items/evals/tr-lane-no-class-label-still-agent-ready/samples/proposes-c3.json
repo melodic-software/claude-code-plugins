@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Cycle report: proposed class C3 (scoped) for #4399.",
+      "why": "proposed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No class proposed.",
+      "why": "missing"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
