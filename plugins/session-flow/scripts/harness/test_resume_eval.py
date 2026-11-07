@@ -1288,6 +1288,34 @@ def test_shape3_history_sees_live_amendments_and_not_retired_entries(tmp_path):
     assert SUPERSEDED not in seen and RETIRED_DECISION not in seen
 
 
+def test_shape3_retires_the_named_amendment_when_another_one_contains_its_text(
+    tmp_path,
+):
+    import resume_cases
+
+    short, long = "Never delete rows", "Never delete rows, even on reruns."
+    spec = _shape3_spec(
+        hops=3,
+        injections=[
+            {"id": "long", "hop": 2, "section": "amendment", "text": long},
+            {
+                "id": "short",
+                "hop": 2,
+                "section": "amendment",
+                "text": short,
+                "retire": {"hop": 3, "reason": "folded into the longer amendment"},
+            },
+        ],
+    )
+    chain = resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+    goal = _section(chain[-1].read_text(encoding="utf-8"), "Original goal")
+    assert goal.count("Never delete rows") == 1 and long in goal
+    listed = _section(
+        _hop_file(chain, 3).read_text(encoding="utf-8"), "Retired goal amendments"
+    )
+    assert f":** {short}\nRetired: folded into the longer amendment" in listed
+
+
 def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
     import resume_cases
 

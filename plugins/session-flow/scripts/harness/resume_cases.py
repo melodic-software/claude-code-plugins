@@ -491,14 +491,17 @@ def _section_body(text: str, title: str) -> list[str]:
     return lines[start:end]
 
 
-def _ordinal(lines: list[str], match, text: str, what: str) -> int:
-    """1-based ordinal of the line holding `text` among the lines `match` accepts."""
+def _ordinal(lines: list[str], body, text: str, what: str) -> int:
+    """1-based ordinal, among the lines `body` maps to a string, of the one line whose
+    body is exactly `text`'s first line."""
     first = text.split("\n")[0]
-    hits = [line for line in lines if match(line)]
-    for i, line in enumerate(hits, 1):
-        if first in line:
-            return i
-    raise ValueError(f"{what}: {first[:60]!r} is not in the file it retires from")
+    bodies = [b for b in map(body, lines) if b is not None]
+    hits = [i for i, b in enumerate(bodies, 1) if b == first]
+    if len(hits) != 1:
+        raise ValueError(
+            f"{what}: {len(hits)} entries read {first[:60]!r} in the file it retires from; want 1"
+        )
+    return hits[0]
 
 
 def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
@@ -678,13 +681,18 @@ def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
         section = item["section"]
         if section == "amendment":
             ref = "amendment#%d" % _ordinal(
-                goal, AMENDMENT_RE.match, item["text"], item["id"]
+                goal,
+                lambda line: (
+                    line[m.end() :].strip() if (m := AMENDMENT_RE.match(line)) else None
+                ),
+                item["text"],
+                item["id"],
             )
         elif section == "trail":
-            tag = f"[h{item['hop']}]"
-            ref = f"{tag}#%d" % _ordinal(
+            tag = f"- [h{item['hop']}] "
+            ref = f"[h{item['hop']}]#%d" % _ordinal(
                 trail_lines,
-                lambda line: line.startswith(f"- {tag} "),
+                lambda line: line[len(tag) :] if line.startswith(tag) else None,
                 item["text"],
                 item["id"],
             )
