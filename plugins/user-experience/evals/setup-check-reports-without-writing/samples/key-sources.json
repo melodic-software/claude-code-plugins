@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| jtbd_school | unset | built-in default |"
+    },
+    {
+      "answer": "| output_home | null | default (built-in) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| jtbd_school | unset |"
+    },
+    {
+      "answer": "All keys use their defaults."
+    }
+  ]
+}

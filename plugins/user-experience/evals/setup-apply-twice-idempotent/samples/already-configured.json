@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "already configured: jtbd_school is unset in the team file."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote jtbd_school: unset."
+    },
+    {
+      "answer": "The value is already set, so I rewrote the file."
+    }
+  ]
+}

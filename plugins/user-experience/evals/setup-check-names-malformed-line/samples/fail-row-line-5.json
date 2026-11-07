@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Team file | FAIL | malformed: line 5: flow mapping ({...}) is outside the subset |"
+    },
+    {
+      "answer": "| Team file | line 5: flow mapping | **FAIL** |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Team file | FAIL | malformed |\n\nThe error is on line 5."
+    },
+    {
+      "answer": "| Team file | INFO | line 5 |"
+    }
+  ]
+}

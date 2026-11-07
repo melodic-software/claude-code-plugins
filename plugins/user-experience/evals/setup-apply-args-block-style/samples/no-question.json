@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote docs/conventions/user-experience.yaml. Commit it to share it with the team."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which JTBD school does your team use?"
+    },
+    {
+      "answer": "Shall I write the file?**"
+    }
+  ]
+}

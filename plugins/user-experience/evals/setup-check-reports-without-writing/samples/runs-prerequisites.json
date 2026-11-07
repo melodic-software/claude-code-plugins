@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/lib/prerequisites.mjs\" check \"/p\" --for skill:setup"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"/p/lib/prerequisites.mjs\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/p/lib/prerequisites.mjs\" list"
+          }
+        }
+      ]
+    }
+  ]
+}

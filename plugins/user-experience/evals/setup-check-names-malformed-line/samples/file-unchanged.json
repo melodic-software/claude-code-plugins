@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "version: 1\nrouting:\n  version: 1\n  disable:\n    - {job: synthesis, id: dovetail}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "version: 1\nrouting:\n  version: 1\n  disable:\n    - job: synthesis\n      id: dovetail\n"
+    }
+  ]
+}

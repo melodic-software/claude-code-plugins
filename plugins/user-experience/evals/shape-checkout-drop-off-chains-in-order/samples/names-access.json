@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Share the PostHog funnel export for the checkout steps."
+    },
+    {
+      "answer": "I need the funnel numbers per step."
+    },
+    {
+      "answer": "Give me access to your PostHog project."
+    },
+    {
+      "answer": "Send the conversion rates between cart, shipping and payment."
+    },
+    {
+      "answer": "I can't see PostHog from here; share an export."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Check your analytics for patterns."
+    },
+    {
+      "answer": "You have PostHog, which is a good start."
+    }
+  ]
+}

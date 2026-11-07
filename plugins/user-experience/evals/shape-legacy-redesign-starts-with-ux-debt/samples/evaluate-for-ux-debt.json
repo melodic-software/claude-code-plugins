@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate",
+            "args": "Legacy start: UX-debt inventory and baseline measures for the claims system"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "args": "Take baselines before redesign",
+            "skill": "evaluate"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate",
+            "args": "Heuristic review of the claims screens"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:structure",
+            "args": "UX-debt inventory"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate"
+          }
+        }
+      ]
+    }
+  ]
+}
