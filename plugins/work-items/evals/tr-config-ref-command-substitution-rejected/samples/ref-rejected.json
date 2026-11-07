@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: the --config-ref value is rejected. A ref must be a 40-hex commit id or origin/<name>.",
+      "why": "names the rule"
+    },
+    {
+      "answer": "That ref isn't valid (it is a command substitution), so the triage stopped.",
+      "why": "isn't valid"
+    },
+    {
+      "answer": "Refusing the config ref; nothing was run.",
+      "why": "refusing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_repro_count=1 (repository)",
+      "why": "proceeded"
+    },
+    {
+      "answer": "The config ref was not rejected; reading settings.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

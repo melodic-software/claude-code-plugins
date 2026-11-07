@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/items.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "JSON only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/b/triage-board.html",
+            "content": "<html></html>"
+          }
+        }
+      ],
+      "why": "hand-written page"
+    }
+  ]
+}

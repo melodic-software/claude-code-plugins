@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (plugin default)\nBoard: /tmp/x/triage-board.html",
+      "why": "printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The medium is file.",
+      "why": "paraphrased"
+    },
+    {
+      "answer": "view: file (userConfig)",
+      "why": "wrong decider"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

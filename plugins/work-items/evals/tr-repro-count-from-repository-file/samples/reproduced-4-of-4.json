@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- **Reproduced 4 of 4** (`triage_repro_count=4`, repository).",
+      "why": "bold, from smoke b2"
+    },
+    {
+      "answer": "Reproduced 4 of 4 (triage_repro_count=4, repository)",
+      "why": "plain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reproduced 2 of 2 (triage_repro_count=2, default)",
+      "why": "the default bar"
+    },
+    {
+      "answer": "Reproduced 3 of 4; one run did not show it.",
+      "why": "short of the bar"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
