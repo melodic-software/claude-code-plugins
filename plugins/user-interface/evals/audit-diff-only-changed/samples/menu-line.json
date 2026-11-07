@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`src/menu.css:1` scales from zero",
+      "why": "path:line"
+    },
+    {
+      "answer": "menu.css:3",
+      "why": "bare path:line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "src/menu.css scales from zero",
+      "why": "near miss: no line"
+    },
+    {
+      "answer": "src/toast.css:2 uses ease-in",
+      "why": "the unchanged file"
+    }
+  ]
+}

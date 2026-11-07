@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-opportunities-where-not
+description: "Hard: asked where animation helps, the pull is to propose motion everywhere; the catalog's frequency gate requires naming where it must not go. An app with no animation: a Cmd+K command palette, a save button, a data table and a settings modal."
+tags: [audit, opportunities, read-only, hard, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit runs the opportunities sub-mode: each suggestion names a purpose, at least one place (the command palette or the table) is named as one that must stay still with its reason, and no Edit or Write call is made"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Where in this app would animation actually help? Don't change anything."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
