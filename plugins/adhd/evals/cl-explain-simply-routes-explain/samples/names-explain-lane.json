@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "That ask is for plainer words, which is /education:explain, and that plugin is not installed here. What this skill can do is rearrange Round 4 without changing its words:\n\n| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | Q12 | move the nightly reconciliation job from cron to the `ledger-scheduler` queue, keeping the 02:30 UTC slot | judgment | keep cron and add a lockfile | Whether the job leaves cron. |\n| 2 | Q13 | set `max_attempts: 4` with a 90-second backoff | incident review IR-2291 §4 | none offered | The retry policy, only if row 1 goes ahead. |\n| 3 | Q14 | drop the `legacy_rates` column in migration 0057, but only after Q12 lands | none stated | keep the column read-only until the 3.2.0 release | When the column goes. |\n| 4 | Q15 | withheld | a week of shadow alerts would settle it | none offered | Whether drift above 0.5 percent pages on-call. |\n\nThis is a clarification; validate final answers against the original message, not this restructuring."
+    },
+    {
+      "answer": "Plain-language rewrites are education:explain's job."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Plain-language rewrites belong to education:illustrate."
+    },
+    {
+      "answer": "Basically, the old nightly job is moving to a newer system, a bit like switching from a paper calendar to a phone reminder. Then there are some retry settings, an old column to clean up, and a question about alerts."
+    },
+    {
+      "answer": "Here's the short version. Your team is deciding how to run a nightly job that checks the ledger numbers add up (the \"reconciliation job\").\n\n**Q12: Where should the job run?**\n- Now it runs on **cron**, a basic timer on a server.\n- Proposal: move it to **`ledger-scheduler`**, a job queue, and keep the same time (02:30 UTC).\n- The alternative is to stay on cron and add a **lockfile**, so two copies can't run at once.\n- This one is a judgment call. No data settles it.\n\n**Q13: What if the job fails?**\n- This only matters if Q12 goes ahead.\n- Retry up to **4 times**, waiting **90 seconds** between tries.\n- That number comes from an incident review (IR-2291, section 4).\n- If the job stays on cron, this question goes away.\n\n**Q14: Remove an old database column**\n- Drop the `legacy_rates` column in migration 0057.\n- **Only after Q12 is done**, because the old cron script still reads that column.\n- The alternative is to keep the column read-only until release 3.2.0.\n\n**Q15: Still undecided**\n- Should the system **page the on-call person** when the reconciliation numbers are off by more than 0.5%?\n- No recommendation yet. Running the alerts silently for a week (\"shadow alerts\") would show how noisy they'd be.\n\n**The caveat:** `ledger-scheduler` has no Windows worker yet. That only affects developers running the job on Windows laptops.\n\n**How they depend on each other:** Q12 comes first. Q13 and Q14 both wait on it, and Q15 is separate."
+    }
+  ]
+}

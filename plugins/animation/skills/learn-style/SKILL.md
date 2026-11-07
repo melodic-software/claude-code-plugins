@@ -17,8 +17,8 @@ geometry, source frames or the clip into it. Read
 band is set, which statistics separate the woodcut style from a filtered near miss and from other
 styles, and what the check still cannot separate.
 
-Run each script as `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir
-"${CLAUDE_PLUGIN_DATA}" -- <script> ...` (`/animation:setup` checks the requirements). Input is a
+Run each script as `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`, alone as its own Bash call: no `cd`, no `--help` run first, and no other command chained to it; this page gives each script's arguments.
+Never probe the host Python, `numpy` or `cv2`, never run `pydeps.py install`, and never list, create or read anything under `${CLAUDE_PLUGIN_DATA}` yourself: `pydeps.py run` finds the packages, and when it exits 2 it prints the repair line, which you report (`/animation:setup` checks the requirements). Input is a
 rotoscope work directory (`d/dNNN.json` traces and `src/dNNN.png` drawings). The scripts are
 `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/learn.py`,
 `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/controls.py` and the shared
@@ -38,7 +38,7 @@ rotoscope work directory (`d/dNNN.json` traces and `src/dNNN.png` drawings). The
 the source and mark them `"basis": "judgment"`. `check` is `learn.py`'s `CHECK`, the statistics
 shown to separate, less any content-class row the source defines in fewer than two parts;
 `measured_only` lists the subject-sensitive statistics the check prints but never judges. The
-numbers live in `style.json` only; STYLE.md and other docs point at its keys.
+numbers live in `style.json` only; STYLE.md and other docs point at its keys. Read a pack's `style.json` with the Read tool by absolute path, never with `python3 -c`, `cat`, `jq` or `ls` in a shell.
 
 ## Loop
 

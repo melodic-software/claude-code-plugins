@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ADHD shaping is on for the rest of this session. Say \"stop shaping\" to turn it off."
+    },
+    {
+      "answer": "Every later response will lead with the next action."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your previous message reshaped:"
+    },
+    {
+      "answer": "Shaped."
+    }
+  ]
+}

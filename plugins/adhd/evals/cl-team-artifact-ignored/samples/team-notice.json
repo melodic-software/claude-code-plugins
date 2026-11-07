@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "notice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notice: team docs/conventions/rendered-views.yaml sets medium: artifact"
+    },
+    {
+      "answer": "The team file publishes the view."
+    }
+  ]
+}

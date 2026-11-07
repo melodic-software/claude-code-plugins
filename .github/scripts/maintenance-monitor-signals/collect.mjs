@@ -40,10 +40,12 @@ export const LIMITS = {
   stalledChecks: 20,
   // Uncarried green runs per hold lane read in one window, oldest completion
   // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
-  // up to holdListPages run list pages (pr-verify's own 5, pr-review-main's
-  // 4), then a jobs read and one annotation read per job that prints a hold
-  // (for both, only a job whose `Note the hold` ran), so at most 4 × 3 + 5 +
-  // 4 + (2 × 6 + 20 + 40 + 80 + 70) × 2 calls while each run has one such job. Past it, the span stops
+  // up to holdListPages run list pages (pr-verify's and pr-merge's own 5,
+  // pr-review-main's 4), then a jobs read and one annotation read per job that
+  // prints a hold (for pr-verify and pr-review-main, only a job whose `Note the
+  // hold` ran; pr-merge's two jobs both), so at most 4 × 3 + 5 + 4 + 5 +
+  // (2 × 6 + 20 + 40 + 80 + 70) × 2 + 80 × 3 calls while each other run has
+  // one such job. Past it, the span stops
   // at the last run read and the window is a gap.
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own

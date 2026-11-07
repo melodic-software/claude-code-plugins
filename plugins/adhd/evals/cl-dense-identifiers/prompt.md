@@ -1,6 +1,6 @@
 ---
-description: "Explicit clarify of a dense three-decision message with Q-numbers keeps every operative term verbatim, back-links each original id, numbers the table rows itself, names what it left out, and closes with the lens line"
-tags: [adhd, clarify, outcome, fidelity]
+description: "Explicit clarify of a dense three-decision message with Q-numbers keeps every operative term verbatim, back-links each original id, numbers the table rows itself, names what it left out, and closes with the lens line (lens-line finds the line anywhere; lens-line-closes needs it last, allowing only the resolver's report or notice lines after it)"
+tags: [adhd, clarify, outcome, fidelity, no-network]
 max_turns: 6
 timeout_seconds: 300
 allowed_tools: [Skill, Read]

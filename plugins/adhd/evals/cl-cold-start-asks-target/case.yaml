@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: cl-cold-start-asks-target
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:adhd:)?clarify"'
+    min: 1
+    arm: 'with-only'
+  - name: asks-what-to-clarify
+    type: regex
+    pattern: '\b(?:what|which)\b[^\n?]*\b(?:clarify|clarified|want|wanted|mean|unclear|looking for|part|message|text|document)\b[^\n?]*\?|\b(?:paste|share|send|point me|tell me)\b[^\n?]*\?'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-invented-target
+    type: regex
+    pattern: '^\s*\|?(?:\s*:?-{3,}:?\s*\|)+|what you(?:''|’)re deciding|\bleft out\b|\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b'
+    flags: 'mi'
+    match: 'not_contains'
+    target: 'last_message'

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: cl-eli5-picture-routes-illustrate
+context:
+  history_file: history.jsonl
+graders:
+  - name: names-illustrate-lane
+    type: regex
+    pattern: '\beducation:illustrate\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-diagram
+    type: regex
+    pattern: '```\s*(?:mermaid|dot|graphviz|plantuml)\b|<svg\b|[┌┐└┘├┤┬┴┼│─]{2}|^\s*\[[^\]\n]+\]\s*(?:-+>|→)\s*\[[^\]\n]+\]'
+    flags: 'mi'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: lanes-distinct
+    type: llm
+    criteria: 'The reply answers "ELI5 this, give me the picture version" about the previous assistant message. It meets the legacy expectations: "Recognizes ''ELI5'' plus ''the picture version'' as a medium request and routes to education:illustrate, not education:explain"; "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:illustrate". Mentioning education:explain only to say it is not the right lane passes. It fails if it sends the ask to education:explain, draws a diagram or picture itself, or treats the ask as a plain-language rewrite.'
+    focus: 'last_message'

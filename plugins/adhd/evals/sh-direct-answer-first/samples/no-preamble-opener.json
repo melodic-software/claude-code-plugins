@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "No, not blindly: `--force` can install semver-major updates that break the build.\n\n1. Run `npm audit fix` without `--force`\n2. Run `npm test`\n\nNext: run step 1 and paste what it could not fix."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Looking at your project, No, not blindly: `--force` can install semver-major updates that break the build.\n\n1. Run `npm audit fix` without `--force`\n2. Run `npm test`\n\nNext: run step 1 and paste what it could not fix."
+    },
+    {
+      "answer": "Great question. No, not blindly: `--force` can install semver-major updates that break the build.\n\n1. Run `npm audit fix` without `--force`\n2. Run `npm test`\n\nNext: run step 1 and paste what it could not fix."
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.1] - 2026-11-07
+
+### Fixed
+
+- The PR capture's key proxy allows the `fallback-credit-2` beta, which Claude Code sends on some requests. The proxy refused it with a 403, so those captures failed at "Check the probe".
+
 ## [9.1.0] - 2026-11-07
 
 ### Added
