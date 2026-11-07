@@ -460,10 +460,12 @@ export const HOLD_LANES = [
   },
   // pr-merge's two token steps (rate-limit-hold-ok) hold on a rate limit the
   // lane-token request could not wait out. Its runs are the 2 cron ticks an
-  // hour, one per main push, and one wake per pr-verify pass, a share of
-  // pr-verify's runs, so pr-verify's 80 a window and 5 list pages cover it.
-  // No step runs only on a hold, so each green job's annotations are read: a
-  // jobs read and up to 2 annotation reads a run.
+  // hour, one per main push (whose merge and enable-auto-merge jobs skip),
+  // one wake per pr-verify pass, a share of pr-verify's runs, and one per
+  // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
+  // and 5 list pages are taken as the cover. No step runs only on a hold, so
+  // each green job's annotations are read: a jobs read and up to 2
+  // annotation reads a run.
   { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
