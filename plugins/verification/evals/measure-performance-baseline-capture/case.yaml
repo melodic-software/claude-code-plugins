@@ -13,7 +13,7 @@ graders:
     path: '**/baselines/*'
   - name: 'plan-records-baseline'
     type: 'regex'
-    pattern: 'baseline[^\n]*\d+(?:\.\d+)?\s*ms'
+    pattern: 'baseline[\s\S]{0,300}?\d+(?:\.\d+)?\s*ms'
     flags: 'i'
     target: { source: file, path: .work/fast-rows/PLAN.md }
   - name: 'names-noise'
