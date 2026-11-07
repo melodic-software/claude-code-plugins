@@ -5051,7 +5051,7 @@ jobs:
           # closing keyword or contract sections, so their logins skip the
           # linkage check and their pull requests draw no advisory label or
           # comment. Exact-login matches, never a `*[bot]` pattern.
-          exempt-authors: 'dependabot[bot],melodic-plugin-release[bot]'
+          exempt-authors: 'dependabot[bot],melodic-release[bot]'
       # A RESOLVE-CONFIG DEPENDENCY CHANGE NAMES ITS BROKER DEPLOY PULL REQUEST.
       # The lanes token broker in melodic-software/azure-iac loads resolve-config's
       # modules from main's tip, but imports ajv and yaml from its own deployed
@@ -7019,7 +7019,7 @@ jobs:
           REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
-          # dependabot[bot], melodic-plugin-release[bot] and
+          # dependabot[bot], melodic-release[bot] and
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'

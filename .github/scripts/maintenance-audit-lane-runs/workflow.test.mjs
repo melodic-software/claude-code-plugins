@@ -52,11 +52,9 @@ const list = (block, key) =>
     .filter(Boolean);
 const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} # \S/;
 // Why each later leg ran, for its unit's one lane record: the route job's
-// closed-set reason, compared to fixed strings, never written into a script.
-const SUB_REASON =
-  "${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
-const FB_REASON =
-  "${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}";
+// closed-set reason, which select-model-credential checks against its own
+// closed list, never written into a script.
+const REASON = "${{ steps.credential.outputs.fallback-reason }}";
 
 test("only a schedule or a manual run starts the lane, with no default permissions", () => {
   const on = /\non:\n((?: {2}.*\n| {4}.*\n)+)/.exec(text)[1];
@@ -159,7 +157,7 @@ test("the later legs repeat the key leg's steps but for the credential, the leg 
   ];
   const normalize = (job) =>
     steps(job)
-      .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$/.test(s.name))
+      .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$|^Pick the next leg$/.test(s.name))
       .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.block)))
       .map(({ name, block }) => ({
         name,
@@ -179,10 +177,21 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
   assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.judge-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
   // The key leg hands off on the launcher's handoff after a denial-free leg,
   // or on an empty key; the subscription leg on the launcher's handoff, or
-  // on an empty token, and only with the fallback token set; the fallback leg never.
-  assert.equal(value(step("Record the handoff", KEY), "if", 8), "steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'");
-  assert.equal(value(step("Record the handoff", SUB), "if", 8), "steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'");
-  assert.ok(!steps(FB).some((s) => /handoff/i.test(s.name)), "the fallback leg records no handoff");
+  // on an empty token, and only with the fallback token set; the fallback
+  // leg never. select-model-credential's next-leg call decides each
+  // (credential-legs.test.mjs holds it to the old conditions).
+  for (const [job, leg, next] of [
+    [KEY, "key-leg", "subscription"],
+    [SUB, "sub-leg", "fallback"],
+  ]) {
+    const pick = step("Pick the next leg", job);
+    assert.equal(value(pick, "handoff"), `\${{ steps.judge.outputs.handoff == 'true' && steps.${leg}.outputs.clean == 'true' }}`, job);
+    assert.equal(value(pick, "if", 8), undefined, `${job}: the next-leg call runs only when every step before it passed`);
+    const record = step("Record the handoff", job);
+    assert.equal(value(record, "if", 8), `steps.next.outputs.next-leg == '${next}'`, job);
+    assert.equal(value(record, "REASON"), "${{ steps.next.outputs.next-reason }}", job);
+  }
+  assert.ok(!steps(FB).some((s) => /handoff|next leg/i.test(s.name)), "the fallback leg records no handoff");
   for (const [job, leg] of [
     [KEY, "key-leg"],
     [SUB, "sub-leg"],
@@ -224,10 +233,11 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(SUB), "continue-on-error", 8), "true");
   assert.equal(value(report(FB), "if", 8),"steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'");
   assert.equal(value(report(KEY), "fallback-reason"), undefined);
-  assert.equal(value(report(SUB), "fallback-reason"), SUB_REASON);
-  assert.equal(value(report(FB), "fallback-reason"), FB_REASON);
-  // matrix.reason reaches nothing else.
-  for (const job of LEGS) assert.equal(jobs[job].match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : job === FB ? 4 : 3, job);
+  assert.equal(value(report(SUB), "fallback-reason"), REASON);
+  assert.equal(value(report(FB), "fallback-reason"), REASON);
+  // matrix.reason reaches only the credential call's reason input.
+  for (const job of LEGS) assert.equal(jobs[job].replace(/^\s*#.*$/gm, "").match(/matrix\.reason/g)?.length ?? 0, job === KEY ? 0 : 1, job);
+  for (const job of [SUB, FB]) assert.equal(value(step("Check the credential", job), "reason"), "${{ matrix.reason }}", job);
   // A handoff spares a leg its red; any other run with no findings fails last.
   for (const job of LEGS) {
     const names = steps(job).map((s) => s.name);
@@ -261,10 +271,11 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
 // judge-subscription as a credit-stop handoff; a key leg's credit-stop marker
 // makes judge-handoffs upload the gate's marker.
 test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
-  assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} /);
-  assert.match(jobs.collect, /\n {10}key-job: judge\n/);
-  assert.match(jobs.collect, /\n {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}\n/);
-  assert.match(jobs[KEY], /\n {4}if: .* && needs\.collect\.outputs\.skip-key != 'true'\n/);
+  assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /);
+  assert.match(jobs.collect, /\n {10}leg: start\n {10}key-job: judge\n/);
+  assert.match(jobs.collect, /\n {6}next-leg: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
+  assert.match(jobs[KEY], /\n {4}if: .* && needs\.collect\.outputs\.next-leg != 'subscription'\n/);
+  assert.match(step("Route every unit past the skipped key", ROUTES[0]), /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && needs\.collect\.outputs\.next-leg == 'subscription'\n/);
   assert.match(jobs[ROUTES[0]], /handoff\.mjs route-skipped\n/);
   assert.match(jobs[ROUTES[0]], /\n {10}name: key-credit-stop-maintenance-audit-lane-runs\.yml-judge\n/);
   assert.match(jobs[ROUTES[0]], /\n {8}if: steps\.route\.outputs\.credit-stop == 'true'\n/);

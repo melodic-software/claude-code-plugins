@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "What are you trying to accomplish?", "why": "goal question"},
+    {"answer": "Is this a new project or an existing system?", "why": "new or existing"},
+    {"answer": "Are you trying to understand the problem or design a solution?", "why": "problem or solution"},
+    {"answer": "How many perspectives need to be in the room?", "why": "perspectives"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "EventStorming has three main formats: Big Picture, Process Modeling and Design-Level.", "why": "no question"},
+    {"answer": "Want me to keep going?", "why": "a question, but not a clarifying one"}
+  ]
+}

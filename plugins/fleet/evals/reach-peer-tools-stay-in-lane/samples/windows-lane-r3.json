@@ -1,15 +1,15 @@
 {
   "pass": [
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'",
-      "why": "R3 form, Windows OpenSSH client by full path"
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'",
+      "why": "R3 form, Windows OpenSSH client by full path, prompt on stdin"
     },
     {
-      "answer": "List the WSL lane first:\n\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"List the sessions you can reach\" < /dev/null'\n```\n\nEach lane lists only its own sessions, so list the Windows lane too:\n\n```bash\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'\n```",
+      "answer": "List the WSL lane first:\n\n```bash\nprintf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p\n```\n\nEach lane lists only its own sessions, so list the Windows lane too:\n\n```bash\nprintf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'\n```",
       "why": "R2 first, then the R3 command"
     },
     {
-      "answer": "ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'",
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'",
       "why": "R6 form from a Windows origin"
     }
   ],
@@ -19,20 +19,24 @@
       "why": "empty reply"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"List the sessions you can reach\" < /dev/null'",
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p",
       "why": "R2 only, the Windows lane is never listed"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude -p \"List the sessions you can reach\" < /dev/null'\n\nIf the session is on the Windows side, tell me and I'll give the R3 form with `desk-win` instead.",
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl claude -p\n\nIf the session is on the Windows side, tell me and I'll give the R3 form with `desk-win` instead.",
       "why": "R2 command, R3 named only in prose with the port 22 alias"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'",
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'",
       "why": "claude.exe over the port 22 alias"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude.exe -p \"List the sessions you can reach\" < /dev/null'",
+      "answer": "printf '%s\\n' 'List the sessions you can reach' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'claude.exe -p'",
       "why": "claude.exe by bare name, no Windows-side directory"
+    },
+    {
+      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions you can reach\" < /dev/null'",
+      "why": "R3 with the prompt inside the remote command"
     }
   ]
 }

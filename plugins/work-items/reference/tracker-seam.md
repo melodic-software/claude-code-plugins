@@ -177,8 +177,11 @@ rather than silently querying the default.
 ## Recurring schedule
 
 Recurring items are defined in `.github/recurring-schedule.json` and created as items by the
-consuming repo's recurring-issues automation when they come due. The `/work-items:track recheck`
-action updates this schedule after completing a periodic check.
+consuming repo's recurring-issues automation when they come due. That automation writes each item
+in the recurring shape, the `<!-- recurring-schedule id=<id> -->` body line included
+([`issue-conventions.md`](issue-conventions.md) "Recurring marker"): an item without it is matched
+to no row. The `/work-items:track recheck` action updates this schedule after completing a
+periodic check.
 
 ## Memory-tier writes
 

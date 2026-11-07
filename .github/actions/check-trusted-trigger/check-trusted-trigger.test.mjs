@@ -121,6 +121,7 @@ async function gate({
   ownRun,
   sleep = fakeSleep(),
   attemptTimeoutMs,
+  faultReason,
 }) {
   const outputPath = writeJson("output", "");
   // This run's own record, unless the test routes it: the re-runner is read
@@ -168,6 +169,7 @@ async function gate({
       ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
       ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
+      ...(faultReason === undefined ? {} : { FAULT_REASON: faultReason }),
     },
     github: withOwnRun,
     sleep,
@@ -2628,6 +2630,142 @@ test("workflow_run dispatcher: naming a relay leaves a review run's terms unchan
   );
 });
 
+// A pull_request_target run of the push dispatcher's workflow (ADR 0090): its
+// head_branch and head_sha are the PR's (run 42286186105), so the PR entry and
+// the record's commit stand in for the default-branch checks.
+const REFINE_WORKFLOW = ".github/workflows/pr-refine.yml";
+const PR_HEAD_COMPARE = `GET /repos/${REPOSITORY}/compare/${HEAD_SHA}...${TIP_SHA}`;
+const prEntry = (overrides = {}) => ({
+  id: 3001,
+  number: 42,
+  head: { ref: "feat/lane-probe", sha: HEAD_SHA, repo: { id: 1, name: "claude-code-plugins" } },
+  base: { ref: "main", sha: BASE_SHA, repo: { id: 1, name: "claude-code-plugins" } },
+  ...overrides,
+});
+const TARGET_DISPATCHER = {
+  event: "pull_request_target",
+  head_branch: "feat/lane-probe",
+  head_sha: HEAD_SHA,
+  actor: LANES_BOT,
+  triggering_actor: LANES_BOT,
+  pull_requests: [prEntry()],
+};
+const targetRecord = (name = `pr-unblock-target-dispatched-${DISPATCHER_HEAD}-${SELF_RUN_ID}`) =>
+  listing(record({ name }));
+const targetRoutes = ({ dispatcher = {}, artifacts = targetRecord(), ...rest } = {}) =>
+  dispatcherRoutes({
+    dispatcher: { ...TARGET_DISPATCHER, ...dispatcher },
+    self: { path: REFINE_WORKFLOW, name: "pr-refine" },
+    artifacts,
+    ...rest,
+  });
+const targetDispatched = (options) =>
+  dispatched({ dispatchedWorkflow: REFINE_WORKFLOW, lanesAppId: String(LANES_BOT.id), ...options });
+
+test("pull_request_target dispatcher: a pr-refine.yml run proceeds, and only the recorded commit is compared", async () => {
+  const github = fakeGitHub(targetRoutes());
+  assert.deepEqual(await targetDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(compareRoute), "the recorded commit is compared with the tip");
+  assert.ok(!github.calls.includes(PR_HEAD_COMPARE), "the run's head_sha, the PR head, is never compared");
+});
+
+test("pull_request_target dispatcher: a listed human's event proceeds", async () => {
+  const github = fakeGitHub(targetRoutes({ dispatcher: { actor: KYLE, triggering_actor: KYLE } }));
+  assert.deepEqual(await targetDispatched({ github }), PROCEED);
+});
+
+test("pull_request_target dispatcher: the matching entry may follow another PR's", async () => {
+  const github = fakeGitHub(targetRoutes({ dispatcher: { pull_requests: [prEntry({ number: 43 }), prEntry()] } }));
+  assert.deepEqual(await targetDispatched({ github }), PROCEED);
+});
+
+test("pull_request_target dispatcher: a recorded commit off the default branch refuses even when the PR head is on it", async () => {
+  const github = fakeGitHub({ ...targetRoutes({ compare: { status: "diverged" } }), [PR_HEAD_COMPARE]: { status: "ahead" } });
+  assert.deepEqual(await targetDispatched({ github }), STOPPED("untrusted-actor"));
+});
+
+test("pull_request_target dispatcher: a push-form record naming a short commit refuses even where that commit is on main", async () => {
+  const github = fakeGitHub({
+    ...targetRoutes({ dispatcher: { status: "completed" }, artifacts: targetRecord(`pr-unblock-dispatched-4444444-${SELF_RUN_ID}`) }),
+    [`GET /repos/${REPOSITORY}/compare/4444444...${TIP_SHA}`]: { status: "ahead" },
+  });
+  assert.deepEqual(await targetDispatched({ github }), STOPPED("untrusted-actor"));
+});
+
+test("pull_request_target dispatcher: a pr-unblock.yml run refuses, whatever dispatched-workflow says", async () => {
+  const github = fakeGitHub({ ...targetRoutes(), [selfRoute]: fixture("api-run-self.json") });
+  assert.deepEqual(await targetDispatched({ github, dispatchedWorkflow: DISPATCHED_WORKFLOW }), STOPPED("untrusted-actor"));
+});
+
+test("pull_request_target dispatcher: a payload with no repository id refuses entries with no repo ids", async () => {
+  const event = fixture("event-workflow-dispatch-dispatcher.json");
+  delete event.repository.id;
+  const bare = prEntry({ head: { ref: "feat/lane-probe", repo: {} }, base: { ref: "main", repo: {} } });
+  const github = fakeGitHub(targetRoutes({ dispatcher: { pull_requests: [bare] } }));
+  assert.deepEqual(await targetDispatched({ github, event }), STOPPED("untrusted-actor"));
+});
+
+const STRANGER_ACTOR = { login: "stranger", id: 999, type: "User" };
+const FORK = { id: 2, name: "claude-code-plugins" };
+for (const [label, overrides, options = {}] of [
+  ["its head repository is a fork", { dispatcher: { head_repository: { id: 2, full_name: "stranger/claude-code-plugins" } } }],
+  ["its entry names another PR", { dispatcher: { pull_requests: [prEntry({ number: 43 })] } }],
+  ["its entry's base is another branch", {
+    dispatcher: { pull_requests: [prEntry({ base: { ref: "feat/stack-parent", repo: { id: 1 } } })] },
+  }],
+  ["its entry's base is another repository", { dispatcher: { pull_requests: [prEntry({ base: { ref: "main", repo: FORK } })] } }],
+  ["its entry's head is another repository", {
+    dispatcher: { pull_requests: [prEntry({ head: { ref: "feat/lane-probe", repo: FORK } })] },
+  }],
+  ["its entry's head ref is not the run's head_branch", {
+    dispatcher: { pull_requests: [prEntry({ head: { ref: "feat/other", repo: { id: 1 } } })] },
+  }],
+  ["it names no head_branch and its entry no head ref", {
+    dispatcher: { head_branch: undefined, pull_requests: [prEntry({ head: { repo: { id: 1 } } })] },
+  }],
+  ["its pull_requests is empty", { dispatcher: { pull_requests: [] } }],
+  ["it has no pull_requests", { dispatcher: { pull_requests: undefined } }],
+  ["no one entry holds every term", {
+    dispatcher: {
+      pull_requests: [
+        prEntry({ head: { ref: "feat/other", repo: { id: 1 } } }),
+        prEntry({ number: 43 }),
+      ],
+    },
+  }],
+  ["an unlisted account started it", { dispatcher: { actor: STRANGER_ACTOR } }],
+  ["an unlisted account triggered it", { dispatcher: { triggering_actor: STRANGER_ACTOR } }],
+  ["github-actions[bot] started it", { dispatcher: { actor: ACTIONS_BOT, triggering_actor: ACTIONS_BOT } }],
+  ["its re-run attempt was triggered by the lanes App", { dispatcher: { run_attempt: 2 } }],
+  ["it is another workflow's run", { dispatcher: { path: ".github/workflows/ci.yml" } }],
+  ["its record has the push dispatcher's name", { artifacts: targetRecord(`pr-unblock-dispatched-${SELF_RUN_ID}`) }],
+  ["its record has the workflow_run dispatcher's name", {
+    artifacts: targetRecord(`pr-feedback-dispatched-${UPSTREAM_RUN_ID}-${SELF_RUN_ID}`),
+  }],
+  ["its record names another run", { artifacts: targetRecord(`pr-unblock-target-dispatched-${DISPATCHER_HEAD}-38155580530`) }],
+  ["its record names a short commit", { artifacts: targetRecord(`pr-unblock-target-dispatched-4444444-${SELF_RUN_ID}`) }],
+  ["the lanes App id is not passed", {}, { lanesAppId: "" }],
+  ["a later job passes an expected upstream head", {}, { expectedUpstreamHead: HEAD_SHA }],
+]) {
+  test(`pull_request_target dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(targetRoutes({ ...overrides, dispatcher: { status: "completed", ...overrides.dispatcher } }));
+    assert.deepEqual(await targetDispatched({ github, ...options }), STOPPED("untrusted-actor"));
+  });
+}
+
+for (const [label, routes, options] of [
+  ["a push dispatcher", dispatcherRoutes({ dispatcher: { status: "completed" }, artifacts: targetRecord() }), {}],
+  ["a workflow_run dispatcher", runDispatcherRoutes({ dispatcher: { status: "completed" }, artifacts: targetRecord() }), {
+    runDispatcherWorkflow: RUN_DISPATCHER_WORKFLOW,
+    runDispatcherUpstreams: UPSTREAMS,
+    lanesAppId: String(LANES_BOT.id),
+  }],
+]) {
+  test(`pull_request_target record: refused with untrusted-actor on ${label}`, async () => {
+    assert.deepEqual(await dispatched({ github: fakeGitHub(routes), ...options }), STOPPED("untrusted-actor"));
+  });
+}
+
 // A job after pr-unblock's model job: the review was of the head that job was
 // gated on, and the PR has since moved to the commit apply-feedback-patch
 // pushed, a lanes App commit GitHub signed during this run.
@@ -3572,4 +3710,96 @@ test("reconciler-record.mjs: exit 0 when the record vouches, 3 when it does not,
     assert.equal(await recordMain({ env: recordEnv(bad), github, sleep: quiet }), 2, JSON.stringify(bad));
     assert.deepEqual(github.calls, [], JSON.stringify(bad));
   }
+});
+
+// fault-reason (pr-verify's gate): a stop a read GitHub failed to answer
+// caused writes read-fault, so pr-verify can mark the run held for the
+// reconciler. proceed stays false, and every refusal on an answer GitHub
+// gave keeps its own reason, whatever the input says.
+
+const FAULTS = [
+  ["a 502", () => new GitHubError(502, "read")],
+  ["a 503", () => new GitHubError(503, "read")],
+  ["a 429", () => new GitHubError(429, "read")],
+];
+
+for (const [label, fault] of FAULTS) {
+  test(`fault-reason: ${label} on the PR read stops with read-fault, and with the input off with no-pr`, async () => {
+    const routes = () => fakeGitHub({ [pullRoute]: fault() });
+    const run = (faultReason) => gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", github: routes(), faultReason });
+    assert.deepEqual(await run("true"), STOPPED("read-fault"));
+    assert.deepEqual(await run(undefined), STOPPED("no-pr"));
+    assert.deepEqual(await run(""), STOPPED("no-pr"));
+  });
+
+  test(`fault-reason: ${label} on both reads of the run's pull requests stops with read-fault`, async () => {
+    const github = fakeGitHub({ [commitPulls]: fault(), "POST /graphql": fault() });
+    assert.deepEqual(await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github, faultReason: "true" }), STOPPED("read-fault"));
+  });
+
+  test(`fault-reason: ${label} on this run's own record stops with read-fault, and with the input off with untrusted-rerunner`, async () => {
+    const run = (faultReason) => gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun: fault(), faultReason });
+    assert.deepEqual(await run("true"), STOPPED("read-fault"));
+    assert.deepEqual(await run(undefined), STOPPED("untrusted-rerunner"));
+  });
+
+  test(`fault-reason: ${label} on the dispatcher's tag lookup stops with read-fault`, async () => {
+    const github = fakeGitHub({ ...dispatcherRoutes(), [tagRoute]: fault() });
+    assert.deepEqual(await dispatched({ github, faultReason: "true" }), STOPPED("read-fault"));
+  });
+}
+
+test("fault-reason: a read that got no answer stops with read-fault", async () => {
+  const github = fakeGitHub({});
+  const offline = async (method, apiPath) => {
+    if (`${method} ${apiPath}` === pullRoute) {
+      github.calls.push(`${method} ${apiPath}`);
+      throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+    }
+    return github(method, apiPath);
+  };
+  offline.calls = github.calls;
+  offline.routes = github.routes;
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", github: offline, faultReason: "true" }), STOPPED("read-fault"));
+});
+
+// Guards: the input changes no refusal. Each case is refused today with the
+// reason named, and stays refused with that reason with the input on.
+test("fault-reason: every refusal on an answer GitHub gave keeps its reason", async () => {
+  const on = { faultReason: "true" };
+  // A 404 PR is a refusal, not a fault.
+  assert.deepEqual(await gate({ eventName: "workflow_dispatch", event: fixture("event-workflow-dispatch.json"), prNumber: "42", ...on }), STOPPED("no-pr"));
+  // A 403 on this run's record is a token that cannot read it.
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun: new GitHubError(403, "own run"), ...on }), STOPPED("untrusted-rerunner"));
+  const fork = fixture("event-pull-request.json");
+  fork.pull_request.head.repo.full_name = "stranger/claude-code-plugins";
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fork, ...on }), STOPPED("fork"));
+  const actor = fixture("event-pull-request.json");
+  actor.sender = STRANGER;
+  assert.deepEqual(await gate({ eventName: "pull_request", event: actor, ...on }), STOPPED("untrusted-actor"));
+  const author = fixture("event-pull-request.json");
+  author.pull_request.user = STRANGER;
+  assert.deepEqual(await gate({ eventName: "pull_request", event: author, ...on }), STOPPED("untrusted-author"));
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), triggeringActor: "stranger", ...on }), STOPPED("untrusted-rerunner"));
+  const run = fixture("event-workflow-run.json");
+  run.workflow_run.triggering_actor = STRANGER;
+  assert.deepEqual(await gate({ eventName: "workflow_run", event: run, github: fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] }), ...on }), STOPPED("untrusted-actor"));
+  assert.deepEqual(await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github: fakeGitHub({ [commitPulls]: [] }), ...on }), STOPPED("no-pr"));
+  // A tag that shares the default branch's name, and a tip that 404s.
+  assert.deepEqual(
+    await dispatched({ github: fakeGitHub({ ...dispatcherRoutes(), [tagRoute]: { ref: "refs/tags/main", object: { sha: DISPATCHER_HEAD, type: "commit" } } }), ...on }),
+    STOPPED("untrusted-actor"),
+  );
+  const noTip = dispatcherRoutes();
+  delete noTip[tipRoute];
+  assert.deepEqual(await dispatched({ github: fakeGitHub(noTip), ...on }), STOPPED("untrusted-actor"));
+  // A trusted trigger still proceeds with the input on.
+  assert.deepEqual(await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ...on }), PROCEED);
+  assert.deepEqual(await dispatched({ github: fakeGitHub(dispatcherRoutes()), ...on }), PROCEED);
+});
+
+test("fault-reason: action.yml passes the input as FAULT_REASON, empty by default", () => {
+  const action = readFileSync(path.join(HERE, "action.yml"), "utf8");
+  assert.match(action, /\n  fault-reason:\n(?: {4}.*\n)+? {4}default: ""\n/);
+  assert.match(action, /\n {8}FAULT_REASON: \$\{\{ inputs\.fault-reason \}\}\n/);
 });

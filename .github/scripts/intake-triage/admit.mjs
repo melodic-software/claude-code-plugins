@@ -59,9 +59,10 @@
 //   sub-issue (splitChildBody); any other issue the App filed holds for a
 //   listed human to file as their own (owner decision on #10735);
 // - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
-// - a `recurring` item's schedule row, read from the default branch's
-//   .github/recurring-schedule.json, does not set
-//   requires_operator_confirmation (operatorConfirmation);
+// - a `recurring` item's body has a `<!-- recurring-schedule id=<id> -->`
+//   line naming a row of the default branch's .github/recurring-schedule.json,
+//   and that row does not set requires_operator_confirmation
+//   (operatorConfirmation);
 // - the body was not edited after the lane comment the verdict came from;
 // - on the work-unblock sweep, which passes no verdict comment, a deferred
 //   issue carries neither do-not-merge nor needs-human, and neither gained
@@ -248,20 +249,29 @@ export function readSchedule(path = fileURLToPath(new URL("../../recurring-sched
   }
 }
 
+// The schedule row ids a body names on a `<!-- recurring-schedule id=<id> -->`
+// line, the marker that links a recurring issue to its row whatever its title.
+const SCHEDULE_MARKER = /^<!-- recurring-schedule id=(\S+) -->\r?$/gm;
+const scheduleIds = (body) => [...String(body ?? "").matchAll(SCHEDULE_MARKER)].map((match) => match[1]);
+
 // Why a `recurring` item needs a person, or null: its schedule row (the one
-// titled `[Maintenance] {title}`) sets requires_operator_confirmation, which
-// autonomous lanes must skip, or the schedule was not read. Pure.
-export function operatorConfirmation({ schedule, labels, title }) {
+// its body's marker names) sets requires_operator_confirmation, which
+// autonomous lanes must skip, or the schedule was not read, or no marker
+// names a row (a pre-marker item may be a confirming row's). Pure.
+export function operatorConfirmation({ schedule, labels, body }) {
   if (!labels.includes(RECURRING)) {
     return null;
   }
   if (!Array.isArray(schedule?.items)) {
     return "it carries recurring and .github/recurring-schedule.json could not be read, so admission cannot tell whether its schedule row needs an operator's confirmation";
   }
-  const row = schedule.items.find((item) => `[Maintenance] ${item?.title}` === title);
-  return row?.precondition?.requires_operator_confirmation === true
-    ? `its recurring schedule row ${row.id} needs an operator's confirmation (requires_operator_confirmation)`
-    : null;
+  const ids = scheduleIds(body);
+  const rows = schedule.items.filter((item) => ids.includes(item?.id));
+  if (rows.length === 0) {
+    return "it carries recurring and no `<!-- recurring-schedule id=<id> -->` line names a row of .github/recurring-schedule.json, so admission cannot tell whether its schedule row needs an operator's confirmation";
+  }
+  const row = rows.find((item) => item?.precondition?.requires_operator_confirmation === true);
+  return row ? `its recurring schedule row ${row.id} needs an operator's confirmation (requires_operator_confirmation)` : null;
 }
 
 // The issues and pull requests GitHub lists as blocking the issue at `base`
@@ -1608,7 +1618,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       if (lapsed.hold) holdFor(lapsed.reason.startsWith(UNTRUSTED) || lapsed.reason.startsWith(SECURITY_AREA) ? "security" : "intent");
     }
   }
-  const confirm = operatorConfirmation({ schedule, labels, title: issue.title });
+  const confirm = operatorConfirmation({ schedule, labels, body: issue.body });
   if (confirm) {
     refuse.push(confirm);
   }

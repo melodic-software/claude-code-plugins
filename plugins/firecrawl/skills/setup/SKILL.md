@@ -47,12 +47,12 @@ table with one remediation line per FAIL. Do not modify anything.
 1. **`firecrawl-cli` binary**, the installed binary is `firecrawl` (the npm package is
    `firecrawl-cli`). The pre-computed `firecrawl` row. INFO when absent (lazy-install design):
    report that the CLI installs on first need and the main skill self-flags it; remediation is the
-   `apply` guidance below. When present, report the version (`firecrawl --version`) and the auth
-   line from `firecrawl --status` (which states authenticated/unauthenticated).
+   `apply` guidance below. When present, run `firecrawl --version`, then `firecrawl --status`, each
+   alone as its own Bash call (no `;`, `&&` or loop); report the version and the status auth line.
 2. **Authentication**, the verdict comes from the CLI itself when present: the
    `firecrawl --status` auth line is authoritative, because `firecrawl login`/`config` state
    in the user-level config dir authenticates without any env var. Alongside it, report
-   `FIRECRAWL_API_KEY` presence only. Test `[[ -n "${FIRECRAWL_API_KEY:-}" ]]` and report
+   `FIRECRAWL_API_KEY` presence only: run `test -n "$FIRECRAWL_API_KEY"` alone (exit 0 = set); report
    **set** or **unset**; NEVER print, echo, log, or persist the value. Verdicts, matching the
    lazy-install design: status says authenticated → PASS (INFO-note when the source is
    persisted CLI config rather than the env var. Env-var auth is the plugin's preferred
@@ -66,8 +66,8 @@ table with one remediation line per FAIL. Do not modify anything.
    way. Report the status error verbatim, suggest retrying `firecrawl --status`, and direct
    no key change or key creation off an unanswered probe. CLI absent AND key unset → INFO: both arrive at first use, nothing is broken yet.
 3. **Optional env vars**. INFO the effective state of the other two the CLI reads
-   (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only,
-   again without printing any value.
+   (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only: run
+   `test -n "$FIRECRAWL_API_URL"` and `test -n "$FIRECRAWL_NO_TELEMETRY"` each alone; print no value.
 4. **Install flow location**. INFO: the main skill's own install and update flow lives in
    `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/SKILL.md`; `apply` defers there rather than
    duplicating it.
