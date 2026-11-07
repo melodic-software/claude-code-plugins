@@ -17,6 +17,10 @@
     {
       "answer": "#52 escalated.\n\nprovenance: signal items are held.",
       "why": "never ties the label to #52 on one line"
+    },
+    {
+      "answer": "#52 (agent-ready, provenance: signal): admitted and dispatched",
+      "why": "review example: no hold on the line"
     }
   ]
 }

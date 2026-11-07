@@ -17,6 +17,10 @@
     {
       "answer": "The lane stops; drain complete.",
       "why": "never names standing"
+    },
+    {
+      "answer": "Mode: drain, not standing; the work-loop writes its final report and stops.",
+      "why": "review example: 'loop' inside work-loop"
     }
   ]
 }

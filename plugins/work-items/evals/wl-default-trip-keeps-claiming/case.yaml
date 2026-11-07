@@ -3,7 +3,7 @@ name: wl-default-trip-keeps-claiming
 graders:
   - name: 'three-options'
     type: 'regex'
-    pattern: '(?=[\s\S]*\b(?:continue|continues|continued|continuing))(?=[\s\S]*\bswitch\w*\s+(?:the\s+)?accounts?\b)(?=[\s\S]*(?:LOOP_LANE_RATE_LIMIT_PAUSE=1|opt(?:-|\s)?in))'
+    pattern: '(?=[\s\S]*\b(?:continue|continues|continued|continuing))(?=[\s\S]*\bswitch\w*\s+(?:the\s+)?accounts?\b)(?=[\s\S]*(?:LOOP_LANE_RATE_LIMIT_PAUSE=1|\bopt(?:-|\s)?in\s+to\s+paus\w*))'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

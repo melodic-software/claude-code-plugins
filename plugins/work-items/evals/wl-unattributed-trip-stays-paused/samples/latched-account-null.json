@@ -1,16 +1,16 @@
 {
   "pass": [
     {
-      "answer": "latched_account stays null",
-      "why": "prose"
+      "answer": "latched_account stays null, and the lane stays paused until the five-hour resets_at.",
+      "why": "prose, pause stated"
     },
     {
-      "answer": "`latched_account`: null",
-      "why": "field"
+      "answer": "`latched_account`: null, `paused_until`: \"2026-11-07T14:00:00Z\"",
+      "why": "fields"
     },
     {
-      "answer": "latched_account = null",
-      "why": "assignment"
+      "answer": "rate_limit_latch = true\nlatched_account = null",
+      "why": "assignments, latch first"
     }
   ],
   "fail": [
@@ -21,6 +21,14 @@
     {
       "answer": "latched_account is set to the .claude.json fingerprint.",
       "why": "latched now"
+    },
+    {
+      "answer": "latched_account: null, paused_until: null, rate_limit_latch: false (reactive-only)",
+      "why": "review example: null latch with no pause in force"
+    },
+    {
+      "answer": "latched_account stays null",
+      "why": "the old bare pass sample: no pause stated"
     }
   ]
 }

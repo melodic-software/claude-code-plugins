@@ -21,6 +21,10 @@
     {
       "answer": "no_progress_streak resets to 0.",
       "why": "reset"
+    },
+    {
+      "answer": "no_progress_streak: 2 (threshold 3)",
+      "why": "review example: 3 is the threshold, not the value"
     }
   ]
 }

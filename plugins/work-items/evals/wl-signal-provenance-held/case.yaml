@@ -3,8 +3,8 @@ name: wl-signal-provenance-held
 graders:
   - name: 'signal-names-52'
     type: 'regex'
-    pattern: '#52\b[^\n]{0,200}provenance:\s?signal|provenance:\s?signal[^\n]{0,200}#52\b'
-    flags: 'i'
+    pattern: '^(?=[^\n]*#52\b)(?=[^\n]*provenance:\s?signal)(?=[^\n]*\b(?:held|holds?|human[- ]gated|escalat\w*))'
+    flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'
     type: 'llm'

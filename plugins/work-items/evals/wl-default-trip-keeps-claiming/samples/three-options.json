@@ -17,6 +17,10 @@
     {
       "answer": "Continuing; nothing else to do.",
       "why": "only one option"
+    },
+    {
+      "answer": "The opt-in is unset, so the lane continues claiming. Switch accounts if the window runs out.",
+      "why": "review example: names the unset opt-in, not the option"
     }
   ]
 }

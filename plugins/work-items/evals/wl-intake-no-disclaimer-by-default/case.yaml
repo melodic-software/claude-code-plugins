@@ -3,7 +3,7 @@ name: wl-intake-no-disclaimer-by-default
 graders:
   - name: 'no-disclaimer'
     type: 'regex'
-    pattern: '\b(?:no|without|not|never|omit\w*|skip\w*)\b[^\n]{0,60}\bdisclaimer'
+    pattern: '\b(?:no|without|omit\w*|skip\w*)\s+(?:the\s+|an?\s+)?(?:AI\s+)?disclaimer\b|\b(?:does not|doesn''t|do not|never|not)\s+(?:adds?|adding|carry|carries|prefix\w*|includes?|including)\s+(?:with\s+)?(?:the\s+|an?\s+)?(?:AI\s+)?disclaimer\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

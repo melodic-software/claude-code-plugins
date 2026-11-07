@@ -3,7 +3,7 @@ name: wl-drain-complete-stops
 graders:
   - name: 'standing-would-continue'
     type: 'regex'
-    pattern: '\bstanding\b[^\n]{0,200}\b(?:(?:continue|continues|continued|continuing)|ScheduleWakeup|keep\w*\s+looping|loop\w*|wake\w*|next cycle)'
+    pattern: '\bstanding\b[^\n]{0,200}\b(?:continue|continues|continued|continuing|ScheduleWakeup|keep\w*\s+looping|next cycle)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

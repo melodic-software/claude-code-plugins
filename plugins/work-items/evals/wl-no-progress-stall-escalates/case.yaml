@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'streak-reaches-3'
     type: 'regex'
-    pattern: 'no[_ -]progress[_ -]streak[^\n]{0,40}\b3\b'
+    pattern: 'no[_ -]progress[_ -]streak\b[^\n]{0,30}?(?<!threshold)(?<!threshold )(?:→|->|=|:|\bto\b)[\s*_`]{0,3}3\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

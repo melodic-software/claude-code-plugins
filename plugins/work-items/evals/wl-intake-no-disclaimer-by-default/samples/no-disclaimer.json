@@ -17,6 +17,10 @@
     {
       "answer": "ai_disclaimer: true",
       "why": "resolves true"
+    },
+    {
+      "answer": "No layer sets it, so the sweep adds the AI disclaimer prefix",
+      "why": "review example: the negation is on the setting, not the prefix"
     }
   ]
 }

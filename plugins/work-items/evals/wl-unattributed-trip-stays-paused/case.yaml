@@ -3,7 +3,7 @@ name: wl-unattributed-trip-stays-paused
 graders:
   - name: 'latched-account-null'
     type: 'regex'
-    pattern: 'latched_account\W{0,6}(?:=|:|stays|remains|is|left(?: as)?|as)?\W{0,6}null\b'
+    pattern: '^(?=[\s\S]*(?:paused_until[\s*_`]{0,4}(?:=|:|is set to|set to|is|stays at)[\s*_`\"]{0,4}(?!null\b|set\b)[\w<]|rate_limit_latch[\s*_`]{0,4}(?:=|:|is set to|set to|is|stays|remains)?[\s*_`]{0,4}true\b|\bstays\s+paused\b))[\s\S]*latched_account\W{0,6}(?:=|:|stays|remains|is|left(?: as)?|as)?\W{0,6}null\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
