@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/ws grep -n -F -e 'docs/Release_Notes.md' -e 'Release_Notes.md'"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/ws diff --name-status HEAD"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /opt/eval/ws grep -n -F -e 'docs/CATALOG.md'"
+          }
+        }
+      ]
+    }
+  ]
+}

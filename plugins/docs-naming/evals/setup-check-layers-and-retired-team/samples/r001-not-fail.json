@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": "docs-naming-r001: INFO, report-only."
+    },
+    {
+      "answer": "Retirements: one report-only finding (docs-naming-r001). No FAIL rows in the table."
+    },
+    {
+      "answer": "docs-naming-r001 is INFO (report-only), not FAIL"
+    },
+    {
+      "answer": "No FAIL rows; docs-naming-r001 is INFO"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, not FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is **INFO**, not **FAIL**"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, not `FAIL`"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, NOT FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is reported as INFO rather than FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO instead of FAIL, not as FAIL"
+    },
+    {
+      "answer": "docs-naming-r001 is report-only (INFO); only a `migrate` finding is FAIL."
+    },
+    {
+      "answer": "docs-naming-r001: INFO (report-only; migrate: FAIL)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs-naming-r001: FAIL (migrate)."
+    },
+    {
+      "answer": "| retirements | FAIL | docs-naming-r001 |"
+    },
+    {
+      "answer": "docs-naming-r001 is FAIL, not INFO"
+    },
+    {
+      "answer": "**docs-naming-r001**: **FAIL**"
+    },
+    {
+      "answer": "| `docs-naming-r001` | `FAIL` | migrate the old file |"
+    },
+    {
+      "answer": "docs-naming-r001 is reported as Fail."
+    }
+  ]
+}

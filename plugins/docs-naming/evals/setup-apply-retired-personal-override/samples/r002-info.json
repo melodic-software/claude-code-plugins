@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs-naming-r002 (.claude/docs-hygiene.local.json): INFO, report-only."
+    },
+    {
+      "answer": "| retirements | INFO | docs-naming-r002 |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs-naming-r002: FAIL, run --clean after migrating."
+    },
+    {
+      "answer": "The old personal override is INFO."
+    }
+  ]
+}

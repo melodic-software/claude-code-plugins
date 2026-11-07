@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL  resolve: team layer is not valid YAML (line 2: flow mapping is outside the subset): docs/conventions/docs-naming.yaml"
+    },
+    {
+      "answer": "| resolve | FAIL | docs/conventions/docs-naming.yaml, line 2: flow mapping ({...}) is outside the YAML subset |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL  resolve: the team layer is not valid YAML."
+    },
+    {
+      "answer": "WARN  resolve: docs/conventions/docs-naming.yaml line 2 uses a flow mapping."
+    },
+    {
+      "answer": "FAIL  resolve: docs/conventions/docs-naming.yaml is not valid YAML."
+    }
+  ]
+}

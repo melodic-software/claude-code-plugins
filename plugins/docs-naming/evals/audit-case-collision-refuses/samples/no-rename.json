@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/audit-file-names/scripts/inventory.sh --root /opt/eval/ws"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv docs/BETA.md docs/beta-programme.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv docs/BETA.md docs/beta-old.md"
+          }
+        }
+      ]
+    }
+  ]
+}

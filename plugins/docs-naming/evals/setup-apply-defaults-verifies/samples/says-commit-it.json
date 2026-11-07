@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/docs-naming.yaml is written but untracked: commit it to share it with the team."
+    },
+    {
+      "answer": "Commit docs/conventions/docs-naming.yaml; until then it has not reached your team."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: docs/conventions/docs-naming.yaml is configured."
+    },
+    {
+      "answer": "The team layer is tracked: PASS."
+    }
+  ]
+}

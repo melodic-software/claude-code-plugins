@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "docs/catalog.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/Catalog.md"
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

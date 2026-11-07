@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/setup/scripts/setup-check.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/docs-naming.local.yaml"
+          }
+        }
+      ]
+    }
+  ]
+}

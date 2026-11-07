@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "FN-c60eb30e   docs/Release_Notes.md  ->  docs/release-notes.md\n\nAccept FN-c60eb30e?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which finding should I apply first?"
+    },
+    {
+      "answer": "Tell me the first id you accept."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Add `docs/legacy/**` under exempt_paths in docs/conventions/docs-naming.local.yaml, then delete .claude/docs-hygiene.local.json."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Copy the old file's exempt_paths into docs/conventions/docs-naming.local.yaml, then delete it."
+    },
+    {
+      "answer": "Add docs/vendor/** to exempt_paths."
+    }
+  ]
+}

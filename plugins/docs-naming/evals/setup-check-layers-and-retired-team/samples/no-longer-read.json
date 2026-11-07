@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".claude/docs-hygiene.json is no longer read by the resolver."
+    },
+    {
+      "answer": "The resolver does not read .claude/docs-hygiene.json any more; it is not read at all."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".claude/docs-hygiene.json is still read, with a warning."
+    },
+    {
+      "answer": "The resolver reads .claude/docs-hygiene.json for one more release."
+    }
+  ]
+}

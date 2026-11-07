@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/realign-file-names/scripts/apply-rename.sh --artifact /opt/eval/ws/.work/docs-hygiene/main/file-names.md --id FN-c60eb30e --root /opt/eval/ws"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/eval/plugin/skills/realign-file-names/scripts/apply-rename.sh --artifact /opt/eval/ws/.work/docs-hygiene/main/file-names.md --id FN-6f3ce017 --root /opt/eval/ws"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git mv docs/Release_Notes.md docs/release-notes.md"
+          }
+        }
+      ]
+    }
+  ]
+}

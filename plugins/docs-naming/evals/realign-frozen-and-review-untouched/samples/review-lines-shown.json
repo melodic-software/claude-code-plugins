@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Review sites, left for you to edit by hand:\n- docs/index.md:8 The catalog lists every shipment type; see CATALOG for the full list.\n- docs/index.md:9 Ask in the docs channel before you edit CATALOG by hand."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The two review sites in docs/index.md were left alone."
+    },
+    {
+      "answer": "docs/index.md:8 is a review site."
+    }
+  ]
+}
