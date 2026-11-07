@@ -203,3 +203,36 @@ test("read: a value the newest field event names differently reads null, for any
     assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: null } }, CONFIG, TRUSTED), "needs-human", `${setter}, no name`);
   }
 });
+
+// With `fieldEvents` (resolve-config.mjs fieldEvents, oldest first), the
+// newest event whose setter counts for the value it set decides; an uncounted
+// change neither sets nor clears. The REST value holds the newest write.
+const set = (actorId, to) => ({ field: String(FIELD), removed: false, actorId, to });
+const removal = (actorId) => ({ field: String(FIELD), removed: true, actorId, to: null });
+const fromEvents = (fieldEvents, now) =>
+  readStatus({ fieldValues: now === undefined ? [] : [{ field: FIELD, option: OPTIONS[now] }], fieldSetters: {}, fieldEvents }, CONFIG, TRUSTED);
+
+test("events: claude[bot] setting ready over a person's needs-human leaves needs-human", () => {
+  assert.equal(fromEvents([set(LISTED, "needs-human"), set(CLAUDE_BOT, "ready")], "ready"), "needs-human");
+});
+
+test("events: an unlisted user removing a person's needs-human leaves needs-human", () => {
+  assert.equal(fromEvents([set(LISTED, "needs-human"), removal(UNLISTED)]), "needs-human");
+});
+
+test("events: a counted removal clears a person's needs-human", () => {
+  assert.equal(fromEvents([set(LISTED, "needs-human"), removal(ACTIONS_BOT)]), null);
+});
+
+test("events: only uncounted events read null", () => {
+  assert.equal(fromEvents([set(CLAUDE_BOT, "needs-human"), set(UNLISTED, "ready")], "ready"), null);
+});
+
+test("events: a REST value the newest event does not name reads null", () => {
+  assert.equal(fromEvents([set(LISTED, "ready")], "needs-human"), null);
+  assert.equal(fromEvents([set(LISTED, "needs-human")], "needs-human"), "needs-human");
+});
+
+test("events: github-actions[bot] setting agent-ready over a person's ready leaves ready", () => {
+  assert.equal(fromEvents([set(LISTED, "ready"), set(ACTIONS_BOT, "agent-ready")], "agent-ready"), "ready");
+});
