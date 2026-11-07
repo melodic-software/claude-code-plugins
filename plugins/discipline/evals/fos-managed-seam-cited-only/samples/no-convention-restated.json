@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "src/report.py:8 builds the log message with an f-string (docs/standards/logging.md, LOG-1)."
+    },
+    {
+      "answer": "lint.yml sets continue-on-error (docs/standards/ci.md, CI-1 Lint failures block merges)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "LOG-1 says: never build a log message with an f-string or string concatenation, because the log pipeline indexes fields, not free text.",
+      "why": "copies the convention"
+    },
+    {
+      "answer": "CI-1: a lint job never sets continue-on-error, because a red lint run that still reports success trains everyone to ignore it.",
+      "why": "copies the convention"
+    }
+  ]
+}

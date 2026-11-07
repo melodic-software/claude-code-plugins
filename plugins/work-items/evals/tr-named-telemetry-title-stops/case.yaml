@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tr-named-telemetry-title-stops
+graders:
+  - name: 'lane-infrastructure'
+    type: 'regex'
+    pattern: '\blane[ \t-]+infrastructure\b|\btelemetry\b[^\n]{0,80}\b(?:not (?:intake|triaged?)|never (?:intake|triaged?)|stop\w*)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does when named on a lane telemetry issue. PASS only if it satisfies every point: (1) Identifies the item as lane infrastructure by its title contract, not by its labels; (2) Stops without entering the state machine: no verification, no category or target-state recommendation; (3) Applies no label edit, posts no triage note, and does not close the item; (4) Says why: the lane reads that surface to operate, so working or closing it breaks the lane. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

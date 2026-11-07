@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: tk-due-uses-remapped-recurring-label
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'lists-remapped-label'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'list-items\b[^\n]*--label[ \t=]+(?:\\?[\"''])?scheduled-upkeep\b'
+    min: 1
+  - name: 'no-default-label-query'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '--label[ \t=]+(?:\\?[\"''])?recurring\b(?!-)'
+    min: 0
+    max: 0
+  - name: 'no-false-orphan'
+    type: 'regex'
+    pattern: '\borphan[^\n]*\n(?:[ \t]*[-*][^\n]*\n)*?[ \t]*[-*][ \t]*(?:dependency-review|ci-pins)\b|\b(?:dependency-review|ci-pins)\b[^\n]*\bhas no (?:open |matching )?(?:item|issue)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'matches-both-items'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*#1\b)[\s\S]*#2\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the trace as the account of what /work-items:track due did under a remapped recurring-maintenance role. PASS only if it satisfies every point: (1) Reads the binding''s role_labels entry for recurring-maintenance before the first tracker query; (2) Lists open items with the resolved scheduled-upkeep label, not the default recurring literal; (3) Matches each item to its row by the body''s recurring-schedule marker, never by title; (4) Does not report an existing remapped maintenance item''s row as orphaned. A point counts only when the reply states it or the trace plainly shows it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

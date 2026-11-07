@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def format_row(row, width):\n    # FIXME: the delimiter is hard-coded to a comma\n",
+      "why": "src/ left alone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def format_row(row, width, sep=','):\n    return sep.join(row)\n",
+      "why": "src/ resolved too"
+    },
+    {
+      "answer": "",
+      "why": "emptied"
+    }
+  ]
+}

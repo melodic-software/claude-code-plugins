@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: uys-research-delegation
+context:
+  history_file: history.jsonl
+graders:
+  - name: no-inheritance-stated
+    type: llm
+    criteria: 'Judge only the text the assistant wrote to the user on the main thread: every reply this run, including text before or after a tool call and any reply after a background task finished; not the loaded skill body, the history, or a subagent''s own output. It meets the legacy expectation: "States that a fresh subagent does not see the parent''s listing and must be told which skills to use". It fails if no reply says the subagent will not see or inherit the skills the parent has, so the delegation prompt has to name them.'
+    focus: trace
+  - name: prompt-names-skill
+    type: llm
+    criteria: 'Judge only what the assistant wrote on the main thread: its replies to the user and the prompt of any Agent call it made; not the loaded skill body, the history, or a subagent''s own output. It meets the legacy expectation: "Re-issues the delegation prompt naming the relevant skills": the re-issued research delegation prompt names do-your-research or pick-for-the-problem as skills to use. It fails if no re-issued prompt names a skill, or if a skill is only mentioned in passing without being written into the prompt.'
+    focus: trace
+  - name: preload-guidance
+    type: llm
+    criteria: 'Judge only the text the assistant wrote to the user on the main thread: every reply this run, including text before or after a tool call and any reply after a background task finished; not the loaded skill body, the history, or a subagent''s own output. It meets the legacy expectation: "Recommends the `skills:` preload for a recurring discipline as guidance, not an automatic config change". It fails if no reply recommends a `skills:` preload in a subagent definition, or if the assistant says it made or will make that config change itself.'
+    focus: trace

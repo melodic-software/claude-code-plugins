@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research"
+          }
+        }
+      ],
+      "why": "the job skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plan-user-research"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "adhd:plan-user-research"
+          }
+        }
+      ],
+      "why": "same leaf name, another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research-x"
+          }
+        }
+      ],
+      "why": "longer name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "only the front door fired, not this job"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: evaluate-stale-in-product-screenshot
+description: 'Legacy evaluate 9. Live-app in-product picture check: an out-of-date, upscaled, light-theme screenshot on a dark-theme screen is reported as three findings (evaluation.md 109-112). upscale grades the reply; legacy-evaluate-9 (llm) quotes the three legacy expectations.'
+tags: [evaluate, live-app, legacy]
+runs: 3
+expected_outcome: 'Findings for the out-of-date screenshot (retired toolbar, fake notification badge), the 400 px image shown at 1,200 px as an upscale, and the light screenshot on the dark live screen.'
+execution:
+  prompt: 'Run an expert review of our live onboarding page. It shows a screenshot of our product inside the product. The page''s image is a 400 px wide file shown at 1,200 px wide, taken from an older build with a toolbar and a notification badge; the live screen is in dark theme and the screenshot is light. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    weight: 0.1
+  - name: 'upscale'
+    type: 'regex'
+    pattern: 'up-?scal\w*|scaled up|stretched|enlarged|magnified|blur(?:ry|red)?|pixelat\w*|fuzzy|three times (?:its|the) (?:natural|file|actual|real|original) (?:size|width)|\b3\s*[x×]|300\s*%'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-evaluate-9'
+    type: 'llm'
+    criteria: 'The run is an expert review of a page showing an old, light-theme, 400 px screenshot at 1,200 px on a dark-theme screen. It meets the legacy expectations: "The review reports the screenshot as out of date against the live screen (the retired toolbar, the fake badge)" "The review reports the 400 px image displayed at 1,200 px as an upscale" "The review reports the theme mismatch between the screenshot and the live screen".'
+    focus: 'last_message'

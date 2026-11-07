@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: tk-audit-uses-remapped-recurring-label
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'lists-remapped-label'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'list-items\b[^\n]*--label[ \t=]+(?:\\?[\"''])?scheduled-upkeep\b'
+    min: 1
+  - name: 'no-default-label-query'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '--label[ \t=]+(?:\\?[\"''])?recurring\b(?!-)'
+    min: 0
+    max: 0
+  - name: 'no-false-orphan'
+    type: 'regex'
+    pattern: '\borphan[^\n]*\n(?:[ \t]*[-*][^\n]*\n)*?[ \t]*[-*][ \t]*(?:dependency-review|ci-pins)\b|\b(?:dependency-review|ci-pins)\b[^\n]*\bhas no (?:open |matching )?(?:item|issue)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the trace as the account of what /work-items:track audit did under a remapped recurring-maintenance role. PASS only if it satisfies every point: (1) Resolves the recurring-maintenance role at audit entry; (2) Lists recurring items with the resolved scheduled-upkeep label; (3) Does not query the default recurring literal after the remap; (4) Does not flag a schedule entry whose remapped open item exists. A point counts only when the reply states it or the trace plainly shows it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

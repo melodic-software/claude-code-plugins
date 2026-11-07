@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "notes.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/conventions/discipline.yaml"
+      ]
+    }
+  ]
+}

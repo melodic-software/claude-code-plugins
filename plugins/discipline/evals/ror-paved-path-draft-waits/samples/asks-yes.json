@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Want me to write this to docs/standards/paved-paths.md?"
+    },
+    {
+      "answer": "Say yes and I'll apply it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I updated docs/standards/paved-paths.md."
+    }
+  ]
+}

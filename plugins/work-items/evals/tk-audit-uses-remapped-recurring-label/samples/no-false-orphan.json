@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | dependency-review | monthly | 2026-08-01 | 67 | #1 |\n| 2 | ci-pins | monthly | 2026-09-01 | 37 | #2 |\n\nOrphaned entries: none.",
+      "why": "both matched"
+    },
+    {
+      "answer": "Both due rows have their open scheduled-upkeep item (#1, #2).",
+      "why": "prose"
+    },
+    {
+      "answer": "Neither dependency-review nor ci-pins is orphaned.",
+      "why": "negated, from review"
+    },
+    {
+      "answer": "No orphaned entries: dependency-review → #1, ci-pins → #2.",
+      "why": "mapped, from review"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Orphaned entries:**\n- dependency-review: Review dependency pins -- create item or remove entry",
+      "why": "false orphan"
+    },
+    {
+      "answer": "ci-pins has no open item; create one.",
+      "why": "false orphan prose"
+    }
+  ]
+}

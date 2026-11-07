@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | PASS: 3 rows |\n| Recurring-maintenance role label | **FAIL**: `recurring` absent; add it through the repo's label provisioning process |",
+      "why": "table row with bold verdict"
+    },
+    {
+      "answer": "Probe 6 FAILs: the role label `recurring` is missing while the schedule has three rows.",
+      "why": "prose"
+    },
+    {
+      "answer": "| **`recurring` label** | **FAIL** |",
+      "why": "smoke reply shape the original grader rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Recurring-maintenance role label | INFO: `recurring` absent, needed before seeding |",
+      "why": "near miss: the zero-row INFO verdict on a populated schedule"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| jq entry gate | FAIL: jq missing |\n| Recurring-maintenance role label | INFO |",
+      "why": "FAIL sits on another probe's row"
+    }
+  ]
+}

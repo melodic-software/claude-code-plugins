@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**#64: Export job silently skips rows with a null tenant id**\nDecision: which target state to apply.",
+      "why": "number and title"
+    },
+    {
+      "answer": "Item #64 (\"Export job silently skips rows with a null tenant id\")",
+      "why": "parenthesized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommendation: needs-info. Proceed?",
+      "why": "no restatement"
+    },
+    {
+      "answer": "Export job silently skips rows: needs-info.",
+      "why": "title without number"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

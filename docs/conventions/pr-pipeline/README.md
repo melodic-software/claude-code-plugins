@@ -89,7 +89,8 @@ status label and adds `needs-triage`. A decision on an issue that carries `needs
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
 at `status: needs-decision`, removing that label the same way. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
-`needs-triage`, re-enters it too: `needs-triage` is added as the claim, and the field is set to
+`needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
+event that left the hold, which a re-run of that release finds, and the field is set to
 `needs-triage` before the dispatch when the release left it empty. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
@@ -2608,7 +2609,12 @@ before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
-such a pass as any closing one. resolve-pr marks each spec entry's
+such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml` filed
+(github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
+from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
+it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`
+`recurring-schedule`. The merge gate counts such an issue as a trusted spec by the same rule,
+reading the schedule at the default branch's tip. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read

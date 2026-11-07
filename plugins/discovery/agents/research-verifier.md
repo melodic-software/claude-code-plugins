@@ -156,7 +156,9 @@ file is not to be `Read` either; the files it covers are listed in
 
 ## Return exactly this
 
-One fenced YAML block, then at most five bullets.
+One fenced YAML block, then at most five bullets. `target_as_received` is the file pointer: the
+artifact you graded, which the parent opens for detail. The bullets are the summary. Aim for 3,400
+bytes; the whole message must stay under 4,096, so keep each failed row's reason to one line.
 
 ```yaml
 problems: []                # FIRST: rows that failed, claims you could not re-fetch, anything not done

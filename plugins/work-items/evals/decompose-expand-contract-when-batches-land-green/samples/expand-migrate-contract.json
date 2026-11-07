@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Expand**: add `contact_email` beside `email`.\n2-4. **Migrate** one package each.\n5. **Contract**: drop `email`.",
+      "why": "numbered markdown items"
+    },
+    {
+      "answer": "The order stays expand, then migrate per package, then contract.",
+      "why": "prose"
+    },
+    {
+      "answer": "- **Skipping expand-contract.**\n  - The migrate batches need `contact_email` to exist before they can merge green.\n  - The column is shared stored schema, and the three consumers deploy separately.\n  - If the rename lands before every consumer has migrated, the unmigrated ones break at runtime.\n  - If PLAN.md does settle it, I'd cite it. Otherwise I'd recommend keeping Expand and Contract, and the decision is yours.",
+      "why": "review re-smoke c1r reply: a heading naming the request, then pushback that keeps expand-contract"
+    },
+    {
+      "answer": "Skipping expand-contract isn't safe here: each package merges green alone, so the plan stays expand, then one migrate item per package, then contract.",
+      "why": "review on #13945: declines the skip"
+    },
+    {
+      "answer": "You asked to skip expand-contract and share one integration branch. I'm keeping expand, migrate per package, then contract, since each batch lands green.",
+      "why": "review on #13945: names the request, keeps the sequence"
+    },
+    {
+      "answer": "You asked to put every migrate batch on a shared integration branch; I'm declining and keeping expand, then migrate per package, then contract.",
+      "why": "restates the request, then declines (review on #13960)"
+    },
+    {
+      "answer": "Each batch migrates and lands green on the default branch, so no shared integration branch is needed: expand, migrate, contract.",
+      "why": "restates the premise (review on #13960)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Skip expand and contract as asked: put every migrate batch on the shared integration branch.",
+      "why": "near miss: follows the shortcut"
+    },
+    {
+      "answer": "All batches go on one integration branch with an integrate-and-verify item.",
+      "why": "no expand-contract"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 2a of 5: Create ./config/.env\n\nWe return to the main sequence once this check passes."
+    },
+    {
+      "answer": "Phase 2a: repair. After it passes, Phase 3 comes next.",
+      "why": "a mention, not a title"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Phase 3 of 5: Deploy the worker",
+      "why": "advances"
+    },
+    {
+      "answer": "**Phase 3**: deploy",
+      "why": "Phase 3 title"
+    }
+  ]
+}

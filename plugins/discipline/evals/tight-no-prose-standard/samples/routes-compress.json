@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "For batch prose work, the docs-hygiene compress capability's semantic-diff check is the safety net."
+    },
+    {
+      "answer": "The docs-hygiene compress capability isn't installed either. The file is one short paragraph, so I ran the semantic-diff check by hand.",
+      "why": "a real smoke reply: the in-thread semantic-diff fallback"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "For batch work, run this skill on each file."
+    },
+    {
+      "answer": "Tightening doesn't compress prose into fragments; I cut the filler in place.",
+      "why": "compress in the SKILL.md line 46 sense, no routing"
+    }
+  ]
+}

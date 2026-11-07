@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That's an optimistic update.",
+      "why": "the term"
+    },
+    {
+      "answer": "This is optimistic UI.",
+      "why": "variant"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That's a pessimistic update with a pending state.",
+      "why": "near miss: the opposite term"
+    }
+  ]
+}

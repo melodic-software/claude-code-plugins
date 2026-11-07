@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: uys-hand-rolled-tightening
+context:
+  history_file: history.jsonl
+graders:
+  - name: names-the-skill
+    type: llm
+    criteria: 'Judge only the text the assistant wrote to the user on the main thread this run, including text before or after a tool call; not a tool call''s input, the loaded skill body, or the history. It meets the skill half of the legacy expectation "Names the specific reinvented procedure and the listed skill that already owns it": the assistant names tighten-your-output as the listed skill that owns the tightening procedure it reinvented. It fails if the skill is named only to say not to use it, or if another skill is named as the owner.'
+    focus: trace
+  - name: names-the-procedure
+    type: regex
+    pattern: '\b(?:four-step|4-step|filler|strik(?:e|es|ing|ed) (?:the )?filler|split(?:ting)? (?:it|the paragraph) into sentences|merg(?:e|ed|es|ing) (?:the )?sentences)\b'
+    flags: 'i'
+    target: last_message
+  - name: invokes-the-skill
+    type: tool_used
+    tool: Skill
+    input_match: 'tighten-your-output'
+    min: 1
+  - name: skill-governs
+    type: llm
+    criteria: 'Earlier the assistant tightened a README paragraph with a four-step procedure it wrote itself, and the user says a listed skill owns that. Judge the assistant''s main-thread text this run, including text before or after a tool call, and its tool calls; not the loaded skill body or the history. The reply meets the legacy expectations: "Names the specific reinvented procedure and the listed skill that already owns it"; "Corrects forward by invoking the fitting skill now rather than only noting it". It fails if it only acknowledges the skill exists without handing the work to it, or names a skill that does not own tightening.'
+    focus: trace

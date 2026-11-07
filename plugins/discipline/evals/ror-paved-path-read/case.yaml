@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ror-paved-path-read
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-paved-paths
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?paved-paths\.md|^(?=[^\n]*"type":"tool_result")[^\n]*?\bPP-0[12]\b'
+    flags: 'm'
+    target: trace
+  - name: second-way-named
+    type: regex
+    pattern: '(?<!\bno )(?<!\bnot )(?<!\bnot a )\b(?:second|parallel|divergent|competing)\b[ \t,]+(?:[\w/-]+[ \t]+){0,2}(?:way|approach|pattern|mechanism|path|scheduler|system)\b|\btwo (?:ways|approaches|mechanisms|schedulers|systems)\b'
+    flags: 'i'
+    target: last_message
+  - name: reuse-or-open-replace
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Treats the listed scheduled-jobs entry as the established way and the cron entry as an unexplained second way", "Offers reuse through the registry, or an open replacement that migrates existing jobs and updates the paved-path entry" and "Does not accept the cron entry as a parallel way left beside the registry".'
+    focus: last_message

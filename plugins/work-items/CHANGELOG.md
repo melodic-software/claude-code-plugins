@@ -3,6 +3,39 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.2.2] - 2026-11-07
+
+### Fixed
+
+- `/work-items:morning-brief` states in SKILL.md that a team rendered-views file never publishes: a team `medium: artifact` no longer sends the status page to the Artifact tool when the run skips `context/view.md`. The run takes the resolver's medium, prints its never-publishes notice, and builds the page to a local temp file ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
+## [12.2.1] - 2026-11-07
+
+### Changed
+
+- Fifteen eval cases held from the `evals.json` retirement ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)) are restored, with the owner's approval of graders widened after a failing smoke. Each widening accepts the reply the original regex wrongly failed (now a pass sample), and every near-miss fail sample still fails.
+  - work-loop: `wl-stale-in-flight-pr-escalates`, `wl-pause-entry-latches-tripping-account`, `wl-bot-reply-not-objection` and `wl-single-pass-ends-at-cap`. Report lines may render as a bold label with a code-span value; the no-objection check counts only a row of its own; and "does not call `ScheduleWakeup`" is accepted.
+  - work: `wk-merge-hold-passed-to-create` and `wk-ci-tidy-small-change-skip-shared-path`. A `--hold '<line ...>'` placeholder and "`--turns` is set to 18" are accepted.
+  - attend-queue: `aq-flip-needs-no-class-label`. A denial phrased with "until" no longer fails.
+  - decompose: `decompose-one-slice-per-behavior` (two numbered slices count as two) and `decompose-expand-contract-when-batches-land-green` (rejects the act of putting every migrate batch on the integration branch, not a mention of skipping expand-contract).
+  - setup: `su-seed-schedule-infers-and-interviews`, `su-first-bind-skeleton-only-on-skip`, `su-check-populated-schedule-label-fails`, `su-check-zero-rows-label-info`, `su-apply-backfills-frontier-stamps` and `su-check-override-ignore-rule-before-file`. Verdicts on the next line, "skip marked RECOMMENDED", a `recurring` label row and a bare "backfill `apply`" are accepted.
+  - Review fixes, each with the reviewer's example as a sample. `decompose-expand-contract-when-batches-land-green` drops its reject-the-act lookahead and keeps only the ordered expand, migrate, contract match, so replies that restate the request or premise pass; the complying near miss that uses all three words moves to the judge's samples. `aq-flip-needs-no-class-label` also treats won't, will not, stays, remains, keeps, gated and doesn't flip before "until reclassified" as a gate. `wl-bot-reply-not-objection` rejects the objection line anywhere, numbered, in a table or mid-line, unless no, not or without comes right before it. `su-check-override-ignore-rule-before-file` accepts FAIL on the next line only when neither line says INFO or PASS, so a FAIL on another probe's row no longer counts.
+
+- The onboard-adapter, scan-todos and track `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)), with a shared fixture, `evals/fixtures/work-items-a-repo.sh`, that stages an offline workspace per case. onboard-adapter: `oa-pasted-token-not-used` (a pasted token is refused and only the environment variable's name is asked for), `oa-no-lease-emulation` (a tracker with no atomic assignment declares the lease verbs false instead of emulating them), `oa-live-conformance-not-run-reported` (with no throwaway instance the generated guards run and the report says live conformance was not run) and `oa-generates-into-consumer-repo` (the adapter and its conformance binding land in the consuming repository and an existing README is kept); legacy case 5 was already covered by `oa-bundled-provider-routes-to-setup`. scan-todos: `st-skips-citation-and-task-list` (an upstream citation and a markdown task list are skipped, never filed, while the real markers are still swept) and `st-work-auto-selects-smallest-group` (`--work` picks the smallest group itself, files its significant marker through `/work-items:track add` and removes it). track: `tk-empty-args-stats-dashboard` (empty arguments print the stats dashboard and write nothing), `tk-due-uses-remapped-recurring-label`, `tk-recheck-closes-remapped-item` and `tk-audit-uses-remapped-recurring-label` (a remapped recurring-maintenance role is resolved before any listing, the default `recurring` label is never queried, and items match their rows by marker), `tk-publish-plan-edits-own-comment` (a republished plan edits the publisher's own marked comment in place) and `tk-add-native-issue-type` (`--type fix` becomes the native Issue Type Bug with no `type:` or class label).
+- One grader was widened after the first smoke, with the owner's approval: `oa-no-lease-emulation` `names-exit-6` went from `\bexit(?:[ \t]+(?:code|status))?[ \t`]*6\b` to `\bexit(?:s|ed|ing)?(?:[ \t]+(?:code|status|with))?[ \t`]*6\b`, because the smoke reply "With `false`, `claim` exits `6`" is correct and was rejected. That reply is now a pass sample.
+- Review fixes, each with the reviewer's example as a sample: `names-exit-6` lets its word group repeat, so "`claim` exits with code 6" passes. `oa-live-conformance-not-run-reported`'s `runs-common-tests` and `no-conformance-run` need a real token boundary before `bash` or `sh`, so `cat …/common.sh …/common.test.sh` no longer counts as a run. `no-false-orphan` in the track due and audit cases keeps only a bullet under an orphan heading and a "<row> has no item" line, so "Neither dependency-review nor ci-pins is orphaned." passes. The fixture's future schedule row is due 2099-01-01 instead of 2027-01-01, so the stats and remap cases do not change meaning when that date passes.
+
+## [12.2.0] - 2026-11-07
+
+### Added
+
+- The GitHub `get-statuses` read counts a Work status value only from a trusted setter when the binding sets `config.github.status_trust` (trust list, model and lanes App): a listed human or the lanes App for any state, a `models.issue-status` bot-setter for every state but `agent-ready`. The newest counted field event decides. A missing or invalid trust configuration exits `3`, so `list-frontier --autonomous` fails closed on it.
+
+### Changed
+
+- `attend-queue`, `triage`, `work-loop` and `work` read an item's status through one rule in the tracker seam reference ("Reading an item's status"): on Work status field storage an item is held by its hold label or its held status, and a set value places it in a queue over a disagreeing label. A person lifting a hold also writes the field: `attend-queue`'s flip sets `agent-ready`, `triage`'s sweep sets `confirmed`. The work-loop drain snapshot reads Work status, and a failed autonomous frontier read stops candidate selection instead of reading as an empty frontier.
+- `morning-brief` reads the Work status field when the target repo's `docs/conventions/pr-pipeline.yaml` holds `models.issue-status`: Queues, Stuck and Parked place each open issue by its value when set, else by its labels, hold labels still holding, and Owner touches count the field's changes. It reads the plain value, with no setter check. Over REST, Queues and Parked print by label with a `PARTIAL` line; a failed field read, or a value the model has no option for, is `UNREADABLE`. A new `--status-json` fixture flag feeds the read.
+
 ## [12.1.2] - 2026-11-07
 
 ### Changed

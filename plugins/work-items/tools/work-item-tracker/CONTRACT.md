@@ -329,8 +329,13 @@ validates against (same `read:org` need). An adapter that declares no `get-field
 exact name: the autonomous frontier asks for `Work status`. It prints `{schema_version,
 statuses: {"<id>": "<option name>" | null}}`, null for an item whose field is unset. Only the
 GitHub adapter implements it, from GraphQL `Issue.issueFieldValues`, one query per repository per
-100 items, so a session whose proxy refuses GraphQL exits `3`. An adapter that declares no
-`get-statuses` key exits `6`.
+100 items, so a session whose proxy refuses GraphQL exits `3`. When the binding sets
+`config.github.status_trust`, the GitHub adapter answers only values a trusted account set: the
+state the newest counted field event left, or null when that event removed the value, so an
+uncounted change neither sets nor clears a counted state. A missing or invalid trust
+configuration exits `3`; a read whose window may hide the counted event, or a counted state the
+model does not map, exits `1` (adapter README "Work status trust"). Without that key the read is
+plain. An adapter that declares no `get-statuses` key exits `6`.
 
 `status-storage` is a CORE-side derivation that reports where the tracker stores an item's
 status: in the `Work status` single-select issue field, or in labels. No adapter implements it,
@@ -385,7 +390,8 @@ an item whose `status` is `needs-human`, `needs-owner-decision`, `needs-reporter
 `needs-spec`, and that carries none of those states' labels (`needs-human`,
 `status: needs-decision`, `needs-owner-decision`, `status: needs-info`, `needs-spec`), is held
 too, and the labels decide everything else, since labels are written first
-and reach the field afterwards. No setter is checked, because a value can only hold an item back. A `get-statuses` read that fails, or a `status-storage`
+and reach the field afterwards. Core checks no setter; it takes each value `get-statuses` answers,
+which counts only trusted setters when the binding configures that (`get-statuses` above). A `get-statuses` read that fails, or a `status-storage`
 read the provider did not answer, prints one line on stderr and exits with the adapter's code,
 with no envelope on stdout, so an autonomous caller reads nothing it cannot trust; an answer
 without a `statuses` object exits `1`. `labels` storage, and an adapter that declares no

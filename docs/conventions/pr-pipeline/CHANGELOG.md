@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [9.7.2] - 2026-11-07
+
+### Fixed
+
+- `intake-reenter` no longer adds `needs-triage` when a listed human releases a Work status hold. It claims the release with a comment marked with the field event that left the hold, so a re-run of that release dispatches nothing and a later release on the same issue dispatches again; a failed run deletes the comment and leaves Work status as written.
+
+## [9.7.1] - 2026-11-07
+
+### Fixed
+
+- "Check the probe" in the PR capture, and the subprocess scrub probe in `upstream-apply-changelog.yml`, now say the fence was not tested when the probe session made no Read call on a fenced path, instead of reporting the file tools as unfenced. `capture-probe.mjs reads` exits 3 for that case. Both still fail the job, and any Read that came back or got no answer is still reported as an open fence.
+
 ## [9.7.0] - 2026-11-07
 
 ### Added

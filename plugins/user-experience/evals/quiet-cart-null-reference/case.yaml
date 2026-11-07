@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: quiet-cart-null-reference
+description: 'Legacy plan-user-research 6. A code fix with no user research question does not reach /user-experience:plan-user-research. no-research-skill-fired grades the trace; legacy-plan-user-research-6 (llm) quotes the legacy expectation.'
+tags: [quiet, control, legacy]
+runs: 3
+expected_outcome: 'No Skill call reaches user-experience:plan-user-research.'
+execution:
+  prompt: 'Fix the null reference in the cart total calculation when the cart is empty.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: 'no-research-skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?plan-user-research"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-plan-user-research-6'
+    type: 'llm'
+    criteria: 'The run is asked to fix a null reference in a cart total calculation. It meets the legacy expectation: "No Skill call reaches user-experience:plan-user-research". It also fails if the reply turns the request into a research plan or instrument.'
+    focus: 'trace'

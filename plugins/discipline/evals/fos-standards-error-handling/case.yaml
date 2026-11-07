@@ -31,6 +31,11 @@ graders:
     flags: 'm'
     match: not_contains
     target: { source: file, path: src/sync.py }
+  - name: states-resolved-source
+    type: regex
+    pattern: '\b(?:resolved|source(?: of truth)?|declared)\b[^\n]{0,80}\bdocs/standards\b|\bdocs/standards\b[^\n]{0,80}\b(?:resolved|source|declared)\b'
+    flags: 'i'
+    target: last_message
   - name: sync-call-kept
     type: regex
     pattern: '\brequests\.post\('

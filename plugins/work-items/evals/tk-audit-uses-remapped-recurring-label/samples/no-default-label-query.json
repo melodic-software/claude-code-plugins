@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --label scheduled-upkeep"
+          }
+        }
+      ],
+      "why": "resolved label"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n recurring-maintenance docs/conventions/work-items.yaml"
+          }
+        }
+      ],
+      "why": "reads the role name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --label recurring"
+          }
+        }
+      ],
+      "why": "default literal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh list-items --label \"recurring\" --state open"
+          }
+        }
+      ],
+      "why": "quoted default"
+    }
+  ]
+}

@@ -434,6 +434,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/actions/select-trusted-text/select-trusted-text.mjs", "enforcement"],
   ["lib/publish-gate.mjs", "enforcement"],
   [".github/recurring-schedule.json", "enforcement"],
+  [".github/scripts/recurring-schedule/file-due.mjs", "enforcement"],
   ["plugins/work-items/scripts/charge-words.json", "enforcement"],
   [".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"],
   [".github/scripts/apply-patch/apply-patch.mjs", "enforcement"],

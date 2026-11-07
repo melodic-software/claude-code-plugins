@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "7.3.3",
+  "version": "7.4.0",
   "license": "MIT",
   "keywords": [
     "workflow",
@@ -159,6 +159,13 @@
       "type": "string",
       "title": "Cloud session suggestion",
       "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
+      "default": "offer",
+      "options": ["off", "offer"]
+    },
+    "retro_offer": {
+      "type": "string",
+      "title": "Retro offer",
+      "description": "Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask.",
       "default": "offer",
       "options": ["off", "offer"]
     },
