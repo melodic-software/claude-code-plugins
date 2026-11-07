@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No. No adapter claims `*.test-d.ts`, so the file is not scanned: the type checker evaluates it and nothing runs it.",
+      "why": "not scanned, type checker"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: `testing/audit/rule-zero-assertion` fires because no runtime assertion runs; the type checker does not count.",
+      "why": "reports the finding"
+    }
+  ]
+}

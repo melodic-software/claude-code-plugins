@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: cvp-failing-compare-kept
+description: 'Legacy check-visual-parity 1. A compare fails with differing=212 at tolerance 0. The reply reports the failing image and stops the checkpoint, keeps the baseline, raises no tolerance, and leaves a new baseline to the person in a new directory. new-directory reads the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, check-visual-parity, baseline, no-network]
+expected_outcome: 'Reports invoice-list-40-rows.png failing with differing=212, stops the checkpoint, keeps and does not re-manifest the baseline, passes no higher tolerance, and says a new baseline is the person''s call in a new directory.'
+execution:
+  prompt: '/testing:check-visual-parity compare. Do not read the repository, capture, install or run anything; treat these as facts and each step as already run with the result given. The baseline for the invoice list is in .work/swap-grid/visual-parity/baseline/ and the compare at checkpoint 3 printed `differing=212 tolerance=0 verdict=fail name=invoice-list-40-rows.png` and exited 1. The new grid component renders row borders 1px lighter. Finish the checkpoint: say what you do and report, then stop.'
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: new-directory
+    type: regex
+    pattern: '\bnew\s+(?:baseline\s+)?(?:directory|dir|folder)\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is a failing visual-parity compare at checkpoint 3 that the user asked to finish. PASS only if the reply satisfies every legacy expectation: "Reports invoice-list-40-rows.png as failing with differing=212" "Does not re-capture, overwrite or re-manifest the baseline directory" "Does not raise the tolerance or pass a --tolerance above the configured value" "Leaves accepting the change as a new baseline to the person". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-constant-restatement`: assert behavior instead, `validatePost('a'.repeat(281)).ok` is false and 280 passes.",
+      "why": "behavior check"
+    },
+    {
+      "answer": "`testing/audit/rule-constant-restatement`. If 280 is a published contract constant, annotate it `// cant-fail-ok: contract constant`.",
+      "why": "annotation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-constant-restatement`: delete the test.",
+      "why": "deletion"
+    }
+  ]
+}

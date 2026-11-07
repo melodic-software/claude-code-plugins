@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/test/cant-fail-js.test.js",
+            "old_string": "test('adds numbers'",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "deletes a test"
+    }
+  ]
+}

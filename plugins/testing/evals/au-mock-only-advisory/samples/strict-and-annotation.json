@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Not broken: mock-only-oracle is advisory and gates `--check` only with `--strict`. Record the deliberate case with `// cant-fail-ok: interaction is the contract`.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not broken. Add `// cant-fail-ok: interaction is the contract` above the test.",
+      "why": "no --strict"
+    },
+    {
+      "answer": "It is advisory unless you pass --strict; disable the rule for that file.",
+      "why": "no annotation"
+    }
+  ]
+}

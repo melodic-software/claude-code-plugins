@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Invoice list and editor: `npm run test:visual` runs the repository's suite; I report its verdict. Settings page: capture it with the Playwright CLI, run `manifest`, then `compare`.",
+      "why": "suite command and the manifest step for the uncovered state"
+    },
+    {
+      "answer": "| Settings page | Route 2: the Playwright CLI |\n\nCompare is `visual-compare.sh compare --baseline <dir> --after <dir>`. Invoice list and editor: `npm run test:visual`.",
+      "why": "names the compare script (the smoke rerun reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Capture all three states with the Playwright CLI, run manifest and compare them here.",
+      "why": "no suite run"
+    },
+    {
+      "answer": "Run `npm run test:visual` for all three states.",
+      "why": "settings page left to a suite that does not cover it"
+    }
+  ]
+}

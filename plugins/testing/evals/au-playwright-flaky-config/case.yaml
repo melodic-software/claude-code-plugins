@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-playwright-flaky-config
+description: 'Legacy audit 8. A Playwright scaffold config retries on CI with no failOnFlakyTests. The scan reports rule-flaky-passes-suite and the reply proposes failOnFlakyTests: true or retries: 0. skill-fired and ran-scanner read the tool calls, flaky-rule-and-fix the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, runner-config, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-flaky-passes-suite at the retries line, explains a retry-earned pass leaves the run green, proposes failOnFlakyTests: true or retries: 0, and notes it gates only under --strict.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our Playwright suite has been green for weeks and every test body looks fine. Audit it for tests that cannot fail.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
+  - name: flaky-rule-and-fix
+    type: regex
+    pattern: '^(?=[\s\S]*(?:(?:testing/audit/)?rule-flaky-passes-suite))(?=[\s\S]*(?:(?:failOnFlakyTests[`*\s]*:\s*true|retries[`*\s]*:\s*0\b)))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a can''t-fail audit of a Playwright suite whose test bodies look fine. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-flaky-passes-suite with the retries value the config sets and the absent failOnFlakyTests key" "Output explains the retry-recovery mechanism: a test that fails and passes on a retry leaves the run green" "Output proposes failOnFlakyTests: true or retries: 0 and notes the config findings gate only under --strict". FAIL if any point is missing or contradicted.'

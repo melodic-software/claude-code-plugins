@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: au-greater-than-zero-weak
+description: 'Legacy audit 21. An inline Vitest test whose only oracle is .length toBeGreaterThan(0). The reply reports rule-weak-oracle and proposes asserting the exact titles or count from a known catalogue. skill-fired reads the Skill call, weak-oracle-rule the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, audit, weak-oracle, no-network]
+expected_outcome: 'Reports testing/audit/rule-weak-oracle for toBeGreaterThan(0) and proposes asserting the expected books or count from a known catalogue fixture.'
+execution:
+  prompt: 'Audit this Vitest test from src/search.test.ts: `import { expect, test } from ''vitest''; import { searchBooks } from ''./search''; test(''finds books by author'', () => { expect(searchBooks({ author: ''Le Guin'' }).length).toBeGreaterThan(0); });`'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: weak-oracle-rule
+    type: regex
+    pattern: '(?:(?:testing/audit/)?rule-)?weak-oracle\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an audit of a Vitest test whose only check is that searchBooks({ author: ''Le Guin'' }) returns more than zero results. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-weak-oracle for the toBeGreaterThan(0) assertion" "Output proposes asserting the specific books or count expected from a known catalogue". FAIL if any point is missing or contradicted.'

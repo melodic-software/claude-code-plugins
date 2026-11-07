@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`npm test` exited 1 before any test ran: environment failure, not a verdict. Last lines: the container's Playwright version does not match @playwright/test.",
+      "why": "environment failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`npm test` exited 1: order list and order detail fail the compare.",
+      "why": "reported as a verdict"
+    }
+  ]
+}
