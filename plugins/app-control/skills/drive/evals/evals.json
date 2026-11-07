@@ -552,14 +552,30 @@
     {
       "id": 39,
       "name": "cleanup-rewrite-keeps-capture-verdicts-when-values-source-stopped",
-      "prompt": "/app-control:drive cleanup --unattended --out ./evidence. An earlier drive cart run in this session wrote ./evidence/report.json: its artifacts list cart-basket-01-screenshot.png with mask applied and publishable true, and its publishable list holds that screenshot, report.public.md and report.public.json. The sidecar ./evidence/cart-basket-01-screenshot.png.txt is unchanged since that run and reads `Cart (2 items) Checkout`. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has a `## Mask` with `- account email | [^@ ]+@[^@ ]+` and values: `cli/whoami`; cli/whoami asks the running shop session for its account and exits 1 with no output when no session runs. report.json's launch lists the shop session this run started. Nobody is available to answer questions.",
-      "expected_output": "Stops the shop session this run started, then rewrites the report. cli/whoami now fails, so report.public.md and report.public.json leave the publishable list, while cart-basket-01-screenshot.png keeps mask applied and publishable true because its sidecar has not changed since the first scan.",
+      "prompt": "/app-control:drive cleanup --unattended --out ./evidence. An earlier, separate drive cart invocation wrote ./evidence/report.json: its artifacts list cart-basket-01-screenshot.png with mask applied, publishable true and sidecar_sha256 269d980af10583d30bf1485181c76b563b6501cba521f138c7f247b4911014c9, and its publishable list holds that screenshot, report.public.md and report.public.json. The sidecar ./evidence/cart-basket-01-screenshot.png.txt is unchanged since that run: it reads `Cart (2 items) Checkout` and its SHA-256 is still 269d980af10583d30bf1485181c76b563b6501cba521f138c7f247b4911014c9. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has a `## Mask` with `- account email | [^@ ]+@[^@ ]+` and values: `cli/whoami`; cli/whoami asks the running shop session for its account and exits 1 with no output when no session runs. report.json's launch lists the shop session this run started. Nobody is available to answer questions.",
+      "expected_output": "Stops the shop session this run started, then rewrites the report. It holds no values from the earlier invocation, so it runs cli/whoami again, which now fails: report.public.md and report.public.json leave the publishable list, while cart-basket-01-screenshot.png keeps mask applied and publishable true because its sidecar's SHA-256 still equals the recorded sidecar_sha256.",
       "files": [],
       "narration": true,
       "expectations": [
+        "Compares the sidecar's current SHA-256 with the sidecar_sha256 recorded in report.json before keeping the screenshot's verdict",
         "Keeps cart-basket-01-screenshot.png in artifacts with mask applied and publishable true, and in report.json's publishable list",
         "Leaves report.public.md and report.public.json out of report.json's publishable list",
         "Does NOT set the screenshot to not-checked because cli/whoami failed after cleanup",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "cleanup-rewrite-changed-sidecar-not-checked-when-values-source-stopped",
+      "prompt": "/app-control:drive cleanup --unattended --out ./evidence. An earlier, separate drive cart invocation wrote ./evidence/report.json: its artifacts list cart-basket-01-screenshot.png with mask applied, publishable true and sidecar_sha256 269d980af10583d30bf1485181c76b563b6501cba521f138c7f247b4911014c9, and its publishable list holds that screenshot, report.public.md and report.public.json. The sidecar ./evidence/cart-basket-01-screenshot.png.txt has changed since that run: it now reads `Cart (2 items) Checkout` then `Signed in as Dana`, and its SHA-256 is fed4a4e44ee07d68e975fa4163497f2ced38271eb278671eb23875b97b8eb840. The project's control-shop skill (.claude/skills/control-shop/SKILL.md) has a `## Mask` with `- account email | [^@ ]+@[^@ ]+` and values: `cli/whoami`; cli/whoami asks the running shop session for its account and exits 1 with no output when no session runs. report.json's launch lists the shop session this run started. Nobody is available to answer questions.",
+      "expected_output": "Stops the shop session this run started, then rewrites the report. It runs cli/whoami again, which now fails, so report.public.md and report.public.json leave the publishable list. The sidecar's SHA-256 no longer equals the recorded sidecar_sha256, so cart-basket-01-screenshot.png becomes mask not-checked and publishable false and leaves the publishable list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Sets cart-basket-01-screenshot.png to mask not-checked and publishable false in artifacts",
+        "Leaves cart-basket-01-screenshot.png out of report.json's publishable list",
+        "Leaves report.public.md and report.public.json out of report.json's publishable list",
+        "Does NOT keep the screenshot's earlier applied verdict after its sidecar changed",
         "Asks the user no question"
       ]
     }

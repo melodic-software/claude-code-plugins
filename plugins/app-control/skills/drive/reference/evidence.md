@@ -53,7 +53,7 @@ For a job. One object with these fields:
 | `budgets` | One entry per `Budget:` line in the driven feature's `## Drive`: `measure`, `source`, `value` (as measured, or `null` with the reason when the source gave none), `threshold` and `layer` (from config `budgets.<feature id>.<measure>`, or `unset` for both when no layer sets it); an empty list when the feature has none. No entry compares the value with the threshold |
 | `secrets_mark` | A list with one entry per raw capture, plus `report.md` and `report.json` once they hold a command line: `path`, `mark` (`may hold secrets; do not commit`) and `unignored_in_git_tree` (`true` when the run directory sits in a git working tree and is not ignored); an empty list when the run wrote no raw capture and recorded no command line |
 | `capture_count` | The number of captures the run wrote, of every kind, sidecars not counted |
-| `artifacts` | One entry per capture: `path`, `kind`, `mask` (`applied`, `none-declared`, `not-checked` or `hit`, per [Mask post-check](#mask-post-check)) and `publishable` (`true` or `false`) |
+| `artifacts` | One entry per capture: `path`, `kind`, `mask` (`applied`, `none-declared`, `not-checked` or `hit`, per [Mask post-check](#mask-post-check)), `publishable` (`true` or `false`) and `sidecar_sha256` (for a `screenshot` or `video`, the SHA-256 of its sidecar's bytes as the last scan read them; `null` for any other kind or a missing sidecar) |
 | `values_none` | One entry per `values:` source that printed `none: <reason>` ([Mask post-check](#mask-post-check)): `source` and `reason`; an empty list when none did |
 | `publishable` | The paths safe to upload: each capture whose `publishable` is `true`, then `report.public.md` and `report.public.json` when the post-check passed them; an empty list when none passed |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
@@ -66,21 +66,17 @@ The file has no field that rates the outcome. The caller decides what the eviden
 
 Copies of `report.md` and `report.json` for upload, written by every run that writes a report.
 Each command line (`launch[].command_line`, `steps[].command`, `steps[].process.command_line`, a
-command in `ready.surfaces`) and each `observed` text reads `[redacted]`. `report.public.json` leaves out `secrets_mark` and
-`publishable`. They go in `publishable` only when the post-check passes them, like a capture.
+command in `ready.surfaces`) and each `observed` text reads `[redacted]`. `report.public.json` leaves out `secrets_mark`,
+`publishable` and each `sidecar_sha256`: a hash of a short sidecar can confirm a guessed value,
+and only a rewrite reads it, from `report.json`. They go in `publishable` only when the post-check passes them, like a capture.
 
 ## Mask post-check
 
 Run after the last capture: scan the sidecars and set each capture's `mask`, then write the two
 public reports and scan them, then give `report.json` its `publishable` list. Each later rewrite
-of the report, cleanup's included, rewrites the public reports and scans them again, with the
-values this run already resolved when it still holds them in memory; it resolves the sources again
-only when it does not. A `values:` source that resolves only while the app runs, such as one that
-asks the running session, fails once cleanup has stopped it. On a rewrite, such a failure
-unpublishes both public reports. Each capture keeps the `mask` and `publishable` the first
-post-check gave it when its sidecar has not changed since that scan. The post-check decides what may
-leave the machine; the run directory stays whole for the caller to read locally. It fails closed:
-whatever it cannot show clean is not publishable.
+of the report, cleanup's included, runs it again; steps 2 and 4 say what a rewrite keeps. The
+post-check decides what may leave the machine; the run directory stays whole for the caller to read
+locally. It fails closed: whatever it cannot show clean is not publishable.
 
 1. **Mask in effect.** The hub's own `## Mask`, or, when its only line is the hand-off line, the
    target's, found as the control-skill contract's "The Mask section" says, under the same
@@ -92,11 +88,16 @@ whatever it cannot show clean is not publishable.
    `none: <reason>`, with a reason, and that exits 0 resolves with no values; record it in
    `values_none`. Hold the values in memory and never write one to any file, the report included.
    Any other source that fails or yields no value, such as a non-zero exit, empty output, or a
-   `none:` line with any other line beside it, leaves every capture `not-checked` and both public
-   reports unpublished.
+   `none:` line with any other line beside it, leaves both public reports unpublished and sets each
+   capture's `mask` as step 4 says for an unresolved source. A rewrite uses the values this
+   invocation still holds and resolves the sources again only when it holds none, as a separate
+   cleanup invocation does. A source that resolves only while the app runs, such as one that asks
+   the running session, fails once cleanup has stopped it.
 3. **Scan.** Scan each `screenshot` and `video` sidecar, `report.public.md` and
-   `report.public.json`. First delete box-drawing characters (U+2500 to U+257F), then join line
-   wraps by deleting each line break with the whitespace around it. A hit is either:
+   `report.public.json`, and record each sidecar's SHA-256, over its bytes as read, in that
+   capture's `sidecar_sha256` (on a rewrite, only after step 4 has read the recorded one). First
+   delete box-drawing characters (U+2500 to U+257F), then join line wraps by deleting each line
+   break with the whitespace around it. A hit is either:
    - a value found in the text, ignoring case, whitespace and `|` in both, so a value wrapped
      across two rows or split by a table border still matches;
    - the generic credential pattern, ignoring case: an email address; `Bearer`, a space, then 8 or
@@ -104,16 +105,21 @@ whatever it cannot show clean is not publishable.
      `apikey` or `api_key`, then an optional quote, `=` or `:` and an optional quote, then a value
      of 8 or more characters, none of them whitespace, `*` or `•`; or a PEM private key header
      (`-----BEGIN`, then `PRIVATE KEY-----`).
-4. **Mask state.** Each capture's `mask`:
+4. **Mask state.** When a `values:` source did not resolve: on the first post-check every capture
+   is `not-checked`; on a rewrite a capture keeps the `mask` and `publishable` that `report.json`
+   held for it before this post-check only when its sidecar's SHA-256 now equals the
+   `sidecar_sha256` recorded there, and every other capture, one with no recorded hash included,
+   is `not-checked`. When every source resolved, each capture's `mask` is:
    - `hit`: the scan of its sidecar found a hit;
    - `applied`: the Mask in effect has mask lines, the sidecar is not empty and was modified after
      this capture's command started (one left by an earlier run in the directory does not count),
      and the scan found nothing;
    - `none-declared`: the same, with the Mask in effect reading `none: <reason>`;
    - `not-checked`: anything else, such as a run with no control skill, a hub with no `## Mask`
-     line, a hand-off target that cannot be read, a missing, empty or older sidecar, a `values:`
-     source that did not resolve, or a kind other than `screenshot` and `video`.
-5. **Publishable.** A capture is publishable only when it is a `screenshot` or `video`, its `mask`
+     line, a hand-off target that cannot be read, a missing, empty or older sidecar, or a kind
+     other than `screenshot` and `video`.
+5. **Publishable.** A capture step 4 kept keeps its `publishable` while it has no `secrets_mark`
+   entry. Any other capture is publishable only when it is a `screenshot` or `video`, its `mask`
    is `applied` or `none-declared`, and it has no `secrets_mark` entry. For a video, its sidecar
    holds every frame's text, so it passes only when every frame does. A public report is
    publishable when its scan found nothing and every `values:` source resolved. A raw capture, a
