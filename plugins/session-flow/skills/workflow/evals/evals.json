@@ -398,6 +398,29 @@
         "One continuation mechanism is recommended with its evidence",
         "No cloud session is mentioned or offered"
       ]
+    },
+    {
+      "id": 34,
+      "name": "retro-offer-off-omits-retro",
+      "prompt": "/session-flow:workflow wrap-up — I shipped the auth refactor across three PRs today, hit two CI surprises and fixed them. [retro_offer is off]",
+      "expected_output": "The wrap-up report covers the session's work and next steps but offers no retrospective: neither /session-flow:retro nor /session-flow:retro quick is mentioned or suggested.",
+      "files": [],
+      "expectations": [
+        "No retrospective is offered: /session-flow:retro is not mentioned or suggested",
+        "The rest of the wrap-up report is still produced"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "retro-offer-off-names-recurring-mistake",
+      "prompt": "/session-flow:workflow wrap-up — I made the same mistake twice this session: I pushed before running the pre-push checks, and both pushes were refused. The corrections plugin is not installed. [retro_offer is off]",
+      "expected_output": "No retrospective is offered. Because corrections is absent and no retro will run, the wrap-up report names the recurring mistake (pushing before the pre-push checks) itself.",
+      "files": [],
+      "expectations": [
+        "No retrospective is offered",
+        "The wrap-up report names the recurring mistake of pushing before the pre-push checks",
+        "/corrections:codify is not presented as available, since the plugin is not installed"
+      ]
     }
   ]
 }
