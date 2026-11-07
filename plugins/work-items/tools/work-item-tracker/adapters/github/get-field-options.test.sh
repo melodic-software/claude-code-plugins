@@ -55,19 +55,23 @@ assert_eq "named field → exit 0" "0" "$RC"
 assert_eq "lists the field's options" '[{"id":27053566,"name":"Large"},{"id":27053567,"name":"Medium"},{"id":27053568,"name":"Small"}]' \
   "$(jq -c '.options' <<<"$OUT")"
 assert_eq "output echoes the requested field" "Size" "$(jq -r '.field' <<<"$OUT")"
+assert_eq "named field → its numeric id" "15462270" "$(jq -c '.field_id' <<<"$OUT")"
 assert_contains "reads the repo owner's org" "$(head -n 1 "$LOG")" "orgs/o/issue-fields"
 
 run --field 48625720 --repo o/r
 assert_eq "field by numeric id → exit 0" "0" "$RC"
 assert_eq "field by id lists its options" '["High","Low"]' "$(jq -c '[.options[].name]' <<<"$OUT")"
+assert_eq "field by id → the same numeric id" "48625720" "$(jq -c '.field_id' <<<"$OUT")"
 
 run --field Missing --repo o/r
 assert_eq "absent field → exit 0" "0" "$RC"
 assert_eq "absent field → empty list" "[]" "$(jq -c '.options' <<<"$OUT")"
+assert_eq "absent field → null field_id" "null" "$(jq -c '.field_id' <<<"$OUT")"
 
 run --field "Target date" --repo o/r
 assert_eq "field with no options → exit 0" "0" "$RC"
 assert_eq "field with no options → empty list" "[]" "$(jq -c '.options' <<<"$OUT")"
+assert_eq "field with no options → its numeric id" "7" "$(jq -c '.field_id' <<<"$OUT")"
 
 GH_STUB_ERR="HTTP 403: Forbidden" run --field Size --repo o/r
 assert_eq "failed listing → mapped auth exit" "4" "$RC"

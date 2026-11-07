@@ -151,10 +151,12 @@ wit_detect_status_storage() {
 # wit_attach_statuses <adapter-dir> <manifest> [--repo <o>/<r>]: stdin a list envelope,
 # stdout the same envelope whose frontier candidates (open, unblocked, unassigned) carry
 # `status`, their Work status value or null, when the tracker stores status in that
-# field (CONTRACT.md "Verbs", list-frontier). Labels decide instead, with one stderr
-# warning, when the adapter cannot read the field or a read fails.
+# field (CONTRACT.md "Verbs", list-frontier). A failed status-storage or get-statuses
+# read prints one stderr line and returns the adapter's code with nothing on stdout; a
+# malformed answer returns 1. `labels` storage and an adapter without get-statuses pass
+# the envelope through.
 wit_attach_statuses() {
-  local adapter_dir="$1" manifest="$2" envelope ids out errfile i n id statuses='{}' chunk=()
+  local adapter_dir="$1" manifest="$2" envelope ids out errfile i n id statuses='{}' chunk=() rc
   shift 2
   envelope="$(cat)"
   if [[ "$(jq -r '.verbs["get-statuses"] // false' "$manifest")" != "true" ]]; then
@@ -162,10 +164,9 @@ wit_attach_statuses() {
     return 0
   fi
   if ! wit_detect_status_storage "$adapter_dir" "$manifest" "$@"; then
-    printf 'work-item-tracker: status storage unread (exit %s), so labels decide the frontier: %s\n' \
+    printf 'work-item-tracker: status storage unread (exit %s): %s\n' \
       "$WIT_STATUS_RC" "$WIT_STATUS_ERR" >&2
-    printf '%s\n' "$envelope"
-    return 0
+    return "$WIT_STATUS_RC"
   fi
   if [[ "$WIT_STATUS_STORAGE" != "field" ]]; then
     printf '%s\n' "$envelope"
@@ -180,13 +181,16 @@ wit_attach_statuses() {
       chunk+=("$id")
     done < <(jq -r --argjson i "$i" '.[$i:$i + 100][]' <<<"$ids")
     errfile="$(mktemp)"
-    if ! out="$(bash "$adapter_dir/get-statuses.sh" --field "$WIT_STATUS_FIELD" "${chunk[@]}" 2>"$errfile")" ||
-      ! out="$(jq -ce '.statuses | objects' <<<"$out" 2>/dev/null)"; then
-      printf 'work-item-tracker: %s values unread, so labels decide the frontier: %s\n' \
+    rc=0
+    out="$(bash "$adapter_dir/get-statuses.sh" --field "$WIT_STATUS_FIELD" "${chunk[@]}" 2>"$errfile")" || rc=$?
+    if ((rc == 0)); then
+      out="$(jq -ce '.statuses | objects' <<<"$out" 2>/dev/null)" || rc=1
+    fi
+    if ((rc != 0)); then
+      printf 'work-item-tracker: %s values unread: %s\n' \
         "$WIT_STATUS_FIELD" "$(<"$errfile")" >&2
       rm -f "$errfile"
-      printf '%s\n' "$envelope"
-      return 0
+      return "$rc"
     fi
     rm -f "$errfile"
     statuses="$(jq -cn --argjson acc "$statuses" --argjson page "$out" '$acc + $page')"
@@ -398,7 +402,7 @@ main() {
     # The autonomous floor reads each candidate's Work status when the tracker
     # stores status there; the default frontier reads no status.
     if [[ "$autonomous" == "true" ]]; then
-      out="$(printf '%s\n' "$out" | wit_attach_statuses "$adapter_dir" "$manifest" "${repo_args[@]+"${repo_args[@]}"}")"
+      out="$(printf '%s\n' "$out" | wit_attach_statuses "$adapter_dir" "$manifest" "${repo_args[@]+"${repo_args[@]}"}")" || exit $?
     fi
     # wit_read_binding above guarantees both labels; no inline defaults here.
     printf '%s\n' "$out" |
