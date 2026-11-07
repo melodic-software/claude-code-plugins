@@ -204,6 +204,7 @@ test("a person's needs-human that lands after the read keeps a parked issue held
   assert.equal(w.field(), "needs-human", "the person's hold stands");
   assert.ok(!w.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
   assert.deepEqual(w.dispatches(), []);
+  assert.deepEqual(w.labels(), ["priority: medium", "status: confirmed"], "the status label the run took off is put back");
 });
 
 test("a decision releases the person's needs-owner-decision it answers, and keeps a different person's hold set after the read", async () => {
@@ -223,6 +224,7 @@ test("a decision releases the person's needs-owner-decision it answers, and keep
   assert.equal(raced.field(), "needs-human", "the person's later hold stands");
   assert.ok(!raced.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
   assert.deepEqual(raced.dispatches(), []);
+  assert.deepEqual(raced.labels(), ["priority: medium", "status: needs-decision"], "the status label the run took off is put back");
 });
 
 test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
@@ -557,6 +559,24 @@ test("a failed dispatch on an issue with no status label leaves it at needs-tria
   expectTriage(w, ["priority: medium"]);
   assert.equal(await run(w, 1), 0);
   assert.equal(w.dispatches().length, 1, "only the failed call");
+});
+
+test("a failed dispatch puts the label back but keeps a person's hold set after the field write", async () => {
+  const before = ["priority: medium", "status: needs-decision"];
+  const fieldNodes = [];
+  const w = world({ labels: before, comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes, fail: `POST ${DISPATCH}` });
+  const github = async (method, path, body) => {
+    if (method === "POST" && path === DISPATCH) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-human" }));
+    return w.github(method, path, body);
+  };
+  assert.equal(await run({ ...w, github }, 1), 1);
+  assert.deepEqual(w.labels(), before);
+  assert.equal(w.field(), "needs-human", "the person's hold stands");
+  assert.deepEqual(
+    w.writes.filter(([method, path]) => method === "POST" && path === FIELD_WRITE).map(([, , body]) => body.issue_field_values[0].value),
+    ["needs-triage"],
+    "the restore writes no needs-owner-decision over the hold",
+  );
 });
 
 test("a failed dispatch leaves the labels as they were and sets the answered status back", async () => {

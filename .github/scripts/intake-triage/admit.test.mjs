@@ -11,6 +11,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
@@ -1816,7 +1817,7 @@ const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
 describe("admit", () => {
   // Under a cap the issue claims its place with a change of its Work status
   // to deferred before it takes agent-ready, which the field records too.
-  const CLAIMED = [STATUS("deferred"), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`, STATUS(AGENT_READY)];
+  const CLAIMED = [STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`];
 
   test("adds agent-ready when every criterion holds and the caps have room", async () => {
     const fake = fakeGitHub();
@@ -1845,6 +1846,36 @@ describe("admit", () => {
     const result = await go(fake);
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), [...CLAIMED, `DELETE /repos/o/r/issues/7/labels/${encodeURIComponent(CONFIRMED)} undefined`]);
+  });
+
+  // The real write-status.mjs writer over the base config's field (48484079):
+  // a listed human sets needs-human (option 86380005) right after the claim.
+  test("a person's hold that lands between the claim and agent-ready stops the label and the agent-ready write", async () => {
+    const fake = fakeGitHub();
+    const FIELD = 48484079;
+    let field = null;
+    const github = async (method, path, body, ...rest) => {
+      if (path === "/repos/o/r/issues/7/issue-field-values") {
+        fake.calls.push({ method, path, body });
+        if (method === "GET") {
+          return field ? [{ issue_field_id: FIELD, single_select_option: { id: field.option } }] : [];
+        }
+        const value = body.issue_field_values[0].value;
+        assert.equal(value, "deferred", "only the claim is written");
+        field = { option: 86380005, setter: HUMAN };
+        return [{ issue_field_id: FIELD, single_select_option: { id: 86380004 } }];
+      }
+      if (method === "POST" && path === "/graphql" && body.query.includes("IssueFieldAddedEvent")) {
+        const nodes = field ? [{ __typename: "IssueFieldAddedEvent", actor: { databaseId: field.setter }, issueField: { fullDatabaseId: String(FIELD) } }] : [];
+        return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+      }
+      return fake.github(method, path, body, ...rest);
+    };
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github, repository: "o/r" });
+    const result = await admit({ ...goArgs(fake), github, setStatus: set });
+    assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
+    const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);
+    assert.deepEqual(posts, [`/repos/o/r/issues/7/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: FIELD, value: "deferred" }] })}`], "no agent-ready label and no agent-ready field write");
   });
 
   // Parallel apply-verdict runs for other issues read the same room: only
@@ -1919,7 +1950,7 @@ describe("admit", () => {
       }, { 8: { state: "deferred", nodes } });
       const listing = {
         issues: async (states, options) => {
-          assert.deepEqual([states, options], [["deferred"], { since: "2026-11-08T10:00:00Z" }]);
+          assert.deepEqual([states, options], [["deferred", AGENT_READY], { since: "2026-11-08T10:00:00Z" }]);
           return [{ number: 8, created_at: "2026-11-01T00:00:00Z", labels: [], state: "deferred" }];
         },
         events: (number) => statusEvents({ github, repository: "o/r", number, config: STATUS_CONFIG }),
@@ -2051,9 +2082,9 @@ describe("admit", () => {
         }
       };
       const listing = {
-        issues: async () => {
+        issues: async (wanted) => {
           await turns();
-          return numbers.filter((n) => states.get(n) === "deferred").map((n) => ({ number: n, created_at: new Date(createdAt(n)).toISOString(), labels: [...labels.get(n)], state: "deferred" }));
+          return numbers.filter((n) => wanted.includes(states.get(n))).map((n) => ({ number: n, created_at: new Date(createdAt(n)).toISOString(), labels: [...labels.get(n)], state: states.get(n) }));
         },
         events: async (n) => {
           await turns();
@@ -2208,7 +2239,7 @@ describe("admit", () => {
     const fake = fakeGitHub();
     const result = await go(fake, { status: { ...open, admission_room: null, admission_basis: "read" } });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`, STATUS(AGENT_READY)]);
+    assert.deepEqual(writes(fake.calls), [STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
   test("a mechanical refusal swaps status: ready for status: confirmed and posts the reason", async () => {
@@ -2539,7 +2570,7 @@ describe("admit() with the Work status field", () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
     const result = await admit({ ...withStatus(fake, { 7: { state: "deferred" } }), status: async () => ({ ...open, admission_room: 1 }) });
     assert.equal(result.outcome, "admitted");
-    assert.deepEqual(writes(fake.calls), [STATUS("ready"), STATUS("deferred"), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`, STATUS(AGENT_READY)]);
+    assert.deepEqual(writes(fake.calls), [STATUS("ready"), STATUS("deferred"), STATUS(AGENT_READY), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
 
   test("a wait with no open pull request takes a field-only deferral back to ready", async () => {

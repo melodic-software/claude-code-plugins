@@ -289,13 +289,13 @@ const dispatch = (client, repository, issue) =>
     inputs: { "issue-number": String(issue.number) },
   });
 
-// Sets the Work status back to `state` and puts back `label` when the run
-// took it off.
-async function restore({ set, client, base, number, state, label, log }) {
+// Puts back `label` when the run took it off, and sets the Work status back
+// to `state`, when given, unless a person's hold landed since (keepHold).
+async function restore({ set, client, base, number, state, label, log, next = "; re-run the job to send the issue back to triage" }) {
   const back = async (what, write) => {
     try {
-      await write();
-      log(`intake-reenter: restored ${what}; re-run the job to send the issue back to triage`);
+      const result = await write();
+      log(result?.outcome === "held" ? `intake-reenter: left ${what} unrestored, since a person's Work status ${result.state} holds the issue` : `intake-reenter: restored ${what}${next}`);
     } catch {
       log(`::error title=intake-reenter::could not restore ${what}; restore it by hand`);
     }
@@ -303,7 +303,9 @@ async function restore({ set, client, base, number, state, label, log }) {
   if (label) {
     await back(label, () => client("POST", `${base}/labels`, { labels: [label] }));
   }
-  await back(`Work status ${state}`, () => set(number, state));
+  if (state) {
+    await back(`Work status ${state}`, () => set(number, state, { keepHold: true, releases: state }));
+  }
 }
 
 // Each answer's status: the label it takes off when the issue carries it, and
@@ -391,6 +393,7 @@ export async function main({ env = process.env, github, log = console.log, statu
       // keepHold), except the hold this answer releases.
       const moved = await set(number, NEEDS_TRIAGE, { keepHold: true, releases: prior });
       if (moved?.outcome === "held") {
+        await restore({ set, client, base, number, state: null, label: took ? status : null, log, next: "" });
         log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the answer changes nothing; nothing dispatched`);
         return 0;
       }

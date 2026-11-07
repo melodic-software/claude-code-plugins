@@ -2600,10 +2600,10 @@ export async function deferredAhead(github, repository, issue, listing, pullsFor
 export const RACE_WINDOW_MS = 10 * 60_000;
 
 // The open issues that entered admission at or after `since` (ms since the
-// epoch), [{number, at}], earliest first. Each one reads deferred
-// (`listing.issues`, issuesByStatus) or carries agent-ready in the issues
-// listing, read in that order: admit() writes agent-ready before it drops
-// its claim, so an issue gone from the first listing is in the second. `at`
+// epoch), [{number, at}], earliest first. Each one reads deferred or
+// agent-ready (`listing.issues`, issuesByStatus) or carries agent-ready in the
+// issues listing: admit() moves the field from its deferred claim straight to
+// agent-ready before it adds the label, so no admitted issue drops out. `at`
 // is its newest change to deferred at or after `since` in its status history
 // (`listing.events(number)`, read-status.mjs statusEvents, where that change
 // reads as an admission-deferred add), the claim admit() makes, else its
@@ -2614,7 +2614,7 @@ export async function admissionsSince(github, repository, since, listing) {
   const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
   const listed = new Set();
   for (const item of [
-    ...(await listing.issues(["deferred"], { since: stamp })),
+    ...(await listing.issues(["deferred", AGENT_READY], { since: stamp })),
     ...(await paginate(github, `/repos/${repository}/issues?labels=${encodeURIComponent(AGENT_READY)}&state=open&since=${stamp}`)),
   ]) {
     if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
@@ -2820,8 +2820,12 @@ export async function admit({ github, repository, number, verdict, rules, humans
       return { outcome: "deferred", reasons: [why] };
     }
   }
+  // The field goes first, so a person's hold set since the claim stops the label.
+  const stop = held(await move(AGENT_READY));
+  if (stop) {
+    return stop;
+  }
   await github("POST", `${base}/labels`, { labels: [AGENT_READY] });
-  await setStatus(number, AGENT_READY);
   // A manual re-dispatch skips intake-reenter, which lifts the parked
   // status: confirmed; lift it here, as a refusal lifts status: ready, so
   // the issue keeps one status label.

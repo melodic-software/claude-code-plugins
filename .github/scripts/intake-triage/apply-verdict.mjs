@@ -712,17 +712,24 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     await removeLabels(github, base, remove.filter((name) => !late.includes(name)));
     await addLabels(github, base, labelAdds);
     stateWrite = await writeState();
-    await removeLabels(github, base, late);
+    if (stateWrite?.outcome !== "held") {
+      await removeLabels(github, base, late);
+    }
   } else {
     await removeLabels(github, base, unready);
     stateWrite = await writeState();
   }
+  // A person's hold set since the read ends the run: the issue is theirs.
+  if (stateWrite?.outcome === "held") {
+    const why = `a person's Work status ${stateWrite.state} holds it`;
+    const summary = `apply-verdict: #${number} left as is (${why}); no admission`;
+    log(summary);
+    return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission: { outcome: "held", reasons: [why], status: stateWrite.state }, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
+  }
   // An admission error stops neither the reasons comment nor the summary; the caller
   // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
-  if (stateWrite?.outcome === "held") {
-    admission = { outcome: "held", reasons: [`a person's Work status ${stateWrite.state} holds it`], status: stateWrite.state };
-  } else if (plan.ready && admitIssue && !waits) {
+  if (plan.ready && admitIssue && !waits) {
     try {
       admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {

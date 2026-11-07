@@ -1012,9 +1012,10 @@ describe("run", () => {
     assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/labels")), "no repository label read");
   });
 
-  test("a ready write a person's late hold answers held goes to no admission", async () => {
-    const fake = fakeGitHub({ comments: [laneComment()] });
+  test("a ready write a person's late hold answers held stops the run: no late label removal, no admission comment, no admission", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
     const admitted = [];
+    const logged = [];
     const result = await run({
       env: ENV,
       github: fake.github,
@@ -1023,11 +1024,16 @@ describe("run", () => {
       setStatus: async (number, state, options) => (options?.keepHold ? { outcome: "held", state: "needs-human" } : fake.setStatus(number, state, options)),
       statusConfig: STATUS_CONFIG,
       admitIssue: async () => admitted.push("admit") && { outcome: "admitted", reasons: [] },
-      log: () => {},
+      log: (line) => logged.push(line),
     });
     assert.deepEqual(admitted, [], "admission never runs");
     assert.deepEqual(result.admission, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
-    assert.match(result.summary, /- Status: needs-human/);
+    assert.deepEqual(logged, ["apply-verdict: #7 left as is (a person's Work status needs-human holds it); no admission"]);
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["POST /repos/o/r/issues/7/issue-field-values"],
+      "only the field values; needs-triage stays and no comment is written",
+    );
   });
 
   test("an issue holding only an old class label reads no events", async () => {

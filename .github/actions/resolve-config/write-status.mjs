@@ -67,10 +67,10 @@ export async function writeState({ github, repository, number, state, config, cu
 //   issue, or one `fields` (field id -> {option}) shows it holds. `fields`
 //   must come from a trusted read (read-status.mjs fieldStatus's rule): an
 //   option an untrusted account set would otherwise stop a write the field
-//   needs. With `keepHold`, an issue this process has not written is read
-//   first, and a hold (HOLD_STATES) a listed human set is not replaced
-//   unless it is `releases`, the hold the write answers: `set` answers
-//   `{outcome: "held", state}` and the caller treats the issue as held;
+//   needs. With `keepHold`, the field is read first on every call, and that
+//   read alone decides a skip; a hold (HOLD_STATES) a listed human set is not
+//   replaced unless it is `releases`, the hold the write answers: `set`
+//   answers `{outcome: "held", state}` and the caller treats the issue as held;
 // - `leaveAgentReady(number, state)` writes `state` only while the field's
 //   trusted state (read-status.mjs fieldStatus) is agent-ready, so taking
 //   agent-ready off never resets another state.
@@ -104,14 +104,17 @@ export async function statusWriter({ env, github, repository }) {
     if (failure) {
       throw failure;
     }
-    // An issue this process already wrote holds that write, so it is not read again.
-    if (keepHold && !wrote.has(number)) {
+    // A person may set a hold after any write, this process's own included.
+    if (keepHold) {
       const now = await readField(number);
       if (now.personHold && now.state !== releases) {
         return { outcome: "held", state: now.state };
       }
+      if (now.state === state) {
+        return { outcome: "unchanged", state };
+      }
     }
-    const current = wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option;
+    const current = keepHold ? null : (wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option);
     const result = await writeState({ github, repository, number, state, config, current });
     wrote.set(number, result.option);
     return result;

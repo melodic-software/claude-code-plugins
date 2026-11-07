@@ -67,7 +67,8 @@ for (const [why, answer, state, config, text] of [
 }
 
 // A fake whose field reads `option`, last set by `setter`, and whose POSTs
-// answer with the posted state's option.
+// answer with the posted state's option and set the field to it, by the lanes
+// App. `put(option, setter)` sets the field as a person would between writes.
 function fieldWorld(option, setter) {
   const calls = [];
   const github = async (method, path, body) => {
@@ -79,12 +80,18 @@ function fieldWorld(option, setter) {
     }
     if (method === "POST" && path.endsWith("/issue-field-values")) {
       const state = body.issue_field_values[0].value;
-      return [{ issue_field_id: FIELD, single_select_option: { id: Number(Object.keys(CONFIG.options).find((id) => CONFIG.options[id] === state)) } }];
+      option = Number(Object.keys(CONFIG.options).find((id) => CONFIG.options[id] === state));
+      setter = 337595936;
+      return [{ issue_field_id: FIELD, single_select_option: { id: option } }];
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
   const posts = () => calls.filter(([method, path]) => method === "POST" && path.endsWith("/issue-field-values"));
-  return { github, posts };
+  const put = (next, by) => {
+    option = next;
+    setter = by;
+  };
+  return { github, posts, put };
 }
 const writerOver = (github, env = { BASE_PATH: ROOT }) => statusWriter({ env, github, repository: "o/r" });
 
@@ -133,10 +140,29 @@ test("statusWriter set with keepHold leaves a listed human's hold and replaces a
   }
   const written = fieldWorld(86380005, human);
   const { set } = await writerOver(written.github);
-  await set(7, "ready");
-  assert.equal((await set(7, "deferred", { keepHold: true })).outcome, "written", "an issue this process wrote is not read again");
   assert.equal((await set(8, "ready")).outcome, "written", "without keepHold the field is not read");
-  assert.deepEqual(written.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/8/issue-field-values"]);
+  written.put(86380005, human);
+  assert.deepEqual(await set(8, "deferred", { keepHold: true }), { outcome: "held", state: "needs-human" }, "an issue this process wrote is read again");
+  assert.deepEqual(written.posts().map(([, path]) => path), ["/repos/o/r/issues/8/issue-field-values"]);
+});
+
+test("statusWriter set with keepHold sees a person's hold set after this process's own keepHold write", async () => {
+  const w = fieldWorld(null);
+  const { set } = await writerOver(w.github);
+  assert.equal((await set(7, "ready", { keepHold: true })).outcome, "written");
+  w.put(86380005, 153232337);
+  assert.deepEqual(await set(7, "agent-ready", { keepHold: true }), { outcome: "held", state: "needs-human" });
+  assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["ready"]);
+});
+
+test("statusWriter set with keepHold writes a state again after another account changed the field", async () => {
+  const w = fieldWorld(null);
+  const { set } = await writerOver(w.github);
+  await set(7, "ready", { keepHold: true });
+  w.put(86380002, 153232337);
+  assert.equal((await set(7, "ready", { keepHold: true })).outcome, "written", "the field no longer reads ready");
+  assert.equal((await set(7, "ready", { keepHold: true })).outcome, "unchanged", "the field reads ready");
+  assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["ready", "ready"]);
 });
 
 test("statusWriter set with keepHold and releases replaces only the person's hold it releases", async () => {
