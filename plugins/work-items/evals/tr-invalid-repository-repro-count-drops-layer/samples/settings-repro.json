@@ -6,7 +6,7 @@
     },
     {
       "answer": "Settings: `triage_repro_count=2` (default, read from `origin/main`)",
-      "why": "code span and a note, from smoke b2"
+      "why": "code span and a layer note, written by analogy to case 24's smoke reply"
     },
     {
       "answer": "Settings: triage_repro_count=2 (default), triage_objection_window_hours=0 (default)",

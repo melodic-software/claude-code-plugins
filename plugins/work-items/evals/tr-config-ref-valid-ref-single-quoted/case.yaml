@@ -14,7 +14,7 @@ graders:
     target: 'last_message'
   - name: 'no-working-tree-value'
     type: 'regex'
-    pattern: 'triage_repro_count=1\b'
+    pattern: 'triage_repro_count=`?1`?[ \t]*\((?:repository|userConfig|default)\b'
     match: 'not_contains'
     target: 'last_message'
   - name: 'meets-expectations'
