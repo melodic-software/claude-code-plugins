@@ -50,6 +50,15 @@
 # reviewThreads, which has no REST equivalent, so it renders UNREADABLE there;
 # so does the stuck section, whose label events are a GraphQL read.
 #
+# Work status. When the default branch's docs/conventions/pr-pipeline.yaml
+# holds models.issue-status, the Queues, Stuck and Parked sections place each
+# open issue by its labels as its Work status field value decides them (the
+# value when set, else the labels; hold labels still hold), and the owner-touch
+# section counts the field's changes beside the label events. The value is read
+# as set, with no setter check: this view decides nothing. Over REST the field is
+# unread, so Queues and Parked print by label with a PARTIAL line. A failed
+# field read, or a value the model has no option for, is UNREADABLE.
+#
 # Usage:
 #   morning-brief.sh                          live view of the current repo
 #   morning-brief.sh --repo owner/name        target a specific repo
@@ -129,6 +138,10 @@
 #                             read returns them
 #   --touch-json FILE         {owner, laneIdentity, pages}: the operator and lane
 #                             logins and the owner-touch search page documents
+#   --status-json FILE        {model, pages}: models.issue-status as JSON (null:
+#                             no model) and the open-issue GraphQL page
+#                             documents; with a model, the Queues counts come
+#                             from the pages, not --counts-json
 #   --lane-runs-json FILE     object mapping a workflow file name to its runs,
 #                             each {id,html_url,event,display_title,head_sha,
 #                             status,conclusion,created_at} (the lanes section)
@@ -211,6 +224,7 @@ STUCK_JSON=""
 # and merge.agent-identity in the repo's pr-pipeline.yaml).
 TOUCH_DAYS="2"
 TOUCH_JSON=""
+STATUS_JSON=""
 OWNER_LOGIN_ARG=""
 LANE_IDENTITY_ARG=""
 HOLD_LABEL="needs-human"
@@ -619,6 +633,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_file "$1" "$2"
     TOUCH_JSON="$2"
+    shift 2
+    ;;
+  --status-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    STATUS_JSON="$2"
     shift 2
     ;;
   -*)
@@ -1088,6 +1108,212 @@ unreadable() {
 }
 
 # =============================================================================
+# Work status (models.issue-status)
+# =============================================================================
+# fetch_pipeline: the default branch's docs/conventions/pr-pipeline.yaml into
+# $WORK/pipeline.yaml, read once; an absent file leaves it empty. 1 on a failed read.
+fetch_pipeline() {
+  [[ -f "$WORK/pipeline.yaml" ]] && return 0
+  gh_read "$WORK/pipeline.raw" api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml" || {
+    [[ "$LAST_ERR" == *"Not Found"* || "$LAST_ERR" == *"HTTP 404"* ]] || return 1
+    : >"$WORK/pipeline.raw"
+  }
+  mv "$WORK/pipeline.raw" "$WORK/pipeline.yaml"
+}
+
+# status_model: STATUS_MODEL set to the model as JSON, or null when there is
+# none; 1 with LAST_ERR when it cannot be read.
+STATUS_MODEL=""
+status_model() {
+  [[ -n "$STATUS_MODEL" ]] && return 0
+  if [[ -n "$STATUS_JSON" ]]; then
+    jq -c 'if type == "object" and has("model") then .model else error end' "$STATUS_JSON" >"$WORK/status.model" 2>/dev/null || {
+      LAST_ERR="$(body_error "$STATUS_JSON")"
+      LAST_ERR="${LAST_ERR:-"--status-json is not an object {model, pages}"}"
+      return 1
+    }
+  else
+    fetch_pipeline || {
+      LAST_ERR="Work status model (docs/conventions/pr-pipeline.yaml): $LAST_ERR"
+      return 1
+    }
+    awk -f "$SCRIPT_DIR/lib/yaml-subset.awk" "$WORK/pipeline.yaml" >"$WORK/pipeline.flat" 2>/dev/null || {
+      LAST_ERR="docs/conventions/pr-pipeline.yaml could not be parsed"
+      return 1
+    }
+    jq -R -n -c '
+      reduce (inputs | split("\t") | select(.[0] | startswith("models.issue-status.")))
+        as $r ({}; setpath($r[0] | ltrimstr("models.issue-status.") | split("."); $r[1]))
+      | if has("field-id") then .labels |= map_values([to_entries[] | .value]) else null end
+    ' "$WORK/pipeline.flat" >"$WORK/status.model"
+  fi
+  jq -e '. == null or ((.["field-id"] | tostring | test("^[1-9][0-9]*$")) and (.options | type == "object")
+    and (.labels | type == "object" and all(.[]; type == "array")))' "$WORK/status.model" >/dev/null 2>&1 || {
+    LAST_ERR="the Work status model (models.issue-status) is malformed"
+    return 1
+  }
+  STATUS_MODEL="$(cat "$WORK/status.model")"
+}
+
+# jq definitions over the model $m. `effective($state)` is the issue's label
+# names as its Work status value decides them: none set leaves them; a set one
+# drops every queue-state label (a state neither held nor agent-ready), keeps
+# hold labels and agent-ready, and adds the state's first label unless present
+# or the state is agent-ready. `synthetic` turns one issue's field events into
+# label events: an unlabeled event of the state left, a labeled event of the
+# state set, each its first label; agent-ready makes none. A bot's field event
+# before field-events-since mirrored a label change and is dropped. A value the
+# model has no option for is an error.
+# shellcheck disable=SC2016  # jq program, not shell
+STATUS_DEFS='
+  def fold: ascii_downcase;
+  def mapped: if . == null or IN($m.options[]) then . else error("Work status `\(.)` is no option of the model") end;
+  def effective($state):
+    if $state == null then .
+    else ([$m.labels | to_entries[]
+           | select(.key != "agent-ready" and (.key | IN("needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec") | not))
+           | .value[] | fold]) as $queue
+      | [ .[] | select(fold | IN($queue[]) | not) ] as $kept
+      | $m.labels[$state][0] as $label
+      | if $state == "agent-ready" or $label == null or any($kept[]; fold == ($label | fold)) then $kept else $kept + [$label] end
+    end;
+  def synthetic:
+    reduce (.[]? | select(.issueField.fullDatabaseId == ($m["field-id"] | tostring))) as $e ({held: null, out: []};
+      (if $e.__typename == "IssueFieldRemovedEvent" then null elif $e.__typename == "IssueFieldChangedEvent" then $e.newValue else $e.value end | mapped) as $to
+      | .out += [{at: $e.createdAt, actor: $e.actor,
+                  from: (if $e.__typename == "IssueFieldChangedEvent" then $e.previousValue | mapped else .held end), to: $to}]
+      | .held = $to)
+    | .out[]
+    | select(.actor.__typename != "Bot" or $m["field-events-since"] == null
+             or (.at | fromdateiso8601) >= ($m["field-events-since"] | fromdateiso8601))
+    | . as $e
+    | (["UnlabeledEvent", $e.from], ["LabeledEvent", $e.to])
+    | select(.[1] != null and .[1] != "agent-ready" and $m.labels[.[1]][0] != null)
+    | {__typename: .[0], createdAt: $e.at, actor: {login: ($e.actor.login // "")}, label: {name: $m.labels[.[1]][0]}};
+'
+
+# The open issues with their labels, Work status values and the newest 100
+# label and field events, 50 a page; STATUS_PAGE_LIMIT pages at most, past
+# which the sections print PARTIAL.
+STATUS_PAGE_LIMIT=20
+STATUS_FIELD_EVENTS='nodes { __typename
+          ... on IssueFieldAddedEvent { createdAt value actor { __typename login } issueField { ...status } }
+          ... on IssueFieldChangedEvent { createdAt previousValue newValue actor { __typename login } issueField { ...status } }
+          ... on IssueFieldRemovedEvent { createdAt actor { __typename login } issueField { ...status } } }'
+STATUS_EVENT_TYPES='[ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]'
+STATUS_FRAGMENT='fragment status on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }'
+# shellcheck disable=SC2016  # GraphQL variables bound by -f, which MUST reach the server unexpanded
+STATUS_QUERY='
+    query($owner:String!, $name:String!, $endCursor:String) {
+      repository(owner:$owner, name:$name) {
+        issues(states:OPEN, first:50, after:$endCursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            number title url
+            labels(first:100) { nodes { name } }
+            issueFieldValues(first:25) {
+              pageInfo { hasNextPage }
+              nodes { ... on IssueFieldSingleSelectValue { name field { ...status } } }
+            }
+            labelEvents: timelineItems(itemTypes:[LABELED_EVENT], last:100) { nodes { __typename ... on LabeledEvent { createdAt label { name } } } }
+            fieldEvents: timelineItems(itemTypes:'"$STATUS_EVENT_TYPES"', last:100) { '"$STATUS_FIELD_EVENTS"' }
+          }
+        }
+      }
+    }
+    '"$STATUS_FRAGMENT"
+
+fetch_status_pages() {
+  local out="$1" cursor="" pages=0 args
+  : >"$out"
+  while :; do
+    args=(api graphql -f query="$STATUS_QUERY" -f owner="${REPO%%/*}" -f name="${REPO#*/}")
+    [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
+    gh_read "$WORK/status.page" "${args[@]}" || return 1
+    cat "$WORK/status.page" >>"$out"
+    pages=$((pages + 1))
+    cursor="$(jq -r '.data.repository.issues.pageInfo | if .hasNextPage != true then "" elif .endCursor == null then "!" else .endCursor end' \
+      "$WORK/status.page" 2>/dev/null)" || {
+      LAST_ERR="could not parse a Work status page"
+      return 1
+    }
+    [[ "$cursor" != "!" ]] || {
+      LAST_ERR="a Work status page reported more issues but no cursor to them"
+      return 1
+    }
+    [[ -n "$cursor" ]] || return 0
+    ((pages >= STATUS_PAGE_LIMIT)) && return 0
+  done
+}
+
+# status_items: STATUS_STATE none (no model), rest (the field needs GraphQL,
+# which this session does not serve) or ok, with $WORK/status.items holding
+# each open issue as {number, title, url, labels, events}: labels as its Work
+# status decides them, events its label events and its field events as label
+# events. STATUS_CAPPED is 1 when the read stopped at its page cap. 1 with
+# LAST_ERR on a failed read.
+STATUS_STATE=""
+STATUS_CAPPED=0
+STATUS_PARTIAL_NOTE="the Work status field needs GraphQL, which this session does not serve"
+status_items() {
+  [[ -n "$STATUS_STATE" ]] && return 0
+  local pages="$WORK/status.pages"
+  status_model || return 1
+  if [[ "$STATUS_MODEL" == null ]]; then
+    STATUS_STATE=none
+    return 0
+  fi
+  if [[ -n "$STATUS_JSON" ]]; then
+    jq -c '.pages // []' "$STATUS_JSON" >"$pages"
+  elif [[ "$TRANSPORT" == rest ]]; then
+    STATUS_STATE=rest
+    return 0
+  elif ! fetch_status_pages "$pages"; then
+    graphql_blocked "$LAST_ERR" || {
+      LAST_ERR="Work status: $LAST_ERR"
+      return 1
+    }
+    TRANSPORT=rest STATUS_STATE=rest
+    return 0
+  fi
+  local err
+  err="$(body_error "$pages")"
+  [[ -z "$err" ]] || {
+    LAST_ERR="Work status: $err"
+    return 1
+  }
+  jq -s -e '[ .. | objects | select(has("data")) | .data.repository.issues | objects ] | length > 0' "$pages" >/dev/null 2>&1 || {
+    LAST_ERR="Work status: could not parse the open-issue pages"
+    return 1
+  }
+  jq -s -e '[ .. | objects | select(has("data")) | .data.repository.issues.pageInfo.hasNextPage ] | last == true' "$pages" >/dev/null 2>&1 &&
+    STATUS_CAPPED=1
+  jq -s -c --argjson m "$STATUS_MODEL" "$STATUS_DEFS"'
+    [ .. | objects | select(has("data")) | .data.repository.issues.nodes[]? | select(type == "object" and .number != null) ]
+    | unique_by(.number)[]
+    | . as $n
+    | ([ .issueFieldValues.nodes[]? | select(.field.fullDatabaseId? == ($m["field-id"] | tostring)) | .name ][0]
+       | try mapped catch error("#\($n.number): \(.)")) as $v
+    | if $v == null and .issueFieldValues.pageInfo.hasNextPage == true
+      then error("#\(.number): Work status is not among its first 25 field values") else . end
+    | {number, title: ((.title // "") | gsub("[\\r\\n]+"; " ")), url,
+       labels: ([.labels.nodes[]?.name] | effective($v)),
+       events: ([.labelEvents.nodes[]? | select(.createdAt != null)]
+                + [.fieldEvents.nodes | try synthetic catch error("#\($n.number): \(.)")])}
+  ' "$pages" >"$WORK/status.items" 2>"$WORK/status.err" || {
+    err="$(sed -n 's/^jq: error ([^)]*): //p' "$WORK/status.err" | head -n1)"
+    LAST_ERR="Work status: ${err:-could not parse the open-issue pages}"
+    return 1
+  }
+  STATUS_STATE=ok
+}
+
+# The open issues whose labels, as status_items decides them, hold LABEL.
+status_with_label() {
+  jq -c --arg l "$1" 'select(any(.labels[]; ascii_downcase == ($l | ascii_downcase)))' "$WORK/status.items"
+}
+
+# =============================================================================
 # Section 1 — queue label counts
 # =============================================================================
 count_label_gql() {
@@ -1147,9 +1373,17 @@ print_queues() {
     labels_to_show=("${QUEUE_LABELS[@]}")
   fi
   local rows=() capped=() unavailable=() via_list
+  if [[ -n "$STATUS_JSON" || (-z "$COUNTS_JSON" && -n "$REPO") ]]; then
+    status_items || {
+      unreadable queues "$LAST_ERR"
+      return
+    }
+  fi
   for label in "${labels_to_show[@]}"; do
     via_list=0
-    if [[ -n "$COUNTS_JSON" ]]; then
+    if [[ "$STATUS_STATE" == ok ]]; then
+      n="$(status_with_label "$label" | wc -l | tr -d ' ')"
+    elif [[ -n "$COUNTS_JSON" ]]; then
       n="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
     else
       if [[ "$TRANSPORT" == "gh" ]]; then
@@ -1193,6 +1427,8 @@ print_queues() {
     label="$(printf '%s, ' "${unavailable[@]}")"
     echo "  PARTIAL: ${label%, }: count unavailable: $SEARCH_ZERO_NOTE"
   fi
+  [[ "$STATUS_STATE" == rest ]] && echo "  PARTIAL: $STATUS_PARTIAL_NOTE; counts are by label alone"
+  ((STATUS_CAPPED)) && echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; counts may be low"
   echo
 }
 
@@ -1289,9 +1525,29 @@ print_stuck() {
     echo
     return
   fi
+  # With a Work status model the issues come from the status read and the
+  # label searches keep their pull requests.
+  local by_status=false
+  if [[ -n "$STATUS_JSON" || -z "$STUCK_JSON" ]]; then
+    status_items || {
+      unreadable stuck "$LAST_ERR"
+      return
+    }
+    [[ "$STATUS_STATE" == rest ]] && {
+      unreadable stuck "label events need GraphQL, which this session does not serve"
+      return
+    }
+    [[ "$STATUS_STATE" == ok ]] && by_status=true
+  fi
 
   : >"$items"
   for label in "${STUCK_LABELS[@]}"; do
+    if [[ "$by_status" == true ]]; then
+      status_with_label "$label" | jq -c --arg l "$label" '
+        {number, title, label: $l, kind: "issue",
+         since: ([ .events[] | select(.__typename == "LabeledEvent" and (.label.name | ascii_downcase) == ($l | ascii_downcase))
+                   | .createdAt | fromdateiso8601 ] | max)}' >>"$items"
+    fi
     if [[ -n "$STUCK_JSON" ]]; then
       jq -c --arg l "$label" '.[$l] // []' "$STUCK_JSON" >"$pages" 2>/dev/null || {
         unreadable stuck "$label: could not parse the search pages"
@@ -1332,9 +1588,9 @@ print_stuck() {
     # `jq -s` wraps the input in one more array, and a fixture holds an array of
     # page documents where a live read holds a bare sequence of them; `..` walks
     # both. Days in stage is measured from the NEWEST labeled event naming this label.
-    jq -s -c --arg l "$label" '
+    jq -s -c --arg l "$label" --argjson prs "$by_status" '
       [ .. | objects | select(has("data")) | .data.search.nodes[]?
-        | select(type == "object" and .number != null) ]
+        | select(type == "object" and .number != null and (($prs | not) or .__typename == "PullRequest")) ]
       | .[]
       | . as $n
       | { number: $n.number,
@@ -1589,8 +1845,39 @@ print_decisions() {
     unreadable decisions "could not parse the decision issues"
     return
   }
+  if [[ -n "$STATUS_JSON" || (-z "$DECISIONS_JSON" && -n "$REPO") ]]; then
+    status_items || {
+      unreadable decisions "$LAST_ERR"
+      return
+    }
+  fi
+  # With a Work status model, membership is by the labels the field decides:
+  # an issue the field moved off the label leaves, and one parked only on the
+  # field joins, read by its own view.
+  if [[ "$STATUS_STATE" == ok ]]; then
+    local number members="$WORK/dec.members" joined="$WORK/dec.joined"
+    status_with_label "$DECISION_LABEL" | jq -s '.' >"$members"
+    jq --slurpfile s "$WORK/status.items" --slurpfile k "$members" '
+      [ .[] | select(.number as $n | ($k[0] | any(.number == $n)) or ($s | all(.number != $n))) ]' \
+      "$decisions_file" >"$joined"
+    for number in $(jq -r --slurpfile d "$joined" '.[] | .number as $n | select($d[0] | all(.number != $n)) | .number' "$members"); do
+      if [[ -n "$STATUS_JSON" ]]; then
+        jq -c -s --argjson n "$number" 'first(.. | objects | select(has("data")) | .data.repository.issues.nodes[]? | select(.number == $n)
+          | {number, title, url, body, comments: (.comments // [])})' "$WORK/status.pages" >"$WORK/dec.view"
+      else
+        gh_read "$WORK/dec.view" issue view "$number" "${REPO_ARGS[@]}" --json number,title,url,body,comments || {
+          unreadable decisions "#$number: $LAST_ERR"
+          return
+        }
+      fi
+      jq --slurpfile v "$WORK/dec.view" '. + $v' "$joined" >"$WORK/dec.next" && mv "$WORK/dec.next" "$joined"
+    done
+    decisions_file="$joined"
+    count="$(jq 'length' "$joined")"
+  fi
   if ((count == 0)); then
     echo "  (none parked)"
+    decisions_status_partial
     echo
     return
   fi
@@ -1641,7 +1928,14 @@ print_decisions() {
     fi
   done
   ((DECISIONS_PARTIAL)) && echo "  PARTIAL: the decision list reached its $DECISION_LIMIT-issue read cap; an issue past it is not shown"
+  decisions_status_partial
   echo
+}
+
+decisions_status_partial() {
+  [[ "$STATUS_STATE" == rest ]] && echo "  PARTIAL: $STATUS_PARTIAL_NOTE; an issue parked only on the field is not shown"
+  ((STATUS_CAPPED)) && echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; an issue parked only on the field past it is not shown"
+  return 0
 }
 
 # =============================================================================
@@ -2465,6 +2759,7 @@ TOUCH_QUERY='
                 ... on LabeledEvent { createdAt actor { login } label { name } }
                 ... on UnlabeledEvent { createdAt actor { login } label { name } } }
             }
+            @FIELDS@
           }
           ... on PullRequest {
             number
@@ -2487,16 +2782,20 @@ TOUCH_QUERY='
     }'
 
 # fetch_touch_pages OUTFILE START_EPOCH: one GraphQL page document per page,
-# every UTC day from START_EPOCH to now.
+# every UTC day from START_EPOCH to now. With a Work status model an issue also
+# carries its newest 100 field events.
 fetch_touch_pages() {
-  local out="$1" start="$2" day_start day_end cursor pages args since
+  local out="$1" start="$2" day_start day_end cursor pages args since fields="" query
+  [[ "${STATUS_MODEL:-null}" == null ]] || fields="fields: timelineItems(itemTypes:$STATUS_EVENT_TYPES, last:100) { $STATUS_FIELD_EVENTS }"
+  query="${TOUCH_QUERY/@FIELDS@/$fields}"
+  [[ -z "$fields" ]] || query+=$'\n'"$STATUS_FRAGMENT"
   since="$(from_epoch "$start" | sed 's/Z$/:00Z/')"
   : >"$out"
   for ((day_start = start; day_start <= NOW_EPOCH; day_start += 86400)); do
     day_end=$((day_start + 86399))
     cursor="" pages=0
     while :; do
-      args=(api graphql -f query="$TOUCH_QUERY" -f since="$since"
+      args=(api graphql -f query="$query" -f since="$since"
         -f search="repo:$REPO updated:$(from_epoch "$day_start" | sed 's/Z$/:00Z/')..$(from_epoch "$day_end" | sed 's/Z$/:59Z/')")
       [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
       gh_read "$WORK/touch.page" "${args[@]}" || return 1
@@ -2520,10 +2819,7 @@ fetch_touch_pages() {
 # The lane identity: merge.agent-identity in docs/conventions/pr-pipeline.yaml
 # on the default branch. Prints nothing when the file or key is absent.
 fetch_lane_identity() {
-  gh_read "$WORK/pipeline.yaml" api -H 'Accept: application/vnd.github.raw' "repos/$REPO/contents/docs/conventions/pr-pipeline.yaml" || {
-    [[ "$LAST_ERR" == *"Not Found"* || "$LAST_ERR" == *"HTTP 404"* ]] && return 0
-    return 1
-  }
+  fetch_pipeline || return 1
   awk '/^[^[:space:]#]/ { top = $0 } top ~ /^merge:/ && /^[[:space:]]+agent-identity:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); gsub(/["'"'"']/, ""); print; exit }' "$WORK/pipeline.yaml"
 }
 
@@ -2545,7 +2841,8 @@ TOUCH_JQ='
   | unique_by(.number) as $items
   | [ $items[] as $n
       | (if $n.__typename == "PullRequest" then "PR" else "issue" end) as $kind
-      | ([ $n.labels.nodes[]? | select(.createdAt != null) ]) as $lab
+      | ([ $n.labels.nodes[]? | select(.createdAt != null) ]
+         + if $m == null then [] else [ $n.fields.nodes | try synthetic catch error("#\($n.number): \(.)") ] end) as $lab
       | ( ( $n.acts.nodes[]? | select(.createdAt != null and (.createdAt | ep) >= $start)
             | .createdAt as $at
             | (((.actor // .author) // {}).login // "" | norm) as $who
@@ -2609,6 +2906,12 @@ print_touches() {
   echo "== Owner touches (last ${TOUCH_DAYS} UTC days) =="
   local pages="$WORK/touch.pages" op lane_id trusted out start
   start=$((NOW_EPOCH - NOW_EPOCH % 86400 - (TOUCH_DAYS - 1) * 86400))
+  if [[ -n "$STATUS_JSON" || (-z "$TOUCH_JSON" && -n "$REPO" && "$TRANSPORT" != rest) ]]; then
+    status_model || {
+      unreadable touches "$LAST_ERR"
+      return
+    }
+  fi
   if [[ -n "$TOUCH_JSON" ]]; then
     local err
     err="$(body_error "$TOUCH_JSON")"
@@ -2657,8 +2960,8 @@ print_touches() {
     return
   }
   trusted="$(jq -cn --arg a "$op" --arg b "$lane_id" '[$a, $b] | map(select(length > 0))')"
-  out="$(jq -s -r --arg op "$op" --argjson trusted "$trusted" --arg hold "$HOLD_LABEL" \
-    --argjson start "$start" --argjson now "$NOW_EPOCH" --argjson cap "$TOUCH_TOP" "$TOUCH_JQ" "$pages" 2>&1)" || {
+  out="$(jq -s -r --arg op "$op" --argjson trusted "$trusted" --arg hold "$HOLD_LABEL" --argjson m "${STATUS_MODEL:-null}" \
+    --argjson start "$start" --argjson now "$NOW_EPOCH" --argjson cap "$TOUCH_TOP" "$STATUS_DEFS$TOUCH_JQ" "$pages" 2>&1)" || {
     unreadable touches "could not parse the owner-touch pages: ${out%%$'\n'*}"
     return
   }

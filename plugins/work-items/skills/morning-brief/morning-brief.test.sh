@@ -2854,6 +2854,158 @@ EOF
   assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
 fi
 
+# --- Work status: the field value places an issue, else its labels ------------
+# The model is models.issue-status in this repository's pr-pipeline.yaml, cut to
+# the states used here. NOW is 2026-07-20T08:00Z.
+#  #401 needs-triage label, field ready (set 07-01): lists under status: ready,
+#       19d in stage; an event of another field with an unknown value is ignored.
+#  #402 no label, field needs-human (set 07-10T08:00): lists under needs-human, 10d.
+#  #403 needs-human label (07-05T08:00), field confirmed: the hold label holds, 15d.
+#  #404 agent-ready and status: ready labels, field agent-ready: no queue row.
+#  #405 needs-triage label, no field value: lists by its label, days unknown.
+#  #406 no label, field needs-owner-decision (07-18T08:00): parked, 2d.
+#  #407 status: needs-decision label (07-12T08:00), field confirmed: still parked, 8d.
+MODEL_JSON='{"field-id": "48484079",
+  "options": {"1": "needs-triage", "2": "needs-owner-decision", "3": "ready", "4": "agent-ready", "5": "needs-human", "6": "confirmed"},
+  "labels": {"needs-triage": ["needs-triage"], "needs-owner-decision": ["status: needs-decision", "needs-owner-decision"],
+             "ready": ["status: ready"], "agent-ready": ["agent-ready"], "needs-human": ["needs-human"], "confirmed": ["status: confirmed"]}}'
+cat >"$TMP/status-pages.json" <<'EOF'
+[{"data": {"repository": {"issues": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"number": 401, "title": "ready over triage", "url": "http://x/i/401", "labels": {"nodes": [{"name": "needs-triage"}]},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "ready", "field": {"fullDatabaseId": "48484079"}}, {"name": "High", "field": {"fullDatabaseId": "999"}}]},
+   "labelEvents": {"nodes": [{"__typename": "LabeledEvent", "createdAt": "2026-06-30T00:00:00Z", "label": {"name": "needs-triage"}}]},
+   "fieldEvents": {"nodes": [
+     {"__typename": "IssueFieldAddedEvent", "createdAt": "2026-06-30T00:00:00Z", "value": "High", "actor": {"__typename": "User", "login": "op-user"}, "issueField": {"fullDatabaseId": "999"}},
+     {"__typename": "IssueFieldChangedEvent", "createdAt": "2026-07-01T00:00:00Z", "previousValue": "needs-triage", "newValue": "ready", "actor": {"__typename": "Bot", "login": "lanes-app"}, "issueField": {"fullDatabaseId": "48484079"}}]}},
+  {"number": 402, "title": "held on the field", "url": "http://x/i/402", "labels": {"nodes": []},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "needs-human", "field": {"fullDatabaseId": "48484079"}}]},
+   "labelEvents": {"nodes": []},
+   "fieldEvents": {"nodes": [{"__typename": "IssueFieldAddedEvent", "createdAt": "2026-07-10T08:00:00Z", "value": "needs-human", "actor": {"__typename": "User", "login": "op-user"}, "issueField": {"fullDatabaseId": "48484079"}}]}},
+  {"number": 403, "title": "held on the label", "url": "http://x/i/403", "labels": {"nodes": [{"name": "needs-human"}]},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "confirmed", "field": {"fullDatabaseId": "48484079"}}]},
+   "labelEvents": {"nodes": [{"__typename": "LabeledEvent", "createdAt": "2026-07-05T08:00:00Z", "label": {"name": "needs-human"}}]},
+   "fieldEvents": {"nodes": []}},
+  {"number": 404, "title": "agent-ready", "url": "http://x/i/404", "labels": {"nodes": [{"name": "agent-ready"}, {"name": "status: ready"}]},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "agent-ready", "field": {"fullDatabaseId": "48484079"}}]},
+   "labelEvents": {"nodes": []}, "fieldEvents": {"nodes": []}},
+  {"number": 405, "title": "label only", "url": "http://x/i/405", "labels": {"nodes": [{"name": "needs-triage"}]},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": []},
+   "labelEvents": {"nodes": []}, "fieldEvents": {"nodes": []}},
+  {"number": 406, "title": "parked on the field", "url": "http://x/i/406", "labels": {"nodes": []},
+   "body": "Which store?\nRECOMMENDED: the field-only option.", "comments": [],
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "needs-owner-decision", "field": {"fullDatabaseId": "48484079"}}]},
+   "labelEvents": {"nodes": []},
+   "fieldEvents": {"nodes": [{"__typename": "IssueFieldAddedEvent", "createdAt": "2026-07-18T08:00:00Z", "value": "needs-owner-decision", "actor": {"__typename": "User", "login": "op-user"}, "issueField": {"fullDatabaseId": "48484079"}}]}},
+  {"number": 407, "title": "parked on the label", "url": "http://x/i/407", "labels": {"nodes": [{"name": "status: needs-decision"}]},
+   "issueFieldValues": {"pageInfo": {"hasNextPage": false}, "nodes": [{"name": "confirmed", "field": {"fullDatabaseId": "48484079"}}]},
+   "labelEvents": {"nodes": [{"__typename": "LabeledEvent", "createdAt": "2026-07-12T08:00:00Z", "label": {"name": "status: needs-decision"}}]},
+   "fieldEvents": {"nodes": []}}
+]}}}}]
+EOF
+jq -n --argjson m "$MODEL_JSON" --slurpfile p "$TMP/status-pages.json" '{model: $m, pages: $p[0]}' >"$TMP/status.json"
+cat >"$TMP/decisions-407.json" <<'EOF'
+[{"number": 407, "title": "parked on the label", "url": "http://x/i/407", "body": "RECOMMENDED: the labeled option.", "comments": []}]
+EOF
+
+run_status() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" \
+    --decisions-json "$TMP/decisions-407.json" --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lanes-empty.json" "${CLEAR_COST_ARGS[@]}" --stuck-json "$TMP/stuck.json" \
+    --touch-json "$TMP/touch-empty.json" --status-json "$TMP/status.json" "$@" 2>&1
+}
+OUT_STATUS="$(run_status)"
+assert_exit "status: a fully fixtured brief with a model exits 0" 0 "$?"
+STATUS_Q="$(section "$OUT_STATUS" "== Queues")"
+assert_contains "status: a field value moves an issue off its queue label" "$STATUS_Q" "  needs-triage             1"
+assert_contains "status: ready over a needs-triage label; agent-ready leaves status: ready" "$STATUS_Q" "  status: ready            1"
+assert_contains "status: a field-only decision and a labeled one both count" "$STATUS_Q" "  status: needs-decision   2"
+assert_contains "status: a hold on the field and a hold label both count" "$STATUS_Q" "  needs-human              2"
+assert_not_contains "status: the model replaces --counts-json" "$STATUS_Q" "44"
+
+STATUS_S="$(section "$OUT_STATUS" "== Stuck")"
+assert_contains "status stuck: days in stage from the field event that set the state" "$STATUS_S" \
+  "  #401 issue  ready over triage  (status: ready, 19d in stage)"
+assert_contains "status stuck: a field-only hold is stuck under its label" "$STATUS_S" "  #402 issue  held on the field  (needs-human, 10d in stage)"
+assert_contains "status stuck: a hold label keeps its own age" "$STATUS_S" "  #403 issue  held on the label  (needs-human, 15d in stage)"
+assert_contains "status stuck: an issue with no event is days unknown" "$STATUS_S" "  #405 issue  label only  (needs-triage, days unknown)"
+assert_contains "status stuck: the label search keeps its pull requests" "$STATUS_S" "  #204 PR  boundary item  (needs-human, 8d in stage)"
+assert_eq "status stuck: oldest first; the search's issues give way to the status read" "#401#403#402#204#407#405" "$(stuck_order "$STATUS_S")"
+
+STATUS_P="$(section "$OUT_STATUS" "== Parked")"
+assert_contains "status parked: the labeled decision stays" "$STATUS_P" "#407 parked on the label"
+assert_contains "status parked: a decision only on the field joins" "$STATUS_P" "#406 parked on the field"
+assert_contains "status parked: the field-only decision carries its RECOMMENDED line" "$STATUS_P" "RECOMMENDED: the field-only option."
+
+jq '{model, pages: [.pages[0] | .data.repository.issues.nodes |= [.[] | select(.number == 402)]]}' "$TMP/status.json" >"$TMP/status-held.json"
+assert_contains "status: an issue held only on the field is a needs-human row of 1" \
+  "$(section "$(run_status --status-json "$TMP/status-held.json")" "== Queues")" "  needs-human              1"
+
+printf '{"model": null, "pages": []}\n' >"$TMP/status-none.json"
+assert_eq "status: no model renders exactly as no --status-json" \
+  "$(run_status --status-json "$TMP/status-none.json")" \
+  "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" \
+    --decisions-json "$TMP/decisions-407.json" --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lanes-empty.json" "${CLEAR_COST_ARGS[@]}" --stuck-json "$TMP/stuck.json" \
+    --touch-json "$TMP/touch-empty.json" 2>&1)"
+
+jq '.pages[0].data.repository.issues.nodes[0].issueFieldValues.nodes[0].name = "bogus"' "$TMP/status.json" >"$TMP/status-unmapped.json"
+OUT_UNMAPPED="$(run_status --status-json "$TMP/status-unmapped.json")"
+assert_exit "status: an unmapped value exits 6" 6 "$?"
+assert_contains "status: a value the model has no option for is UNREADABLE" "$(section "$OUT_UNMAPPED" "== Queues")" \
+  "UNREADABLE: Work status: #401: Work status \`bogus\` is no option of the model"
+jq '.pages[0].data.repository.issues.nodes[1].fieldEvents.nodes[0].value = "bogus"' "$TMP/status.json" >"$TMP/status-unmapped-event.json"
+assert_contains "status: a field event the model has no option for is UNREADABLE" \
+  "$(section "$(run_status --status-json "$TMP/status-unmapped-event.json")" "== Stuck")" "UNREADABLE: Work status: #402:"
+jq '.pages = [{errors: [{message: "boom status"}]}]' "$TMP/status.json" >"$TMP/status-error.json"
+OUT_STATUS_ERR="$(run_status --status-json "$TMP/status-error.json")"
+assert_contains "status: a failed field read makes Queues UNREADABLE" "$(section "$OUT_STATUS_ERR" "== Queues")" "UNREADABLE: Work status: boom status"
+assert_contains "status: a failed field read makes Parked UNREADABLE" "$(section "$OUT_STATUS_ERR" "== Parked")" "UNREADABLE: Work status: boom status"
+printf '{"errors": [{"message": "boom model"}]}\n' >"$TMP/status-doc-error.json"
+assert_contains "status: an error document for the fixture is UNREADABLE" \
+  "$(section "$(run_status --status-json "$TMP/status-doc-error.json")" "== Queues")" "UNREADABLE: boom model"
+assert_not_contains "status: a failed field read never falls back to label counts" "$(section "$OUT_STATUS_ERR" "== Queues")" "needs-human"
+jq '.pages[0].data.repository.issues.pageInfo = {hasNextPage: true, endCursor: "c"}' "$TMP/status.json" >"$TMP/status-capped.json"
+assert_contains "status: a read that stops at its cap is PARTIAL" "$(section "$(run_status --status-json "$TMP/status-capped.json")" "== Queues")" \
+  "PARTIAL: the open-issue read reached its 1000-issue cap; counts may be low"
+
+# Owner touches count the field's hold changes as label events. #309: someone
+# sets needs-human on the field 07-19T09:00, the operator changes it to ready
+# 07-19T11:00 (a 2h wait). A bot's field event before field-events-since
+# mirrored a label and is dropped.
+cat >"$TMP/touch-field.json" <<'EOF'
+{"owner": "op-user", "pages": [{"data": {"search": {"issueCount": 1, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"__typename": "Issue", "number": 309, "acts": {"pageInfo": {"hasNextPage": false}, "nodes": []},
+   "labels": {"pageInfo": {"hasPreviousPage": false}, "nodes": []},
+   "fields": {"nodes": [
+     {"__typename": "IssueFieldAddedEvent", "createdAt": "2026-07-19T09:00:00Z", "value": "needs-human", "actor": {"__typename": "User", "login": "someone"}, "issueField": {"fullDatabaseId": "48484079"}},
+     {"__typename": "IssueFieldChangedEvent", "createdAt": "2026-07-19T11:00:00Z", "previousValue": "needs-human", "newValue": "ready", "actor": {"__typename": "User", "login": "op-user"}, "issueField": {"fullDatabaseId": "48484079"}}]}}
+]}}}]}
+EOF
+TOUCH_FIELD_SEC="$(section "$(run_status --touch-json "$TMP/touch-field.json")" "== Owner touches")"
+assert_contains "status touches: a hold set and lifted on the field counts" "$TOUCH_FIELD_SEC" \
+  "$(printf '  2026-07-19  %9s%9s%9s%9s%9s%9s%22s' 0 0 0 1 1 0 1)"
+assert_contains "status touches: the field hold's wait is measured" "$TOUCH_FIELD_SEC" "n=1, median 2h 0m, max 2h 0m"
+TOUCH_NOFIELD_SEC="$(section "$(run_status --touch-json "$TMP/touch-field.json" --status-json "$TMP/status-none.json")" "== Owner touches")"
+assert_contains "status touches: with no model the field events are not read" "$TOUCH_NOFIELD_SEC" "hold waits: no hold lifted in the window"
+jq '.model["field-events-since"] = "2026-07-19T10:00:00Z"' "$TMP/status.json" >"$TMP/status-since.json"
+jq '.pages[0].data.search.nodes[0].fields.nodes[0].actor = {"__typename": "Bot", "login": "lanes-app"}' "$TMP/touch-field.json" >"$TMP/touch-field-bot.json"
+TOUCH_SINCE_SEC="$(section "$(run_status --touch-json "$TMP/touch-field-bot.json" --status-json "$TMP/status-since.json")" "== Owner touches")"
+assert_contains "status touches: a bot field event before field-events-since is dropped" "$TOUCH_SINCE_SEC" \
+  "$(printf '  2026-07-19  %9s%9s%9s%9s%9s%9s%22s' 0 0 0 0 1 0 1)"
+assert_contains "status touches: a lift whose bot apply was dropped has no wait" "$TOUCH_SINCE_SEC" "n=0, 1 with no apply event read"
+
+# Over REST the field is unread: Queues and Parked print by label with PARTIAL.
+cp -R "$REST" "$TMP/rest-model"
+printf 'models:\n  issue-status:\n    field-id: 48484079\n    options:\n      "1": ready\n    labels:\n      ready:\n        - "status: ready"\n' \
+  >"$TMP/rest-model/$(rest_key "$R/contents/docs/conventions/pr-pipeline.yaml").json"
+OUT_REST_MODEL="$(MB_GH_FIXTURES="$TMP/rest-model" run_stub rest)"
+assert_contains "status rest: the label count still prints" "$(section "$OUT_REST_MODEL" "== Queues")" "status: ready            2"
+assert_contains "status rest: Queues says the field was unread" "$(section "$OUT_REST_MODEL" "== Queues")" \
+  "PARTIAL: the Work status field needs GraphQL, which this session does not serve; counts are by label alone"
+assert_contains "status rest: Parked says a field-only decision is not shown" "$(section "$OUT_REST_MODEL" "== Parked")" \
+  "PARTIAL: the Work status field needs GraphQL, which this session does not serve; an issue parked only on the field is not shown"
+assert_not_contains "status rest: with no model there is no Work status line" "$(section "$OUT_REST" "== Queues")" "Work status"
+
 # --- Summary ------------------------------------------------------------------
 echo
 if ((FAILED > 0)); then
