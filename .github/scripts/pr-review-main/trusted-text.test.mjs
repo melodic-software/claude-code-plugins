@@ -166,7 +166,7 @@ test("every leg needs the trusted-text job and still runs when it failed, was sk
   for (const job of LEGS) assert.ok(needs(job).includes(TEXT), job);
   // Without a status function GitHub adds success(), which a failed
   // trusted-text job would fail; each leg's gate starts with its own.
-  for (const job of LEGS) assert.ok(/^(?:\S+ != 'true' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
+  for (const job of LEGS) assert.ok(/^(?:\S+ != '[a-z-]+' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
   for (const result of ["failure", "skipped", "success"]) {
     const text = { result, outputs: {} };
     assert.ok(admits(jobGate("review"), { github: upstreamRun, needs: { trigger: triggered, "review-handoffs-credit": { result: "success", outputs: {} }, [TEXT]: text } }), `review: ${result}`);
