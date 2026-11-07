@@ -1,8 +1,8 @@
 // Expected values come from the requested behavior for answered issues: a
 // listed human's `**Decision recorded.**` first line on a
 // `status: needs-decision` issue, or the author's or a listed human's reply
-// on a `status: needs-info` issue, removes that status label and sets the
-// Work status field to needs-triage; it dispatches intake-triage.yml once with the issue number
+// on a `status: needs-info` issue, sets the Work status field to
+// needs-triage and writes no label; it dispatches intake-triage.yml once with the issue number
 // only when the issue's author is one intake admits on open (a listed human
 // or the lanes App). A decision on an issue that carries `needs-human`
 // changes nothing, and a listed human's removal of `needs-human` re-enters an
@@ -31,6 +31,8 @@ const LISTED_BOT = { id: 209825114, login: "claude[bot]", type: "Bot" };
 const LANES_APP = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
 const ACTIONS_BOT = { id: 41898282, login: "github-actions", type: "Bot" };
 const NUMBER = 42;
+// The answer's read, after the run reads the Work status and before it writes.
+const COMMENT_ONE = `/repos/${REPO}/issues/comments/1`;
 const FIELD = "48484079";
 // The checkout whose models.issue-status every run reads and writes by.
 const ROOT = new URL("../../..", import.meta.url).pathname;
@@ -62,11 +64,11 @@ writeFileSync(
 );
 
 // One issue with its comments. `editors` maps a comment id to its last
-// editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
-// that already took them); `fail` names one `METHOD path` write that answers 500 once.
+// editor's id; `author` opened the issue; `fail` names one `METHOD path` write
+// that answers 500 once.
 // `fieldNodes` are its Work status field events; the field holds what they
 // leave, and a field write adds the job token's event.
-function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], fieldNodes = [], editors = {}, gone = [], fail = null }) {
+function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], fieldNodes = [], editors = {}, fail = null }) {
   let failing = fail;
   const current = new Set(labels);
   const writes = [];
@@ -114,7 +116,7 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
     }
     const label = path.startsWith(`${base}/labels/`) ? decodeURIComponent(path.slice(`${base}/labels/`.length)) : null;
     if (method === "DELETE" && label !== null) {
-      if (gone.includes(label) || !current.delete(label)) throw new GitHubError(404, `DELETE ${path}`);
+      if (!current.delete(label)) throw new GitHubError(404, `DELETE ${path}`);
       return [];
     }
     if (method === "POST" && path === `${base}/labels`) {
@@ -165,10 +167,11 @@ const expectDispatched = (w) => {
     ["POST", `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`, { ref: "main", inputs: { "issue-number": "42" } }],
   ]);
 };
-// The issue went back to triage: `labels` are left and the Work status field
-// reads needs-triage, with no needs-triage label added.
+// The issue went back to triage: its labels are `labels`, as they were, no
+// label was written, and the Work status field reads needs-triage.
 const expectTriage = (w, labels, why) => {
   assert.deepEqual(w.labels(), labels, why);
+  assert.deepEqual(w.writes.filter(([, path]) => path.includes("/labels")), [], `${why ?? ""} no label written`);
   assert.equal(w.field(), "needs-triage", why);
 };
 
@@ -178,7 +181,7 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
     comments: [{ id: 1, user: OWNER, body: DECISION }],
   });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, ["priority: medium"]);
+  expectTriage(w, ["priority: medium", "status: needs-decision"]);
   expectDispatched(w);
 });
 
@@ -199,7 +202,7 @@ test("a listed human's decision on an issue admission parked at status: confirme
     comments: [PARKED, { id: 1, user: OWNER, body: DECISION }],
   });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, ["priority: medium"]);
+  expectTriage(w, ["priority: medium", "status: confirmed"]);
   expectDispatched(w);
 });
 
@@ -208,34 +211,32 @@ test("a person's needs-human that lands after the read keeps a parked issue held
   const w = world({ labels: ["status: confirmed", "priority: medium"], comments: [PARKED, { id: 1, user: OWNER, body: DECISION }], fieldNodes });
   const github = async (method, path, body) => {
     const answer = await w.github(method, path, body);
-    if (method === "DELETE" && path.endsWith(encodeURIComponent("status: confirmed"))) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-human" }));
+    if (method === "GET" && path === COMMENT_ONE) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-human" }));
     return answer;
   };
   assert.equal(await run({ ...w, github }, 1), 0);
   assert.equal(w.field(), "needs-human", "the person's hold stands");
-  assert.ok(!w.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
-  assert.deepEqual(w.dispatches(), []);
-  assert.deepEqual(w.labels(), ["priority: medium", "status: confirmed"], "the status label the run took off is put back");
+  assert.deepEqual(w.writes, [], "no field or label write");
+  assert.deepEqual(w.labels(), ["priority: medium", "status: confirmed"], "the labels are as they were");
 });
 
 test("a decision releases the person's needs-owner-decision it answers, and keeps a different person's hold set after the read", async () => {
   const asked = () => [fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-owner-decision" })];
   const answered = world({ labels: ["status: needs-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: asked() });
   assert.equal(await run(answered, 1), 0);
-  expectTriage(answered, ["priority: medium"], "the answered hold is released");
+  expectTriage(answered, ["priority: medium", "status: needs-decision"], "the answered hold is released, its label left as it was");
   expectDispatched(answered);
   const fieldNodes = asked();
   const raced = world({ labels: ["status: needs-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes });
   const github = async (method, path, body) => {
     const answer = await raced.github(method, path, body);
-    if (method === "DELETE" && path.endsWith(encodeURIComponent("status: needs-decision"))) fieldNodes.push(fieldNode("IssueFieldChangedEvent", OWNER, { previousValue: "needs-owner-decision", newValue: "needs-human" }));
+    if (method === "GET" && path === COMMENT_ONE) fieldNodes.push(fieldNode("IssueFieldChangedEvent", OWNER, { previousValue: "needs-owner-decision", newValue: "needs-human" }));
     return answer;
   };
   assert.equal(await run({ ...raced, github }, 1), 0);
   assert.equal(raced.field(), "needs-human", "the person's later hold stands");
-  assert.ok(!raced.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
-  assert.deepEqual(raced.dispatches(), []);
-  assert.deepEqual(raced.labels(), ["priority: medium", "status: needs-decision"], "the status label the run took off is put back");
+  assert.deepEqual(raced.writes, [], "no field or label write");
+  assert.deepEqual(raced.labels(), ["priority: medium", "status: needs-decision"], "the labels are as they were");
 });
 
 test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
@@ -244,14 +245,14 @@ test("a listed human's decision on a status: confirmed issue admission never saw
     comments: [{ id: 1, user: OWNER, body: DECISION }],
   });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, ["priority: medium"]);
+  expectTriage(w, ["priority: medium", "status: confirmed"]);
   expectDispatched(w);
 });
 
 test("a decision on an outside author's hand-confirmed issue moves it to needs-triage without a model run", async () => {
   const w = world({ labels: ["status: confirmed"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, []);
+  expectTriage(w, ["status: confirmed"]);
   assert.equal(w.dispatches().length, 0);
 });
 
@@ -299,28 +300,28 @@ test("the outside author's reply on a needs-info issue moves it to needs-triage 
     comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }],
   });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, ["needs-human"]);
+  expectTriage(w, ["needs-human", "status: needs-info"]);
   assert.equal(w.dispatches().length, 0);
 });
 
 test("a decision on an outside author's issue moves it to needs-triage without a model run", async () => {
   const w = world({ labels: ["status: needs-decision"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, []);
+  expectTriage(w, ["status: needs-decision"]);
   assert.equal(w.dispatches().length, 0);
 });
 
 test("a decision on a lanes App issue sends it back to triage", async () => {
   const w = world({ labels: ["status: needs-decision"], author: LANES_APP, comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, []);
+  expectTriage(w, ["status: needs-decision"]);
   expectDispatched(w);
 });
 
 test("a listed human's reply on a needs-info issue sends it back to triage", async () => {
   const w = world({ labels: ["status: needs-info"], comments: [{ id: 1, user: OWNER, body: "It is the Windows host." }] });
   assert.equal(await run(w, 1), 0);
-  expectTriage(w, []);
+  expectTriage(w, ["status: needs-info"]);
   expectDispatched(w);
 });
 
@@ -367,18 +368,14 @@ test("a second decision after the first dispatches nothing more", async () => {
   assert.equal(w.dispatches().length, 1);
 });
 
-test("a run that loses the status label to another run dispatches nothing", async () => {
+test("a run that finds another run's needs-triage beside the answered label writes and dispatches nothing", async () => {
   const w = world({
-    labels: ["status: needs-decision", "needs-triage"],
+    labels: ["status: needs-decision"],
     comments: [{ id: 1, user: OWNER, body: DECISION }],
-    gone: ["status: needs-decision"],
+    fieldNodes: [fieldNode("IssueFieldAddedEvent", ACTIONS_BOT, { value: "needs-triage" })],
   });
   assert.equal(await run(w, 1), 0);
-  assert.equal(w.dispatches().length, 0);
-  assert.deepEqual(
-    w.writes.map(([method]) => method),
-    ["DELETE"],
-  );
+  assert.deepEqual(w.writes, []);
 });
 
 // The Work status field a trusted account set (read-status.mjs): with a status
@@ -427,7 +424,7 @@ test("a reply to a stale needs-info label leaves a person's field-only hold, and
   }
   const answered = world({ labels: ["status: needs-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
   assert.equal(await runWithField(answered, { [NUMBER]: { state: "needs-reporter-info" } }), 0);
-  expectTriage(answered, []);
+  expectTriage(answered, ["status: needs-info"]);
 });
 
 // A Work status read that fails could hide a hold, so neither path writes.
@@ -536,7 +533,7 @@ test("a decision is judged by the labels when the Work status field is unset, se
   for (const fields of [{}, { [NUMBER]: { state: "needs-human", setter: STRANGER_ID } }, { [NUMBER]: { state: "agent-ready" } }]) {
     const w = world({ labels: ["status: needs-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
     assert.equal(await runWithField(w, fields), 0);
-    expectTriage(w, []);
+    expectTriage(w, ["status: needs-decision"]);
     expectDispatched(w);
   }
 });
@@ -549,7 +546,7 @@ const failures = [
 ];
 
 for (const [name, fail] of failures) {
-  test(`a failed call to ${name} after the claim restores the label and the field, and a re-run dispatches once`, async () => {
+  test(`a failed call to ${name} after the claim restores the field, writes no label, and a re-run dispatches once`, async () => {
     const before = ["priority: medium", "status: needs-decision"];
     const w = world({ labels: before, comments: [{ id: 1, user: OWNER, body: DECISION }], fail });
     assert.equal(await run(w, 1), 1);
@@ -557,7 +554,7 @@ for (const [name, fail] of failures) {
     assert.equal(w.field(), "needs-owner-decision", "the answered status is set back");
     assert.equal(w.dispatches().length, name === "the dispatch" ? 1 : 0);
     assert.equal(await run(w, 1), 0);
-    expectTriage(w, ["priority: medium"]);
+    expectTriage(w, ["priority: medium", "status: needs-decision"]);
     assert.equal(w.dispatches().length, name === "the dispatch" ? 2 : 1);
   });
 }
@@ -572,7 +569,7 @@ test("a failed dispatch on an issue with no status label leaves it at needs-tria
   assert.equal(w.dispatches().length, 1, "only the failed call");
 });
 
-test("a failed dispatch puts the label back but keeps a person's hold set after the field write", async () => {
+test("a failed dispatch leaves the labels and keeps a person's hold set after the field write", async () => {
   const before = ["priority: medium", "status: needs-decision"];
   const fieldNodes = [];
   const w = world({ labels: before, comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes, fail: `POST ${DISPATCH}` });
@@ -591,9 +588,10 @@ test("a failed dispatch puts the label back but keeps a person's hold set after 
 });
 
 test("a failed dispatch leaves the labels as they were and sets the answered status back", async () => {
-  const w = world({ labels: ["status: needs-info", "needs-triage"], comments: [{ id: 1, user: OWNER, body: "Answer." }], fail: `POST ${DISPATCH}` });
+  const w = world({ labels: ["priority: medium", "status: needs-info"], comments: [{ id: 1, user: OWNER, body: "Answer." }], fail: `POST ${DISPATCH}` });
   assert.equal(await run(w, 1), 1);
-  assert.deepEqual(w.labels(), ["needs-triage", "status: needs-info"]);
+  assert.deepEqual(w.labels(), ["priority: medium", "status: needs-info"]);
+  assert.deepEqual(w.writes.filter(([, path]) => path.includes("/labels")), [], "no label written");
   assert.equal(w.field(), "needs-reporter-info");
 });
 
@@ -651,15 +649,8 @@ test("a listed human lifting needs-human re-enters an issue at status: needs-dec
   await w.github("DELETE", `/repos/${REPO}/issues/${NUMBER}/labels/needs-human`);
   w.writes.length = 0;
   assert.equal(await runLift(w), 0);
-  expectTriage(w, ["priority: medium"]);
+  expectTriage(w, ["priority: medium", "status: needs-decision"]);
   expectDispatched(w);
-});
-
-test("a lift whose needs-decision another run already took dispatches nothing", async () => {
-  const w = world({ labels: ["status: needs-decision"], events: [lift(OWNER)], gone: ["status: needs-decision"] });
-  assert.equal(await runLift(w), 0);
-  assert.equal(w.dispatches().length, 0);
-  assert.deepEqual(w.writes.map(([method]) => method), ["DELETE"]);
 });
 
 test("a failed dispatch after a lift at needs-decision restores it, and a re-run dispatches once", async () => {
@@ -668,7 +659,7 @@ test("a failed dispatch after a lift at needs-decision restores it, and a re-run
   assert.deepEqual(w.labels(), ["status: needs-decision"]);
   assert.equal(w.field(), "needs-owner-decision");
   assert.equal(await runLift(w), 0);
-  expectTriage(w, []);
+  expectTriage(w, ["status: needs-decision"]);
   assert.equal(w.dispatches().length, 2);
 });
 

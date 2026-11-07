@@ -40,15 +40,12 @@
 // then, on a comment or a needs-human removal, it sets the Work status field
 // to needs-triage and dispatches intake-triage.yml once, only for an issue
 // whose author intake admits (a listed human or the lanes App). Anything
-// else changes nothing. It never adds `agent-ready`. The answered status's
-// label, when the issue still carries it, is taken off first: when GitHub
-// answers 404 another run already took it, and nothing is dispatched. The
-// field at needs-triage is the claim otherwise: the runs wait in line per
-// issue, and a second one reads it and stops. When a later call fails, the
-// run sets the field back to the answered status, puts back a label it took,
-// and fails, so a re-run can claim again; with no status answered (a
-// statusless decision, a lift from no status) the field stays at
-// needs-triage, which the triage sweep dispatches. Every fact is read from
+// else changes nothing. It writes no label and never adds `agent-ready`. The
+// field at needs-triage is the claim: the runs wait in line per issue, and a
+// second one reads it and stops. When a later call fails, the run sets the
+// field back to the answered status and fails, so a re-run can claim again;
+// with no status answered (a statusless decision, a lift from no status) the
+// field stays at needs-triage, which the triage sweep dispatches. Every fact is read from
 // the API; the event supplies only the issue and comment numbers and, on
 // `issues`, the removed label or the field change's action and sender. A
 // Work status read or write that fails fails the run.
@@ -156,18 +153,6 @@ export async function classify({ github, repository, issue, comment, humans, ids
     }
   }
   return null;
-}
-
-async function removeLabel(github, base, name) {
-  try {
-    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
-    return true;
-  } catch (error) {
-    if (error instanceof GitHubError && error.status === 404) {
-      return false;
-    }
-    throw error;
-  }
 }
 
 // A listed human lifted `needs-human` and left the issue parked nowhere or at
@@ -320,32 +305,25 @@ const dispatch = (client, repository, issue) =>
     inputs: { "issue-number": String(issue.number) },
   });
 
-// Puts back `label` when the run took it off, and sets the Work status back
-// to `state`, when given, unless a person's hold landed since (keepHold).
-async function restore({ set, client, base, number, state, label, log, next = "; re-run the job to send the issue back to triage" }) {
-  const back = async (what, write) => {
-    try {
-      const result = await write();
-      log(result?.outcome === "held" ? `intake-reenter: left ${what} unrestored, since a person's Work status ${result.state} holds the issue` : `intake-reenter: restored ${what}${next}`);
-    } catch {
-      log(`::error title=intake-reenter::could not restore ${what}; restore it by hand`);
-    }
-  };
-  if (label) {
-    await back(label, () => client("POST", `${base}/labels`, { labels: [label] }));
-  }
-  if (state) {
-    await back(`Work status ${state}`, () => set(number, state, { keepHold: true, releases: state }));
+// Sets the Work status back to `state` unless a person's hold landed since
+// (keepHold).
+async function restore({ set, number, state, log }) {
+  const what = `Work status ${state}`;
+  try {
+    const result = await set(number, state, { keepHold: true, releases: state });
+    log(result?.outcome === "held" ? `intake-reenter: left ${what} unrestored, since a person's Work status ${result.state} holds the issue` : `intake-reenter: restored ${what}; re-run the job to send the issue back to triage`);
+  } catch {
+    log(`::error title=intake-reenter::could not restore ${what}; restore it by hand`);
   }
 }
 
-// Each answer's status: the label it takes off when the issue carries it, and
-// the Work status state a failed run sets back. A statusless answer has neither.
+// The Work status state each answer releases, which a failed run sets back. A
+// statusless answer releases none.
 const ANSWERED = {
-  decision: [NEEDS_DECISION, "needs-owner-decision"],
-  parked: [CONFIRMED, "confirmed"],
-  info: [NEEDS_INFO, "needs-reporter-info"],
-  statusless: [null, null],
+  decision: "needs-owner-decision",
+  parked: "confirmed",
+  info: "needs-reporter-info",
+  statusless: null,
 };
 
 export async function main({ env = process.env, github, log = console.log, statusOf } = {}) {
@@ -376,6 +354,12 @@ export async function main({ env = process.env, github, log = console.log, statu
     const own = labelNames(issue);
     const reader = statusOf ?? statusReader({ env, github: client, repository, log });
     const labels = await answerLabels(issue, reader);
+    // The claim: a hold label (needs-decision, needs-info) stays on beside the
+    // field, so an earlier run's needs-triage is what stops this one.
+    if (labels.includes(NEEDS_TRIAGE)) {
+      log(`intake-reenter: the issue is already at ${NEEDS_TRIAGE}; nothing dispatched`);
+      return 0;
+    }
     let kind;
     if (lift) {
       if (!(await liftReenters({ issue, humans, lanesAppId, labels, events: () => reader.events(number) }))) {
@@ -409,13 +393,7 @@ export async function main({ env = process.env, github, log = console.log, statu
         return 0;
       }
     }
-    const [status, prior] = ANSWERED[kind];
-    const took = status !== null && own.includes(status);
-    if (took && !(await removeLabel(client, base, status))) {
-      log(`intake-reenter: ${status} is already gone; nothing dispatched`);
-      return 0;
-    }
-    const removed = took ? `removed ${status}, ` : "";
+    const prior = ANSWERED[kind];
     const { set } = await statusWriter({ env, github: client, repository });
     // Past the claim, a failed call sets the answered status back, so a re-run
     // of the job finds the issue parked and the answer is not lost.
@@ -424,7 +402,6 @@ export async function main({ env = process.env, github, log = console.log, statu
       // keepHold), except the hold this answer releases.
       const moved = await set(number, NEEDS_TRIAGE, { keepHold: true, releases: prior });
       if (moved?.outcome === "held") {
-        await restore({ set, client, base, number, state: null, label: took ? status : null, log, next: "" });
         log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the answer changes nothing; nothing dispatched`);
         return 0;
       }
@@ -432,17 +409,17 @@ export async function main({ env = process.env, github, log = console.log, statu
       // other issue waits in needs-triage for a person, so its author cannot
       // start a model run with each reply.
       if (!authorAdmitted(issue, humans, lanesAppId)) {
-        log(`intake-reenter: ${removed}set Work status to ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
+        log(`intake-reenter: set Work status to ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
         return 0;
       }
       await dispatch(client, repository, issue);
     } catch (error) {
       if (prior) {
-        await restore({ set, client, base, number, state: prior, label: took ? status : null, log });
+        await restore({ set, number, state: prior, log });
       }
       throw error;
     }
-    log(`intake-reenter: ${lift ? `${NEEDS_HUMAN} lifted, ` : ""}${removed}set Work status to ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
+    log(`intake-reenter: ${lift ? `${NEEDS_HUMAN} lifted, ` : ""}set Work status to ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
     return 0;
   } catch (error) {
     const detail = error?.name === "GitHubError" ? error.message : (error?.message ?? "error");

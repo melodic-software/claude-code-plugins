@@ -5,17 +5,16 @@ name: intake-reenter
 # `**Decision recorded.**` comment on a `status: needs-decision` issue or on
 # a `status: confirmed` one with no other status and no `agent-ready`, or
 # the author's or a listed human's reply on a `status: needs-info` issue,
-# takes a status label the issue still carries off (a decision on an issue
-# with `needs-human` changes nothing), sets the Work status field to
-# needs-triage, and dispatches intake-triage.yml once when intake admits the
-# issue's author (a listed human or the lanes App). A listed human's
-# decision on an issue with no `status:` and no `agent-ready`,
-# `needs-human`, `needs-triage` or `admission-deferred` takes nothing off and
-# does the same. It never adds `agent-ready`. The rules are in
+# sets the Work status field to needs-triage (a decision on an issue with
+# `needs-human` changes nothing) and dispatches intake-triage.yml once when
+# intake admits the issue's author (a listed human or the lanes App). A listed
+# human's decision on an issue with no `status:` and no `agent-ready`,
+# `needs-human`, `needs-triage` or `admission-deferred` does the same. It
+# writes no label. The rules are in
 # .github/scripts/intake-reenter/reenter.mjs.
 #
-# No model and no App token: the job's GITHUB_TOKEN edits labels and the Work
-# status field and starts the dispatch, as the triage sweep's does, and intake-triage admits
+# No model and no App token: the job's GITHUB_TOKEN sets the Work status field
+# and starts the dispatch, as the triage sweep's does, and intake-triage admits
 # github-actions[bot] as a dispatcher. The script reads the issue and comment
 # back from the API; nothing from the event but their numbers, the removed
 # label's name and a field change's action and sender id, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
@@ -105,11 +104,11 @@ jobs:
     runs-on: ubuntu-24.04
     # The resolve-config install can take its full 3 minutes on a slow registry;
     # the 5 minutes the job had before stay for the rest, so a slow install
-    # cannot cut the re-entry off between its label removal and add.
+    # cannot cut the re-entry off between its field write and dispatch.
     timeout-minutes: 9
     permissions:
       contents: read # check out main
-      issues: write # read the issue and comments; edit its labels and Work status field; post and delete a release's claim comment
+      issues: write # read the issue and comments; set its Work status field; post and delete a release's claim comment
       actions: write # dispatch intake-triage.yml
     # Every comment on a parked issue and every removal above starts a
     # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
