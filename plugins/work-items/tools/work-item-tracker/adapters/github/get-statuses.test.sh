@@ -190,7 +190,8 @@ assert_eq "trusted, no ids → no call" '{}|0' "$(jq -c '.statuses' <<<"$OUT")|$
 # and nothing on stdout.
 trust_fails() {
   BINDING="${BINDING:-$TRUST_BINDING}" ANSWER="${ANSWER:-$TRUSTED}" run --field "Work status" "github:o/r#1"
-  assert_eq "$2 → exit $1" "$1" "$RC"  assert_eq "$2 → no stdout, one stderr line" "|1" "$OUT|$(wc -l <<<"$ERR" | tr -d ' ')"
+  assert_eq "$2 → exit $1" "$1" "$RC"
+  assert_eq "$2 → no stdout, one stderr line" "|1" "$OUT|$(wc -l <<<"$ERR" | tr -d ' ')"
 }
 
 ACTORS_FILE=404 trust_fails 3 "a trust list not on the default branch"

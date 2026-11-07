@@ -1635,6 +1635,8 @@ print_stuck() {
     label="$(printf '%s, ' "${ceiling[@]}")"
     echo "  PARTIAL: ${label%, }: the search reached its 1,000-result ceiling; the list may be missing items"
   fi
+  [[ "$by_status" == true ]] && ((STATUS_CAPPED)) &&
+    echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; a stuck issue past it is not shown"
   echo
 }
 

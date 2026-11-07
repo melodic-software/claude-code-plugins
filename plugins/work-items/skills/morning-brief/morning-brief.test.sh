@@ -2967,6 +2967,8 @@ assert_not_contains "status: a failed field read never falls back to label count
 jq '.pages[0].data.repository.issues.pageInfo = {hasNextPage: true, endCursor: "c"}' "$TMP/status.json" >"$TMP/status-capped.json"
 assert_contains "status: a read that stops at its cap is PARTIAL" "$(section "$(run_status --status-json "$TMP/status-capped.json")" "== Queues")" \
   "PARTIAL: the open-issue read reached its 1000-issue cap; counts may be low"
+assert_contains "status: a capped read makes Stuck PARTIAL too" "$(section "$(run_status --status-json "$TMP/status-capped.json")" "== Stuck")" \
+  "PARTIAL: the open-issue read reached its 1000-issue cap; a stuck issue past it is not shown"
 
 # Owner touches count the field's hold changes as label events. #309: someone
 # sets needs-human on the field 07-19T09:00, the operator changes it to ready
