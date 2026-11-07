@@ -487,10 +487,16 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   When no `/goal` call is found and the user asked for no fresh goal, omit the region and note
   below the bottom rail: "if a goal was active, type /goal and a space, then paste the condition."
 - **Loop-aware re-arm:** running under `/loop` means this session's own
-  `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, or
-  a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
-  `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode but is
-  never required to conclude the loop is active. On the loop's first iteration no reschedule has
+  `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, a
+  `ScheduleWakeup` call carrying `stop: true`, or, for a fixed-interval loop, a turn in which Claude
+  cancelled it, since `Esc` does not stop one), not "infer from conversation" prose. A subsequent
+  `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode. On Claude
+  Code 2.1.319 or later, a self-paced loop counts as stopped once a finished iteration made no
+  reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1` is set; the iteration in progress still counts
+  as active (pointer: the
+  [2.1.319 changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) and
+  <https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, as of 2026-11-07; recheck when
+  that section drops its fallback-wakeup sentence). On the loop's first iteration no reschedule has
   fired yet, so its absence is not evidence of anything. Starting a fresh conversation clears every
   session-scoped scheduled task
   (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that says
