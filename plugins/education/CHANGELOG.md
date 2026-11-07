@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-07
+
+### Fixed
+
+- `/education:illustrate`'s medium resolver command takes `--option "<option>"` in place of the `${user_config.medium}` token, and it and `/education:teach` pass `""` when the `medium` option reads empty or unsubstituted, never a `${user_config.*}` string in a shell command ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
 ## [1.1.0] - 2026-11-06
 
 ### Added
