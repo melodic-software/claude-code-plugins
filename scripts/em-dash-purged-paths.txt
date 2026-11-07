@@ -129,7 +129,7 @@ plugins/ai-briefing/README.md
 plugins/ai-briefing/CHANGELOG.md
 plugins/ai-briefing/skills/*/SKILL.md
 plugins/ai-briefing/skills/generate/reference/*.md
-plugins/ai-briefing/skills/generate/evals/fixtures/*.md
+plugins/ai-briefing/evals/fixtures/*.md
 plugins/ai-slop/CHANGELOG.md
 plugins/ai-slop/README.md
 plugins/ai-slop/skills/*/SKILL.md

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "- **Solstice Code v3.6**: native subagent checkpointing. impact: medium. Could automate integration testing in our JS/TS stack.",
+      "why": "plain annotation"
+    },
+    {
+      "answer": "- **Northwind IDE 4.1**. **Impact:** high. Editor handoff to cloud agents.",
+      "why": "bold label"
+    },
+    {
+      "answer": "impact: none. No use case in our stack.",
+      "why": "none level"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- **Solstice Code v3.6**: high practical impact for engineers this week.",
+      "why": "impact mentioned without the annotation"
+    },
+    {
+      "answer": "Impact on our stack: significant.",
+      "why": "no level"
+    }
+  ]
+}
