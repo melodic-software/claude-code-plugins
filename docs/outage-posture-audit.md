@@ -193,7 +193,7 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:357` | The listing's `retry_call` meets the element. The shared client still sends a read up to 3 times, `withRetry` stacks on top of it, and `.github/actions/request-lane-token/action.yml:287` can sleep up to 480 s. |
+| 1 | met | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:406`, `.github/actions/request-lane-token/action.yml:324`, `.github/actions/request-lane-token/action.yml:405` (lines at this change) | The listing's `retry_call` meets the element. `withRetry` resends only a GraphQL mutation lost on the network (`:407`), and leaves reads to the shared client's 3 attempts, so no read stacks. A resent arm or disarm is pinned to the head the run read and read back once on an error (`:394-398`); the REST refusal comment goes out once. The lane-token request sends at most 3 requests and waits at most 60 s in all (`action.yml:323-324`); a rate-limit wait past that is not taken, and with `rate-limit-hold-ok`, which both of pr-merge's token steps set (`.github/workflows/pr-merge.yml:1167`, `:2463`), it holds green with a `Lane token hold` notice and `skip-reason` `rate-limited`, and every later step skips on the empty `token`. |
 | 2 | gap | `.github/workflows/pr-merge.yml:1279`, `.github/workflows/pr-merge.yml:1283` (lines at the later change below) | A failed listing, a past-budget rate stop and a listing at the limit hold green with the `Merge lane hold` notice, and signal 12 counts each held sweep. The other rate-limit stops (`:303`, `:415`, `:565`, `:969`, `:1467`, `:1760`, `:2263`) still end red, kept on evidence, and so does a failed cover read's dispatch with no cap (`:420`) (see Remaining). |
 | 3 | gap | `.github/workflows/pr-merge.yml:1075` | The lane's own hold waits for the next tick. But the hub's lane breaker sets the stored kill switch, which pr-merge stops on, and a person must clear it. |
 | 4 | met | `.github/workflows/pr-merge.yml:1419`, `.github/workflows/pr-merge.yml:1413`, `.github/workflows/post-merge-demotion-alert.yml:1595-1626` | The lane files only on a judged failure and skips filing on a held listing. A later complete read closes the record it filed: post-merge-demotion-alert's `close-cleared` job closes a schedule or dispatch record (`babysit_postmerge.py` `SELF_CLEARING_SIGNALS`) at the oldest green full run on main that clears it, and `babysit_lift.py close` closes a canary, revert or read-back record once it lifts by the merge gate's rule (`babysit_merge_policy.py` `_lift`); a failed read closes nothing (#12282). A canary or revert record with no lift block keeps a person-only close, by owner decision (#7531, #11022 Q3). |
@@ -209,7 +209,9 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
   (`.github/scripts/maintenance-monitor-signals/signals.mjs:385`). That issue is how a person
   hears about it.
 - **A bad lane token.** A broker refusal or an unreachable broker prints `::error::` and turns the
-  job red (`.github/actions/request-lane-token/action.yml:179`, `:337`, `:398`). In
+  job red (`.github/actions/request-lane-token/action.yml:207`, `:373`, `:446`). A GitHub rate
+  limit past the request's 1-minute budget holds green instead, with the `Lane token hold` notice
+  (`.github/actions/request-lane-token/action.yml:405`). In
   enable-auto-merge it prints `::error title=enable-auto-merge::` and turns red
   (`.github/scripts/pr-merge/enable-auto-merge.mjs:2387`).
 - **1000 or more open pull requests.** The listing holds green with the same notice and a fixed
@@ -298,8 +300,12 @@ A third part 2 change fixed pr-merge's two script gaps, each with a test:
 - **pr-merge, element 1.** The lane-token request sends at most 3 requests and waits at most 60 s
   in all, down from 4 requests and 480 s. A `github-unavailable` retry waits 0 to 20 s, then 0 to
   40 s (full jitter), or a longer `Retry-After`. A wait that does not fit is not taken, and the step
-  fails red at once, as it does on any final broker answer: holding the calling job green instead is
-  that workflow's change (`.github/actions/request-lane-token/action.yml`).
+  fails red at once, as it does on any final broker answer (`.github/actions/request-lane-token/action.yml`).
+  A later change holds that rate limit green for a caller that opts in: with `rate-limit-hold-ok`,
+  a last answer of 503 `github-rate-limited` ends the step with a `Lane token hold` notice,
+  `skip-reason` `rate-limited` and no token. Both pr-merge token steps opt in, and every step after
+  them already skips on an empty `token`, as for a kill-switch stop. The other callers keep the red
+  until their workflow opts in (`.github/actions/request-lane-token/request-lane-token.test.mjs`).
 
 A fourth part 2 change fixed these gaps, each with a test:
 

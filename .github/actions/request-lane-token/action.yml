@@ -7,8 +7,9 @@ description: >
   revoking the token, unless the broker's effect, permissions, lane, activity
   and repository equal what this job resolved; with `pr-workflow-change-ok` a
   `workflow-modified` refusal of a workflow file the PR changes skips instead
-  of failing, and with `kill-switch-ok` a `kill-switch` refusal skips with a
-  notice. In `check` mode it asks the
+  of failing, with `kill-switch-ok` a `kill-switch` refusal skips with a
+  notice, and with `rate-limit-hold-ok` a rate limit past the retry budget
+  holds with a notice. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
   and fails red on anything but an allow, or, with `kill-switch-ok`, a
   `kill-switch` refusal, which skips with a notice. Contract:
@@ -111,6 +112,17 @@ inputs:
       denial still fails red. Default `false`.
     required: false
     default: "false"
+  rate-limit-hold-ok:
+    description: >-
+      `true` ends the step green, with a `Lane token hold` notice, no token
+      and the `skip-reason` output `rate-limited`, when the broker's last
+      answer is 503 `github-rate-limited`: a rate limit the 1-minute retry
+      budget could not wait out, an unknown the caller holds on (outage
+      posture element 2). The same token-output and `skip-reason` rules as
+      `kill-switch-ok` bind the caller; in `check` mode `allowed` stays
+      unset. Default `false`.
+    required: false
+    default: "false"
   pr-workflow-change-ok:
     description: >-
       `true` ends the step green, with no token and the `skip-reason` output
@@ -153,7 +165,8 @@ outputs:
   skip-reason:
     description: >-
       `workflow-modified` when `pr-workflow-change-ok` skipped the activity,
-      `kill-switch` when `kill-switch-ok` did; empty otherwise.
+      `kill-switch` when `kill-switch-ok` did, `rate-limited` when
+      `rate-limit-hold-ok` did; empty otherwise.
     value: ${{ steps.request.outputs.skip-reason }}
   allowed:
     description: "`true` when a `check` mode request got the broker's allow; unset otherwise."
@@ -183,6 +196,7 @@ runs:
         ACTIONS: ${{ inputs.actions }}
         SUPERSEDED_OK: ${{ inputs.superseded-ok }}
         KILL_SWITCH_OK: ${{ inputs.kill-switch-ok }}
+        RATE_LIMIT_HOLD_OK: ${{ inputs.rate-limit-hold-ok }}
         PR_WORKFLOW_CHANGE_OK: ${{ inputs.pr-workflow-change-ok }}
         HEAD_SHA: ${{ inputs.head-sha }}
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
@@ -211,6 +225,8 @@ runs:
         [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
         KILL_SWITCH_OK=${KILL_SWITCH_OK:-false}
         [[ $KILL_SWITCH_OK == true || $KILL_SWITCH_OK == false ]] || fail "kill-switch-ok must be true or false"
+        RATE_LIMIT_HOLD_OK=${RATE_LIMIT_HOLD_OK:-false}
+        [[ $RATE_LIMIT_HOLD_OK == true || $RATE_LIMIT_HOLD_OK == false ]] || fail "rate-limit-hold-ok must be true or false"
         PR_WORKFLOW_CHANGE_OK=${PR_WORKFLOW_CHANGE_OK:-false}
         [[ $PR_WORKFLOW_CHANGE_OK == true || $PR_WORKFLOW_CHANGE_OK == false ]] ||
           fail "pr-workflow-change-ok must be true or false"
@@ -381,6 +397,16 @@ runs:
             echo "::notice::$msg"
             printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
             echo "skip-reason=kill-switch" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A rate limit the retry budget could not wait out leaves the answer
+          # unknown, so the outage posture's element 2 holds instead of failing.
+          # Only the allowlisted $rate_limit text reaches the notice.
+          if [[ $RATE_LIMIT_HOLD_OK == true && $status == 503 && $reason == github-rate-limited ]]; then
+            msg="lane-token-held: the broker answered 503 github-rate-limited past the retry budget${rate_limit}; this run takes no token and skips the rest, and the next run asks again"
+            echo "::notice title=Lane token hold::$msg"
+            printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
+            echo "skip-reason=rate-limited" >>"$GITHUB_OUTPUT"
             exit 0
           fi
           # The refusal does not say whether the PR or the default branch
