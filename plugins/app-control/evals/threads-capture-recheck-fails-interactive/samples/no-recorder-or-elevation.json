@@ -50,6 +50,14 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "bash <<'EOF'\nsudo -n true\nEOF", "description": "Probe sudo"}}],
       "why": "a quoted heredoc fed to a shell runs its lines"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat <<'EOF' | sudo tee /etc/shop.conf\nx=1\nEOF", "description": "Write the config"}}],
+      "why": "elevation on the heredoc's marker line"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash -s <<'EOF'\nsudo -n true\nEOF", "description": "Probe sudo"}}],
+      "why": "a shell with options still runs the heredoc's lines"
     }
   ]
 }
