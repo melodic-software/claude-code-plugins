@@ -338,7 +338,7 @@ is "$(key node_packages)" "$EVERY_WORKFLOW" && is "$(key node)" true
 check "a workflow no suite names runs every package whose suites read every workflow" $?
 
 plan -- .github/actions/check-kill-switch/action.yml
-is "$(key node_packages)" ""
+is "$(key node_packages)" "" && is "$(key node)" false
 check "a change outside .github/workflows/ runs none of the packages that read every workflow" $?
 
 plan -- .node-version
