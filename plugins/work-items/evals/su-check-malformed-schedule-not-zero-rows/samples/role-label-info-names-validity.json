@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: `items` is null, not an array |\n| Recurring-maintenance role label | **INFO**: cannot evaluate; probe 4 (schedule validity) FAILed, so there is no row count |",
+      "why": "table row naming probe 4"
+    },
+    {
+      "answer": "Role label: INFO, because the schedule is unparsable, so its row count is unknown; the validity FAIL is the gate.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: null items |\n| Recurring-maintenance role label | INFO: schedule carries zero rows, label needed before seeding |",
+      "why": "near miss: INFO on the role label, but for the zero-row reason"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: null items |\n| Recurring-maintenance role label | FAIL: `recurring` absent |",
+      "why": "raises the label FAIL on a guess"
+    },
+    {
+      "answer": "role label: INFO (zero rows); schedule validity: FAIL",
+      "why": "near miss: the INFO rests on zero rows, validity is a separate clause"
+    }
+  ]
+}

@@ -10,8 +10,10 @@
 // the pull request: a head that moved (Refine pushed, or anyone else did) is
 // left to the newer head's own review (proceed=false); otherwise the review
 // runs (proceed=true). Every poll also reads the pull request, so a head that
-// moves mid-wait ends the wait at once rather than holding the newer head's
-// review in the per-PR queue. No dispatcher run, no record, a record naming
+// moves mid-wait ends the wait at that poll rather than holding the newer
+// head's review in the per-PR queue. A head read as moved is read again after
+// one poll before anything ends on it; a second read that shows this head
+// again resumes the wait. No dispatcher run, no record, a record naming
 // any other run, a wait past its cap, or any read that fails runs the review,
 // as it ran before this job existed.
 //
@@ -27,10 +29,6 @@ export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 2400, po
 // A re-run or a later pull_request_target event adds a dispatcher run per
 // head; the record may sit on any of them.
 const DISPATCHER_RUNS = 5;
-const MOVED = Symbol("head moved");
-// A poll read the head as moved and the wait stopped; finish confirms it, and
-// a confirming read that finds this head again reviews under this reason.
-const HEAD_READ_MOVED = "head-read-moved";
 export const DISPATCHER = ".github/workflows/pr-unblock-dispatch.yml";
 export const REFINE = ".github/workflows/pr-refine.yml";
 const RECORD = /^pr-unblock-target-dispatched-[0-9a-f]{40}-([1-9][0-9]{0,14})$/;
@@ -63,37 +61,40 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   const deadline = start + capMs;
   const say = (level, text) => log(`::${level}::wait-refine #${number} ${head}: ${text}`);
 
-  // One pulls read per poll: true once the pull request is closed or its head
-  // is no longer this one.
-  async function headMoved() {
-    const pr = await api.get(`pulls/${number}`);
-    return pr.state !== "open" || pr.head?.sha !== head;
-  }
-
-  // Re-reads run <id> until it completes; returns null once the next poll
-  // would pass the cap, or MOVED once the head moves.
-  async function completed(run) {
-    while (run.status !== "completed") {
-      if (now() + pollMs > deadline) return null;
-      await sleep(pollMs);
-      if (await headMoved()) return MOVED;
-      run = await api.get(`actions/runs/${run.id}`);
-    }
-    return run;
-  }
-
-  // A head that reads as moved is read again after one poll before the skip,
-  // so one lagging read cannot leave this head with no review.
-  async function finish(reason) {
-    let pr = await api.get(`pulls/${number}`);
+  // The pull request once it is closed or its head is no longer this one,
+  // else null. An open PR read with another head is read again after one
+  // poll, so one lagging read can neither end the wait nor leave this head
+  // with no review. `pr` is a read already made.
+  async function moved(pr) {
+    pr ??= await api.get(`pulls/${number}`);
     if (pr.state === "open" && pr.head?.sha !== head) {
       await sleep(pollMs);
       pr = await api.get(`pulls/${number}`);
     }
-    if (pr.state !== "open" || pr.head?.sha !== head) {
-      say("notice", `skip the review: the head is now ${pr.head?.sha ?? "unknown"} (${pr.state}), whose own review runs (after ${reason})`);
-      return { proceed: false, reason: "head-moved" };
+    return pr.state !== "open" || pr.head?.sha !== head ? pr : null;
+  }
+
+  function skip(pr, after) {
+    say("notice", `skip the review: the head is now ${pr.head?.sha ?? "unknown"} (${pr.state}), whose own review runs (after ${after})`);
+    return { proceed: false, reason: "head-moved" };
+  }
+
+  // Re-reads run <id> until it completes; returns null once the next poll
+  // would pass the cap, or { moved } with the pull request once the head moves.
+  async function completed(run) {
+    while (run.status !== "completed") {
+      if (now() + pollMs > deadline) return null;
+      await sleep(pollMs);
+      const pr = await moved();
+      if (pr) return { moved: pr };
+      run = await api.get(`actions/runs/${run.id}`);
     }
+    return { run };
+  }
+
+  async function finish(reason) {
+    const pr = await moved();
+    if (pr) return skip(pr, reason);
     say("notice", `review: ${reason}`);
     return { proceed: true, reason };
   }
@@ -101,11 +102,13 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   try {
     // The dispatcher's refine job runs only for a same-repository PR into
     // main, so any other PR is reviewed without waiting out the window, and
-    // a head already moved is skipped at once.
+    // a head already moved is skipped once a second read confirms it.
     const pr = await api.get(`pulls/${number}`);
-    if (pr.state !== "open" || pr.head?.sha !== head || pr.base?.ref !== "main" || pr.head?.repo?.full_name !== repository) {
+    if (pr.base?.ref !== "main" || pr.head?.repo?.full_name !== repository) {
       return await finish("no-refine");
     }
+    const gone = await moved(pr);
+    if (gone) return skip(gone, "the start");
     let runs = [];
     for (;;) {
       const listing = await api.get(`actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${head}&per_page=100`);
@@ -114,16 +117,18 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       );
       if (runs.length > 0 || now() + pollMs > start + appearMs) break;
       await sleep(pollMs);
-      if (await headMoved()) return await finish(HEAD_READ_MOVED);
+      const current = await moved();
+      if (current) return skip(current, "waiting for a dispatcher run");
     }
     if (runs.length === 0) return await finish("no-dispatcher");
 
     let id = 0;
     let source = 0;
     for (const run of runs.sort((a, b) => b.id - a.id).slice(0, DISPATCHER_RUNS)) {
-      const dispatcher = await completed(run);
-      if (dispatcher === MOVED) return await finish(HEAD_READ_MOVED);
-      if (!dispatcher) return await finish("dispatcher-timeout");
+      const waited = await completed(run);
+      if (!waited) return await finish("dispatcher-timeout");
+      if (waited.moved) return skip(waited.moved, `waiting for dispatcher run ${run.id}`);
+      const dispatcher = waited.run;
       const { artifacts = [] } = await api.get(`actions/runs/${dispatcher.id}/artifacts?per_page=100`);
       for (const artifact of artifacts) {
         const found = Number(RECORD.exec(artifact.name ?? "")?.[1] ?? 0);
@@ -139,10 +144,11 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       say("warning", `run ${id} named by dispatcher run ${source} is not a pr-refine.yml dispatch on main for #${number}; not waiting for it`);
       return await finish("not-refine");
     }
-    const done = await completed(refine);
-    if (done === MOVED) return await finish(HEAD_READ_MOVED);
-    if (!done) return await finish("refine-timeout");
-    return await finish(`refine-${/^[a-z_]+$/.test(done.conclusion ?? "") ? done.conclusion : "unknown"}`);
+    const refined = await completed(refine);
+    if (!refined) return await finish("refine-timeout");
+    if (refined.moved) return skip(refined.moved, `waiting for pr-refine run ${id}`);
+    const { conclusion } = refined.run;
+    return await finish(`refine-${/^[a-z_]+$/.test(conclusion ?? "") ? conclusion : "unknown"}`);
   } catch (error) {
     say("warning", `a read failed (${error.message}); the review runs`);
     return { proceed: true, reason: "read-error" };

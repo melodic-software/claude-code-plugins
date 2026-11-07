@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| #362 | held | `feat/362` | **PR 906**: stays a draft (ready refused: #362 already closed, superseded) |",
+      "why": "report row with markdown"
+    },
+    {
+      "answer": "PR 906 is left in draft; the run does not flip it.",
+      "why": "left in draft"
+    },
+    {
+      "answer": "Leave PR 906 as a draft and report the refusal.",
+      "why": "verb before the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PR 906 is flipped out of draft with `gh pr ready 906` so it can merge.",
+      "why": "near miss: flips the draft another way"
+    },
+    {
+      "answer": "Reopen #362 and rerun ready on PR 906.",
+      "why": "near miss: reopens the item"
+    }
+  ]
+}

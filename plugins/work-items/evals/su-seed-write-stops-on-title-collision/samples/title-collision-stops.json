@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Collision**: the custom item's `title` duplicates the dependency-manifest candidate's, so stop and ask the user to merge, replace, or pick a unique value.",
+      "why": "markdown"
+    },
+    {
+      "answer": "deps-refresh: title is not unique (same as dependency-review); setup stops before writing and prompts the user.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ids and titles are unique, no collision; write the schedule.",
+      "why": "near miss: collision vocabulary but no stop"
+    },
+    {
+      "answer": "Append deps-refresh as a fourth row and write .github/recurring-schedule.json.",
+      "why": "writes the duplicate"
+    }
+  ]
+}

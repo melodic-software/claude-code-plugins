@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/work-items/skills/morning-brief/scripts/morning-brief.sh\" --data-dir /tmp/data --now 2026-07-20T08:00Z --counts-json brief/counts.json --azure-json brief/azure.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted script path with the fixtures"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/morning-brief.sh --data-dir /d --org-scan-json brief/org-scan.json --azure-json brief/azure.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "via bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/morning-brief.sh --data-dir /d --now 2026-07-20T08:00Z --counts-json brief/counts.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "near miss: the script without the cost fixtures"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq . brief/azure.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the fixture by hand"
+    }
+  ]
+}

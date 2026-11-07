@@ -149,7 +149,7 @@ test("pace: 0 in the base config turns the pacer off", async () => {
 test("each paced timer lane reads the pacer before its work and gates every spending step on it", () => {
   const lanes = {
     "maintenance-reconcile-lost-runs.yml": { job: "reconcile", gated: ["Find lost runs", "Re-run lost runs"] },
-    "pr-unblock-dispatch.yml": { job: "dispatch", gated: ["Install resolve-config's dependencies", "Restore the dispatch record", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"] },
+    "pr-unblock-dispatch.yml": { job: "dispatch", gated: ["Install resolve-config's dependencies", "Restore the dispatch record", "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs"] },
   };
   for (const [file, { job, gated }] of Object.entries(lanes)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");

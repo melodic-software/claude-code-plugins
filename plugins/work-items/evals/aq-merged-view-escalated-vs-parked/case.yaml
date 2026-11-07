@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-merged-view-escalated-vs-parked
+graders:
+  - name: 'remapped-role'
+    type: 'regex'
+    pattern: 'blocked-on-human'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Builds ONE merged view containing escalations, parked human-gated items, and untriaged intake, not separate disconnected reports; (2) Resolves the human-gated role from config.role_labels (blocked-on-human) and never queries or compares the needs-human default literal after the remap; (3) Includes as [escalated] only items carrying BOTH the human-gated role label AND a machine-marked work-items:escalation comment, and lists the operator-parked item that has the label but no marker as [human-gated], never as [escalated]; (4) Sources [intake] rows from buckets 1-3 of /work-items:triage''s attention view rather than re-deriving its buckets; (5) Lists the item blocked by won''t-do as a report-only row, not [intake], and takes no claim or action on it. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

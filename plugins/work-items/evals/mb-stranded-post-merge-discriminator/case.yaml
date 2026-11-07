@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: mb-stranded-post-merge-discriminator
+graders:
+  - name: 'names-window-flag'
+    type: 'regex'
+    pattern: 'stranded[-_]days\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:morning-brief session does with the stated state. PASS only if it satisfies every point: (1) The response names the comment-vs-merge timestamp comparison as the discriminator; (2) The response explains that a pre-merge thread was already visible to the merge-time gate and is therefore excluded; (3) The response states that the section covers threads created after the merge, within the `--stranded-days` window (default 3; a window that also reaches back to the repo''s bookmark counts). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

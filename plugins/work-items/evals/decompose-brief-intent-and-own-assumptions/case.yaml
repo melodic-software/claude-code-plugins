@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-brief-intent-and-own-assumptions
+graders:
+  - name: 'intent-quote'
+    type: 'regex'
+    pattern: 'printed\s+roster\s+should\s+be\s+right\s+without\s+anyone\s+phoning\s+around'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Every published item body carries the Brief''s Problem as text: nurses trading shifts by text message leaves the printed roster wrong ; (2) Every published item body carries the Intent line quoting the user''s words about the printed roster being right without anyone phoning around ; (3) The swap request and approval item carries the app-account assumption row and not the nightly-snapshot row ; (4) The printed-roster item carries the nightly-snapshot assumption row and not the app-account row ; (5) No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

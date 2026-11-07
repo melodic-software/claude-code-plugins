@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-claim-exit-7-skips-row
+graders:
+  - name: 'skips-712'
+    type: 'regex'
+    pattern: '#712\b[^\n]{0,80}\bskip(?:s|ped|ping)?\b|\bskip(?:s|ped|ping)?\b[^\n]{0,40}#712\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Still built the full merged attention view before claiming: read unrestricted, write only rows this session holds; (2) Checks the binding and runs the session-start reclaim once before the first row claim; (3) Invokes the seam work-item-tracker claim verb with a fully-qualified id before mutating the [escalated] row; (4) On claim exit 7, skips the contested row without retrying it in this pass: no comment, label edit, or triage mutation on that item; (5) Advances to the next attention-view candidate or reports none remain, rather than dead-ending on the lost race; (6) Does not require a shard argument or operator convention for single-session runs. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

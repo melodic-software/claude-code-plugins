@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Before posing the escalated question, the lane restates #418 \"Uploader retries transient S3 5xx forever\", the decision, and each option's consequence. For the next row it restates #503 \"Digest CLI crashes on an empty transcript file\" in full again.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "**#418** Uploader retries transient S3 5xx forever\n- Decision: which retry strategy to keep\n\n**#503** `Digest CLI crashes on an empty transcript file`\n- Decision: how an empty transcript is handled",
+      "why": "markdown headings and code span"
+    },
+    {
+      "answer": "Row 1: [#418](https://github.com/example/repo/issues/418)\nUploader retries transient S3 5xx forever. Decision: retry strategy.\n\nRow 2: [#503](https://github.com/example/repo/issues/503)\nDigest CLI crashes on an empty transcript file. Decision: empty input handling.",
+      "why": "linked numbers with titles on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#418 Uploader retries transient S3 5xx forever: decision is the retry strategy; (a) bounded latency, (b) no drops. Answer (a) written back. #503: same shape as before, answer (b) written back.",
+      "why": "near miss: second row restated without its title"
+    },
+    {
+      "answer": "#418 and #503 answered: (a) and (b), both written back.",
+      "why": "no restatement at all"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The view lists pull request #980 as an [escalated] row, found by also listing open pull requests that carry the human-gated label through the adapter's pull-request listing, since the issue listing alone would miss it.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "**Sources:** issue listing, plus the adapter's `List pull requests` operation (`gh pr list --label needs-human`), which finds #980.",
+      "why": "markdown label and code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The issue listing returns nothing labeled needs-human, so the view is empty and #980 is not shown.",
+      "why": "near miss: runs only the issue listing"
+    },
+    {
+      "answer": "The view lists pull request #980 as [escalated] from the issue listing.",
+      "why": "near miss: 'lists pull request #980' is the row, not the pull-request listing"
+    },
+    {
+      "answer": "#980 [escalated]: answered, comment written, needs-human removed.",
+      "why": "never says how #980 was found"
+    }
+  ]
+}

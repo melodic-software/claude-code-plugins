@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-rename-drop-reconciles-by-marker
+graders:
+  - name: 'renamed-marker-rewritten'
+    type: 'regex'
+    pattern: '(?:rewrit\w*|marker|edit\w*|(?:update[sd]?|updating))[^\n]{0,120}#12\b[^\n]{0,120}ci-action-pins|#12\b[^\n]{0,120}(?:rewrit\w*|marker|edit\w*|(?:update[sd]?|updating))[^\n]{0,120}ci-action-pins'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Looks up the stranded open item by the marker naming the row''s OLD id when the id is renamed or the row dropped (listing open recurring-labeled items with their bodies); (2) Never matches the item by title, old or new (here #15 is left alone although its title matches the dropped lint-config-review row); (3) Rewrites the item''s marker to the new id for a renamed row (#12 to ci-action-pins) and closes it (with a note) for a dropped row (#18); (4) Performs no reconciliation when no open item''s marker names the old id (the dropped lint-config-review row). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
