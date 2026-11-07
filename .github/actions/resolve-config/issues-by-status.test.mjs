@@ -82,6 +82,27 @@ test("a listing past the page cap throws rather than stopping short", async () =
   assert.equal(calls, MAX_ISSUE_PAGES);
 });
 
+// Other fields' events, newest last, as GraphQL's `last:` window keeps them.
+const sizeEvents = (count) =>
+  Array.from({ length: count }, () => ({ __typename: "IssueFieldChangedEvent", createdAt: "2026-11-09T00:00:00Z", newValue: "Small", actor: { __typename: "User", login: "someone", databaseId: HUMAN_ID }, issueField: { fullDatabaseId: "15462270" } }));
+
+test("the listing reads each issue's newest 100 field events, so a Work status setter behind 99 other events still counts", async () => {
+  const held = issue(10, { value: "needs-human" });
+  held.timelineItems.nodes.push(...sizeEvents(99));
+  const { github, calls } = pages([held]);
+  assert.deepEqual(numbers(await list(github, ["needs-human"])), ["10 needs-human"]);
+  assert.match(calls[0].query, /timelineItems\(last: 100, /);
+});
+
+test("a Work status value whose setter is not among a full window of field events throws rather than read as unset", async () => {
+  const lost = issue(11, { value: "needs-human" });
+  lost.timelineItems.nodes = sizeEvents(100);
+  await assert.rejects(() => list(pages([lost]).github, ["needs-human"]), /#11's Work status setter is older than its newest 100 field events/);
+  const unset = issue(12, { labels: ["needs-human"] });
+  unset.timelineItems.nodes = sizeEvents(100);
+  assert.deepEqual(numbers(await list(pages([unset]).github, ["needs-human"])), ["12 null"], "with no Work status value there is no setter to lose");
+});
+
 test("a GraphQL error, a malformed answer, or a counted option name the config does not map throws", async () => {
   await assert.rejects(() => list(async () => ({ errors: [{ message: "nope" }] }), ["deferred"]), /open issues could not be read: nope/);
   await assert.rejects(() => list(async () => ({ data: { repository: { issues: null } } }), ["deferred"]), /holds no issue list/);

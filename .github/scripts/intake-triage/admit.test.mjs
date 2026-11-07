@@ -1655,7 +1655,7 @@ describe("decide", () => {
 // what the closing-event query answers. Label writes on the issue land in its
 // labels and events, which the issues listing answers; `racers` are other
 // issues it lists, each {number, labels, events}.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn, done = null, racers = [] } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn, done = null, racers = [], personHold = null } = {}) {
   const calls = [];
   const labelsNow = new Set((issue.labels ?? []).map((label) => label.name));
   const eventsNow = [...events];
@@ -1752,9 +1752,14 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
   };
   // The issue's Work status: write-status.mjs statusWriter's `set` records a
   // STATUS call and adds the change to its events as read-status.mjs
-  // statusEvents shapes it, by the lanes App.
+  // statusEvents shapes it, by the lanes App. `personHold`, a hold a person set
+  // after admit's read, answers a keepHold write held and writes nothing.
   let state = null;
-  const setStatus = async (number, next) => {
+  const setStatus = async (number, next, { keepHold } = {}) => {
+    if (keepHold && personHold) {
+      calls.push({ method: "HELD", path: `#${number}`, body: next });
+      return { outcome: "held", state: personHold };
+    }
     calls.push({ method: "STATUS", path: `#${number}`, body: next });
     if (failOn?.("STATUS", `#${number}`, next)) {
       throw new Error(`STATUS #${number} failed with status 500`);
@@ -1818,6 +1823,20 @@ describe("admit", () => {
     const result = await go(fake);
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), CLAIMED);
+  });
+
+  test("a person's hold that lands before the claim ends admission: no agent-ready, no further write", async () => {
+    const fake = fakeGitHub({ personHold: "needs-human" });
+    const result = await go(fake);
+    assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
+    assert.deepEqual(writes(fake.calls), [`HELD #7 "deferred"`]);
+  });
+
+  test("a person's hold that lands before a deferral keeps the issue held", async () => {
+    const fake = fakeGitHub({ personHold: "needs-spec" });
+    const result = await go(fake, { status: { ...open, admission_open: false, admission_reason: "closed" } });
+    assert.equal(result.outcome, "held");
+    assert.deepEqual(writes(fake.calls), [`HELD #7 "deferred"`]);
   });
 
   // A manual re-dispatch skips intake-reenter, so the parked status comes off here.

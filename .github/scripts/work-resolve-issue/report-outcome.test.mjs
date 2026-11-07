@@ -794,7 +794,7 @@ test("a run whose patch collector refused goes to a person, whatever its outcome
   ]) {
     const plan = decide({ ...base, ...args });
     assert.equal(plan.stop, "collect-refused", name);
-    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.equal(plan.status, "needs-human", name);
     assert.deepEqual(plan.removeLabels, ["agent-ready"], name);
     assert.match(plan.comment, /\.npmrc/, name);
   }
@@ -815,7 +815,7 @@ for (const [reason, why, action, labels] of [
   test(`done whose patch apply-issue-patch refused (${reason}) routes to ${action} naming the reason, not an empty run`, () => {
     const plan = decideDone({ branch: "", escalation: reason, humanLabel: "needs-human", runUrl: "https://example/o/r/actions/runs/123" });
     assert.equal(plan.action, action);
-    assert.deepEqual(plan.addLabels, labels);
+    assert.deepEqual([...plan.addLabels, ...(plan.status ? [plan.status] : [])], labels);
     assert.ok(plan.comment.includes(`\`${reason}\``), plan.comment);
     assert.match(plan.comment, why);
     assert.doesNotMatch(plan.comment, /committed nothing/);
@@ -858,7 +858,7 @@ test("pushback comments, adds needs-human and removes agent-ready", () => {
     humanLabel: "needs-human",
   });
   assert.equal(plan.action, "hand-back");
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.status, "needs-human");
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.match(plan.comment, /Which file\?/);
 });
@@ -876,7 +876,7 @@ test("a pushback whose cause opens with a hold code holds on that code, whatever
     const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which plan?", cause, title: "", summary: "" } });
     assert.equal(plan.action, "hand-back", cause);
     assert.equal(plan.stop, stop, cause);
-    assert.ok(plan.addLabels.includes("needs-human"), cause);
+    assert.ok((plan.status === "needs-human"), cause);
   }
 });
 
@@ -894,7 +894,7 @@ test("a pushback without cause intent goes back through intake instead of reachi
     assert.equal(plan.action, "intake", String(cause));
     assert.equal(plan.stop, "pushback-means", String(cause));
     assert.deepEqual(plan.removeLabels, ["agent-ready", "status: ready", "admission-deferred"], String(cause));
-    assert.ok(!plan.addLabels.includes("needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
+    assert.ok(!(plan.status === "needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
     assert.equal(parseReason(plan.comment), null, plan.comment);
   }
   for (const cause of ["intent", "INTENT", " Intent\n", "intent-change", "Intent-Change"]) {
@@ -923,7 +923,7 @@ test("a pushback holds only for an explicit hold code, never for a security word
     const plan = run(reason);
     assert.equal(plan.stop, "pushback-means", reason);
     assert.equal(plan.action, "intake", reason);
-    assert.ok(!plan.addLabels.includes("needs-human"), reason);
+    assert.ok(!(plan.status === "needs-human"), reason);
   }
   for (const [reason, cause, stop, code] of [
     ["security-risk: the issue asks to print the deploy token in the log.", undefined, "security-risk", "security"],
@@ -957,7 +957,7 @@ test("a pushback holds only for an explicit hold code, never for a security word
     const risky = run(reason);
     assert.equal(risky.stop, "security-risk", reason);
     assert.equal(risky.action, "hand-back", reason);
-    assert.ok(risky.addLabels.includes("needs-human"), reason);
+    assert.ok((risky.status === "needs-human"), reason);
     assert.equal(parseReason(risky.comment).reason, "security", risky.comment);
   }
   assert.equal(run("host-only: needs a host with model credentials.").stop, "host-only");
@@ -999,7 +999,7 @@ test("a pushback naming a security risk goes to intake unframed once, then reach
     const spent = capRetries(plan, 1);
     assert.equal(spent.action, "hand-back", reason);
     assert.equal(spent.stop, "security-risk", reason);
-    assert.ok(spent.addLabels.includes("needs-human") && spent.comment.includes("work-items:escalation"), spent.comment);
+    assert.ok((spent.status === "needs-human") && spent.comment.includes("work-items:escalation"), spent.comment);
     assert.equal(parseReason(spent.comment).reason, "security", spent.comment);
   }
   const means = decide({ ...plain, outcome: { exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" } });
@@ -1102,7 +1102,7 @@ test("a held stop removes agent-ready and names the branch that holds partial wo
     changedFiles: ["README.md"],
     humanLabel: "needs-human",
   });
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.status, "needs-human");
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
   assert.match(plan.comment, /A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh\./);
@@ -1143,6 +1143,7 @@ function env(dir) {
     GITHUB_RUN_ID: "123",
     GITHUB_RUN_ATTEMPT: "1",
     TRACKER_CONFIG: join(dir, "absent.json"),
+    BASE_PATH: ".",
     RUNNER_CHECKS: existsSync(join(dir, "runner-checks")) ? readFileSync(join(dir, "runner-checks"), "utf8") : "",
   };
 }
@@ -1394,6 +1395,31 @@ test("main on a pushback with no cause sends the issue back through intake once,
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
       assert.ok(comment.startsWith(`<!-- work-resolve-issue outcome=${outcome} run=123 -->\n`), comment);
       assert.ok(!comment.includes("work-items:escalation"), comment);
+    });
+  }
+});
+
+// The tracker's human-gated label decides the hand-back's Work status through
+// models.issue-status labels; one no state lists fails the run unwritten.
+test("main's hand-back writes the Work status the configured human label maps to, and fails on a label no state lists", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "The issue asks to print the deploy token in the log.", title: "", summary: "" });
+  const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  for (const [label, code, state] of [
+    ["needs-owner-decision", 0, "needs-owner-decision"],
+    ["needs-a-person", 1, undefined],
+  ]) {
+    await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST, "tracker.json": JSON.stringify({ config: { role_labels: { "human-gated": label } } }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments/, 200, [earlier]],
+        ["GET", /\/issues\/77\/events/, 200, []],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), TRACKER_CONFIG: join(dir, "tracker.json") }, fetch, setStatus: statusInto(calls) }), code, label);
+      assert.deepEqual(calls.find((c) => c.method === "STATUS")?.body.state, state, label);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), `${label}: no label is added`);
     });
   }
 });
@@ -2193,7 +2219,7 @@ test("a stop the skill reported goes to a person even with a limit record", () =
     limit: { resets: null },
   });
   assert.notEqual(plan.action, "limited");
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.status, "needs-human");
   assert.match(plan.comment, /The tests cannot run here\./);
 });
 
@@ -2232,7 +2258,7 @@ test("a pushback stays a pushback even on a limit-stopped run", () => {
     changedFiles: [],
     limit: { resets: null },
   });
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.status, "needs-human");
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
 });
 
@@ -2528,7 +2554,7 @@ test("a run whose issue changed after agent-ready hands back naming that, not a 
     issueStop,
   });
   assert.equal(plan.action, "hand-back");
-  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.equal(plan.status, "needs-human");
   assert.match(plan.comment, /the issue's title or body changed after `agent-ready` was added/);
   assert.doesNotMatch(plan.comment, /no readable outcome file/);
   assert.match(plan.comment, /<!-- stop-reason lane=work-resolve-issue reason=security -->/);
@@ -4098,7 +4124,7 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-credential" }),
   ];
   for (const plan of handBacks) {
-    assert.deepEqual(plan.addLabels, ["needs-human"], plan.comment);
+    assert.equal(plan.status, "needs-human", plan.comment);
     assert.equal(plan.comment.split("\n")[0], "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->", plan.comment);
   }
   const restarts = [
@@ -4113,7 +4139,7 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
     decideFunding({ limit: { resets: Date.parse("2026-10-17T18:00:00Z") }, now: Date.parse("2026-10-17T12:00:00Z") }),
   ];
   for (const plan of restarts) {
-    assert.ok(!plan.addLabels.includes("needs-human"), plan.comment);
+    assert.ok(!(plan.status === "needs-human"), plan.comment);
     assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   }
 });
@@ -4166,7 +4192,7 @@ test("a security hold read from the run's words names the matched word and keeps
     const plan = wordsPlan(reason);
     assert.equal(plan.action, "hand-back", reason);
     assert.equal(plan.stop, "security-risk", reason);
-    assert.ok(plan.addLabels.includes("needs-human"), reason);
+    assert.ok((plan.status === "needs-human"), reason);
     assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
     assert.ok(wordLine(plan.comment)?.startsWith(`${WORD_LINE}\`${word}\`.`), plan.comment);
   }
@@ -4485,7 +4511,7 @@ test("route hold: a run's intent, design, security or cost code goes to a person
     const plan = stoppedPlan(`${code}: the issue asks for X but the code needs Y`);
     assert.equal(plan.action, "hand-back", code);
     assert.equal(plan.stop, code);
-    assert.deepEqual(plan.addLabels, ["needs-human"], code);
+    assert.equal(plan.status, "needs-human", code);
     assert.deepEqual(plan.removeLabels, ["agent-ready"], code);
     assert.ok(plan.comment.startsWith(ESC), code);
   }
@@ -4791,7 +4817,7 @@ test("main retries a verified-done stop on a resumed branch with no commit of it
 test("a verify-unmet stop parks the parent naming the unmet item, with no retry and no person", () => {
   const plan = stoppedPlan("verify-unmet: the guide does not name --dry-run");
   assert.equal(plan.action, "park");
-  assert.deepEqual(plan.addLabels, ["status: confirmed"]);
+  assert.equal(plan.status, "status: confirmed");
   assert.match(plan.comment, /^<!-- work-resolve-issue outcome=parked run=555 -->/);
   assert.match(plan.comment, /--dry-run/);
   assert.ok(!plan.comment.includes(ESCALATION_MARKER));
@@ -5207,7 +5233,7 @@ test("a patch-credential escalation and a scan's output refusal hold past any ex
     const plan = decide({ ...base, ...args });
     assert.equal(plan.action, "hand-back", name);
     assert.equal(plan.stop, "patch-credential", name);
-    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.equal(plan.status, "needs-human", name);
     assert.match(plan.comment, /credential shape/, name);
     assert.doesNotMatch(plan.comment, /reported done/, name);
   }
@@ -5219,7 +5245,7 @@ test("a patch-credential escalation and a scan's output refusal hold past any ex
     const plan = decide({ ...base, outcome: refused(), ...args });
     assert.equal(plan.action, "hand-back", name);
     assert.equal(plan.stop, "scan-refused-output", name);
-    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.equal(plan.status, "needs-human", name);
   }
 });
 

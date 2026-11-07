@@ -62,31 +62,53 @@ export async function writeState({ github, repository, number, state, config, cu
 // What a state writer's entry point hands its run, over the base config's
 // models.issue-status and trusted-actor list (read-status.mjs
 // loadTrustedActors):
-// - `set(number, state, {fields})` writes `state` (writeState), skipping an
-//   option this process already wrote for the issue, or one `fields` (field
-//   id -> {option}) shows it holds. `fields` must come from a trusted read
-//   (read-status.mjs fieldStatus's rule): an option an untrusted account set
-//   would otherwise stop a write the field needs;
+// - `set(number, state, {fields, keepHold})` writes `state` (writeState),
+//   skipping an option this process already wrote for the issue, or one
+//   `fields` (field id -> {option}) shows it holds. `fields` must come from a
+//   trusted read (read-status.mjs fieldStatus's rule): an option an untrusted
+//   account set would otherwise stop a write the field needs. With
+//   `keepHold`, an issue this process has not written is read first, and a
+//   hold (HOLD_STATES) a listed human set is not replaced: `set` answers
+//   `{outcome: "held", state}` and the caller treats the issue as held;
 // - `leaveAgentReady(number, state)` writes `state` only while the field's
 //   trusted state (read-status.mjs fieldStatus) is agent-ready, so taking
 //   agent-ready off never resets another state.
-// A config that cannot be read makes every call throw StatusWriteError.
+// A config that cannot be read makes every call throw StatusWriteError; a
+// trusted-actor list that cannot be read, every call that reads the field.
 export async function statusWriter({ env, github, repository }) {
   let config;
   let trustedActors;
   let failure;
   try {
     const { issueStatusFromBase } = await import("./resolve-config.mjs");
-    const { loadTrustedActors } = await import("./read-status.mjs");
     config = issueStatusFromBase(env);
-    trustedActors = loadTrustedActors(env);
   } catch (error) {
     failure = new StatusWriteError(`models.issue-status could not be read: ${error?.message ?? error}`, { cause: error });
   }
   const wrote = new Map();
-  const set = async (number, state, { fields } = {}) => {
+  // The field's trusted state, and whether it is a hold a listed human set.
+  // Only a field read needs the trusted-actor list, so a plain `set` writes without it.
+  const readField = async (number) => {
+    try {
+      const { fieldStatusSetter, HOLD_STATES, loadTrustedActors } = await import("./read-status.mjs");
+      trustedActors ??= loadTrustedActors(env);
+      const { state, setter } = await fieldStatusSetter({ github, repository, number, config, trustedActors });
+      const person = (trustedActors?.actors ?? []).some((actor) => actor?.kind === "human" && actor?.id === setter);
+      return { state, personHold: person && HOLD_STATES.includes(state) };
+    } catch (error) {
+      throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
+    }
+  };
+  const set = async (number, state, { fields, keepHold } = {}) => {
     if (failure) {
       throw failure;
+    }
+    // An issue this process already wrote holds that write, so it is not read again.
+    if (keepHold && !wrote.has(number)) {
+      const now = await readField(number);
+      if (now.personHold) {
+        return { outcome: "held", state: now.state };
+      }
     }
     const current = wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option;
     const result = await writeState({ github, repository, number, state, config, current });
@@ -97,13 +119,7 @@ export async function statusWriter({ env, github, repository }) {
     if (failure) {
       throw failure;
     }
-    let held;
-    try {
-      const { fieldStatus } = await import("./read-status.mjs");
-      held = await fieldStatus({ github, repository, number, config, trustedActors });
-    } catch (error) {
-      throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
-    }
+    const { state: held } = await readField(number);
     return held === "agent-ready" ? set(number, state) : { outcome: "unchanged", state: held };
   };
   return { set, leaveAgentReady };

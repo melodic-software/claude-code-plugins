@@ -45,8 +45,8 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // only while `trustedActors` lists it as a bot with the same id and login (one
 // the list dropped reads as unset). `facts.fieldNames`, when given, maps a
 // field id to the option name its newest field event left: a value that
-// names another option than the REST value maps to reads as unset, since the
-// setter read belongs to another write. An option a counted setter chose that
+// names another option than the REST value maps to throws, since the setter
+// read belongs to another write and the hold may be the one unseen. An option a counted setter chose that
 // the config does not map stops the read: GitHub's options drifted.
 export function issueStatus(facts, config, trustedActors) {
   const unmapped = (option) =>
@@ -59,7 +59,7 @@ export function issueStatus(facts, config, trustedActors) {
   const named = facts.fieldNames?.[String(fieldId)];
   const held = facts.fieldValues.find((value) => value.field === fieldId);
   if (typeof named === "string" && held !== undefined && config.options[String(held.option)] !== named) {
-    return null;
+    throw new Error(`issue field ${fieldId} (Work status) holds option ${held.option}, but its newest field event set \`${named}\``);
   }
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   const listed = ({ id, login }) =>

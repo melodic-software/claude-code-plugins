@@ -117,33 +117,39 @@ export function commentBody(author) {
 export const isOwnMarker = (comment, marker) =>
   comment?.user?.id === ACTIONS_BOT_ID && comment?.user?.type === "Bot" && String(comment.body ?? "").startsWith(marker);
 
-// An issue's hold is its Work status field, set through `setStatus(number,
-// state)` (write-status.mjs statusWriter's set); a pull request's is the label.
-const holdWrites = (github, base, item, setStatus) =>
-  item.pull
-    ? [github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] })]
-    : [github("POST", `${base}/labels`, { labels: [LABEL] }), setStatus(item.number, NEEDS_HUMAN)];
+// The label and the comment, then an issue's Work status hold, set through
+// `setStatus(number, state)` (write-status.mjs statusWriter's set); a pull
+// request's hold is the label. The field write needs resolve-config's
+// packages, so it comes last: when it fails, the label and comment are
+// already written. Each write is tried whatever the others did; any failure
+// is thrown after all were tried. Returns `comment`'s outcome.
+async function writeFlag({ github, base, item, setStatus, comment, what }) {
+  const results = await Promise.allSettled([comment(), github("POST", `${base}/labels`, { labels: item.pull ? [LABEL, NEEDS_HUMAN] : [LABEL] })]);
+  if (!item.pull) {
+    results.push(...(await Promise.allSettled([setStatus(item.number, NEEDS_HUMAN)])));
+  }
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    throw new Error(`${what} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
+  }
+  return results[0].value;
+}
 
-// The label, the hold and the comment are written independently, so one
-// failing still leaves the others; any failure is thrown after all were tried.
+// The comment is written once per marker: a marker github-actions[bot]
+// already posted answers `seen` instead.
+const commentOnce = (github, base, marker, body, seen, posted) => async () => {
+  const comments = await paginate(github, `${base}/comments`);
+  if (comments.some((comment) => isOwnMarker(comment, marker))) {
+    return seen;
+  }
+  await github("POST", `${base}/comments`, { body });
+  return posted;
+};
+
 export async function flag({ github, repository, author, setStatus }) {
   const base = `/repos/${repository}/issues/${author.number}`;
-  const marker = markerFor(author);
-  const [commented, ...written] = await Promise.allSettled([
-    paginate(github, `${base}/comments`).then(async (comments) => {
-      if (comments.some((comment) => isOwnMarker(comment, marker))) {
-        return "labeled";
-      }
-      await github("POST", `${base}/comments`, { body: commentBody(author) });
-      return "commented";
-    }),
-    ...holdWrites(github, base, author, setStatus),
-  ]);
-  const failed = [...written, commented].filter((result) => result.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(`flagging #${author.number} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
-  }
-  return commented.value;
+  const comment = commentOnce(github, base, markerFor(author), commentBody(author), "labeled", "commented");
+  return writeFlag({ github, base, item: author, setStatus, comment, what: `flagging #${author.number}` });
 }
 
 // Who removed which label, from an `unlabeled` event's payload.
@@ -180,22 +186,8 @@ export function removalBody(remover) {
 
 export async function restore({ github, repository, remover, setStatus }) {
   const base = `/repos/${repository}/issues/${remover.number}`;
-  const marker = removalMarkerFor(remover);
-  const [commented, ...written] = await Promise.allSettled([
-    paginate(github, `${base}/comments`).then(async (comments) => {
-      if (comments.some((comment) => isOwnMarker(comment, marker))) {
-        return "restored";
-      }
-      await github("POST", `${base}/comments`, { body: removalBody(remover) });
-      return "restored and commented";
-    }),
-    ...holdWrites(github, base, remover, setStatus),
-  ]);
-  const failed = [...written, commented].filter((result) => result.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(`restoring ${LABEL} on #${remover.number} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
-  }
-  return commented.value;
+  const comment = commentOnce(github, base, removalMarkerFor(remover), removalBody(remover), "restored", "restored and commented");
+  return writeFlag({ github, base, item: remover, setStatus, comment, what: `restoring ${LABEL} on #${remover.number}` });
 }
 
 // The job token's Work status write, over the base checkout's config.

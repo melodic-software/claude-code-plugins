@@ -507,6 +507,24 @@ test("a hand-off whose field write fails writes no hand-off record", async () =>
   assert.deepEqual(gh.writes, []);
 });
 
+test("a hand-off a person's late hold answers held writes no record and is not counted handed", async () => {
+  const gh = fakeGitHub({
+    issues: [issue(1)],
+    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    runs: { 11: { status: "completed", conclusion: "failure" }, 22: { status: "completed", conclusion: "success" } },
+  });
+  const asked = [];
+  const setStatus = async (number, state, options) => {
+    asked.push([number, state, options]);
+    return { outcome: "held", state: "needs-human" };
+  };
+  const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus });
+  assert.deepEqual(asked, [[1, "needs-triage", { keepHold: true }]]);
+  assert.deepEqual(result.handed, []);
+  assert.deepEqual(result.held, [1]);
+  assert.deepEqual(gh.writes, [], "no hand-off record");
+});
+
 test("a run still in progress holds the issue for a later pass", async () => {
   const gh = fakeGitHub({
     issues: [issue(1)],

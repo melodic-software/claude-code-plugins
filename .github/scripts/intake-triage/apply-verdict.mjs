@@ -106,7 +106,7 @@ import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { HOLD_STATES, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -701,22 +701,28 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const state = statusConfig && (await verdictStatus([...new Set([...labels, ...lateHolds, ...(labeled ? add : [])])].filter((name) => !off.has(name)), statusConfig));
   const field = String(statusConfig?.["field-id"]);
   const counted = (setter) => humans.has(setter) || isApp(setter, appId) || (statusConfig?.["bot-setters"] ?? []).some((entry) => entry.id === setter);
-  const writeState = () => (state ? setStatus(number, state, { fields: counted(fields[field]?.setter) ? { [field]: fields[field] } : {} }) : null);
+  // A state that is no hold keeps a hold a person set since the first read
+  // (write-status.mjs keepHold), and the issue then goes to no admission.
+  const writeState = async () =>
+    state ? setStatus(number, state, { fields: counted(fields[field]?.setter) ? { [field]: fields[field] } : {}, ...(HOLD_STATES.includes(state) ? {} : { keepHold: true }) }) : null;
   const labelAdds = add.filter((name) => !STATUS_ADDS.has(name));
+  let stateWrite;
   if (labeled) {
     const late = remove.filter((name) => name === NEEDS_TRIAGE || name === CONFIRMED);
     await removeLabels(github, base, remove.filter((name) => !late.includes(name)));
     await addLabels(github, base, labelAdds);
-    await writeState();
+    stateWrite = await writeState();
     await removeLabels(github, base, late);
   } else {
     await removeLabels(github, base, unready);
-    await writeState();
+    stateWrite = await writeState();
   }
   // An admission error stops neither the reasons comment nor the summary; the caller
   // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
-  if (plan.ready && admitIssue && !waits) {
+  if (stateWrite?.outcome === "held") {
+    admission = { outcome: "held", reasons: [`a person's Work status ${stateWrite.state} holds it`], status: stateWrite.state };
+  } else if (plan.ready && admitIssue && !waits) {
     try {
       admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {
@@ -888,7 +894,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // Where a ready verdict leaves the issue after admission, when admission
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
-  admission?.outcome === "refused"
+  admission?.outcome === "refused" || admission?.outcome === "held"
     ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
@@ -916,7 +922,9 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
         admission?.outcome === "refused"
           ? `admission moved the issue to \`${after}\`; its comment says why.`
-          : after === WAITS
+          : admission?.outcome === "held"
+            ? `a person set the Work status to \`${after}\`, which holds the issue.`
+            : after === WAITS
             ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.${
                 refused ? ` GitHub answered 403 for an edge, and ${FORBIDDEN_EDGE}.` : ""
               }`

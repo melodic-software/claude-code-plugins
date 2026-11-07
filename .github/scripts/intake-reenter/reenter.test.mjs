@@ -192,6 +192,20 @@ test("a listed human's decision on an issue admission parked at status: confirme
   expectDispatched(w);
 });
 
+test("a person's needs-human that lands after the read keeps a parked issue held: no field write, no dispatch", async () => {
+  const fieldNodes = [];
+  const w = world({ labels: ["status: confirmed", "priority: medium"], comments: [PARKED, { id: 1, user: OWNER, body: DECISION }], fieldNodes });
+  const github = async (method, path, body) => {
+    const answer = await w.github(method, path, body);
+    if (method === "DELETE" && path.endsWith(encodeURIComponent("status: confirmed"))) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-human" }));
+    return answer;
+  };
+  assert.equal(await run({ ...w, github }, 1), 0);
+  assert.equal(w.field(), "needs-human", "the person's hold stands");
+  assert.ok(!w.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
+  assert.deepEqual(w.dispatches(), []);
+});
+
 test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
   const w = world({
     labels: ["status: confirmed", "priority: medium"],

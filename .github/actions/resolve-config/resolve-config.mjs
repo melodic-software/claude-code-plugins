@@ -170,9 +170,10 @@ function settersOf(events) {
 
 // Pages of 100 open issues issuesByStatus reads before it throws.
 export const MAX_ISSUE_PAGES = 20;
-// Field events per issue in the listing: the Work status setter is the newest
-// Work status event among them.
-const LISTED_FIELD_EVENTS = 20;
+// Field events per issue in the listing, as many as fieldEvents reads: the
+// Work status setter is the newest Work status event among them, and a field
+// value with none among a full window throws rather than read as unset.
+const LISTED_FIELD_EVENTS = 100;
 const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $cursor, filterBy: { since: $since }) {
@@ -199,7 +200,8 @@ ${FIELD_FRAGMENTS}`;
 // is set. `since` (ISO time, optional) keeps only issues updated at or after
 // it. A field value is read by its option name, a state name; a counted name
 // `config` does not map throws `unmapped-status`. More than MAX_ISSUE_PAGES
-// pages, a GraphQL error or a malformed answer throws.
+// pages, a GraphQL error, a malformed answer or a Work status value whose
+// setter falls outside LISTED_FIELD_EVENTS throws.
 export async function issuesByStatus(github, repository, states, { since, config, trustedActors } = {}) {
   const [owner, name] = repository.split("/");
   const option = Object.fromEntries(Object.entries(config.options).map(([id, state]) => [state, Number(id)]));
@@ -226,7 +228,12 @@ export async function issuesByStatus(github, repository, states, { since, config
         throw new Error("the open issues answer holds an issue with no number or event list");
       }
       // The value and its events come from one read, so no fieldNames check.
-      const state = issueStatus({ fieldValues, fieldSetters: settersOf(eventsFrom(nodes)) }, config, trustedActors);
+      const events = eventsFrom(nodes);
+      const statusField = String(config["field-id"]);
+      if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !events.some((event) => event.field === statusField)) {
+        throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
+      }
+      const state = issueStatus({ fieldValues, fieldSetters: settersOf(events) }, config, trustedActors);
       if (state === null ? labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });
       }

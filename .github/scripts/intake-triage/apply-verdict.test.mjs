@@ -1012,6 +1012,24 @@ describe("run", () => {
     assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/labels")), "no repository label read");
   });
 
+  test("a ready write a person's late hold answers held goes to no admission", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    const admitted = [];
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      setStatus: async (number, state, options) => (options?.keepHold ? { outcome: "held", state: "needs-human" } : fake.setStatus(number, state, options)),
+      statusConfig: STATUS_CONFIG,
+      admitIssue: async () => admitted.push("admit") && { outcome: "admitted", reasons: [] },
+      log: () => {},
+    });
+    assert.deepEqual(admitted, [], "admission never runs");
+    assert.deepEqual(result.admission, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
+    assert.match(result.summary, /- Status: needs-human/);
+  });
+
   test("an issue holding only an old class label reads no events", async () => {
     const fake = fakeGitHub({ issue: { labels: [{ name: "work-class: mechanical" }] }, comments: [laneComment()] });
     assert.equal((await go(fake)).outcome, "ready");

@@ -115,6 +115,50 @@ test("statusWriter leaveAgentReady writes only while the trusted field reads age
   }
 });
 
+test("statusWriter set with keepHold leaves a listed human's hold and replaces any other state", async () => {
+  const human = 153232337;
+  const app = 337595936;
+  const actionsBot = 41898282;
+  const person = fieldWorld(86380005, human);
+  assert.deepEqual(await (await writerOver(person.github)).set(7, "needs-triage", { keepHold: true }), { outcome: "held", state: "needs-human" });
+  assert.equal(person.posts().length, 0, "a person's needs-human is never replaced");
+  for (const [why, w] of [
+    ["needs-owner-decision the lanes App set", fieldWorld(84879218, app)],
+    ["needs-human a bot-setter set", fieldWorld(86380005, actionsBot)],
+    ["a person's confirmed, no hold", fieldWorld(86380002, human)],
+    ["unset", fieldWorld(null)],
+  ]) {
+    assert.equal((await (await writerOver(w.github)).set(7, "needs-triage", { keepHold: true })).outcome, "written", why);
+    assert.equal(w.posts().length, 1, why);
+  }
+  const written = fieldWorld(86380005, human);
+  const { set } = await writerOver(written.github);
+  await set(7, "ready");
+  assert.equal((await set(7, "deferred", { keepHold: true })).outcome, "written", "an issue this process wrote is not read again");
+  assert.equal((await set(8, "ready")).outcome, "written", "without keepHold the field is not read");
+  assert.deepEqual(written.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/8/issue-field-values"]);
+});
+
+test("statusWriter set with keepHold throws and writes nothing when the field cannot be read", async () => {
+  const calls = [];
+  const github = async (method, path) => {
+    calls.push([method, path]);
+    return { message: "Not Found" };
+  };
+  const { set } = await writerOver(github);
+  await assert.rejects(() => set(7, "needs-triage", { keepHold: true }), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
+  assert.ok(!calls.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")));
+});
+
+test("statusWriter with an unreadable trusted-actor list still writes a plain set, and throws on every field read", async () => {
+  const w = fieldWorld(null);
+  const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT, TRUSTED_ACTORS_PATH: "/nonexistent-trusted-actors.json" });
+  assert.equal((await set(7, "needs-human")).outcome, "written", "a plain set needs only the config");
+  await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
+  await assert.rejects(() => leaveAgentReady(9, "needs-triage"), StatusWriteError);
+  assert.deepEqual(w.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values"]);
+});
+
 test("statusWriter with no readable config throws on every call and writes nothing", async () => {
   const w = fieldWorld(null);
   const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: "/nonexistent-base" });

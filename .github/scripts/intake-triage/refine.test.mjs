@@ -205,6 +205,12 @@ describe("selectRefinement", () => {
     });
   }
 
+  test("skips an issue a person holds only on the Work status field", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], fields: onField(HUMAN, "needs-human") });
+    const result = await selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), statusOf: fake.statusOf });
+    assert.deepEqual(result, { refine: false, reason: "a person holds it (needs-human)" });
+  });
+
   test("a refinement of an earlier body, or one naming no body, does not stop refining the body as it is now", async () => {
     for (const earlier of [refined("The README was wrong before the edit."), appComment(`${REFINE_MARKER}\nold`)]) {
       const result = await select(fakeGitHub({ issue: issueOf(), comments: [laneComment(), earlier] }));
@@ -1142,6 +1148,14 @@ describe("size split", () => {
   ].join("\n");
   const CHILD_2 = CHILD_1.replace("Part 1 of 2", "Part 2 of 2").replace("- [ ] L1\n- [ ] L2", "  - [ ] L3");
   const repoUrl = "https://api.github.com/repos/o/r";
+
+  test("an issue a person holds only on the Work status field files nothing", async () => {
+    const fake = splitFake();
+    const statusOf = statusReader({ github: withFields(fake.github, onField(HUMAN, "needs-human")), repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+    const result = await applySizeSplit({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules: splitRules, output: { parts: [[1, 2], [3]], order: [] }, context, statusOf, log: () => {} });
+    assert.deepEqual(result, { outcome: "skipped", children: [] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
 
   test("files each part as a sub-issue with its lines as written, writes the order and moves the issue's edges, and never edits its body", async () => {
     const fake = splitFake({

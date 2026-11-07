@@ -349,13 +349,19 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     issues.push(...batch);
     if (batch.length < 100) break;
   }
-  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], waiting: [], failed: [], truncated: null };
+  const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], waiting: [], failed: [], truncated: null };
   const selected = selectCandidates({ issues, now, authorIds, statusLabels });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
   result.candidates = candidates.length;
-  const handOff = (number) => setStatus(number, FLOOR);
+  // A hold a person set since the listing stands (write-status.mjs keepHold):
+  // the issue is held, so it is neither handed off nor recorded.
+  const handOff = async (number) => {
+    const held = (await setStatus(number, FLOOR, { keepHold: true }))?.outcome === "held";
+    if (held) result.held.push(number);
+    return !held;
+  };
   // Issues the sweep already handed off cost their reads and do not count
   // toward MAX_CHECKED, so they cannot starve the issues behind them.
   let checked = 0;
@@ -377,8 +383,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (full) {
         if (atFloor(issue)) continue;
         checked += 1;
-        await handOff(number);
-        result.handedOff.push(number);
+        if (await handOff(number)) result.handedOff.push(number);
         continue;
       }
       const state = readState(comments, appId);
@@ -463,7 +468,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         }
         // The state first, then the record that stops later passes: a failed
         // record leaves the issue for the next pass, which sets it again.
-        await handOff(number);
+        if (!(await handOff(number))) continue;
         await writeState(call, repo, number, state, { runs: state.runs, filed: HANDED, repoUrl, details: runs, reached: known });
         result.handed.push(number);
       }
@@ -538,7 +543,7 @@ async function main() {
   const lines = [
     "### Triage sweep",
     "",
-    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
+    `Candidates: ${result.candidates}. Dispatched: ${numbers(result.dispatched)}. Handed to a maintainer after ${ATTEMPTS} runs that reached intake or ${RUN_LIMIT} dispatches: ${numbers(result.handed)}. Handed off for too many comments: ${numbers(result.handedOff)}. Held by a person's hold: ${numbers(result.held)}. Waiting on a run: ${numbers(result.waiting)}. Calls: ${budget.used}.`,
     "",
     ...(result.truncated ? [`- ${result.truncated}`] : []),
     ...result.failed.map((f) => `- failed #${f.number}: ${f.error}`),

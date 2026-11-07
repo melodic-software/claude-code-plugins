@@ -130,7 +130,9 @@ jobs:
       # flag.mjs writes an issue's Work status through resolve-config.mjs,
       # whose packages only the resolve-config action installs; this job does
       # not run it.
+      # The label and comment must land without it; on an issue the field write then fails the run visibly.
       - name: Install resolve-config's packages
+        continue-on-error: true
         timeout-minutes: 3
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 

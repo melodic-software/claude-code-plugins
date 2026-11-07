@@ -687,7 +687,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
     exit: outcome.exit,
     issueNumber,
     comment: lines.join("\n"),
-    addLabels: [humanLabel],
+    addLabels: [],
+    status: humanLabel,
     removeLabels: ["agent-ready"],
   };
 }
@@ -699,7 +700,9 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // and adds status: confirmed (finishStop writes admission's comment first),
 // close and fail add none; all but retry and wait remove agent-ready.
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
-const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park: "status: confirmed" };
+const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
+// The label whose Work status state a park writes.
+const PARK_STATUS = "status: confirmed";
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
@@ -813,6 +816,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     runId,
     comment: lines.join("\n"),
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
+    ...(route === "park" && { status: PARK_STATUS }),
     removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
     ...(after && { after }),
@@ -2220,17 +2224,17 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // label the issue has, or removing one it lacks (a 404 the catch logs), leaves
 // the same labels, so both are resent; the comment is not.
 // An empty plan.comment posts none: the comment is already on the issue.
-// A hand-back's human label and a park's status: confirmed are Work status
-// states, which `setStatus(number, state)` (baseStatus) writes in the label's
-// place; a failed write throws before any label comes off. An intake, fail or
-// outside-author stop moves a Work status still at agent-ready to
-// needs-triage (`leaveAgentReady`) after its comment, before agent-ready
-// comes off.
-async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {} } = {}) {
+// A plan's `status`, a hand-back's human label or a park's status: confirmed,
+// names a Work status state by one of its labels (`stateOf`, over
+// models.issue-status labels), which `setStatus(number, state)` (baseStatus)
+// writes in the label's place; a failed write throws before any label comes
+// off. An intake, fail or outside-author stop moves a Work status still at
+// agent-ready to needs-triage (`leaveAgentReady`) after its comment, before
+// agent-ready comes off.
+async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {}, stateOf } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
-  const state = plan.addLabels.length === 0 ? null : plan.action === "hand-back" ? "needs-human" : plan.action === "park" ? "confirmed" : null;
-  if (state) {
-    await setStatus(plan.issueNumber, state);
+  if (plan.status) {
+    await setStatus(plan.issueNumber, await stateOf(plan.status));
   } else if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
@@ -2247,7 +2251,7 @@ async function applyHandBack(github, repo, plan, { setStatus = async () => {}, l
       console.log(`report-outcome: could not remove ${name}: ${error.message}`);
     });
   }
-  if (plan.addLabels.length) {
+  if (plan.status || plan.addLabels.length) {
     await comment();
   }
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
@@ -2284,7 +2288,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes the queue labels, then closes the issue as completed. `setStatus`
 // is applyHandBack's and `statusOf` redispatch's.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf }) {
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf, stateOf }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2359,7 +2363,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   }
   // A close leaves its labels to stripQueueLabels below, which throws on a
   // failed removal where applyHandBack only logs it.
-  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus, leaveAgentReady });
+  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus, leaveAgentReady, stateOf });
   if (plan.action === "close") {
     const base = `${repo}/issues/${plan.issueNumber}`;
     // The App's close starts no work-unblock close run, so the queue labels
@@ -2397,10 +2401,25 @@ async function baseStatus(env) {
   }
 }
 
+// The Work status state one of whose models.issue-status labels is `label`,
+// read from the base checkout's config as baseStatus loads its modules; a
+// label no state lists throws.
+async function labelState(env, label) {
+  const actions = join(process.cwd(), env.BASE_PATH || ".base", ".github", "actions");
+  const { issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
+  const labels = issueStatusFromBase(env)?.labels ?? {};
+  const state = Object.keys(labels).find((one) => labels[one].some((name) => name.toLowerCase() === label.toLowerCase()));
+  if (state === undefined) {
+    throw new Error(`models.issue-status gives no Work status state the label \`${label}\``);
+  }
+  return state;
+}
+
 // `setStatus(number, state)` writes the issue's Work status field and
 // `statusOf(number, names)` reads its label names as the field decides them
 // (baseStatus at the command line).
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names } = {}) {
+  const stateOf = (label) => labelState(env, label);
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -2447,7 +2466,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
-      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady, stateOf });
       return 0;
     }
     if (dimensionSkip) {
@@ -2462,6 +2481,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         setStatus,
         leaveAgentReady,
         statusOf,
+        stateOf,
       });
       return 0;
     }
@@ -2770,7 +2790,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf, stateOf });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

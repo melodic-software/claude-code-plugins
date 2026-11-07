@@ -111,9 +111,15 @@ export function loadTrustedActors(env = {}) {
 // issueStatus), or null when no counted account set it; throws when the field
 // cannot be read. The setter and the value come from two reads (GraphQL field
 // events, REST values), so issueStatus also gets the option name the newest
-// event left and reads a disagreement as unset. `issueStatus` and
-// `fieldEvents` default to the modules'.
-export async function fieldStatus({ github, repository, number, config, trustedActors, issueStatus, fieldEvents }) {
+// event left, and throws on a disagreement. `issueStatus` and `fieldEvents`
+// default to the modules'.
+export async function fieldStatus(read) {
+  return (await fieldStatusSetter(read)).state;
+}
+
+// fieldStatus's `{state, setter}`: the trusted state and the account id that
+// last set the field (undefined when no event names one).
+export async function fieldStatusSetter({ github, repository, number, config, trustedActors, issueStatus, fieldEvents }) {
   const status = issueStatus ?? (await import("./issue-status.mjs")).issueStatus;
   const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;
   const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
@@ -131,7 +137,7 @@ export async function fieldStatus({ github, repository, number, config, trustedA
     fieldSetters,
     fieldNames,
   };
-  return status(facts, config, trustedActors);
+  return { state: status(facts, config, trustedActors), setter: fieldSetters[String(config["field-id"])] };
 }
 
 // What a reader's entry point hands its run: `labels(number, names)`, the

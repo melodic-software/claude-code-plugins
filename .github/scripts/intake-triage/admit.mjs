@@ -2663,7 +2663,8 @@ async function removeLabel(github, base, name) {
 // carries come off as before; only agent-ready is still added as a label.
 // `statusOf` (admissionFacts) decides the label names and status history
 // decide() reads. `listing` lists deferred issues and reads one issue's
-// status history (deferredAhead, admissionsSince). Returns {outcome, reasons}.
+// status history (deferredAhead, admissionsSince). Returns {outcome, reasons};
+// outcome `held`, with `status`, when a person's hold landed before a write.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, listing, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -2695,7 +2696,18 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // would name the lanes App as the setter of a person's hold, or read as a
   // fresh status: ready that lifts an agent-ready removal (admissionSettled).
   const lower = names(facts.holdLabels ?? own);
-  const write = (state, label) => (lower.includes(label) ? undefined : setStatus(number, state));
+  // A state that is no hold is written only over no hold a person set since
+  // the read (write-status.mjs keepHold); `held` ends admission there.
+  const move = (state) => setStatus(number, state, { keepHold: true });
+  const write = (state, label) => (lower.includes(label) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
+  const held = (result) => {
+    if (result?.outcome !== "held") {
+      return null;
+    }
+    const why = `a person's Work status ${result.state} holds it`;
+    log(`admit: #${number} left as is (${why})`);
+    return { outcome: "held", reasons: [why], status: result.state };
+  };
   const undefer = async () => {
     if (own.includes(DEFERRED)) {
       await github("DELETE", `${base}/labels/${DEFERRED}`);
@@ -2711,7 +2723,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // Any other refusal parks at status: confirmed, which the triage sweep
     // skips: an agent fixes the reason and dispatches intake again.
     const parked = decision.hold ? NEEDS_DECISION : CONFIRMED;
-    await write(decision.hold ? "needs-owner-decision" : "confirmed", parked);
+    const stop = held(await write(decision.hold ? "needs-owner-decision" : "confirmed", parked));
+    if (stop) {
+      return stop;
+    }
     const marks = [...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])];
     if (marks.length > 0) {
       await github("POST", `${base}/labels`, { labels: marks });
@@ -2734,7 +2749,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // report is cited as data the lanes App wrote, never as instructions.
     await removeLabel(github, base, READY);
     await undefer();
-    await write("needs-triage", "needs-triage");
+    const stop = held(await write("needs-triage", "needs-triage"));
+    if (stop) {
+      return stop;
+    }
     await sayWhy(github, repository, base, comments, retriageNote(reasons, decision.retriage));
     log(`admit: #${number} sent back to intake (${reasons})`);
     return { outcome: "retriage", reasons: decision.reasons };
@@ -2744,11 +2762,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     // so the sweep does not admit it.
     if (decision.pulls.length === 0) {
       await undefer();
-      if (lower.includes(DEFERRED)) {
-        await setStatus(number, "ready");
-      }
-    } else {
-      await write("deferred", DEFERRED);
+    }
+    const stop = held(decision.pulls.length > 0 ? await write("deferred", DEFERRED) : lower.includes(DEFERRED) ? await move("ready") : undefined);
+    if (stop) {
+      return stop;
     }
     await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
@@ -2768,7 +2785,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
         : unread
           ? "the issue lane's queued count could not be read (admission_basis fail-open)"
           : `admissions are closed (${s.admission_reason})`;
-    await write("deferred", DEFERRED);
+    const stop = held(await write("deferred", DEFERRED));
+    if (stop) {
+      return stop;
+    }
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
@@ -2782,10 +2802,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     if (own.includes(DEFERRED)) {
       await removeLabel(github, base, DEFERRED);
     }
-    if (lower.includes(DEFERRED)) {
-      await setStatus(number, "ready");
+    const stop = held(lower.includes(DEFERRED) ? await move("ready") : undefined) ?? held(await move("deferred"));
+    if (stop) {
+      return stop;
     }
-    await setStatus(number, "deferred");
     let ahead;
     try {
       ahead = admissionsAhead(await admissionsSince(github, repository, checkedAt - RACE_WINDOW_MS, listing), number);

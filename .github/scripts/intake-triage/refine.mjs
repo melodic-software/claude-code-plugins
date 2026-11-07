@@ -479,8 +479,10 @@ function orderProblem(order, count) {
 // `splitConfig` returns {rules, webHosts}, read only for an issue that is
 // not thin.
 // A size split comes first (selectSizeSplit), with its own guard; `note`
-// records why a parked issue is not split.
-export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, note = () => {} }) {
+// records why a parked issue is not split. `statusOf` (read-status.mjs
+// statusReader), when given, decides the label names the needs-human check
+// reads, so a hold only the Work status field holds counts.
+export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const no = (reason) => ({ refine: false, reason });
@@ -490,7 +492,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!authorAdmitted(issue, humans, appId)) {
     return no("the author is neither a listed human nor the lanes App");
   }
-  if (labelNames(issue).includes(NEEDS_HUMAN)) {
+  if ((statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue)).includes(NEEDS_HUMAN)) {
     return no(`a person holds it (${NEEDS_HUMAN})`);
   }
   const comments = await paginate(github, `${base}/comments`);
@@ -943,7 +945,8 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 // leaves the split unfinished: what the issue blocks keeps its edge to the
 // issue, and the record stays unfiled so the next triage retries. The
 // record's `filed` list goes last, and is the guard that stops a later split.
-export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, log = console.log, note = () => {} }) {
+// `statusOf`, as selectRefinement's, decides the needs-human check's labels.
+export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, statusOf, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const settings = sizeSplitSettings(rules);
@@ -960,7 +963,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   if (issue.pull_request || issue.state !== "open" || !Number.isInteger(issue.id)) {
     return skip("is not an open issue");
   }
-  if (labelNames(issue).includes(NEEDS_HUMAN)) {
+  if ((statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue)).includes(NEEDS_HUMAN)) {
     return skip(`is held by ${NEEDS_HUMAN}`);
   }
   const type = issue.type?.name;
@@ -1124,7 +1127,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const { attendedClassesFromBase, issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
         const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env) });
-        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, note: summary });
+        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf: statusReader({ env, github, repository }), note: summary });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
         }
@@ -1145,7 +1148,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.
           const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
           const webHosts = () => issueLaneWebHostsFromBase(env);
-          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, note: summary });
+          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, statusOf: statusReader({ env, github, repository }), note: summary });
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));

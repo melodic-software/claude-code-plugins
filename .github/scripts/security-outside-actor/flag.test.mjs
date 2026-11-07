@@ -48,7 +48,7 @@ function fakeGitHub(comments = []) {
   return { github, calls };
 }
 
-function run(eventName, payload, { comments, list = "valid", github } = {}) {
+function run(eventName, payload, { comments, list = "valid", github, base = ROOT } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "outside-actor-"));
   const eventPath = path.join(dir, "event.json");
   writeFileSync(eventPath, JSON.stringify(payload));
@@ -71,7 +71,7 @@ function run(eventName, payload, { comments, list = "valid", github } = {}) {
   const lines = [];
   // The Work status writer reads the list after main's first await.
   return main({
-    env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: ROOT },
+    env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: base },
     github: fake.github,
     log: (line) => lines.push(line),
   })
@@ -229,17 +229,17 @@ test("a marker written by anyone but github-actions[bot] is ignored", async () =
   assert.ok(post(calls, "comments"), "the spoofed markers do not suppress the comment");
 });
 
-// The Work status writer reads the same list, so on an issue its write fails
-// too: the label and comment land and the run fails.
+// The Work status writer's plain set needs no trusted-actor list, so an issue
+// still gets its needs-human.
 test("an unreadable or malformed trusted-actor list fails closed and flags a listed id", async () => {
   for (const list of ["missing", "malformed"]) {
     const pr = await run("pull_request_target", events.pull_request_target(LISTED, "CONTRIBUTOR"), { list });
     assert.equal(pr.code, 0, list);
     assert.deepEqual(written(pr.calls), [`/repos/${REPO}/issues/9/comments`, `/repos/${REPO}/issues/9/labels`], list);
     const { code, calls, lines } = await run("issue_comment", events.issue_comment(LISTED, "CONTRIBUTOR"), { list });
-    assert.equal(code, 1, list);
-    assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/labels`], list);
-    assert.ok(lines.some((line) => /^::error::.*Work status could not be read|^::error::.*models\.issue-status could not be read/.test(line)), lines.join("\n"));
+    assert.equal(code, 0, list);
+    assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`], list);
+    assert.deepEqual(post(calls, "issue-field-values").body, NEEDS_HUMAN_WRITE, list);
     assert.ok(lines.some((line) => line.includes("trusted-actor list is unreadable")), list);
   }
 });
@@ -313,17 +313,31 @@ test("a failed label write still posts the comment and fails the run", async () 
 
 test("a failed Work status write still writes the label and the comment, and fails the run", async () => {
   const fake = fakeGitHub();
+  // A slow label write is recorded when it lands, so a field write sent
+  // beside it would be recorded first.
   const github = async (method, apiPath, body) => {
     if (apiPath.endsWith("/issue-field-values")) {
       fake.calls.push({ method, apiPath, body });
       throw new Error("HTTP 502");
+    }
+    if (method === "POST" && apiPath.endsWith("/labels")) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
     return fake.github(method, apiPath, body);
   };
   const { code, calls, lines } = await run("issues", events.issues(OUTSIDER, "NONE"), { github: { github, calls: fake.calls } });
   assert.equal(code, 1);
   assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`]);
+  const at = (kind) => calls.findIndex((call) => call.method === "POST" && call.apiPath.endsWith(`/${kind}`));
+  assert.ok(at("labels") < at("issue-field-values") && at("comments") < at("issue-field-values"), "the label and comment are written before the field write");
   assert.ok(lines.some((line) => /^::error::.*Work status field was not set to `needs-human`/.test(line)), lines.join("\n"));
+});
+
+test("with the Work status config unloadable, as when resolve-config's install failed, an issue still gets the label and comment, and the run fails", async () => {
+  const { code, calls, lines } = await run("issues", events.issues(OUTSIDER, "NONE"), { github: fakeGitHub(), base: "/nonexistent-base" });
+  assert.equal(code, 1);
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/labels`]);
+  assert.ok(lines.some((line) => /^::error::.*models\.issue-status could not be read/.test(line)), lines.join("\n"));
 });
 
 // Plan case (b): the job token's needs-human on an issue's field is a hold the
@@ -389,16 +403,11 @@ test("a member not on the list, a listed Bot, or anyone under an unreadable list
     [LISTED, "missing", "OWNER"],
   ]) {
     const { code, calls } = await run("issues", unlabel(sender, { item: "issue", author: LISTED, association }), { list });
-    // An unreadable list fails the issue's Work status write as well.
-    const readable = list === "valid";
-    assert.equal(code, readable ? 0 : 1, `${sender.login} ${list}`);
-    assert.deepEqual(
-      written(calls).map((apiPath) => apiPath.split("/").pop()),
-      readable ? ["comments", "issue-field-values", "labels"] : ["comments", "labels"],
-      `${sender.login} ${list}`,
-    );
+    // An unreadable list does not stop the issue's Work status write.
+    assert.equal(code, 0, `${sender.login} ${list}`);
+    assert.deepEqual(written(calls).map((apiPath) => apiPath.split("/").pop()), ["comments", "issue-field-values", "labels"], `${sender.login} ${list}`);
     assert.deepEqual(post(calls, "labels").body, { labels: [LABEL] });
-    if (readable) assert.deepEqual(post(calls, "issue-field-values").body, NEEDS_HUMAN_WRITE);
+    assert.deepEqual(post(calls, "issue-field-values").body, NEEDS_HUMAN_WRITE);
     const pr = await run("pull_request_target", unlabel(sender, { author: LISTED, association }), { list });
     assert.equal(pr.code, 0, `${sender.login} ${list} on a pull request`);
     assert.deepEqual(post(pr.calls, "labels").body, { labels: [LABEL, NEEDS_HUMAN] });

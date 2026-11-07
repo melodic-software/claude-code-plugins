@@ -92,9 +92,12 @@ test("a hold github-actions[bot] set is added to the labels; its agent-ready, an
 
 // The value (REST) and its setter (GraphQL events) are two reads: when the
 // newest event left another option than the value names, the setter belongs to
-// another write, so the field reads as unset.
-test("a value the newest field event does not name reads as unset", async () => {
-  assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]), ["priority: high"]);
+// another write, and the read fails rather than miss a hold.
+test("a value the newest field event does not name throws StatusReadError", async () => {
+  await assert.rejects(
+    () => reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]),
+    (error) => error instanceof StatusReadError && error.number === 7 && /newest field event set `needs-triage`/.test(error.message),
+  );
   assert.deepEqual(await reader({ 7: { state: "needs-human", named: "needs-human" } }).labels(7, ["priority: high"]), ["priority: high", "needs-human"]);
 });
 
@@ -212,6 +215,14 @@ test("bot field events before since are dropped, and a person's before it are ke
   assert.deepEqual(await eventsOf([], field), kept);
   // A config with no cutoff keeps every field event.
   assert.equal((await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": undefined } })).length, 5);
+});
+
+test("a bot field event exactly at since is kept, and one a second earlier is dropped", async () => {
+  const field = [change("2026-11-07T11:59:59Z", null, "needs-human", APP), change("2026-11-07T12:00:00Z", "needs-human", "ready", APP)];
+  assert.deepEqual(await eventsOf([], field, { since: "2026-11-07T12:00:00Z" }), [
+    label("unlabeled", "needs-human", appActor, "2026-11-07T12:00:00Z"),
+    label("labeled", "status: ready", appActor, "2026-11-07T12:00:00Z"),
+  ]);
 });
 
 test("events merge by time, REST first at the same second, REST by id", async () => {
