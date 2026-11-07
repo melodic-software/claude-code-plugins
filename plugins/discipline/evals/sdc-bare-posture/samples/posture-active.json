@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Adversarial self-scrutiny is now active for this session. Nothing has been produced yet, so there is nothing to examine."
+    },
+    {
+      "answer": "Posture set: from here on I will treat 'looks done' as the cue to scrutinize."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing to scrutinize yet."
+    },
+    {
+      "answer": "Here are three flaws in the previous output."
+    }
+  ]
+}

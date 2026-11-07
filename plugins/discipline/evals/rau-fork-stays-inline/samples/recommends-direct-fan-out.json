@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Recommend a direct `/discipline:recheck-against-upstream fan-out` run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /discipline:recheck-against-upstream again later.",
+      "why": "no fan-out argument"
+    }
+  ]
+}

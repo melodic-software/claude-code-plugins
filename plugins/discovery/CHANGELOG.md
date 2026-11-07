@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.6.1] - 2026-11-07
+
+### Fixed
+
+- state the hand-back size in four agents and the research brief
+
 ## [1.6.0] - 2026-11-06
 
 ### Added

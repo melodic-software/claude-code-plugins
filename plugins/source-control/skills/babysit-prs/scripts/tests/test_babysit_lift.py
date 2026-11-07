@@ -315,10 +315,11 @@ def merged_pull() -> dict[str, Any]:
 
 
 class CloseLifted(unittest.TestCase):
-    def run_close(self, gh: Gh) -> int:
+    def run_close(self, gh: Gh, status: object = None) -> int:
         with (
             mock.patch.object(policy, "gh_capture", gh),
             mock.patch.object(lift.postmerge, "_role_label", lambda *_: "needs-human"),
+            mock.patch.object(lift.postmerge, "_issue_status", lambda *_: status),
             mock.patch("sys.stdout"),
         ):
             return lift.close_lifted(REPO, IDENTITY)
@@ -336,6 +337,20 @@ class CloseLifted(unittest.TestCase):
         )
         self.assertIn("state_reason=completed", gh.writes[2])
         self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
+
+    def test_a_field_repository_close_removes_a_legacy_label(self) -> None:
+        # A record filed before the repository set models.issue-status still
+        # carries the label; post-merge-demotion-alert.yml removes it on close.
+        gh = Gh({9: REVERT}, [merged_pull()])
+        self.assertEqual(self.run_close(gh, status=object()), 1)
+        self.assertEqual(
+            [(w[w.index("-X") + 1], w[w.index("-X") + 2]) for w in gh.writes],
+            [
+                ("POST", f"repos/{REPO}/issues/9/comments"),
+                ("DELETE", f"repos/{REPO}/issues/9/labels/needs-human"),
+                ("PATCH", f"repos/{REPO}/issues/9"),
+            ],
+        )
 
     def test_a_content_lift_pins_the_commit_it_was_found_at(self) -> None:
         body = REVERT + "\n" + policy.lift_block([("f.py", b"gone")])

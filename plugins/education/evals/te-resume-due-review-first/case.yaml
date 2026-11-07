@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: te-resume-due-review-first
+description: "Resuming a workspace whose INNER JOIN record is ten months old surfaces that floor concept as due for review and opens with a quick retrieval question on it before advancing to the LEFT JOIN frontier, rather than re-lecturing it"
+tags: [education, teach, outcome, resume, spaced-review, scaffold]
+expected_outcome: "The learning records are read; the reply names INNER JOIN as due for review given the record's age, and opens with one retrieval question on it (for example asking the learner to write or predict an INNER JOIN between orders and customers) before any LEFT JOIN teaching."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach resume sql-joins. The workspace is at learning/topic/sql-joins/ in this directory. This run cannot write files, so tell me in your reply what we do this session."
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: reads-learning-records
+    type: tool_used
+    tool: Read
+    input_match: 'learning-records/'
+    min: 1
+  - name: retrieval-before-advance
+    type: llm
+    focus: last_message
+    criteria: 'Expectations: "Surfaces due-for-review concepts computed from learning-record age × domain velocity before advancing the frontier" and "Opens with a retrieval question on a due floor concept when one exists, rather than re-lecturing the content". The INNER JOIN record (0002) is dated 2026-01-05, ten months before this run; LEFT JOIN is the frontier. PASS if the reply flags INNER JOIN (or the floor) as due for review and asks the learner a retrieval question on it, such as writing or predicting an INNER JOIN between orders and customers, before teaching LEFT JOIN. FAIL if it re-explains INNER JOIN as a lecture, skips the review and goes straight to LEFT JOIN, or names nothing as due. Example PASS: "Your INNER JOIN record is ten months old, so a quick check first: without looking anything up, write the query that lists each order''s total with its customer''s name." Example FAIL: "Today we start LEFT JOIN. A LEFT JOIN keeps every row from the left table..."'

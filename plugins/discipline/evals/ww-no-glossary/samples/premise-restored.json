@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "After the flush, many requests miss the cache at the same time and all go to the database."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It was a thundering herd on cold keys."
+    }
+  ]
+}

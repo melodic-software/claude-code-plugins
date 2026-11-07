@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Finding 2: the date-parsing helper rebuilds what the platform already provides; use Temporal or date-fns."
+    },
+    {
+      "answer": "Date parsing is a solved problem: java.time covers it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll write the date-parsing helper as you asked.",
+      "why": "accepted"
+    },
+    {
+      "answer": "The date parsing helper looks fine."
+    }
+  ]
+}

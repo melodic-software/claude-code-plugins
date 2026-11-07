@@ -1,4 +1,4 @@
-# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
+# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/workflows/* docs/conventions/pr-pipeline.yaml
 """`merge.diff-check.floor-paths`: this repository's effective floor stays what
 it was when its rows moved out of the plugin default, the built-in floor holds
 only what every consumer shares, a row can only tighten the floor, and the

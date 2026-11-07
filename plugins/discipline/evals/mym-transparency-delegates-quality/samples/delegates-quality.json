@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"discipline:do-your-research\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Whether 600 requests a minute is current is a /discipline:do-your-research question.\"}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no delegation"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"Quality (truthfulness, evidence) -> `/discipline:do-your-research`.\"}]}}\n",
+      "why": "the loaded skill body, not the reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"discipline:tighten-your-output\"}}]}}\n",
+      "why": "another sibling"
+    }
+  ]
+}

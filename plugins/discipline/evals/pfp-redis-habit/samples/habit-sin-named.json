@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "That's the Habit sin: 'I always reach for it' is muscle memory."
+    },
+    {
+      "answer": "This reads as a habitual pick, not a fitted one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Redis is a fine choice for session storage.",
+      "why": "never names it"
+    },
+    {
+      "answer": "This is not habit; you measured it.",
+      "why": "negated"
+    }
+  ]
+}

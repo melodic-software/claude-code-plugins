@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: qz-canonical-fresh-key
+description: "The canonical request for a report with a quiz at the bottom fires quiz-me with no slash command, tests the human's comprehension rather than the code, and has the answer key produced or checked by a fresh-context subagent that reads only the report and the diff"
+tags: [education, quiz-me, outcome, trigger, answer-key, scaffold]
+expected_outcome: "An Agent subagent produces or verifies the answer key from the report and the diff alone, and the printed report and quiz test whether the reader understood the auth middleware change, not whether the code is correct."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "I want to make sure I understand everything that's happened in this change. Give me a HTML report on the changes for me to read and understand with context, intuition, what was done, etc. and a quiz at the bottom on the changes that I must pass. The change is the auth middleware diff at evals/fixtures/auth-middleware-change/auth-middleware.diff. This run cannot write files, so print the full report as markdown in your reply."
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Agent]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: fresh-key-pass
+    type: tool_used
+    tool: Agent
+    input_match: '[Aa]nswer[- ]key|\b[Aa]nswers?\b[^"]{0,80}\b[Qq]uiz|\b[Qq]uiz\b[^"]{0,80}\b[Aa]nswer'
+    min: 1
+  - name: tests-the-human
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Treats the human''s comprehension of the completed work as the object under test: not whether the artifact is correct or works". PASS if the quiz questions ask what the change does and why (for example what now happens to a request on a public path, why the rate limiter runs before auth, what an invalid token returns), so a reader who did not follow the change would miss them. FAIL if the questions or the report judge the code instead (asking whether tests pass, listing bugs to fix, or rating code quality), or the reply verifies the change rather than quizzing the reader. Example PASS: "Q2. After this change, what status does a request with an expired token get, and from which branch? (see Decisions)". Example FAIL: "Q2. Does the middleware have adequate test coverage?"'

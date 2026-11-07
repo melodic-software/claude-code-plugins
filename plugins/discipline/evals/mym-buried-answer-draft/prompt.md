@@ -1,6 +1,6 @@
 ---
-description: "An agent-authored draft reply buries a yes/no answer under history, carries a packaging-tool tangent and an unresolved 'it'. The run must name the buried answer, the unclear reference and the tangent, and correct the draft so the answer leads"
-tags: [discipline, mind-your-maxims, outcome, scaffold]
+description: "Legacy mind-your-maxims 2 (refit to a drafted artifact on disk). An agent-authored draft reply buries a yes/no answer under history, carries a packaging-tool tangent and an unresolved 'it'. The run must name the buried answer as a Relation failure (names-relation; SKILL.md lines 47-50), the unclear reference and the tangent, and correct the draft so the answer leads. Needs --scaffold --allow-tools Edit Write."
+tags: [discipline, mind-your-maxims, outcome, scaffold, no-network]
 max_turns: 15
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Glob, Grep, Edit, Write]

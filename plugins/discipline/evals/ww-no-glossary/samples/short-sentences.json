@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "At 02:00 the cache is emptied. Many requests then miss at once."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At two in the morning the cache gets flushed and after that every request that comes in for a key misses and goes to the database at the same time which is what pushed the latency up and singleflight would fix it except that our client library is pinned"
+    }
+  ]
+}

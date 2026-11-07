@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/education/lib/view-settings.mjs\" resolve --lane education:illustrate --option \"\""}}],
+      "why": "resolver only"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/docs/conventions/rendered-views.yaml"}}],
+      "why": "reads the team file itself"
+    }
+  ]
+}

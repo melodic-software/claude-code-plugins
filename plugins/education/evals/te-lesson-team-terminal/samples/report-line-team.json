@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote concepts/borrow-checker/lesson.md.\n\nview: terminal (team)",
+      "why": "report line as printed"
+    },
+    {
+      "answer": "`view: terminal (team)`\n\n# Lesson: the borrow checker\n...",
+      "why": "backticked, before the lesson"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: auto (plugin default)",
+      "why": "no setting decided"
+    },
+    {
+      "answer": "Your team file says terminal, so the lesson is markdown.",
+      "why": "paraphrase, report line not printed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

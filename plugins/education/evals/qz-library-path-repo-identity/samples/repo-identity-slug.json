@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "I would save it to `${CLAUDE_PLUGIN_DATA}/widget-shop-7c50a056/quiz-me/reports/2026-11-07-slugify-strip-accents-1a2b3c4.html`.",
+      "why": "documented path, unexpanded root"
+    },
+    {
+      "answer": "Path: ~/.claude/plugins/data/education-mkt/widget-shop-7c50a056/quiz-me/reports/2026-11-07-fix-slugify-9f8e7d6.html",
+      "why": "expanded root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I would save it to `${CLAUDE_PLUGIN_DATA}/run-3f2a91bc/quiz-me/reports/2026-11-07-slugify.html` (slug from the checkout path).",
+      "why": "checkout-path slug"
+    },
+    {
+      "answer": "I would save it to ./quiz-me/reports/slugify.html in the repo.",
+      "why": "inside the working tree"
+    },
+    {
+      "answer": "I would save it to `${CLAUDE_PLUGIN_DATA}/widget-shop-7c50a056a/quiz-me/reports/x.html`.",
+      "why": "nine hex characters"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

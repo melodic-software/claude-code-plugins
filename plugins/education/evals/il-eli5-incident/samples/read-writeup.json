@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/incidents/2026-10-29-checkout-outage.md"}}, {"tool": "Read", "input": {"file_path": "/tmp/run/logs/checkout-2026-10-29.log"}}],
+      "why": "reads the writeup and the log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "drew from the prompt alone"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/run/logs/checkout-2026-10-29.log"}}],
+      "why": "log only, writeup unread"
+    }
+  ]
+}

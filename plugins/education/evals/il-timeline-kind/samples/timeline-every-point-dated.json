@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"diagrams\":[{\"heading\":\"Python 3 releases\",\"kind\":\"timeline\",\"points\":[{\"when\":\"2008-12-03\",\"label\":\"3.0: print is a function\"},{\"when\":\"2016-12-23\",\"label\":\"3.6: f-strings\"},{\"when\":\"2023-10-02\",\"label\":\"3.12: f-string grammar\"}]}]}\n```",
+      "why": "every point dated"
+    },
+    {
+      "answer": "```json\n{\n  \"kind\": \"timeline\",\n  \"points\": [\n    { \"label\": \"3.0\", \"when\": \"2008\" },\n    { \"label\": \"3.1\", \"when\": \"2009\" }\n  ]\n}\n```",
+      "why": "label before when, years only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"kind\":\"timeline\",\"points\":[{\"when\":\"2008-12-03\",\"label\":\"3.0\"},{\"label\":\"3.6 (2016): f-strings\"}]}\n```",
+      "why": "one point has no when"
+    },
+    {
+      "answer": "```json\n{\"kind\":\"timeline\",\"points\":[{\"when\":\"2008\",\"label\":\"3.0\"},{\"when\":\"\",\"label\":\"3.1\"}]}\n```",
+      "why": "empty when"
+    },
+    {
+      "answer": "```json\n{\"kind\":\"flow\",\"steps\":[\"3.0 (2008)\",\"3.1 (2009)\"]}\n```",
+      "why": "flow of boxes"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: mym-quantity-both-directions
+context:
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?mind-your-maxims"'
+    min: 1
+    arm: 'with-only'
+  - name: quantity-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n''t )(?<!n''t a )(?<!\bno )\bQuantity\b'
+    target: 'last_message'
+  - name: flags-omission
+    type: llm
+    criteria: 'Legacy expectation: "Flags omission (missing detail/caveat/step) as a Quantity finding". The answer leaves out necessary steps such as stopping the 14 cluster, a `pg_upgrade --check` dry run, a backup, and analyzing after the upgrade. PASS only if the reply names at least one such omitted step or caveat as an under-informing (Quantity) finding. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: flags-padding
+    type: llm
+    criteria: 'Legacy expectation: "Flags padding/restatement as a Quantity finding in the other direction". PASS only if the reply names the padding (the praise and Postgres history, the restatement of the question, or the closing summary) as an over-informing finding. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: located-and-corrected
+    type: llm
+    criteria: 'Legacy expectation: "Names concrete located findings and corrects forward rather than giving a generic verdict". PASS only if each finding points at a specific part of the answer and the reply gives the corrected answer (the missing steps added, the padding cut) in this turn. FAIL if it gives only a general critique or no corrected answer.'
+    focus: 'last_message'
+    arm: 'both'
