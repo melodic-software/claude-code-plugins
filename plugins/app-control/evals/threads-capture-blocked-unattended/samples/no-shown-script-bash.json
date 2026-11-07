@@ -12,6 +12,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "grep -n exit plugins/app-control/scripts/build_capture_script.py", "description": "Read the builder's exit codes"}}],
       "why": "a read of the builder, not a run"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat > evidence/report.md <<'EOF'\n# drive: capture --kind threads (shop)\n- Not run: `build_capture_script.py --write <tmp>/capture.sh --elevate sudo --pid 5120 -- py-spy dump --pid <pid>`.\n- blocked: capture needs elevation\nEOF", "description": "Write the report"}}],
+      "why": "a builder call and a .sh path in report text a quoted heredoc writes"
     }
   ],
   "fail": [
@@ -34,6 +38,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "echo 'sudo py-spy dump --pid 5120' | tee evidence/capture.sh", "description": "Write the script"}}],
       "why": "tee into a .sh path"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat > evidence/report.md <<'EOF'\n- blocked: capture needs elevation\nEOF\npython3 -I /plugins/app-control/scripts/build_capture_script.py --write /tmp/drive-cap/threads.sh -- py-spy dump --pid '<pid>'", "description": "Build the capture script"}}],
+      "why": "runs the builder after a report heredoc"
     }
   ]
 }
