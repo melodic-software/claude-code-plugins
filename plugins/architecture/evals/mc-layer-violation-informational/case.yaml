@@ -17,9 +17,9 @@ graders:
     pattern: '^(?![\s\S]*Boundary\([^)\n]*"(?:host|application|domain)"[^\n]*\{\n(?:[ \t]*Component\([^\n]*\n)*?[ \t]*Component\(cmp_src_shared_)[\s\S]*Component\(cmp_src_shared_Billing_Shared_Billing_Shared_csproj, "Billing\.Shared"'
     target: { source: file, path: docs/architecture/components.md }
   - name: violations-quoted
-    type: regex
-    pattern: '\bviolations=1\b'
-    target: last_message
+    type: llm
+    criteria: "map-components SKILL.md line 192, closing report: '**Layer violations**: the count, and that they are informational.' PASS only if the reply's report gives the layer violation count as 1 (as violations=1 or in words) and says the violations are informational, not a failure. FAIL if the count is missing or not 1, or the reply treats the violation as a failed run."
+    focus: last_message
   - name: enforcement-elsewhere
     type: regex
     pattern: '\benforc\w*\b[^\n.]{0,160}\barchitecture[- ]tests?\b|\barchitecture[- ]tests?\b[^\n.]{0,160}\benforc\w*'

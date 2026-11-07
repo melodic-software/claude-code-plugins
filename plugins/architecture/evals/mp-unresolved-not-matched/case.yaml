@@ -17,10 +17,9 @@ graders:
     pattern: '"to"\s*:\s*"src/Domain/Domain\.csproj"[^\n]*"evidence"\s*:\s*"src/Api/Api\.csproj: <ProjectReference Include=\\"\.\./Domain/Domain\.csproj\\"'
     target: { source: file, path: docs/architecture/dependency-graph.json }
   - name: reply-names-unresolved
-    type: regex
-    pattern: '(?<!\bnot\s)(?<!\bno longer\s)(?<!n''t\s)\bunresolved\b[\s\S]{0,160}?\.\./Shared/Shared\.csproj|\.\./Shared/Shared\.csproj[\s\S]{0,160}?(?<!\bnot\s)(?<!\bno longer\s)(?<!n''t\s)\bunresolved\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    criteria: "Legacy expectation: 'status is unresolved'. PASS only if the reply's report says the ProjectReference ../Shared/Shared.csproj in src/Api/Api.csproj is unresolved (did not resolve, or does not exist at that path). FAIL if it says that reference resolved, or names legacy/Shared/Shared.csproj as its target."
+    focus: last_message
   - name: reply-unresolved-not-negated
     type: regex
     pattern: '\b(?:nothing|none)\s+(?:is\s+|was\s+|are\s+|were\s+)?(?:left\s+)?unresolved\b|(?:\bnot|n''t)\s+unresolved\b|\bunresolved\s*(?:\*\*)?\s*:\s*(?:\*\*)?\s*(?:none|0|nothing)\b'
