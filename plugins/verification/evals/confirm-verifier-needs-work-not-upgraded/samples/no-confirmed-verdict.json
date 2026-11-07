@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK.** The verdict is not upgraded to CONFIRMED by my own answer to the open question."
+    },
+    {
+      "answer": "Verifier verdicts: NEEDS WORK. Verdict: NEEDS WORK."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Verdict: CONFIRMED**"
+    },
+    {
+      "answer": "First verifier: NEEDS WORK. The edit is in scope, so the final verdict: CONFIRMED.",
+      "why": "lists NEEDS WORK, then upgrades it"
+    }
+  ]
+}

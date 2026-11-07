@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK** (as the verifier returned it). Criterion 4 is PARTIAL."
+    },
+    {
+      "answer": "Next: dispatch a new fresh verifier whose brief adds the scope rule quoted from the Brief, with no wanted verdict."
+    },
+    {
+      "answer": "Next step: fix what the verdict names, then re-run /verification:confirm."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The test edit is in scope, so I accepted it. Verdict: CONFIRMED.",
+      "why": "names neither NEEDS WORK nor a fix or re-dispatch path"
+    }
+  ]
+}
