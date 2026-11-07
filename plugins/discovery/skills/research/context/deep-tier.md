@@ -80,7 +80,7 @@ Agent({
            Source breadth: <low|medium|high|xhigh|max, resolved from this session's caller effort; write high if the substitution is a literal placeholder>
            Evidence use: <publish if the output will be quoted outside this session (a PR reply, an issue, a document for a third party), else internal>
            Research config: corroborators=<n> recency=<active>/<standard>/<guide>, resolved per SKILL.md "Tunable defaults"
-           Return: your return block, under 4,096 bytes (aim for 3,400)"
+           Return: your return block, under 4,096 bytes with persistence: written (aim for 3,400)"
 })
 ```
 
