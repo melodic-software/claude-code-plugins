@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Child | Tier | Provenance | What it is | Why removable | Risk | Empty | Bytes |\n|---|---|---|---|---|---|---|---|\n| Temp1 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp2 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp3 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp4 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| BuildCache | keep | build.props names it; build ran 2 days ago | live build cache | owner active | breaks builds | no | 5153960755 |\n\nI rank by tier and provenance, not bytes; the empty directories stay in the report."
+    },
+    {
+      "answer": "\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"C:/\" --root-children --root-child Temp1 --data-root C:/eval/data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"C:/\" --max-depth 1 --data-root C:/eval/data"
+    },
+    {
+      "answer": "```bash\n\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target C:/ \\\n  --data-root \"C:/eval/data\"\n```"
+    }
+  ]
+}

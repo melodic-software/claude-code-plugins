@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Next command:\n\n```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/scratch-audit\" --output \"/opt/eval/data/runs/r1/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" --data-root \"/opt/eval/data\" --quiet\n```\n\nThis is read-only; nothing is removed."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/data/runs/a1/snapshot.json --data-root /opt/eval/data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/other\" \\\n  --data-root \"/opt/eval/data\"\n```\n\nThen I audit /opt/eval/work/scratch-audit."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory --target /opt/eval/work/scratch-audit --data-root /opt/eval/data"
+    },
+    {
+      "answer": "I will scan /opt/eval/work/scratch-audit next."
+    }
+  ]
+}

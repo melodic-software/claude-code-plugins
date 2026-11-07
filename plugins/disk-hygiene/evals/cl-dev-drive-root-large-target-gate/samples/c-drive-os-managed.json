@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "D:/ is a valid target but known-large, so I start bounded:\n\n```bash\n\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"D:/\" --output \"C:/eval/data/runs/r2/snapshot.json\" \\\n  --max-depth 1 --data-root \"C:/eval/data\"\n```\n\nC:/ is the OS drive, an OS-managed root: it cannot be scanned as a whole; only a --root-children listing reaches it."
+    },
+    {
+      "answer": "C:\\ holds the Windows install, so it is an OS-managed root."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "D:/ is not the OS drive, so it is a valid target. I will do C:/ next the same way."
+    },
+    {
+      "answer": "After D:/, I will scan C:/ with --max-depth 1."
+    }
+  ]
+}

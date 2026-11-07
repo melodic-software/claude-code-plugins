@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## CANDIDATE\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .local/share/mise/installs/node/22.11.0 | superseded-version | mise | older version, unused | no /proc match |\n\n## KEEP\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .config/nvim | unclassified | neovim | nvim reads init.lua here | init.lua present |\n\n## UNKNOWN (coverage gaps)\n\nmnt-backup, .private-vault: not walked.\n\nNothing here is approved for removal. To remove a candidate, run a scan, then a fresh preview, then approve that one tier and its paths."
+    },
+    {
+      "answer": "Removal takes a scan of that path, a fresh preview, and your approval of one tier."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "These three candidates are safe to remove; say the word and I will delete them."
+    },
+    {
+      "answer": "Run a scan of the candidates next."
+    }
+  ]
+}

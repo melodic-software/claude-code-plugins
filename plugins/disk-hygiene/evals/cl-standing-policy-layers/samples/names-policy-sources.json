@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/home/scratch\" \\\n  --output \"/opt/eval/data/runs/r1/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" --data-root \"/opt/eval/data\"\n```\n\nNo --policy: an explicit --policy replaces both standing layers, which would drop the project hint. Without it the engine layers your user-global file, then the project file, over the baseline, adding protections and hints only. The scan output's policy_sources will list all three."
+    },
+    {
+      "answer": "Check the policy sources in the scan output."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both files will apply."
+    },
+    {
+      "answer": "The scan output lists which policies loaded."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## CANDIDATE\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .local/share/mise/installs/node/22.11.0 | superseded-version | mise | older version, unused | no /proc match |\n\n## KEEP\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .config/nvim | unclassified | neovim | nvim reads init.lua here | init.lua present |\n\n## UNKNOWN (coverage gaps)\n\nmnt-backup, .private-vault: not walked.\n\nNothing here is approved for removal. To remove a candidate, run a scan, then a fresh preview, then approve that one tier and its paths."
+    },
+    {
+      "answer": "Two entries are coverage gaps: mnt-backup and .private-vault."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "UNKNOWN: mnt-backup, .private-vault (not walked)."
+    },
+    {
+      "answer": "Two entries were skipped."
+    }
+  ]
+}
