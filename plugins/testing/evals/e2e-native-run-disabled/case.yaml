@@ -11,7 +11,7 @@ execution:
 graders:
   - name: refused-state
     type: regex
-    pattern: 'invocation refused \(disableBundledSkills\)'
+    pattern: 'invocation refused \(disableBundledSkills\b'
     flags: i
     target: last_message
   - name: meets-expectations

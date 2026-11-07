@@ -3,6 +3,10 @@
     {
       "answer": "State: invocation refused (disableBundledSkills). Axis: settings. Falling back to the documented start command.",
       "why": "state line"
+    },
+    {
+      "answer": "State: invocation refused (disableBundledSkills is set in settings; settings axis, enable path: unset disableBundledSkills or adjust skillOverrides)",
+      "why": "reason with the axis inside the parentheses (the smoke reply, which the llm grader passed)"
     }
   ],
   "fail": [
