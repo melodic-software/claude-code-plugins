@@ -719,6 +719,14 @@ class TheCappedClose(unittest.TestCase):
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
         )
+        # Both records say the hold, neither says parked, and the issue's
+        # marker names no attempt, so a rerun restarts nothing.
+        for index in (0, 1):
+            body = world.body(index)
+            self.assertIn("held at Work status `needs-human`", body)
+            self.assertNotIn("parked at", body)
+        self.assertNotIn("parked", world.body(1).splitlines()[0])
+        self.assertNotIn("attempt=", world.body(1).splitlines()[0])
 
     def test_a_held_field_keeps_it_open(self) -> None:
         world = World()

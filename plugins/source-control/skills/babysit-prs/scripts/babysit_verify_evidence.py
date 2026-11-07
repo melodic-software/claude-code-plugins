@@ -4873,11 +4873,13 @@ def capped_close_bodies(
     issue: int | None,
     attempt: tuple[int, int] | None,
     parked: bool,
+    held: str | None = None,
 ) -> tuple[str, str | None]:
     """The comment on the closed pull request and, with an issue, the one on
     that issue: the marker first, then what happened and every FAIL's
     findings. For `NOT_CONVERGING`, `detail` is the lane-stopped comment's
     URL, which lists the open review threads the fresh attempt starts from.
+    `held` is the Work status hold a re-read found right before the park.
     A function of its arguments only, so a rerun renders the same."""
     heads = sorted({str(e["head"]) for e in findings})
     why = f" ({_inert(detail)})" if detail else ""
@@ -4896,6 +4898,11 @@ def capped_close_bodies(
     )
     if issue is None:
         next_step = "It links no issue, so no fresh attempt starts."
+    elif held is not None:
+        next_step = (
+            f"Issue #{issue} is held at Work status `{held}`, so no fresh attempt "
+            "starts and it is not parked: whoever set the hold decides what comes next."
+        )
     elif attempt is None:
         next_step = (
             f"Issue #{issue} did not carry `{AGENT_READY}` when the lane read it, so "
@@ -5239,6 +5246,14 @@ def capped_close(
             )
             labels = "park" if parked else ("toggle" if carried else "none")
         plan.append((issue, comments, attempt, parked, labels))
+    # Read again before any record or park write: a hold set since the hold
+    # read stays, and the issue is recorded with no attempt, not parked.
+    held: dict[int, str] = {}
+    for i, (issue, comments, _, _, labels) in enumerate(plan):
+        if labels == "park" and read_status:
+            if (state := status(issue)) in merge_policy.HOLD_STATES:
+                held[issue] = str(state)
+                plan[i] = (issue, comments, None, False, "none")
     first = plan[0] if plan else None
     pr_body, _ = capped_close_bodies(
         number,
@@ -5249,6 +5264,7 @@ def capped_close(
         first[0] if first else None,
         first[2] if first else None,
         first[3] if first else False,
+        held.get(first[0]) if first else None,
     )
     if pr_record is None:
         _gh_write(
@@ -5262,8 +5278,6 @@ def capped_close(
             ],
             "pull request record",
         )
-    # Issues a hold read again before their park kept unparked.
-    held: list[int] = []
     for issue, comments, attempt, parked, labels in plan:
         _, issue_body = capped_close_bodies(
             number,
@@ -5274,6 +5288,7 @@ def capped_close(
             issue,
             attempt,
             parked,
+            held.get(issue),
         )
         if _marked(comments, identity, number) is None:
             _gh_write(
@@ -5288,15 +5303,6 @@ def capped_close(
                 f"#{issue} record",
             )
         base = f"repos/{repo}/issues/{issue}/labels"
-        # Read again right before the park writes: a hold set since the hold
-        # read stays, and the issue is not parked over it.
-        if (
-            labels == "park"
-            and read_status
-            and status(issue) in merge_policy.HOLD_STATES
-        ):
-            held.append(issue)
-            labels = "none"
         if labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
@@ -5345,9 +5351,9 @@ def capped_close(
         "closed": True,
         "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
-        "parked": [i for i, _, _, parked, _ in plan if parked and i not in held],
+        "parked": [i for i, _, _, parked, _ in plan if parked],
         "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
-        **({"held": held} if held else {}),
+        **({"held": sorted(held)} if held else {}),
     }
 
 
