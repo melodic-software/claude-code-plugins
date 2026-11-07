@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/verification.yaml: proof_level=thorough is not valid; layer dropped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: live (userConfig)"
+    },
+    {
+      "answer": "thorough is invalid"
+    }
+  ]
+}

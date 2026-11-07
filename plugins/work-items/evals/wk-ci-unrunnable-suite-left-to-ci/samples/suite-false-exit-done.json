@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"exit\": \"done\", \"not_done\": [{\"what\": \"test suite: runner not installed, left to the PR's CI\", \"required\": false}]}",
+      "why": "json"
+    },
+    {
+      "answer": "exit: done; the suite goes in not_done with required: false",
+      "why": "prose fields"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"exit\": \"stopped\", \"not_done\": [{\"what\": \"test suite\", \"required\": false}]}",
+      "why": "stops anyway"
+    },
+    {
+      "answer": "{\"exit\": \"done\", \"not_done\": [{\"what\": \"test suite\", \"required\": true}]}",
+      "why": "marks it required"
+    }
+  ]
+}

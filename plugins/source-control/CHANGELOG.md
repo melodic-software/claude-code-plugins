@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.1] - 2026-11-07
+
+### Changed
+
+- In a repository whose pipeline file sets `models.issue-status`, the capped close now reads an issue's status as the Work status field decides it: a status label for another queue state gives way to the field, while hold labels and `agent-ready` stay. A parked issue whose field reads `confirmed` counts as done even if a stale `status: ready` label is still on it.
+
 ## [8.4.0] - 2026-11-07
 
 ### Added

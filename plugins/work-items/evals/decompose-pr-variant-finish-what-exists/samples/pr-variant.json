@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Current behavior** (current-behavior-of-the-diff): #318 stores the filter and adds the save button.",
+      "why": "bold field with the variant name"
+    },
+    {
+      "answer": "Desired behavior: finish what exists, add the load path and get CI green.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Desired behavior: users can save, load and share filters, built from a blank implementation.",
+      "why": "near miss: greenfield desired behavior"
+    },
+    {
+      "answer": "Current behavior: nothing exists; desired: the whole feature.",
+      "why": "greenfield"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

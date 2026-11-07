@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "provenance-removal check failed: #63 (timeline read failed: HTTP 502)",
+      "why": "the line"
+    },
+    {
+      "answer": "- `provenance-removal check failed: #63 (HTTP 502)`",
+      "why": "code span"
+    },
+    {
+      "answer": "- **provenance-removal check failed:** `#63 (HTTP 502)`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "labeler check failed: #63 (HTTP 502)",
+      "why": "wrong check"
+    },
+    {
+      "answer": "#63's removal check failed with HTTP 502.",
+      "why": "no report line"
+    }
+  ]
+}

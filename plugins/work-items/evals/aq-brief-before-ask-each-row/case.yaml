@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-brief-before-ask-each-row
+graders:
+  - name: 'both-rows-restated'
+    type: 'regex'
+    pattern: '(?=[\s\S]*#418\b[\s\S]{0,120}Uploader retries)(?=[\s\S]*#503\b[\s\S]{0,120}Digest CLI crashes)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Restates item identity (#418 + title), the decision being asked, and the consequence of each option before posing the escalated question; (2) Restates only the consequences the two escalation markers actually supply, with no invented options, outcomes, or placeholder text; (3) Repeats the same full restatement for the very next row (#503, including the decision and both options'' consequences) rather than assuming context carries over from the prior row in the same pass; (4) Does not compress or drop the restatement for either row even under a terse output style; (5) Still performs each row''s underlying mechanics (interview and write-back) after the restatement: the brief precedes the ask, it does not replace it; (6) Waits for the operator''s answer on #418 before advancing to #503, and for the answer on #503 before writing it back: each supplied answer is what unblocks the next step, never a self-answered question. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

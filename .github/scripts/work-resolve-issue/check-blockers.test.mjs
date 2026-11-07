@@ -15,7 +15,8 @@ const dir = tempDir("check-blockers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 const TRUSTED = join(dir, "trusted-actors.json");
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));
-const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id) };
+// BASE_PATH: the checkout whose models.issue-status the field read takes.
+const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: new URL("../../..", import.meta.url).pathname };
 
 const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "completed" : null, closer = HUMAN } = {}) => ({
   number,
@@ -45,7 +46,7 @@ const GRAPHQL = {
 };
 
 // The issue itself answers `subject`: its labels and its events. A function
-// `blockers` answers every read.
+// `blockers` answers every read, given its path and body.
 async function run(blockers, { env = ENV, subject = {} } = {}) {
   const calls = [];
   const lines = [];
@@ -53,7 +54,7 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
   const github = async (method, path, body) => {
     calls.push(`${method} ${path}`);
     if (typeof blockers === "function") {
-      return blockers(path);
+      return blockers(path, body);
     }
     if (path === "/repos/o/r/issues/42") {
       if (subject.issue instanceof Error) {
@@ -106,7 +107,8 @@ test("an open blocker skips the run with a notice naming it, and writes nothing"
   const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed"), issue(9, "open", { repo: "o/other" })]);
   assert.equal(code, 0);
   assert.deepEqual(outputs, SKIP);
-  assert.ok(calls.every((call) => call.startsWith("GET ")));
+  // The one POST is the field events read.
+  assert.ok(calls.every((call) => call.startsWith("GET ") || call === "POST /graphql"), calls.join("\n"));
   const notice = lines.find((line) => line.startsWith("::notice"));
   assert.match(notice, /#7/);
   assert.match(notice, /o\/other#9/);
@@ -277,7 +279,7 @@ describe("an umbrella issue", () => {
     const { code, calls, lines, outputs } = await run([], { subject: { summary: summary(3, 1), subs } });
     assert.equal(code, 0);
     assert.deepEqual(outputs, SKIP);
-    assert.ok(calls.every((call) => call.startsWith("GET ")));
+    assert.ok(calls.every((call) => call.startsWith("GET ") || call === "POST /graphql"), calls.join("\n"));
     const notice = lines.find((line) => line.startsWith("::notice"));
     assert.match(notice, /#9691/);
     assert.match(notice, /#9693/);
@@ -394,6 +396,35 @@ test("a blocker the lanes App closed report-delivered runs once agent-ready post
   assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: [reportClose(STRANGER, "2026-10-28T00:00:00Z")], readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: new Error("502"), readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
+});
+
+// A verdict written only to the Work status field (`ready`, by the lanes App)
+// is the issue's history too. App field events before the config's
+// field-events-since mirrored labels, so they count for nothing.
+test("a field-only `ready` from the lanes App after the report-delivered close clears it; one from the mirror era does not", async () => {
+  const fieldWorld = (readyAt) => {
+    const world = reportWorld({ comments: [reportClose(APP, "2026-11-08T00:00:00Z")], readyAt: "2026-10-01T00:00:00Z" });
+    return (path, body) => {
+      if (path.startsWith("/repos/o/r/issues/42/events")) {
+        return [];
+      }
+      if (path === "/graphql" && body?.variables?.number === 42 && /IssueFieldAddedEvent/.test(body.query)) {
+        const actor = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP.id };
+        const field = { fullDatabaseId: "48484079" };
+        return { data: { repository: { issue: { timelineItems: { nodes: [{ __typename: "IssueFieldAddedEvent", createdAt: readyAt, value: "ready", actor, issueField: field }] } } } } };
+      }
+      return world(path);
+    };
+  };
+  assert.deepEqual((await run(fieldWorld("2026-11-09T00:00:00Z"))).outputs, RUN);
+  assert.deepEqual((await run(fieldWorld("2026-11-07T00:00:00Z"))).outputs, SKIP);
+});
+
+test("a field events read that fails skips the run as unread", async () => {
+  const world = reportWorld({ comments: [reportClose(APP, "2026-11-08T00:00:00Z")], readyAt: "2026-11-09T00:00:00Z" });
+  const { outputs, lines } = await run((path, body) => (path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "") ? { errors: [{ message: "boom" }] } : world(path)));
+  assert.deepEqual(outputs, SKIP);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=admission unread::")), lines.join("\n"));
 });
 
 // The App's report comment speaks only for a close the App made: once the

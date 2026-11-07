@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Prevention\n\nA lint rule against float arithmetic on money would have caught this. Filed with the issue tracker as its own prevention finding; proposed, not built. The regression test sits at invoice_total, a correct seam, so there is no architectural finding.",
+      "why": "kept as a prevention finding, no architecture recast"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Architectural finding\n\nMoney has no type of its own here; recommend a Money value object and a lint rule banning float math, filed together as an architecture recommendation.",
+      "why": "the check folded into an architectural finding"
+    },
+    {
+      "answer": "## Prevention\n\nI added a ruff banned-api rule for float() in billing/ to pyproject.toml.",
+      "why": "built the check"
+    }
+  ]
+}

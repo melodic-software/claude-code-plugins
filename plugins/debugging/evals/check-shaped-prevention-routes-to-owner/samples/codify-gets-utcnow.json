@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/corrections:codify \"rows_since called the banned datetime.utcnow()\"`.",
+      "why": "utcnow in the codify argument"
+    },
+    {
+      "answer": "The banned datetime.utcnow() call is a repo mistake, so it goes to /corrections:codify.",
+      "why": "utcnow before the command on one line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /corrections:codify on the export crash.",
+      "why": "no utcnow"
+    },
+    {
+      "answer": "Cause: datetime.utcnow().\n\nOwner: /corrections:codify.",
+      "why": "utcnow and the command on separate lines"
+    }
+  ]
+}

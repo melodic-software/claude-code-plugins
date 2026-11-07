@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-prefactor-and-integration-fallback
+graders:
+  - name: 'integrate-and-verify'
+    type: 'regex'
+    pattern: 'integrate[\s-]+and[\s-]+verify'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Emits a prefactor item and lists it as a blocker of the vertical slices it unblocks ; (2) Uses one-fresh-context-window sizing alongside S/M/L and does not cite token-count folklore ; (3) Keeps expand-contract as the default and adds an integration-branch fallback with a final integrate-and-verify item when batches cannot land green alone ; (4) Marks those fallback items as requiring a separate integration-branch workflow rather than the standard /work-items:work default-branch path ; (5) Presents unblocked items first (work the frontier) and reports that order after publish ; (6) Holds the approval gate, publishes blockers-first, and leaves items born triaged. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

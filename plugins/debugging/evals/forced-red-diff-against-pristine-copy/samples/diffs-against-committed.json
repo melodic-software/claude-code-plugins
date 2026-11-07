@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff",
+            "description": "Show uncommitted changes"
+          }
+        }
+      ],
+      "why": "bare git diff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff HEAD -- tests/fixtures/order.json",
+            "description": "Diff the fixture against HEAD"
+          }
+        }
+      ],
+      "why": "git diff HEAD on the path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show HEAD:tests/fixtures/order.json | grep discount",
+            "description": "Committed discount"
+          }
+        }
+      ],
+      "why": "git show HEAD:path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover -s tests\ndiff /opt/eval/tmp/order.json.orig tests/fixtures/order.json",
+            "description": "Run the test, then diff against the saved copy"
+          }
+        }
+      ],
+      "why": "diff against a saved copy after an escaped newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tests/fixtures/order.json",
+            "description": "Read the fixture"
+          }
+        }
+      ],
+      "why": "reads the edited file only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log -p --follow tests/fixtures/order.json | head -40",
+            "description": "History of the fixture"
+          }
+        }
+      ],
+      "why": "history, not a diff against the working copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover -s tests 2>&1 | grep -c no-diff",
+            "description": "Run the tests"
+          }
+        }
+      ],
+      "why": "a hyphenated word, not the diff command"
+    }
+  ]
+}

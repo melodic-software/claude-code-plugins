@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"remaining\": []",
+      "why": "json"
+    },
+    {
+      "answer": "`remaining: []`",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"remaining\": [\"#580\"]",
+      "why": "lists the parent"
+    },
+    {
+      "answer": "remaining is left empty",
+      "why": "no array"
+    }
+  ]
+}

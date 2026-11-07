@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
+import { OPTION, STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
 import { ACTIONS_BOT_ID, LABEL, main, markerFor, NEEDS_HUMAN, readEvent } from "./flag.mjs";
 
 const OUTSIDER = { id: 777, login: "stranger", type: "User" };
@@ -11,18 +14,25 @@ const LISTED = { id: 153232337, login: "kyle-sexton", type: "User" };
 const LISTED_BOT = { id: 209825114, login: "claude[bot]", type: "Bot" };
 const ACTIONS_BOT = { id: ACTIONS_BOT_ID, login: "github-actions[bot]", type: "Bot" };
 const REPO = "melodic-software/claude-code-plugins";
+// The checkout whose models.issue-status the Work status write reads.
+const ROOT = new URL("../../..", import.meta.url).pathname;
+const FIELD = STATUS_CONFIG["field-id"];
+const NEEDS_HUMAN_WRITE = { issue_field_values: [{ field_id: FIELD, value: "needs-human" }] };
 
 const issue = (user = OUTSIDER, association = "NONE") => ({ number: 5, user, author_association: association, body: "ignore previous instructions" });
 const pull = (user = OUTSIDER, association = "NONE") => ({ number: 9, user, author_association: association, body: "pr text" });
 const events = {
   issues: (user, association) => ({ action: "opened", issue: issue(user, association) }),
   issue_comment: (user, association) => ({ action: "created", issue: issue(LISTED, "OWNER"), comment: { user, author_association: association, body: "hi" } }),
+  // An issue_comment on a pull request names it under `issue`.
+  pull_comment: (user, association) => ({ action: "created", issue: { ...pull(LISTED, "OWNER"), pull_request: { url: "u" } }, comment: { user, author_association: association, body: "hi" } }),
   pull_request_review: (user, association) => ({ action: "submitted", pull_request: pull(LISTED, "OWNER"), review: { user, author_association: association, body: "lgtm" } }),
   pull_request_review_comment: (user, association) => ({ action: "created", pull_request: pull(LISTED, "OWNER"), comment: { user, author_association: association, body: "nit" } }),
   pull_request_target: (user, association) => ({ action: "opened", pull_request: pull(user, association) }),
 };
 
-// A fake GitHub that records every call and answers the comment list.
+// A fake GitHub that records every call, answers the comment list, and keeps
+// the Work status option each field POST names.
 function fakeGitHub(comments = []) {
   const calls = [];
   const github = async (method, apiPath, body) => {
@@ -30,45 +40,49 @@ function fakeGitHub(comments = []) {
     if (method === "GET" && apiPath.includes("/comments")) {
       return comments;
     }
+    if (method === "POST" && apiPath.endsWith("/issue-field-values")) {
+      return [{ issue_field_id: FIELD, single_select_option: { id: OPTION[body.issue_field_values[0].value] } }];
+    }
     return {};
   };
   return { github, calls };
 }
 
-function run(eventName, payload, { comments, list = "valid" } = {}) {
+function run(eventName, payload, { comments, list = "valid", github, base = ROOT } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "outside-actor-"));
-  try {
-    const eventPath = path.join(dir, "event.json");
-    writeFileSync(eventPath, JSON.stringify(payload));
-    const listPath = path.join(dir, "trusted-actors.json");
-    if (list === "valid") {
-      writeFileSync(
-        listPath,
-        JSON.stringify({
-          version: 1,
-          actors: [
-            { id: LISTED.id, login: LISTED.login, kind: "human" },
-            { id: LISTED_BOT.id, login: LISTED_BOT.login, kind: "bot" },
-          ],
-        }),
-      );
-    } else if (list === "malformed") {
-      writeFileSync(listPath, "{ not json");
-    }
-    const fake = fakeGitHub(comments);
-    const lines = [];
-    return main({
-      env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath },
-      github: fake.github,
-      log: (line) => lines.push(line),
-    }).then((code) => ({ code, calls: fake.calls, lines }));
-  } finally {
-    // main reads both files synchronously before its first await.
-    rmSync(dir, { recursive: true, force: true });
+  const eventPath = path.join(dir, "event.json");
+  writeFileSync(eventPath, JSON.stringify(payload));
+  const listPath = path.join(dir, "trusted-actors.json");
+  if (list === "valid") {
+    writeFileSync(
+      listPath,
+      JSON.stringify({
+        version: 1,
+        actors: [
+          { id: LISTED.id, login: LISTED.login, kind: "human" },
+          { id: LISTED_BOT.id, login: LISTED_BOT.login, kind: "bot" },
+        ],
+      }),
+    );
+  } else if (list === "malformed") {
+    writeFileSync(listPath, "{ not json");
   }
+  const fake = github ?? fakeGitHub(comments);
+  const lines = [];
+  // The Work status writer reads the list after main's first await.
+  return main({
+    env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: base },
+    github: fake.github,
+    log: (line) => lines.push(line),
+  })
+    .then((code) => ({ code, calls: fake.calls, lines }))
+    .finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
 const posts = (calls) => calls.filter((call) => call.method === "POST");
+// The POSTs by what they write: labels, field values, or a comment.
+const post = (calls, kind) => posts(calls).find((call) => call.apiPath.endsWith(`/${kind}`));
+const written = (calls) => posts(calls).map((call) => call.apiPath).sort();
 
 test("an OWNER or MEMBER author is trusted by association and nothing is written", async () => {
   for (const association of ["OWNER", "MEMBER"]) {
@@ -89,24 +103,29 @@ test("a listed id is trusted whatever its association: a bot and a private-membe
 test("a COLLABORATOR or CONTRIBUTOR association alone does not trust", async () => {
   for (const association of ["COLLABORATOR", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE"]) {
     const { calls } = await run("issues", events.issues(OUTSIDER, association));
-    assert.equal(posts(calls).length, 2, association);
+    assert.equal(posts(calls).length, 3, association);
   }
 });
 
-for (const [eventName, number, kind] of [
-  ["issues", 5, "issue opened"],
-  ["issue_comment", 5, "comment created"],
-  ["pull_request_review", 9, "pull request review submitted"],
-  ["pull_request_review_comment", 9, "pull request review comment created"],
-  ["pull_request_target", 9, "pull request opened"],
+// An issue's needs-human is its Work status field; a pull request's stays a label.
+for (const [eventName, number, kind, onField] of [
+  ["issues", 5, "issue opened", true],
+  ["issue_comment", 5, "comment created", true],
+  ["pull_comment", 9, "comment created", false],
+  ["pull_request_review", 9, "pull request review submitted", false],
+  ["pull_request_review_comment", 9, "pull request review comment created", false],
+  ["pull_request_target", 9, "pull request opened", false],
 ]) {
-  test(`an outside ${eventName} labels the item and posts one comment naming the actor, quoting none of their text`, async () => {
+  test(`an outside ${eventName} flags the item and posts one comment naming the actor, quoting none of their text`, async () => {
     const payload = events[eventName](OUTSIDER, "NONE");
-    const { code, calls } = await run(eventName, payload);
+    const { code, calls } = await run(eventName === "pull_comment" ? "issue_comment" : eventName, payload);
     assert.equal(code, 0);
-    const [label, comment] = posts(calls);
+    const label = post(calls, "labels");
+    const comment = post(calls, "comments");
     assert.equal(label.apiPath, `/repos/${REPO}/issues/${number}/labels`);
-    assert.deepEqual(label.body, { labels: [LABEL, NEEDS_HUMAN] });
+    assert.deepEqual(label.body, { labels: onField ? [LABEL] : [LABEL, NEEDS_HUMAN] });
+    assert.deepEqual(post(calls, "issue-field-values")?.body, onField ? NEEDS_HUMAN_WRITE : undefined);
+    if (onField) assert.equal(post(calls, "issue-field-values").apiPath, `/repos/${REPO}/issues/${number}/issue-field-values`);
     assert.equal(comment.apiPath, `/repos/${REPO}/issues/${number}/comments`);
     assert.ok(comment.body.body.startsWith(markerFor({ id: OUTSIDER.id })));
     assert.match(comment.body.body, /`stranger` \(id 777\)/);
@@ -128,9 +147,8 @@ for (const [eventName, action, number, kind] of [
     const payload = { ...events[eventName](OUTSIDER, "NONE"), action, sender: OUTSIDER };
     const { code, calls } = await run(eventName, payload);
     assert.equal(code, 0);
-    const [label, comment] = posts(calls);
-    assert.equal(label.apiPath, `/repos/${REPO}/issues/${number}/labels`);
-    assert.ok(comment.body.body.includes(`(event: ${kind})`), kind);
+    assert.equal(post(calls, "labels").apiPath, `/repos/${REPO}/issues/${number}/labels`);
+    assert.ok(post(calls, "comments").body.body.includes(`(event: ${kind})`), kind);
   });
 }
 
@@ -144,9 +162,8 @@ for (const [eventName, action, number] of [
     const payload = { ...events[eventName](LISTED, "OWNER"), action, sender: helper };
     const { code, calls } = await run(eventName, payload);
     assert.equal(code, 0);
-    const [label, comment] = posts(calls);
-    assert.equal(label.apiPath, `/repos/${REPO}/issues/${number}/labels`);
-    assert.ok(comment.body.body.startsWith(markerFor({ id: 4242 })));
+    assert.equal(post(calls, "labels").apiPath, `/repos/${REPO}/issues/${number}/labels`);
+    assert.ok(post(calls, "comments").body.body.startsWith(markerFor({ id: 4242 })));
   });
 
   test(`a member's ${eventName} ${action} on their own item writes nothing`, async () => {
@@ -158,17 +175,14 @@ for (const [eventName, action, number] of [
 }
 
 // The payload's labels can be stale (a person may have removed one since),
-// so the label write always runs; adding a label already present is a no-op.
-test("an item whose payload shows both labels and a comment for the actor still gets the label write, and no second comment", async () => {
+// so the label and field writes always run; repeating either is a no-op.
+test("an item whose payload shows both labels and a comment for the actor still gets the label and field writes, and no second comment", async () => {
   const payload = events.issue_comment(OUTSIDER, "NONE");
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }];
   const own = { user: ACTIONS_BOT, body: `${markerFor({ id: OUTSIDER.id })}\n**Outside actor.**` };
   const { code, calls, lines } = await run("issue_comment", payload, { comments: [own] });
   assert.equal(code, 0);
-  assert.deepEqual(
-    posts(calls).map((call) => call.apiPath),
-    [`/repos/${REPO}/issues/5/labels`],
-  );
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`]);
   assert.ok(lines.some((line) => /outside actor id 777 labeled$/.test(line)), lines.join("\n"));
 });
 
@@ -177,7 +191,7 @@ test("an item whose payload shows both labels gets the label write, and a new ac
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }, { name: "bug" }];
   const { code, calls } = await run("issue_comment", payload);
   assert.equal(code, 0);
-  assert.deepEqual(posts(calls).map((call) => call.apiPath).sort(), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/labels`]);
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`]);
 });
 
 test("an item carrying only one of the two labels is labeled again", async () => {
@@ -189,20 +203,17 @@ test("an item carrying only one of the two labels is labeled again", async () =>
   }
 });
 
-test("a second event from the same actor re-adds the labels and posts no second comment", async () => {
+test("a second event from the same actor writes the label and needs-human again and posts no second comment", async () => {
   const own = { user: ACTIONS_BOT, body: `${markerFor({ id: OUTSIDER.id })}\n**Outside actor.**` };
   const { code, calls } = await run("issue_comment", events.issue_comment(OUTSIDER, "NONE"), { comments: [own] });
   assert.equal(code, 0);
-  assert.deepEqual(
-    posts(calls).map((call) => call.apiPath),
-    [`/repos/${REPO}/issues/5/labels`],
-  );
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`]);
 });
 
 test("a different outside actor on a flagged item gets its own comment", async () => {
   const own = { user: ACTIONS_BOT, body: `${markerFor({ id: 12345 })}\n**Outside actor.**` };
   const { calls } = await run("issue_comment", events.issue_comment(OUTSIDER, "NONE"), { comments: [own] });
-  assert.equal(posts(calls).length, 2);
+  assert.equal(posts(calls).length, 3);
 });
 
 test("a marker written by anyone but github-actions[bot] is ignored", async () => {
@@ -215,14 +226,20 @@ test("a marker written by anyone but github-actions[bot] is ignored", async () =
     { user: ACTIONS_BOT, body: `quoted: ${marker}` },
   ];
   const { calls } = await run("issue_comment", events.issue_comment(OUTSIDER, "NONE"), { comments: spoofs });
-  assert.equal(posts(calls).length, 2, "the spoofed markers do not suppress the comment");
+  assert.ok(post(calls, "comments"), "the spoofed markers do not suppress the comment");
 });
 
+// The Work status writer's plain set needs no trusted-actor list, so an issue
+// still gets its needs-human.
 test("an unreadable or malformed trusted-actor list fails closed and flags a listed id", async () => {
   for (const list of ["missing", "malformed"]) {
+    const pr = await run("pull_request_target", events.pull_request_target(LISTED, "CONTRIBUTOR"), { list });
+    assert.equal(pr.code, 0, list);
+    assert.deepEqual(written(pr.calls), [`/repos/${REPO}/issues/9/comments`, `/repos/${REPO}/issues/9/labels`], list);
     const { code, calls, lines } = await run("issue_comment", events.issue_comment(LISTED, "CONTRIBUTOR"), { list });
-    assert.equal(code, 0);
-    assert.equal(posts(calls).length, 2, list);
+    assert.equal(code, 0, list);
+    assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`], list);
+    assert.deepEqual(post(calls, "issue-field-values").body, NEEDS_HUMAN_WRITE, list);
     assert.ok(lines.some((line) => line.includes("trusted-actor list is unreadable")), list);
   }
 });
@@ -234,7 +251,7 @@ test("an unreadable list still trusts an OWNER or MEMBER association", async () 
 
 test("an author with no readable id or login is flagged, with no mention", async () => {
   const { calls } = await run("issues", events.issues({ login: "@everyone <b>" }, "NONE"));
-  const [, comment] = posts(calls);
+  const comment = post(calls, "comments");
   assert.match(comment.body.body, /an account whose login could not be read \(id unknown\)/);
   assert.ok(comment.body.body.startsWith("<!-- security-outside-actor actor=unknown -->"));
 });
@@ -268,7 +285,7 @@ test("an unlisted editor of an outsider's item is flagged by their own id, assoc
 test("an outsider editing their own comment is flagged", async () => {
   const payload = { ...events.issue_comment(OUTSIDER, "NONE"), action: "edited", sender: OUTSIDER };
   const { calls } = await run("issue_comment", payload);
-  assert.equal(posts(calls).length, 2);
+  assert.equal(posts(calls).length, 3);
 });
 
 test("a failed label write still posts the comment and fails the run", async () => {
@@ -292,6 +309,61 @@ test("a failed label write still posts the comment and fails the run", async () 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a failed Work status write still writes the label and the comment, and fails the run", async () => {
+  const fake = fakeGitHub();
+  // A slow label write is recorded when it lands, so a field write sent
+  // beside it would be recorded first.
+  const github = async (method, apiPath, body) => {
+    if (apiPath.endsWith("/issue-field-values")) {
+      fake.calls.push({ method, apiPath, body });
+      throw new Error("HTTP 502");
+    }
+    if (method === "POST" && apiPath.endsWith("/labels")) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return fake.github(method, apiPath, body);
+  };
+  const { code, calls, lines } = await run("issues", events.issues(OUTSIDER, "NONE"), { github: { github, calls: fake.calls } });
+  assert.equal(code, 1);
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/issue-field-values`, `/repos/${REPO}/issues/5/labels`]);
+  const at = (kind) => calls.findIndex((call) => call.method === "POST" && call.apiPath.endsWith(`/${kind}`));
+  assert.ok(at("labels") < at("issue-field-values") && at("comments") < at("issue-field-values"), "the label and comment are written before the field write");
+  assert.ok(lines.some((line) => /^::error::.*Work status field was not set to `needs-human`/.test(line)), lines.join("\n"));
+});
+
+test("with the Work status config unloadable, as when resolve-config's install failed, an issue still gets the label and comment, and the run fails", async () => {
+  const { code, calls, lines } = await run("issues", events.issues(OUTSIDER, "NONE"), { github: fakeGitHub(), base: "/nonexistent-base" });
+  assert.equal(code, 1);
+  assert.deepEqual(written(calls), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/labels`]);
+  assert.ok(lines.some((line) => /^::error::.*models\.issue-status could not be read/.test(line)), lines.join("\n"));
+});
+
+// Plan case (b): the job token's needs-human on an issue's field is a hold the
+// readers count, so the triage sweep drops the issue.
+test("an outside issue's needs-human, written by github-actions[bot], reads back and the triage sweep drops the issue", async () => {
+  const fields = {};
+  const calls = [];
+  const inner = async (method, apiPath, body) => {
+    calls.push({ method, apiPath, body });
+    const posted = /\/issues\/([0-9]+)\/issue-field-values$/.exec(apiPath);
+    if (method === "POST" && posted) {
+      fields[posted[1]] = { state: body.issue_field_values[0].value, setter: ACTIONS_BOT_ID };
+      return [{ issue_field_id: FIELD, single_select_option: { id: OPTION[body.issue_field_values[0].value] } }];
+    }
+    return method === "GET" ? [] : {};
+  };
+  const github = withFields(inner, fields);
+  const { code } = await run("issues", events.issues(OUTSIDER, "NONE"), { github: { github, calls } });
+  assert.equal(code, 0);
+  assert.deepEqual(fields[5], { state: "needs-human", setter: 41898282 });
+  const names = await statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} })(5, []);
+  assert.deepEqual(names, ["needs-human"]);
+  const candidate = { number: 5, user: { id: LISTED.id }, labels: [{ name: LABEL }], body: "x", created_at: "2026-10-18T09:00:00Z" };
+  const select = (statusLabels) => selectCandidates({ issues: [candidate], now: new Date("2026-10-18T12:00:00Z"), authorIds: new Set([String(LISTED.id)]), statusLabels });
+  assert.equal(select(new Map()).length, 1);
+  assert.deepEqual(select(new Map([[5, [LABEL, ...names]]])), []);
 });
 
 test("readEvent takes the comment's author before the issue's and the review's before the pull request's", () => {
@@ -331,12 +403,15 @@ test("a member not on the list, a listed Bot, or anyone under an unreadable list
     [LISTED, "missing", "OWNER"],
   ]) {
     const { code, calls } = await run("issues", unlabel(sender, { item: "issue", author: LISTED, association }), { list });
+    // An unreadable list does not stop the issue's Work status write.
     assert.equal(code, 0, `${sender.login} ${list}`);
-    assert.deepEqual(
-      posts(calls).map((call) => call.apiPath.split("/").pop()),
-      ["labels", "comments"],
-      `${sender.login} ${list}`,
-    );
+    assert.deepEqual(written(calls).map((apiPath) => apiPath.split("/").pop()), ["comments", "issue-field-values", "labels"], `${sender.login} ${list}`);
+    assert.deepEqual(post(calls, "labels").body, { labels: [LABEL] });
+    assert.deepEqual(post(calls, "issue-field-values").body, NEEDS_HUMAN_WRITE);
+    const pr = await run("pull_request_target", unlabel(sender, { author: LISTED, association }), { list });
+    assert.equal(pr.code, 0, `${sender.login} ${list} on a pull request`);
+    assert.deepEqual(post(pr.calls, "labels").body, { labels: [LABEL, NEEDS_HUMAN] });
+    assert.equal(post(pr.calls, "issue-field-values"), undefined);
   }
 });
 

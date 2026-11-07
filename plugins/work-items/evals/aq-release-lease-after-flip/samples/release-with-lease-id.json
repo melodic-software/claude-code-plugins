@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "then runs the seam release verb, work-item-tracker.sh release \"github:<owner>/<repo>#3711\" --lease-comment-id 5858800001. It does not leave the lease to run out its TTL.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "3. **Release:** `\"$TRACKER\" release \"github:o/r#3711\" --lease-comment-id 5858800001`",
+      "why": "markdown label and code span"
+    },
+    {
+      "answer": "Last, release the lease (lease_comment_id 5858800001) through the seam verb.",
+      "why": "prose form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Flip, clear @me, then leave lease 5858800001 to run out its 24-hour TTL; no release is needed.",
+      "why": "near miss: names the lease but never releases it"
+    },
+    {
+      "answer": "Renew it with renew-lease --lease-comment-id 5858800001 while the operator reads.",
+      "why": "near miss: renew instead of release"
+    }
+  ]
+}

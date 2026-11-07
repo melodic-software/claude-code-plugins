@@ -162,7 +162,9 @@ fi
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'STUB'
 #!/usr/bin/env bash
-# Listing: apply the step's --jq filter to the fixture issues. Writes: log them.
+# Listing: apply the step's --jq filter to the fixture issues. Writes: log
+# them, a JSON body read from stdin (--input -) as one compact I line; an
+# issue create answers number 9.
 if [[ "${GH_LIST_STATUS:-0}" != 0 && " $* " == *" --paginate "* ]]; then
   exit "$GH_LIST_STATUS"
 fi
@@ -182,8 +184,10 @@ fi
   printf '%s %s\n' "$method" "$path"
   for ((i = 0; i < ${#args[@]}; i++)); do
     [[ "${args[i]}" == -f ]] && printf 'F %s\n' "${args[i + 1]%%$'\n'*}"
+    [[ "${args[i]}" == --input && "${args[i + 1]}" == - ]] && printf 'I %s\n' "$(jq -c .)"
   done
 } >>"$GH_LOG"
+[[ "$method" == POST && "$path" == */issues && "$filter" == .number ]] && echo 9
 for ((i = 0; i < ${#args[@]}; i++)); do
   [[ "${args[i]}" == -f && "${args[i + 1]}" == body=* ]] && printf '%s\n' "${args[i + 1]#body=}" >>"$GH_BODY"
 done
@@ -214,10 +218,11 @@ issues '[{number: 4, state: "open", state_reason: null, body: ("intro\n" + $m)},
   {number: 5, state: "open", state_reason: null, body: $m, pull_request: {url: "x"}}]'
 run_file "$two"
 if ((FILE_STATUS == 0)) && [[ "$GH_WRITES" == "POST repos/o/r/issues
-F labels[]=needs-triage
 F title=Dead links found by the online link check
-F body=$MARKER" ]]; then
-  ok "with no rollup, one issue is opened, labeled needs-triage; a misplaced marker is no rollup"
+F body=$MARKER
+POST repos/o/r/issues/9/issue-field-values
+I {\"issue_field_values\":[{\"field_id\":48484079,\"value\":\"needs-triage\"}]}" ]]; then
+  ok "with no rollup, one issue is opened with no label and Work status needs-triage; a misplaced marker is no rollup"
 else
   fail "no rollup did not open one issue: status $FILE_STATUS, writes:
 $GH_WRITES

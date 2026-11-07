@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That is local telemetry; the brief reads GitHub only. Use **`/harness-ops:observability`** for token burn and hook latency.",
+      "why": "bold code span"
+    },
+    {
+      "answer": "I route this to /harness-ops:observability, which reads the OTEL store and hook-event log.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added a Local telemetry section with this week's token burn and hook latency from ccusage.",
+      "why": "adds the section"
+    },
+    {
+      "answer": "Local telemetry is out of scope; try /harness-ops:audit-performance for hook latency.",
+      "why": "near miss: a different harness-ops skill"
+    }
+  ]
+}

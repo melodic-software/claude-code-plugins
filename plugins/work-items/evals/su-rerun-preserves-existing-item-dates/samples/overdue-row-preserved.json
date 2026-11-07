@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| id | last_checked | next_due | action |\n|---|---|---|---|\n| `ci-pin-review` | 2026-07-01 | 2026-09-29 | **preserved** (still overdue) |",
+      "why": "table row"
+    },
+    {
+      "answer": "ci-pin-review stays as-is: next_due 2026-09-29, so the due tier still picks it up.",
+      "why": "prose"
+    },
+    {
+      "answer": "Existing rows are kept unchanged, including the overdue ci-pin-review.",
+      "why": "verb before the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| id | last_checked | next_due | action |\n|---|---|---|---|\n| `ci-pin-review` | 2026-11-07 | 2027-02-05 | reset (was overdue) |",
+      "why": "near miss: resets the overdue row's dates"
+    },
+    {
+      "answer": "Advance ci-pin-review to next_due 2027-02-05 since it is overdue.",
+      "why": "advances the clock"
+    },
+    {
+      "answer": "ci-pin-review is overdue, so next_due moves to 2027-02-05; dependency-review and security-review are kept unchanged.",
+      "why": "near miss: resets the overdue row while keeping the other two"
+    },
+    {
+      "answer": "ci-pin-review: next_due advanced to 2027-02-05, other rows kept unchanged",
+      "why": "near miss: a comma joins another rows' keep to the reset"
+    }
+  ]
+}

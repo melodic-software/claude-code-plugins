@@ -1,0 +1,75 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Edit call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/thumbs/dispatch.py",
+            "old_string": "    return zlib.crc32(job[\"album\"].encode()) % WORKERS",
+            "new_string": "    return zlib.crc32(job[\"id\"].encode()) % WORKERS"
+          }
+        }
+      ],
+      "why": "changes how a worker is picked"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/thumbs/dispatch.py",
+            "old_string": "WORKERS = 6\n\n\ndef pick_worker(job):",
+            "new_string": "WORKERS = 6\n\n\ndef pick_worker(job, loads=None):"
+          }
+        }
+      ],
+      "why": "keeps WORKERS = 6 in context"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/thumbs/cluster.py",
+            "old_string": "MEMORY_LIMIT_MB = 512",
+            "new_string": "MEMORY_LIMIT_MB = 1024"
+          }
+        }
+      ],
+      "why": "raises the memory limit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/thumbs/dispatch.py",
+            "old_string": "WORKERS = 6",
+            "new_string": "WORKERS = 8"
+          }
+        }
+      ],
+      "why": "adds workers"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/thumbs/dispatch.py",
+            "old_string": "import zlib\n\nWORKERS = 6",
+            "new_string": "import zlib\n\nWORKERS = 9"
+          }
+        }
+      ],
+      "why": "the count after an escaped newline"
+    }
+  ]
+}

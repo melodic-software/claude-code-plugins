@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Next: open the pull request with /source-control:pull-request."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next: fix AC2, then rerun /verification:confirm."
+    }
+  ]
+}

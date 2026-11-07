@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Provenance label | **FAIL**: `provenance: untrusted` absent; run `/work-items:setup apply` |",
+      "why": "table row"
+    },
+    {
+      "answer": "Probe 7 is a FAIL: no provenance: untrusted label exists, so triage cannot mark untrusted items.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Provenance label | INFO: verified at triage time |",
+      "why": "near miss: the no-label-listing INFO verdict on a github binding"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Capability-tier axis | FAIL |\n| Provenance label | PASS |",
+      "why": "FAIL on the wrong probe"
+    }
+  ]
+}

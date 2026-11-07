@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-create-pushed-readies-the-pr
+graders:
+  - name: 'create-pushed-worktree'
+    type: 'regex'
+    pattern: 'create\s+--pushed\b(?=[^\n`]*--unattended\b)[^\n`]{0,80}--worktree[\s=]\W?/work/wt-731\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731 --unattended, the flag an autonomous run passes; (2) Relies on create --pushed to run ready --unattended and dispatches no second ready; (3) As soon as create --pushed returns, dispatches one strong-tier agent into the worktree that runs both the monitor watch and the post-green review, with no separate monitor dispatch; (4) Waits on that agent with run_in_background or Monitor, never a poll loop; (5) Never flips the draft with a bare forge command and never merges. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

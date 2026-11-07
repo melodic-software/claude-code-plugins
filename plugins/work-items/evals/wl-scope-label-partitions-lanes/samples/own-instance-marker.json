@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Telemetry marker: work-items:work-loop@api-lane",
+      "why": "the marker"
+    },
+    {
+      "answer": "The api-lane instance keeps its own telemetry marker.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both lanes share one telemetry block.",
+      "why": "no instance"
+    },
+    {
+      "answer": "api-lane admits #201 and #203.",
+      "why": "names the lane, not its marker"
+    }
+  ]
+}

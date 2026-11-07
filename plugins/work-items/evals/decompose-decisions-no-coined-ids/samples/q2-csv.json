@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- **Q2**: export as CSV, not XLSX.",
+      "why": "bold id"
+    },
+    {
+      "answer": "- Q2: CSV, not XLSX",
+      "why": "plain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- D2: CSV, not XLSX",
+      "why": "near miss: coined D id"
+    },
+    {
+      "answer": "- Export format: CSV, not XLSX",
+      "why": "no id"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

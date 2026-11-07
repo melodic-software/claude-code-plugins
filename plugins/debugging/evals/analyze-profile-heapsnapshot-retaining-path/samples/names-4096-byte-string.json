@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The largest object is a 4096-byte string, 'order payload'.",
+      "why": "4096-byte string"
+    },
+    {
+      "answer": "Largest: string \"order payload\", self size 4,096 bytes.",
+      "why": "string first, comma-grouped size"
+    },
+    {
+      "answer": "A 4 KB string dominates the snapshot.",
+      "why": "4 KB"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The largest object is the SessionCache instance.",
+      "why": "names a different object"
+    },
+    {
+      "answer": "A big string is held by lastOrder.",
+      "why": "no size"
+    }
+  ]
+}

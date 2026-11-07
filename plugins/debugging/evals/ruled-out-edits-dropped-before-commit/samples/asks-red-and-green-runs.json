@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "For the PR description, paste two runs of the loop: the failing run from before the timezone fix and the passing run after it.",
+      "why": "asks for red and green runs"
+    },
+    {
+      "answer": "Record: before the fix, test_new_york_customer_gets_report_at_local_seven failed (AssertionError: 07:00 naive != 12:00 UTC); after, it passes. Both outputs go in the PR description.",
+      "why": "supplies both runs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit the fix and its test; the regression test passes now.",
+      "why": "only the passing test"
+    },
+    {
+      "answer": "Put the passing run in the PR description as proof.",
+      "why": "only the green run"
+    }
+  ]
+}

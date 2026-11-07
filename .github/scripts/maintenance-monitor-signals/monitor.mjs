@@ -20,7 +20,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
@@ -84,7 +84,7 @@ const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, 
 // an intake item.
 const LABELS = ["source: factory-monitor"];
 
-export async function writePlan({ plan, call, repo, labels, runUrl, existing = [], mirrorStatus = async () => {}, wait = () => delay(1000) }) {
+export async function writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
   const rollingOf = new Map();
   for (const { family } of plan.file) {
@@ -105,10 +105,10 @@ export async function writePlan({ plan, call, repo, labels, runUrl, existing = [
   // list, so the issue lane never works from it: a person who wants a signal
   // worked re-files it as a new issue. A stray agent-ready still comes off
   // before the PATCH (a 404 means it was not on the issue), and
-  // `mirrorStatus` (write-status.mjs statusMirror) mirrors the removal into
-  // the Work status field from the labels `existing` (listFiled) read. The PATCH
-  // runs last and carries the marker, so a failed call before it leaves the
-  // old state recorded and the write is retried on the next run.
+  // `leaveAgentReady` (write-status.mjs statusWriter) moves a Work status
+  // field still at agent-ready to needs-triage. The PATCH runs last and
+  // carries the marker, so a failed call before it leaves the old state
+  // recorded and the write is retried on the next run.
   const writes = [
     ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
     ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
@@ -127,7 +127,7 @@ export async function writePlan({ plan, call, repo, labels, runUrl, existing = [
       await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
         if (error.status !== 404) throw error;
       });
-      await mirrorStatus(number, { had: existing.find((issue) => issue.number === number)?.labels ?? [], remove: ["agent-ready"] });
+      await leaveAgentReady(number, "needs-triage");
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: renderBody(family, runUrl) });
       into.push(number);
@@ -243,8 +243,8 @@ async function main(env = process.env) {
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const mirrorStatus = await statusMirror({ env, github, repository: repo });
-    done = await writePlan({ plan, call, repo, labels, runUrl, existing, mirrorStatus });
+    const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
+    done = await writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady });
   }
 
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
