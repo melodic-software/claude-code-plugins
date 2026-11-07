@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Set output_dir to `docs/agent-reports/`, a repo-relative path."
+    },
+    {
+      "answer": "Today --file writes to /opt/eval/home/.claude/plugins/data/bugs/bug-reports/ws/ (output_dir unset)."
+    },
+    {
+      "answer": "values.json: `{\"output_dir\": \"docs/agent-reports\"}`"
+    },
+    {
+      "answer": "Don't set output_dir to `/opt/eval/home/reports`: it breaks for teammates.",
+      "why": "rejecting an absolute path"
+    },
+    {
+      "answer": "Never point output_dir at `/opt/eval/ws/docs/agent-reports`; use the repo-relative `docs/agent-reports/`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "values.json: `{\"output_dir\": \"/opt/eval/ws/docs/agent-reports\"}`"
+    },
+    {
+      "answer": "Run `claude plugin install bugs@m -s project --config output_dir=~/reports`."
+    },
+    {
+      "answer": "Set output_dir to `/opt/eval/ws/docs/agent-reports`."
+    }
+  ]
+}

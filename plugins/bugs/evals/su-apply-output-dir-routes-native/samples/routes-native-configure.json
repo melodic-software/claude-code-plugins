@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/plugin configure bugs@<marketplace>` and set output_dir to `docs/agent-reports/`."
+    },
+    {
+      "answer": "Headless: `claude plugin configure bugs@<marketplace> --values-stdin < values.json`."
+    },
+    {
+      "answer": "Older: `claude plugin install bugs@<marketplace> -s project --config output_dir=docs/bug-reports/`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit settings.json and set pluginConfigs.bugs.output_dir."
+    },
+    {
+      "answer": "Run /plugin and pick bugs."
+    },
+    {
+      "answer": "claude plugin install bugs@m -s project"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "## Finding 1: `renderMemberCard` shows \"1 projects\" for a single project\n\n**Evidence**: verified-by-reading"
+    },
+    {
+      "answer": "### 2. Hardcoded plural on the project count\n"
+    },
+    {
+      "answer": "## Finding 2: projectCount renders without a singular form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Finding 1: `initials` throws on a one-word name\n\n## Refuted candidates\n\n| 1 | \"1 projects\" plural | lens-5 |"
+    },
+    {
+      "answer": "The plural `member.projectCount + \" projects\"` is a formatting opinion, so it was dropped."
+    },
+    {
+      "answer": "## Side observations\n\n- projects plural reads oddly"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: su-check-commit-reports-native-route
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-agents-md
+    type: tool_used
+    tool: Read
+    input_match: 'AGENTS\.md|CLAUDE\.md'
+    min: 1
+    arm: with-only
+  - name: recommends-repo-location
+    type: regex
+    pattern: '\bdocs/agent-reports\b'
+    target: last_message
+  - name: no-absolute-path
+    type: regex
+    pattern: '(?:^|[.!?][ \t]+)(?:(?![.!?][ \t\n]|\n)(?!\b(?:never|not|no|avoid|instead|rather)\b)(?!n[''’]t\b)[^\n])*?(?:"output_dir"\s*:\s*"(?:/|~|[A-Za-z]:)|\boutput_dir=["'']?(?:/|~|[A-Za-z]:)|\b(?:set|point|change|configure)\w*\s+(?:the\s+)?`?output_dir`?\s+(?:to|at)\s+[`"'']?(?:/|~|[A-Za-z]:))'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: routes-native-configure
+    type: regex
+    pattern: '/plugin configure bugs\b|\bclaude plugin configure bugs\b|\bclaude plugin install bugs\S*[^\n]*--config\s+output_dir='
+    target: last_message
+  - name: fresh-session-rerun
+    type: regex
+    pattern: '\b(?:fresh|new)[ \t]+(?:Claude Code[ \t]+)?session\b'
+    flags: 'i'
+    target: last_message
+  - name: no-plugin-command-run
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))claude\s+plugin\s+(?:configure|install|uninstall)\b'
+    min: 0
+    max: 0
+    arm: both

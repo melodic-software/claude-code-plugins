@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| filing_posture | allowed | work-items (`docs/conventions/work-items.yaml`) |"
+    },
+    {
+      "answer": "docs/conventions/work-items.yaml sets filing_posture: allowed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "filing_posture: manual-only (bundled default)"
+    },
+    {
+      "answer": "filing_posture: allowed (team bugs.yaml)"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+schema_version: "1.1"
+name: su-apply-output-dir-routes-native
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: routes-native-configure
+    type: regex
+    pattern: '/plugin configure bugs\b|\bclaude plugin configure bugs\b|\bclaude plugin install bugs\S*[^\n]*--config\s+output_dir='
+    target: last_message
+  - name: recommends-ignore-line
+    type: regex
+    pattern: '\.claude/\*\*/\*\.local\.\*'
+    target: last_message
+  - name: no-gitignore-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.gitignore"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-gitignore-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*\.gitignore"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-gitignore-write
+    type: tool_used
+    tool: Bash
+    input_match: '>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?\.gitignore\b|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:sed|perl)\b(?:[^"\\]|\\.)*?\s-[a-z]*i(?:[^"\\]|\\.)*?\.gitignore\b|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?\.gitignore\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-output-dir-write
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*"file_path":"[^"]*bugs(?:\.local)?\.(?:ya?ml|md)")(?=.*output_dir)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-output-dir-edit
+    type: tool_used
+    tool: Edit
+    input_match: '^(?=.*"file_path":"[^"]*bugs(?:\.local)?\.(?:ya?ml|md)")(?=.*"new_string":"(?:[^"\\]|\\.)*?output_dir)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-output-dir-change-claim
+    type: regex
+    pattern: '\boutput_dir`?\b[^\n]{0,40}?\b(?:is now|now points|has been (?:set|updated|changed)|was (?:set|updated|changed))\b|\bI(?:[''’]ve| have)?\s+(?:set|updated|changed|pointed|configured)\s+(?:the\s+)?`?output_dir\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-plugin-command-run
+    type: tool_used
+    tool: Bash
+    input_match: '(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))claude\s+plugin\s+(?:configure|install|uninstall)\b'
+    min: 0
+    max: 0
+    arm: both

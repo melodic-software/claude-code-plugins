@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "**Lens**: lens-2 boundary/edge-case"
+    },
+    {
+      "answer": "| Lens | lens-2 |"
+    },
+    {
+      "answer": "**Lens:** `lens-1` contract vs body"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lenses dispatched: two."
+    },
+    {
+      "answer": "**Lens**: boundary"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The fix is local: run `/implementation:implement` on Finding 1."
+    },
+    {
+      "answer": "Root-cause it first with /debugging:debug."
+    },
+    {
+      "answer": "File it with `/work-items:track add`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I fixed the easy one in src/discount.js."
+    },
+    {
+      "answer": "Fix it in your editor."
+    }
+  ]
+}

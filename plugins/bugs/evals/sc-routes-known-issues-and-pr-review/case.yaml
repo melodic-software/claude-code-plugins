@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: sc-routes-known-issues-and-pr-review
+graders:
+  - name: names-known-issues
+    type: regex
+    pattern: '\bharness-ops:known-issues\b'
+    target: last_message
+  - name: names-review-lane
+    type: regex
+    pattern: '\breview:(?:code-review|security-review)\b'
+    target: last_message
+  - name: names-bugs-write
+    type: regex
+    pattern: '\bbugs:write\b'
+    target: last_message
+  - name: no-hunt
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: fences-explained
+    type: llm
+    criteria: "The user asked two things: what is already known to be broken in Claude Code itself, and a check of the diff on their open pull request before merge. PASS only if the reply (1) routes the known-broken question to harness-ops:known-issues and says it differs from /bugs:scan, which hunts the user's own resting code for bugs nobody has observed yet; (2) routes the pre-merge diff check to the review lane (review:code-review, or review:security-review for a security pass) rather than reviewing it here; and (3) says /bugs:write is for a defect the user has already observed. FAIL if it misses any of the three, or starts or offers to start a proactive bug hunt to answer either request."
+    focus: last_message
