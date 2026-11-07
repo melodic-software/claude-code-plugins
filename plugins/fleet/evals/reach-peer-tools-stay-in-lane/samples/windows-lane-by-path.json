@@ -15,6 +15,10 @@
     {
       "answer": "ssh.exe desk-wsl 'claude -p \"List the sessions\" < /dev/null'",
       "why": "WSL lane only"
+    },
+    {
+      "answer": "printf '%s\\n' 'List the sessions' | ssh.exe desk-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'",
+      "why": "R3 with the prompt on stdin"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "ssh.exe desk-wsl '/mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"List the sessions\" < /dev/null'",
       "why": "no Windows-side working directory"
+    },
+    {
+      "answer": "printf '%s\\n' 'List the sessions' | ssh.exe desk-wsl claude.exe -p",
+      "why": "claude.exe by bare name in an unquoted remote command"
     }
   ]
 }

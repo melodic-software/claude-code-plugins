@@ -85,7 +85,8 @@ jobs:
       proceed: ${{ steps.gate.outputs.proceed }}
       release: ${{ steps.gate.outputs.release }}
       base-sha: ${{ github.sha }}
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
+      next-reason: ${{ steps.credit.outputs.next-reason }}
       credit-marker: ${{ steps.credit.outputs.marker }}
     env:
       API_BUDGET_TOKEN: github-token
@@ -153,55 +154,47 @@ jobs:
           export DAILY_CAP
           node .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate
 
-      # Whether the key is still out of credit: a credit stop of the model job
-      # in this workflow inside the window (vars.KEY_CREDIT_WINDOW_HOURS, 1
-      # hour unset) skips the key leg this run, and model-subscription runs
-      # the release on the subscription token (ci-workflows check-key-credit,
-      # gate.cjs: one artifact-list call for the `marker` the model job
-      # uploads after a credit stop). It runs only once a release is picked, so a tick with
-      # nothing to take spends no call. Probing is off: the concurrency group
-      # runs one run at a time, so no second run can reach the key while the
-      # first run after the window tries it. Every failure runs the key:
-      # skip-key is then empty.
+      # Whether the key is still out of credit, and so which leg runs first
+      # (ci-workflows select-model-credential, its start call: check-key-credit's
+      # one artifact-list call for the `marker` the model job uploads after a
+      # credit stop). A credit stop inside the window names the subscription
+      # leg, and model-subscription runs the release on the subscription
+      # token. It runs only once a release is picked, so a tick with nothing
+      # to take spends no call. Probing is off: the concurrency group runs one
+      # run at a time, so no second run can reach the key while the first run
+      # after the window tries it. Every failure runs the key.
       - name: Read the key's credit history
         id: credit
         if: steps.gate.outputs.proceed == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: model
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # One artifact read dates the window's end from the marker's upload;
-      # a failed read still names the run.
+      # Names the run whose credit stop holds the key off. The window's end
+      # is the gate's (it backs off after repeated stops), so it is not
+      # restated here.
       - name: Report the credit skip
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 1
         env:
-          GH_TOKEN: ${{ github.token }}
           ORIGIN_RUN: ${{ steps.credit.outputs.origin-run }}
-          MARKER: ${{ steps.credit.outputs.marker }}
-          WINDOW_HOURS: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
           RELEASE: ${{ steps.gate.outputs.release }}
         run: |
-          # shellcheck source=/dev/null
-          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          created=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN/artifacts?name=$MARKER" --jq '.artifacts[0].created_at // empty' || true)
-          ends=""
-          if [ -n "$created" ] && [[ $WINDOW_HOURS =~ ^[0-9]+$ ]] && start=$(date -u -d "$created" +%s); then
-            ends=$(date -u -d "@$((start + WINDOW_HOURS * 3600))" +%Y-%m-%dT%H:%MZ) || ends=""
-          fi
-          line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN; release $RELEASE runs on the subscription token, and the key is skipped until the ${WINDOW_HOURS}-hour window ends at ${ends:-an unread time}"
+          line="ISSUE_LANE_CLAUDE_API_KEY hit a credit stop in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN; release $RELEASE runs on the subscription token, and the key is skipped until the credit gate's window ends"
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -233,7 +226,7 @@ jobs:
     needs: gate
     # The first attempt only: a re-run never runs the model again. A key the
     # credit gate skipped runs nothing here; model-subscription runs it.
-    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'
+    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -247,9 +240,8 @@ jobs:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -298,13 +290,11 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::warning::ISSUE_LANE_CLAUDE_API_KEY is empty; model-subscription runs the release on the subscription token"
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: issue-lane
+          credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -584,6 +574,22 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       # From the trusted checkout: the root checkout replaced .base.
       - name: Log the API budget at the end
         if: always() && steps.run.outcome != 'skipped'
@@ -605,8 +611,7 @@ jobs:
     # empty, or was skipped by the credit gate.
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.model.outputs.handoff == 'true' || needs.model.outputs.credential-present == 'false'
-      || needs.gate.outputs.skip-key == 'true') }}
+      && (needs.model.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -620,10 +625,8 @@ jobs:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -671,20 +674,13 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          # Whether the fallback leg can run, never the token.
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN is empty; model-fallback runs the release on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
-            else
-              echo "::notice::ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty; no leg runs"
-            fi
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
-          echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: issue-lane
+          credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.model.outputs.next-reason || needs.gate.outputs.next-reason }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -891,7 +887,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.model.outputs.handoff-reason || needs.model.outputs.credential-present == 'false' && 'no-key' || needs.gate.outputs.skip-key == 'true' && 'credit-stop' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The plan, and the planned branches as one git bundle from the base,
       # sealed with the sealer from the trusted checkout.
@@ -924,6 +920,22 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
       # From the trusted checkout: the root checkout replaced .base.
       - name: Log the API budget at the end
         if: always() && steps.run.outcome != 'skipped'
@@ -942,8 +954,7 @@ jobs:
     # its token empty.
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.model-subscription.outputs.fallback-ready == 'true'
-      && (needs.model-subscription.outputs.handoff == 'true' || needs.model-subscription.outputs.credential-present == 'false') }}
+      && needs.model-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
@@ -957,9 +968,6 @@ jobs:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
     outputs:
-      handoff: ${{ steps.run.outputs.handoff }}
-      handoff-reason: ${{ steps.run.outputs.handoff-reason }}
-      credential-present: ${{ steps.credential.outputs.present }}
       lane-class: ${{ steps.run.outputs.lane-class }}
       sealed-length: ${{ steps.seal.outputs.sealed-length }}
       sealed-1: ${{ steps.seal.outputs.sealed-1 }}
@@ -1007,13 +1015,12 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" != true ]; then
-            echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; the release waits for a later run"
-          fi
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: issue-lane
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.model-subscription.outputs.next-reason }}
 
       # The plugins the skill and its stage skills load, copied out of main
       # before the root checkout replaces .base.
@@ -1208,7 +1215,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The plan, and the planned branches as one git bundle from the base,
       # sealed with the sealer from the trusted checkout.
@@ -1260,15 +1267,15 @@ jobs:
   # runs on, after the same handoffs as the model's legs.
   scrub-probe:
     needs: gate
-    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'
+    if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
     permissions:
       contents: read # check out main
     outputs:
-      handoff: ${{ steps.probe.outputs.handoff }}
-      credential-present: ${{ steps.credential.outputs.present }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1305,9 +1312,11 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
-        run: echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: issue-lane
+          credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1449,6 +1458,22 @@ jobs:
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1463,17 +1488,15 @@ jobs:
     needs: [gate, scrub-probe]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && (needs.scrub-probe.outputs.handoff == 'true' || needs.scrub-probe.outputs.credential-present == 'false'
-      || needs.gate.outputs.skip-key == 'true') }}
+      && (needs.scrub-probe.outputs.next-leg == 'subscription' || needs.gate.outputs.next-leg == 'subscription') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
     permissions:
       contents: read # check out main
     outputs:
-      handoff: ${{ steps.probe.outputs.handoff }}
-      credential-present: ${{ steps.credential.outputs.present }}
-      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+      next-leg: ${{ steps.next.outputs.next-leg }}
+      next-reason: ${{ steps.next.outputs.next-reason }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1510,13 +1533,13 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          # Whether the fallback probe can run, never the token.
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
-          echo "fallback-ready=$FALLBACK_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: issue-lane
+          credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.scrub-probe.outputs.next-reason || needs.gate.outputs.next-reason }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1659,6 +1682,22 @@ jobs:
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
+      # The leg the next job runs, from this job's credential decision and
+      # the launcher's handoff (select-model-credential). always(), so a step
+      # that failed, or a job that hit its own timeout, after a handoff or an
+      # empty credential still hands on, as the job outputs did before; the
+      # next job's own !cancelled() still stops a cancelled run.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.probe.outputs.handoff }}
+          handoff-reason: ${{ steps.probe.outputs.handoff-reason }}
+
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1673,8 +1712,7 @@ jobs:
     needs: [gate, scrub-probe-subscription]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
-      && needs.scrub-probe-subscription.outputs.fallback-ready == 'true'
-      && (needs.scrub-probe-subscription.outputs.handoff == 'true' || needs.scrub-probe-subscription.outputs.credential-present == 'false') }}
+      && needs.scrub-probe-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
@@ -1716,9 +1754,12 @@ jobs:
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: issue-lane
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ needs.scrub-probe-subscription.outputs.next-reason }}
 
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'

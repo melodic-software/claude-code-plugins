@@ -406,10 +406,11 @@ jobs:
           tokens: github-token
 
   # Whether the reviews role's key, which both lanes' key legs share, is still
-  # out of credit: a key-leg credit stop in this workflow inside the window
-  # (vars.KEY_CREDIT_WINDOW_HOURS, 1 hour unset) skips the review job, and
-  # review-handoffs hands both lanes to review-subscription as credit-stop
-  # (ci-workflows check-key-credit, gate.cjs). review-handoffs, the job that
+  # out of credit, and so which leg runs first: a key-leg credit stop in this
+  # workflow inside the credit gate's window names the subscription leg, which
+  # skips the review job, and review-handoffs hands both lanes to
+  # review-subscription as credit-stop (ci-workflows select-model-credential,
+  # its start call: check-key-credit, gate.cjs). review-handoffs, the job that
   # routes a key leg's credit stop, uploads the artifact the gate's `marker`
   # output names, and the gate lists that one name, so the window counts
   # from the credit stop, not the last skip, and a topped-up or rotated key
@@ -435,17 +436,20 @@ jobs:
     permissions:
       actions: read # this repository's credit-stop marker artifacts
     outputs:
-      skip-key: ${{ steps.gate.outputs.skip-key }}
+      next-leg: ${{ steps.gate.outputs.next-leg }}
+      next-reason: ${{ steps.gate.outputs.next-reason }}
       marker: ${{ steps.gate.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: gate
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: review-handoffs
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
 
       # Read by the next runs' gates: the probing marker the gate names
       # (gate.cjs probeName) when this run tries the key first after a credit
@@ -455,9 +459,8 @@ jobs:
       # Written only when this run's key legs start (the review job's trigger
       # terms, proceed included), so a run that reviews nothing never holds the
       # key off. The name is written out so its retention row claims it. This
-      # job checks nothing out, so the scan is ci-workflows' own action at the
-      # gate's pin. An artifact upload uses the runner's token, so the job keeps
-      # actions: read.
+      # job checks nothing out, so the scan is ci-workflows' own action. An
+      # artifact upload uses the runner's token, so the job keeps actions: read.
       - name: Write the key's probing marker
         id: probe-marker
         if: always() && steps.gate.outputs.probing-marker == 'key-credit-probing-pr-review-main.yml-review-handoffs' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true'
@@ -490,7 +493,7 @@ jobs:
       # Each skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped claude-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.next-leg == 'subscription' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -502,7 +505,7 @@ jobs:
           handoff: "true"
 
       - name: Report the skipped claude-security-review key leg
-        if: steps.gate.outputs.skip-key == 'true' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        if: steps.gate.outputs.next-leg == 'subscription' && needs.trigger.outputs.proceed == 'true' && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -667,7 +670,7 @@ jobs:
   review:
     needs: [trigger, review-handoffs-credit, trusted-text]
     if: >-
-      needs.review-handoffs-credit.outputs.skip-key != 'true'
+      needs.review-handoffs-credit.outputs.next-leg != 'subscription'
       && !cancelled()
       && needs.trigger.result == 'success'
       && github.ref == 'refs/heads/main'
@@ -1071,29 +1074,18 @@ jobs:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
 
-      # Only whether the secrets are set leaves this step, never a value. An
-      # empty credential with a later leg's set hands the lane on; with none
-      # set, nothing reviews and the lane stays unbound.
+      # Only whether the secrets are set reaches this step, never a value
+      # (ci-workflows select-model-credential). An empty credential with a
+      # later leg's set hands the lane on as no-key; with none set, nothing
+      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        env:
-          PRESENT: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
-          SECRET_NAME: REVIEWS_CLAUDE_API_KEY
-          # Whether a later leg can review, never its token. The key leg
-          # always hands an empty key on: a step reads no key beside a token,
-          # and the subscription leg checks its own and the fallback's.
-          LATER_PRESENT: "true"
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          elif [ "$LATER_PRESENT" = true ]; then
-            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
-          fi
-          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: reviews
+          credential-set: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -1438,14 +1430,30 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
-      # The lane's handoff reason, from run-claude-cli's closed handoff-reason
-      # (or an empty credential), under the lane's own output name.
+      # The leg the next job runs for this lane, from this leg's credential
+      # decision and any chunk's launcher handoff (select-model-credential).
+      # always(), so it decides even in a job that hit its own timeout; the
+      # step after it writes the answer only when every step before it
+      # succeeded, as before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
+          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+
+      # The lane's handoff reason under the lane's own output name, since a
+      # matrix job's outputs merge.
       - name: Hand the lane on
         id: handoff
-        if: steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        if: steps.next.outputs.next-leg != ''
         env:
           LANE: ${{ matrix.lane }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+          REASON: ${{ steps.next.outputs.next-reason }}
         run: |
           case "$REASON" in
             credit-stop | auth | limit-stop | no-key) ;;
@@ -1552,7 +1560,7 @@ jobs:
       !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.review.outputs.claude-review != '' || needs.review.outputs.claude-security-review != ''
-      || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true'
+      || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription'
       && needs.trigger.outputs.run-attempt == github.run_attempt && needs.trigger.outputs.proceed == 'true'
       && needs.trigger.outputs.review == 'true' && needs.trigger.outputs.judged != 'true' && needs.trigger.outputs.held != 'true')
     runs-on: ubuntu-24.04
@@ -1564,8 +1572,8 @@ jobs:
       - name: Route the handed-off lanes
         id: route
         env:
-          CODE: ${{ needs.review.outputs.claude-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true' && 'credit-stop' || '' }}
-          SECURITY: ${{ needs.review.outputs.claude-security-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.skip-key == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'credit-stop' || '' }}
+          CODE: ${{ needs.review.outputs.claude-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription' && vars.CLAUDE_REVIEW_DISABLED != 'true' && needs.review-handoffs-credit.outputs.next-reason || '' }}
+          SECURITY: ${{ needs.review.outputs.claude-security-review || needs.review.result == 'skipped' && needs.review-handoffs-credit.outputs.next-leg == 'subscription' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && needs.review-handoffs-credit.outputs.next-reason || '' }}
           CODE_BASE: ${{ needs.review.outputs.claude-review-base-sha || needs.trigger.outputs.main-sha }}
           SECURITY_BASE: ${{ needs.review.outputs.claude-security-review-base-sha || needs.trigger.outputs.main-sha }}
           REASONS: credit-stop auth no-key
@@ -1583,8 +1591,9 @@ jobs:
       # Read by the next runs' review-handoffs-credit gate: the artifact its
       # `marker` output names (gate.cjs markerName), written only when a key
       # leg that ran handed on with a credit stop, never on a lane the gate
-      # itself handed on. Its upload time starts the window; one day's
-      # retention covers the 1-hour default. It holds only this run's id, so
+      # itself handed on. Its upload time starts the window; it is kept one
+      # day, and a marker that expires first only ends the window sooner
+      # (gate.cjs). It holds only this run's id, so
       # no leak scan runs over it (.github/artifact-retention.json).
       - name: Write the key's credit-stop marker
         id: credit-marker
@@ -1990,29 +1999,20 @@ jobs:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
 
-      # Only whether the secrets are set leaves this step, never a value. An
-      # empty credential with a later leg's set hands the lane on; with none
-      # set, nothing reviews and the lane stays unbound.
+      # Only whether the secrets are set reaches this step, never a value
+      # (ci-workflows select-model-credential). An empty credential with a
+      # later leg's set hands the lane on as no-key; with none set, nothing
+      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        env:
-          PRESENT: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          SECRET_NAME: REVIEWS_CLAUDE_CODE_OAUTH_TOKEN
-          # Whether a later leg can review, never its token. The key leg
-          # always hands an empty key on: a step reads no key beside a token,
-          # and the subscription leg checks its own and the fallback's.
-          LATER_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          elif [ "$LATER_PRESENT" = true ]; then
-            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
-          fi
-          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: reviews
+          credential-set: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ matrix.reason }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -2142,7 +2142,7 @@ jobs:
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           handoff: ${{ steps.review-1.outputs.handoff }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 1's sealed transcript
         if: always() && steps.review-1.outputs.execution-file != ''
@@ -2214,7 +2214,7 @@ jobs:
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           handoff: ${{ steps.review-2.outputs.handoff }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.review-2.outputs.execution-file != ''
@@ -2286,7 +2286,7 @@ jobs:
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           handoff: ${{ steps.review-3.outputs.handoff }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.review-3.outputs.execution-file != ''
@@ -2358,7 +2358,7 @@ jobs:
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           handoff: ${{ steps.review-4.outputs.handoff }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.review-4.outputs.execution-file != ''
@@ -2369,14 +2369,30 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}-4
 
-      # The lane's handoff reason, from run-claude-cli's closed handoff-reason
-      # (or an empty credential), under the lane's own output name.
+      # The leg the next job runs for this lane, from this leg's credential
+      # decision and any chunk's launcher handoff (select-model-credential).
+      # always(), so it decides even in a job that hit its own timeout; the
+      # step after it writes the answer only when every step before it
+      # succeeded, as before.
+      - name: Pick the next leg
+        id: next
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
+          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+
+      # The lane's handoff reason under the lane's own output name, since a
+      # matrix job's outputs merge.
       - name: Hand the lane on
         id: handoff
-        if: steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' || steps.credential.outputs.present == 'false'
+        if: steps.next.outputs.next-leg != ''
         env:
           LANE: ${{ matrix.lane }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+          REASON: ${{ steps.next.outputs.next-reason }}
         run: |
           case "$REASON" in
             credit-stop | auth | limit-stop | no-key) ;;
@@ -2882,29 +2898,19 @@ jobs:
           model-route: ${{ matrix.route }}
           output-path: ${{ runner.temp }}/pr-review-main-models.json
 
-      # Only whether the secrets are set leaves this step, never a value. An
-      # empty credential with a later leg's set hands the lane on; with none
-      # set, nothing reviews and the lane stays unbound.
+      # Only whether the secrets are set reaches this step, never a value
+      # (ci-workflows select-model-credential). An empty credential with a
+      # later leg's set hands the lane on as no-key; with none set, nothing
+      # reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          SECRET_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-          # Whether a later leg can review, never its token. The key leg
-          # always hands an empty key on: a step reads no key beside a token,
-          # and the subscription leg checks its own and the fallback's.
-          LATER_PRESENT: "false"
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          elif [ "$LATER_PRESENT" = true ]; then
-            echo "::warning::$SECRET_NAME is empty; the next leg reviews this lane."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty and no later leg's credential is set; no main-run review, so the lane stays unbound."
-          fi
-          echo "fallback-ready=$LATER_PRESENT" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: reviews
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ matrix.reason }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -3032,7 +3038,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 1's sealed transcript
         if: always() && steps.review-1.outputs.execution-file != ''
@@ -3102,7 +3108,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.review-2.outputs.execution-file != ''
@@ -3172,7 +3178,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.review-3.outputs.execution-file != ''
@@ -3242,7 +3248,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.review-4.outputs.execution-file != ''

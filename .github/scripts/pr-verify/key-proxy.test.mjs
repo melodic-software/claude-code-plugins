@@ -23,7 +23,7 @@ const BETAS = [...new Set(`${MAIN_BETAS},${TITLE_BETAS}`.split(","))];
 const BODY_KEYS = ["context_management", "max_tokens", "messages", "metadata", "model", "output_config", "stream", "system", "thinking", "tools"];
 const BLOCK_TYPES = ["text", "image", "document", "tool_use", "tool_result", "thinking", "redacted_thinking"];
 const BASE_CONFIG = {
-  tokenCap: 1_000_000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100_000, maxInFlight: 8,
+  tokenCap: 1_000_000, driverTokenCap: 1_000_000, models: MODELS, maxTokensCeiling: 1000, maxBodyBytes: 100_000, maxInFlight: 8,
   maxCountTokensRequests: 100, maxPreflightRequests: 1000, betas: BETAS, bodyKeys: BODY_KEYS, blockTypes: BLOCK_TYPES,
   // Longer than any test holds an upstream idle; the timeout tests override it.
   upstreamTimeoutMs: 10_000,
@@ -807,6 +807,9 @@ test("the script exits non-zero on a missing key or a bad config", async () => {
   const noTimeout = path.join(dir, "notimeout.json");
   writeFileSync(noTimeout, JSON.stringify({ ...BASE_CONFIG, upstreamTimeoutMs: undefined }));
   assert.equal(await spawnProxy(["--socket", path.join(dir, "d.sock"), "--config", noTimeout], KEY).exited, 2);
+  const noDriverCap = path.join(dir, "nodrivercap.json");
+  writeFileSync(noDriverCap, JSON.stringify({ ...BASE_CONFIG, driverTokenCap: undefined }));
+  assert.equal(await spawnProxy(["--socket", path.join(dir, "e.sock"), "--config", noDriverCap], KEY).exited, 2);
   assert.equal(await spawnProxy(["--config", good], KEY).exited, 2);
 });
 
@@ -901,6 +904,35 @@ test("with --listen the script serves a loopback port that needs the client key 
   assert.deepEqual(lines.map((e) => `${e.listener} ${e.status}`), ["loopback 401", "loopback 401", "loopback 200", "socket 200"]);
   for (const k of [KEY, CLIENT_KEY]) assert.ok(!p.out.stderr.includes(k) && !p.out.stdout.includes(k), "a key logged");
   assert.ok(!p.child.spawnargs.some((a) => a.includes(CLIENT_KEY)));
+});
+
+test("with --listen the socket refuses at tokenCap and the loopback port at driverTokenCap, each with its own budget", { timeout: 10_000 }, async () => {
+  const up = await stubUpstream(okJson({ input_tokens: 450, output_tokens: 450 }), { countTokens: 10 });
+  const dir = tempDir("kp-");
+  const config = path.join(dir, "config.json");
+  writeFileSync(config, JSON.stringify({ ...BASE_CONFIG, tokenCap: 1000, driverTokenCap: 1900 }));
+  const socket = path.join(dir, "p.sock");
+  const port = await freePort();
+  const p = spawnProxy(["--socket", socket, "--config", config, "--upstream", up.url, "--listen", String(port)], `${KEY}\n${CLIENT_KEY}\n`);
+  const driver = () => callPort(port, { headers: { "x-api-key": CLIENT_KEY }, body: message() });
+  const spendLimit = (res, where) => {
+    assert.equal(res.status, 429, `${where} refused at its cap`);
+    assert.match(JSON.parse(res.body).error.message, /^spend limit reached/);
+  };
+  try {
+    await until(() => p.out.stderr.includes(`"listening":"127.0.0.1:${port}"`));
+    // Each call reserves 10 + 100 and commits 900. Socket: 900 + 110 > 1000 on the second call.
+    assert.equal((await call(socket, { body: message() })).status, 200, "socket first call within tokenCap");
+    spendLimit(await call(socket, { body: message() }), "socket");
+    // Loopback: 900 + 110 <= 1900 passes; 1800 + 110 > 1900 on the third call.
+    assert.equal((await driver()).status, 200, "loopback first call within driverTokenCap");
+    assert.equal((await driver()).status, 200, "loopback second call past tokenCap but within driverTokenCap");
+    spendLimit(await driver(), "loopback");
+    assert.equal(up.seen.length, 3);
+  } finally {
+    p.child.kill("SIGTERM");
+    await p.exited;
+  }
 });
 
 test("--listen without a second stdin line, or with the key repeated there, exits 2", { timeout: 10_000 }, async () => {

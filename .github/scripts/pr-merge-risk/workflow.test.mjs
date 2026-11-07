@@ -75,7 +75,9 @@ test("each leg holds one credential, in its presence check and its rating step a
     const { secret, input } = credential[leg];
     const holders = [...stepsOf(id)].filter(([, block]) => /secrets\./.test(block)).map(([name]) => name);
     assert.deepEqual(holders, ["Check the credential", "Rate the pull request"], id);
-    assert.match(step(id, "Check the credential"), new RegExp(`PRESENT: \\$\\{\\{ secrets\\.${secret} != '' \\}\\}\\n`), id);
+    const check = step(id, "Check the credential");
+    assert.match(check, /uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} /, id);
+    assert.match(check, new RegExp(`\\n {10}leg: ${leg}\\n {10}role: pr-verify\\n {10}credential-set: \\$\\{\\{ secrets\\.${secret} != '' \\}\\}\\n`), id);
     const rate = step(id, "Rate the pull request");
     assert.deepEqual([...rate.matchAll(/secrets\.([A-Z_]+)/g)].map(([, name]) => name), [secret], id);
     assert.match(rate, new RegExp(`\\n {10}${input}: \\$\\{\\{ secrets\\.${secret} \\}\\}\\n`), id);
@@ -86,31 +88,48 @@ test("each leg holds one credential, in its presence check and its rating step a
   assert.match(step(LEGS.subscription, "Rate the pull request"), /\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
 });
 
-test("each leg starts only after the one before handed off or found its credential empty, and a handoff is no failure", () => {
+// credential-legs.test.mjs holds every start and credential decision to the
+// conditions before select-model-credential; this pins their shape.
+test("each leg starts only after the one before named it as the next leg, and a handoff is no failure", () => {
   assert.match(job(LEGS.subscription), /\n {4}needs: rate-merge-risk\n/);
-  assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& \(needs\.rate-merge-risk\.outputs\.handoff == 'true'\n {6}\|\| needs\.rate-merge-risk\.outputs\.credential-present == 'false'\n {6}\|\| needs\.rate-merge-risk\.outputs\.skip-key == 'true'\)\n/);
+  assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& needs\.rate-merge-risk\.outputs\.next-leg == 'subscription'\n {4}runs-on:/);
   assert.match(job(LEGS.fallback), /\n {4}needs: rate-merge-risk-subscription\n/);
-  assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.outputs\.fallback-ready == 'true'\n {6}&& \(needs\.rate-merge-risk-subscription\.outputs\.handoff == 'true'\n {6}\|\| needs\.rate-merge-risk-subscription\.outputs\.credential-present == 'false'\)\n/);
+  assert.match(job(LEGS.fallback), /&& needs\.rate-merge-risk-subscription\.result == 'success'\n {6}&& needs\.rate-merge-risk-subscription\.outputs\.next-leg == 'fallback'\n {4}runs-on:/);
   for (const id of [LEGS.subscription, LEGS.fallback]) assert.match(job(id), /\n {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/, id);
   for (const id of Object.values(LEGS)) {
-    assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.credential\.outputs\.run == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
+    assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
   }
-  // The key leg skips a key whose credit stop is recent and marks a new one.
+  // The key leg reads its credit history in its own step, under
+  // continue-on-error and a 2-minute limit, so a read that fails or hangs runs
+  // the key; its credential call skips a key whose credit stop is recent, and
+  // the job marks a new one.
   const credit = step(LEGS.key, "Read the key's credit history");
-  assert.match(credit, /uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} /);
-  assert.match(credit, /key-job: rate-merge-risk\n/);
-  assert.match(step(LEGS.key, "Check the credential"), /SKIP_KEY: \$\{\{ steps\.credit\.outputs\.skip-key \}\}\n/);
+  assert.match(credit, /\n {8}id: credit\n/);
+  assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
+  assert.match(credit, /\n {10}leg: start\n {10}key-job: rate-merge-risk\n/);
+  assert.match(credit, /\n {10}probe-minutes: "0"\n/);
+  const check = step(LEGS.key, "Check the credential");
+  assert.match(check, /\n {10}selected: \$\{\{ steps\.credit\.outputs\.next-leg \}\}\n/);
+  assert.doesNotMatch(check, /key-job/);
+  assert.match(step(LEGS.key, "Report the skipped key leg"), /if: steps\.credential\.outputs\.key-skipped == 'true'\n/);
   assert.match(step(LEGS.key, "Write the key's credit-stop marker"), /steps\.credit\.outputs\.marker == 'key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk' && steps\.rate\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(step(LEGS.key, "Upload the key's credit-stop marker"), /name: key-credit-stop-pr-rate-merge-risk\.yml-rate-merge-risk\n/);
+  // The key and subscription legs name the next leg the same way; the
+  // fallback leg, last, names none.
+  assert.equal(step(LEGS.key, "Pick the next leg"), step(LEGS.subscription, "Pick the next leg"));
+  assert.ok(!stepsOf(LEGS.fallback).has("Pick the next leg"));
+  for (const [leg, id] of Object.entries(LEGS)) {
+    if (leg !== "key") assert.match(step(id, "Report the rating's outcome"), /\n {10}fallback-reason: \$\{\{ steps\.credential\.outputs\.fallback-reason \}\}\n/, id);
+  }
 });
 
 // Every leg is the key leg's steps but for its credential, the key's credit
-// gate and marker, and the lane record's fallback reason.
+// gate and marker, the next-leg call, and the lane record's fallback reason.
 test("the subscription and fallback legs repeat the key leg's steps exactly, step order included", () => {
   const KEY_ONLY = ["Read the key's credit history", "Report the skipped key leg", "Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
   const shape = (id) =>
     [...stepsOf(id)]
-      .filter(([name]) => !KEY_ONLY.includes(name) && name !== "Check the credential")
+      .filter(([name]) => !KEY_ONLY.includes(name) && name !== "Check the credential" && name !== "Pick the next leg")
       .map(([name, block]) =>
         name === "Rate the pull request"
           ? block.replace(/\n {10}(?:api-key|subscription-token|fallback-token|fallback-ready): [^\n]+/g, "")
