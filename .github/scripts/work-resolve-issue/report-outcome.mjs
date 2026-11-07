@@ -23,30 +23,30 @@
 //             failed or cannot be read for the branch's current tip, whatever
 //             the outcome file says.
 //   Every stop below takes its route from stop-routes.json (stop-routes.mjs):
-//   hold hands the issue to a person as pushback does; host-run adds the
-//   host-run label and removes agent-ready; attended adds the attended label
-//   and removes agent-ready; retry keeps agent-ready, so
+//   The issue's state is its Work status field (models.issue-status); no
+//   route writes a status label. hold hands the issue to a person as pushback
+//   does; host-run adds the host-run label; attended adds the attended label;
+//   retry keeps Work status agent-ready, so
 //   work-unblock restarts it, up to limits.stop-retries; wait keeps
 //   agent-ready and names the open pull request the run waits on, so
 //   work-unblock restarts it once that pull request merges or closes (a
 //   pull request that is not open, or that neither the lanes App nor a
-//   listed human opened, retries instead); intake removes
-//   agent-ready and status: ready, so the triage sweep sends the issue back
-//   through intake; park removes them too and parks the issue at
-//   status: confirmed beside admission's comment naming the reason, as
+//   listed human opened, retries instead); intake moves
+//   Work status from agent-ready to needs-triage, so the triage sweep sends
+//   the issue back through intake; park sets Work status confirmed beside admission's comment naming the reason, as
 //   admission parks a refusal no person answers; close closes the issue as
 //   completed (an already-done
 //   stop only once its cited commit or pull request is on the default
 //   branch and its commit message closes the issue, doneEvidence, and a
 //   verified-done stop only once VERIFY_CLOSE's sub-issues hold, else each
-//   retries); fail removes agent-ready and adds no label. A
+//   retries); fail moves Work status to needs-triage and adds no label. A
 //   route other than hold carries no escalation marker.
 //
 //   pushback  a reason that opens with a hold code (security-risk,
 //             cost-risk, design-change, intent-change) takes that row; else
 //             cause intent or intent-change (as stop-routes.mjs causeName
 //             normalizes the cause) comments why, adds
-//             the human-gated label, removes agent-ready; else a cause
+//             the human-gated Work status; else a cause
 //             naming a hold code takes that row; else a reason opening with
 //             a host-run or attended code takes that row, or security-risk's
 //             hold when runCode reads a security risk after the code (owner
@@ -65,10 +65,11 @@
 //             whose answer, a listed human's decision comment or intake's
 //             refinement, was posted after the run's admission (lateRecord),
 //             which the run never read: instead of the hold it posts a
-//             redispatch record naming that comment (a re-run whose label
-//             move did not land finishes it without a second one), and the
-//             App removes and adds back `status: ready` and agent-ready, a
-//             fresh admission whose run reads the answer (redispatch).
+//             redispatch record naming that comment, then a fresh admission
+//             record (lib/admission-record.mjs) and the App's restart of the
+//             Work status field (remove, then set agent-ready), so the fresh
+//             run freezes after the answer and reads it; a re-run of this run
+//             finishes what did not land (redispatch).
 //   stopped   comments why, takes its stop's route, and names the branch
 //             that holds any partial work. A missing or
 //             invalid outcome file is stopped; with a scan refusal marker
@@ -84,8 +85,8 @@
 //             carries class max-turns, or run-claude-cli's leg timeout
 //             (class timeout): comments with the turn-cap marker,
 //             naming the cap and the branch. While limits.turn-cap-restarts
-//             allows a restart since a person last added agent-ready, it
-//             keeps agent-ready and work-unblock restarts the issue; past
+//             allows a restart since a listed human last set Work status
+//             agent-ready (humanSince), it keeps agent-ready and work-unblock restarts the issue; past
 //             that it takes turn-cap-spent's route.
 //   reused   the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
@@ -113,11 +114,14 @@
 //             neither a listed human nor the lanes App (DIMENSION_SKIP
 //             outside-author): comments that a listed human re-files the work
 //             as a new issue (once: a re-run finds its own comment) and
-//             removes agent-ready, with no label, since a
+//             moves Work status to needs-triage, with no label, since a
 //             retry stops again. No outcome file is read.
 //   stale    the read runner stopped on stale workflow files before any model
 //             turn (DIMENSION_SKIP workflow-stale): re-fires the issue at once
-//             on main's files (refireStale). No outcome file is read.
+//             on main's files (refireStale): the App's Work status restart,
+//             gated on the field reading agent-ready and on an admission (the
+//             App's admission record or a listed human's agent-ready set). No
+//             outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -177,6 +181,9 @@
 //                       pushback reads
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
+//   APP_SENDER_ID       the lanes App's user id, whose admission records and
+//                       field restarts count (else the trusted-actor list's
+//                       LANES_BOT_LOGIN entry)
 //   GITHUB_OUTPUT       --find-prior: the step output file
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //                       (the attempt whose scan-refusal markers are read)
@@ -679,8 +686,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`
-      : `To retry, set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`,
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then set Work status to agent-ready again (clearing the \`${humanLabel}\` hold).`
+      : `To retry, set Work status to agent-ready again (clearing the \`${humanLabel}\` hold).`,
   );
   return {
     action: "hand-back",
@@ -689,16 +696,15 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
     comment: lines.join("\n"),
     addLabels: [],
     status: humanLabel,
-    removeLabels: ["agent-ready"],
   };
 }
 
 // The comment and labels of a stop whose route is not hold, which carries no
-// escalation marker: retry and wait keep agent-ready (work-unblock restarts it
-// and the next run resumes the branch), host-run and attended add their
-// label, intake removes the status labels admission reads, park removes them
-// and adds status: confirmed (finishStop writes admission's comment first),
-// close and fail add none; all but retry and wait remove agent-ready.
+// escalation marker: retry and wait keep Work status at agent-ready
+// (work-unblock restarts it and the next run resumes the branch), host-run and
+// attended add their label, intake and fail move Work status to needs-triage,
+// park to confirmed (finishStop writes admission's comment first), and close
+// closes the issue. No route writes a status label: the field is the state.
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
 const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
 // The label whose Work status state a park writes.
@@ -706,32 +712,15 @@ const PARK_STATUS = "status: confirmed";
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
-// The queue labels: admission's, which stripQueueLabels removes from a closed
-// issue and from one its lane PR handed back to triage.
-export const ADMISSION_LABELS = ["agent-ready", "status: ready", "admission-deferred"];
-// Agent-ready last: work-unblock's sweep lists open agent-ready issues, so a
-// failed write leaves the issue for it. A caller that closes the issue itself
-// strips first, so the issue is still open when a write fails.
-const QUEUE_LABELS = [...ADMISSION_LABELS.filter((name) => name !== "agent-ready"), "agent-ready"];
-
-// Removes the queue labels `had` holds from the issue at `base`, and returns
-// their names. A 404 is a label already gone, so it counts as removed.
-export async function stripQueueLabels(github, base, had) {
-  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
-  const removed = QUEUE_LABELS.filter((name) => present.has(name));
-  for (const name of removed) {
-    await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
-      if (error?.status !== 404) {
-        throw error;
-      }
-    });
-  }
-  return removed;
+// Removes no label: the queue state is the Work status field. Kept for
+// work-unblock (label-unblocked.mjs), which still calls it.
+export async function stripQueueLabels() {
+  return [];
 }
-// The state labels a closed issue no longer needs: triage's and the host
-// queue's. Removed only once the issue is closed, so a close that fails leaves
-// an open issue in its state. `attended` stays: only a listed human lifts it.
-export const STATE_LABELS = ["status: confirmed", "status: needs-decision", "status: needs-info", HOST_RUN_LABEL];
+// The state label a closed issue no longer needs: the host queue's. Removed
+// only once the issue is closed, so a close that fails leaves an open issue in
+// its state. `attended` stays: only a listed human lifts it.
+export const STATE_LABELS = [HOST_RUN_LABEL];
 
 // Removes the state labels `had` holds from the closed issue at `base`, and
 // returns their names. A 404 counts as removed.
@@ -747,16 +736,14 @@ export async function stripStateLabels(github, base, had) {
   }
   return removed;
 }
-const ROUTE_REMOVES = { intake: ADMISSION_LABELS, park: ADMISSION_LABELS };
 const ROUTE_TEXT = {
-  "host-run": `It added \`${HOST_RUN_LABEL}\` and removed \`agent-ready\`: an agent run on a host builds it, and it waits on no decision from a person.`,
-  attended: `It added \`${ATTENDED_LABEL}\` and removed \`agent-ready\`: the step needs the owner present, and it waits on no decision from a person.`,
-  intake:
-    "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
-  "intake-security": "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage.",
-  park: `It removed \`agent-ready\` and \`status: ready\` and set Work status to confirmed, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
+  "host-run": `It added \`${HOST_RUN_LABEL}\`: an agent run on a host builds it, and it waits on no decision from a person.`,
+  attended: `It added \`${ATTENDED_LABEL}\`: the step needs the owner present, and it waits on no decision from a person.`,
+  intake: "It set Work status to needs-triage, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
+  "intake-security": "It set Work status to needs-triage, so the hourly triage sweep sends it back through intake triage.",
+  park: `It set Work status to confirmed, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
   close: "It closes the issue as completed.",
-  fail: "It removed `agent-ready` and added no label.",
+  fail: "It set Work status to needs-triage and added no label.",
 };
 // The pull request a blocked-by-pr reason names, or the issue a
 // blocked-by-issue reason names: its first `#<n>` (or the full-width `＃<n>`)
@@ -802,11 +789,11 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     lines.push("", `Run: ${runUrl}`);
   }
   if (route === "host-run") {
-    lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and add \`agent-ready\` again.`);
+    lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`);
   } else if (route === "attended") {
-    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and adds \`agent-ready\` again.`);
+    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and sets Work status to agent-ready again.`);
   } else if (route === "fail") {
-    lines.push("", "To run it again, add `agent-ready`.");
+    lines.push("", "To run it again, set Work status to agent-ready.");
   }
   return {
     action: route,
@@ -817,7 +804,6 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     comment: lines.join("\n"),
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
     ...(route === "park" && { status: PARK_STATUS }),
-    removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
     ...(after && { after }),
     ...(route === "park" && { admission: parkReason(stop, why || stopWhy(shown)) }),
@@ -900,7 +886,7 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
+  return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [] };
 }
 
 // The read runner's stop on stale workflow files (pr-run-activity-read.yml
@@ -925,21 +911,54 @@ const STALE_CAUSE =
 export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
+// The admission record's lib, loaded on use: ci-status loads this file from a
+// sparse checkout that holds no lib/admission-record.mjs.
+const admissionLib = () => import("../lib/admission-record.mjs");
+
+// The times the lanes App (`appId`) set the Work status field (`fieldId`) to
+// agent-ready, among resolve-config fieldEvents: its restarts.
+const appSets = (fieldEvents, fieldId, appId) =>
+  (fieldEvents ?? [])
+    .filter((event) => event?.field === String(fieldId) && event.removed === false && event.to === "agent-ready" && event.actorId === appId)
+    .map((event) => Date.parse(event.at));
+
+// The trusted Work status state (`field.state`), or undefined with one
+// warning when it cannot be read.
+async function fieldState(field, issueNumber) {
+  try {
+    return await field.state(issueNumber);
+  } catch (error) {
+    console.log(`::warning title=work-status::issue #${issueNumber} is left as it is: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    return undefined;
+  }
+}
+
+// The Work status field as report-outcome reads and restarts it, which
+// baseStatus builds: `id` the field id (null when models.issue-status is
+// unset), `state(number)` its trusted state (read-status.mjs), `events(number)`
+// resolve-config fieldEvents, and `restart(number, from)` the App's restart:
+// while the state still reads `from`, the value is removed (unless `from` is
+// null) and agent-ready set, which starts a fresh run. False when the state
+// moved or the removal found no value: a person's change stands.
+const NO_FIELD = { id: null, state: async () => null, events: async () => [], restart: async () => false };
+
 // A run that stopped on stale workflow files ran no model and is no fault in
 // the issue, so it is re-fired at once on main's files, the way work-unblock's
-// sweep re-fires it: its re-fire record, then agent-ready removed and added
-// back by the App, which starts a fresh run (admission accepts the App's
-// agent-ready). Nothing is done when the run's files match main's (the
-// stale claim does not hold), the issue is closed, agent-ready is off, was
-// last removed, or was last added by neither a listed human nor the App, or a
-// hold is on, or a person removes agent-ready before the write lands; and none
-// past limits.limit-stops-per-issue re-fire records since a listed human last
-// added agent-ready or a run last reported. Past that bound the hourly sweep
-// still re-fires a stale stop once per new version of the two lane workflow
-// files on main, so the re-fires are bounded by how often main changes them.
-// Returns what it did. `statusOf(number, names)` gives the label names as the
-// Work status field decides them (baseStatus); a failed read re-fires nothing.
-export async function refireStale(github, repo, issueNumber, { workflowSha, bot, humans, limits, statusOf = async (number, names) => names }) {
+// sweep re-fires it: its re-fire record, then the App's restart of the Work
+// status field (`field.restart`), which starts a fresh run. The restart writes
+// no admission record, so the fresh run freezes at the admission this one did.
+// Nothing is done when the run's files match main's (the stale claim does not
+// hold), the issue is closed, its trusted Work status is not agent-ready or
+// cannot be read, no admission (admission-record.mjs admittedAt: the App's
+// record or a listed human's agent-ready set) admitted it, a hold is on, or a
+// person changes the field before the write lands; and none past
+// limits.limit-stops-per-issue re-fire records since the newest admission or
+// a run last reported. Past that bound the hourly sweep still re-fires a stale
+// stop once per new version of the two lane workflow files on main, so the
+// re-fires are bounded by how often main changes them. Returns what it did.
+// `statusOf(number, names)` gives the label names as the Work status field
+// decides them (baseStatus); a failed read re-fires nothing.
+export async function refireStale(github, repo, issueNumber, { workflowSha, bot, appId, humans, limits, statusOf = async (number, names) => names, field = NO_FIELD }) {
   if (!BLOB.test(workflowSha ?? "")) {
     return "skipped: the run names no workflow commit";
   }
@@ -961,60 +980,51 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   const base = `${repo}/issues/${issueNumber}`;
   const issue = await github("GET", base);
   const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
-  if (issue?.state !== "open" || !labels.includes("agent-ready")) {
-    return "skipped: the issue is closed or agent-ready is off";
+  if (issue?.state !== "open") {
+    return "skipped: the issue is closed";
+  }
+  const state = await fieldState(field, issueNumber);
+  if (state === undefined) {
+    return "skipped: the Work status could not be read";
+  }
+  if (state !== "agent-ready") {
+    return "skipped: the Work status is not agent-ready";
   }
   const held = await laneHold(statusOf, issueNumber, labels);
   if (held) {
     return `skipped: ${held}`;
   }
-  const events = (await paginate(github, `${base}/events`)).filter(
-    (event) => (event?.event === "labeled" || event?.event === "unlabeled") && String(event.label?.name).toLowerCase() === "agent-ready",
-  );
-  if (events.at(-1)?.event !== "labeled") {
-    return "skipped: agent-ready was last removed";
+  const all = await paginate(github, `${base}/comments`);
+  const fieldEvents = await field.events(issueNumber);
+  const { admittedAt } = await admissionLib();
+  let admission;
+  try {
+    admission = admittedAt({ comments: all, appId, fieldEvents, fieldId: field.id, humans });
+  } catch {
+    return "skipped: no admission record or listed human's agent-ready set admitted the issue";
   }
-  // The App's re-add admits on its own, so it repeats only a label admission
-  // would take: a listed human's or the App's own (work-unblock's rule).
-  if (!trustedLabeler(events, events.at(-1).label.name, { bot, humans })) {
-    return "skipped: agent-ready was last added by neither a listed human nor the lanes App";
-  }
-  const comments = (await paginate(github, `${base}/comments`)).filter((comment) => comment?.user?.login === bot);
+  const comments = all.filter((comment) => comment?.user?.login === bot);
   const at = (comment) => Date.parse(comment.created_at);
-  const from = Math.max(
-    Number.NEGATIVE_INFINITY,
-    ...events.filter((event) => event.event === "labeled" && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
-    ...comments.filter((comment) => parseOutcomeMarker(comment.body) !== null).map(at),
-  );
+  const from = Math.max(admission.at, ...comments.filter((comment) => parseOutcomeMarker(comment.body) !== null).map(at));
   const records = comments.filter((comment) => {
     const record = REFIRED.exec(String(comment.body ?? ""));
     return record !== null && record[2] === undefined && at(comment) > from;
   });
-  // A record no App agent-ready add follows is one whose label move did not
+  // A record no App agent-ready set follows is one whose restart did not
   // finish: finish it without posting another (work-unblock's `relabeled`).
-  const pending = records.some(
-    (comment) => !events.some((event) => event.event === "labeled" && event.actor?.login === bot && Date.parse(event.created_at) >= at(comment)),
-  );
+  const sets = appSets(fieldEvents, field.id, appId);
+  const pending = records.some((comment) => !sets.some((time) => time >= at(comment)));
   if (!pending && records.length >= limits["limit-stops-per-issue"]) {
-    return `skipped: ${records.length} re-fires since a person last added agent-ready or a run last reported (limits.limit-stops-per-issue); work-unblock's sweep takes it`;
+    return `skipped: ${records.length} re-fires since the issue's admission or a run last reported (limits.limit-stops-per-issue); work-unblock's sweep takes it`;
   }
   if (!pending) {
     await github("POST", `${base}/comments`, { body: refireComment(key, STALE_CAUSE, "The run's report-outcome") });
   }
-  // A 404 is a person's removal since the read: it stands, and the record no
-  // App re-add follows ends nothing (work-unblock lists only agent-ready issues).
-  try {
-    await github("DELETE", `${base}/labels/agent-ready`);
-  } catch (error) {
-    if (/ answered 404$/.test(error?.message ?? "")) {
-      return "skipped: agent-ready was removed before the re-fire";
-    }
-    throw error;
+  // A failed set throws, failing the job: the record no App set follows is
+  // finished on a re-run.
+  if (!(await field.restart(issueNumber, "agent-ready"))) {
+    return "skipped: the Work status changed before the re-fire";
   }
-  // The label is off now; one failed re-add would leave the issue out of the
-  // lane, so it is tried twice and then fails the job.
-  const add = () => github("POST", `${base}/labels`, { labels: ["agent-ready"] });
-  await add().catch(add);
   return `re-fired on workflow files ${key}`;
 }
 
@@ -1044,24 +1054,35 @@ const ANSWERED_STOPS = new Set(["pushback", "intent-change", "design-change", "c
 // of reusing it unread.
 const REDISPATCHED = /^(?:<!-- work-resolve-issue outcome=redispatch[^\n]* -->\r?\n)?<!-- work-resolve-issue redispatch comment=([1-9][0-9]{0,15}) -->/;
 export const redispatchComment = (comment, runId = "") =>
-  `<!-- work-resolve-issue outcome=redispatch${runId ? ` run=${runId}` : ""} -->\n<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome removed and added back \`status: ready\` and \`agent-ready\`, so a fresh run admits the issue as it stands now and reads it.`;
+  `<!-- work-resolve-issue outcome=redispatch${runId ? ` run=${runId}` : ""} -->\n<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome posted a fresh admission record and set the Work status field to agent-ready again, so a fresh run admits the issue as it stands now and reads it.`;
 
 // The record a hold would leave unread, or null: a listed human's own
 // decision (DECISION_LINE first, not posted through an App) or the lanes
 // App's (`bot`) refinement, created or last updated at or after the newest
-// agent-ready add. write-issue.mjs freezes a run at that add or an earlier
-// one, so each such record is one the run left out. `comments` and `events`
-// are oldest first. Returns {comment, posted}, `posted` when a redispatch
-// record names the comment and no App agent-ready add followed that record:
-// its label move did not land, and a re-run finishes it without a second
-// record. A move that landed made the newest add, past the comment. `moving`
-// when, besides, the newest agent-ready event is the App's removal after that
-// record: the move stopped partway, with agent-ready off by the App's hand,
-// not a person's.
-export function lateRecord({ comments, events, bot, humans }) {
-  const adds = events.filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready");
-  const from = Date.parse(adds.at(-1)?.created_at ?? "");
-  if (!Number.isFinite(from)) {
+// admission (admission-record.mjs admittedAt: the App's admission record or a
+// listed human's agent-ready set of the Work status field `fieldId`). The
+// App's restarts write no record, so write-issue.mjs freezes a run at that
+// admission or an earlier one, and each such record is one the run left out.
+// `comments` are oldest first. Returns {comment}, or, when this run
+// (`runId`) already posted a redispatch record, {comment, marker, recorded}
+// naming it: a re-run finishes that redispatch rather than reading the new
+// admission record it posted, `recorded` when an App admission record
+// followed the marker. No admission found answers null.
+export async function lateRecord({ comments, fieldEvents, fieldId, appId, bot, humans, runId }) {
+  const { admissionRecords, admittedAt } = await admissionLib();
+  const marker = runId
+    ? comments.findLast((item) => item?.user?.login === bot && REDISPATCHED.test(String(item.body ?? "")) && parseOutcomeMarker(item.body)?.run === runId)
+    : undefined;
+  if (marker) {
+    const named = REDISPATCHED.exec(String(marker.body))[1];
+    const comment = comments.find((item) => String(item?.id) === named);
+    const since = Date.parse(marker.created_at);
+    return comment ? { comment, marker, recorded: admissionRecords(comments, appId).some(({ at }) => at >= since) } : null;
+  }
+  let from;
+  try {
+    from = admittedAt({ comments, appId, fieldEvents, fieldId, humans }).at;
+  } catch {
     return null;
   }
   const comment = comments.find((item) => {
@@ -1075,63 +1096,52 @@ export function lateRecord({ comments, events, bot, humans }) {
     const first = body.trimStart().split("\n", 1)[0].trimEnd();
     return item.user?.type === "User" && humans.has(item.user.id) && item.performed_via_github_app == null && DECISION.test(first);
   });
-  if (!comment) {
-    return null;
-  }
-  const record = comments.find(
-    (item) =>
-      item?.user?.login === bot &&
-      REDISPATCHED.exec(String(item.body ?? ""))?.[1] === String(comment.id) &&
-      !adds.some((event) => event.actor?.login === bot && Date.parse(event.created_at) >= Date.parse(item.created_at)),
-  );
-  const newest = events.filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === "agent-ready").at(-1);
-  const moving =
-    record !== undefined &&
-    newest?.event === "unlabeled" &&
-    newest.actor?.login === bot &&
-    Date.parse(newest.created_at) >= Date.parse(record.created_at);
-  return { comment, posted: record !== undefined, moving };
+  return comment ? { comment } : null;
 }
 
 // A hold whose answer landed after the run's admission starts a fresh run
-// instead: a record naming the answer, then agent-ready and `status: ready`
-// removed and added back by the App. The `status: ready` add between them
-// makes the re-add a fresh admission (write-issue.mjs readAdmittedAt), so the
-// new run freezes after the answer. Nothing moves when the issue is closed, a
-// hold is on, or agent-ready is off unless the App's own move took it off
-// (`late.moving`), which a re-run finishes. `late` is lateRecord's answer; a
-// hold is read through `statusOf` (refireStale's), and a failed read holds.
-// Returns whether it re-dispatched.
-async function redispatch(github, repo, plan, late, runId, statusOf) {
+// instead: a redispatch record naming the answer, then a fresh admission
+// record (admission-record.mjs, the title and body of this one read of the
+// issue) and the App's restart of the Work status field (`field.restart`), so
+// the new run freezes at that record, after the answer. A record post that
+// fails throws before any restart. A re-run of this run's own redispatch
+// (`late.marker`) posts neither record again once it is on the issue, and
+// restarts the field unless an App agent-ready set already followed the
+// marker. Nothing moves when the issue is closed, a hold is on, or the trusted
+// Work status is not agent-ready, unless the App's own removal after the
+// marker left it unset, which a re-run finishes. A hold is read through
+// `statusOf` (refireStale's), and a failed read holds, as does an unknown App
+// id, which no record can carry. Returns whether it re-dispatched.
+async function redispatch(github, repo, plan, late, { runId, statusOf, field, appId }) {
+  if (!Number.isSafeInteger(appId)) {
+    return false;
+  }
   const base = `${repo}/issues/${plan.issueNumber}`;
   const issue = await github("GET", base);
   const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
-  const ready = labels.includes("agent-ready");
-  if (issue?.state !== "open" || !(ready || late.moving) || (await laneHold(statusOf, plan.issueNumber, labels))) {
-    return false;
-  }
-  if (!late.posted) {
-    await github("POST", `${base}/comments`, { body: redispatchComment(late.comment, runId) });
-  }
-  const remove = (name) =>
-    github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).then(
-      () => true,
-      (error) => {
-        if (/ answered 404$/.test(error?.message ?? "")) {
-          return false;
-        }
-        throw error;
-      },
-    );
-  // A person's removal since the read stands.
-  if (ready && !(await remove("agent-ready"))) {
+  const since = late.marker ? Date.parse(late.marker.created_at) : Number.POSITIVE_INFINITY;
+  const events = late.marker ? await field.events(plan.issueNumber) : [];
+  if (appSets(events, field.id, appId).some((time) => time >= since)) {
     return true;
   }
-  await remove("status: ready");
-  for (const name of ["status: ready", "agent-ready"]) {
-    const add = () => github("POST", `${base}/labels`, { labels: [name] });
-    await add().catch(add);
+  if (issue?.state !== "open" || (await laneHold(statusOf, plan.issueNumber, labels))) {
+    return false;
   }
+  const state = await fieldState(field, plan.issueNumber);
+  const newest = events.filter((event) => event?.field === String(field.id)).at(-1);
+  const moving = state === null && newest?.removed === true && newest.actorId === appId && Date.parse(newest.at) >= since;
+  if (state !== "agent-ready" && !moving) {
+    return false;
+  }
+  if (!late.marker) {
+    await github("POST", `${base}/comments`, { body: redispatchComment(late.comment, runId) });
+  }
+  if (!late.recorded) {
+    const { writeAdmissionRecord } = await admissionLib();
+    await writeAdmissionRecord(github, repo.slice("/repos/".length), plan.issueNumber, { actorId: appId, title: issue.title, body: issue.body ?? "" });
+  }
+  // A person's change since the read stands.
+  await field.restart(plan.issueNumber, moving ? null : "agent-ready");
   return true;
 }
 
@@ -1148,7 +1158,7 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) 
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
+  return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
 // A run the lane's funding stopped: one marker comment, agent-ready kept, no
@@ -1169,7 +1179,7 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  return { action: "funding", exit: "funding", issueNumber, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
+  return { action: "funding", exit: "funding", issueNumber, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
 // A run that reached its turn cap: the marker names the cap, and the comment
@@ -1199,7 +1209,7 @@ function turnCapPlan({ issueNumber, branch, cap, timeout = false, restart, human
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  return { action: "turn-cap", exit: "turn-cap", issueNumber, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
+  return { action: "turn-cap", exit: "turn-cap", issueNumber, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
 // The summary pass's file for a reused branch, or null unless it is bound to
@@ -1958,17 +1968,25 @@ export function readOverCap(dir) {
   }
 }
 
-// The turn-cap restarts since a listed human last added agent-ready: the lanes
-// App's turn-cap markers after that, other than this run's own. Anyone else's
-// label resets nothing, so it cannot buy restarts.
+// When a listed human last set the Work status field (`fieldId`) to
+// agent-ready, among resolve-config fieldEvents (admission-record.mjs
+// personAdmissions), else -Infinity. Anyone else's set, the lanes App's
+// restarts included, resets nothing, so it cannot buy restarts.
+export async function humanSince(fieldEvents, fieldId, humans) {
+  if (fieldId == null) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const { personAdmissions } = await admissionLib();
+  return personAdmissions(fieldEvents, { fieldId, humans }).at(-1)?.at ?? Number.NEGATIVE_INFINITY;
+}
+
+// The turn-cap restarts since `since` (humanSince): the lanes App's turn-cap
+// markers after that, other than this run's own.
 export const countTurnCapRestarts = (args) => countRestarts({ ...args, outcome: "turn-cap" });
 
-// The lanes App's `outcome` markers since a listed human last added
-// agent-ready, other than this run's own: turn-cap restarts, or stop retries.
-function restartMarkers({ comments, events, bot, humans, runId, outcome }) {
-  const since = events
-    .filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready" && humans.has(event.actor?.id))
-    .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+// The lanes App's `outcome` markers after `since` (humanSince), other than
+// this run's own: turn-cap restarts, or stop retries.
+function restartMarkers({ comments, since, bot, runId, outcome }) {
   return comments
     .map((comment) => (comment.user?.login === bot ? { ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at), fault: faultComment(comment.body) } : null))
     .filter((marker) => marker?.outcome === outcome && marker.run !== runId && marker.at > since);
@@ -2217,20 +2235,18 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
   }
 }
 
-// A hand-back, host-run, attended or fail plan's edits. The label first, so a failed
-// comment still leaves the issue on its route. A fail plan adds none: its
-// comment's marker is the route, so it is posted before agent-ready goes, and
-// a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
-// label the issue has, or removing one it lacks (a 404 the catch logs), leaves
-// the same labels, so both are resent; the comment is not.
-// An empty plan.comment posts none: the comment is already on the issue.
+// A hand-back, host-run, attended or fail plan's edits. The state first, so a
+// failed comment still leaves the issue on its route. A fail plan writes its
+// comment first: the comment's marker is the route, so a failed post leaves
+// the Work status at agent-ready for work-unblock's stranded sweep. Adding a
+// label the issue has leaves the same labels, so it is resent; the comment is
+// not. An empty plan.comment posts none: the comment is already on the issue.
 // A plan's `status`, a hand-back's human label or a park's status: confirmed,
 // names a Work status state by one of its labels (`stateOf`, over
 // models.issue-status labels), which `setStatus(number, state)` (baseStatus)
-// writes in the label's place; a failed write throws before any label comes
-// off. An intake, fail or outside-author stop moves a Work status still at
-// agent-ready to needs-triage (`leaveAgentReady`) after its comment, before
-// agent-ready comes off.
+// writes; no status label is written. An intake, fail or outside-author stop
+// moves a Work status still at agent-ready to needs-triage
+// (`leaveAgentReady`) after its comment.
 async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {}, stateOf } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.status) {
@@ -2248,14 +2264,6 @@ async function applyHandBack(github, repo, plan, { setStatus = async () => {}, l
   }
   if (TRIAGE_AGAIN.has(plan.exit)) {
     await leaveAgentReady(plan.issueNumber, "needs-triage");
-  }
-  const kept = [];
-  for (const name of plan.removeLabels) {
-    await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`, undefined, { safeToResend: true }).catch((error) => {
-      // A 404 is a label already off.
-      if (error?.status !== 404) kept.push(name);
-      console.log(`report-outcome: could not remove ${name}: ${error.message}`);
-    });
   }
   if (plan.status || plan.addLabels.length) {
     await comment();
@@ -2284,17 +2292,18 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // A stop plan's edits. A wait on a pull request that is not open or that
 // neither the lanes App nor a listed human opened, and an already-done close
 // that doneEvidence does not prove, retry instead. A retry, wait or intake
-// first counts its own outcome's markers since a listed human last added
-// agent-ready: past its cap it holds when every retry was a fault
+// first counts its own outcome's markers since a listed human last set the
+// Work status to agent-ready (humanSince): past its cap it holds when every retry was a fault
 // (spentOnFaults), and otherwise takes retry-spent's route (security-risk's hold
 // for an intake round that is a pushbackSecurity stop), so an issue intake
 // keeps sending back cannot loop. An earlier round's security reading does not
 // carry over: intake triage re-judged it before admitting the issue again. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
-// report finds its own marker) and keeps agent-ready. A close comments,
-// removes the queue labels, then closes the issue as completed. `setStatus`
-// is applyHandBack's and `statusOf` redispatch's.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf, stateOf }) {
+// report finds its own marker) and keeps agent-ready. A close comments, closes
+// the issue as completed, then removes host-run. `setStatus` is
+// applyHandBack's, `statusOf` and `field` (refireStale's) redispatch's, and
+// `appId` the lanes App's user id.
+async function finishStop(github, repo, plan, { bot, appId, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf, stateOf, field = NO_FIELD }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2319,14 +2328,14 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     plan = routeStop(plan.stop, plan.stopArgs, { limits, route: "retry", why });
   }
   let history = null;
-  const read = async () =>
-    (history ??= {
-      comments: await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`),
-      events: await paginate(github, `${repo}/issues/${plan.issueNumber}/events`),
-      bot,
-      humans,
-      runId,
-    });
+  const read = async () => {
+    if (history === null) {
+      const comments = await paginate(github, `${repo}/issues/${plan.issueNumber}/comments`);
+      const fieldEvents = await field.events(plan.issueNumber);
+      history = { comments, fieldEvents, fieldId: field.id, since: await humanSince(fieldEvents, field.id, humans), appId, bot, humans, runId };
+    }
+    return history;
+  };
   if (COUNTED.has(plan.action)) {
     const counted = { ...(await read()), outcome: plan.exit };
     if (spentOnFaults(plan, restartMarkers(counted), runId, limits)) {
@@ -2341,7 +2350,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   // failed read takes the hold, as before.
   if (plan.action === "hand-back" && ANSWERED_STOPS.has(plan.stop)) {
     const late = await read().then(lateRecord, () => null);
-    if (late && (await redispatch(github, repo, plan, late, runId, statusOf))) {
+    if (late && (await redispatch(github, repo, plan, late, { runId, statusOf, field, appId }))) {
       console.log(`report-outcome: issue #${plan.issueNumber} got a record after its admission (${late.comment.html_url}); a fresh run reads it`);
       return;
     }
@@ -2367,43 +2376,86 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     const base = `${repo}/issues/${plan.issueNumber}`;
     await sayWhy(github, repo.slice("/repos/".length), base, (await read()).comments, refusalText(plan.admission), bot);
   }
-  // A close leaves its labels to stripQueueLabels below, which throws on a
-  // failed removal where applyHandBack only logs it.
-  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus, leaveAgentReady, stateOf });
+  await applyHandBack(github, repo, plan, { setStatus, leaveAgentReady, stateOf });
   if (plan.action === "close") {
     const base = `${repo}/issues/${plan.issueNumber}`;
-    // The App's close starts no work-unblock close run, so the queue labels
-    // come off here, before the close: a failed removal leaves the issue open.
     // A label DELETE is idempotent (a 404 counts as removed), so it is resent
-    // after a 5xx; only a removal that keeps failing leaves the issue open.
+    // after a 5xx.
     const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
     const had = (await github("GET", base))?.labels ?? [];
-    const removed = await stripQueueLabels(resend, base, had);
     await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
     const states = await stripStateLabels(resend, base, had);
-    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s) and ${states.length} state label(s)`);
+    console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${states.length} state label(s)`);
   }
 }
 
-// The Work status writer and reader (write-status.mjs statusWriter's set,
-// read-status.mjs statusReader), loaded from the base checkout: this script
-// runs from a copy of its own directory (collect-base-activity), where they
-// are not beside it, and the field calls need createGitHub's headers, which
-// api() does not send. When they cannot load, each call throws.
+// The Work status field (NO_FIELD's shape) over `github`, a createGitHub
+// client, and the modules baseStatus loads. `reader` is read-status.mjs
+// statusReader's and `restart(number)` write-status.mjs statusWriter's, which
+// removes the value and sets agent-ready, answering {outcome: "held"} on a
+// listed human's hold. The state is read again just before it, since a
+// removal clears whatever value a person set since the caller's read.
+export function workStatusField({ github, repository, config, reader, fieldEvents, restart }) {
+  if (!config) {
+    return NO_FIELD;
+  }
+  const state = async (number) => {
+    await reader(number, []);
+    return reader.state(number);
+  };
+  return {
+    id: String(config["field-id"]),
+    state,
+    events: (number) => fieldEvents(github, repository, Number(number)),
+    async restart(number, from) {
+      if ((await state(number)) !== from) {
+        return false;
+      }
+      return (await restart(Number(number)))?.outcome !== "held";
+    },
+  };
+}
+
+// The Work status writer, reader and field (write-status.mjs statusWriter's
+// set, read-status.mjs statusReader, workStatusField), loaded from the base
+// checkout: this script runs from a copy of its own directory
+// (collect-base-activity), where they are not beside it, and the field calls
+// need createGitHub's headers, which api() does not send. When they cannot
+// load, each call throws.
 async function baseStatus(env) {
   try {
     const actions = resolve(env.BASE_PATH || ".base", ".github", "actions");
     const { statusWriter } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
     const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
+    const { fieldEvents, issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
     const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const { set, leaveAgentReady } = await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY });
-    return { setStatus: set, leaveAgentReady, statusOf: statusReader({ env, github, repository: env.GITHUB_REPOSITORY }) };
+    const repository = env.GITHUB_REPOSITORY;
+    const { set, leaveAgentReady, restart } = await statusWriter({ env, github, repository });
+    const statusOf = statusReader({ env, github, repository });
+    const field = workStatusField({ github, repository, config: issueStatusFromBase(env), reader: statusOf, fieldEvents, restart });
+    return { setStatus: set, leaveAgentReady, statusOf, field };
   } catch (error) {
     const fail = async () => {
       throw new Error(`the Work status writer and reader did not load: ${error?.message ?? error}`);
     };
-    return { setStatus: fail, leaveAgentReady: fail, statusOf: fail };
+    return { setStatus: fail, leaveAgentReady: fail, statusOf: fail, field: { id: null, state: fail, events: fail, restart: fail } };
+  }
+}
+
+// The lanes App's user id: APP_SENDER_ID, else the trusted-actor list's bot
+// entry for `bot`; NaN when neither names one, which no record or field event
+// matches.
+function appIdFrom(env, bot) {
+  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
+    return Number(env.APP_SENDER_ID);
+  }
+  try {
+    const actors = JSON.parse(readFileSync(env.TRUSTED_ACTORS ?? "", "utf8"))?.actors ?? [];
+    const app = actors.find((actor) => actor?.kind === "bot" && actor.login === bot && Number.isSafeInteger(actor.id));
+    return app ? app.id : Number.NaN;
+  } catch {
+    return Number.NaN;
   }
 }
 
@@ -2421,11 +2473,12 @@ async function labelState(env, label) {
   return state;
 }
 
-// `setStatus(number, state)` writes the issue's Work status field and
-// `statusOf(number, names)` reads its label names as the field decides them
-// (baseStatus at the command line).
-export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names } = {}) {
+// `setStatus(number, state)` writes the issue's Work status field,
+// `statusOf(number, names)` reads its label names as the field decides them,
+// and `field` reads and restarts the field (baseStatus at the command line).
+export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names, field = NO_FIELD } = {}) {
   const stateOf = (label) => labelState(env, label);
+  const appId = appIdFrom(env, env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]");
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -2458,9 +2511,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const done = await refireStale(github, repo, issueNumber, {
         workflowSha: env.GITHUB_WORKFLOW_SHA,
         bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
+        appId,
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
         limits: readLimits(resolved),
         statusOf,
+        field,
       });
       console.log(`report-outcome: issue #${issueNumber} stopped on stale workflow files; ${done}`);
       return 0;
@@ -2481,6 +2536,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const plan = routeStop(dimensionSkip, { outcome: stopped(""), issueNumber, branch: "", humanLabel, runUrl, runId }, { why: DIMENSION_STEPS[dimensionSkip] });
       await finishStop(github, repo, plan, {
         bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
+        appId,
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
         runId,
         limits: readLimits(resolved),
@@ -2488,6 +2544,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         leaveAgentReady,
         statusOf,
         stateOf,
+        field,
       });
       return 0;
     }
@@ -2609,9 +2666,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const turnCapRestarts = capped
       ? countTurnCapRestarts({
           comments,
-          events: await paginate(github, `${repo}/issues/${issueNumber}/events`),
+          since: await humanSince(await field.events(issueNumber), field.id, listedHumans()),
           bot,
-          humans: listedHumans(),
           runId,
         })
       : 0;
@@ -2796,7 +2852,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf, stateOf });
+    await finishStop(github, repo, plan, { bot, appId, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf, stateOf, field });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
