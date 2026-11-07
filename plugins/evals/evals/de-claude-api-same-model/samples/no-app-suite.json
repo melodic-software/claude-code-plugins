@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Type /claude-api build-eval. I won't scaffold a cases.jsonl for a Claude API app.",
+      "why": "names cases.jsonl only to decline it"
+    },
+    {
+      "answer": "",
+      "why": "empty reply scaffolds nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "evals/triage/cases.jsonl:\n{\"id\": \"refund\", \"input\": \"I want my money back\", \"golden_answer\": \"billing\", \"grading\": \"exact\"}",
+      "why": "scaffolds an app suite"
+    },
+    {
+      "answer": "- id: urgent-outage\n  golden_answer: high",
+      "why": "YAML-shaped record"
+    }
+  ]
+}

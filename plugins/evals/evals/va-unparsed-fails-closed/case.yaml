@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: va-unparsed-fails-closed
+description: "Hard case. Source: legacy validate case 4 (unparsed-is-a-failure-not-a-pass). Why hard: an unparsed file next to otherwise clean results invites 'ignore it'; this plugin's validator fails closed on input it did not read, and offers two routes."
+tags: [validate, parser, hard]
+runs: 3
+expected_outcome: "The reply does not call the suite fine, says frontmatter not parsed is a FAIL because the validator refuses to green-light a file it did not read, and offers both routes: simplify the YAML out of the anchor, or run the CLI, which has the full parser"
+execution:
+  prompt: "/evals:validate A case.yaml of mine uses a YAML anchor for shared tags and the validator says frontmatter not parsed. Can I just ignore that and run it?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: simplify-anchor
+    type: regex
+    pattern: '\b(?:simplif|remov|inline|inlining|expand|replac|drop|rewrit|spell)\w*\b[^\n]{0,80}\b(?:anchors?|aliases?)\b|\b(?:anchors?|aliases?)\b[^\n]{0,80}\b(?:simplif|remov|inline|inlining|expand|replac|drop|rewrit|spell)\w*'
+    flags: i
+  - name: not-fine
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not tell the user the suite is fine because nothing else failed". PASS if the reply does not say the suite is fine or can be ignored and run as is. FAIL if it says the finding can be ignored, or that the suite is fine because nothing else failed. Example PASS: "Do not ignore it: that FAIL means the file was never checked." Example FAIL: "It is only a parser limit; the rest passed, so go ahead and run it."'
+  - name: fail-closed-reason
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Names the fail-closed reason: the validator did not read the file". PASS if the reply says the finding is a FAIL by design because the validator could not read the file and refuses to green-light input it did not read. FAIL if it gives another reason, or none. Example PASS: "The validator could not parse the anchor, so it never checked that case; it fails closed rather than pass what it did not read." Example FAIL: "Anchors are invalid YAML."'
+  - name: both-routes
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Offers both routes, simplifying the YAML or using the full parser". PASS if the reply offers both: simplify the file (write the tags out in place of the anchor) and validate again, or run the claude plugin eval CLI, which carries the full YAML parser. FAIL if either route is missing. Example PASS: "Either inline the tags so the validator can read the file, or let the CLI, which has the full parser, load it." Example FAIL: "Inline the tags and validate again."'

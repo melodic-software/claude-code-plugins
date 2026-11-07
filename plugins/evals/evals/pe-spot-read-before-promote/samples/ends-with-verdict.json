@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Spot-read a passed and a failed run from each arm first.\n\ndo not promote: the spot-read has not been done",
+      "why": "do not promote last"
+    },
+    {
+      "answer": "The spot-read found no verdict I disagree with.\n\n**Promote.**\n",
+      "why": "promote in bold with a trailing newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do not promote yet.\n\nOpen two runs from each arm and check the verdicts.",
+      "why": "near miss: the verdict is not the last line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Yes, merge it.",
+      "why": "no promote line"
+    }
+  ]
+}

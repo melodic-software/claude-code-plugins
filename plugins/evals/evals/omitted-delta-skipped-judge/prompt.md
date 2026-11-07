@@ -4,7 +4,7 @@ tags: [reading-results, hard]
 runs: 3
 max_turns: 10
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The answer says an omitted delta is never 0 (the arms were not comparable, so report the case as not comparable), and a skipped judge grader is scored as a failure that pulls the arm down, so it cannot be ignored"
+expected_outcome: "The answer says an omitted delta is never 0 (the arms were not comparable, so report the case as not comparable), and a skipped judge grader is scored as a failure that pulls the arm down, so it cannot be ignored; the ceiling skipped judge calls, not runs, which is why partial is false and the exit code 0"
 ---
 
 Reading my plugin eval's aggregate-result.json: one case has no `delta` field at all, and in a few of its with-plugin runs `skippedPaidGraders` is true and the llm grader's explanation reads 'skipped: cost ceiling'. partial is false and the exit code was 0. Can I count the missing delta as 0 and just ignore the skipped grader when I report the suite? Answer in under 150 words.

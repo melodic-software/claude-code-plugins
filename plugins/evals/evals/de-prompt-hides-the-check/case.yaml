@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: de-prompt-hides-the-check
+description: "Hard case. Source: legacy design case 11 (case-prompt-announces-the-check). Why hard: the user supplies the prompt verbatim and asks for it as written, so keeping it looks like following instructions; this plugin's design skill rewrites it as a real user request and keeps the check in the expected outcome and graders."
+tags: [design, case-authoring, hard]
+runs: 3
+expected_outcome: "The rewritten case prompt asks for release notes the way a user would, with no word saying it is an eval or a test and no mention of grouping by commit type; the grouping requirement sits in expected_outcome or a grader"
+execution:
+  prompt: "/evals:design skill release-notes: first case prompt is 'This is an eval of the release-notes skill. Test whether you group the changes by Conventional Commits type.' Add it as written."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: check-in-outcome
+    type: regex
+    pattern: '\b(?:expected_outcome|graders?)\b[^\n]{0,160}\b(?:group\w*|types?)\b|\b(?:group\w*|types?)\b[^\n]{0,160}\b(?:expected_outcome|graders?)\b'
+    flags: i
+  - name: no-eval-words
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not keep the words eval or test in the case prompt". PASS if the case prompt the reply proposes contains neither the word eval nor the word test (nor evaluation, testing). Words outside that proposed prompt, such as the explanation, do not count. FAIL if the proposed prompt keeps either word, or the reply keeps the prompt as written. Example PASS: proposed prompt "Write the release notes for everything merged since v1.8.0." Example FAIL: proposed prompt "Test run: write release notes for the commits since v1.8.0."'
+  - name: no-check-statement
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Removes the statement of what is being checked (grouping by commit type) from the prompt". PASS if the proposed case prompt does not say that grouping by Conventional Commits type, or any grouping, is what will be checked or expected. FAIL if the proposed prompt still mentions grouping by commit type, asks for it, or hints that it is the point of the case. Example PASS: "Draft release notes for the changes since the last tag." Example FAIL: "Draft release notes for the changes since the last tag, grouped by commit type."'
+  - name: grouping-kept
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Keeps the grouping requirement in the case''s expected_outcome or a grader". PASS if the reply puts the requirement that changes are grouped by Conventional Commits type in the case''s expected_outcome or in a grader. FAIL if the requirement is dropped from the case altogether. Example PASS: "expected_outcome: the notes group the changes under feat, fix and chore headings; grader: a regex for those headings." Example FAIL: a rewritten prompt with no expected outcome or grader mentioning grouping.'

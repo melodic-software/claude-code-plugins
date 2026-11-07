@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design",
+            "args": "app"
+          }
+        }
+      ],
+      "why": "design"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        }
+      ],
+      "why": "methodology"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:plugin-eval"
+          }
+        }
+      ],
+      "why": "the runner skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "a bundled design skill, not evals:design"
+    }
+  ]
+}

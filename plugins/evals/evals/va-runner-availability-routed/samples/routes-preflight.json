@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run /evals:plugin-eval preflight my-plugin: it reads your version against the floor.",
+      "why": "skill then action"
+    },
+    {
+      "answer": "That is a preflight question, which `/evals:plugin-eval` answers.",
+      "why": "preflight first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, claude plugin eval is built in, so you can run it.",
+      "why": "near miss: asserts availability"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Check claude --version yourself.",
+      "why": "no route to the runner skill"
+    }
+  ]
+}

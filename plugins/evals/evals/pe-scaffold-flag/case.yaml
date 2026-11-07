@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pe-scaffold-flag
+description: "Hard case. Source: legacy plugin-eval case 15 (scaffold-case-gets-the-flag). The run has no Bash, so the reply's command is the evidence. Why hard: the base model does not know --scaffold, nor that without it a scaffolded case runs against an unstaged workspace and its delta reads 0; this plugin also says to read the script first, because it runs as the user outside the sandbox."
+tags: [run-mechanics, hard]
+runs: 3
+expected_outcome: "The command given includes --scaffold; the reply says to read fixture.sh first because it runs as the user outside the sandbox, and that without --scaffold the case runs against an unstaged workspace, so both arms score the same and its delta reads 0"
+execution:
+  prompt: "With the evals:plugin-eval skill: I'm about to run my plugin's suite at ./my-plugin from my own terminal. One case's case.yaml has `context: scaffold_script: fixture.sh`, which sets up a git repo. What command should I run?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: scaffold-flag
+    type: regex
+    pattern: '\bclaude plugin eval\b[^\n]*[ \t]--scaffold\b'
+  - name: read-script-first
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Says to read fixture.sh before adding --scaffold, because it runs as the user outside the sandbox". PASS if the reply says to read fixture.sh before running with --scaffold and gives the reason: the script runs as the user, outside the sandbox. FAIL if either the read-first step or that reason is missing. Example PASS: "Read fixture.sh first: --scaffold runs it as you, outside the sandbox." Example FAIL: "Add --scaffold so fixture.sh runs."'
+  - name: unstaged-zero-delta
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Explains that leaving --scaffold off runs the case against an unstaged workspace, so the delta reads 0". PASS if the reply says that without --scaffold the script does not run, the case runs against an unstaged (empty) workspace, and both arms score the same so the delta reads 0. FAIL if it never says what happens without the flag, or says the case simply errors. Example PASS: "Without --scaffold the git repo is never set up, both arms see an empty workspace, and the delta reads 0." Example FAIL: "Without it, the run fails."'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only

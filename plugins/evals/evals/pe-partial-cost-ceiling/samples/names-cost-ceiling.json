@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "partial is true with partialReason cost_ceiling: the suite did not finish.",
+      "why": "field value"
+    },
+    {
+      "answer": "The cost ceiling stopped the run before every case finished.",
+      "why": "prose"
+    },
+    {
+      "answer": "Raise --max-cost-usd and rerun; this partial run has no score.",
+      "why": "the flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The run was interrupted, so rerun it.",
+      "why": "near miss: a different reason"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Your plugin scored 0.81 with and 0.62 without.",
+      "why": "scores only"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: va-typo-check-trigger
+description: "Triggering case, hard. Source: legacy validate case 7 (natural-language-trigger). The prompt names no skill; it matches validate's 'check my graders' and 'before paying for a run' and plugin-eval's 'no-spend validation', so skill-fired accepts either. The scaffold seeds a suite with one FAIL (grader type: contains) and one WARN (target: files); run with --scaffold. The run has no Bash and cannot run the validator script, which sits under the plugin directory this run cannot read. Why hard: the base model proposes a cheap --runs 1 pass; this plugin checks statically and reports by tier."
+tags: [validate, triggering, hard]
+runs: 3
+expected_outcome: "An evals skill fires without a slash command; the reply checks the suite statically before any run is proposed, not with a cheap paid run, and reports its findings by tier: the type: contains grader as a FAIL that stops the suite loading, and target: files as a WARN"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "I wrote a bunch of eval cases for my plugin last night and I do not want to burn credits finding out I typo'd a grader field. Anything I can do first?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?(?:validate|plugin-eval)"'
+    min: 1
+    arm: with-only
+  - name: static-not-paid
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Runs the static validator rather than proposing a cheap run to find out" (graded here: the static check in place of a paid run; this run cannot execute the validator script). PASS if the reply checks the cases statically (the validator, or reading the case files against the rules it applies) and proposes no paid run, such as --runs 1 or a single case, to find typos. FAIL if it proposes a cheap paid run to find out. Example PASS: "Run the free static validator first; I read your cases the same way and found two problems." Example FAIL: "Do a --runs 1 pass on one case to see whether it loads."'
+  - name: findings-by-tier
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Reports findings by tier". PASS if the reply reports the suite''s problems sorted into tiers: what stops the suite loading (FAIL, such as the grader with type: contains) apart from authoring advice it loads with (WARN, such as the regex grader on target: files). FAIL if it reports no findings, or lists them with no load-blocking versus advisory split. Example PASS: "FAIL: summarize-standup/graders/owner-named.md uses type: contains, which does not load; use type: regex. WARN: export-notes reads target: files, the created paths, not their text." Example FAIL: "Two small issues: a grader type and a target."'

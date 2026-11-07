@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: de-candidate-cases-golden
+description: "Hard case. Source: legacy design case 2 (skill-target-emits-suite-cases); where the cases land and the /evals:validate check are graded in de-skill-target-suite. Why hard: the base model lists happy-path prompts with no expected answer or grader; this plugin's design skill gives every case an expected_outcome and at least one grader, and covers a refusal or guardrail case and an anti-pattern case."
+tags: [design, skill-target, hard]
+runs: 3
+expected_outcome: "Each candidate case shown carries an expected_outcome and at least one grader, and the set includes a refusal or guardrail case and an anti-pattern case"
+execution:
+  prompt: "/evals:design skill deploy-notes: the skill lives in my plugin at release-tools/skills/deploy-notes and needs evals. It drafts deploy notes from the pull requests merged since the last tag. The success criteria are agreed, so do not ask me about them: every merged pull request appears exactly once, and no note names a pull request that was not merged. Show me the candidate cases in your reply so I can review them; write no file yet."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-expected-outcome
+    type: regex
+    pattern: '\bexpected_outcome\b'
+  - name: golden-answer
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Every emitted case has a golden answer: an expected_outcome and at least one grader". PASS if every candidate case shown in the reply carries an expected outcome (an expected_outcome field or an equivalent golden answer) and at least one grader that checks it. FAIL if any shown case has no expected outcome, any has no grader, or the reply shows no candidate cases. Example PASS: "Case merged-once: prompt ... expected_outcome: each of the five merged PRs appears once; graders: a regex per PR number." Example FAIL: "Case 3: Draft deploy notes for v2.4. (We will judge the output by eye.)"'
+  - name: coverage
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Coverage includes a refusal/guardrail case and an anti-pattern case". PASS if the candidate set includes at least one refusal or guardrail case (for example a request outside the skill, or no merged pull requests since the tag) and at least one anti-pattern case (something the skill must not do, such as naming an unmerged pull request or listing one twice). FAIL if either kind is missing. Example PASS: "Case no-merges: no PR merged since v2.3, expected: says there is nothing to note and invents none. Case unmerged-pr: a closed, unmerged PR sits in the range, expected: it is not named." Example FAIL: three cases that each ask for notes on a normal release.'

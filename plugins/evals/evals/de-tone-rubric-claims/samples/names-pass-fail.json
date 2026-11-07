@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "For each claim, answer PASS or FAIL and nothing else.",
+      "why": "per-claim verdict"
+    },
+    {
+      "answer": "A reply fails if any claim fails; it passes only when all three pass.",
+      "why": "fail before pass"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Score the reply 1 to 5 for professionalism; 4 or higher meets the bar.",
+      "why": "near miss: numeric scale"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Which model drafts the replies?",
+      "why": "a question only"
+    }
+  ]
+}

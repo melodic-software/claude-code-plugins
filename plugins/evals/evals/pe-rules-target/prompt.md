@@ -4,7 +4,7 @@ tags: [plugin-eval, target-routing, hard]
 runs: 3
 max_turns: 10
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The reply says no: runs start from a throwaway home where CLAUDE.md does not load; it routes to /harness-config:unhobble or describes stripping the rules and logging stumbles"
+expected_outcome: "The reply says no: runs start from a throwaway home where CLAUDE.md does not load; it routes to /harness-config:unhobble when that plugin is installed and otherwise describes stripping the rules and logging stumbles"
 ---
 
 Can I use plugin eval to measure whether the rules in my repo's CLAUDE.md actually help? Answer in under 100 words.

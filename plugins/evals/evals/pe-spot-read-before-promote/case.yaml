@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: pe-spot-read-before-promote
+description: "Hard case. Source: legacy plugin-eval case 13 (spot-read-before-trusting-delta). The workspace holds no results.json or traces, so the spot-read grader also accepts a reply that names the spot-read as not done and does not promote. Why hard: VALID plus an interval that excludes 0 looks like a yes; this plugin reads outputs from both arms against their verdicts first and ends with one promote or do not promote line."
+tags: [reading-results, hard]
+runs: 3
+expected_outcome: "Before endorsing the +0.30 the reply reads, or requires reading, a passed and a failed run from each arm against its grader verdict, treats a verdict that disagrees with its output as a grader finding to fix and rerun, and ends with a single promote or do not promote line"
+execution:
+  prompt: "With the evals:plugin-eval skill: I'm reading results.json for my changelog-writer plugin. run-validity says VALID, the noise report says the interval excludes 0, and the delta is +0.30. Kept traces are there. Can I merge the change?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: ends-with-verdict
+    type: regex
+    pattern: '\bpromote\b[^\n]*\s*$'
+    flags: i
+  - name: spot-read
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Reads sample outputs from both arms against their grader verdicts before endorsing the delta". PASS if the reply reads a few runs from each arm (one the graders passed and one they failed, where both exist) against their verdicts before endorsing the +0.30, or, where it cannot open them, says that spot-read must happen first and does not endorse the delta yet. FAIL if it endorses the delta or says to merge without that spot-read. Example PASS: "Before merging, open a passed and a failed run from each arm and check each verdict against the output; until then, do not promote." Example FAIL: "VALID and the interval excludes 0, so yes, merge it."'
+  - name: grader-finding
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Treats a verdict that disagrees with its output as a grader finding to fix and rerun". PASS if the reply says that a pass on a wrong output, or a fail on a correct one, makes the grader or its rubric the finding to fix, followed by a rerun before the number is used. FAIL if it never addresses a verdict disagreeing with its output, or says to keep the number anyway. Example PASS: "If a grader passed a wrong changelog, fix that grader and rerun before quoting +0.30." Example FAIL: "Glance at a couple of outputs, then merge."'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only

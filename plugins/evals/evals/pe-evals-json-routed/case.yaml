@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: pe-evals-json-routed
+description: "Hard case. Source: legacy plugin-eval case 9 (skill-creator-format-routed-elsewhere). Why hard: asked to validate an evals.json, the base model checks its JSON fields; this plugin says claude plugin eval does not read that format and routes its cases to conversion into case directories, then /evals:validate."
+tags: [format-boundary, hard]
+runs: 3
+expected_outcome: "The reply says evals/evals.json is the skill-creator format, which claude plugin eval does not read; it routes the cases to conversion into case.yaml case directories (/evals:design skill <name> or convert-evals-json.py), checked with /evals:validate, and does not claim to validate or run the evals.json"
+execution:
+  prompt: "With the evals:plugin-eval skill: validate my skill's evals/evals.json before I run it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-case-format
+    type: regex
+    pattern: '\bcase\.yaml\b|\bcase director(?:y|ies)\b'
+    flags: i
+  - name: format-boundary
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Distinguishes the skill-creator evals.json format from the case format this skill runs". PASS if the reply says evals/evals.json is the skill-creator format, which claude plugin eval does not read, and that the runner reads case directories (case.yaml or prompt.md with graders). FAIL if it treats evals.json as a file the runner reads, or never separates the two formats. Example PASS: "evals.json is skill-creator''s format; plugin eval reads case directories, not that file." Example FAIL: "Your evals.json is fine; run claude plugin eval on the skill."'
+  - name: conversion-route
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Routes the evals.json cases to conversion into case directories, checked with /evals:validate". PASS if the reply says to convert the cases into case directories (with /evals:design skill <name>, or the plugin''s convert-evals-json.py script) and then check those with /evals:validate before running. FAIL if it gives no conversion route, or leaves out the /evals:validate check. Example PASS: "Convert them with /evals:design skill notes (or convert-evals-json.py), then run /evals:validate on the evals directory." Example FAIL: "Rewrite the cases by hand and run the suite."'
+  - name: no-validation-claim
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not claim to validate or run the evals.json file itself". PASS if the reply neither reports a validation result for evals.json nor runs or offers to run it as a suite. FAIL if it says the file validated, lists validator findings for it, or runs it. Example PASS: "I will not validate it here: the case validator does not read that format." Example FAIL: "Validated: 3 cases, no errors."'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only

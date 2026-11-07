@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```text\ncli_version:         unknown (run claude --version; this session has no shell)\nfloor_met:           unknown\ngit_version:         unknown\nplatform:            unknown\nsandbox_backend:     unknown\ntarget_type:         plugin\nsuite_tools:         read-only\nsame_model:          yes (tested haiku, judge haiku)\nestimate_usd:        roughly 1.2 (1 case x 3 runs x 2 arms)\nceiling:             5 USD\nleftover_sandboxes:  unknown\ntmp_free:            unknown\neval_tmpdir:         n/a\n```\nwarning: the judge is the model under test; pass a different --judge-model\n\nPreflight removes nothing.",
+      "why": "the report in a text block"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| cli_version | unknown |\n| floor_met | unknown |\n| git_version | unknown |\n| platform | unknown |\n| sandbox_backend | unknown |\n| target_type | plugin |\n| suite_tools | read-only |\n| same_model | yes (tested haiku, judge haiku) |\n| estimate_usd | roughly 1.2 |\n| ceiling | 5 USD |\n| leftover_sandboxes | unknown |\n| tmp_free | unknown |\n\nwarning: the judge is the model under test; pass a different --judge-model",
+      "why": "a markdown table"
+    },
+    {
+      "answer": "Your setup looks fine: haiku for both is cheap. Go ahead and run it.",
+      "why": "no report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\ncli_version:         2.1.318\nfloor_met:           unknown\ngit_version:         unknown\nplatform:            unknown\nsandbox_backend:     unknown\ntarget_type:         plugin\nsuite_tools:         read-only\nsame_model:          yes (tested haiku, judge haiku)\nestimate_usd:        roughly 1.2 (1 case x 3 runs x 2 arms)\nceiling:             5 USD\nleftover_sandboxes:  unknown\ntmp_free:            41G\neval_tmpdir:         n/a\n```\nwarning: the judge is the model under test; pass a different --judge-model\n\nPreflight removes nothing.",
+      "why": "near miss: a version and free space it could not read"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| cli_version | unknown |\n| floor_met | unknown |\n| git_version | unknown |\n| platform | unknown |\n| sandbox_backend | unknown |\n| target_type | plugin |\n| suite_tools | read-only |\n| same_model | yes (tested haiku, judge haiku) |\n| estimate_usd | roughly 1.2 |\n| ceiling | 5 USD |\n| leftover_sandboxes | unknown |\n| tmp_free | 41G |\n\nwarning: the judge is the model under test; pass a different --judge-model",
+      "why": "table with an invented free-space value"
+    }
+  ]
+}

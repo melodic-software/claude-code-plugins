@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: de-claude-api-same-model
+description: "Hard case. Source: legacy design case 9 (claude-api-app-routes-to-build-eval). route-claude-api-app grades the build-eval route from a plain prompt whose skill-fired admits methodology; this case invokes design directly, because the same-model reminder beside the route is design's own line (design SKILL.md 46-48). Why hard: the base model builds its own harness; this plugin's design skill tells the user to type /claude-api build-eval, starts nothing, scaffolds no suite, and adds the different-grader-model line."
+tags: [design, routing, hard]
+runs: 3
+expected_outcome: "The reply tells the user to type /claude-api build-eval without starting it, scaffolds no cases.jsonl suite of its own, and says to give the grader a different model from the app under test"
+execution:
+  prompt: "/evals:design this repo is a Python service that calls Claude through the anthropic SDK to triage support emails. Build me an eval for it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: routes-build-eval
+    type: regex
+    pattern: '/claude-api[ \t]+build-eval\b'
+  - name: did-not-start-build-eval
+    type: tool_used
+    tool: Skill
+    input_match: '(?=.*"skill"\s*:\s*"claude-api")(?=.*build-eval)'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-app-suite
+    type: regex
+    pattern: '"golden_answer"\s*:|\bgolden_answer\s*:'
+    match: not_contains
+  - name: different-grader-model
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Mentions giving the grader a different model from the app under test". PASS if the reply says the grader (judge) should be a different model from the one the triage service runs. FAIL if it never mentions which model grades, or says to grade with the same model as the app. Example PASS: "Give the grader a different model from the app under test." Example FAIL: "Type /claude-api build-eval; it sets up labeled inputs and a grader."'

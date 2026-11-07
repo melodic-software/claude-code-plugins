@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "expected_outcome: the notes group every change under its Conventional Commits type (feat, fix, chore).",
+      "why": "requirement in expected_outcome"
+    },
+    {
+      "answer": "The grouping by commit type moves into a grader that looks for feat and fix headings.",
+      "why": "requirement in a grader"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rewritten prompt: \"Write the release notes for the commits since v1.8.0.\"",
+      "why": "near miss: prompt rewritten, requirement dropped"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Added the case as written.",
+      "why": "kept as written"
+    }
+  ]
+}

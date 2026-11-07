@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Rename it to exports/customers-may.csv and point the prompt there.",
+      "why": "domain path"
+    },
+    {
+      "answer": "Prompt: Fix the CSV at `crm/latest.csv`.",
+      "why": "latest is not the word test"
+    },
+    {
+      "answer": "Use orders-2026-q3.csv at the workspace root.",
+      "why": "bare domain file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Keep evals/judge-inputs/rubric-case-3/broken.csv as it is.",
+      "why": "original path"
+    },
+    {
+      "answer": "Rename broken.csv so the folder no longer says judge.",
+      "why": "near miss: quotes only broken.csv"
+    },
+    {
+      "answer": "Move it to evals/inputs/case-3.csv.",
+      "why": "new path still carries eval words"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
