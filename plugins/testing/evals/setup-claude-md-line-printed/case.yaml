@@ -22,7 +22,7 @@ graders:
     arm: with-only
   - name: says-never-edits
     type: regex
-    pattern: '\b(?:never|does(?:n''t| not)|won''t|will not|cannot|can''t|do(?:n''t| not)|did(?:n''t| not)|ha(?:ve|s)(?:n''t| not))\s+(?:\w+\s+){0,2}?(?:edit|edits|touch|touches|write to|writes to|modify|modifies|change|changes)\b[^.;|\n]{0,40}?\bCLAUDE\.md\b'
+    pattern: '\b(?:never|does(?:n''t| not)|won''t|will not|cannot|can''t|do(?:n''t| not)|did(?:n''t| not)|ha(?:ve|s)(?:n''t| not))\s+(?:\w+\s+){0,2}?(?:edit|edits|touch|touches|write to|writes to|modify|modifies|change|changes)\b[^.;|,\n]{0,40}?\bCLAUDE\.md\b'
     flags: i
     target: last_message
   - name: meets-expected-output

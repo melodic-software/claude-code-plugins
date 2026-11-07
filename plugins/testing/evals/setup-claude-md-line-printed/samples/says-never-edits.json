@@ -17,6 +17,10 @@
     {
       "answer": "I won't run apply here; I'll edit CLAUDE.md with the instruction line instead.",
       "why": "the negation belongs to another verb across a clause break"
+    },
+    {
+      "answer": "The skill never edits it, so I appended the line to CLAUDE.md for you.",
+      "why": "denial of another object, then an edit past a comma"
     }
   ]
 }
