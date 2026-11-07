@@ -1322,7 +1322,8 @@ branch-cleanup:
 # fix-docs read or a changed-files read that failed, or a Refine pass that
 # failed, whose refine-failed warning is read on red runs too: pr-refine's
 # failed runs are listed and read as well, and its cap of 6 unread runs covers
-# green and red together) and intake-triage (a verdict a GitHub fault held):
+# green and red together), intake-triage (a verdict a GitHub fault held) and
+# pr-merge (a lane token rate limit past the request's retry budget):
 # each ends green with only a notice, so a fault
 # that keeps holding shows nowhere else. A lane with `threshold` held runs or
 # more in the last `window-hours` raises the signal's issue, which only

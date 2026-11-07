@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -40,6 +40,8 @@ const PR = 7;
 const HEAD = "b".repeat(40);
 const CONTEXT = `${JSON.stringify({ pr: { number: PR, head_sha: HEAD, base_sha: "c".repeat(40), author_id: 1, title: "t", body: "b" }, items: [], dropped: {} }, null, 2)}\n`;
 
+const secondsAgo = (seconds) => Math.floor(Date.now() / 1000) - seconds;
+
 // A main checkout with one commit, the shared read's context.json and its
 // sha256 taken here with node's crypto, and the leg's matching values.
 function harness() {
@@ -63,6 +65,8 @@ function harness() {
     SHARED_MAIN: main,
     SHARED_PR: String(PR),
     SHARED_HEAD: HEAD,
+    SHARED_READ_AT: String(secondsAgo(60)),
+    SHARED_TEXT_MAX_AGE_MINUTES: "20",
     RUN_ATTEMPT: "1",
     PR_NUMBER: String(PR),
     HEAD_SHA: HEAD,
@@ -101,6 +105,24 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
       assert.equal(own.taken, null, reason);
       assert.match(own.stdout, new RegExp(`^the shared trusted PR text is not used \\(${reason}\\); this leg reads its own$`, "m"), reason);
     }
+    // A 20-minute limit: a read 19 minutes old is taken, 21 minutes old is not.
+    assert.equal(h.run({ SHARED_READ_AT: String(secondsAgo(19 * 60)) }).out, "shared=true\n", "a read inside the age limit is taken");
+    const stale = h.run({ SHARED_READ_AT: String(secondsAgo(21 * 60)) });
+    assert.equal(stale.out, "", "a stale read is not taken");
+    assert.equal(stale.taken, null);
+    assert.match(stale.stdout, /^the shared trusted PR text is not used \(read 12\d\ds ago, past the 20-minute limit\); this leg reads its own$/m);
+    for (const [reason, changes] of Object.entries({
+      "no read time": [{ SHARED_READ_AT: "" }, { SHARED_READ_AT: "soon" }, { SHARED_READ_AT: "-5" }],
+      "no age limit": [{ SHARED_TEXT_MAX_AGE_MINUTES: "" }, { SHARED_TEXT_MAX_AGE_MINUTES: "x" }],
+      "a read time in the future": [{ SHARED_READ_AT: String(secondsAgo(-3600)) }],
+    })) {
+      for (const change of changes) {
+        const own = h.run(change);
+        assert.equal(own.out, "", `${reason}: ${JSON.stringify(change)}`);
+        assert.equal(own.taken, null, reason);
+        assert.match(own.stdout, new RegExp(`\\(${reason}\\); this leg reads its own$`, "m"), reason);
+      }
+    }
     // A hash over a file naming another PR still leaves the leg its own read.
     const other = CONTEXT.replace(`"number": ${PR}`, '"number": 8');
     writeFileSync(h.shared, other);
@@ -132,6 +154,7 @@ test("each leg reads its own text unless the shared read was taken, from the tru
       SHARED_MAIN: "${{ needs.trusted-text.outputs.main-sha }}",
       SHARED_PR: "${{ needs.trusted-text.outputs.pr-number }}",
       SHARED_HEAD: "${{ needs.trusted-text.outputs.head-sha }}",
+      SHARED_READ_AT: "${{ needs.trusted-text.outputs.read-at }}",
       RUN_ATTEMPT: "${{ github.run_attempt }}",
       PR_NUMBER: "${{ steps.trigger.outputs.pr-number }}",
       HEAD_SHA: "${{ steps.trigger.outputs.head-sha }}",
@@ -140,6 +163,9 @@ test("each leg reads its own text unless the shared read was taken, from the tru
     })) {
       assert.equal(envOf(take, key), value, `${job}: ${key}`);
     }
+    // The age limit is set once, for the whole workflow.
+    assert.equal(envOf(take, "SHARED_TEXT_MAX_AGE_MINUTES"), undefined, job);
+    assert.match(text, /^env:\n(?: {2}#.*\n)* {2}SHARED_TEXT_MAX_AGE_MINUTES: "[1-9][0-9]*"$/m);
     // The download lands where the take step reads it.
     assert.equal(envOf(download, "path"), "${{ runner.temp }}/pr-review-main-shared-text", job);
     const reviewed = { steps: { diff: { outcome: "success", outputs: { stop: "" } } } };
@@ -216,7 +242,7 @@ test("the trusted-text job never fails the run, and runs only where this attempt
   // A hash leaves the job only for bytes that uploaded after a clean scan.
   assert.equal(ifOf(step(TEXT, "Upload the trusted PR text")), "(steps.select.outcome == 'success') && steps.scan.outputs.clean == 'true'");
   assert.equal(ifOf(step(TEXT, "Record what was read")), "steps.upload.outcome == 'success'");
-  for (const [output, from] of [["sha256", "hash"], ["main-sha", "hash"], ["pr-number", "hash"], ["head-sha", "hash"]]) {
+  for (const [output, from] of [["sha256", "hash"], ["main-sha", "hash"], ["pr-number", "hash"], ["head-sha", "hash"], ["read-at", "hash"]]) {
     assert.match(job, new RegExp(`^ {6}${output}: \\$\\{\\{ steps\\.${from}\\.outputs\\.${output} \\}\\}$`, "m"), output);
   }
   assert.match(job, /^ {6}run-attempt: \$\{\{ github\.run_attempt \}\}$/m);
@@ -240,6 +266,9 @@ test("the trusted-text job's record holds only fixed shapes, hashing the uploade
     assert.match(lines["main-sha"], /^[0-9a-f]{40}$/);
     assert.equal(lines["pr-number"], String(PR));
     assert.equal(lines["head-sha"], HEAD);
+    // The read time is when the uploaded file was written, in epoch seconds.
+    utimesSync(h.shared, 1767225600, 1767225600);
+    assert.equal(Object.fromEntries(run({}).trim().split("\n").map((line) => line.split("=")))["read-at"], "1767225600");
     assert.equal(run({ PR_NUMBER: "7; echo x" }), "");
     assert.equal(run({ HEAD_SHA: "main" }), "");
   } finally {
