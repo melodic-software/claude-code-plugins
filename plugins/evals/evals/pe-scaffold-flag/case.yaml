@@ -5,7 +5,7 @@ tags: [run-mechanics, hard]
 runs: 3
 expected_outcome: "The command given includes --scaffold; the reply says to read fixture.sh first because it runs as the user outside the sandbox, and that without --scaffold the case runs against an unstaged workspace, so both arms score the same and its delta reads 0"
 execution:
-  prompt: "With the evals:plugin-eval skill: I'm about to run my plugin's suite at ./my-plugin from my own terminal. One case's case.yaml has `context: scaffold_script: fixture.sh`, which sets up a git repo. What command should I run?"
+  prompt: "With the evals:plugin-eval skill: I'm about to run my plugin's suite at ./my-plugin from my own terminal. One case's case.yaml names fixture.sh as the scaffold script in its context block, and that script sets up a git repo. What command should I run?"
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 10
 graders:
