@@ -5,9 +5,10 @@ description: >
   born-triaged marker, its author is a listed human or the lanes App (by
   numeric id), and it has an Issue Type and a status label. Re-reads the
   issue for up to about 25 seconds while only the type or status label is
-  missing. Always exits 0; any read failure emits skip=false, and a rate
-  limit, from this read or a stop the job already holds, also emits
-  rate-limited=true.
+  missing. Fails when resolve-config's dependencies do not install or the
+  Work status field cannot be read; any other read failure emits skip=false,
+  and a rate limit, from this read or a stop the job already holds, also
+  emits rate-limited=true.
 
 inputs:
   issue-number:
@@ -45,9 +46,9 @@ runs:
   using: composite
   steps:
     # The Work status field is read through resolve-config (read-status.mjs),
-    # which needs its dependencies; an install that fails leaves the status
-    # labels to decide. A composite step takes no timeout-minutes, so
-    # `timeout` bounds the install.
+    # which needs its dependencies; without them every status read throws, so
+    # an install that fails fails the step. A composite step takes no
+    # timeout-minutes, so `timeout` bounds the install.
     - name: Check the issue
       id: check
       shell: bash
@@ -58,6 +59,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
-        timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../resolve-config" ||
-          echo "::warning title=check-born-triaged::resolve-config's dependencies did not install; the status labels decide"
+        timeout 2m npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH/../resolve-config"
         node "$GITHUB_ACTION_PATH/check-born-triaged.mjs"

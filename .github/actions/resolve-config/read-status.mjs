@@ -5,7 +5,7 @@
 // labels as they are; a failed read throws StatusReadError. Event-history readers read statusEvents: the
 // REST label events plus the field's changes shaped as label events.
 // Imports nothing outside node at load, so a reader whose job installs no
-// resolve-config dependencies loads it and only warns.
+// resolve-config dependencies loads it, warns once, and every read throws.
 //
 // For the scripts that build on it:
 // - statusLabels(state, names, config) -> label names (pure)

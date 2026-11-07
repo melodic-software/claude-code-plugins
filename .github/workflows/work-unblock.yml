@@ -6,9 +6,9 @@ name: work-unblock
 # This workflow labels `agent-ready`, oldest first, each blocked issue that is
 # open, has every blocker closed, for any reason, by a listed human or a merge
 # in this repository (a pull request blocker: merged here; another
-# repository's blocker: closed there by a listed human), carries no hold label (needs-owner-decision,
+# repository's blocker: closed there by a listed human), carries no hold (Work status or label: needs-owner-decision,
 # status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
-# removed, or was marked `status: ready` by the lanes App or a listed human
+# removed, or had its Work status set to ready by the lanes App or a listed human
 # after its newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
@@ -50,8 +50,9 @@ name: work-unblock
 # recorded in one comment it edits; it never adds needs-human for it. An open
 # pull request of a listed human's for the issue counts as work running on it.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
-# or was closed unmerged, the App takes `status: ready` and agent-ready off,
-# after a comment, so the hourly triage sweep sends it back to intake triage. A Refs PR
+# or was closed unmerged, the App sets its Work status to needs-triage and
+# takes agent-ready off, after a comment, so the hourly triage sweep sends it
+# back to intake triage. A Refs PR
 # merging or closing unmerged also lifts a needs-human refs-hold already on
 # the issue for it.
 # report-outcome no longer sets that hold, so only an existing one is lifted.
@@ -69,7 +70,7 @@ name: work-unblock
 # re-fires and relabels are never paced. Its label-unblocked job runs one at
 # a time, so two runs cannot each admit the whole room.
 #
-# A blocked issue admission parked at status: confirmed is never labeled: when
+# A blocked issue admission parked at Work status confirmed is never labeled: when
 # a blocker closes after it parked, the App sets its Work status to
 # needs-triage with a hand-back comment, and the hourly triage sweep sends it
 # to intake, which judges it again. An issue in a `cordoned-milestones`
@@ -77,11 +78,11 @@ name: work-unblock
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed
-# until it is marked `status: ready` again.
+# until its Work status is set to ready again.
 #
 # Its sync-status job writes the state of a status label a listed human adds
 # into the issue's Work status field, and never resets the field from a
-# removal (.github/scripts/work-unblock/sync-status.mjs).
+# removal but agent-ready's (.github/scripts/work-unblock/sync-status.mjs).
 
 # API_BUDGET_HOLD (outage posture element 2): only the label-unblocked step sets it; --check-closer
 # is a gate, and sync-status is not yet shown to hold.
@@ -295,8 +296,8 @@ jobs:
   # Writes the state of a status label a person adds into the issue's Work
   # status field, never from a removal but agent-ready's
   # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
-  # App token: the field's reader counts only a value a listed human or the App
-  # set. A label change by a bot (the lanes App, whose scripts write the field
+  # App token: the field's reader counts agent-ready only from a listed human
+  # or the App. A label change by a bot (the lanes App, whose scripts write the field
   # themselves) starts no job; one by an account not listed as a human gets no
   # token and writes nothing.
   sync-status:

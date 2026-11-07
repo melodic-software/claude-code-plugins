@@ -143,8 +143,8 @@ reads them; beside it, `issue-status.mjs` collapses an issue's labels to its
 `bot-setters` for every state but agent-ready, failing on an option no entry maps
 (`unmapped-status`); no slot uses it yet. `resolve-config.mjs`'s `fieldEvents` reads an issue's
 field events with actor, time and values, and `fieldSetters` folds them to each field's latest
-setter. `write-status.mjs` holds the label mirror (`statusMirror`, which warns on a failed write)
-and the state writer (`statusWriter`, whose `set` and `leaveAgentReady` throw `StatusWriteError`). `read-status.mjs` hands the
+setter. `write-status.mjs` holds the state writer (`statusWriter`, whose `set` and
+`leaveAgentReady` throw `StatusWriteError`). `read-status.mjs` hands the
 status-label readers outside resolve (the WIP cap, born-triaged, intake re-entry, the triage
 sweep, work-unblock) the issue's labels as that field decides them: a trusted field state replaces
 the queue labels, hold labels and agent-ready stay. An unset field leaves the labels, and so does

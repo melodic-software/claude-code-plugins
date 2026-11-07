@@ -3556,9 +3556,17 @@ option no entry maps fails the read with `unmapped-status`. The config reader re
 for one state, a state with no label, a label listed twice, an `order` that does not list every
 state once or does not end on `needs-triage`, a `field-id` that `models.issue-dimensions` uses,
 and a `bot-setters` entry that is neither github-actions[bot] nor a `melodic-` bot other than the
-lanes App, or repeats an id (`undefined-status`). resolve-config's `issue-status.mjs` holds the collapse and the reader. The
-label writers mirror their labels into the field, `read-status.mjs` adds a field hold to the
-labels, and intake re-entry takes a listed human's release of a hold that exists only on the field.
+lanes App, or repeats an id (`undefined-status`), and a `field-events-since` time that does not
+parse. resolve-config's `issue-status.mjs` holds the collapse and the trust rule.
+
+The field is the issue's state. Writers set it through `write-status.mjs` (`statusWriter`), and a
+write that does not land fails the run. `read-status.mjs` decides an issue from its counted field
+value: queue-state labels drop out, hold labels still hold on top, and `agent-ready` stays with
+its label; an issue with no counted value keeps its labels. A failed field read throws, so a
+caller treats the issue as unreadable, never as unheld. Status history merges the REST label
+events with the field's changes; a bot's field events before `field-events-since` never count,
+and a person's always do. Intake re-entry takes a listed human's release of a hold that exists
+only on the field.
 
 Intake splits an issue admission parks as Size Large into native sub-issues before any run
 (owner Q93; `.github/scripts/intake-triage/refine.mjs`). The model returns either `parts`, groups

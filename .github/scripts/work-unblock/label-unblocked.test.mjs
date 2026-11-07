@@ -4737,7 +4737,7 @@ test("a person's mark refused only for a manual external step parks at status: c
 
 const NEEDS_DECISION_WRITE = "SET 25 needs-owner-decision";
 // The labels a sweep's writes leave on the marked fixture, the failed write left out.
-const labelsAfter = (labels, calls, failed) =>
+const labelsLeft = (labels, calls, failed) =>
   writes(calls)
     .filter((call) => call !== failed)
     .reduce((now, call) => {
@@ -4764,7 +4764,7 @@ test("a refusal whose needs-decision write fails keeps status: ready, so the nex
   };
   assert.equal(await sweep({ github: first.github, writer: failing, admission: admissionFor() }, PAUSING), 1);
   assert.ok(!writes(first.calls).includes(`DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`), writes(first.calls).join("\n"));
-  const left = labelsAfter(MARKED, first.calls, NEEDS_DECISION_WRITE);
+  const left = labelsLeft(MARKED, first.calls, NEEDS_DECISION_WRITE);
   const second = markedWorld({ labels: left, body: HELD_BODY });
   assert.equal(await sweep({ github: second.github, admission: admissionFor() }, PAUSING), 0);
   assert.ok(!writes(second.calls).includes(labeled(25)), `${left}\n${writes(second.calls).join("\n")}`);

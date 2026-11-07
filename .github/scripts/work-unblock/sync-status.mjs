@@ -16,7 +16,8 @@
 //
 // The workflow runs it only for a listed human's label event, one run per
 // issue at a time in event order, with the lanes
-// App token: the field's reader counts a value a listed human or the App set.
+// App token: the field's reader counts agent-ready only from a listed human or
+// the App.
 // A failed field write fails the run.
 //
 // Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_NAME,

@@ -976,7 +976,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["field-id", "options", "labels", "order"],
-      "description": "An issue's state as its Work status org issue field, read by field and option id (options maps each option id to its state, the option's name on GitHub; no two ids name one state). A value counts when its latest setter is a listed human or the lanes App, or, for every state but agent-ready, a bot-setters account; any other reads as none. An issue's labels collapse to the first state in order one of whose labels it carries, or the last state, needs-triage, when it carries none; a trusted field option no entry maps fails the read (README.md, Models).",
+      "description": "An issue's state is its Work status org issue field, read by field and option id (options maps each option id to its state, the option's name on GitHub; no two ids name one state). Writers set the field; a queue-state label does not decide it, though a hold label still holds on top of it. A value counts when its latest setter is a listed human or the lanes App, or, for every state but agent-ready, a bot-setters account; any other reads as none, and an issue with no counted value keeps its labels. An issue's labels collapse to the first state in order one of whose labels it carries, or the last state, needs-triage, when it carries none; a trusted field option no entry maps fails the read (README.md, Models).",
       "properties": {
         "field-id": { "$ref": "#/$defs/issue-field-id" },
         "bot-setters": {

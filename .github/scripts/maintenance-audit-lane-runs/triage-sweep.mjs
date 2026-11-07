@@ -11,7 +11,7 @@
 //   verdict apply-verdict could not write (an issue the lanes App opened,
 //   whose --check refuses the App as actor while a github-actions[bot]
 //   dispatch passes), or an issue work-unblock handed back after its lane PR
-//   ended; or
+//   ended or unparked to needs-triage once a blocker closed; or
 // - /work-items:decompose published it born triaged in `status: ready`, with
 //   no agent-ready, admission-deferred or hold and no open blocker: nothing
 //   ran admission on it, and intake's dispatch runs it (a dispatch skips the
