@@ -28,6 +28,12 @@
     },
     {
       "answer": "- **CHANGELOG.md:** 3 sites are marked `report`. The ADR has one `report` site."
+    },
+    {
+      "answer": "docs/CATALOG.md: 4 sites in 3 files — 1 edit, 2 review, 1 report"
+    },
+    {
+      "answer": "The released 1.4.0 CHANGELOG entry is left as written."
     }
   ]
 }

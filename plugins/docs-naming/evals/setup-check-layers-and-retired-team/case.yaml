@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: setup-check-layers-and-retired-team
-description: 'Legacy setup 1 and 5, merged on one fixture: an old .claude/docs-hygiene.json team file with a file_names block, and no layer the resolver reads. Refit: setup sets disable-model-invocation, so the legacy natural prompts become the slash command plus their text. The check table is presented with its PASS, WARN and INFO rows and the layer rows intact (setup SKILL.md lines 36-71), docs-naming-r001 is INFO (report-only, lines 82-84), the old file is no longer read, and nothing is written. ran-check is the with-only indicator; layers-and-remedy (llm) quotes the legacy expectations the regexes do not decide. The scaffold puts the old file under the workspace .claude/, where the bundled check reads it in a run. r001-not-fail rejects r001 reported as FAIL; no-shell-change guards a shell rewrite, rm or mv of the old file or the team YAML. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy setup 1 and 5, merged on one fixture: an old .claude/docs-hygiene.json team file with a file_names block, and no layer the resolver reads. Refit: setup sets disable-model-invocation, so the legacy natural prompts become the slash command plus their text. The check table is presented with its PASS, WARN and INFO rows and the layer rows intact (setup SKILL.md lines 36-71), docs-naming-r001 is INFO (report-only, lines 82-84), the old file is no longer read, and nothing is written. ran-check is the with-only indicator; layers-and-remedy (llm) quotes the legacy expectations the regexes do not decide. The scaffold puts the old file under the workspace .claude/, where the bundled check reads it in a run. r001-not-fail rejects r001 reported as FAIL and lets a negated FAIL ("not FAIL", "No FAIL rows") through; no-shell-change guards a shell rewrite, rm or mv of the old file or the team YAML. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [setup, check, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'setup-check.sh and the retirement detection run. The reply shows the table as printed, with the three layer rows absent (INFO) explained as valid because the bundled defaults supply the keys, the old team file WARN row, and docs-naming-r001 reported as INFO, not FAIL. It says the old file is no longer read and that setup apply seeds docs/conventions/docs-naming.yaml from it so its settings carry over. No file is written or edited.'
@@ -47,7 +47,7 @@ graders:
     arm: both
   - name: r001-not-fail
     type: regex
-    pattern: 'docs-naming-r001[^\n.]{0,60}\bFAIL\b|\bFAIL\b[^\n.]{0,60}docs-naming-r001'
+    pattern: 'docs-naming-r001[^\n.]{0,60}(?<!not )(?<!Not )(?<!no )(?<!No )(?<!never )(?<!Never )(?<!not a )\bFAIL\b|(?<!not )(?<!Not )(?<!no )(?<!No )(?<!never )(?<!Never )(?<!not a )\bFAIL\b[^\n.]{0,60}docs-naming-r001'
     match: not_contains
     target: last_message
     arm: both

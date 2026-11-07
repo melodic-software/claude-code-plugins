@@ -5,6 +5,15 @@
     },
     {
       "answer": "Retirements: one report-only finding (docs-naming-r001). No FAIL rows in the table."
+    },
+    {
+      "answer": "docs-naming-r001 is INFO (report-only), not FAIL"
+    },
+    {
+      "answer": "No FAIL rows; docs-naming-r001 is INFO"
+    },
+    {
+      "answer": "docs-naming-r001 is INFO, not FAIL"
     }
   ],
   "fail": [
@@ -13,6 +22,9 @@
     },
     {
       "answer": "| retirements | FAIL | docs-naming-r001 |"
+    },
+    {
+      "answer": "docs-naming-r001 is FAIL, not INFO"
     }
   ]
 }
