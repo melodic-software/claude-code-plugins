@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: wf-wrap-up-default-offers-retro
+description: 'Default config: /session-flow:workflow wrap-up after a substantive session still offers /session-flow:retro.'
+tags: [workflow, wrap-up, retro]
+plugins: ["../.."]
+expected_outcome: 'The wrap-up checklist suggests /session-flow:retro (full or quick) for the session, as an offer.'
+execution:
+  prompt: '/session-flow:workflow wrap-up We just finished the currency filter for the report export: four commits, the PR is open and CI is green. What should I do before I leave?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: offers-retro
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip|without|don''t|do not|no need to)\b[^\n]{0,20}session-flow:retro)[^\n]*/session-flow:retro(?![\w-])'
+    flags: 'mi'
+    arm: both
