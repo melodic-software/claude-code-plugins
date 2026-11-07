@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tv-db-read-back-weak-oracle
+description: 'Legacy test-value 4. An integration test reads the users table directly after createUser and asserts toBeDefined(): the read-back is legitimate state verification against a real managed database, and the weakness is the toBeDefined() oracle (rule-weak-oracle). Natural phrasing: test-value is not user-invocable. skill-fired reads the Skill calls, names-weak-oracle the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, test-value, weak-oracle, no-network]
+expected_outcome: 'Keeps the direct read as state verification, names toBeDefined() as the weak oracle (rule-weak-oracle), and recommends asserting the row fields.'
+execution:
+  prompt: 'My integration test calls createUser and then queries the users table directly and does expect(row).toBeDefined(). Is reading the database directly the problem?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: names-weak-oracle
+    type: regex
+    pattern: '\brule-weak-oracle\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether reading the users table directly after createUser, then asserting expect(row).toBeDefined(), is the problem. PASS only if the reply satisfies every legacy expectation: "Output says the direct read after the act step is legitimate state verification against a real managed database" "Output names the toBeDefined() oracle (rule-weak-oracle) as the weakness" "Output recommends asserting the row fields". FAIL if any point is missing or contradicted.'

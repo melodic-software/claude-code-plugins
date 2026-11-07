@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Test the behavior instead: a 280-character post is accepted and a 281-character post is rejected.",
+      "why": "the boundary"
+    },
+    {
+      "answer": "Then add the other side: the validator rejects a post of 281 characters.",
+      "why": "reject verb before the number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It can fail when someone changes 280, so it is a change detector. Test what the limit does instead.",
+      "why": "no boundary case named"
+    },
+    {
+      "answer": "Assert that posts up to 280 characters are accepted.",
+      "why": "only the accepting side"
+    },
+    {
+      "answer": "Accept 281 characters if the product raises the limit; this test fails then, which is the point.",
+      "why": "281 named with no rejection; the fail verb sits past a clause break"
+    }
+  ]
+}

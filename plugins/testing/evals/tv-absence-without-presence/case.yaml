@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: tv-absence-without-presence
+description: 'Legacy test-value 5. A validateOrder test that only asserts an empty error list is an absence check with no paired presence case: an implementation that always returns no errors passes it. The fix adds an invalid-order case asserting the exact error list, and the reply names no audit rule id for the shape. Natural phrasing: test-value is not user-invocable. skill-fired reads the Skill calls, no-rule-id the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, test-value, absence-check, no-network]
+expected_outcome: 'Names the absence check with no paired presence case, says an always-empty implementation passes, adds an invalid-order case asserting the exact errors, and names no rule-* id.'
+execution:
+  prompt: 'My whole test for validateOrder is `expect(validateOrder(valid).errors).toEqual([])`. Is that a good test?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: no-rule-id
+    type: regex
+    pattern: '\brule-[a-z]+(?:-[a-z]+)*\b'
+    match: not_contains
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether `expect(validateOrder(valid).errors).toEqual([])`, their whole test, is a good test. PASS only if the reply satisfies every legacy expectation: "Output names the test as an absence check with no paired presence case" "Output says an implementation that always returns no errors passes the test" "Output adds an invalid-order case that asserts the exact error list" "Output names no rule-* id for this shape". FAIL if any point is missing or contradicted.'

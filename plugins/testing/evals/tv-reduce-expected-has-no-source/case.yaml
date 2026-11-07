@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tv-reduce-expected-has-no-source
+description: 'Legacy test-value 1. A calculateTotal test builds its expected value with the same reduce the code uses: no independent source (rule-recomputed-derived), a test that can still fail, and the fix is a hand-computed literal. Natural phrasing: test-value is not user-invocable. skill-fired reads the Skill calls, literal-assertion the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, test-value, recomputed, no-network]
+expected_outcome: 'Says the expected value repeats the algorithm under test, names rule-recomputed-derived without calling the test one that cannot fail, and replaces it with a hand-computed literal assertion.'
+execution:
+  prompt: 'I''m testing calculateTotal. Is `const expected = items.reduce((s, i) => s + i.price, 0); expect(calculateTotal(items)).toBe(expected);` a good test?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: literal-assertion
+    type: regex
+    pattern: '\bexpect\(\s*calculateTotal\([^)]*\)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\(\s*\d+(?:\.\d+)?\s*\)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a calculateTotal test whose expected value is built with items.reduce is a good test. PASS only if the reply satisfies every legacy expectation: "Output says the expected value repeats the algorithm under test, so it has no independent source" "Output names rule-recomputed-derived and does not claim the test cannot fail" "Output replaces the expectation with a hand-computed literal (15 for prices 10 and 5)". The literal may use other prices as long as it is computed by hand. FAIL if any point is missing or contradicted.'
