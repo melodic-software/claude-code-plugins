@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Both fixes rest on one belief: the database is timing out. Before a third fix, check that belief with the replay loop.",
+      "why": "names the belief in one sentence"
+    },
+    {
+      "answer": "The shared assumption is a DB write timeout. Let's log each insert's latency and error on the next replay.",
+      "why": "DB write timeout as the belief"
+    },
+    {
+      "answer": "Neither fix touched the cause if there are no timeouts at the database at all, so measure that first.",
+      "why": "timeouts at the database"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The third fix should raise the connection pool size to 50 and add exponential backoff.",
+      "why": "a third fix with no belief named"
+    },
+    {
+      "answer": "Raise the HTTP client timeout to 60 seconds; the export service is slow.",
+      "why": "names a timeout, but not the database"
+    }
+  ]
+}

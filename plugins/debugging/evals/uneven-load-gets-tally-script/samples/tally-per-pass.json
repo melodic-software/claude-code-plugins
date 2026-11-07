@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug six thumbnail workers share one queue ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/tally.py\",\"content\":\"import collections, re, sys\\nmb = collections.Counter()\\nfor line in sys.stdin:\\n    m = re.search(r'size=(\\\\d+)MB -> worker (\\\\d)', line)\\n    if m:\\n        mb[m.group(2)] += int(m.group(1))\\nprint(dict(sorted(mb.items())))\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"for i in 1 2 3; do python3 replay.py | python3 tally.py; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t2\",\"content\":\"{'0': 82, '1': 61, '2': 534, '3': 77, '4': 79, '5': 535}\\n{'0': 85, '1': 64, '2': 541, '3': 74, '4': 81, '5': 528}\\n{'0': 80, '1': 66, '2': 529, '3': 79, '4': 78, '5': 538}\"}]}}",
+      "why": "a tally script run on three passes and compared"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug six thumbnail workers share one queue ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 replay.py | tail -5\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"worker 2 OOM-killed at 534 MB (limit 512 MB)\\nreplayed 228 jobs, 45 lost\"}]}}",
+      "why": "one pass read by eye, no per-worker count"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/debugging:debug six thumbnail workers share one queue ...\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 replay.py --seed 1 | awk '{print $NF}' | sort | uniq -c\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"40 0\\n20 1\\n53 2\"}]}}",
+      "why": "a tally on one pass only"
+    }
+  ]
+}

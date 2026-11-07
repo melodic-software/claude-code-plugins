@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No script of mine can sign in, so this loop is one you drive. Save this as staging-orders-loop.sh and run it in your own terminal with `bash staging-orders-loop.sh`:\n\n```bash\ninstruct \"Open https://staging.example.com and sign in with your one-time code.\"\ninstruct \"Open the Orders dashboard.\"\nask TABLE_EMPTY \"Is the orders table empty? (y/n)\"\nask ERROR_TEXT \"Copy any error text shown, or type none:\"\n```\n\nWhen it finishes, paste the `=== results ===` block back here.",
+      "why": "user runs it, results block comes back, observations only"
+    },
+    {
+      "answer": "Here is the human-driven loop from the bundled template. Run it yourself (my shell has no TTY for its prompts) and paste back the results block it prints at the end. The script never asks for your password or code; signing in is a step you do on your own.",
+      "why": "hands it over, asks for the results block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll run the loop now with `bash staging-orders-loop.sh` and report what it prints.",
+      "why": "runs the script itself"
+    },
+    {
+      "answer": "Run the script below. When it asks, type the one-time code from your phone so it can sign in for you.\n\n```bash\nask OTP \"One-time code:\"\n```",
+      "why": "collects the sign-in code"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Minimize before ranking causes. Take one element out of the saved request at a time (a body field, a header or a config value), rerun the replay, and look at the verdict: if it is still a 500, leave that element out for good; if the loop turns green, put it back, because it is needed. Stop when every element left turns the loop green when removed.",
+      "why": "one cut per run, keep only when removal turns green"
+    },
+    {
+      "answer": "Phase 2 minimize: for each of the 60 elements, drop it and replay. Still red: the element was not needed, so it stays dropped. Green: restore it. What remains is the smallest failing request.",
+      "why": "keep and drop rule stated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Remove the fields you think are irrelevant (marketing opt-ins, analytics headers) in one go and rerun; if it is still red, keep going with the rest.",
+      "why": "cuts several elements on a guess per run"
+    },
+    {
+      "answer": "Drop each header in turn and rerun. Keep any header whose removal still returns the 500, since it is part of the failing request.",
+      "why": "keeps elements whose removal leaves the loop red"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "formatPrice holds 5 of the 7 samples.",
+      "why": "5 of the 7"
+    },
+    {
+      "answer": "Self samples: formatPrice 5/7, renderLineItems 1/7.",
+      "why": "5/7"
+    },
+    {
+      "answer": "formatPrice accounts for 71.4% of the samples.",
+      "why": "the percentage"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "formatPrice holds most of the samples.",
+      "why": "no count"
+    },
+    {
+      "answer": "formatPrice holds 5 samples; the profile ran 7 ms.",
+      "why": "5 and 7 not given as a share"
+    }
+  ]
+}
