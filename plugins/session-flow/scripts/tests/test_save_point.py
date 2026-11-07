@@ -3493,6 +3493,26 @@ def test_ids_a_dropped_id_fails_until_retired_with_a_reason(tmp_path, entry, hea
     assert retired.returncode == 0, out(retired)
 
 
+@pytest.mark.parametrize(
+    ("entry", "heading"),
+    [(QUESTION, "Retired open questions"), (DECISION, "Retired decisions")],
+)
+def test_ids_a_verbatim_copy_without_a_reason_fails(tmp_path, entry, heading):
+    hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
+    ref = entry[2:6]
+    edit(hop2, entry + "\n", "None. Settled this hop.\n")
+    edit(
+        hop2,
+        "## Review before you continue\n\n",
+        f"## Review before you continue\n\n- Retired: {archived.name} § {heading}\n",
+    )
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"\n## {heading}\n\n{entry}\n")
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert f"{ref} left this file without a retirement" in out(result), out(result)
+
+
 def test_ids_a_one_line_question_listing_still_needs_a_pointer(tmp_path):
     hop2, archived = id_chain(make_repo(tmp_path), tmp_path)
     heading = "Retired open questions"
