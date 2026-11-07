@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ln-missing-tool-png-silent
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: md-skip-tool-missing
+    type: regex
+    pattern: 'skip\W{0,4}\(\s*tool missing:\s*[`*]{0,2}mdlint-absent'
+    flags: i
+    target: last_message
+  - name: overall-incomplete-names
+    type: regex
+    pattern: 'Overall\W{0,8}INCOMPLETE\b[^\n]{0,200}?mdlint-absent'
+    target: last_message
+  - name: png-silent
+    type: regex
+    pattern: '\blogo\.png\b[^\n.;]{0,80}?\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|ignor\w*|no (?:matching )?ecosystem|not (?:linted|covered|matched|classified))\b|\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|ignor\w*)\b[^\n.;]{0,80}?\blogo\.png\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is bare `/toolchain:lint` in a repository with a markdownlint config, a tracked markdown config whose tool (mdlint-absent) is on no PATH, and a changed markdown file and .png image. It meets the legacy expectations: "Reports the (opted-in) markdown ecosystem as `skip (tool missing: <tool>)` with its install-hint when the markdownlint tool is missing from PATH — not FAIL" "Reads the Overall line as `INCOMPLETE`, naming the markdown tool-missing skip, rather than PASS" "Silently skips the .png file (outside any ecosystem) without emitting a warning or failure for it" "Does not fail the overall run because of the missing tool or the unclassified binary file".'

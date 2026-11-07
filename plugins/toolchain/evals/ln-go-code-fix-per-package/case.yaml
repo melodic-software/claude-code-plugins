@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: ln-go-code-fix-per-package
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: both-dirs-fixed
+    type: regex
+    pattern: '^go code-fix\b[^\n]*\bpkg/a/a\.go\b(?=[\s\S]*^go code-fix\b[^\n]*\bpkg/b/b\.go\b)|^go code-fix\b[^\n]*\bpkg/b/b\.go\b(?=[\s\S]*^go code-fix\b[^\n]*\bpkg/a/a\.go\b)'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: one-dir-per-call
+    type: regex
+    pattern: '^go code-fix\b(?=[^\n]*\bpkg/a/)(?=[^\n]*\bpkg/b/)'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: no-module-files
+    type: regex
+    pattern: '^go code-fix\b[^\n]*(?<![\w/.-])go\.(?:mod|sum)\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:lint --code-fix --yes go` with pkg/a/a.go, pkg/b/b.go and go.mod changed; the tracked go.yaml routes code-fix-cmd through tools/run.sh in place of golangci-lint. It meets the legacy expectations: "Drops non-.go paths before golangci-lint run --fix" "Partitions remaining .go paths by parent directory and invokes once per directory" "Does not pass a multi-directory file list in one golangci-lint process (avoids ''named files must all be in one directory'')".'
