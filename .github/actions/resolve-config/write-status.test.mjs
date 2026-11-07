@@ -139,6 +139,16 @@ test("statusWriter set with keepHold leaves a listed human's hold and replaces a
   assert.deepEqual(written.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/7/issue-field-values", "/repos/o/r/issues/8/issue-field-values"]);
 });
 
+test("statusWriter set with keepHold and releases replaces only the person's hold it releases", async () => {
+  const human = 153232337;
+  const answered = fieldWorld(84879218, human);
+  assert.equal((await (await writerOver(answered.github)).set(7, "needs-triage", { keepHold: true, releases: "needs-owner-decision" })).outcome, "written", "the answered needs-owner-decision is released");
+  assert.equal(answered.posts().length, 1);
+  const other = fieldWorld(86380005, human);
+  assert.deepEqual(await (await writerOver(other.github)).set(7, "needs-triage", { keepHold: true, releases: "needs-owner-decision" }), { outcome: "held", state: "needs-human" });
+  assert.equal(other.posts().length, 0, "a different person's hold set meanwhile stands");
+});
+
 test("statusWriter set with keepHold throws and writes nothing when the field cannot be read", async () => {
   const calls = [];
   const github = async (method, path) => {

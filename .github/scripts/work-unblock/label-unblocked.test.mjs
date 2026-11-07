@@ -45,6 +45,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { parseReason } from "../lib/stop-reason.mjs";
 import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -4927,6 +4928,19 @@ test("a person's admission-deferred label that sync-status wrote into the field 
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
 });
 
+test("a legacy admission-deferred label without status: ready costs no second field read while the field reads deferred", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const fieldReads = (labels) => {
+    const fake = fieldOnlyDeferred([fieldEvent(GRAPH_OWNER, "ready", null, 1), fieldEvent(GRAPH_APP, "deferred", "ready", "2026-11-08T02:00:30Z")], { labels });
+    return fieldSweep(fake).then((code) => {
+      assert.equal(code, 0);
+      assert.ok(writes(fake.calls).includes("SET 25 agent-ready"), "the field's deferred keeps status: ready, so the issue is admitted");
+      return fake.calls.filter((call) => call === `GET /repos/${REPO}/issues/25/issue-field-values`).length;
+    });
+  };
+  assert.equal(await fieldReads([DEFERRED]), await fieldReads([]));
+});
+
 test("a person's agent-ready removal stands after sync-status leaves the field at confirmed", async (t) => {
   t.mock.method(console, "log", () => {});
   const removed = { id: 502, event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-11-08T02:00:00Z" };
@@ -4994,6 +5008,32 @@ test("a needs-human only in the Work status lifts on the Refs PR's end only when
   const person = held(GRAPH_OWNER);
   assert.equal(await sweep({ github: person.github, actions: person.github, writer: person.writer, statusOf: person.statusOf, now: Date.parse(FIELD_AT(3)) }), 0);
   assert.deepEqual(writes(person.calls), []);
+});
+
+test("a person's hold set after the sweep read the App's needs-human stops the Refs hand-off at the field write", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const pull = lanePull();
+  const fieldValues = { 30: [workRow("needs-human")] };
+  const nodes = [fieldEvent(GRAPH_APP, "needs-human", "agent-ready", 1)];
+  const fake = withFieldHistory(
+    world({ openReady: [ready(30)], comments: { 30: [note(), holdNote()] }, events: { 30: [added(LABELED_AT, OWNER)] }, timeline: { 30: [crossRef(pull)] }, pulls: { [pull.number]: pull }, fieldValues }),
+    { 30: nodes },
+  );
+  const github = async (method, path, body, ...rest) => {
+    if (method === "POST" && path === `/repos/${REPO}/issues/30/issue-field-values`) {
+      fake.calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+      return [fieldRow(STATUS_CONFIG["field-id"], OPTION[body.issue_field_values[0].value])];
+    }
+    const answer = await fake.github(method, path, body, ...rest);
+    if (method === "POST" && path === `/repos/${REPO}/issues/30/comments`) {
+      fieldValues[30] = [workRow("needs-owner-decision")];
+      nodes.push(fieldEvent(GRAPH_OWNER, "needs-owner-decision", "needs-human", 2));
+    }
+    return answer;
+  };
+  const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
+  assert.equal(await sweep({ github, actions: github, writer, statusOf: fake.statusOf, now: Date.parse(FIELD_AT(3)) }), 0);
+  assert.deepEqual(writes(fake.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsMergedComment(7805) })}`], "no field write and agent-ready stays");
 });
 
 // Owner decision Q85 (#9668): the work class gates nothing, so a class an

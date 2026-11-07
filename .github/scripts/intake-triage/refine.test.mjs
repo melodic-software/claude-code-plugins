@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildBody, splitRecord, splitSourceLine } from "./admit.mjs";
@@ -397,6 +398,26 @@ describe("applyRefinement", () => {
       writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
       ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision", "POST /repos/o/r/issues/7/comments"],
     );
+  });
+
+  test("a person's needs-human set after the read stops the lift at the field write: nothing written, no re-triage", async () => {
+    const fields = onField(APP, "needs-owner-decision");
+    const fake = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields });
+    const fielded = withFields(async (method, path, body) => {
+      if (method === "POST" && path === "/repos/o/r/issues/7/issue-field-values") {
+        fake.calls.push({ method, path, body });
+        return [{ issue_field_id: STATUS_CONFIG["field-id"], single_select_option: { id: Number(Object.keys(STATUS_CONFIG.options).find((id) => STATUS_CONFIG.options[id] === body.issue_field_values[0].value)) } }];
+      }
+      const answer = await fake.github(method, path, body);
+      if (path === "/graphql" && body.query.includes("comments(first")) {
+        Object.assign(fields, onField(HUMAN, "needs-human"));
+      }
+      return answer;
+    }, fields);
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github: fielded, repository: "o/r" });
+    const result = await applyRefinement({ github: fielded, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(EXACT, new Set([3])), context, setStatus: set, statusOf: fake.statusOf, log: () => {} });
+    assert.deepEqual(result, { outcome: "skipped", redispatch: false });
+    assert.deepEqual(writes(fake.calls), [], "no field write, no label removal, no comment");
   });
 
   test("a field-only needs-owner-decision a person set stays, and a field-only needs-human skips the issue", async () => {

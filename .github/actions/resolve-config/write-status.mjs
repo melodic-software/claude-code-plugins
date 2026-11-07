@@ -62,13 +62,14 @@ export async function writeState({ github, repository, number, state, config, cu
 // What a state writer's entry point hands its run, over the base config's
 // models.issue-status and trusted-actor list (read-status.mjs
 // loadTrustedActors):
-// - `set(number, state, {fields, keepHold})` writes `state` (writeState),
-//   skipping an option this process already wrote for the issue, or one
-//   `fields` (field id -> {option}) shows it holds. `fields` must come from a
-//   trusted read (read-status.mjs fieldStatus's rule): an option an untrusted
-//   account set would otherwise stop a write the field needs. With
-//   `keepHold`, an issue this process has not written is read first, and a
-//   hold (HOLD_STATES) a listed human set is not replaced: `set` answers
+// - `set(number, state, {fields, keepHold, releases})` writes `state`
+//   (writeState), skipping an option this process already wrote for the
+//   issue, or one `fields` (field id -> {option}) shows it holds. `fields`
+//   must come from a trusted read (read-status.mjs fieldStatus's rule): an
+//   option an untrusted account set would otherwise stop a write the field
+//   needs. With `keepHold`, an issue this process has not written is read
+//   first, and a hold (HOLD_STATES) a listed human set is not replaced
+//   unless it is `releases`, the hold the write answers: `set` answers
 //   `{outcome: "held", state}` and the caller treats the issue as held;
 // - `leaveAgentReady(number, state)` writes `state` only while the field's
 //   trusted state (read-status.mjs fieldStatus) is agent-ready, so taking
@@ -99,14 +100,14 @@ export async function statusWriter({ env, github, repository }) {
       throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
     }
   };
-  const set = async (number, state, { fields, keepHold } = {}) => {
+  const set = async (number, state, { fields, keepHold, releases } = {}) => {
     if (failure) {
       throw failure;
     }
     // An issue this process already wrote holds that write, so it is not read again.
     if (keepHold && !wrote.has(number)) {
       const now = await readField(number);
-      if (now.personHold) {
+      if (now.personHold && now.state !== releases) {
         return { outcome: "held", state: now.state };
       }
     }

@@ -10,7 +10,7 @@
 // For the scripts that build on it:
 // - statusLabels(state, names, config) -> label names (pure)
 // - statusEvents({github, repository, number, config, since, fieldEvents}) -> REST-shaped events
-// - statusReader({...}) -> labels(number, names), with labels.events(number); both throw StatusReadError
+// - statusReader({...}) -> labels(number, names), with labels.events(number) and labels.state(number); each throws StatusReadError
 // - resolve-config.mjs issuesByStatus(github, repository, states, {since, config, trustedActors})
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -144,8 +144,10 @@ export async function fieldStatusSetter({ github, repository, number, config, tr
 // issue's label names as the field decides them (statusLabels), read fresh on
 // each call, since a reader may ask again after the status changed, and at
 // most `limit` reads a run. `labels.events(number)` is statusEvents for the
-// issue, reusing the field events the newest `labels` call for it read. A
-// failed read, or one past the limit, throws StatusReadError from either.
+// issue, reusing the field events the newest `labels` call for it read, and
+// `labels.state(number)` the trusted state that call read (null when unset),
+// reading it only when no call has. A failed read, or one past the limit,
+// throws StatusReadError from any of them.
 // `config` and `trustedActors` default to the base config's models.issue-status
 // and the trusted-actor list (TRUSTED_ACTORS_PATH, else under BASE_PATH). An
 // unset config reads nothing: labels and REST events come back as they are; a
@@ -175,6 +177,7 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     return setup;
   };
   const read = new Map();
+  const states = new Map();
   let reads = 0;
   const fieldEventsOf = (number) => {
     if (!read.has(number)) {
@@ -197,12 +200,22 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     }
     const issue = Number(number);
     read.delete(issue);
+    states.delete(issue);
     overLimit(issue);
     try {
-      return statusLabels(await fieldStatus({ github, repository, number: issue, ...setup, fieldEvents: () => fieldEventsOf(issue) }), names, setup.config);
+      const state = await fieldStatus({ github, repository, number: issue, ...setup, fieldEvents: () => fieldEventsOf(issue) });
+      states.set(issue, state);
+      return statusLabels(state, names, setup.config);
     } catch (error) {
       throw new StatusReadError(issue, error);
     }
+  };
+  labels.state = async (number) => {
+    const issue = Number(number);
+    if (!states.has(issue) && (await ready()) !== null) {
+      await labels(issue, []);
+    }
+    return states.get(issue) ?? null;
   };
   labels.events = async (number) => {
     const issue = Number(number);

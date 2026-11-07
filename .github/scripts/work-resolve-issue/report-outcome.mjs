@@ -2234,7 +2234,13 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {}, stateOf } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.status) {
-    await setStatus(plan.issueNumber, await stateOf(plan.status));
+    // A park leaves a hold a person set during the run (write-status.mjs
+    // keepHold): the issue stays as that person left it.
+    const moved = await setStatus(plan.issueNumber, await stateOf(plan.status), plan.status === PARK_STATUS ? { keepHold: true } : undefined);
+    if (moved?.outcome === "held") {
+      console.log(`report-outcome: issue #${plan.issueNumber} left as is: a person's Work status ${moved.state} holds it`);
+      return;
+    }
   } else if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {

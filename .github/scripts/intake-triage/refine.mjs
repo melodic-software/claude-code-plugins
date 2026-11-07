@@ -765,6 +765,12 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
     return { outcome: "skipped", redispatch };
   };
+  // needs-triage, unless a person set a hold since the read (write-status.mjs
+  // keepHold): then the skip it returns ends the refinement.
+  const retriage = async () => {
+    const moved = await setStatus(number, NEEDS_TRIAGE, { keepHold: true });
+    return moved?.outcome === "held" ? skip(`is held by a person's Work status ${moved.state}`) : null;
+  };
   if (issue.pull_request || issue.state !== "open") {
     return skip("is not an open issue");
   }
@@ -783,7 +789,10 @@ export async function applyRefinement({ github, repository, number, appId, human
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
     const parkedAt = labels.includes(NEEDS_DECISION) ? NEEDS_DECISION : CONFIRMED;
-    await setStatus(number, NEEDS_TRIAGE);
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await removeLabel(github, base, parkedAt);
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
@@ -835,7 +844,10 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
     }
-    await setStatus(number, NEEDS_TRIAGE);
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await removeLabel(github, base, CONFIRMED);
     await post(true);
     log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
@@ -853,7 +865,10 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
     }
-    await setStatus(number, NEEDS_TRIAGE);
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await post(true);
     log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
     return { outcome: "exact", redispatch: true };
@@ -870,7 +885,10 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "exact", redispatch: false };
   }
   // needs-triage first: a failure between the two leaves a status a sweep picks up.
-  await setStatus(number, NEEDS_TRIAGE);
+  const held = await retriage();
+  if (held) {
+    return held;
+  }
   await removeLabel(github, base, NEEDS_DECISION);
   await post(true);
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);

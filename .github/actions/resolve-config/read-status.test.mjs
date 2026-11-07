@@ -146,6 +146,35 @@ test("each call reads the field fresh, and a read past the limit throws", async 
   assert.equal(calls.length, 4);
 });
 
+test("reader state is the trusted state its newest labels call read, with no second read", async () => {
+  const fields = { 7: { state: "deferred" } };
+  const { labels, calls } = reader(fields);
+  await labels(7, ["admission-deferred"]);
+  fields[7] = { state: "needs-human" };
+  assert.equal(await labels.state(7), "deferred");
+  assert.equal(calls.length, 2, "one field read: the values and the events");
+  await labels(7, []);
+  assert.equal(await labels.state(7), "needs-human", "a newer labels call's read");
+});
+
+test("reader state reads the field once when no labels call has, and is null for an unset or untrusted field", async () => {
+  const fields = { 7: { state: "ready" }, 8: { state: "needs-human", setter: STRANGER_ID } };
+  const { labels, calls } = reader(fields);
+  assert.equal(await labels.state(7), "ready");
+  assert.equal(await labels.state(7), "ready");
+  assert.equal(calls.length, 2);
+  assert.equal(await labels.state(8), null);
+  assert.equal(await labels.state(9), null);
+  const unset = reader(fields, { config: null });
+  assert.equal(await unset.labels.state(7), null);
+  assert.deepEqual(unset.calls, []);
+});
+
+test("reader state throws StatusReadError as labels does", async () => {
+  await assert.rejects(() => reader({ 7: new Error("GET answered 500") }).labels.state(7), (error) => unreadable(error) && /GET answered 500/.test(error.message));
+  await assert.rejects(() => reader({ 7: { state: "ready" } }, { limit: 0 }).labels.state(7), (error) => unreadable(error) && /limit of 0 field reads/.test(error.message));
+});
+
 // statusEvents: field events (fieldEvents' shape) as REST label events.
 const FIELD = String(STATUS_CONFIG["field-id"]);
 const PERSON = { actorId: HUMAN_ID, actorLogin: "person", actorType: "User" };

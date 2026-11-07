@@ -381,10 +381,9 @@ export async function main({ env = process.env, github, log = console.log, statu
     // Past the claim, a failed call sets the answered status back, so a re-run
     // of the job finds the issue parked and the answer is not lost.
     try {
-      // An answer to a parked or statusless issue leaves no hold, so it keeps
-      // one a person set since the read (write-status.mjs keepHold); an
-      // answer to a hold releases that hold.
-      const moved = await set(number, NEEDS_TRIAGE, prior && HOLD_STATES.includes(prior) ? undefined : { keepHold: true });
+      // A hold a person set since the read stands (write-status.mjs
+      // keepHold), except the hold this answer releases.
+      const moved = await set(number, NEEDS_TRIAGE, { keepHold: true, releases: prior });
       if (moved?.outcome === "held") {
         log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the answer changes nothing; nothing dispatched`);
         return 0;

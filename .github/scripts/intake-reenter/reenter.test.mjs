@@ -206,6 +206,25 @@ test("a person's needs-human that lands after the read keeps a parked issue held
   assert.deepEqual(w.dispatches(), []);
 });
 
+test("a decision releases the person's needs-owner-decision it answers, and keeps a different person's hold set after the read", async () => {
+  const asked = () => [fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-owner-decision" })];
+  const answered = world({ labels: ["status: needs-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: asked() });
+  assert.equal(await run(answered, 1), 0);
+  expectTriage(answered, ["priority: medium"], "the answered hold is released");
+  expectDispatched(answered);
+  const fieldNodes = asked();
+  const raced = world({ labels: ["status: needs-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes });
+  const github = async (method, path, body) => {
+    const answer = await raced.github(method, path, body);
+    if (method === "DELETE" && path.endsWith(encodeURIComponent("status: needs-decision"))) fieldNodes.push(fieldNode("IssueFieldChangedEvent", OWNER, { previousValue: "needs-owner-decision", newValue: "needs-human" }));
+    return answer;
+  };
+  assert.equal(await run({ ...raced, github }, 1), 0);
+  assert.equal(raced.field(), "needs-human", "the person's later hold stands");
+  assert.ok(!raced.writes.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")), "no field write");
+  assert.deepEqual(raced.dispatches(), []);
+});
+
 test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
   const w = world({
     labels: ["status: confirmed", "priority: medium"],

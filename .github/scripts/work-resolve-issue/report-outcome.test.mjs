@@ -60,6 +60,7 @@ import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
 import { STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 // The real Work status reader (read-status.mjs statusReader) over field reads
 // that `fields` answers (read-status.fixtures.mjs withFields); it makes no
@@ -1244,6 +1245,33 @@ for (const [reason, step] of [
     });
   });
 }
+
+test("main leaves a park alone when a person set needs-human after the run read the issue: no field write, every label on", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, []],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const fields = { 77: { state: "agent-ready", setter: 337595936 } };
+    const fieldPosts = [];
+    const github = withFields(async (method, path, body) => {
+      fieldPosts.push(`${method} ${path} ${body.issue_field_values[0].value}`);
+      return [];
+    }, fields);
+    const { set } = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }, github, repository: "o/r" });
+    const setStatus = (...args) => {
+      fields[77] = { state: "needs-human", setter: 153232337 };
+      return set(...args);
+    };
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch, setStatus }), 0);
+    assert.deepEqual(fieldPosts, [], "the person's needs-human stands");
+    assert.ok(!calls.some((c) => c.method === "DELETE"), "agent-ready and the queue labels stay on");
+    assert.ok(!calls.some((c) => c.method === "POST" && c.body.body.startsWith("<!-- work-resolve-issue outcome=")), "no outcome comment");
+  });
+});
 
 // The field is the state: a write that fails stops the stop before any label
 // comes off, as a failed label add did, so a re-run finds agent-ready still on.
