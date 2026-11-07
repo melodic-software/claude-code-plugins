@@ -251,8 +251,8 @@ test("bot field events before since are dropped, and a person's before it are ke
     label("labeled", "status: ready", appActor, "2026-11-07T13:00:00Z"),
   ];
   assert.deepEqual(await eventsOf([], field, { since: "2026-11-07T12:00:00Z" }), kept);
-  // The default is the config's field-events-since, 2026-11-07T12:00:00Z.
-  assert.deepEqual(await eventsOf([], field), kept);
+  // With no `since`, the config's field-events-since applies.
+  assert.deepEqual(await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": "2026-11-07T12:00:00Z" } }), kept);
   // A config with no cutoff keeps every field event.
   assert.equal((await eventsOf([], field, { config: { ...STATUS_CONFIG, "field-events-since": undefined } })).length, 5);
 });
