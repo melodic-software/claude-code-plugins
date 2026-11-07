@@ -73,7 +73,10 @@
 // reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
-// wrote nothing never applies an older verdict.
+// wrote nothing never applies an older verdict. One exception, which only
+// withholds: an issue github-actions[bot] opened whose title is the release
+// lane's (admit.mjs releaseLaneTitle) is parked at status: confirmed with
+// admission's comment naming that lane, so the issue lane never builds it.
 //
 // `--check` decides, before any token is requested, whether the broker would
 // mint: the actor is a listed human, or github-actions[bot] on a dispatch; a
@@ -100,7 +103,8 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, RELEASE_LANE, releaseLaneTitle, sayWhy, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { refusalText } from "../lib/admission-comment.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
@@ -540,7 +544,7 @@ const STATUS_ADDS = new Set([READY, NEEDS_DECISION]);
 // (models.issue-status; null writes none); a failed write throws. `statusOf`
 // (read-status.mjs statusReader), when given, decides the issue's label names
 // and its status history; without it, its own labels and REST events.
-export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, setStatus = async () => {}, statusConfig = null, statusOf, log = console.log }) {
+export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, setStatus = async () => {}, statusConfig = null, statusOf, releaseLane = () => false, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
     return { outcome: "stopped" };
@@ -567,6 +571,16 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     return { outcome: "skipped" };
   }
   if (!authorAdmitted(issue, humans, appId)) {
+    if (issue.user?.login === LANE_BOT && issue.user?.type === "Bot" && releaseLane(issue.title)) {
+      const written = await setStatus(number, "confirmed", { keepHold: true });
+      if (written?.outcome === "held") {
+        log(`apply-verdict: #${number} left as is (a person's Work status ${written.state} holds it)`);
+        return { outcome: "skipped" };
+      }
+      await sayWhy(github, repository, base, await paginate(github, `${base}/comments`), refusalText(RELEASE_LANE));
+      log(`apply-verdict: #${number} goes to the release lane; parked at ${CONFIRMED}`);
+      return { outcome: "routed" };
+    }
     log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App; nothing written`);
     return { outcome: "skipped" };
   }
@@ -1039,6 +1053,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         setStatus,
         statusConfig,
         statusOf: statusReader({ env, github, repository }),
+        releaseLane: (title) => releaseLaneTitle(title, loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`)),
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);

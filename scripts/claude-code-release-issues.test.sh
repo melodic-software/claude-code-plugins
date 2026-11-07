@@ -39,6 +39,7 @@ printf '%s\n' \
   'done' \
   '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" ]] && exit 1' \
   'if [[ "$1 $2" == "issue list" ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
+  'if [[ "$1 $2" == "issue create" ]]; then printf "%s\n" "${GH_STUB_URL:-https://github.com/acme/site/issues/$((100 + n))}"; fi' \
   'exit 0' >"$STUB/gh"
 chmod +x "$STUB/gh"
 
@@ -52,11 +53,13 @@ run_sut() {
   local status="$1"
   shift
   LOG="$(mktemp -d "$TMP/log.XXXXXX")" || exit 2
+  : >"$LOG/output"
   # RUNNER_TEMP emptied: on a runner the script would wrap its gh calls and
   # record into the job's own api-budget state.
-  OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" RUNNER_TEMP='' \
+  OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" RUNNER_TEMP='' GITHUB_OUTPUT="$LOG/output" \
     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=acme/site GITHUB_RUN_ID=777 \
     ${GH_STUB_LIST:+GH_STUB_LIST="$GH_STUB_LIST"} ${GH_STUB_FAIL:+GH_STUB_FAIL="$GH_STUB_FAIL"} \
+    ${GH_STUB_URL:+GH_STUB_URL="$GH_STUB_URL"} \
     bash "$SUT" "$@" "$status" 2>&1)"
   CODE=$?
 }
@@ -70,6 +73,9 @@ calls() {
 }
 
 creates() { calls | grep -c '^issue create' || true; }
+
+# The step output the run wrote: its issues= line, empty when none.
+output() { cat "$LOG/output"; }
 
 # body_n <k>: the body file of the k-th create call.
 body_n() {
@@ -131,6 +137,7 @@ GH_STUB_LIST="$LIST_EMPTY"
 run_sut "$(status 'range: up to date')"
 expect_code "up to date: exit 0" 0
 expect_eq "up to date: no gh call" "$(calls)" ""
+expect_eq "up to date: no issues output" "$(output)" ""
 
 # --- one unread release -------------------------------------------------------
 run_sut "$(status 'range: 2.1.297..2.1.297 (1 releases, 4 core items)' 'releases: 2.1.297' 'cap: within budget (10 releases / 300 items)')"
@@ -145,12 +152,14 @@ expect_has "one unread: body asks for apply over the release" "$body" '`/harness
 expect_has "one unread: body names the marker" "$body" '`2.1.296`'
 expect_has "one unread: body names the run" "$body" 'https://github.com/acme/site/actions/runs/777'
 expect_lacks "one unread: body carries no agent-ready" "$body" 'agent-ready'
+expect_eq "one unread: the filed number is the step output" "$(output)" 'issues=102'
 
 # --- an existing issue with the same title (closed) ---------------------------
 GH_STUB_LIST="$LIST_ONE"
 run_sut "$(status 'range: 2.1.297..2.1.297 (1 releases, 4 core items)' 'releases: 2.1.297' 'cap: within budget (10 releases / 300 items)')"
 expect_code "existing title: exit 0" 0
 expect_eq "existing title: nothing filed" "$(creates)" 0
+expect_eq "existing title: no issues output" "$(output)" ""
 
 # --- two unread releases; a near-match title does not count -------------------
 GH_STUB_LIST="$LIST_EMPTY"
@@ -161,6 +170,7 @@ c="$(calls)"
 expect_has "two unread: first title" "$c" 'Claude Code changelog: 2.1.297 --body-file'
 expect_has "two unread: second title" "$c" 'Claude Code changelog: 2.1.298 --body-file'
 expect_eq "two unread: one issue list read" "$(calls | grep -c '^issue list')" 1
+expect_eq "two unread: both numbers on one output line" "$(output)" 'issues=102 103'
 
 GH_STUB_LIST="$LIST_ONE"
 run_sut "$(status 'range: 2.1.297..2.1.298 (2 releases, 9 core items)' 'releases: 2.1.297 2.1.298' 'cap: within budget (10 releases / 300 items)')"
@@ -179,6 +189,7 @@ expect_lacks "over cap: no label" "$c" '--label'
 body="$(body_n 1)"
 expect_has "over cap: body holds the recommend line" "$body" "$RECOMMEND"
 expect_has "over cap: body names the range" "$body" '2.1.297..2.1.320'
+expect_eq "over cap: the cap issue's number is the step output" "$(output)" 'issues=102'
 
 # Items alone over the cap: the list is printed, still no per-release issue.
 run_sut "$(status 'range: 2.1.297..2.1.299 (3 releases, 400 core items)' 'releases: 2.1.297 2.1.298 2.1.299' 'cap: exceeded (10 releases / 300 items)' "$RECOMMEND")"
@@ -231,12 +242,20 @@ GH_STUB_FAIL=create
 run_sut "$(status 'range: 2.1.297..2.1.298 (2 releases, 9 core items)' 'releases: 2.1.297 2.1.298' 'cap: within budget (10 releases / 300 items)')"
 expect_code "failed create: exit 1" 1
 expect_eq "failed create: the other release is still tried" "$(calls | grep -c '^issue create')" 2
+expect_eq "failed create: no issues output" "$(output)" ""
 unset GH_STUB_FAIL
+GH_STUB_URL='created, no url'
+run_sut "$(status 'range: 2.1.297..2.1.297 (1 releases, 4 core items)' 'releases: 2.1.297' 'cap: within budget (10 releases / 300 items)')"
+expect_code "create answers no issue url: exit 1" 1
+expect_eq "create answers no issue url: no issues output" "$(output)" ""
+expect_has "create answers no issue url: says so" "$OUT" 'no issue number'
+unset GH_STUB_URL
 
 # --- dry run reads the list and writes nothing --------------------------------
 run_sut "$(status 'range: 2.1.297..2.1.298 (2 releases, 9 core items)' 'releases: 2.1.297 2.1.298' 'cap: within budget (10 releases / 300 items)')" --dry-run
 expect_code "dry run: exit 0" 0
 expect_eq "dry run: nothing filed" "$(creates)" 0
+expect_eq "dry run: no issues output" "$(output)" ""
 expect_has "dry run: prints the planned creates" "$OUT" 'action=create title=Claude Code changelog: 2.1.298'
 
 # --- against changelog-status.sh's own output ----------------------------------

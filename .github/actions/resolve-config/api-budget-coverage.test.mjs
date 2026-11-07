@@ -45,6 +45,14 @@ const ALLOWED = new Map([
     "intake-triage.yml:triage-split-children",
     `${NO_LOG}; step "Triage each sub-issue" calls gh without api_budget_wrap_gh`,
   ],
+  [
+    "maintenance-file-claude-code-release-issues.yml:triage-filed-issues",
+    `${NO_LOG}; step "Triage each filed release issue" calls gh without api_budget_wrap_gh`,
+  ],
+  [
+    "maintenance-file-recurring-issues.yml:triage-filed-issues",
+    `${NO_LOG}; step "Triage each filed recurring issue" calls gh without api_budget_wrap_gh`,
+  ],
   // issues: write alone, so no checkout to load the action from: one rollup
   // listing and at most two writes.
   [

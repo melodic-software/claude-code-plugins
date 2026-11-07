@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { parseReason } from "../lib/stop-reason.mjs";
+import { ADMIT_MARKER } from "../lib/admission-comment.mjs";
+import { loadRules, RELEASE_LANE, releaseLaneTitle } from "./admit.mjs";
 import {
   checkActors,
   closing,
@@ -2526,5 +2528,59 @@ describe("re-entry after a recorded decision", () => {
     const result = await go(held([appVerdict("- flagged: cost"), decision()]));
     assert.equal(result.outcome, "needs-decision");
     assert.equal(result.plan.reason, "cost");
+  });
+});
+
+// The release filer and the recurring filer post as github-actions[bot], an
+// author admission never takes, and their filers dispatch intake for them.
+describe("run on an issue github-actions[bot] filed", () => {
+  const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
+  const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+  const goBot = (fake) =>
+    run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      setStatus: fake.setStatus,
+      statusConfig: STATUS_CONFIG,
+      releaseLane: (title) => releaseLaneTitle(title, RULES),
+      admitIssue: async () => assert.fail("admission never runs for this author"),
+      log: () => {},
+    });
+
+  test("a per-release issue goes to the release lane: status: confirmed and one admission comment naming upstream-apply-changelog.yml, no fields, no agent-ready", async () => {
+    const fake = fakeGitHub({ issue: { user: ACTIONS_BOT, title: "Claude Code changelog: 2.1.300" }, comments: [laneComment()] });
+    const result = await goBot(fake);
+    assert.equal(result.outcome, "routed");
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+      ["STATUS #7 confirmed", "POST /repos/o/r/issues/7/comments"],
+    );
+    const comment = writes(fake.calls)[1].body.body;
+    assert.ok(comment.startsWith(`${ADMIT_MARKER}\n`), comment);
+    assert.ok(comment.includes(RELEASE_LANE), comment);
+    assert.ok(!JSON.stringify(fake.calls).includes("agent-ready"));
+  });
+
+  test("a second run leaves the same admission comment as it is", async () => {
+    const own = { id: 61, user: { login: "melodic-automation-lanes[bot]", type: "Bot" }, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: ${RELEASE_LANE}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).` };
+    const fake = fakeGitHub({ issue: { user: ACTIONS_BOT, title: "Claude Code changelog: 2.1.300" }, comments: [laneComment(), own] });
+    assert.equal((await goBot(fake)).outcome, "routed");
+    assert.deepEqual(writes(fake.calls).map(({ method }) => method), ["STATUS"]);
+  });
+
+  test("its other issues, the cap issue and a recurring one, are written nothing, as before", async () => {
+    for (const title of ["Claude Code changelog: unread releases beyond the replay cap", "chore: Review CI pins (monthly)"]) {
+      const fake = fakeGitHub({ issue: { user: ACTIONS_BOT, title }, comments: [laneComment()] });
+      assert.equal((await goBot(fake)).outcome, "skipped", title);
+      assert.deepEqual(writes(fake.calls), [], title);
+    }
+  });
+
+  test("a per-release title from an author that is no bot is written nothing", async () => {
+    const fake = fakeGitHub({ issue: { user: { id: 4242, login: "github-actions[bot]", type: "User" }, title: "Claude Code changelog: 2.1.300" }, comments: [laneComment()] });
+    assert.equal((await goBot(fake)).outcome, "skipped");
+    assert.deepEqual(writes(fake.calls), []);
   });
 });

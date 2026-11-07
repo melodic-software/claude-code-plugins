@@ -477,6 +477,36 @@ test("intake-triage.yml: each job keeps its own least-privilege permissions", ()
   });
 });
 
+// An issue a job's GITHUB_TOKEN files starts no issues run, so each filer
+// dispatches intake for the issues it filed, from a job that holds the
+// dispatch grant alone.
+for (const [file, filer, run] of [
+  ["maintenance-file-claude-code-release-issues.yml", "file-release-issues", "bash scripts/claude-code-release-issues.sh"],
+  ["maintenance-file-recurring-issues.yml", "file-recurring-issues", "node .github/scripts/recurring-schedule/file-due.mjs"],
+]) {
+  test(`${file}: intake triage is dispatched from main for each issue filed, by a job holding only actions: write`, () => {
+    const { permissions, jobs } = workflow(file);
+    assert.deepEqual(permissions, {});
+    assert.deepEqual(Object.keys(jobs), [filer, "triage-filed-issues"]);
+    assert.deepEqual(jobs[filer].permissions, { contents: "read", issues: "write" }, "the filing job gains no dispatch grant");
+    const step = jobs[filer].steps.find((s) => s.id === "file");
+    assert.ok(step.run.startsWith(run), step.run);
+    assert.equal(jobs[filer].outputs.issues, "${{ steps.file.outputs.issues }}");
+
+    const triage = jobs["triage-filed-issues"];
+    assert.deepEqual(triage.permissions, { actions: "write" });
+    assert.deepEqual(triage.needs, [filer]);
+    const runs = (issues) => evaluate(triage.if, { [`needs.${filer}.outputs.issues`]: issues });
+    assert.equal(runs("101 102"), true);
+    assert.equal(runs(""), false, "nothing filed dispatches nothing");
+    assert.match(triage.if, /^\$\{\{ !cancelled\(\) && /, "a filer that failed one create still has the others it filed triaged");
+    const [send] = triage.steps;
+    assert.equal(send.env.ISSUES, `\${{ needs.${filer}.outputs.issues }}`);
+    assert.match(send.run, /^\s*if ! \[\[ \$issue =~ \^\[1-9\]\[0-9\]\{0,9\}\$ \]\]; then$/m, "each number is checked before any dispatch");
+    assert.match(send.run, /gh api -X POST "repos\/\$GITHUB_REPOSITORY\/actions\/workflows\/intake-triage\.yml\/dispatches" \\\n\s+-f ref=main -f "inputs\[issue-number\]=\$issue"/);
+  });
+}
+
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
   const { jobs } = workflow("intake-triage.yml");
   const gate = jobs["born-triaged"];

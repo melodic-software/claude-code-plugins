@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
-import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
+import { heldRefusalText, HOLD_ORDER, RELEASE_LANE, releaseLaneTitle, strongestReason } from "./admit.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -4161,5 +4161,41 @@ describe("hold reason codes", () => {
     assert.ok(text.startsWith(refusalText("a reason")));
     assert.deepEqual(parseReason(text), { lane: "intake-triage", reason: "intent" });
     assert.throws(() => heldRefusalText("a reason", "none"), /never hands work to a person/);
+  });
+});
+
+// upstream-apply-changelog.yml builds every Claude Code release from the
+// changelog on its own schedule, so a per-release issue the release filer
+// (scripts/claude-code-release-issues.sh) titles `Claude Code changelog:
+// <X.Y.Z>` is never issue-lane work, whoever filed it.
+describe("release lane route", () => {
+  test("a per-release title is the release lane's; the cap issue and the lane's own handoff issue are not", () => {
+    assert.equal(releaseLaneTitle("Claude Code changelog: 2.1.300", RULES), true);
+    for (const title of [
+      "Claude Code changelog: unread releases beyond the replay cap",
+      "Claude Code v2.1.300 changelog: 3 handoffs",
+      "Claude Code changelog: 2.1.300 and the docs pass",
+      "fix: Claude Code changelog: 2.1.300",
+      "Claude Code changelog: 2.1",
+    ]) {
+      assert.equal(releaseLaneTitle(title, RULES), false, title);
+    }
+  });
+
+  test("a listed human's per-release issue is refused with no hold, so it parks at status: confirmed and never takes agent-ready", () => {
+    const issue = issueOf({ title: "Claude Code changelog: 2.1.300" });
+    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [RELEASE_LANE] });
+    assert.match(RELEASE_LANE, /upstream-apply-changelog\.yml/);
+  });
+
+  test("the same body under the lane's handoff title is admitted as before", () => {
+    assert.deepEqual(decide(facts({ issue: issueOf({ title: "Claude Code v2.1.300 changelog: 3 handoffs" }) })), { verdict: "admit", reasons: [] });
+  });
+
+  test("loadRules refuses a release-lane-titles pattern that is not a regular expression", () => {
+    const dir = tempDir("admit-release-");
+    const path = join(dir, "rules.json");
+    writeFileSync(path, JSON.stringify({ ...RULES, "release-lane-titles": ["^Claude Code changelog: ("] }));
+    assert.throws(() => loadRules(path), /release-lane-titles/);
   });
 });

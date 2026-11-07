@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -213,12 +213,13 @@ test("main writes the step summary counts, one line per row, and exits 1 on a fa
       const lines = [];
       const code = await main({
         argv: [join(dir, "schedule.json")],
-        env: { TODAY, REPOSITORY: REPO, GITHUB_STEP_SUMMARY: join(dir, "summary.md") },
+        env: { TODAY, REPOSITORY: REPO, GITHUB_STEP_SUMMARY: join(dir, "summary.md"), GITHUB_OUTPUT: join(dir, "output") },
         call: api.call,
         log: (line) => lines.push(line),
         wait: noWait,
       });
       assert.equal(code, 1);
+      assert.equal(existsSync(join(dir, "output")), false, "a covered row and a failed write file nothing to triage");
       const summary = readFileSync(join(dir, "summary.md"), "utf8");
       assert.match(summary, /\| 4 \| 3 \| 0 \| 1 \| 1 \| 1 \| 1 \|/);
       assert.match(summary, /- covered `covered-row` by #3/);
@@ -244,5 +245,14 @@ test("main exits 0 and counts a filed row when every write succeeds", async () =
     const summary = readFileSync(join(dir, "summary.md"), "utf8");
     assert.match(summary, /\| 1 \| 1 \| 1 \| 0 \| 0 \| 0 \| 0 \|/);
     assert.match(summary, /- filed #901 for `ci-pins`/);
+  });
+});
+
+test("main writes the filed issues' numbers, and only those, as one issues= step output line for intake triage", async () => {
+  await withSchedule([row(), row({ id: "covered-row", title: "Covered" }), row({ id: "docs-pass", title: "Docs pass" })], async (dir) => {
+    const api = fakeApi({ issues: [{ number: 3, labels: ["recurring"], body: "<!-- recurring-schedule id=covered-row -->" }] });
+    const env = { TODAY, REPOSITORY: REPO, GITHUB_OUTPUT: join(dir, "output") };
+    assert.equal(await main({ argv: [join(dir, "schedule.json")], env, call: api.call, log: () => {}, wait: noWait }), 0);
+    assert.equal(readFileSync(join(dir, "output"), "utf8"), "issues=901 902\n");
   });
 });

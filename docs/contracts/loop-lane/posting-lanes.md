@@ -32,8 +32,8 @@ Marks: **concurrency** (a workflow `concurrency:` group), **claim** (another ato
 | `dependabot-fragments` | fragment commit | concurrency: `dependabot-fragments` |
 | `maintenance-audit-lane-runs`, `maintenance-audit-test-selection` | audit report | concurrency: own named group (the second on one job only; its other job is read-only) |
 | `maintenance-file-upstream-drift-issues` | files issues | concurrency: `maintenance-file-upstream-drift-issues` |
-| `maintenance-file-claude-code-release-issues` | files issues | concurrency: `maintenance-file-claude-code-release-issues`, `cancel-in-progress: false` |
-| `maintenance-file-recurring-issues` | files issues | concurrency: `maintenance-file-recurring-issues`, `cancel-in-progress: false` |
+| `maintenance-file-claude-code-release-issues` | files issues, then dispatches `intake-triage` for each one it filed | concurrency: `maintenance-file-claude-code-release-issues`, `cancel-in-progress: false` |
+| `maintenance-file-recurring-issues` | files issues, then dispatches `intake-triage` for each one it filed | concurrency: `maintenance-file-recurring-issues`, `cancel-in-progress: false` |
 | `maintenance-monitor-signals` | files issues, comments on, edits, closes and reopens its own | concurrency: `maintenance-monitor-signals`, `cancel-in-progress: false` |
 | `post-merge-demotion-alert` | alert issue or comment | concurrency: per workflow, event and head sha |
 | `post-merge-test-mutation` | one report comment on the pull request that merged the pushed head, only when the result has a surviving or uncovered mutant, from the model-free `report` job; any other outcome is in the job summary, and a refusal or an all-not-run result is a `::warning::` annotation | concurrency: `post-merge-test-mutation-<head sha>`, `cancel-in-progress: false`. The comment upsert is check-then-act on the `<!-- post-merge-test-mutation -->` marker from `github-actions[bot]`, edited in place on a re-run; the group serializes runs for one head, and a pull request merges one head |

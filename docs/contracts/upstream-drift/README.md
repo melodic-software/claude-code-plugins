@@ -474,7 +474,10 @@ by `.github/workflows/maintenance-file-claude-code-release-issues.yml`: once a d
 range is over the replay cap, it instead files one `Claude Code changelog: unread releases beyond
 the replay cap` issue holding the status script's recommendation, unless one is open. A range the
 status script could not compute, or a missing marker, fails the run and files nothing. The issues
-carry no label; whether and when to run `apply` stays a person's decision.
+carry no label. The workflow then dispatches intake triage for each issue it filed. Intake parks a
+per-release issue at `status: confirmed` and never admits it to the issue lane, because
+`.github/workflows/upstream-apply-changelog.yml` builds every unread release on its own schedule
+(`release-lane-titles` in `.github/actions/resolve-config/admission-rules.json`).
 
 ## Enforceability
 

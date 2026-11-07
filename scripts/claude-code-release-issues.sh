@@ -28,11 +28,14 @@
 # or mentions: the issue proposes, it never admits.
 #
 # --dry-run makes only the issue list read. Every run prints one
-# `action=<create|none> title=<title>` line per title it considers.
+# `action=<create|none> title=<title>` line per title it considers. When
+# GITHUB_OUTPUT is set, the numbers of the issues it filed go there as one
+# `issues=<n> [<n>...]` line, which the workflow dispatches intake triage for.
 # The run URL comes from GITHUB_SERVER_URL, GITHUB_REPOSITORY and GITHUB_RUN_ID.
 #
-# Exit: 0 success, 1 any failed gh call (a failed list read stops the run;
-# after a failed create the other releases still run), 2 usage, unreadable or
+# Exit: 0 success, 1 any failed gh call or a create that answered no issue
+# number (a failed list read stops the run; after a failed create the other
+# releases still run), 2 usage, unreadable or
 # malformed status, range not computed, no read marker, or jq missing.
 set -uo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
@@ -172,6 +175,7 @@ write_body() { # <title> <file>
 }
 
 failed=0
+filed=()
 i=0
 for title in "${TITLES[@]}"; do
   i=$((i + 1))
@@ -184,10 +188,21 @@ for title in "${TITLES[@]}"; do
   ((DRY)) && continue
   body_file="$TMPDIR_RUN/body-$i.md"
   write_body "$title" "$body_file"
-  gh issue create --title "$title" --body-file "$body_file" >/dev/null || {
+  if ! url="$(gh issue create --title "$title" --body-file "$body_file")"; then
     printf '%s: issue create failed for %s\n' "$SELF" "$title" >&2
     failed=1
-  }
+    continue
+  fi
+  number="${url##*/}"
+  if [[ "$number" =~ ^[1-9][0-9]{0,9}$ ]]; then
+    filed+=("$number")
+  else
+    printf '%s: no issue number in what create answered for %s\n' "$SELF" "$title" >&2
+    failed=1
+  fi
 done
 
+if ((${#filed[@]} > 0)) && [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  printf 'issues=%s\n' "${filed[*]}" >>"$GITHUB_OUTPUT"
+fi
 exit "$failed"

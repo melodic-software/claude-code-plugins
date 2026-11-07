@@ -59,6 +59,11 @@
 //   sub-issue (splitChildBody); any other issue the App filed holds for a
 //   listed human to file as their own (owner decision on #10735);
 // - no body line opens with `Hold:` (BODY_HOLD), a person's hold;
+// - the title matches no `release-lane-titles` pattern (releaseLaneTitle):
+//   upstream-apply-changelog.yml builds every Claude Code release itself, so
+//   a per-release issue parks at status: confirmed and is never issue-lane
+//   work. apply-verdict applies the same route to such an issue the release
+//   filer (github-actions[bot]) opened, an author admission never reaches;
 // - a `recurring` item's body has a `<!-- recurring-schedule id=<id> -->`
 //   line naming a row of the default branch's .github/recurring-schedule.json,
 //   and that row does not set requires_operator_confirmation
@@ -230,7 +235,7 @@ const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
-const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones", "release-lane-titles"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -240,11 +245,24 @@ export function loadRules(path) {
       throw new Error(`${path}: \`${key}\` must be a list of strings`);
     }
   }
+  for (const pattern of rules["release-lane-titles"]) {
+    try {
+      new RegExp(pattern);
+    } catch {
+      throw new Error(`${path}: \`release-lane-titles\` holds ${JSON.stringify(pattern)}, which is no regular expression`);
+    }
+  }
   if (typeof rules["task-list"] !== "string" || rules["task-list"] === "") {
     throw new Error(`${path}: \`task-list\` must be a string`);
   }
   return rules;
 }
+
+export const RELEASE_LANE =
+  "upstream-apply-changelog.yml, the release lane, builds every Claude Code release from the changelog on its own schedule, so a per-release `Claude Code changelog:` issue is not issue-lane work";
+
+// Whether `title` matches a `release-lane-titles` pattern of `rules`. Pure.
+export const releaseLaneTitle = (title, rules) => (rules["release-lane-titles"] ?? []).some((pattern) => new RegExp(pattern).test(String(title ?? "")));
 
 // The recurring schedule as parsed, or null when it cannot be read or parsed.
 // By default it is the one beside this script, the default branch's checkout.
@@ -1588,6 +1606,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (BODY_HOLD.test(String(issue.body ?? ""))) {
     refuse.push("a line of its body opens with `Hold:`, a person's hold; removing that line lifts it");
     holdFor("intent");
+  }
+  if (releaseLaneTitle(issue.title, rules)) {
+    refuse.push(RELEASE_LANE);
   }
   if (verdict.writtenAt !== undefined) {
     const judged = Date.parse(verdict.writtenAt);

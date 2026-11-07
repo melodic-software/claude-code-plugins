@@ -193,6 +193,10 @@ export async function main({ argv = process.argv.slice(2), env = process.env, ca
   for (const r of results) log(`file-due ${JSON.stringify({ today, ...r })}`);
   const summary = summarize(results);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary.markdown);
+  // The workflow dispatches intake triage for each, since an issue this
+  // job's GITHUB_TOKEN files starts no issues run.
+  const filed = results.filter((r) => r.outcome === "filed").map((r) => r.issue);
+  if (env.GITHUB_OUTPUT && filed.length > 0) appendFileSync(env.GITHUB_OUTPUT, `issues=${filed.join(" ")}\n`);
   log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, held ${summary.held}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${api.used() ?? "n/a"}`);
   if (summary.failed > 0) {
     log(`::error::${summary.failed} recurring schedule row(s) failed; see the step summary`);

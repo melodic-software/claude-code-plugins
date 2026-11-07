@@ -9,11 +9,14 @@ name: maintenance-file-recurring-issues
 # schedule: /work-items:track recheck closes the issue and advances next_due,
 # and until then the open issue keeps a second run from filing again. The
 # script and tests are in .github/scripts/recurring-schedule/.
+# triage-filed-issues then dispatches intake-triage.yml for each issue filed,
+# which triages it as any other issue.
 #
-# It runs no model and holds no lanes App token or secret: the job's own
-# GITHUB_TOKEN reads contents and writes only issues. Only the schedule and a
-# manual run with no inputs start it. Schedule and issue text reaches the
-# script as files and API responses, never through a `${{ }}` expression.
+# It runs no model and holds no lanes App token or secret: the filing job's
+# GITHUB_TOKEN reads contents and writes only issues, and the dispatch job's
+# holds only actions: write. Only the schedule and a manual run with no inputs
+# start it. Schedule and issue text reaches the script as files and API
+# responses, never through a `${{ }}` expression.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false".
@@ -42,6 +45,9 @@ jobs:
     permissions:
       contents: read # check out the schedule and the script
       issues: write # file the due rows' issues
+    outputs:
+      # The numbers of the issues filed, space separated, for triage-filed-issues.
+      issues: ${{ steps.file.outputs.issues }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -73,6 +79,7 @@ jobs:
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
 
       - name: File the due rows
+        id: file
         if: steps.kill.outputs.proceed == 'true'
         working-directory: .base
         env:
@@ -88,3 +95,46 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+  # An issue the job's GITHUB_TOKEN files starts no issues run, so intake
+  # never sees it; a workflow_dispatch from the same token does start one.
+  # Its own job holds the dispatch grant, not the job that writes issues, as
+  # intake-triage.yml's triage-split-children does.
+  triage-filed-issues:
+    needs: [file-recurring-issues]
+    if: ${{ !cancelled() && needs.file-recurring-issues.outputs.issues != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch intake-triage.yml
+    steps:
+      - name: Triage each filed recurring issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUES: ${{ needs.file-recurring-issues.outputs.issues }}
+        run: |
+          read -ra issues <<< "$ISSUES"
+          for issue in "${issues[@]}"; do
+            if ! [[ $issue =~ ^[1-9][0-9]{0,9}$ ]]; then
+              echo "::error::an issue number is not a number"
+              exit 1
+            fi
+          done
+          calls=0
+          # The count never changes the step's exit status.
+          trap '{ echo "$calls" >"$RUNNER_TEMP/intake-dispatch-calls"; } 2>/dev/null || :' EXIT
+          for issue in "${issues[@]}"; do
+            calls=$((calls + 1))
+            gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+              -f ref=main -f "inputs[issue-number]=$issue"
+          done
+
+      # The hub's api-calls notice, as intake-triage.yml's
+      # triage-split-children writes it.
+      - name: Log the API calls at the end
+        if: always()
+        run: |
+          calls=0
+          [[ -f $RUNNER_TEMP/intake-dispatch-calls ]] && calls=$(<"$RUNNER_TEMP/intake-dispatch-calls")
+          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"
