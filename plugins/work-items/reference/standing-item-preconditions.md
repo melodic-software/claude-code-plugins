@@ -43,4 +43,6 @@ sets `requires_operator_confirmation: true` only when a person must confirm it.
 `plugins/work-items/scripts/evaluate-schedule-precondition.sh` prints `met`,
 `unmet`, or `needs-confirmation` for a schedule row id. Pass
 `--operator-confirmed` when the operator has affirmed a confirmation-style
-precondition.
+precondition. For a row with no operator gate, `met` means only that nothing
+holds the row: the script prints the row's `prompt` ahead of it, and the caller
+settles the check with the `id` steps above before running the pass.
