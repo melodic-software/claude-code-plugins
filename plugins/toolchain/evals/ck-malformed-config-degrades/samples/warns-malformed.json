@@ -7,6 +7,10 @@
     {
       "answer": "**Malformed consumer config:** `.claude/ecosystems/dotnet.yaml` could not be parsed, so commands were inferred from Cart.csproj.",
       "why": "verdict word first"
+    },
+    {
+      "answer": "Warning: malformed consumer config `.claude/ecosystems/dotnet.yaml`; inferring commands from Cart.csproj.",
+      "why": "verdict word before the full path, nothing after it"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Used `.claude/ecosystems/dotnet.yaml`, then dotnet build failed: invalid project file.",
       "why": "the verdict word belongs to another clause"
+    },
+    {
+      "answer": "Cart.csproj is invalid. Read `.claude/ecosystems/dotnet.yaml` and resolved its commands.",
+      "why": "a sentence-ending dot still stops the verdict-first gap"
     }
   ]
 }
