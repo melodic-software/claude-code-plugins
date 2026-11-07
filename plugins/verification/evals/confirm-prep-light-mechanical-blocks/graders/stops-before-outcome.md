@@ -4,7 +4,7 @@ type: llm
 
 The workspace holds a slugify change whose only unit test asserts the wrong slug, so Stage 1 (the
 mechanical prerequisite) fails. The legacy expectations, verbatim: "STOPS at Stage 1 when
-/toolchain:check or /toolchain:lint cross-cutting reports FAIL — does not run Stage 2" and "States
+/toolchain:check or /toolchain:lint cross-cutting reports FAIL — does not run Stage 2" and "States <!-- ai-slop-ignore: verbatim quote of the legacy expectation, which carried an em dash -->
 that mechanical failures must be fixed before outcome verification proceeds ("can't verify broken
 code")". The toolchain plugin is not installed in this run, so the project's own test command
 stands in for /toolchain:check.
