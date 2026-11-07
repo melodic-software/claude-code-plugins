@@ -52,7 +52,7 @@ reads a spread list as partial where code may change it; it needs Node.js with n
 pinned packages into the plugin data directory (`--deps-dir`) on first use, and without them
 reports the binary source broken with the command that repairs it. `--reader compare` runs both.
 
-Useful flags: `--binary <path>` (else auto-detected) · `--config-dir <path>` (else
+Useful flags: `--binary <path>` (else the session's own CLI, then `PATH` and the usual install roots) · `--config-dir <path>` (else
 `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
 `--reader regex|parser|compare` (default `regex`) · `--docs` to add the `docs_crosscheck` block,
 fetching the commands page, the changelog, and the tools reference · `--docs-file <path>` /
