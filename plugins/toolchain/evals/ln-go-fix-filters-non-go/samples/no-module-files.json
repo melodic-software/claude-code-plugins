@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "go fix pkg/a.go\n",
+      "why": "filtered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go fix pkg/a.go go.mod go.sum\n",
+      "why": "module metadata passed through"
+    },
+    {
+      "answer": "go fix go.mod\n",
+      "why": "only module metadata"
+    }
+  ]
+}

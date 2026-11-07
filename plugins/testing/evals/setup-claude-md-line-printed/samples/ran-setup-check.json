@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/p/skills/setup/scripts/setup.sh\" check" } }
+      ],
+      "why": "check ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "cat CLAUDE.md" } }
+      ],
+      "why": "read the file, never ran check"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash \"/p/skills/setup/scripts/setup.sh\" apply --exclude 'legacy/**'" } }
+      ],
+      "why": "apply, not check"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "go code-fix pkg/a/a.go\ngo code-fix pkg/b/b.go\n",
+      "why": "filtered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "go code-fix pkg/a/a.go\ngo code-fix pkg/b/b.go\ngo code-fix go.mod\n",
+      "why": "go.mod passed in its own call"
+    }
+  ]
+}

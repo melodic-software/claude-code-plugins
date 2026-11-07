@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: setup-apply-reads-existing-first
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: summarizes-filters
+    type: regex
+    pattern: 'Category!=Slow(?=[\s\S]*not integration)|not integration(?=[\s\S]*Category!=Slow)'
+    target: last_message
+  - name: dotnet-kept
+    type: regex
+    pattern: '^test-cmd:[^\n]*--filter "Category!=Slow"'
+    flags: m
+    target: { source: file, path: .claude/ecosystems/dotnet.yaml }
+  - name: python-kept
+    type: regex
+    pattern: '^test-cmd:[^\n]*-m ''not integration'''
+    flags: m
+    target: { source: file, path: .claude/ecosystems/python.yaml }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:setup apply` in a repository that already has tracked .claude/ecosystems/dotnet.yaml and python.yaml from a previous run, with no user present to confirm changes. It meets the legacy expectations: "Detects and reads the existing `.claude/ecosystems/*.yaml` files before proposing changes" "Summarizes the current per-ecosystem command surface and proposes edits against that baseline" "Does not overwrite or drop existing ecosystem config without the user confirming".'

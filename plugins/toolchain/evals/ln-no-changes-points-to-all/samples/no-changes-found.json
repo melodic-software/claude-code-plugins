@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter.",
+      "why": "the skill's message"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing to lint: the tree is clean.",
+      "why": "not the message"
+    }
+  ]
+}

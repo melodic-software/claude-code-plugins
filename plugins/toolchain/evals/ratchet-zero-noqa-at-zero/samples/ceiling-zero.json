@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"break_glass\": false,\n  \"counters\": [\n    {\n      \"name\": \"noqa-comments\",\n      \"command\": \"bash count-noqa.sh\",\n      \"field\": \"noqa\",\n      \"ceiling\": 0,\n      \"goal\": \"no new noqa comments\"\n    }\n  ]\n}\n",
+      "why": "ceiling 0"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"noqa-comments\",\n      \"command\": \"bash count-noqa.sh\",\n      \"field\": \"noqa\",\n      \"ceiling\": 1,\n      \"goal\": \"no new noqa comments\"\n    }\n  ]\n}\n",
+      "why": "a ceiling above the measured 0"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"noqa-comments\",\n      \"command\": \"bash count-noqa.sh\",\n      \"field\": \"noqa\",\n      \"ceiling\": 0.5,\n      \"goal\": \"x\"\n    }\n  ]\n}\n",
+      "why": "not 0"
+    }
+  ]
+}
