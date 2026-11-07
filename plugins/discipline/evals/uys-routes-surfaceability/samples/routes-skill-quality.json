@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Description quality is /skill-quality:check's job."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rewrite the description with better trigger words."
+    }
+  ]
+}

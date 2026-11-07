@@ -1,6 +1,6 @@
 ---
-description: "In-progress deepen, pause path, and a regression guard: today's pre-work raise also stops, so this case passes before and after the change. The feedback turns one incident write-up into alerting for every tenant, which changes the goal and widens the scope, so the reply shows the rewritten brief and waits instead of building."
-tags: [discipline, be-ambitious, outcome, in-progress, regression-guard]
+description: "Legacy be-ambitious 7. In-progress deepen, pause path, and a regression guard: today's pre-work raise also stops, so this case passes before and after the change. The feedback turns one incident write-up into alerting for every tenant, which changes the goal and widens the scope, so the reply shows the rewritten brief and waits instead of building (pauses-on-scope-change, llm). Legacy 'Creates no file and runs no command': no-write, no-edit and no-bash (a shell read counts as a command). Needs --scaffold --allow-tools Bash Write Edit."
+tags: [discipline, be-ambitious, outcome, in-progress, regression-guard, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

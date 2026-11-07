@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Phasing stopped. The rest:\n\n1. Register the runner with config.cmd.\n2. Install it as a service.\n3. Run a test job."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Phase 3 of 4: Install the service",
+      "why": "a phase count"
+    },
+    {
+      "answer": "When done, tell me: `phase 3 done`",
+      "why": "an advancing reply"
+    }
+  ]
+}

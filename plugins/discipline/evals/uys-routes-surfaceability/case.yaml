@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: uys-routes-surfaceability
+graders:
+  - name: routes-skill-quality
+    type: regex
+    pattern: '\bskill-quality:check\b'
+    target: last_message
+  - name: routes-harness-config
+    type: regex
+    pattern: '\bharness-config:audit\b'
+    target: last_message
+  - name: surfaceability-routed
+    type: llm
+    criteria: 'The user suspects a skill did not fire because its description is thin and a hundred installed skills overflow the listing budget. The reply meets the legacy expectations: "Separates ''skill went unused'' from ''skill could not surface''"; "Routes description hygiene to /skill-quality:check and budget overflow to /harness-config:audit"; "Does not itself edit descriptions or change the listing budget". It fails if it rewrites a description, proposes a new budget value as its own change, or treats the problem as a skill that was in the listing and went unused.'
+    focus: last_message

@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: hmh-dashboard-step-no-command
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?hold-my-hand"'
+    min: 1
+    arm: 'with-only'
+  - name: expected-result-stated
+    type: regex
+    pattern: '\b(?:expected (?:output|result|outcome)|you should (?:now )?see|you will see|you''ll see|success looks like|should (?:now )?(?:show|print|display|return|appear|read|list))\b|\bexpected\b[ \t]*(?:\*\*)?[ \t]*[:—–-]'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-fabricated-cli
+    type: llm
+    criteria: 'Legacy expectation: "Does not fabricate a CLI command for an action that has none". PASS only if the reply gives no invented command-line or API command for the dashboard action itself (a real local command such as ssh-keygen to make a new key pair is allowed). FAIL if it supplies a vendor CLI or API command to perform the rotation.'
+    focus: 'last_message'
+    arm: 'both'
