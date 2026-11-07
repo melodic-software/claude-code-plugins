@@ -304,7 +304,7 @@ import { pathToFileURL } from "node:url";
 import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { admissionLine, checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripQueueLabels, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, confirmedOnly, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
@@ -314,7 +314,7 @@ import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsRea
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { loadTrustedActors, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { loadTrustedActors, readyWhileDeferred, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -547,6 +547,12 @@ const trustedLabeler = (event, { bot, humans }) => event?.actor?.login === bot |
 const newestAdd = (events, name) =>
   events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name.toLowerCase()).at(-1);
 
+// Why status: ready does not admit: its newest add in `events` is neither a
+// listed human's nor the lanes App's (a bot setter's ready reads as ready but
+// never admits on its own). null when it counts.
+const untrustedReady = (events, { bot, humans }) =>
+  trustedLabeler(newestAdd(events, READY), { bot, humans }) ? null : `${READY} was added by neither a listed human nor the lanes App`;
+
 // Whether lowercased label names carry a parked status: confirmed beside
 // status: ready, which admission lifts so the issue keeps one status label
 // (a manual intake re-dispatch skips intake-reenter, which lifts it).
@@ -554,19 +560,13 @@ const parkedBesideReady = (lower) => lower.includes(CONFIRMED) && lower.includes
 
 // An issue's lowercased names as the Work status field decides them
 // (`statusOf`, read-status.mjs; `own` the issue's own lowercased labels when
-// none is given). A deferred issue is a ready one waiting for room, so a
-// deferred field reads as status: ready too. Only a legacy
-// admission-deferred label without status: ready, on an issue whose field
-// holds no trusted state (a second read, for that case alone), shows
-// status: ready lost while deferred.
+// none is given), a deferred one reading as status: ready too
+// (readyWhileDeferred). A legacy admission-deferred label without
+// status: ready shows status: ready lost only while the field holds no
+// trusted deferred state (a second read, for that case alone).
 async function fieldFirst(statusOf, number, own) {
   const lower = statusOf ? (await statusOf(number, own)).map((name) => String(name).toLowerCase()) : own;
-  if (!lower.includes(DEFERRED_LABEL) || lower.includes(READY)) {
-    return lower;
-  }
-  const legacy = own.includes(DEFERRED_LABEL) && !own.includes(READY);
-  const lost = legacy && !(statusOf && (await statusOf(number, [])).some((name) => String(name).toLowerCase() === DEFERRED_LABEL));
-  return lost ? lower : [...lower, READY];
+  return readyWhileDeferred(lower, own, async () => Boolean(statusOf) && (await statusOf(number, [])).some((name) => String(name).toLowerCase() === DEFERRED_LABEL));
 }
 
 // The mark a deferral counts as (admitDeferred): the newest add of
@@ -627,6 +627,10 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
     return `already ${LABEL}`;
   }
   const events = await eventsOf(github, repo, statusOf, number);
+  const unset = lower.includes(READY) ? untrustedReady(events, { bot, humans }) : null;
+  if (unset) {
+    return unset;
+  }
   // admit.mjs blockerDone: a blocker counts once closed, for any reason, by a
   // listed human or a merge in this repository; a pull request counts only
   // once merged here. Anyone can close their own issue, so a blocking issue
@@ -1105,9 +1109,8 @@ async function admissionDecision({ github, repo, number, issue, names, events, h
     isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
     doneBy,
   });
-  const decision = trustedLabeler(newestAdd(events, READY), { bot, humans })
-    ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
-    : { verdict: "skip", reasons: [`${READY} was added by neither a listed human nor the lanes App`] };
+  const unset = untrustedReady(events, { bot, humans });
+  const decision = unset === null ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts }) : { verdict: "skip", reasons: [unset] };
   // A born-triaged issue's filer sets its fields after filing, so a refusal
   // for unset fields alone is a wait (`fields`): readmitReady writes nothing,
   // and a person's deferral says why and comes off, so the triage sweep still
@@ -1312,9 +1315,7 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
           ? "not open"
           : queued(labels)
             ? "queued or held since the listing"
-            : !trustedLabeler(newestAdd(events, READY), { bot, humans })
-              ? `${READY} was added by neither a listed human nor the lanes App`
-              : admissionSettled(labels, events, isMark);
+            : (untrustedReady(events, { bot, humans }) ?? admissionSettled(labels, events, isMark));
       if (settled) {
         console.log(`label-unblocked: #${number} left as is: ${settled}`);
         continue;
@@ -2368,7 +2369,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
   const children = await paginate(github, `${base}/sub_issues`);
-  // Read only for a parent that stays open: a closed one's field is not read.
+  // The field is read once, for the comment refresh, and reused when the parent stays open.
   let names;
   const namesOf = async () => (names ??= fieldFirst(statusOf, parent.number, labelNames(parent).map((name) => name.toLowerCase())));
   // A failed refresh never holds back the close below; the sweep's rotation
@@ -2550,7 +2551,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     github = markReads(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse }));
     const writeTo = writer ?? (own ? NO_WRITER : await statusWriter({ env, github, repository: repo }));
     const statusTo = statusOf ?? (own ? undefined : statusReader({ env, github, repository: repo }));
-    const queuedStatus = statusOf ?? (own ? undefined : statusReader({ env, github, repository: repo, limit: STATUS_READS }));
+    const queuedStatus = statusOf ?? (own ? undefined : listedStatusOf({ env, github, repository: repo }));
     const listing = byStatus ?? (own ? undefined : fieldListing(env, github, repo));
     if (sweep) {
       const latch = budgetLatch("github-token");

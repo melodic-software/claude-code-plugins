@@ -91,6 +91,8 @@ const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
 // The issues actions a Work status field change starts this run with.
 const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
+// The holds other than needs-info, as the field-first names carry them.
+const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-owner-decision", "needs-spec"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
@@ -350,6 +352,13 @@ export async function main({ env = process.env, github, log = console.log, statu
       kind = await classify({ github: client, repository, issue, comment, humans, ids, lanesAppId, labels });
       if (!kind) {
         log("intake-reenter: not an answer to a parked issue; nothing changed");
+        return 0;
+      }
+      // A reply sets needs-triage, so it must not overwrite a hold only the
+      // field holds beside the needs-info it answers; a hold label stays on.
+      const held = kind === "info" && labels.find((name) => INFO_HOLDS.has(name) && !own.includes(name));
+      if (held) {
+        log(`intake-reenter: ${held} holds the issue, so a reply changes nothing`);
         return 0;
       }
       if (kind !== "info" && labels.includes(NEEDS_HUMAN)) {

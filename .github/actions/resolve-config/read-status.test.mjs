@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { collapseStatus } from "./issue-status.mjs";
 import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
-import { StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
+import { readyWhileDeferred, StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
 
 const unexpected = async (method, path) => {
   throw new Error(`unexpected ${method} ${path}`);
@@ -58,6 +58,14 @@ test("a field equal to what the labels collapse to leaves their collapse unchang
     const state = collapseStatus(names, STATUS_CONFIG);
     assert.equal(collapseStatus(statusLabels(state, names, STATUS_CONFIG), STATUS_CONFIG), state, JSON.stringify(names));
   }
+});
+
+test("a deferred issue reads as status: ready too, unless its own labels lost status: ready while deferred", async () => {
+  assert.deepEqual(await readyWhileDeferred(["admission-deferred"], ["agent-ready"]), ["admission-deferred", "status: ready"]);
+  assert.deepEqual(await readyWhileDeferred(["admission-deferred", "status: ready"], []), ["admission-deferred", "status: ready"]);
+  assert.deepEqual(await readyWhileDeferred(["needs-triage"], ["admission-deferred"]), ["needs-triage"]);
+  assert.deepEqual(await readyWhileDeferred(["admission-deferred"], ["admission-deferred"]), ["admission-deferred"], "a legacy deferral without status: ready");
+  assert.deepEqual(await readyWhileDeferred(["admission-deferred"], ["admission-deferred"], async () => true), ["admission-deferred", "status: ready"], "the field itself at deferred");
 });
 
 test("a hold a listed human set is added to the labels", async () => {

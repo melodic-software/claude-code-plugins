@@ -168,10 +168,7 @@ jobs:
       # not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 3
-        # A failed install leaves the Work status field unread (the reader
-        # warns and the labels decide); the re-entry still runs, except on a
-        # field change, which only the field explains, so that run fails.
-        continue-on-error: true
+        # A failed install fails the run: the Work status read fails closed.
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 

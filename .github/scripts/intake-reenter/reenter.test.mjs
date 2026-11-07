@@ -367,6 +367,34 @@ test("a field that mirrors the labels changes no answer", async () => {
   }
 });
 
+const runWithFieldEnv = (w, fields, env) => {
+  const github = withFields(w.github, fields);
+  return main({ github, log: () => {}, statusOf: statusReader({ github, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }), env: { ...fieldEnv, ...env } });
+};
+
+// A reply sets needs-triage, which would overwrite a hold only the field holds.
+test("a reply to a stale needs-info label leaves a person's field-only hold, and answers once no other hold stands", async () => {
+  for (const state of ["needs-human", "needs-owner-decision", "needs-spec"]) {
+    const w = world({ labels: ["status: needs-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
+    assert.equal(await runWithField(w, { [NUMBER]: { state } }), 0, state);
+    assert.deepEqual(w.writes, [], state);
+  }
+  const answered = world({ labels: ["status: needs-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
+  assert.equal(await runWithField(answered, { [NUMBER]: { state: "needs-reporter-info" } }), 0);
+  expectTriage(answered, []);
+});
+
+// A Work status read that fails could hide a hold, so neither path writes.
+test("a failed Work status read lifts nothing on the comment path or the needs-human lift path", async () => {
+  const reply = world({ labels: ["status: needs-info"], comments: [{ id: 1, user: OWNER, body: "It is the Windows host." }] });
+  assert.equal(await runWithField(reply, { [NUMBER]: new Error("HTTP 502") }), 1);
+  assert.deepEqual(reply.writes, []);
+  const lifted = world({ labels: ["priority: medium"], events: [lift(OWNER)] });
+  assert.equal(await runWithFieldEnv(lifted, { [NUMBER]: new Error("HTTP 502") }, { EVENT_NAME: "issues", COMMENT_ID: "" }), 1);
+  assert.deepEqual(lifted.writes, []);
+  assert.equal(lifted.dispatches().length, 0);
+});
+
 test("a hold in the Work status field the labels lack stops a decision", async () => {
   const w = world({ labels: ["status: confirmed"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
   assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-human" } }), 0);

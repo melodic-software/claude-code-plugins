@@ -53,6 +53,20 @@ export function statusLabels(state, names, config) {
   return state === LABEL_STATE || label === undefined || kept.some((name) => fold(name) === fold(label)) ? kept : [...kept, label];
 }
 
+// `field`, label names as the field decides them (statusLabels), with
+// status: ready added beside admission-deferred: a deferred issue is a ready
+// one waiting for room. Not when the issue's `own` labels carry
+// admission-deferred without status: ready (status: ready lost while
+// deferred) and `fieldDeferred()` does not show the field itself at deferred.
+// Names compare as given.
+export async function readyWhileDeferred(field, own, fieldDeferred = async () => false) {
+  if (!field.includes("admission-deferred") || field.includes("status: ready")) {
+    return field;
+  }
+  const lost = own.includes("admission-deferred") && !own.includes("status: ready") && !(await fieldDeferred());
+  return lost ? field : [...field, "status: ready"];
+}
+
 // One Work status field event (resolve-config.mjs fieldEvents) as 0, 1 or 2
 // REST label events: `unlabeled` of the state it left, then `labeled` of the
 // state it set, each the state's first label. agent-ready, and a state

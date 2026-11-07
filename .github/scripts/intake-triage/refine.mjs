@@ -109,6 +109,10 @@ const READY = "status: ready";
 const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
 const AGENT_READY = "agent-ready";
+// The holds besides needs-decision a not-exact refinement could overwrite.
+const PERSON_HOLDABLE = ["status: needs-info", "needs-spec"];
+// The id of whoever last added label `name` in `events`, or undefined.
+const newestLabeler = (events, name) => events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
 const EXTERNAL_KINDS = new Set(["none", "iac", "manual"]);
@@ -752,7 +756,8 @@ export function movedTexts(body, taskList, moved) {
 export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, setStatus, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const labels = statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue);
+  const own = labelNames(issue);
+  const labels = statusOf ? await statusOf(number, own) : own;
   const events = statusOf ? () => statusOf.events(number) : undefined;
   const skip = (why, redispatch = false) => {
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
@@ -799,15 +804,21 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
+  // The legacy status labels come off by the issue's own labels: the field's
+  // names hide a stale queue label.
   if (!output.exact) {
-    if (labels.includes(READY)) {
+    if (own.includes(READY)) {
       await removeLabel(github, base, READY);
     }
-    if (!labels.includes(NEEDS_DECISION)) {
+    // A person's needs-info or needs-spec stays: the App writes needs-decision
+    // only over no hold or one it set itself.
+    const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
+    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), hold) !== appId;
+    if (!labels.includes(NEEDS_DECISION) && !personHold) {
       await setStatus(number, "needs-owner-decision");
     }
     // After the write, so no read sees the issue with no status: one stands.
-    if (labels.includes(CONFIRMED)) {
+    if (own.includes(CONFIRMED)) {
       await removeLabel(github, base, CONFIRMED);
     }
     await post();

@@ -154,6 +154,7 @@ export function heldRefusalText(reasons, code) {
   return `${refusalText(reasons)}\n\n${line}\n${marker}`;
 }
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
+import { readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
@@ -1849,15 +1850,16 @@ export const refinementExact = (body) => {
 // intent, and no
 // decision comment of a listed human's (select-trusted-text's
 // isDecisionComment) is newer. A parent in another
-// repository, or any failed read, counts as open.
-export async function parentDecisionOpen({ github, repository, parent, humans, appId }) {
+// repository, or any failed read, counts as open. `events()` is the parent's
+// status history (read-status.mjs statusEvents), by default its REST events.
+export async function parentDecisionOpen({ github, repository, parent, humans, appId, events }) {
   if (appId === undefined || !here(parent?.repository_url, repository) || !Number.isInteger(parent?.number)) {
     return true;
   }
   const base = `/repos/${repository}/issues/${parent.number}`;
   try {
     const comments = await paginate(github, `${base}/comments`);
-    if ((await decisionStays(github, base, comments, appId)) !== null) {
+    if ((await decisionStays(github, base, comments, appId, events)) !== null) {
       return true;
     }
     const refinement = comments.findLast(
@@ -2455,13 +2457,6 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
-// `field`, label names as the Work status field decides them, with
-// status: ready added beside admission-deferred: a deferred issue is a ready
-// one waiting for room. Not when the issue's `own` labels show status: ready
-// lost while deferred. Pure.
-const readyWhileDeferred = (field, own) =>
-  field.includes(DEFERRED) && !field.includes(READY) && !(own.includes(DEFERRED) && !own.includes(READY)) ? [...field, READY] : field;
-
 // The Work status field reads one admission takes (statusReader's limit):
 // the issue's and its parent's.
 export const ADMISSION_STATUS_READS = 2;
@@ -2515,10 +2510,12 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   if (child) {
     spec.splitParent = await splitParentOf(github, repository, parent, appId);
   }
-  const decisionOpen =
-    typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
   // A needs-decision only the field adds has no decisionOpen read, so it holds.
   const parentHolds = statusOf && typed && parent !== null && here(parent.repository_url, repository) ? await statusOf(parent.number, names(parent.labels)) : undefined;
+  // After parentHolds, so its events reuse that field read.
+  const parentEvents = parentHolds && (() => statusOf.events(parent.number));
+  const decisionOpen =
+    typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId, events: parentEvents }) : undefined;
   // Only a visibility that reads public skips the cost_private charge words.
   // A failed read throws, like the reads above, so no verdict rests on a
   // visibility it did not read (docs/outage-posture-audit.md, element 4).
@@ -2526,7 +2523,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
-    ...(statusOf && { holdLabels: readyWhileDeferred(await statusOf(Number(number), names(issue.labels)), names(issue.labels)) }),
+    ...(statusOf && { holdLabels: await readyWhileDeferred(await statusOf(Number(number), names(issue.labels)), names(issue.labels)) }),
     // Read for the admission comment's own earlier copy (sayWhy) and decide's
     // patch-cap stop (patchCapStopped).
     comments: await paginate(github, `${base}/comments`),

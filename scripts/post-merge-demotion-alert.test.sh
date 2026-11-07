@@ -6,7 +6,7 @@
 # The step files the demotion record the babysit post-merge check and the
 # merge-policy reader also use: an issue by github-actions[bot] whose body's
 # first line is `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
-# one per (signal, SHA), labeled needs-human for a canary record, or a full-run
+# one per (signal, SHA), at Work status needs-human for a canary record, or a full-run
 # one with a failing check over the cap or outside the name charset. When no
 # merge in the failing range was enqueued by merge.agent-identity, it files the
 # post-merge-failure record instead (`<!-- post-merge-failure sha=<S>
@@ -118,7 +118,8 @@ fi
 
 # --- Step body ----------------------------------------------------------------
 # The stub logs one line per call. A POST's -f fields go to post.<n>, one per
-# line (a PATCH too). A GET applies its --jq filter to the matching fixture with jq, as gh does.
+# line (a PATCH too), and a JSON body read from stdin (--input -) as one
+# compact input= line. A GET applies its --jq filter to the matching fixture with jq, as gh does.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -129,6 +130,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     -X) method="${args[i + 1]}"; i=$((i + 1)) ;;
     -f | -F) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
     -H) i=$((i + 1)) ;;
+    --input) [[ "${args[i + 1]}" == - ]] && fields+=("input=$(jq -c .)"); i=$((i + 1)) ;;
     --paginate|api) ;;
     *) endpoint="${args[i]}" ;;
   esac
@@ -463,7 +465,17 @@ fix_lines() {
     fi
   done
 }
-posts() { echo $(($(grep -c '^POST ' <<<"$LOG") - $(fix_lines | grep -c .))); }
+# field_posts: the Work status writes (issue-field-values), apart from posts().
+field_posts() { grep -c '^POST repos/o/r/issues/[0-9]*/issue-field-values$' <<<"$LOG"; }
+posts() { echo $(($(grep -c '^POST ' <<<"$LOG") - $(fix_lines | grep -c .) - $(field_posts))); }
+# held_needs_human: the record (the first POST, issue 900 + its log line) got
+# Work status needs-human.
+held_needs_human() {
+  local first n
+  first="$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"
+  n="$(grep -nx "POST repos/o/r/issues/$((900 + first))/issue-field-values" <<<"$LOG" | head -1 | cut -d: -f1)"
+  [[ -n "$n" ]] && grep -qxF 'input={"issue_field_values":[{"field_id":48484079,"value":"needs-human"}]}' "$TMP_ROOT/stub/post.$n"
+}
 post_fields() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"; }
 # fixes: the fix issues filed; dispatches: the intake dispatches sent.
 fixes() { grep -c '^POST repos/o/r/issues$' <<<"$LOG" | awk '{ print $1 - 1 < 0 ? 0 : $1 - 1 }'; }
@@ -499,14 +511,14 @@ files() {
     fail "$label: body's first line is not the marker: '${body%%$'\n'*}'"
   elif [[ "$body" == *"git revert"* ]]; then
     fail "$label: a record carries a revert command"
-  elif [[ "$body" != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-2}"$'\n'* ]]; then
+  elif [[ "$body"$'\n' != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-2}"$'\n'* ]]; then
     fail "$label: body lacks the failing attempt's link"
   elif [[ "$body" != *"https://github.com/o/r/pull/1234"* ]]; then
     fail "$label: body lacks the pull request link"
-  elif [[ "$signal" == canary ]] && ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
-    fail "$label: a canary record is not labeled needs-human: '$fields'"
-  elif [[ "$signal" != canary ]] && grep -q '^labels' <<<"$fields"; then
-    fail "$label: a self-clearing $signal record carries a label: '$fields'"
+  elif [[ "$signal" == canary ]] && ! held_needs_human; then
+    fail "$label: a canary record did not get Work status needs-human: log='$LOG'"
+  elif [[ "$signal" != canary ]] && { grep -q '^labels' <<<"$fields" || held_needs_human; }; then
+    fail "$label: a self-clearing $signal record carries a label or a needs-human hold: '$fields'"
   elif grep -qE '/lock$' <<<"$LOG" && [[ "$signal" == canary ]]; then
     fail "$label: a canary record was locked for intake: log='$LOG'"
   elif [[ "$signal" != canary && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
@@ -997,7 +1009,7 @@ reverts() {
       "$body" == *"- Canary run: $RUN_URL/attempts/1"* &&
       "$body" == *"It lifts once the reverted lines are back on main, or once a pull request that references this record merges into main"* &&
       "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
-    grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
+    held_needs_human &&
     ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
     grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)" &&
     [[ "$FILER_OUT" == *"filed the revert demotion issue for ${HEAD_SHA:0:12}"* ]]; then
@@ -1705,8 +1717,8 @@ SEVEN=''
 for i in 1 2 3 4 5 6 7; do SEVEN="${SEVEN:+$SEVEN, }$(job "$i" "suite-$i" 'Run')"; done
 JOBS="$SEVEN" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 5 && "$(dispatches)" -eq 5 && "$(post_fields)"$'\n' == *"- Newly failing: suite-1, "*"suite-7"$'\n'"$OVERFLOW"$'\n'* &&
-  "$(fix_post 5)" == *"check=suite-5 -->"* ]] && grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
-  ok "seven failing checks file five fix issues, and the record says more failed and is labeled needs-human"
+  "$(fix_post 5)" == *"check=suite-5 -->"* ]] && held_needs_human; then
+  ok "seven failing checks file five fix issues, and the record says more failed and gets Work status needs-human"
 else
   fail "cap: rc=$RC fixes=$(fixes) record='$(post_fields)'"
 fi
@@ -1718,16 +1730,16 @@ ODD="$(job 1 'test (ubuntu-24.04, 3.12)' Run), $(job 2 "$LONG" Run), $(job 3 "${
 JOBS="$ODD" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(fixes)" -eq 2 && "$(fix_post 1)" == *"check=test (ubuntu-24.04, 3.12) -->"* &&
   "$(fix_post 2)" == *"check=$LONG -->"* && "$(post_fields)" == *"$OVERFLOW"* ]] &&
-  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
-  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over and label the record needs-human"
+  held_needs_human; then
+  ok "only a name in the charset, up to 100 characters, gets a fix issue; the rest count as over and give the record Work status needs-human"
 else
   fail "charset: rc=$RC fixes=$(fixes) out='$OUT' log='$LOG'"
 fi
 
 JOBS="$(job 1 'Build & test' Run)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && "$(post_fields)" == *"$OVERFLOW"* ]] &&
-  grep -qx 'labels\[\]=needs-human' <<<"$(post_fields)"; then
-  ok "a full-run record whose every failing check is outside the charset files no fix issue and is labeled needs-human"
+  held_needs_human; then
+  ok "a full-run record whose every failing check is outside the charset files no fix issue and gets Work status needs-human"
 else
   fail "no fix issue: rc=$RC fixes=$(fixes) record='$(post_fields)' log='$LOG'"
 fi
@@ -2633,9 +2645,9 @@ canary_fail() {
 LIFT_TOOL=1 LIFT_OUT="$BLOCK" canary_fail
 body="$(post_fields 2>/dev/null)"
 pushed="$(git -C "$PUSH_REPO" rev-list --first-parent "$PREV..$HEAD_SHA" | paste -sd ' ')"
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"signal=canary -->"* && "$body" == *$'\n'"$BLOCK"$'\n'* &&
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"signal=canary -->"* && "$body"$'\n' == *$'\n'"$BLOCK"$'\n'* &&
   "$(tr -s ' \n' ' ' <<<"$body")" == *"It lifts once the content whose deletion filed it is on main again"* ]] &&
-  grep -qx 'labels\[\]=needs-human' <<<"$body" &&
+  held_needs_human &&
   [[ "$(cat "$TMP_ROOT/stub/lift")" == "canary-block --repo-dir .base $pushed" ]]; then
   ok "a canary record carries the lift block of the pushed commits and says how it lifts"
 else

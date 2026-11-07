@@ -58,6 +58,18 @@ import { closeStop, parentDone } from "../lib/done-evidence.mjs";
 import { finishedParent, patchCapStopped } from "../intake-triage/admit.mjs";
 import { LIMIT_DEFAULTS } from "./limits.mjs";
 import { STOP_ROUTES } from "./stop-routes.mjs";
+import { STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+
+// The real Work status reader (read-status.mjs statusReader) over field reads
+// that `fields` answers (read-status.fixtures.mjs withFields); it makes no
+// other call.
+const fieldReader = (fields) => {
+  const github = withFields(async (method, path) => {
+    throw new Error(`unexpected ${method} ${path}`);
+  }, fields);
+  return statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+};
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1094,7 +1106,7 @@ test("a held stop removes agent-ready and names the branch that holds partial wo
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
   assert.match(plan.comment, /A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh\./);
-  assert.ok(plan.comment.includes("remove `needs-human` and add `agent-ready` again"), plan.comment);
+  assert.ok(plan.comment.includes("set Work status to needs-triage (clearing the `needs-human` hold) and add `agent-ready` again"), plan.comment);
 });
 
 // main against a fake GitHub API: the calls it makes are the lane's effect on
@@ -1211,7 +1223,7 @@ for (const [reason, step] of [
         ["DELETE", /\/issues\/77\/labels\//, 200, []],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
-      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch, setStatus: statusInto(calls) }), 0);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch, setStatus: statusInto(calls), leaveAgentReady: async () => assert.fail("a park writes its own state") }), 0);
       const writes = calls.filter((c) => c.method !== "GET");
       const [admission, status, ...rest] = writes;
       assert.equal(admission.method, "POST");
@@ -1224,7 +1236,7 @@ for (const [reason, step] of [
       const comment = rest.at(-1).body.body;
       assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=parked run=123 -->\n"), comment);
       assert.ok(comment.includes(`\`${reason}\``) && comment.includes(step), comment);
-      assert.ok(comment.includes("status: confirmed"), comment);
+      assert.ok(comment.includes("set Work status to confirmed"), comment);
       assert.ok(!comment.includes("work-items:escalation") && !comment.includes("needs-human"), comment);
       assert.equal(parseReason(comment), null);
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls") || c.path.includes("/compare/")));
@@ -1252,17 +1264,19 @@ test("main fails a park whose Work status write fails, leaving every label on", 
   });
 });
 
-// Only a hold and a park have a Work status state; an outside-author stop
-// removes agent-ready and writes none.
-test("main's outside-author stop writes no Work status", async () => {
+// Only a hold and a park have a Work status state of their own; an
+// outside-author stop moves a field still at agent-ready to needs-triage
+// after its comment, before agent-ready comes off.
+test("main's outside-author stop leaves agent-ready for needs-triage", async () => {
   await withDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77\/comments$/, 200, []],
       ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, setStatus: statusInto(calls) }), 0);
-    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "DELETE"]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch, setStatus: async () => assert.fail("no state of its own"), leaveAgentReady: statusInto(calls) }), 0);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS", "DELETE"]);
+    assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-triage" });
   });
 });
 
@@ -1321,10 +1335,13 @@ test("main on a split-required dimension skip sends the issue back through intak
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
     assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
+    const writes = calls.filter((c) => c.method !== "GET");
+    assert.deepEqual(writes.map((c) => c.method), ["POST", "STATUS", "DELETE", "DELETE", "DELETE"], "the field leaves agent-ready after the comment, before any label comes off");
+    assert.deepEqual(writes[1].body, { state: "needs-triage" });
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=intake run=123 -->\n"), comment);
     assert.ok(!comment.includes("work-items:escalation") && !comment.includes("needs-human"), comment);
@@ -1346,9 +1363,11 @@ test("main fails a split-required skip that intake already sent back once, to no
       ["DELETE", /\/issues\/77\/labels\//, 200, []],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch, leaveAgentReady: statusInto(calls) }), 0);
     const removed = calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
     assert.deepEqual(removed, ["agent-ready"]);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET").map((c) => c.method), ["POST", "STATUS", "DELETE"]);
+    assert.deepEqual(calls.find((c) => c.method === "STATUS").body, { state: "needs-triage" });
     assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
@@ -4242,7 +4261,7 @@ test("a pushback links the unmarked comment, shows the decision line, and its re
   const linked = decide({ ...plain, outcome: pushback, unmarked: commentUrl(2) }).comment;
   assert.ok(linked.includes(`The newest comment from a listed maintainer, ${commentUrl(2)}, does not start with \`**Decision recorded.**\``), linked);
   assert.ok(linked.includes("\n```\n**Decision recorded.** <answer>\n```\n"), linked);
-  const retry = "To retry, answer the question in a comment whose first line is `**Decision recorded.**`, then remove `needs-human` and add `agent-ready` again.";
+  const retry = "To retry, answer the question in a comment whose first line is `**Decision recorded.**`, then set Work status to needs-triage (clearing the `needs-human` hold) and add `agent-ready` again.";
   assert.ok(linked.endsWith(retry), linked);
   const unlinked = decide({ ...plain, outcome: pushback }).comment;
   assert.ok(!unlinked.includes("newest comment") && unlinked.endsWith(retry), unlinked);
@@ -4267,7 +4286,7 @@ test("main on a pushback reads the issue's comments and links the owner's unmark
       assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
       const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
       assert.equal(comment.includes(commentUrl(2)), linked, comment);
-      assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then remove `needs-human`/);
+      assert.match(comment, /first line is `\*\*Decision recorded\.\*\*`, then set Work status to needs-triage \(clearing the `needs-human` hold\)/);
     });
   }
 });
@@ -4352,6 +4371,21 @@ test("a hold on the Work status field alone, or an unread field, takes the hold 
   }
   const queue = await runLateRecord(decision, { statusOf: async (number, names) => names.filter((n) => n !== "status: ready") });
   assert.equal(queue.redispatches.length, 1, "a field with no hold re-dispatches");
+});
+
+test("the real Work status reader holds a late decision on a field-only hold or an unread field, and re-dispatches on a field with none", async () => {
+  const decision = [late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })];
+  for (const [name, fields] of [
+    ["needs-human on the field", { 77: { state: "needs-human" } }],
+    ["needs-reporter-info on the field", { 77: { state: "needs-reporter-info" } }],
+    ["an unread field", { 77: new Error("HTTP 502") }],
+  ]) {
+    const { redispatches, labeled, states } = await runLateRecord(decision, { statusOf: fieldReader(fields) });
+    assert.deepEqual(redispatches, [], name);
+    assert.deepEqual([labeled, states], [[], ["needs-human"]], name);
+  }
+  const ready = await runLateRecord(decision, { statusOf: fieldReader({ 77: { state: "ready" } }) });
+  assert.equal(ready.redispatches.length, 1, "a field with no hold re-dispatches");
 });
 
 test("intake's refinement posted after admission re-dispatches a pushback hold once", async () => {
@@ -5657,6 +5691,20 @@ test("refireStale skips an issue a hold on the Work status field alone holds, an
   const { fetch } = staleFetch({ labels: ["agent-ready", "status: confirmed"] });
   const queue = async (number, names) => names.filter((n) => n !== "status: confirmed").concat("needs-triage");
   assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: queue }), /^re-fired/);
+});
+
+test("refireStale reads holds through the real Work status reader: a field-only hold or an unread field skips, a field queue state re-fires", async () => {
+  for (const [fields, why] of [
+    [{ 77: { state: "needs-human" } }, "skipped: held by needs-human"],
+    [{ 77: { state: "needs-owner-decision" } }, "skipped: held by status: needs-decision"],
+    [{ 77: new Error("HTTP 502") }, "skipped: the Work status could not be read"],
+  ]) {
+    const { fetch, calls } = staleFetch({ labels: ["agent-ready", "work-class: read-only"] });
+    assert.equal(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: fieldReader(fields) }), why);
+    assert.deepEqual(writes(calls), [], why);
+  }
+  const { fetch } = staleFetch({ labels: ["agent-ready", "status: confirmed"] });
+  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits: LIMIT_DEFAULTS, statusOf: fieldReader({ 77: { state: "needs-triage" } }) }), /^re-fired/);
 });
 
 test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since a person or a report", async () => {

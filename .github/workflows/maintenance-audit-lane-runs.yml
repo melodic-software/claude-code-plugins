@@ -1218,14 +1218,11 @@ jobs:
           pattern: findings-*
           path: ${{ runner.temp }}/lane-sweep-findings
 
-      # The Work status mirror (write-status.mjs) reads models.issue-status
+      # The Work status writer (write-status.mjs) reads models.issue-status
       # through resolve-config.mjs, whose packages only the resolve-config
       # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
-        # A failed install leaves only the Work status field unwritten (the
-        # mirror warns); the label writes still run.
-        continue-on-error: true
         if: steps.download.outcome == 'success'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
@@ -1297,14 +1294,11 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The Work status mirror (write-status.mjs) reads models.issue-status
+      # The Work status writer (write-status.mjs) reads models.issue-status
       # through resolve-config.mjs, whose packages only the resolve-config
       # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
-        # A failed install leaves only the Work status field unwritten (the
-        # mirror warns); the label writes still run.
-        continue-on-error: true
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 

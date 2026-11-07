@@ -241,6 +241,17 @@ describe("planWrites", () => {
     assert.deepEqual(result.fieldWrites, []);
   });
 
+  // The field-first names drop a queue label the Work status field hides, so
+  // the issue's own labels decide which stale status labels come off.
+  test("a held verdict removes stale status: ready and status: confirmed labels the field hides", () => {
+    const verdict = parseVerdict(ESCALATED_BODY, DIMS);
+    const shown = ["needs-human", "needs-triage"];
+    const own = ["needs-human", READY, "status: confirmed"];
+    const base = { fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans };
+    assert.deepEqual(planWrites(verdict, { ...base, labels: shown, rawLabels: own }).remove, [READY, "needs-triage", "status: confirmed"]);
+    assert.deepEqual(planWrites(verdict, { ...base, labels: shown }).remove, ["needs-triage"], "without its own labels only the shown floor label goes");
+  });
+
   for (const hold of ["needs-human", "status: needs-info", NEEDS_DECISION]) {
     test(`${hold} on the issue keeps it from ready`, () => {
       const result = plan(laneBody(), { labels: [hold] });
@@ -1893,6 +1904,7 @@ describe("run", () => {
     [["needs-human"], "needs-human"],
     [["status: needs-info"], "needs-reporter-info"],
     [["needs-human", "status: needs-info"], "needs-human"],
+    [["status: needs-decision"], "needs-owner-decision"],
   ]) {
     test(`a held verdict writes the triage run's ${labels.join(" and ")} as ${state}, keeping the labels`, async () => {
       const fake = fakeGitHub({ issue: { labels: labels.map((name) => ({ name })) }, comments: [laneComment(ESCALATED_BODY)] });
@@ -1907,7 +1919,10 @@ describe("run", () => {
   // needs-owner-decision, which a person set.
   test("a hold that exists only on the Work status field blocks a ready verdict", async () => {
     const fake = fakeGitHub({ comments: [laneComment()] });
-    const github = withFields(fake.github, { 7: { state: "needs-owner-decision", setter: HUMAN } });
+    // A real time on the field event, an hour before this run started, so
+    // labelSetters replays it in order as an earlier person's hold.
+    const node = { __typename: "IssueFieldAddedEvent", createdAt: "2026-10-22T11:00:00Z", value: "needs-owner-decision", actor: { __typename: "User", login: "kyle-sexton", databaseId: HUMAN }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } };
+    const github = withFields(fake.github, { 7: { state: "needs-owner-decision", setter: HUMAN, nodes: [node] } });
     const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
     const statusOf = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors, log: () => {} });
     const fields = async () => ({ [String(STATUS_CONFIG["field-id"])]: HUMAN });
@@ -1917,6 +1932,17 @@ describe("run", () => {
     const [written] = fake.calls.filter(({ method }) => method === "STATUS");
     assert.equal(written.body, "needs-owner-decision");
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
+  });
+
+  // A Work status read that fails could hide a person's hold, so the App's
+  // own hold is not lifted and nothing is written.
+  test("a failed Work status read lifts no App hold and writes nothing", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()] });
+    const github = withFields(fake.github, { 7: new Error("HTTP 502") });
+    const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
+    const statusOf = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors, log: () => {} });
+    await assert.rejects(run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} }), { name: "StatusReadError" });
+    assert.deepEqual(writes(fake.calls), []);
   });
 
   test("posts the reasons on the issue when it sets needs-decision", async () => {

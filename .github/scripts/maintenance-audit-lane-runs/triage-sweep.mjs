@@ -159,7 +159,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
         ),
       ].join("\n")
     : filed === FILING
-    ? `Intake triage did not triage this issue after ${runs.length} dispatches; the sweep labeled it needs-triage for a maintainer.`
+    ? `Intake triage did not triage this issue after ${runs.length} dispatches; the sweep set its Work status to needs-triage for a maintainer.`
     : filed
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; #${filed} hands it to a maintainer.`
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);

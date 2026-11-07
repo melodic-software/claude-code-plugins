@@ -679,8 +679,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then remove \`${humanLabel}\` and add \`agent-ready\` again.`
-      : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`
+      : `To retry, set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`,
   );
   return {
     action: "hand-back",
@@ -751,7 +751,7 @@ const ROUTE_TEXT = {
   intake:
     "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
   "intake-security": "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage.",
-  park: `It removed \`agent-ready\` and \`status: ready\` and added \`status: confirmed\`, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
+  park: `It removed \`agent-ready\` and \`status: ready\` and set Work status to confirmed, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
@@ -882,6 +882,8 @@ const RETIRED_SKIPS = new Set(["not-assessed"]);
 // The admit job's stop on an issue neither a listed human nor the lanes App
 // wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
 export const OUTSIDE_AUTHOR = "outside-author";
+// The stops that leave the queue for triage with no state of their own.
+const TRIAGE_AGAIN = new Set(["intake", "failed", OUTSIDE_AUTHOR]);
 
 // A run the admit job stopped on the issue's author: agent-ready comes off and
 // one comment says a listed human re-files the work. No label: re-adding
@@ -2220,8 +2222,11 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // An empty plan.comment posts none: the comment is already on the issue.
 // A hand-back's human label and a park's status: confirmed are Work status
 // states, which `setStatus(number, state)` (baseStatus) writes in the label's
-// place; a failed write throws before any label comes off.
-async function applyHandBack(github, repo, plan, { setStatus = async () => {} } = {}) {
+// place; a failed write throws before any label comes off. An intake, fail or
+// outside-author stop moves a Work status still at agent-ready to
+// needs-triage (`leaveAgentReady`) after its comment, before agent-ready
+// comes off.
+async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {} } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   const state = plan.addLabels.length === 0 ? null : plan.action === "hand-back" ? "needs-human" : plan.action === "park" ? "confirmed" : null;
   if (state) {
@@ -2230,6 +2235,9 @@ async function applyHandBack(github, repo, plan, { setStatus = async () => {} } 
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
     await comment();
+  }
+  if (TRIAGE_AGAIN.has(plan.exit)) {
+    await leaveAgentReady(plan.issueNumber, "needs-triage");
   }
   const kept = [];
   for (const name of plan.removeLabels) {
@@ -2276,7 +2284,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes the queue labels, then closes the issue as completed. `setStatus`
 // is applyHandBack's and `statusOf` redispatch's.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, statusOf }) {
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2351,7 +2359,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   }
   // A close leaves its labels to stripQueueLabels below, which throws on a
   // failed removal where applyHandBack only logs it.
-  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus });
+  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus, leaveAgentReady });
   if (plan.action === "close") {
     const base = `${repo}/issues/${plan.issueNumber}`;
     // The App's close starts no work-unblock close run, so the queue labels
@@ -2379,20 +2387,20 @@ async function baseStatus(env) {
     const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
     const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    const { set } = await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY });
-    return { setStatus: set, statusOf: statusReader({ env, github, repository: env.GITHUB_REPOSITORY }) };
+    const { set, leaveAgentReady } = await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY });
+    return { setStatus: set, leaveAgentReady, statusOf: statusReader({ env, github, repository: env.GITHUB_REPOSITORY }) };
   } catch (error) {
     const fail = async () => {
       throw new Error(`the Work status writer and reader did not load: ${error?.message ?? error}`);
     };
-    return { setStatus: fail, statusOf: fail };
+    return { setStatus: fail, leaveAgentReady: fail, statusOf: fail };
   }
 }
 
 // `setStatus(number, state)` writes the issue's Work status field and
 // `statusOf(number, names)` reads its label names as the field decides them
 // (baseStatus at the command line).
-export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, statusOf = async (number, names) => names } = {}) {
+export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names } = {}) {
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -2439,7 +2447,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
-      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady });
       return 0;
     }
     if (dimensionSkip) {
@@ -2452,6 +2460,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         runId,
         limits: readLimits(resolved),
         setStatus,
+        leaveAgentReady,
         statusOf,
       });
       return 0;
@@ -2761,7 +2770,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, statusOf });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

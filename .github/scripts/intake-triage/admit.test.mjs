@@ -11,7 +11,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
-import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -3036,6 +3036,55 @@ describe("host-run work", () => {
   });
 });
 
+// An issue whose status history is on the Work status field: a REST
+// agent-ready removal by the App, then a person's field ready and the App's
+// field deferral, which only the field-merged events (statusEvents) show.
+describe("admission's status history from the Work status field", () => {
+  const FIELD = String(STATUS_CONFIG["field-id"]);
+  const node = (actor, value, createdAt) => ({ __typename: "IssueFieldAddedEvent", createdAt, value, actor, issueField: { fullDatabaseId: FIELD } });
+  const PERSON = { __typename: "User", login: "person", databaseId: HUMAN };
+  const LANES = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP };
+  const READY_AT = "2026-11-08T02:00:00Z";
+  const rest = [
+    { event: "unlabeled", label: { name: "provenance: untrusted" }, actor: { id: STRANGER_ID }, created_at: "2026-11-08T00:30:00Z" },
+    { event: "unlabeled", label: { name: AGENT_READY }, actor: { id: APP, login: "melodic-automation-lanes[bot]" }, created_at: "2026-11-08T01:00:00Z" },
+  ];
+  const fields = { 7: { state: "deferred", nodes: [node(PERSON, "ready", READY_AT), node(LANES, "deferred", "2026-11-08T03:00:00Z")] } };
+  const reader = (github) => statusReader({ github, repository: "o/r", limit: ADMISSION_STATUS_READS, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
+  const factsOf = async (withField) => {
+    const fake = fakeGitHub({ events: rest });
+    const github = withField ? withFields(fake.github, fields) : fake.github;
+    return admissionFacts({ github, repository: "o/r", number: 7, issue: issueOf(), rules: RULES, humans, appId: APP, isTrusted: async () => true, ...(withField && { statusOf: reader(github) }) });
+  };
+
+  test("admissionFacts hands decide's history readers the field's changes beside the REST events", async () => {
+    const field = (await factsOf(true)).events;
+    const restOnly = (await factsOf(false)).events;
+    // admissionSettled and removalStands: the field ready re-marks the issue after the removal.
+    assert.equal(admissionSettled([], field), null);
+    assert.equal(admissionSettled([], restOnly), `${AGENT_READY} was removed and ${READY} not added since`);
+    // judgedSince: the person's field ready is the newest judgment.
+    assert.equal(judgedSince(field, (actor) => actor?.id === HUMAN), Date.parse(READY_AT));
+    assert.equal(judgedSince(restOnly, (actor) => actor?.id === HUMAN), Number.NEGATIVE_INFINITY);
+    // deferralLapsed: a body edited before the field deferral is not stale.
+    const lapsed = (events) => deferralLapsed({ labels: [DEFERRED, READY], events, editedAt: "2026-11-08T02:30:00Z", humans, appId: APP }).map(({ kind }) => kind);
+    assert.deepEqual(lapsed(field), ["held"]);
+    assert.deepEqual(lapsed(restOnly), ["held", "stale"]);
+    // untrustedHold: the REST removal by a stranger still holds in the merged history.
+    assert.equal(untrustedHold({ labels: [], events: field, humans, isApp: (actor) => actor?.id === APP }), true);
+  });
+
+  test("noteUnrunnable judges admissionSettled on the field-merged history", async () => {
+    const issue = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }] });
+    const fake = fakeGitHub({ issue, events: rest });
+    const github = withFields(fake.github, { 7: { state: "ready", nodes: [node(PERSON, "ready", READY_AT)] } });
+    const result = await noteUnrunnable({ github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, statusOf: reader(github), log: () => {} });
+    assert.equal(result.outcome, "noted");
+    const restOnly = await noteUnrunnable({ github: fakeGitHub({ issue, events: rest }).github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, log: () => {} });
+    assert.equal(restOnly.outcome, "skipped");
+  });
+});
+
 describe("noteUnrunnable", () => {
   const HELD = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }] });
   const note = (fake, issue = HELD) => noteUnrunnable({ github: fake.github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, log: () => {} });
@@ -3424,6 +3473,19 @@ describe("a Feature under a parent at status: needs-decision", () => {
     const fake = withParent({ events: setBy(HUMAN) });
     assert.ok(refusedForParent(await go(fake)));
     assert.ok(read(fake, "events"), "the parent's events were read");
+  });
+
+  // A person's change on the Work status field leaves no REST label event, so
+  // only the field-merged history shows that a person set the decision.
+  test("is refused when a person set the parent's needs-decision on the field after the App's label", async () => {
+    const appLabel = [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: APP }, created_at: "2026-10-20T00:00:00Z" }];
+    const personNode = { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-08T00:00:00Z", value: "needs-owner-decision", actor: { __typename: "User", login: "person", databaseId: HUMAN }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } };
+    const fieldRead = (fake) => {
+      const github = withFields(fake.github, { 7: { state: "ready" }, [PARENT]: { state: "needs-owner-decision", nodes: [personNode] } });
+      return { ...goArgs({ ...fake, github }), github, statusOf: statusReader({ github, repository: "o/r", limit: ADMISSION_STATUS_READS, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }) };
+    };
+    assert.equal((await go(withParent({ events: appLabel }))).outcome, "admitted", "the REST events alone show the App's label");
+    assert.ok(refusedForParent(await admit(fieldRead(withParent({ events: appLabel })))));
   });
 
   test("is refused when the parent's newest refinement is not exact and no decision followed it", async () => {

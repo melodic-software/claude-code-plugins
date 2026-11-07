@@ -98,7 +98,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -261,12 +261,15 @@ export function parseVerdict(body, dimensionsConfig) {
   return { escalated, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
-// The writes the verdict calls for, given the issue's labels and its current
-// field values ({fieldId: {option, setter}}). Pure.
+// The writes the verdict calls for, given the issue's labels as the Work
+// status field decides them, its own `rawLabels`, and its current field
+// values ({fieldId: {option, setter}}). A status label comes off when either
+// carries it, so a stale queue label the field hides still goes. Pure.
 export function planWrites(
   verdict,
-  { labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
+  { labels, rawLabels = labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
 ) {
+  const had = (name) => labels.includes(name) || rawLabels.includes(name);
   const reasons = [...verdict.problems];
   // The owner reason each hold cause is for (../lib/stop-reason.mjs); the
   // strongest (admit.mjs HOLD_ORDER) names a held verdict's stop. A cause no
@@ -396,7 +399,7 @@ export function planWrites(
       add.push(READY);
     }
   } else {
-    if (labels.includes(READY)) {
+    if (had(READY)) {
       remove.push(READY);
     }
     if (!labels.includes(NEEDS_DECISION) && !labels.includes(NEEDS_INFO)) {
@@ -405,7 +408,7 @@ export function planWrites(
   }
   // The verdict is the triage, so the floor label goes after it, and a held
   // verdict's hold replaces a parked status: confirmed: one status stands.
-  const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter((name) => labels.includes(name));
+  const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter(had);
   const reason = ready ? null : (strongestReason(codes) ?? "intent");
   return { add, remove: [...remove, ...after], fieldWrites, ready, reasons, reason, dimensions, refused };
 }
@@ -602,6 +605,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const planFor = (current) =>
     planWrites(verdict, {
       labels: current,
+      rawLabels: issueLabels,
       fields,
       dimensionsConfig,
       appId,
@@ -998,7 +1002,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
               limits: readLimits(env.RESOLVED_CONFIG),
               wip: readWip(env.RESOLVED_CONFIG),
               remaining: rate.remaining,
-              statusOf: statusReader({ env, github, repository, limit: STATUS_READS }),
+              statusOf: listedStatusOf({ env, github, repository }),
             }),
         });
       const noteSplit = (issue) =>

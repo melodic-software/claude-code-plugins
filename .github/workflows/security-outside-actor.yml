@@ -28,7 +28,8 @@ name: security-outside-actor
 # and an unreadable list flags too.
 #
 # No model, no secret and no App token: the job's GITHUB_TOKEN adds the
-# `security: outside-actor` and `needs-human` labels and posts one comment per
+# `security: outside-actor` label, sets an issue's Work status to needs-human
+# (a pull request gets the `needs-human` label), and posts one comment per
 # outside actor, naming their login without a mention and quoting none of
 # their text. `security: outside-actor` is a hold of its own (merge-holds.mjs
 # OUTSIDE_ACTOR_LABEL): the merge queue, auto-merge arming, babysit,
@@ -96,6 +97,11 @@ jobs:
       queue: max
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
         id: tip
@@ -120,6 +126,13 @@ jobs:
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
+
+      # flag.mjs writes an issue's Work status through resolve-config.mjs,
+      # whose packages only the resolve-config action installs; this job does
+      # not run it.
+      - name: Install resolve-config's packages
+        timeout-minutes: 3
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Flag an outside actor
         env:

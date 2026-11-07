@@ -18,7 +18,7 @@ name: post-merge-demotion-alert
 # main does not clear it: it carries a lift block (babysit_lift.py canary-block)
 # naming the lines the canary found deleted, and lifts once they are back on
 # main or a referencing pull request merges with them (`_lift`), when the
-# close-cleared job closes it and removes the label. A canary record with no
+# close-cleared job closes it, which ends its hold. A canary record with no
 # block (the push's commits were not all read, the scan could not run, or the
 # block was too large) clears only on a
 # person's close. A fix issue not delivered to intake gets a hidden marker

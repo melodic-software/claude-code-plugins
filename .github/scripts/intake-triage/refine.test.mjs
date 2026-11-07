@@ -494,6 +494,37 @@ describe("applyRefinement", () => {
     }
   });
 
+  // The Work status field hides stale queue labels from the field-first
+  // names, so the issue's own labels decide what comes off.
+  test("an inexact refinement removes stale status: ready and status: confirmed labels the field hides", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "status: confirmed" }] }), comments: [laneComment()], events: [], fields: onField(HUMAN, "needs-triage") });
+    assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "STATUS #7", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+    );
+  });
+
+  // An App needs-decision over a person's hold would let a later exact
+  // refinement lift it as the App's own.
+  test("an inexact refinement keeps a person's field-only needs-info or needs-spec, and replaces the App's", async () => {
+    for (const state of ["needs-reporter-info", "needs-spec"]) {
+      const person = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], fields: onField(HUMAN, state) });
+      assert.deepEqual(await apply(person, INEXACT), { outcome: "needs-decision", redispatch: false }, state);
+      assert.ok(!writes(person.calls).some(({ method }) => method === "STATUS"), `${state}: ${JSON.stringify(writes(person.calls))}`);
+      const app = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], fields: onField(APP, state) });
+      await apply(app, INEXACT);
+      assert.ok(writes(app.calls).some((call) => call.method === "STATUS" && call.body === "needs-owner-decision"), `${state}: ${JSON.stringify(writes(app.calls))}`);
+    }
+  });
+
+  // A Work status read that fails could hide a person's hold.
+  test("a failed Work status read lifts nothing", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields: { 7: new Error("HTTP 502") } });
+    await assert.rejects(apply(fake, EXACT), { name: "StatusReadError" });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+
   test("a second exact refinement re-runs no triage: the re-triage fires once per body", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment(), refined(issueOf().body)], events: labeledBy(APP) });
     const result = await apply(fake, EXACT);
