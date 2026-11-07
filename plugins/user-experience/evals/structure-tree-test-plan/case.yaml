@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: structure-tree-test-plan
+description: 'Legacy structure 2. A draft IA tree and a tree-test plan with tasks, success criteria and participant criteria, never recruiting or running sessions (structure SKILL.md 70-71). success-criteria and no-run-claim grade the reply; legacy-structure-2 (llm) quotes the three legacy expectations.'
+tags: [structure, tree-test, legacy]
+runs: 3
+expected_outcome: 'A draft navigation tree for a B2B admin console and a tree-test plan with tasks, each with a correct destination or success criterion, and participant criteria with no names; no claim to recruit or run sessions.'
+execution:
+  prompt: 'Structure the navigation for our B2B admin console and plan a tree test for it. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"'
+    weight: 0.1
+  - name: 'success-criteria'
+    type: 'regex'
+    pattern: 'success criteri(?:on|a)|succe(?:ss|eds) (?:if|when)|(?:correct|right|target|expected) (?:destination|answer|location|path|node|place)|pass(?:es)? (?:if|when)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-run-claim'
+    type: 'regex'
+    pattern: '\b(?:I|we)(?:[''’]ve| have)?\s+(?:just\s+|already\s+)?(?:recruited|ran|scheduled|booked|conducted|launched)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-structure-2'
+    type: 'llm'
+    criteria: 'The run structures a B2B admin console''s navigation and plans a tree test. It meets the legacy expectations: "The response gives a draft navigation tree" "The tree-test plan has tasks with success criteria" "The response does not claim to recruit or run sessions".'
+    focus: 'last_message'

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: structure-hands-off-screens
+description: 'Legacy structure 3. structure maps the onboarding flow and leaves colors and button styles to /user-interface:design (structure SKILL.md 13-14 and 95-96). names-ui-design and no-color-values grade the reply; legacy-structure-3 (llm) quotes both legacy expectations.'
+tags: [structure, handoff, legacy]
+runs: 3
+expected_outcome: 'An onboarding flow, no colors or button styles chosen, and /user-interface:design named for them.'
+execution:
+  prompt: 'Map the onboarding flow, then pick the colors and button styles for each screen. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?structure"'
+    weight: 0.1
+  - name: 'names-ui-design'
+    type: 'regex'
+    pattern: 'user-interface:design'
+    target: 'last_message'
+  - name: 'no-color-values'
+    type: 'regex'
+    pattern: '#[0-9A-Fa-f]{6}\b|\brgba?\(|\bhsla?\('
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-structure-3'
+    type: 'llm'
+    criteria: 'The run is asked to map an onboarding flow and then pick colors and button styles for each screen. It meets the legacy expectations: "The response maps the onboarding flow" "The response does not choose colors or button styles and names user-interface:design for them".'
+    focus: 'last_message'
