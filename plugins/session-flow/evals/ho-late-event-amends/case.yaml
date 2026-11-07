@@ -15,8 +15,22 @@ graders:
   - name: ran-amend
     type: tool_used
     tool: Bash
-    input_match: 'save_point\.py(?:\\")?[ \t]+amend\b'
+    input_match: 'save_point\.py(?:\\")?[ \t]+amend\b[^\n]*--json'
     min: 1
+    arm: with-only
+  - name: no-hand-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*-handoff-[^"/]*\.md"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-hand-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*-handoff-[^"/]*\.md"'
+    min: 0
+    max: 0
     arm: with-only
   - name: amend-after-emit
     type: tool_order

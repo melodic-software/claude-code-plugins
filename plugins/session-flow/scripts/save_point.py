@@ -3950,7 +3950,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_fill.add_argument(
         "--slots",
         required=True,
-        help="JSON object keyed by slot name; an optional slot left out has its line deleted",
+        help="path to a JSON file holding an object keyed by slot name, plus an optional retire [{ref, reason}]; an optional slot left out has its line deleted",
     )
     p_fill.set_defaults(func=cmd_fill)
 
@@ -3962,7 +3962,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_amend.add_argument(
         "--json",
         required=True,
-        help="JSON object with any of: sections {title: body}, append {title: [lines]}, retire [{ref, reason}], next [lines], floors {key: n}",
+        help="path to a JSON file holding an object with any of: sections {title: body}, append {title: [lines]}, retire [{ref, reason}], next [lines], floors {key: n}",
     )
     p_amend.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_amend.set_defaults(func=cmd_amend)

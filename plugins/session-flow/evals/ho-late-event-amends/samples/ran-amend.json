@@ -131,6 +131,17 @@
         }
       ],
       "why": "amend only mentioned in a grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -X utf8 \"${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py\" amend --help"
+          }
+        }
+      ],
+      "why": "reads amend's help but never runs it"
     }
   ]
 }

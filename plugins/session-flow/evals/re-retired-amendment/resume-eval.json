@@ -179,7 +179,7 @@
         "checks": [
           {
             "kind": "edited_path_regex",
-            "pattern": "(?i)refunds[^/]*\\.(?:py|csv)$"
+            "pattern": "(?i)(?:^|/)refunds[^/]*\\.(?:py|csv)$"
           },
           {
             "kind": "file_regex",
