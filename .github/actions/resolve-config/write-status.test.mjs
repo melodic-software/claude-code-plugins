@@ -105,6 +105,38 @@ test("statusWriter set writes a state once per issue in a process, and skips one
   assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["needs-triage", "confirmed"]);
 });
 
+test("statusWriter restart clears the field and sets agent-ready even after this process wrote it", async () => {
+  const w = fieldWorld(null);
+  const deletes = [];
+  const github = async (method, path, body, headers) => {
+    if (method === "DELETE") {
+      deletes.push([path, headers?.["X-GitHub-Api-Version"]]);
+      w.put(null, 337595936);
+      return null;
+    }
+    return w.github(method, path, body);
+  };
+  const { set, restart } = await writerOver(github);
+  assert.equal((await set(7, "agent-ready")).outcome, "written");
+  assert.equal((await restart(7)).outcome, "written");
+  assert.deepEqual(deletes, [["/repos/o/r/issues/7/issue-field-values/48484079", "2026-03-10"]]);
+  assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["agent-ready", "agent-ready"]);
+});
+
+test("statusWriter restart treats a 404 clear as nothing set, and stops on a person's hold", async () => {
+  const w = fieldWorld(null);
+  const github = async (method, path, body) => {
+    if (method === "DELETE") {
+      throw new Error("GitHub answered status 404");
+    }
+    return w.github(method, path, body);
+  };
+  assert.equal((await (await writerOver(github)).restart(7)).outcome, "written");
+  const hold = fieldWorld(86380005, 153232337);
+  assert.deepEqual(await (await writerOver(hold.github)).restart(7), { outcome: "held", state: "needs-human" });
+  assert.equal(hold.posts().length, 0);
+});
+
 test("statusWriter leaveAgentReady writes only while the trusted field reads agent-ready", async () => {
   const human = 153232337;
   const ready = fieldWorld(84879220, human);
