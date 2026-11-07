@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".ratchets.json"],
+      "why": "a ceilings file at the root"
+    },
+    {
+      "answer": [".performance/ratchets.json"],
+      "why": "the script's default ceilings file"
+    }
+  ]
+}

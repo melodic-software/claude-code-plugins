@@ -30,6 +30,7 @@ condition 1 and the actor and author parts of condition 2).
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 | `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
+| `app-field-id`, `app-field-option` | empty | With `require-kind: human`, the issue field and single-select option the lanes App may set (`field_added`) to start the lane; both or neither |
 | `fault-reason` | empty | `true` writes reason `read-fault` for a stop that a read GitHub failed to answer caused (a 5xx or 429, a rate-guard stop, or no answer); `proceed` stays `false`, and a refusal on an answer GitHub gave keeps its reason |
 | `reconciler-workflow` | empty | The lost-run reconciler's workflow path: a `github-actions[bot]` re-run proceeds only as its recorded re-run; empty stops every such re-run |
 
@@ -153,12 +154,14 @@ condition 1 and the actor and author parts of condition 2).
   re-runner below. With `require-kind: human`, the
   sender and the re-runner must be listed as `kind: human`. Any `require-pr` value other than `true` or `false`, or `require-kind` value other
   than empty or `human`, stops with `no-pr`.
-- **App label (`app-label`).** On an `issues` event with `require-kind: human` whose sender is
-  `lanes-app-id`, the label event must be `labeled` with exactly that label, or it stops with
-  `bot-actor`; the label alone admits the issue, and no comment or edit history is read. An
-  event with no issue number stops with `untrusted-actor`. The re-runner, read as below, must be
-  the App (its id listed) or a listed human, not denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on
-  every event.
+- **App label or field (`app-label`, `app-field-id` and `app-field-option`).** On an `issues`
+  event with `require-kind: human` whose sender is `lanes-app-id`, the event must be `labeled`
+  with exactly `app-label`, or `field_added` setting field `app-field-id` to option
+  `app-field-option`, or it stops with `bot-actor`; that event alone admits the issue, and no
+  comment or edit history is read. An event with no issue number stops with `untrusted-actor`.
+  The re-runner, read as below, must be the App (its id listed) or a listed human, not denied,
+  or it stops with `untrusted-rerunner`. With `app-label` empty and the field pair unset (either
+  id empty or not a positive integer), the App is denied on every event.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.

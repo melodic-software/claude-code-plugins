@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Suppressed: 4 (below the noise budget of 5).",
+      "why": "label and count"
+    },
+    {
+      "answer": "Four low-confidence candidates were suppressed; the count is part of the report.",
+      "why": "word count"
+    },
+    {
+      "answer": "**Suppressed:** `4`",
+      "why": "bold label, code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "New: Logging conventions, Feature flags.",
+      "why": "hides the filtering"
+    },
+    {
+      "answer": "Suppressed: 6.",
+      "why": "wrong count"
+    },
+    {
+      "answer": "The other four are low-confidence one-liners, each releasing 4 lines or fewer. No suppression file exists and every rule glob still resolves.",
+      "why": "echoes the prompt's state line"
+    },
+    {
+      "answer": "4 new findings.",
+      "why": "count without suppression"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

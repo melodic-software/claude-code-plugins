@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": ["src/templates/create_template_item.py", "src/templates/create_template_item_test.py"],
+      "why": "the documented co-located path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["src/templates/create_template_item.py", "src/templates/test_create_template_item.py"],
+      "why": "co-located, but in pytest's default name instead of the documented <module>_test.py"
+    }
+  ]
+}

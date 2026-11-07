@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": ["src/templates/create_template_item.py", "src/templates/create_template_item_test.py"],
+      "why": "no tests/ folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["src/templates/create_template_item_test.py", "tests/test_create_template_item.py"],
+      "why": "also wrote a tests/ copy outside the documented layout"
+    }
+  ]
+}

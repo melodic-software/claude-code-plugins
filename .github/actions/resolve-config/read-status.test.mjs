@@ -39,16 +39,18 @@ test("a trusted queue state replaces a stale queue label with its own first labe
   assert.deepEqual(statusLabels("confirmed", [], STATUS_CONFIG), ["status: confirmed"]);
 });
 
-test("a trusted state keeps every hold label and agent-ready, and adds a hold's first label once", () => {
-  assert.deepEqual(statusLabels("ready", ["needs-human", "agent-ready", "status: confirmed"], STATUS_CONFIG), ["needs-human", "agent-ready", "status: ready"]);
+test("a trusted state keeps every hold label, drops a stale agent-ready, and adds a hold's first label once", () => {
+  assert.deepEqual(statusLabels("ready", ["needs-human", "agent-ready", "status: confirmed"], STATUS_CONFIG), ["needs-human", "status: ready"]);
+  assert.deepEqual(statusLabels("confirmed", ["Agent-Ready"], STATUS_CONFIG), ["status: confirmed"]);
   assert.deepEqual(statusLabels("needs-human", ["status: needs-decision"], STATUS_CONFIG), ["status: needs-decision", "needs-human"]);
   assert.deepEqual(statusLabels("needs-human", ["Needs-Human"], STATUS_CONFIG), ["Needs-Human"]);
   assert.deepEqual(statusLabels("needs-owner-decision", [], STATUS_CONFIG), ["status: needs-decision"]);
 });
 
-test("a trusted agent-ready adds no label and still drops stale queue labels", () => {
-  assert.deepEqual(statusLabels("agent-ready", ["priority: high"], STATUS_CONFIG), ["priority: high"]);
+test("a trusted agent-ready adds the agent-ready label once and drops stale queue labels", () => {
+  assert.deepEqual(statusLabels("agent-ready", ["priority: high"], STATUS_CONFIG), ["priority: high", "agent-ready"]);
   assert.deepEqual(statusLabels("agent-ready", ["status: ready", "agent-ready"], STATUS_CONFIG), ["agent-ready"]);
+  assert.deepEqual(statusLabels("agent-ready", ["needs-spec"], STATUS_CONFIG), ["needs-spec", "agent-ready"]);
 });
 
 // A field holding what the labels collapse to leaves the collapse as it was.
@@ -68,9 +70,9 @@ test("a deferred issue reads as status: ready too, unless its own labels lost st
   assert.deepEqual(await readyWhileDeferred(["admission-deferred"], ["admission-deferred"], async () => true), ["admission-deferred", "status: ready"], "the field itself at deferred");
 });
 
-test("a hold a listed human set is added to the labels", async () => {
+test("a hold a listed human set is added to the labels, and replaces a stale agent-ready", async () => {
   const { labels, lines, calls } = reader({ 7: { state: "needs-human" } });
-  assert.deepEqual(await labels(7, ["agent-ready"]), ["agent-ready", "needs-human"]);
+  assert.deepEqual(await labels(7, ["agent-ready", "priority: high"]), ["priority: high", "needs-human"]);
   assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), ["GET /repos/o/r/issues/7/issue-field-values", "POST /graphql"]);
   assert.deepEqual(calls[0].headers, { "X-GitHub-Api-Version": "2026-03-10" });
   assert.deepEqual(lines, []);

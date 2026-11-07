@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "No findings artifact for `feat/checkout-flow`. Run `/instruction-placement:audit` first; it produces one.",
+      "why": "code span"
+    },
+    {
+      "answer": "Stopping: /instruction-placement:audit writes the artifact this skill applies.",
+      "why": "bare command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Using main's artifact from 2026-10-20: applying IP-001.",
+      "why": "falls back to another branch"
+    },
+    {
+      "answer": "No artifact found; run an audit first.",
+      "why": "no skill named"
+    },
+    {
+      "answer": "Next: /instruction-placement:auditor",
+      "why": "wrong name"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

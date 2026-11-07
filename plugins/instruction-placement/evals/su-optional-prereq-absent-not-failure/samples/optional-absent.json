@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Claude Code CLI: optional, absent.",
+      "why": "skill's wording"
+    },
+    {
+      "answer": "| jq | not on PATH | optional |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: Claude Code CLI missing.",
+      "why": "reported as missing"
+    },
+    {
+      "answer": "jq is optional.",
+      "why": "no state"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

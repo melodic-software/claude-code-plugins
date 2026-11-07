@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Branch mismatch: the artifact says `main`, this is `feat/search-ui`. Stopping; re-audit here.",
+      "why": "mismatch"
+    },
+    {
+      "answer": "The artifact's branch does not match the current branch.",
+      "why": "does not match"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Branch check: OK.",
+      "why": "passes the check"
+    },
+    {
+      "answer": "Applying IP-001 and IP-003 (accepted yesterday).",
+      "why": "edits without checks"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

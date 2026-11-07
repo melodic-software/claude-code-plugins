@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: wr-property-reimplements-split
+description: 'Legacy write 5. A split_bill property whose expected side is [total_cents // people] * people repeats the algorithm (and drops the remainder), so the skill rejects it, points to testing:test-value for the independent-source rule, and replaces it with invariants: the shares sum to the total, there are `people` shares, and no two differ by more than a cent. skill-fired reads the Skill calls; points-to-test-value and sum-invariant read the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, write, property, oracle, no-network]
+expected_outcome: 'Says the oracle reruns the split, names testing:test-value, and proposes sum(shares) == total_cents plus the count and spread invariants.'
+execution:
+  prompt: 'Review my property test for split_bill(total_cents, people): for any total and head count it asserts the result equals [total_cents // people] * people. Is that a good property? Fix it. Use the `testing:write` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: points-to-test-value
+    type: regex
+    pattern: '(?<![\w-])(?:/?testing:)?test-value\b'
+    target: last_message
+  - name: sum-invariant
+    type: regex
+    pattern: '\bsum\(\s*(\w+(?:\([^()]*\))?)\s*\)\s*==\s*total_cents\b|\btotal_cents\s*==\s*sum\(\s*\w+(?:\([^()]*\))?\s*\)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a split_bill property asserting the result equals [total_cents // people] * people is good, and to fix it. PASS only if the reply meets every legacy expectation: "Says the expected side reruns the algorithm under test and cannot catch a mistake both share" "Points to testing:test-value for the independent-source rule" "Proposes the shares-sum-to-total check or another invariant that does not recompute the split". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Release runbook -> `handbook/release.md`, with a one-line pointer in AGENTS.md: read it before cutting a release.",
+      "why": "arrow form"
+    },
+    {
+      "answer": "| Release runbook | sometimes | handbook/releasing.md behind a pointer |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Release runbook -> `docs/release.md`.",
+      "why": "invents a docs directory"
+    },
+    {
+      "answer": "Release runbook -> root `AGENTS.md`.",
+      "why": "keeps it always-loaded"
+    },
+    {
+      "answer": "The root `CLAUDE.md` is 140 lines: 12 lines of build commands, a 110-line release runbook, and 18 lines on how Claude should word and format commit messages. There is no `AGENTS.md`. The plan's docs-home row reports `handbook/`, which holds 26 Markdown pages; there is no `docs/` directory.",
+      "why": "echoes the prompt's state line"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

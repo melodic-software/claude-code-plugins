@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "No index block in AGENTS.md yet: a recommendation, not a failure.",
+      "why": "skill's wording"
+    },
+    {
+      "answer": "**Index:** absent (exit 3). Recommended: generate one with `render-index.sh write`.",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Index check: FAIL (no index block in AGENTS.md).",
+      "why": "fails the gate on it"
+    },
+    {
+      "answer": "The missing index is not a recommendation; it is drift.",
+      "why": "negated"
+    },
+    {
+      "answer": "All three rule globs are valid.",
+      "why": "never addresses the index"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

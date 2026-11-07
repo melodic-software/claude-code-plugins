@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "scoped to typescript"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".claude/ecosystems/python.yaml"],
+      "why": "configured an ecosystem the argument did not name"
+    }
+  ]
+}

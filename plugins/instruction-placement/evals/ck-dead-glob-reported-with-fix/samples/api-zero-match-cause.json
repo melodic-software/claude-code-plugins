@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| `.claude/rules/api.md` | `src/api/**/*.ts` | zero-match | The API code moved to `packages/api/`: correct the pattern or retire the rule |",
+      "why": "table row with cause and fix"
+    },
+    {
+      "answer": "- `api.md`: zero-match. The code it described was moved or deleted, so the rule is stale.",
+      "why": "bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- `api.md`: zero-match (invalid).",
+      "why": "status with no cause or fix"
+    },
+    {
+      "answer": "| `.claude/rules/api.md` | zero-match | API code is in packages/api/ |",
+      "why": "echoes the stated layout with no cause or fix"
+    },
+    {
+      "answer": "3 invalid patterns; the code moved.",
+      "why": "count only, no rule file"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

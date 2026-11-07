@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ln-code-fix-file-cap
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: cap-exceeded-43
+    type: regex
+    pattern: 'file-cap exceeded[\s*_`(:]{0,8}43\b'
+    flags: i
+    target: last_message
+  - name: plan-emitted
+    type: regex
+    pattern: 'Code-fix plan\b'
+    flags: i
+    target: last_message
+  - name: nothing-ran
+    type: file_exists
+    path: .calls.log
+    exists: false
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:lint --code-fix --yes` with 43 changed Python files in scope and no --all-files. It meets the legacy expectations: "Counts scoped files for ecosystems with a non-null code-fix-cmd" "When the count exceeds 40 without --all-files, reports file-cap exceeded and STOPS without mutating" "--yes alone does not bypass the file-cap; --all-files is required for over-cap applies".'

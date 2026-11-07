@@ -2,7 +2,7 @@
 // triaged. Skip only when the issue carries the born-triaged marker, its
 // author is a listed human or the lanes App (matched by numeric id), and it
 // has an Issue Type and a status label, read with the Work status field as
-// read-status.mjs adds it (it decides only an issue with no status label).
+// read-status.mjs folds it in, so a field-only agent-ready counts.
 // Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";

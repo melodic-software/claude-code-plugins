@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| `.claude/rules/ui.md` | `src/ui/[widgets/**/*.tsx` | bad-bracket | Escape it as `\\[` if literal, or close the expression |",
+      "why": "table row"
+    },
+    {
+      "answer": "- ui.md: the `[` never closes; write `\\[` for a literal bracket.",
+      "why": "escaped bracket shown"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- ui.md: bad-bracket.",
+      "why": "status with no fix"
+    },
+    {
+      "answer": "- ui.md: invalid, fix the glob.",
+      "why": "shared label"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

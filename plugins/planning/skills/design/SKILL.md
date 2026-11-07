@@ -268,8 +268,9 @@ Rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 Resolve `medium` first per
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md)
-"Other optional views", with this plugin's `medium` option `${user_config.medium}`, and follow its
-result, which names the report line to print.
+"Other optional views", with this plugin's `medium` option `${user_config.medium}`, or `""` when that
+reads empty or unsubstituted (never put a `${user_config.*}` string in a shell command), and follow
+its result, which names the report line to print.
 
 ### Phase 5: Discussion Rounds
 
@@ -319,7 +320,8 @@ On PASS, offer an interactive design view of PLAN.md's `## Design` (its sections
 the reader questions, a copy-out of the reply, sent to this session when connected). PLAN.md stays the
 record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs` from that record, never
 hand-written; it runs the shared medium resolver and publish gate with this plugin's `medium` option
-`${user_config.medium}`, and you print the report line it prints. Procedure:
+`${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put a
+`${user_config.*}` string in a shell command), and you print the report line it prints. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 **Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer

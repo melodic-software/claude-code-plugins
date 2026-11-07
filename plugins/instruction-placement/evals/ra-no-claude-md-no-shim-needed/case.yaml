@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: ra-no-claude-md-no-shim-needed
+graders:
+  - name: 'names-native-row'
+    type: 'regex'
+    pattern: '\bNATIVE\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the realign run does with IP-002. PASS only if it satisfies every point: (1) Creates the nested AGENTS.md and does not claim a shim is required for it to load here; (2) Ties the answer to no CLAUDE.md sitting on that file''s path, and names `render-index.sh wiring`''s NATIVE row as the check; (3) Any shim it still recommends is justified as availability cover, never as reachability; (4) Keeps the rest of the move intact: destination before excision, index regenerated, result verified. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

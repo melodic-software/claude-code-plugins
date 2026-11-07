@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "It is an absence check with no paired presence case: a validateOrder that always returns `{ errors: [] }` passes it. Add `expect(validateOrder(noSku).errors).toEqual(['sku required'])`.",
+      "why": "no rule id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is testing/audit/rule-weak-oracle: add an invalid-order case.",
+      "why": "names a rule id for the shape"
+    }
+  ]
+}

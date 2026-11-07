@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: pl-clean-tree-no-gaps
+description: 'Legacy plan 2. On a clean feature branch that matches the default branch, the plan reads git status and the diff range, reports nothing to classify, and invents no coverage gaps or test list for unmodified code. read-git reads the Bash calls, nothing-to-classify the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, plan, clean-tree, scaffold, no-network]
+expected_outcome: 'Runs git status and a diff against the default branch, says there are no changed files to classify, and produces no unit, integration or E2E plan.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:plan What needs testing? The working tree is clean and this branch matches the default branch.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: read-git
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:sudo|env|timeout|time|nohup|exec)\s+(?:-\S+\s+|\w+=\S*\s+)*)*git\s+(?:-C\s+\S+\s+)?(?:status|diff|log|merge-base)\b'
+  - name: nothing-to-classify
+    type: regex
+    pattern: '\b(?:nothing|no (?:changed|modified|new) files?|no changes|no files)\b[^.;|,\n]{0,60}\b(?:to (?:classify|test|plan|cover)|changed|in (?:the|this) (?:range|branch|diff))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run plans tests for a clean feature branch that matches its default branch. PASS only if the reply satisfies every legacy expectation: "Inspects git status / the requested range rather than assuming files changed" "Reports that there is nothing in the range to classify" "Does not generate a unit/integration/E2E plan for unmodified files". FAIL if any point is missing or contradicted.'

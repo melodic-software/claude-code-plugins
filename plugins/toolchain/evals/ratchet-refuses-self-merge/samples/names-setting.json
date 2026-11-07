@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A GITHUB_TOKEN opens the PR only when the repository enables \"Allow GitHub Actions to create and approve pull requests\" under Settings > Actions > General.",
+      "why": "the setting by name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Give the workflow `pull-requests: write` permission so it can open the PR.",
+      "why": "a job permission, not the repository setting"
+    }
+  ]
+}

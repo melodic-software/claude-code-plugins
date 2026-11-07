@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: ratchet-refuses-self-merge
+description: 'Legacy ratchet 5. The repository ratchets a query count that can drop with no PR touching it. Asked for a weekly job that merges its own PR, the skill refuses the merge: the job runs propose-tighten --write and opens a draft PR a human merges, and the reply names the setting a GITHUB_TOKEN needs to open one. The prompt names the workflow file so its content can be graded. draft-pr and no-merge read that file, names-setting the reply; meets-expectations (llm) quotes the legacy expectations. A run needs --scaffold and --allow-tools Bash Edit Write.'
+tags: [ratchet, tighten, scaffold, no-network]
+expected_outcome: '.github/workflows/ratchet-tighten.yml runs propose-tighten --write and opens a draft PR with no merge or auto-merge step; the reply declines the self-merge and names the "Allow GitHub Actions to create and approve pull requests" setting.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/toolchain:ratchet set up the weekly job that lowers our ceilings, and have it merge its own PR so nobody has to. Write the workflow as .github/workflows/ratchet-tighten.yml in the working tree; do not commit.'
+  allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: draft-pr
+    type: regex
+    pattern: 'propose-tighten\b[^\n]*--write\b(?=[\s\S]*\bgh pr create\b[^\n]*--draft\b)'
+    target: { source: file, path: .github/workflows/ratchet-tighten.yml }
+  - name: no-merge
+    type: regex
+    pattern: '\bgh pr merge\b|--auto\b|enable-pull-request-automerge|\bmerge_method\b|/pulls/\S+/merge\b'
+    match: not_contains
+    target: { source: file, path: .github/workflows/ratchet-tighten.yml }
+  - name: names-setting
+    type: regex
+    pattern: 'Allow GitHub Actions to create(?: and approve)? pull requests'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a weekly ceiling-lowering job that merges its own PR. The run meets the legacy expectations: "Refuses to have the job merge its pull request" "The proposed job opens a draft PR from propose-tighten --write" "Names the setting that lets GitHub Actions create pull requests".'
