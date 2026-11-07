@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: au-relation-across-rows
+description: 'Legacy audit 24. An inline shipping-band test flagged rule-constant-restatement, where the table is the policy itself. The reply recommends cant-fail-ok: relation across rows, counted in the coverage block, and no deletion. skill-fired reads the Skill call, relation-annotation the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, audit, exemption, no-network]
+expected_outcome: 'Recommends cant-fail-ok: relation across rows on each flagged assertion, says the exemption is counted in the coverage block, and does not recommend deleting or rewriting the test.'
+execution:
+  prompt: 'The audit flagged this with rule-constant-restatement: `it(''shipping bands meet'', () => { const bands = [{ from: 0, upTo: 2 }, { from: 2, upTo: 5 }, { from: 5, upTo: 20 }]; expect(bands[1].from).toBe(bands[0].upTo); expect(bands[2].from).toBe(bands[1].upTo); });` The table is the shipping policy itself; the point is that no weight falls between two bands. How do I keep it?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: relation-annotation
+    type: regex
+    pattern: 'cant-fail-ok:\s*relation across rows\b'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked how to keep a flagged test that checks adjacent shipping bands in the policy table meet. PASS only if the reply satisfies every legacy expectation: "Output recommends a cant-fail-ok: annotation naming the relation across rows" "Output says the exemption is counted in the coverage block rather than hidden" "Output does not recommend deleting the test". FAIL if any point is missing or contradicted.'

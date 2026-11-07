@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-pytest-reruns-flaky
+description: 'Legacy audit 19. pytest.ini sets --reruns 2 in addopts with no --fail-on-flaky. The scan reports rule-flaky-passes-suite and the reply proposes --fail-on-flaky or dropping the reruns. skill-fired and ran-scanner read the tool calls, pytest-flaky-rule the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, runner-config, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-flaky-passes-suite at the pytest.ini addopts line, explains a rerun-earned pass leaves the run green, proposes --fail-on-flaky or removing the reruns, and notes it gates only under --strict.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our pytest suite never goes red in CI, and the one test body looks fine. Audit it for tests that cannot fail.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+  - name: pytest-flaky-rule
+    type: regex
+    pattern: '^(?=[\s\S]*testing/audit/rule-flaky-passes-suite)(?=[\s\S]*--fail-on-flaky\b)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a can''t-fail audit of a pytest suite that never goes red in CI. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-flaky-passes-suite for the --reruns setting in pytest.ini with --fail-on-flaky absent" "Output explains that a test passing on a rerun leaves the pytest run green" "Output proposes --fail-on-flaky in addopts or removing the reruns, and notes the finding gates only under --strict". FAIL if any point is missing or contradicted.'

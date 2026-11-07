@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-throw-only-oracle
+description: 'Legacy audit 18. xUnit widget tests that build a Widget with new, then Assert.NotNull and Assert.IsType. The scan reports rule-throw-only-oracle and the reply proposes asserting what the constructor sets. skill-fired and ran-scanner read the tool calls, throw-only-rule the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, throw-only-oracle, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-throw-only-oracle and proposes asserting a value the constructor sets, such as the widget''s name.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our widget tests build a Widget with new and then Assert.NotNull and Assert.IsType on it. Audit them.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+  - name: throw-only-rule
+    type: regex
+    pattern: 'testing/audit/rule-throw-only-oracle\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an audit of widget tests that build a Widget with new, then call Assert.NotNull and Assert.IsType on it. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-throw-only-oracle with the fired threshold" "Output proposes asserting a value the constructor sets instead of only that the widget exists". FAIL if any point is missing or contradicted.'

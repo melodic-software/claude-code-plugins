@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: au-type-test-not-scanned
+description: 'Legacy audit 23. An inline Vitest type test in src/money.test-d.ts with no expect() call. The reply says *.test-d.ts files are not scanned because the type checker evaluates them, and reports no zero-assertion finding. skill-fired reads the Skill call, not-scanned the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, audit, type-tests, no-network]
+expected_outcome: 'Says no adapter claims *.test-d.ts because the type checker evaluates it, and reports no rule-zero-assertion.'
+execution:
+  prompt: 'Run the can''t-fail audit on src/money.test-d.ts: `import { expectTypeOf, test } from ''vitest''; import { toCents } from ''./money''; test(''toCents types'', () => { expectTypeOf(toCents).parameter(0).toBeNumber(); });` It has no expect() call. Is that a zero-assertion test?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: not-scanned
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:not|never|isn[''’]t|aren[''’]t)\s+(?:\w+\s+){0,2}(?:scanned|claimed|reach(?:es)? the scan|examined)\b)(?=[\s\S]*\btype[- ]?check)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a Vitest type test in src/money.test-d.ts with no expect() call is a zero-assertion test. PASS only if the reply satisfies every legacy expectation: "Output says *.test-d.ts files are not scanned by the audit" "Output does not report testing/audit/rule-zero-assertion for the type test" "Output explains that the type checker evaluates the file rather than a runtime runner". FAIL if any point is missing or contradicted.'

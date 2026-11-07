@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-constant-restatement
+description: 'Legacy audit 12. expect(X_POST_CHARACTER_LIMIT).toBe(280). The scan reports rule-constant-restatement and the reply proposes a behavior assertion or a cant-fail-ok: annotation, not a deletion. skill-fired and ran-scanner read the tool calls, restatement-and-remedy the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, change-detector, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-constant-restatement, explains it fails on a rename and not on broken behavior, and proposes a 281/280 behavior check or a contract-constant annotation.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Is expect(X_POST_CHARACTER_LIMIT).toBe(280) a good test? Run the audit on it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+  - name: restatement-and-remedy
+    type: regex
+    pattern: '^(?=[\s\S]*testing/audit/rule-constant-restatement)(?=[\s\S]*(?:\b281\b|cant-fail-ok:))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether expect(X_POST_CHARACTER_LIMIT).toBe(280) is a good test. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-constant-restatement with the fired threshold" "Output explains the test fails on a rename or value change and not on broken behavior" "Output proposes a behavior assertion or the cant-fail-ok: annotation for a contract constant, and does not propose deleting the test". FAIL if any point is missing or contradicted.'

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Keep the `// cant-fail-ok: flaky retries accepted, tracked in the dashboard` line: in a config it is file-scoped, and each suppression is counted in the coverage block.",
+      "why": "all three"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add `// cant-fail-ok: retries accepted` above `retries: 2`; it is file-scoped.",
+      "why": "not said to be counted"
+    },
+    {
+      "answer": "Pass --no-config-rules to turn the rule off.",
+      "why": "disables the rule"
+    }
+  ]
+}

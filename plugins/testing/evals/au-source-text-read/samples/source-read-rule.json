@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-source-text-read`: the test reads `app/pitch-detail.tsx` as text. Render it instead. A policy test that reads files through a glob is never flagged.",
+      "why": "rule, file, glob"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-source-text-read`: the test reads `app/pitch-detail.tsx`. Render it instead.",
+      "why": "no glob carve-out"
+    }
+  ]
+}

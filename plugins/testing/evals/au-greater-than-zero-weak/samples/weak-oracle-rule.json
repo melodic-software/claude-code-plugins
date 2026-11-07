@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle`: any non-empty result passes. Seed a catalogue and assert the exact titles.",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "toBeGreaterThan(0) is weak; assert the titles.",
+      "why": "no rule id"
+    }
+  ]
+}

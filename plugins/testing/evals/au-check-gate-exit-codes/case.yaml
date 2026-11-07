@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: au-check-gate-exit-codes
+description: 'Legacy audit 3. The user asks how to wire the audit into CI. The reply names --check with exit 1 on gating findings, exit 2 when inputs were not fully read, exit 0 only for a fully read clean scan, and that mock-only-oracle gates only under --strict. skill-fired reads the Skill call, exit-semantics the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, check, scaffold, no-network]
+expected_outcome: 'Recommends cant-fail-scan.sh --check and gives exits 1, 2 and 0 with the fail-closed branch, and that mock-only-oracle gates only under --strict.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Wire the can''t-fail test audit into CI as a gate. What are the exit semantics?'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: exit-semantics
+    type: regex
+    pattern: '^(?=[\s\S]*--check\b)(?=[\s\S]*--strict\b)(?=[\s\S]*(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}2\b|\|\s*[*_`]{0,2}2[*_`]{0,2}\s*\|))(?=[\s\S]*(?:\bexit(?:\s+(?:code|status))?s?[\s*_`:=(]{0,4}1\b|\|\s*[*_`]{0,2}1[*_`]{0,2}\s*\|))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked how to wire the can''t-fail audit into CI as a gate and what its exit semantics are. PASS only if the reply satisfies every legacy expectation: "Output names --check with exit 1 on gating findings and exit 0 only for a fully read clean scan" "Output states the fail-closed branch: unreadable inputs or walk errors exit 2 rather than passing" "Output notes mock-only-oracle findings gate only under --strict". FAIL if any point is missing or contradicted.'

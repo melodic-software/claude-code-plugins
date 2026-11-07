@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle` fires. It is report-only, so `--check --strict` still exits 0. Assert `parseInvoice(draftJson).total`.",
+      "why": "rule and report-only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-weak-oracle` fires and `--check --strict` exits 1.",
+      "why": "says the gate goes red"
+    }
+  ]
+}

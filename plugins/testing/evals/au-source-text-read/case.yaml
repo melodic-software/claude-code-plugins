@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-source-text-read
+description: 'Legacy audit 13. A Vitest test reads app/pitch-detail.tsx and checks the order of two names. The scan reports rule-source-text-read naming the file read; the reply proposes rendering instead and notes a glob or directory walk is not flagged. skill-fired and ran-scanner read the tool calls, source-read-rule the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, change-detector, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-source-text-read naming app/pitch-detail.tsx, proposes rendering the component, and notes a glob walk is never flagged and the rule is report-only.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'One of our tests reads the page component''s .tsx file and checks the order of two names. Audit it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+  - name: source-read-rule
+    type: regex
+    pattern: '^(?=[\s\S]*testing/audit/rule-source-text-read)(?=[\s\S]*pitch-detail\.tsx)(?=[\s\S]*\b(?:glob|directory walk|walks? (?:a|the) director))'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an audit of a test that reads a page component''s .tsx file and checks the order of two names. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-source-text-read and names the source file read" "Output proposes rendering or calling the code instead of reading its source text" "Output notes that a glob or directory walk over many files is not flagged and that the rule does not gate --check". FAIL if any point is missing or contradicted.'

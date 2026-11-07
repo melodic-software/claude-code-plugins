@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-flaky-passes-suite` at playwright.config.ts:21 (retries: process.env.CI ? 2 : 0, failOnFlakyTests absent). Set `failOnFlakyTests: true`.",
+      "why": "rule and fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-flaky-passes-suite` fired at playwright.config.ts:21. Consider lowering retries.",
+      "why": "no concrete fix"
+    },
+    {
+      "answer": "Set `failOnFlakyTests: true`; your retries hide flakes.",
+      "why": "no rule id"
+    }
+  ]
+}

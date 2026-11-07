@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: au-weak-oracle-defined
+description: 'Legacy audit 17. A createUser test that ends with expect(row).toBeDefined(). The scan reports rule-weak-oracle and the reply proposes asserting the saved value. skill-fired and ran-scanner read the tool calls, weak-oracle-rule the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, weak-oracle, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-weak-oracle and proposes asserting the exact saved value, such as the user''s name.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Pocock''s createUser test ends with expect(row).toBeDefined(). Audit it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=\s|"|$|\))'
+  - name: weak-oracle-rule
+    type: regex
+    pattern: 'testing/audit/rule-weak-oracle\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for an audit of a createUser test that ends with expect(row).toBeDefined(). PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-weak-oracle with the fired threshold" "Output proposes asserting the exact saved value instead of only that a row exists". FAIL if any point is missing or contradicted.'

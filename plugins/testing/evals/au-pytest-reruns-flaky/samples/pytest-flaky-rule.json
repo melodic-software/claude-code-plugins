@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-flaky-passes-suite` at pytest.ini:2 (`--reruns 2`, no `--fail-on-flaky`). Add `--fail-on-flaky` to addopts.",
+      "why": "rule and flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-flaky-passes-suite` at pytest.ini:2. Lower the reruns.",
+      "why": "no flag named"
+    }
+  ]
+}

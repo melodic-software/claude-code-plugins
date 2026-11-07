@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: au-mock-only-advisory
+description: 'Legacy audit 6. A London-style interaction test flagged mock-only-oracle. The reply says the rule is advisory unless --strict and offers the cant-fail-ok: annotation, counted in coverage. skill-fired reads the Skill call, strict-and-annotation the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, mock-only-oracle, scaffold, no-network]
+expected_outcome: 'Explains mock-only-oracle is advisory and gates only under --strict, offers cant-fail-ok: <reason> for the deliberate test, and does not call the detector broken.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'The audit flagged my London-style interaction test as mock-only-oracle, but asserting the interaction IS the point of that test. Is the detector broken?'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: strict-and-annotation
+    type: regex
+    pattern: '^(?=[\s\S]*--strict\b)(?=[\s\S]*cant-fail-ok:)'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether the detector is broken for flagging their deliberate interaction test as mock-only-oracle. PASS only if the reply satisfies every legacy expectation: "Output explains mock-only-oracle is advisory by default and gates only under --strict" "Output offers the cant-fail-ok: annotation with a reason for the deliberate interaction test" "Output does not call the detector broken or disable it wholesale". FAIL if any point is missing or contradicted.'

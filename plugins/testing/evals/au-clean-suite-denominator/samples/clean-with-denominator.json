@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No findings. The scan examined 3 test files of 3 enumerated and parsed 24 test blocks.",
+      "why": "clean plus denominator"
+    },
+    {
+      "answer": "Result: 0 findings.\n\n- test files: 3 examined of 3\n- test blocks parsed: 24",
+      "why": "list form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings: your tests are discriminating.",
+      "why": "clean with no denominator"
+    },
+    {
+      "answer": "Two findings in 3 test files examined: rule-weak-oracle.",
+      "why": "invents findings"
+    }
+  ]
+}

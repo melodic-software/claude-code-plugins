@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: au-not-to-throw-weak
+description: 'Legacy audit 20. An inline Jest test whose only oracle is not.toThrow(), under a --check --strict CI gate. The reply reports rule-weak-oracle, says the report-only rule does not fail --check --strict, and proposes asserting a parsed field. skill-fired reads the Skill call, weak-and-report-only the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, audit, weak-oracle, no-network]
+expected_outcome: 'Reports testing/audit/rule-weak-oracle for not.toThrow(), says the gate stays green because the rule is report-only, and proposes asserting a parsed invoice field.'
+execution:
+  prompt: 'Our CI runs the can''t-fail audit with --check --strict. This Jest test is new in src/invoice.test.ts: `import { expect, it } from ''@jest/globals''; import { parseInvoice } from ''./invoice''; it(''parses a draft invoice'', () => { expect(() => parseInvoice(draftJson)).not.toThrow(); });` Audit it. Will the gate go red?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: weak-and-report-only
+    type: regex
+    pattern: '^(?=[\s\S]*testing/audit/rule-weak-oracle)(?=[\s\S]*\breport[- ]only\b)'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a new Jest test whose only check is expect(() => parseInvoice(draftJson)).not.toThrow() turns their --check --strict gate red. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-weak-oracle for the not.toThrow() assertion" "Output says the finding does not fail --check --strict because the rule is report-only" "Output proposes asserting a value parseInvoice returns instead of only that it does not throw". FAIL if any point is missing or contradicted.'

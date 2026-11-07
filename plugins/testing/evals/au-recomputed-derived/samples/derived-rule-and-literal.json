@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-recomputed-derived`. State the expected value as a literal: `expect(calculateTotal(items)).toBe(15)`.",
+      "why": "literal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-recomputed-derived`. Extract the reduce into a helper.",
+      "why": "keeps the derived expectation"
+    }
+  ]
+}
