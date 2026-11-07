@@ -2612,8 +2612,8 @@ such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml`
 (github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
 from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
 it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`
-`recurring-schedule`. The merge gate still counts only a human-written issue, so it refuses such a
-pass `verify:untrusted-spec` and a person merges. resolve-pr marks each spec entry's
+`recurring-schedule`. The merge gate counts such an issue as a trusted spec by the same rule,
+reading the schedule at the default branch's tip. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read

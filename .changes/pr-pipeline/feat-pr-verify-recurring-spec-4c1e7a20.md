@@ -10,5 +10,5 @@ bump: minor
   spec from that row of main's `.github/recurring-schedule.json`, built with the filer's own title
   and body, and marks the entry `source` `recurring-schedule`. The issue's own text stays out of
   the spec. An unknown id, a missing or repeated marker line, or any other author leaves the issue
-  with no trusted spec, as before. The merge gate still counts only a human-written issue, so a
-  person merges such a pass.
+  with no trusted spec, as before. The merge gate applies the same rule, so the lanes merge such a
+  pass.

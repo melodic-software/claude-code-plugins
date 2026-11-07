@@ -674,7 +674,8 @@ const ACTIONS_BOT_ID = 41898282;
 // file-due.mjs builds from the one schedule row its one marker line names, in
 // the schedule this script's checkout holds (main's, in pr-verify.yml). The
 // issue's own text is never read as spec, so an edit by anyone cannot change
-// this text; it can only point the marker at another row of that schedule.
+// this text; it can only point the marker at another reviewed row of that
+// schedule (hardening candidate: also require an unedited issue).
 export function recurringSpec(issue, schedule) {
   const marks = [...String(issue?.body ?? "").matchAll(SCHEDULE_MARKER)];
   if (issue?.author?.__typename !== "Bot" || issue.author.databaseId !== ACTIONS_BOT_ID || marks.length !== 1) {
