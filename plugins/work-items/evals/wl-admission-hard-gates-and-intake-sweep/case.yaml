@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-admission-hard-gates-and-intake-sweep
+graders:
+  - name: 'checksum-human-gated'
+    type: 'regex'
+    pattern: 'checksum[^\n]{0,200}\b(?:human[- ]gated|human[- ]gat\w*|needs-human)|(?:human[- ]gated|needs-human)[^\n]{0,200}checksum'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Re-reads the durable loop state from the telemetry comment at cycle start rather than trusting conversation context; (2) Runs the intake sweep through /work-items:triage in its autonomous lane, the standing rules being the direction gate, and prefixes the comments and items it creates with the AI disclaimer; (3) Admits the C2 item, the C3 bug-fix item, the C3 feature-shaped item and the unclassified item, because the gate does not decide by work class; (4) Human-gates no candidate for its work class or for lacking one; (5) Human-gates the checksum-recomputing dependency bump by the path/topic hard gate whatever its class; (6) Routes the workflow-bot advisory issues to the human-gated role and reports, never chases, intake that arrived after the cycle-start snapshot; (7) Escalates with the human-gated role label resolved from config.role_labels plus a machine-marked escalation comment, never a new label; (8) Writes the escalation record with the Write tool, never a shell redirect, before posting each new marker comment, and writes no second record for a marker that already stands; (9) Makes the record directory ignored before the first cycle (git check-ignore, then info/exclude only when unignored); (10) Never merges a PR and never asks another lane to merge one. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

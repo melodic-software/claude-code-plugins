@@ -15,7 +15,7 @@ name: work-resolve-issue
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
 # comments on the issue and routes the stop by stop-routes.json (needs-human,
-# host-run, attended, a capped retry, intake, a park at status: confirmed, or
+# host-run, attended, a capped retry, intake, a park at Work status confirmed, or
 # a failed stop); an issue its dimensions skip gets the same from report-skip,
 # never needs-human. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
@@ -24,7 +24,7 @@ name: work-resolve-issue
 # a listed human alone, and logs the change: the text freeze (write-issue.mjs
 # readAdmittedAt) and the restart counts (report-outcome.mjs) still anchor on
 # the agent-ready label, so the label alone starts work. The lanes App's
-# mirror writes of the field start nothing: the App starts runs only through
+# writes of the field start nothing: the App starts runs only through
 # its agent-ready label, the one App event the token broker admits
 # (azure-iac authorize.mjs). The kill switch, the labeler check (a
 # listed human, or the lanes App) and the token broker run inside each
@@ -94,6 +94,11 @@ jobs:
       verify-close: ${{ steps.blockers.outputs.verify-close }}
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       # The gate cannot match an unset lanes App id, so the App's own
       # labels would read as a stranger's and its exception would never hold.
@@ -136,6 +141,14 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+
+      # check-blockers.mjs reads the issue's Work status through
+      # resolve-config.mjs, whose packages only the resolve-config action
+      # installs; this job does not run it.
+      - name: Install resolve-config's packages
+        if: github.event.action == 'labeled'
+        timeout-minutes: 3
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
       - name: Check the trigger
         id: gate

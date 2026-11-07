@@ -193,14 +193,26 @@ test("read: a melodic- bot-setter the trusted-actor list no longer holds as that
 });
 
 // The value (REST) and setter (GraphQL) are separate reads; `fieldNames`
-// carries the option the newest event left, and a disagreement reads as unset.
-test("read: a value the newest field event names differently reads null, for any setter", () => {
+// carries the option the newest event left, and a disagreement throws.
+test("read: a value the newest field event names differently throws, for any setter", () => {
   const fieldValues = [{ field: FIELD, option: OPTIONS["needs-human"] }];
   for (const setter of [LISTED, LANES_APP, ACTIONS_BOT]) {
     const fieldSetters = { [FIELD]: setter };
-    assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: "needs-triage" } }, CONFIG, TRUSTED), null, setter);
+    assert.throws(() => readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: "needs-triage" } }, CONFIG, TRUSTED), /holds option 86380005, but its newest field event set `needs-triage`/, setter);
     assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: "needs-human" } }, CONFIG, TRUSTED), "needs-human", setter);
     assert.equal(readStatus({ fieldValues, fieldSetters, fieldNames: { [FIELD]: null } }, CONFIG, TRUSTED), "needs-human", `${setter}, no name`);
+  }
+});
+
+test("check: field-events-since must be a real ISO UTC time, and may be unset", () => {
+  checkStatus({ ...CONFIG, "field-events-since": "2026-11-07T12:00:00Z" }, undefined);
+  checkStatus({ ...CONFIG, "field-events-since": undefined }, undefined);
+  for (const since of ["2026-13-01T00:00:00Z", "2026-02-30T00:00:00Z", "yesterday", "2026-11-07T12:00:00+01:00", "2026-11-07", 20261107]) {
+    assert.throws(
+      () => checkStatus({ ...CONFIG, "field-events-since": since }, undefined),
+      (error) => error instanceof Rejection && error.code === "undefined-status" && error.message.includes("field-events-since"),
+      String(since),
+    );
   }
 });
 
@@ -228,11 +240,23 @@ test("events: only uncounted events read null", () => {
   assert.equal(fromEvents([set(CLAUDE_BOT, "needs-human"), set(UNLISTED, "ready")], "ready"), null);
 });
 
-test("events: a REST value the newest event does not name reads null", () => {
-  assert.equal(fromEvents([set(LISTED, "ready")], "needs-human"), null);
+test("events: a REST value the newest event does not name throws", () => {
+  assert.throws(() => fromEvents([set(LISTED, "ready")], "needs-human"), /but its newest field event set `ready`/);
   assert.equal(fromEvents([set(LISTED, "needs-human")], "needs-human"), "needs-human");
 });
 
 test("events: github-actions[bot] setting agent-ready over a person's ready leaves ready", () => {
   assert.equal(fromEvents([set(LISTED, "ready"), set(ACTIONS_BOT, "agent-ready")], "agent-ready"), "ready");
+});
+
+test("events: a newest set with no REST value, or a newest removal over one, throws", () => {
+  assert.throws(() => fromEvents([set(LISTED, "needs-human")]), /holds no value, but its newest field event set `needs-human`/);
+  assert.throws(() => fromEvents([set(LISTED, "needs-human"), removal(LISTED)], "needs-human"), /but its newest field event removed it/);
+});
+
+test("events: a full window with no counted setter throws; one with a counted setter decides", () => {
+  const full = (fieldEvents, now) =>
+    readStatus({ fieldValues: [{ field: FIELD, option: OPTIONS[now] }], fieldSetters: {}, fieldEvents, fieldEventsFull: true }, CONFIG, TRUSTED);
+  assert.throws(() => full([set(UNLISTED, "ready")], "ready"), /no counted setter among its newest field events/);
+  assert.equal(full([set(LISTED, "needs-human"), set(UNLISTED, "ready")], "ready"), "needs-human");
 });

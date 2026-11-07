@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: wl-argv-shard-rejects-merge-tokens
-description: "Port of work-loop evals.json case 6 (work-loop-argv-shard-ordering-and-rejected-merge): a valid argv plus the babysit keyword and a merge flag stops at argument validation; read-only tools, graded on the reply."
+description: "Legacy work-loop 6: a valid argv plus the babysit keyword and a merge flag stops at argument validation; read-only tools, graded on the reply."
 tags: [work-loop, argv]
 plugins: ["../.."]
 expected_outcome: "The lane parses and validates every invocation token before any telemetry lookup or cycle work, per reference/invocation-argv.md. owner/repo matches the checkout remote, and --standing, --shard 0/2, --ordering newest-first and --instance worker-a are valid. autopilot and --merge c3-this-run are fail-closed rejections: the lane stops with an explicit message naming /source-control:babysit-loop, the merge lane, as their owner, and never silently ignores them. Because it stops at argument validation, it reads no telemetry, takes no frontier snapshot, admits and dispatches nothing, and schedules no next cycle; the described admissions do not happen."

@@ -915,6 +915,10 @@ test("live config: models.issue-status bot-setters are github-actions[bot] and t
   }
 });
 
+test("live config: models.issue-status field-events-since loads as the S2a cutover time", () => {
+  assert.equal(PLAN_CONFIG.models["issue-status"]["field-events-since"], "2026-11-07T09:45:00Z");
+});
+
 // The merge lane reads this file through the source-control YAML subset
 // (plugins/source-control/lib/yaml-subset.awk); a construct outside it turns
 // the lane off with config-parse-error.

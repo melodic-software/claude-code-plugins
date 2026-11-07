@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Refused: live_workers must be a whole number of at least 1."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Refused."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

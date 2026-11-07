@@ -329,16 +329,27 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.equal(s.issues.length, 1);
 });
 
-test("a rewrite mirrors its agent-ready removal into the Work status field from the labels the listing read", async () => {
+test("a rewrite takes agent-ready off the label and the Work status field before the PATCH", async () => {
   const log = [];
   const call = async (method) => (log.push(method), {});
-  const mirrorStatus = async (number, change) => log.push(["MIRROR", number, change]);
+  const leaveAgentReady = async (number, state) => log.push(["FIELD", number, state]);
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
-  // The listing's REST label objects, as listSweepIssues read them.
-  const existing = [{ number: 100, labels: [{ name: "agent-ready" }, { name: "source: lane-sweep" }] }];
-  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", existing, mirrorStatus, wait: async () => {} });
+  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
-  assert.deepEqual(log, ["POST", "DELETE", ["MIRROR", 100, { had: existing[0].labels, remove: ["agent-ready"] }], "PATCH"]);
+  assert.deepEqual(log, ["POST", "DELETE", ["FIELD", 100, "needs-triage"], "PATCH"]);
+});
+
+test("a rewrite whose Work status write fails leaves the PATCH for the next run", async () => {
+  const log = [];
+  const call = async (method) => (log.push(method), {});
+  const leaveAgentReady = async () => {
+    throw new Error("#100's Work status field could not be read: HTTP 502");
+  };
+  const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
+  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
+  assert.deepEqual(done.updated, []);
+  assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
+  assert.deepEqual(log, ["POST", "DELETE"]);
 });
 
 test("a sweep missing a unit's findings carries the earlier entries over", async () => {

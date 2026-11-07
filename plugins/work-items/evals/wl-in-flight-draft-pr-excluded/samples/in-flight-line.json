@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "in flight: #310 (PR #412, draft, open <age>)",
+      "why": "the line"
+    },
+    {
+      "answer": "- `in flight: #310 (PR #412, draft, open 2d)`",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "in-flight check failed: #310",
+      "why": "the failure line"
+    },
+    {
+      "answer": "#310 is in flight (draft PR #412).",
+      "why": "not the report line"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-scope-label-partitions-lanes
+graders:
+  - name: 'own-instance-marker'
+    type: 'regex'
+    pattern: '@api-lane\b|\bapi-lane\b[^\n]{0,80}\b(?:marker|telemetry|state block|durable state)|\b(?:marker|telemetry|state block|durable state)\b[^\n]{0,80}\bapi-lane\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Filters the cycle-start snapshot to items carrying the exact --scope label before admission and execution; (2) Admits and executes only #201 and #203 in this lane, leaving #202 to the docs lane; (3) Keeps a separate telemetry marker per --instance so the two lanes'' durable state does not clobber; (4) Takes the scope from the invocation''s --scope token, not from launch-prompt prose. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
