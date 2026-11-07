@@ -147,8 +147,9 @@ build the page to a local temp file and give its path. A team value that does no
 `context/view.md` writes this skill's
 directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`, the plugin root as `<plugin-root>`, which
 is `${CLAUDE_PLUGIN_ROOT}`, the plugin data dir as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`,
-and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`; put those
-values in place of the placeholders before running a command.
+and this plugin's `medium` option as `<medium option>`, which is `${user_config.medium}`, or `""`
+when that reads empty or as an unsubstituted placeholder; put those values in place of the
+placeholders before running a command, and never put a `${user_config.*}` string in a shell command.
 
 ## Degraded sections
 
