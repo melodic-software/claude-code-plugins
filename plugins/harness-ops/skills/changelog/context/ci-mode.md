@@ -24,7 +24,7 @@ keep `A..B`.
 | 1 Explore, 2 Research | as written | Unchanged. An uncited research claim leaves its row unverified |
 | 3 Scope gate | the user picks rows | The rule below picks; nothing is asked |
 | 4 Hand off | stage skills, user confirms filing | Branch rows run through the stage skills with `--unattended`; every other row is a handoff, filed by the workflow, not here |
-| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift`, each with a plan `key` in the grammar under The plan (lens `native-drift`, owner surface last) and its dedupe key as the `Drift key: <key>` line in its body; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
+| 5 Native drift | files work items | Its would-be work items are handoffs of kind `native-drift`, each with a plan `key` in the grammar under The plan whose lens is `native-drift` and whose last segment is the item's drift identity `<kind>/<surface>/<component>` with every character outside `[A-Za-z0-9_./-]` (such as `:` and `@`) replaced by `-`, so each drift item keeps its own key; for example the drift key `native-drift:recheck:code-review:review:code-reviewer@agent` gives `changelog:2.1.319..2.1.319:native-drift:recheck/code-review/review-code-reviewer-agent`. The full drift key stays the `Drift key: <key>` line in its body; behavior probes are listed in `probes` and never run live. The previous-run summary is never advanced, so a retry derives the same handoffs and the keys dedupe them |
 
 ## Order and checkpoints
 
