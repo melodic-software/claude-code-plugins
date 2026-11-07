@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A defect you already saw goes to `/bugs:write`."
+    },
+    {
+      "answer": "bugs:write is for observed bugs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "File an observed bug with /bug."
+    },
+    {
+      "answer": "Use the bugs plugin's write skill."
+    }
+  ]
+}

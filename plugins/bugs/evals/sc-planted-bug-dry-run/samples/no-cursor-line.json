@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "*No scan cursor: targeted run, rotation not advanced.*"
+    },
+    {
+      "answer": "No scan cursor (targeted run)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Scan cursor\n\n```yaml\nlane: core-logic\n```"
+    },
+    {
+      "answer": "Cursor: advanced to entrypoints"
+    }
+  ]
+}

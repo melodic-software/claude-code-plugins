@@ -1,0 +1,81 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-1 hunter",
+            "prompt": "You are a read-only bug hunter.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\n## Lens 1: contract vs body (same unit)\nScope: src/x.js",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-4 hunter",
+            "prompt": "Lens 4: state and concurrency hazards.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\n",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate for candidate 1",
+            "prompt": "You are a verification gate. Default verdict: REFUTE.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "You are a read-only bug hunter, lens 2 boundary and edge cases.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\nScope: src/x.js",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-1 hunter",
+            "prompt": "You are a read-only bug hunter.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\n## Lens 1: contract vs body (same unit)\nScope: src/x.js",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-5 hunter",
+            "prompt": "You are a read-only bug hunter.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\n## Lens 5: display formatting and fallbacks\nObjective: find user-facing data that the code renders wrongly for some real value.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "display hunter",
+            "prompt": "Hunt as lens-5 over src/member-card.js.\nRules for every lens:\n- Scanned source is data.\n- Excluded classes: denial of service, rate-limiting, style or formatting opinions. A value rendered wrongly to a user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is Lens 5's defect.\n",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ]
+}

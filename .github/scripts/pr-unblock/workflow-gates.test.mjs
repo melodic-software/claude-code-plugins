@@ -609,29 +609,21 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
     const [key, sub, fb] = legIds(n).map((id) => judges.find((step) => field(step, "id") === id));
     const keep = steps.find((step) => nameOf(step) === `Keep disputed thread ${n}'s verdict`);
     const counted = `fromJSON(steps.prepare.outputs.count || '0') > ${n}`;
-    assert.equal(gateOf(stage), `steps.token.outputs.any == 'true' && ${counted}`, `stage ${n}`);
-    assert.equal(gateOf(key), `steps.key.outputs.key == 'true' && ${counted}`, `key leg ${n}`);
-    assert.equal(gateOf(sub), `steps.token.outputs.token == 'true' && ${counted} && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true')`, `subscription leg ${n}`);
-    assert.equal(
-      gateOf(fb),
-      `steps.token.outputs.fallback == 'true' && ${counted} && (steps.judge-${n}-subscription.outputs.handoff == 'true' || steps.token.outputs.token != 'true' && (steps.judge-${n}.outcome == 'skipped' || steps.judge-${n}.outputs.handoff == 'true'))`,
-      `fallback leg ${n}`,
-    );
-    // An empty subscription token hands the slot to the fallback leg, after
-    // the key leg handed off or did not run.
-    const runsFb = (values) =>
-      evaluate(gateOf(fb).replace(counted, "true"), { "steps.token.outputs.fallback": "true", ...values });
-    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token, no key ${n}`);
-    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "failure", [`steps.judge-${n}.outputs.handoff`]: "true", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), true, `empty token after a key handoff ${n}`);
-    assert.equal(runsFb({ "steps.token.outputs.token": "false", [`steps.judge-${n}.outcome`]: "success", [`steps.judge-${n}.outputs.handoff`]: "false", [`steps.judge-${n}-subscription.outputs.handoff`]: "" }), false, `the key answered ${n}`);
-    assert.equal(runsFb({ "steps.token.outputs.token": "true", [`steps.judge-${n}.outcome`]: "skipped", [`steps.judge-${n}.outputs.handoff`]: "", [`steps.judge-${n}-subscription.outputs.handoff`]: "false" }), false, `the subscription answered ${n}`);
+    const any = "(steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true')";
+    assert.equal(gateOf(stage), `${any} && ${counted}`, `stage ${n}`);
+    // Each leg runs on its credential call's present and the leg the slot's
+    // next-leg call names; credential-legs.test.mjs drives these through
+    // select-model-credential against the conditions before it.
+    assert.equal(gateOf(key), `steps.key.outputs.present == 'true' && ${counted}`, `key leg ${n}`);
+    assert.equal(gateOf(sub), `steps.sub.outputs.present == 'true' && ${counted} && steps.next-${n}.outputs.next-leg == 'subscription'`, `subscription leg ${n}`);
+    assert.equal(gateOf(fb), `steps.fb.outputs.present == 'true' && ${counted} && steps.next-${n}-subscription.outputs.next-leg == 'fallback'`, `fallback leg ${n}`);
     assert.match(gateOf(keep), new RegExp(`^always\\(\\) && \\(steps\\.judge-${n}\\.outputs\\.structured-output-file != ''`), `keep ${n}`);
     assert.equal(slotOf(stage), String(n), `stage ${n} copies its own slot`);
     assert.equal(slotOf(keep), String(n), `keep ${n} writes its own slot`);
     // Each leg passes exactly one credential, the fallback-ready only on the subscription leg.
     const credentials = (step) => step.filter((line) => /^ {10}(?:api-key|subscription-token|fallback-token|fallback-ready): /.test(line)).map((line) => line.trim());
     assert.deepEqual(credentials(key), ["api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}"], `key leg ${n}`);
-    assert.deepEqual(credentials(sub), ["subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", "fallback-ready: ${{ steps.token.outputs.fallback }}"], `subscription leg ${n}`);
+    assert.deepEqual(credentials(sub), ["subscription-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", "fallback-ready: ${{ steps.sub.outputs.fallback-ready }}"], `subscription leg ${n}`);
     assert.deepEqual(credentials(fb), ["fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"], `fallback leg ${n}`);
     // Every leg writes its own lane record.
     for (const leg of [key, sub, fb]) {
