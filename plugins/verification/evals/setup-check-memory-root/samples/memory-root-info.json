@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| INFO | Memory root | `.work/` (no declared root) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| PASS | Memory root | docs/ |"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
