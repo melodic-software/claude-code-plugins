@@ -5202,7 +5202,12 @@ def capped_close(
     issue label, except putting back an `agent-ready` the newest removal of
     which was the lanes App's own at or after its record (`_lane_removals`);
     one carrying it with no such removal is toggled, since the run that
-    wrote the record stopped before the label came off.
+    wrote the record stopped before the label came off. With `issue_status`
+    the rerun reads field events instead (`issue_status_set_since`): a lanes
+    App agent-ready set at or after the record is the restart already made,
+    and with none the field restarts unless it reads a state other than
+    agent-ready or unset; a parked one is done when the field reads
+    `confirmed`.
     FAIL findings come only from runs of verified origin. Raises
     `RuntimeError` on a failed
     write or a failed issue or Work status read, `PostMergeReadError` on a
@@ -5327,11 +5332,35 @@ def capped_close(
             }
             if parked:
                 # Written once: the park labels go on again only while unfinished.
-                done = STATUS_CONFIRMED in names and not names & {
-                    STATUS_READY,
-                    AGENT_READY,
-                }
+                done = (
+                    states.get(issue) == STATUS_FIELD_CONFIRMED
+                    if issue_status is not None
+                    else STATUS_CONFIRMED in names
+                    and not names & {STATUS_READY, AGENT_READY}
+                )
                 labels = "none" if done else "park"
+            elif issue_status is not None:
+                # The lanes App's own agent-ready set at or after the record is
+                # the restart that run made; with none, the run stopped before
+                # it, and the attempt starts unless a person has since moved
+                # the field to another state.
+                try:
+                    restarted = merge_policy.issue_status_set_since(
+                        repo,
+                        issue,
+                        issue_status,
+                        identity,
+                        merge_policy.AGENT_READY_STATE,
+                        since,
+                    )
+                except merge_policy.PolicyReadError as exc:
+                    raise RuntimeError(f"#{issue} Work status: {exc}") from exc
+                labels = (
+                    "none"
+                    if restarted
+                    or states.get(issue) not in (None, merge_policy.AGENT_READY_STATE)
+                    else "toggle"
+                )
             else:
                 removed, newest = _lane_removals(
                     postmerge._paginated(

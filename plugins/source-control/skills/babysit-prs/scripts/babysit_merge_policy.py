@@ -2847,8 +2847,8 @@ ISSUE_STATUS_QUERY = (
     "name field{...field}}}} "
     "timelineItems(last:100,itemTypes:[ISSUE_FIELD_ADDED_EVENT,"
     "ISSUE_FIELD_CHANGED_EVENT,ISSUE_FIELD_REMOVED_EVENT]){nodes{__typename "
-    "... on IssueFieldAddedEvent{value actor{...who} issueField{...field}} "
-    "... on IssueFieldChangedEvent{newValue actor{...who} issueField{...field}} "
+    "... on IssueFieldAddedEvent{createdAt value actor{...who} issueField{...field}} "
+    "... on IssueFieldChangedEvent{createdAt newValue actor{...who} issueField{...field}} "
     "... on IssueFieldRemovedEvent{actor{...who} issueField{...field}}}}}}} "
     "fragment who on Actor{__typename login ... on User{databaseId} "
     "... on Bot{databaseId}} "
@@ -3002,6 +3002,50 @@ def issue_status_clear(repo: str, issue: int, field_id: int) -> list[str]:
         "-H",
         f"X-GitHub-Api-Version: {FIELD_API_VERSION}",
     ]
+
+
+def issue_status_set_since(
+    repo: str,
+    number: int,
+    config: IssueStatusConfig,
+    login: str,
+    state: str,
+    since: datetime,
+) -> bool:
+    """Whether `login` set issue `number`'s Work status field to `state` at
+    or after `since` (one-second resolution), read from the Work status
+    query's field events. Raises `PolicyReadError` on a failed or malformed
+    read, or a full event window with no such set, which may have pushed it
+    out."""
+    owner, name = _split_repo(repo)
+    data = _graphql(
+        ISSUE_STATUS_QUERY, f"#{number} Work status", o=owner, r=name, n=number
+    )
+    events = json_object(
+        json_object(json_object(data.get("repository")).get("issue")).get(
+            "timelineItems"
+        )
+    ).get("nodes")
+    if not is_json_array(events):
+        raise PolicyReadError(f"#{number} Work status: the answer holds no list")
+    for event in map(json_object, events):
+        kind = event.get("__typename")
+        if (
+            kind in ("IssueFieldAddedEvent", "IssueFieldChangedEvent")
+            and json_object(event.get("issueField")).get("fullDatabaseId")
+            == str(config.field_id)
+            and event.get("newValue" if kind == "IssueFieldChangedEvent" else "value")
+            == state
+            and _login_key(json_object(event.get("actor")).get("login"))
+            == _login_key(login)
+            and _time(event.get("createdAt")) >= since
+        ):
+            return True
+    if len(events) >= FIELD_EVENT_WINDOW:
+        raise PolicyReadError(
+            f"#{number} Work status: no {state} set in its newest {FIELD_EVENT_WINDOW} field events"
+        )
+    return False
 
 
 def issue_status_reader(
