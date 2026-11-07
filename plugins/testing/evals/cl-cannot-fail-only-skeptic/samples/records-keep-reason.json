@@ -1,39 +1,26 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "W=.work/testing-cleanup/shop.tests\ncat > $W/decisions.md <<'EOF'\n| Price_feed_resolves | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\nEOF"
-          }
-        }
-      ],
-      "why": "decision table row written by heredoc"
+      "answer": "mode: cannot-fail-only\n| Price_feed_resolves | can-fail | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\n",
+      "why": "decision table row, as a Bash heredoc or the Write tool leaves it"
+    },
+    {
+      "answer": "- Price_feed_resolves: keep: throw is the only oracle (Shop.Tests/WiringTests.cs:19)\n",
+      "why": "list form"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "cat > .work/testing-cleanup/shop.tests/decisions.md <<'EOF'\n| Price_feed_resolves | keep |\nEOF"
-          }
-        }
-      ],
+      "answer": "mode: cannot-fail-only\n| Price_feed_resolves | can-fail | keep |\n",
       "why": "keep without the reason"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "grep -n 'keep: throw is the only oracle' /opt/p/skills/cleanup/SKILL.md"
-          }
-        }
-      ],
-      "why": "reads the phrase from the skill, writes nothing"
+      "answer": "| Price_feed_resolves | cleared | delete |\n| Wiring_is_sane | keep: throw is the only oracle |\n",
+      "why": "the reason on another test"
+    },
+    {
+      "answer": "",
+      "why": "no decisions.md written (a grep or echo of the phrase leaves no file)"
     }
   ]
 }

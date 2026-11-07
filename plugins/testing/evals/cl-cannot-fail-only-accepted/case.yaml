@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: cl-cannot-fail-only-accepted
-description: 'Legacy cleanup cannot_fail_only_accepted. The C# shop on feat/cleanup without the mutation-testing plugin; the prompt answers yes to the cannot-fail-only offer. The run writes mode: cannot-fail-only, runs no test, has a skeptic keep Price_feed_resolves (throw is the only oracle) and proposes two deletions it does not apply. The legacy entry has no expectations list, so the llm grader quotes its expected output. writes-mode and records-keep-reason read the decisions.md write, no-test-run and no-test-edit the tool calls, records-keep-reason the decisions.md write, proposes-two-deletions the reply; the llm grader reads the trace, since the keep reason is written to decisions.md. Needs --scaffold --allow-tools Bash Write Edit Agent.'
+description: 'Legacy cleanup cannot_fail_only_accepted. The C# shop on feat/cleanup without the mutation-testing plugin; the prompt answers yes to the cannot-fail-only offer. The run writes mode: cannot-fail-only, runs no test, has a skeptic keep Price_feed_resolves (throw is the only oracle) and proposes two deletions it does not apply. The legacy entry has no expectations list, so the llm grader quotes its expected output. writes-mode and records-keep-reason read decisions.md itself, no-test-run and no-test-edit the tool calls, records-keep-reason reads decisions.md itself, proposes-two-deletions the reply; the llm grader reads the trace, since the keep reason is written to decisions.md. Needs --scaffold --allow-tools Bash Write Edit Agent.'
 tags: [testing, cleanup, cannot-fail-only, scaffold, no-network]
 expected_outcome: 'Names the missing plugin, offers cannot-fail-only mode and continues in it on the yes: writes mode: cannot-fail-only, runs no test or mutation tool, keeps Price_feed_resolves as throw is the only oracle, and proposes Wiring_is_sane and Price_feed_type_exists for deletion without deleting either.'
 context:
@@ -25,14 +25,15 @@ graders:
     min: 0
     max: 0
     arm: both
-  - name: records-keep-reason
-    type: tool_used
-    tool: Bash
-    input_match: '>\s*[^\s"]*\.md\b[^"]*?<<[\s\S]*?keep: throw is the only oracle'
   - name: writes-mode
-    type: tool_used
-    tool: Bash
-    input_match: '>\s*[^\s"]*decisions\.md\b[^"]*?<<[\s\S]*?(?:\\n|\s)mode: cannot-fail-only\b'
+    type: regex
+    pattern: '^[\s*_`-]{0,4}mode[*_`]*:[*_`\s]*cannot-fail-only\b'
+    flags: m
+    target: { source: file, path: .work/testing-cleanup/shop.tests/decisions.md }
+  - name: records-keep-reason
+    type: regex
+    pattern: '\bPrice_feed_resolves\b[^\n]*\bkeep: throw is the only oracle\b'
+    target: { source: file, path: .work/testing-cleanup/shop.tests/decisions.md }
   - name: proposes-two-deletions
     type: regex
     pattern: '^(?=[\s\S]*(?:\bWiring_is_sane\b))(?=[\s\S]*(?:\bPrice_feed_type_exists\b))(?=[\s\S]*(?:\b(?:delete[sd]?|deleting|deletion|remov\w*)\b))'

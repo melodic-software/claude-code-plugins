@@ -1,39 +1,26 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "W=.work/testing-cleanup/shop.tests; cat > $W/decisions.md <<'EOF'\nmode: cannot-fail-only\nstep reached: cannot-fail-only 2\nEOF"
-          }
-        }
-      ],
-      "why": "the mode line written to decisions.md"
+      "answer": "mode: cannot-fail-only\nstep reached: cannot-fail-only 2\n",
+      "why": "mode line"
+    },
+    {
+      "answer": "# Decisions\n\n- **mode:** cannot-fail-only\n",
+      "why": "bold list label"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "grep -n 'mode: cannot-fail-only' /opt/p/skills/cleanup/SKILL.md"
-          }
-        }
-      ],
-      "why": "reads the line from the skill"
+      "answer": "step reached: cannot-fail-only 2\n",
+      "why": "no mode line"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "echo 'mode: cannot-fail-only'"
-          }
-        }
-      ],
-      "why": "echo with no decisions.md target"
+      "answer": "Continuing in cannot-fail-only mode.\n",
+      "why": "prose, no mode line"
+    },
+    {
+      "answer": "",
+      "why": "no decisions.md written (a grep or echo of the line leaves no file)"
     }
   ]
 }
