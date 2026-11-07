@@ -16,7 +16,7 @@ graders:
     target: last_message
   - name: nothing-to-drive
     type: regex
-    pattern: '\bnothing (?:to drive|was driven|is driven|driven|to launch)\b|\bdr(?:ove|ives) nothing\b|\blaunch(?:es|ed)? nothing\b'
+    pattern: '\bnothing (?:to drive|was driven|is driven|driven|to launch)\b|\b(?:drove|drives) nothing\b|\blaunch(?:es|ed)? nothing\b'
     flags: i
     target: last_message
   - name: meets-expectations
