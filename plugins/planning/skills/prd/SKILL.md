@@ -111,7 +111,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same nine required sections listed in Step 5.
+Tier governs section depth, not section presence: all three tiers cover the same nine required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, quality requirements, dependencies/risks, assumptions, open questions).
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
@@ -192,7 +192,7 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them as a design thread and `/planning:plan`'s Test strategy sets the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`; `""` if unsubstituted, never in shell) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
 
 ### Step 6. Hand off
 
