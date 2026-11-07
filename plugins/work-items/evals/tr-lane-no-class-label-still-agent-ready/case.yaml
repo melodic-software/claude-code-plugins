@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: tr-lane-no-class-label-still-agent-ready
+graders:
+  - name: 'applies-agent-ready'
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:not|never|no|without|won[''’]t|don[''’]t|skip(?:s|ped|ping)?)[ \t]+(?:[\w`:-]+[ \t]+){0,2}`?agent-ready\b)[^\n]*(?:\b(?:add(?:s|ed|ing)?|appl(?:y|ies|ied|ying)|labels?|edit(?:s|ed)?|set(?:s|ting)?)\b|\+)[^\n]*?\bagent-ready\b'
+    flags: 'mi'
+    target: 'last_message'
+  - name: 'proposes-c3'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\b(?:propos(?:e|es|ed|ing|al)|cycle report|recommend(?:s|ed|ing)?|suggest(?:s|ed|ing)?)\b)[^\n]*\bC3\b'
+    flags: 'mi'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does for #4399 in a lane barred from class labels. PASS only if it satisfies every point: (1) Applies the autonomous-eligible role label and status:ready and removes needs-triage in one edit; (2) Does not apply any class label; (3) Does not apply the human-gated role label or post an escalation marker because the class is missing; (4) Names the proposed class in the cycle report rather than on the item''s labels. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

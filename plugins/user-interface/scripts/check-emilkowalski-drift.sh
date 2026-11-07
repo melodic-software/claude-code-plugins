@@ -20,7 +20,7 @@ set -uo pipefail
 
 UPSTREAM_REPO="emilkowalski/skills"
 UPSTREAM_BRANCH="main"
-PIN="f1090bec277140d02ed202440185ad9d02ac1490"
+PIN="c8a79627b59d72d764d6ab6f2c87c09a48169833"
 # upstream path|pinned blob SHA, for every file a row in the record takes from
 PINNED=(
   "LICENSE|57b46f1fd11dc62351ea548104a88aa3f659c11b"
@@ -33,6 +33,8 @@ PINNED=(
   "skills/apple-design/SKILL.md|adf68c517f2d7d2781587d619de07f4de286da57"
   "skills/break-ui/CATALOG.md|46962bb89445b8526ea94994a79b49508573b5fd"
   "skills/break-ui/SKILL.md|091a28d488662d2451131f1aaa60a6dcd2391932"
+  "skills/choreograph/RECIPES.md|17936a9cfc3e26224c5b4555f5a239758718815c"
+  "skills/choreograph/SKILL.md|9fef0048d260be7bc05a909a03b52627bb3ccf37"
   "skills/emil-design-eng/SKILL.md|dc063c2a861922c1c9f2412b824b0862746304f5"
   "skills/find-animation-opportunities/SKILL.md|d3b030fbca9abad9220a032f72d425c6b7fa2de8"
   "skills/improve-animations/AUDIT.md|0862c446eea250326cdd2054fc3492c6707f4cf7"

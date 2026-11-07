@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "That selection is /discipline:pick-for-the-problem's."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pick the one that fits the problem.",
+      "why": "not the skill"
+    }
+  ]
+}

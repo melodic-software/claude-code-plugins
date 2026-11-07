@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "No established tool fits: nothing parses SQL inside string literals."
+    },
+    {
+      "answer": "reason: no codemod covers SQL in strings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A codemod fits here."
+    },
+    {
+      "answer": "Edit each string by hand.",
+      "why": "never says why"
+    }
+  ]
+}

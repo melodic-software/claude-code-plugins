@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Standards source: docs/standards/ (declared in CLAUDE.md), routed through docs/standards/README.md.",
+      "why": "names the declared source"
+    },
+    {
+      "answer": "Resolved the project's own index at `docs/standards/README.md`; loaded error-handling.md and naming.md.",
+      "why": "resolved, then the path"
+    },
+    {
+      "answer": "docs/standards/ is the source that resolved, per CLAUDE.md.",
+      "why": "path first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Findings:\n1. src/sync.py:16 swallows the exception (error-handling.md EH-1).\n2. doIt is not a verb phrase (naming.md N-1).",
+      "why": "cites docs but never says which source resolved"
+    },
+    {
+      "answer": "Resolved against the portable baseline.",
+      "why": "names the wrong source"
+    }
+  ]
+}

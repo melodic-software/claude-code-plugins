@@ -25,6 +25,11 @@
 #               pullNumber inputs. hooks.json registers that row.
 #
 # WHAT BLOCKS, read over REST so it works where GraphQL is refused:
+#   - a hold label on the PR (do-not-merge, pr-verify-failed or
+#     security: outside-actor, matched without case),
+#     for every merge path, auto-merge and merge-queue requests included: a
+#     queued PR that carries one fails its merge group. It refuses right after
+#     the PR read, so a later read that fails open cannot let the merge run
 #   - an unresolved review thread, outdated ones included (thread resolution
 #     has no plain REST route: GraphQL `reviewThreads` where it is served, else
 #     the Claude Code cloud route `pulls/{n}/ccr/review_threads`; a
@@ -914,13 +919,31 @@ fi
 
 [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "the pull request number could not be read"
 
-# The PR: open state, head commit, the canonical repo name and the base branch.
-_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq '"\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)"' ||
+# Hold labels, lowercased since GitHub label names compare without case:
+# ci-status fails a merge group on each (pr-merge's HOLD_LABELS in enable-auto-merge.mjs).
+_bupm_holdset='["do-not-merge","pr-verify-failed","security: outside-actor"]'
+
+# The PR: open state, head commit, the canonical repo name, the base branch and,
+# after a unit separator, the hold labels it carries.
+# shellcheck disable=SC2016
+_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq "$_bupm_holdset"' as $h
+  | "\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)\u001f\([.labels[]?.name // empty | select(ascii_downcase | IN($h[]))] | join(", "))"' ||
   _bupm_pr_unreadable
-read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$BUPM_OUT"
+IFS=$'\x1f' read -r _bupm_prline _bupm_holds <<<"$BUPM_OUT"
+read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$_bupm_prline"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0
 [[ -n "$_bupm_full" && "$_bupm_full" != null ]] && BUPM_REPO="$_bupm_full"
+# A hold label refuses here, before a later read can fail open.
+if [[ -n "$_bupm_holds" ]]; then
+  {
+    printf 'BLOCKED: %s#%s carries a hold label, so this merge is refused (--admin and --auto included).\n' "$BUPM_REPO" "$BUPM_NUM"
+    printf 'Hold labels: %s. Merge once the hold ends and the label is removed.\n' "$_bupm_holds"
+    printf 'Only the user can turn this guard off (block_unresolved_pr_merge_enabled).\n'
+  } >&2
+  emit_tel "blocked" "$BUPM_FORM-hold-label"
+  exit 2
+fi
 
 # Reviewers whose latest decisive review requests changes. The three jq bodies
 # below are jq programs, not shell text.

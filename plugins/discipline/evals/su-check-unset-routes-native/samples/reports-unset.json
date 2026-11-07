@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "batch_exclude, batch_promote and batch_demote are unset, so the batch runs the tiers exactly as the correctors declare them."
+    },
+    {
+      "answer": "No override: every tier runs as declared."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your batch excludes ${user_config.batch_exclude}."
+    },
+    {
+      "answer": "Batch override: excluded point-dont-copy."
+    }
+  ]
+}

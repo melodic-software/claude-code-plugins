@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The lever is an established codemod tool such as OpenRewrite."
+    },
+    {
+      "answer": "Use a language-server rename."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a Python script that rewrites each class.",
+      "why": "a scratch script"
+    },
+    {
+      "answer": "Edit by hand."
+    }
+  ]
+}

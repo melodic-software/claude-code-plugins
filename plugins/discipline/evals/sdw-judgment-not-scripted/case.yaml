@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: sdw-judgment-not-scripted
+graders:
+  - name: declines-scripting-judgment
+    type: regex
+    pattern: '\breasoning[- ]only\b|\b(?:won''?t|will not|can''?t|cannot|shouldn''?t|should not|not going to|declin\w*)\b[^\n]{0,60}\bscript\w*\b|\bscript\w*\b[^\n]{0,60}\b(?:false confidence|dress\w*|can''?t|cannot|shouldn''?t|should not)\b[^\n]{0,60}\b(?:judg\w*|decides?|decided|deciding|decision|verdict|abstraction)'
+    flags: 'i'
+    target: last_message
+  - name: detect-step-offered
+    type: regex
+    pattern: '\bdetect\w*\b|\bcandidates?\b|\bflag\w*\b[^\n]{0,80}\b(?:modules?|threshold|size|fan-?(?:in|out)|imports?|dependenc\w*|cycles?)\b'
+    flags: 'i'
+    target: last_message
+  - name: flag-not-ruling
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Refuses to reduce a reasoning-only judgment to a script''s output", "Distinguishes a deterministic detect step (advisory flag) from the judgment verdict" and "Does not treat a flagged candidate as the ruling".'
+    focus: last_message

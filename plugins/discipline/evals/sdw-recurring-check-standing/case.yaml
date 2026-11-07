@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: sdw-recurring-check-standing
+graders:
+  - name: standing-mechanism
+    type: regex
+    pattern: '\b(?:linter|lint rule|eslint|ruff|import-linter|dependency-cruiser|pre-commit|commit hook|git hook|analy[sz]er|CI (?:check|job|step|gate)|standing (?:check|mechanism|rule))\b'
+    flags: 'i'
+    target: last_message
+  - name: routes-not-absorbs
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Recognizes a recurring check as standing-automation (hook/linter) territory", "Routes the recurring rule to a config/automation-gaps capability rather than absorbing it" (here harness-config is not installed, so naming /harness-config:audit-automation-gaps or giving prose guidance toward a standing lint rule or hook both count) and "Reserves its own scope for the one-off, session-time script". It fails if it offers only a one-off script as the fix for a check that recurs every review.'
+    focus: last_message

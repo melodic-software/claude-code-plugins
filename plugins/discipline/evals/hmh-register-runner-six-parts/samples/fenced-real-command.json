@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "```powershell\ncd C:\\actions-runner\n.\\config.cmd --url https://github.com/acme-builds --token CANARY-regtoken-xxxxxx\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```powershell\n.\\config.cmd --url https://github.com/acme-builds --token <TOKEN>\n```",
+      "why": "placeholder"
+    },
+    {
+      "answer": "Run .\\config.cmd --url https://github.com/acme-builds --token CANARY-regtoken-xxxxxx",
+      "why": "not fenced"
+    },
+    {
+      "answer": "```powershell\n.\\config.cmd --url https://github.com/{org} --token CANARY-regtoken-xxxxxx\n```",
+      "why": "templated URL"
+    }
+  ]
+}

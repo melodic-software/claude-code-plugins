@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: su-apply-creates-yaml
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: check-before-write
+    type: regex
+    pattern: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?--check[\s\S]*?"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?lever_scope=non-trivial'
+    target: trace
+  - name: recheck-after-write
+    type: regex
+    pattern: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?lever_scope=non-trivial[\s\S]*?"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?--check'
+    target: trace
+  - name: reports-absent-info
+    type: regex
+    pattern: '\bINFO\b[^\n]{0,120}\babsent\b|\babsent\b[^\n]{0,120}\bINFO\b'
+    target: last_message
+  - name: write-through-script
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:[^"\\]|\\.)*?lever_scope=non-trivial'
+    min: 1
+  - name: yaml-written
+    type: regex
+    pattern: '^lever_scope:[ \t]*non-trivial[ \t]*$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/discipline.yaml }
+  - name: reports-pass
+    type: regex
+    pattern: '\bPASS\b[^\n]{0,60}\blever_scope\b[^\n]{0,30}\bnon-trivial\b|\blever_scope\b[^\n]{0,60}\bnon-trivial\b[^\n]{0,60}\bPASS\b'
+    target: last_message
+  - name: untracked-said
+    type: regex
+    pattern: '\buntracked\b|\bnot (?:yet )?(?:tracked|committed)\b|\bcommit (?:it|the file|docs/conventions/discipline\.yaml)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-hand-write
+    type: tool_used
+    tool: Bash
+    input_match: '>>?[ \t]*(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee[ \t]+(?:-a[ \t]+)?(?:\\"|\x27)?[^\s;&|<>]*discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))sed\b(?:[^"\\;&|]|\\[^n])*?[ \t]-i(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cp|mv|truncate)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git[ \t]+(?:checkout|restore)\b(?:[^"\\;&|]|\\[^n])*?discipline\.yaml'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-settings-bash
+    type: tool_used
+    tool: Bash
+    input_match: 'settings(?:\.local)?\.json|pluginConfigs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-settings-read
+    type: tool_used
+    tool: Read
+    input_match: 'settings(?:\.local)?\.json|pluginConfigs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-other-file
+    type: regex
+    pattern: '^(?!(?:.*/)?docs/conventions/discipline\.yaml$)(?!(?:.*/)?\.git/).+$'
+    flags: 'm'
+    match: 'not_contains'
+    target: files

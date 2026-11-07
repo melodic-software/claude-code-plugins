@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#53 is already triaged, so I stop here.",
+      "why": "already"
+    },
+    {
+      "answer": "Decompose publishes items born triaged; #53 never re-enters intake.",
+      "why": "born"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#53 is raw intake; verifying now.",
+      "why": "re-triages"
+    },
+    {
+      "answer": "Recommendation: needs-info for #53.",
+      "why": "state machine"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

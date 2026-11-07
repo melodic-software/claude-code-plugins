@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| unlabeled | #413 | Ledger totals are off by one cent |",
+      "why": "listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No intake needs attention.",
+      "why": "empty view"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

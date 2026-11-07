@@ -22,8 +22,11 @@ graders:
     pattern: '\b(?:expected (?:output|result|outcome)|you should (?:now )?see|you will see|you''ll see|success looks like|should (?:now )?(?:show|print|display|return|appear|read|list))\b|\bexpected\b[ \t]*(?:\*\*)?[ \t]*[:—–-]'
     flags: 'i'
     target: last_message
+  - name: no-plan-leak
+    type: llm
+    criteria: 'The user asked to be walked through a multi-step runner setup one phase at a time. The reply meets the legacy expectations "Presents exactly one phase, the current one" and "Does not list, preview, or summarize any later phase". It passes when the only forward-looking information is a one-line count such as "Phase 1 of 5", or the numbered progress list the hold-my-hand skill keeps when no task tools are available (SKILL.md lines 122-126: "every unpresented phase a bare number with no title and no steps"). It fails if it names, lists, previews or summarizes what any later phase will do, in a heading, a list, a table of contents, a task list, or a sentence such as "next we will install the service and then run a test job".'
+    focus: last_message
   - name: performer-labeled
-    type: regex
-    pattern: '(?<![\s\S])(?![\s\S]*?^[ \t]*\d+[.)][ \t]+(?![(\[](?:you|me|I|claude|assistant)[)\]]|\*\*(?:you|me|I|claude|assistant)\b|(?:you|me|I|claude|assistant)\*{0,2}[ \t]*[:—–-])\S)(?![\s\S]*?^[ \t]*\|[ \t]*\d+[ \t]*\|[ \t]*(?!\**(?:you|me|I|claude|assistant)\b)\S)(?=[\s\S]*?(?:\((?:you|me|I|claude|assistant)\)|\[(?:you|me|I|claude|assistant)\]|\b(?:performer|performed by|done by|who acts|who)\b[ \t]*\**[ \t]*[:—–|-]|\*\*(?:you|me|I|claude|assistant)\*\*[ \t]*[:—–-]?|^[ \t]*(?:\d+[.)][ \t]*)?\**(?:you|me|claude)\**[ \t]*:))'
-    flags: 'mi'
-    target: last_message
+    type: llm
+    criteria: 'The hold-my-hand skill says (SKILL.md line 79): "Label every step with its performer." PASS only if the reply meets that line for every step it presents. FAIL otherwise.'
+    focus: last_message

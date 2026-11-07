@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "use-your-skills: clean. do-your-research: 1 finding. mind-your-maxims: clean. tighten-your-output: corrected."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "use-your-skills: clean. do-your-research: 1 finding. tighten-your-output: corrected."
+    }
+  ]
+}

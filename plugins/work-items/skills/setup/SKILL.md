@@ -211,6 +211,13 @@ an unattended `apply`, and follow it for every decision in the flow, not only th
 owns the silent-resolve rule, the never-guess rule, the per-pass unattended resolutions, and what
 the run must say in its summary about each decision it took without asking.
 
+The first decision is the bind. With no binding in either file (`work-items.yaml` or the legacy
+JSON), bind `github` only when `gh` is installed and
+`gh repo view --json owner,name` resolves; otherwise no provider can be chosen safely, so write no
+`tracker` key, stop, and report the named blocker "tracker binding needs a provider decision; run
+`/work-items:setup apply` with a user present". Unlike the seeding offer, whose safe default (skip)
+resolves silently, this decision has no safe default.
+
 ### The `apply` flow, step by step
 
 Attended and unattended runs take the same numbered steps; only the answers differ.

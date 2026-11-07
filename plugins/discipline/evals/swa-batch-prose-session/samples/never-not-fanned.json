@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Load /opt/eval/plugin/skills/use-your-skills/SKILL.md; audit only.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Load /opt/eval/plugin/skills/scrutinize-dont-coast/SKILL.md; audit only.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Re-run check: PASS lever_scope: non-trivial."
+    },
+    {
+      "answer": "| lever_scope | non-trivial | PASS |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote lever_scope: non-trivial."
+    },
+    {
+      "answer": "PASS lever_scope: deterministic"
+    }
+  ]
+}

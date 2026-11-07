@@ -60,7 +60,9 @@ Run them in order: steps 2 and 3 can end the run with no code, and that is a cor
    curve, role duration or spring, origin, entry and exit path, and the reduced-motion variant. For
    a common component start from [behaviors.md](../../reference/animation/behaviors.md); for drag,
    swipe or springs read [gestures.md](../../reference/animation/gestures.md); on the web, check
-   the cost tier in [performance.md](../../reference/animation/performance.md). A component the
+   the cost tier in [performance.md](../../reference/animation/performance.md). When two or more
+   elements move on the same event, apply "Choreography" in catalog.md and write its timeline
+   first. A component the
    project does not have yet comes from [component-libraries.md](../../reference/component-libraries.md)
    first.
 7. **Write it.** When the motion is CSS, invoke `/user-interface:write-css` with the Skill tool and

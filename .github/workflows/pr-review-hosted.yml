@@ -455,6 +455,7 @@ jobs:
         .github/actions/select-trusted-text/select-trusted-text.mjs
         lib/publish-gate.mjs
         .github/recurring-schedule.json
+        .github/scripts/recurring-schedule/file-due.mjs
         plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs
         .github/scripts/apply-patch/apply-patch.mjs

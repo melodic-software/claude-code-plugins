@@ -1,6 +1,6 @@
 ---
-description: "A repo declares its standards index in CLAUDE.md; a new module swallows exceptions and misnames its function. The run must route through the index, load only the applicable docs, cite each broken doc, and correct the swallow in the file"
-tags: [discipline, follow-our-standards, outcome, scaffold]
+description: "Legacy follow-our-standards 1. A repo declares its standards index in CLAUDE.md; a new module swallows exceptions and misnames its function. The run must route through the index, load only the applicable docs, say which source resolved (states-resolved-source; SKILL.md line 35), cite each broken doc, and correct the swallow in the file. Needs --scaffold --allow-tools Edit."
+tags: [discipline, follow-our-standards, outcome, scaffold, no-network]
 max_turns: 15
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Glob, Grep, Edit]

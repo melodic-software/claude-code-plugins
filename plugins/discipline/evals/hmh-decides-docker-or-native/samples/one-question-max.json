@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Decision: native install, because the service needs the host daemon.\n\nWhich user account should the service run as?"
+    },
+    {
+      "answer": "Open https://github.com/organizations/acme/settings/actions/runners?tab=new and copy the token.",
+      "why": "a query string, not a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Docker or native?\nWhich user should it run as?",
+      "why": "two questions"
+    },
+    {
+      "answer": "Do you want Docker?\n\n1. Install it.\n\nShould I continue?",
+      "why": "two questions"
+    }
+  ]
+}

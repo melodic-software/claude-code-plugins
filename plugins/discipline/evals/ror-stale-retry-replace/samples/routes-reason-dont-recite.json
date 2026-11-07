@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Interrogate it with /discipline:reason-dont-recite."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reason it through before copying.",
+      "why": "not the skill"
+    }
+  ]
+}

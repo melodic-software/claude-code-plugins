@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Axes applied: Altitude | Depth | Range",
+      "why": "the template line"
+    },
+    {
+      "answer": "**Axes:** Depth and Range (Altitude skipped: the goal is already plain).",
+      "why": "bold label naming two"
+    },
+    {
+      "answer": "**Altitude.** The goal behind it.\n\n**Depth.** Expert additions.\n\n**Range.** Typography and archive work.",
+      "why": "all three named as sections"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I raised the goal, deepened the methods and widened the range of fields.",
+      "why": "no axis named"
+    },
+    {
+      "answer": "**Depth.** Expert additions and an outside check.",
+      "why": "one axis appears but nothing says which were applied"
+    }
+  ]
+}

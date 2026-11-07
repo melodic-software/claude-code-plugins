@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/opt/eval/ws/config/database.yaml\",\"old_string\":\"db-old.internal\",\"new_string\":\"db-new.internal\"}}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/config/database.yaml\"}}]}}\n",
+      "why": "read only"
+    }
+  ]
+}

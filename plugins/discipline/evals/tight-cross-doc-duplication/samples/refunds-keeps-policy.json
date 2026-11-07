@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Refunds go to the original payment method within 14 days of purchase, never as store credit.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "See docs/refunds.md for the refund policy.\n",
+      "why": "copy removed here"
+    },
+    {
+      "answer": "Refunds go back within 14 days, never as store credit.\n"
+    }
+  ]
+}
