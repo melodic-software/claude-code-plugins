@@ -16,7 +16,7 @@ graders:
     input_match: '"skill"\s*:\s*"mutation-testing:audit"'
   - name: 'gap-formula'
     type: 'regex'
-    pattern: 'mutation score\s*[-−]\s*(?:code\s+)?coverage'
+    pattern: 'mutation score\s*(?:[-−]|minus)\s*(?:code\s+)?coverage'
     flags: 'i'
     target: 'last_message'
   - name: 'most-negative-first'

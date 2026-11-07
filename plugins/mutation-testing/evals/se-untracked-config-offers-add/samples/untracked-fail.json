@@ -3,12 +3,20 @@
     {
       "answer": "| Tracked | FAIL | untracked: git add docs/conventions/mutation-testing.yaml |",
       "why": "row"
+    },
+    {
+      "answer": "| 9 | Tracked, not ignored | **FAIL** for both files (below). |",
+      "why": "smoke reply at 492363d"
     }
   ],
   "fail": [
     {
       "answer": "| Tracked | PASS |",
       "why": "pass"
+    },
+    {
+      "answer": "| 9 | Tracked, not ignored | **PASS** |",
+      "why": "pass row"
     }
   ]
 }

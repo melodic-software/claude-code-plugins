@@ -7,6 +7,10 @@
     {
       "answer": "**Scope:** exercised, changed tests as one set",
       "why": "bold label"
+    },
+    {
+      "answer": "**Scope:** exercised, the changed tests (`scenarios/no_assertion/test_app.py`) as one set.",
+      "why": "smoke reply at 492363d"
     }
   ],
   "fail": [

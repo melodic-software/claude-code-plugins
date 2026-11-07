@@ -18,7 +18,7 @@ graders:
     input_match: '"skill"\s*:\s*"mutation-testing:audit"'
   - name: 'config-line-userconfig'
     type: 'regex'
-    pattern: 'max-mutants:?\s*5[^\n]{0,60}userConfig|userConfig[^\n]{0,120}max-mutants:?\s*5'
+    pattern: 'max[-_]mutants`?:?\s*`?5`?[^\n]{0,60}userConfig|userConfig[^\n]{0,120}max[-_]mutants`?:?\s*`?5'
     flags: 'i'
     target: 'last_message'
   - name: 'no-home-config-read'

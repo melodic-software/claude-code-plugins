@@ -7,6 +7,10 @@
     {
       "answer": "mutation score - coverage",
       "why": "short form"
+    },
+    {
+      "answer": "ranks files by oracle gap (mutation score minus coverage), most negative first",
+      "why": "smoke reply at 492363d"
     }
   ],
   "fail": [

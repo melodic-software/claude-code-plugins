@@ -27,7 +27,7 @@ graders:
     input_match: '"skill"\s*:\s*"testing:audit"'
   - name: 'scope-line'
     type: 'regex'
-    pattern: 'Scope[*_`]*:[*_`\s]*exercised,\s*changed tests as one set'
+    pattern: 'Scope[*_`]*:[*_`\s]*exercised,\s*(?:the )?changed tests\b[^\n]{0,120}?as one set'
     flags: 'i'
     target: 'last_message'
   - name: 'cause-no-assertion'

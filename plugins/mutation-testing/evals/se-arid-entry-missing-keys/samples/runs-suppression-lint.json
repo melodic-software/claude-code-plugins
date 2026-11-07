@@ -11,6 +11,18 @@
         }
       ],
       "why": "the lint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/scripts/suppression-lint.sh\" .claude/mutation-testing-arid.md; echo \"exit $?\"",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "smoke reply at 492363d: quoted script path"
     }
   ],
   "fail": [

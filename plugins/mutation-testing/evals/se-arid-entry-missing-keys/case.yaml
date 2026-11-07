@@ -15,7 +15,7 @@ graders:
   - name: 'runs-suppression-lint'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'suppression-lint\.sh[^"]*mutation-testing-arid\.md'
+    input_match: 'suppression-lint\.sh(?:[^"\\]|\\.)*mutation-testing-arid\.md'
     arm: 'with-only'
   - name: 'reports-malformed'
     type: 'regex'

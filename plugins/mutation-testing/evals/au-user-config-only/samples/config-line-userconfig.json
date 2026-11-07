@@ -3,6 +3,10 @@
     {
       "answer": "Config: max-mutants: 5 (userConfig), operators: narrow (userConfig), tool: manual (fallback)",
       "why": "the line"
+    },
+    {
+      "answer": "Config: `operators: narrow` (userConfig), `max_mutants: 5` (userConfig), test command given",
+      "why": "smoke reply at 492363d"
     }
   ],
   "fail": [

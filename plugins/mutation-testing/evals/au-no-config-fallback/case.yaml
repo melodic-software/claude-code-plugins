@@ -19,7 +19,7 @@ graders:
   - name: 'diff-target-from-origin-head'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'symbolic-ref[^"]*refs/remotes/origin/HEAD'
+    input_match: 'symbolic-ref(?:[^"\\]|\\.)*refs/remotes/origin/HEAD'
   - name: 'config-line-fallback'
     type: 'regex'
     pattern: 'no config:?\s*fallback defaults'

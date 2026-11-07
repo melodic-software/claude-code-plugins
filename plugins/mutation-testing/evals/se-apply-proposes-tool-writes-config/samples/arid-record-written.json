@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/mutation-testing-arid.md"
+      ],
+      "why": "as required"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "opposite"
+    }
+  ]
+}

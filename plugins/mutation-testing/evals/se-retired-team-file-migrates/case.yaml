@@ -23,7 +23,7 @@ graders:
   - name: 'old-file-kept'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '\b(?:rm|git\s+rm|mv|git\s+mv)\b[^"]*\.claude/mutation-testing\.md'
+    input_match: '\b(?:rm|git\s+rm|mv|git\s+mv)\b(?:[^"\\]|\\.)*\.claude/mutation-testing\.md'
     min: 0
     max: 0
     arm: 'both'

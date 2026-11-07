@@ -24,7 +24,7 @@ graders:
   - name: 'no-mutant-applied'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'sed\s+-i[^"]*app\.py'
+    input_match: 'sed\s+-i(?:[^"\\]|\\.)*app\.py'
     min: 0
     max: 0
     arm: 'both'
@@ -38,7 +38,7 @@ graders:
   - name: 'no-record-written'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '>\s*\.work/before\.tsv|tee[^"]*before\.tsv'
+    input_match: '>\s*\.work/before\.tsv|tee(?:[^"\\]|\\.)*before\.tsv'
     min: 0
     max: 0
     arm: 'both'

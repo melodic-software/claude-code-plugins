@@ -14,7 +14,7 @@ execution:
 graders:
   - name: 'pass-fail-info-table'
     type: 'regex'
-    pattern: '\|\s*\**(?:PASS|FAIL|INFO)\**\s*\|'
+    pattern: '\|\s*\**(?:PASS|FAIL|INFO)\b'
     flags: 'i'
     target: 'last_message'
   - name: 'probe-ecosystem'

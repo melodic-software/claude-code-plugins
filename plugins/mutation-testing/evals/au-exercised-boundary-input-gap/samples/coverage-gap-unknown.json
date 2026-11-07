@@ -7,6 +7,10 @@
     {
       "answer": "| app.py | score 0% | coverage unknown | gap unknown |",
       "why": "table cells"
+    },
+    {
+      "answer": "| File | Coverage (changed tests only) | Covered-code score | Gap | Survivors |\n|---|---|---|---|---|\n| app.py | unknown | 50% (2/4) | unknown | 2 |",
+      "why": "smoke reply at 492363d: header row names the columns, the data row says unknown"
     }
   ],
   "fail": [
