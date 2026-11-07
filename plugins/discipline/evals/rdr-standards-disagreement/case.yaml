@@ -3,7 +3,7 @@ name: rdr-standards-disagreement
 graders:
   - name: routes-follow-our-standards
     type: regex
-    pattern: 'follow[- ]our[- ]standards'
+    pattern: '\bfollow-our-standards\b|\bfollow[- ]our[- ]standards\b[`''"*)]*[ \t]+(?:skill|corrector)\b|\b(?:skill|corrector)\b[ \t]+[`''"*(]*/?follow[- ]our[- ]standards\b'
     flags: 'i'
     target: last_message
   - name: upstream-change-path

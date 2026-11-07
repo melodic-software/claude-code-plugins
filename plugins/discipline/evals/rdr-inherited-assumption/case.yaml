@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: names-do-your-research
     type: regex
-    pattern: 'do[- ]your[- ]research'
+    pattern: '\bdo-your-research\b|\bdo[- ]your[- ]research\b[`''"*)]*(?:''s)?[ \t]+(?:skill|corrector)\b|\b(?:skill|corrector)\b[ \t]+[`''"*(]*/?do[- ]your[- ]research\b'
     flags: 'i'
     target: last_message
   - name: incumbency-axis

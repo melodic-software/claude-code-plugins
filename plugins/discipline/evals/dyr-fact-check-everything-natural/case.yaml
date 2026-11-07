@@ -33,8 +33,8 @@ graders:
     arm: 'both'
   - name: states-depth-and-source
     type: regex
-    pattern: '\b(?:tiered|full)\b[^\n]{0,80}\b(?:default|configured|config|fallback|research_deep_verification|no argument)\b|\b(?:default|configured|config|fallback|research_deep_verification|no argument)\b[^\n]{0,80}\b(?:tiered|full)\b'
-    flags: 'i'
+    pattern: '^(?=[^\n]*\b(?:default|configured|fallback|research_deep_verification|no argument)\b)[^\n]*?(?:\bdepth\b[^\n]{0,40}?\b(?:tiered|full)\b|\b(?:tiered|full)\b[^\n]{0,20}?\bdepth\b|\b(?:resolv(?:es|ed|ing)?|applies|applied|falls? back|fell back)\b(?: to)?[ :*`]{1,4}(?:tiered|full)\b)'
+    flags: 'im'
     target: 'last_message'
   - name: no-mutating-gh-api
     type: regex

@@ -21,7 +21,7 @@ graders:
     arm: 'both'
   - name: no-wholesale-rerun
     type: llm
-    criteria: 'Legacy expectation: "Does not re-run the whole fan-out or re-dispatch the items that already returned". Judge the Agent calls in the trace. PASS only if no item other than the pricing-tier item is dispatched more than once and the fan-out is not re-run as a whole. FAIL if an item that already returned is re-dispatched or the fan-out is re-run. Whether the pricing-tier item itself is dispatched twice is graded by pricing-dispatched-twice; do not judge it here.'
+    criteria: 'Legacy expectation: "Does not re-run the whole fan-out or re-dispatch the items that already returned". Judge the Agent calls in the trace. PASS only if no item other than the pricing-tier item is dispatched more than once and the fan-out is not re-run as a whole. FAIL if an item that already returned is re-dispatched or the fan-out is re-run. Whether the pricing-tier item itself is dispatched a second time is not part of this criterion (a run cannot make a worker fail); do not judge it here.'
     focus: 'trace'
     arm: 'both'
   - name: no-mutating-gh-api
