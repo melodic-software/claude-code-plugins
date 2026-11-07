@@ -3,7 +3,7 @@ name: viz-retry-pseudocode
 graders:
   - name: pseudocode-fence
     type: 'regex'
-    pattern: '(?:```|~~~)(?!mermaid)[^\n]*\n(?=(?:(?!```|~~~)[\s\S])*?\b(?:for|while|repeat|loop|until|attempts?)\b)(?=(?:(?!```|~~~)[\s\S])*?\b(?:wait|sleep|delay|backoff)\b)(?=(?:(?!```|~~~)[\s\S])*?(?:5xx|5\d\d|>=?[ \t]*500|server error))'
+    pattern: '^(?:(?!```|~~~)[\s\S])*?(?:```|~~~)(?!mermaid)[^\n]*\n(?=(?:(?!```|~~~)[\s\S])*?(?<=\n)[ \t]*(?:for|while|repeat|loop|if|until|try|return|raise|throw)\b)(?=(?:(?!```|~~~)[\s\S])*?\b(?:for|while|repeat|loop|until|attempts?)\b)(?=(?:(?!```|~~~)[\s\S])*?\b(?:wait|sleep|delay|backoff)\b)(?=(?:(?!```|~~~)[\s\S])*?(?:5xx|5\d\d|>=?[ \t]*500|server error))'
     flags: 'i'
     target: 'last_message'
   - name: single-fence

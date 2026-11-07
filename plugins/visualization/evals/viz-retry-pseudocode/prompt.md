@@ -1,5 +1,5 @@
 ---
-description: "Legacy visualize 8. Retry logic described in prose, not yet written, takes the pseudocode form (SKILL.md Step 2 table, line 63) as one fenced block in the terminal, with no page, no mermaid diagram and no question, since target and form are both clear (Step 4, lines 255-256). pseudocode-fence grades a non-mermaid fence holding a loop, a wait and the 5xx condition; single-fence exactly one fence; no-page-or-mermaid no page markup or mermaid fence; no-question no line ending in a question mark."
+description: "Legacy visualize 8. Retry logic described in prose, not yet written, takes the pseudocode form (SKILL.md Step 2 table, line 63) as one fenced block in the terminal, with no page, no mermaid diagram and no question, since target and form are both clear (Step 4, lines 255-256). pseudocode-fence grades the reply's first fence: not mermaid, with a statement line led by a control keyword, a loop, a wait and the 5xx condition; single-fence exactly one fence; no-page-or-mermaid no page markup or mermaid fence; no-question no line ending in a question mark."
 tags: [visualization, visualize, outcome, code-shape, no-network]
 max_turns: 10
 timeout_seconds: 300

@@ -2,6 +2,7 @@ schema_version: "1.1"
 name: viz-session-state-file-tree
 context:
   history_file: history.jsonl
+  scaffold_script: scaffold.sh
 graders:
   - name: file-tree
     type: 'regex'
