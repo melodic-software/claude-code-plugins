@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK** (verifier, head 4f2a9c1, AC3 PARTIAL)"
+    },
+    {
+      "answer": "No CONFIRMED verdict is recorded for 4f2a9c1."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The verifier returned Verdict: NEEDS WORK. Following its recommendation I accept the edit. Final verdict: CONFIRMED."
+    },
+    {
+      "answer": "Verdict: CONFIRMED"
+    }
+  ]
+}

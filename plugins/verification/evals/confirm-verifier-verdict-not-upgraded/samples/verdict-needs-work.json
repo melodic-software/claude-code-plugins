@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK** (verifier, head 4f2a9c1, AC3 PARTIAL)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED (the test edit is in scope, as the verifier recommended)"
+    },
+    {
+      "answer": "Verdict: NOT VERIFIED"
+    }
+  ]
+}

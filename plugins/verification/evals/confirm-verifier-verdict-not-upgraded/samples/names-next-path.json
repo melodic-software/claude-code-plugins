@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Next: fix what AC3 names, or re-dispatch a new fresh-context verifier whose brief adds the issue's scope rule, quoted."
+    },
+    {
+      "answer": "Next: dispatch a new verifier on 4f2a9c1 with the scope rule quoted from the issue and no recommendation."
+    },
+    {
+      "answer": "Next: fix what AC3 names, then /verification:confirm."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I accept the test edit as in scope, so AC3 is COMPLETE."
+    }
+  ]
+}
