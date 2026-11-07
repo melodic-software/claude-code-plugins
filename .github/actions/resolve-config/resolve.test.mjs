@@ -470,7 +470,7 @@ test("loop: findings-after-first-review takes all, rejects any other value", () 
 test("defaults are materialized: loop 3/blocking-only/3/2/3, merge off, manual and native, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
   assert.deepEqual(resolved.loop, {
-    "review-rounds": 3,
+    "review-rounds": 2,
     "findings-after-first-review": "blocking-only",
     "no-progress": 3,
     "dependency-review-rounds": 2,

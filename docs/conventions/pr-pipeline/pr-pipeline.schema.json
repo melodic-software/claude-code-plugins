@@ -37,7 +37,7 @@
         "review-rounds": {
           "type": "integer",
           "minimum": 1,
-          "default": 3,
+          "default": 2,
           "description": "Full review rounds before reviews narrow to high severity only."
         },
         "findings-after-first-review": {

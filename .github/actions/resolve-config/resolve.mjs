@@ -992,7 +992,7 @@ const limitsOf = (limits = {}) => ({
 });
 
 const loopOf = (loop = {}) => ({
-  "review-rounds": loop["review-rounds"] ?? 3,
+  "review-rounds": loop["review-rounds"] ?? 2,
   "findings-after-first-review": loop["findings-after-first-review"] ?? "blocking-only",
   "no-progress": loop["no-progress"] ?? 3,
   "dependency-review-rounds": loop["dependency-review-rounds"] ?? 2,

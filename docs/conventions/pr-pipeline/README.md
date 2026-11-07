@@ -3669,7 +3669,7 @@ comment that names the open threads. A round cap is a lane bound, not
 an intent question, and pr-verify's FAIL already holds the merge until it passes a later head. Removing the label alone does not resume it, since
 the rounds already run still count: a person resolves the open threads, or a write-access fix
 request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
-<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 3; this
+<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. `loop.findings-after-first-review`
 sets what a CI review lane reports on a head after the first one it reviewed whole: `blocking-only`
 (the default) reports blocking findings only, `all` reports every finding on every head. The lane's
