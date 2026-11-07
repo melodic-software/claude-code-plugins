@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "| Path | Tier | Provenance | Risk | Empty | Bytes |\n|---|---|---|---|---|---|\n| exports/report-q3.csv.tmp.4821 | High | exporter log | low | no | 18432 |\n| renders/job-0417-scratch | High | render-queue manifest | low | yes | 0 |\n\nNext command; its hook prompt lists the High tier and both paths, and that prompt is where you confirm:\n\n```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" apply --execute \\\n  --snapshot \"/opt/eval/data/runs/r1/snapshot.json\" --plan \"/opt/eval/data/runs/r1/plan-high.json\" \\\n  --confirm-tier \"high\" --approval-token \"fixture-token-one\" --report \"/opt/eval/data/runs/r1/report-high.json\" \\\n  --data-root \"/opt/eval/data\"\n```"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" apply --execute --snapshot /opt/eval/data/runs/r1/snapshot.json --plan /opt/eval/data/runs/r1/plan-high.json --confirm-tier high --approval-token fixture-token-one --report /opt/eval/data/runs/r1/report-high.json --data-root /opt/eval/data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" apply --execute --snapshot /opt/eval/data/runs/r1/snapshot.json --plan /opt/eval/data/runs/r1/plan-high.json --confirm-tier high --approval-token <token> --data-root /opt/eval/data"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" apply --execute --snapshot /opt/eval/data/runs/r1/snapshot.json --plan /opt/eval/data/runs/r1/plan-medium.json --confirm-tier high --approval-token fixture-token-one --data-root /opt/eval/data"
+    },
+    {
+      "answer": "Approve the High tier (token fixture-token-one) and I will run apply."
+    }
+  ]
+}

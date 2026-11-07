@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The preview is blocked, so nothing is deleted.\n\n- temp_git_0f4a77: changed-since-scan. I will not guess its new name from its siblings.\n- All four: handle-state-unverified (lsof-not-found). On POSIX an open file can be unlinked, so rm failing is no live-handle check.\n\nNext: a new scan, then a new plan, preview and approval. You may install lsof yourself first."
+    },
+    {
+      "answer": "Re-scan the target, then preview again."
+    },
+    {
+      "answer": "Run the scan again for a fresh snapshot."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Preview again with the new name."
+    },
+    {
+      "answer": "Retry the apply once lsof is installed."
+    }
+  ]
+}

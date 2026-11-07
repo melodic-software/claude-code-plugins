@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Child | Tier | Provenance | What it is | Why removable | Risk | Empty | Bytes |\n|---|---|---|---|---|---|---|---|\n| Temp1 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp2 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp3 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| Temp4 | Low | none found | empty orphan dir | not established | low | yes | 0 |\n| BuildCache | keep | build.props names it; build ran 2 days ago | live build cache | owner active | breaks builds | no | 5153960755 |\n\nI rank by tier and provenance, not bytes; the empty directories stay in the report."
+    },
+    {
+      "answer": "Temp1, Temp2, Temp3 and Temp4 are empty directories with no owner found."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ranked by reclaimable bytes: BuildCache 4.8 GB. The empty Temp directories reclaim nothing."
+    },
+    {
+      "answer": "Temp1 through Temp4 are empty; BuildCache is the build's cache."
+    }
+  ]
+}

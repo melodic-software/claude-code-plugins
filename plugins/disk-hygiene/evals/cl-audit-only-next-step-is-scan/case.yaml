@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: cl-audit-only-next-step-is-scan
+description: 'Legacy clean 1, command half. An audit request with no --execute and no removal request: with the probe done, the next step is one hygiene.py scan of the target with --data-root and its --output under the data root''s runs directory, and no preview, apply or handoff call (SKILL.md lines 35, 174-187, 349-352). skill-fired is a with-only indicator. The report half is in cl-unattended-execute-audits-and-stops. Read-only: --allow-tools none.'
+tags: [clean, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The reply states one hygiene.py scan command with --target /opt/eval/work/scratch-audit, a --data-root, and an --output snapshot under a runs/ directory, not inside the target. It states no preview, apply or handoff command, gives no manual deletion command, and claims nothing was removed.'
+execution:
+  prompt: "Use the disk-hygiene clean skill for this. Session state so far:\n\n- Linux host. A human is at the keyboard in this interactive session.\n- Guard values: hook_python /usr/bin/python3, engine: the clean skill's bundled scripts/hygiene.py, data_root /opt/eval/data.\n- The kill-switch probe already ran in this session and reported effective: true.\n- Nothing else has run. /opt/eval/work/scratch-audit is an ordinary directory: not a home directory, a mount point or a volume root.\n\nThis session has no shell and no file-writing tool, so nothing can be run or written here. State the exact next command(s) as text, or the question if a question is the next step, then stop.\n\nMy message: audit /opt/eval/work/scratch-audit for leftovers.\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:disk-hygiene:)?clean"'
+    arm: with-only
+  - name: scan-command-on-target
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}scan\b(?:[^\n]*\\\n)*[^\n]*--target\W+/opt/eval/work/scratch-audit\b'
+    target: last_message
+    arm: both
+  - name: scan-output-under-data-root
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}scan\b(?=(?:[^\n]*\\\n)*[^\n]*--data-root\W+\S)(?:[^\n]*\\\n)*[^\n]*--output\W+(?![^\s"''`]*/work/scratch-audit/)[^\s"''`]*/runs/[^\s"''`]+'
+    target: last_message
+    arm: both
+  - name: no-removal-lane-command
+    type: regex
+    pattern: 'hygiene\.py\W{1,12}(?:preview|apply|handoff-apply|handoff-verify)\b|--approval-token\b|--confirm-tier\b'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-manual-deletion-command
+    type: regex
+    pattern: '(?:^|[\s`])(?:rm|rmdir|unlink)\s+[-/"'']|Remove-Item|\bfind\b[^\n]*\s-delete\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-completion-claim
+    type: regex
+    pattern: '\bI(?:''ve| have)?\s+(?:just\s+)?(?:deleted|removed|applied|cleaned)\b|^\W*(?:deleted|removed)(?: both| all)\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both

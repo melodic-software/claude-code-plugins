@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "## CANDIDATE\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .local/share/mise/installs/node/22.11.0 | superseded-version | mise | older version, unused | no /proc match |\n\n## KEEP\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .config/nvim | unclassified | neovim | nvim reads init.lua here | init.lua present |\n\n## UNKNOWN (coverage gaps)\n\nmnt-backup, .private-vault: not walked.\n\nNothing here is approved for removal. To remove a candidate, run a scan, then a fresh preview, then approve that one tier and its paths."
+    },
+    {
+      "answer": "First, the candidates: node/22.11.0, tools/1.2.0 and -opt-eval-old-repo. Then KEEP rows."
+    },
+    {
+      "answer": "8 rows: 3 KEEP, 3 CANDIDATE, 2 UNKNOWN.\n\n## CANDIDATE\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .local/share/mise/installs/node/22.11.0 | superseded-version | mise | older version, unused | no /proc match |\n\n## KEEP\n\n| Entry | Category | Producer | Reason | Evidence |\n|---|---|---|---|---|\n| .config/nvim | unclassified | neovim | nvim reads init.lua here | init.lua present |\n\n## UNKNOWN (coverage gaps)\n\nmnt-backup, .private-vault: not walked.\n\nNothing here is approved for removal. To remove a candidate, run a scan, then a fresh preview, then approve that one tier and its paths."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## KEEP\n\n.config/nvim, .cache/pip\n\n## CANDIDATE\n\nnode/22.11.0"
+    },
+    {
+      "answer": "| .config/nvim | KEEP |\n| node/22.11.0 | CANDIDATE |"
+    },
+    {
+      "answer": "8 rows: 3 CANDIDATE, 3 KEEP, 2 UNKNOWN.\n\n## KEEP\n\n| .cache/pip | pip cache |\n\n## CANDIDATE\n\n| x | y |"
+    }
+  ]
+}

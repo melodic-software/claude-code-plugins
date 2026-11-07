@@ -123,7 +123,7 @@ fires f603880dad4003477ec7cac27654fce92c75eec8 [a95f240f7502ff9f1e5411602e79ccbd
 # restored the INTENT rather than the bytes, so a verbatim-hunk assertion would
 # be red here forever while this line is present in both trees.
 marker f603880dad4003477ec7cac27654fce92c75eec8 plugins/disk-hygiene/README.md Safe tidiness is the primary objective
-marker f603880dad4003477ec7cac27654fce92c75eec8 plugins/disk-hygiene/skills/clean/evals/evals.json empty-directories-remain-first-class-tidiness-findings
+marker f603880dad4003477ec7cac27654fce92c75eec8 plugins/disk-hygiene/evals/cl-root-children-empty-dirs-stay-visible/case.yaml empty-directories-remain-first-class-tidiness-findings
 
 # Ten minutes after that, #2641's squash dropped #2639's guard work.
 # destructive_guard.py went 1643 -> 1424 lines and every #2639 marker string

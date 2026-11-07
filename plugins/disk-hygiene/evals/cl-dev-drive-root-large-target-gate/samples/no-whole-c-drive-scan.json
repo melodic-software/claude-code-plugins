@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "D:/ is a valid target but known-large, so I start bounded:\n\n```bash\n\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"D:/\" --output \"C:/eval/data/runs/r2/snapshot.json\" \\\n  --max-depth 1 --data-root \"C:/eval/data\"\n```\n\nC:/ is the OS drive, an OS-managed root: it cannot be scanned as a whole; only a --root-children listing reaches it."
+    },
+    {
+      "answer": "\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"C:/\" --root-children --output C:/eval/data/runs/r3/listing.json --data-root C:/eval/data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target \"C:/\" --max-depth 1 --data-root C:/eval/data"
+    },
+    {
+      "answer": "```bash\n\"C:/Python313/python.exe\" \"C:/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target C:/ \\\n  --data-root \"C:/eval/data\"\n```"
+    }
+  ]
+}

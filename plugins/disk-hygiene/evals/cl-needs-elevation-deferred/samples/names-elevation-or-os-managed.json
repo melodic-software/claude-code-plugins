@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "C:/$SysReset needs elevation, and this run's elevation is never, so I will not elevate or prompt for UAC. It is deferred: no approval and no handoff-apply for it. It is not locked and not a protected entry; the preview hit access denied. $SysReset is also OS-managed Windows reset state."
+    },
+    {
+      "answer": "$SysReset is OS-managed; it stays."
+    },
+    {
+      "answer": "That folder requires administrator rights."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The preview says access denied on C:\\$SysReset. Elevate and remove it? No."
+    },
+    {
+      "answer": "That path is blocked; I can't remove it."
+    }
+  ]
+}

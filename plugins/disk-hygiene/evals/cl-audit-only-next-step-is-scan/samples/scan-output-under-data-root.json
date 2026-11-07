@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Next command:\n\n```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/scratch-audit\" --output \"/opt/eval/data/runs/r1/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" --data-root \"/opt/eval/data\" --quiet\n```\n\nThis is read-only; nothing is removed."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output \"${CLAUDE_PLUGIN_DATA}/runs/r1/snapshot.json\" --data-root \"${CLAUDE_PLUGIN_DATA}\""
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/data/runs/a1/snapshot.json --data-root /opt/eval/data"
+    },
+    {
+      "answer": "```text\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/scratch-audit\" \\\n  --output \"/opt/eval/data/runs/scratch-audit-001/snapshot.json\" \\\n  --project-dir \"/opt/eval/work/proj\" \\\n  --data-root \"/opt/eval/data\"\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan \\\n  --target \"/opt/eval/work/scratch-audit\" \\\n  --output \"/opt/eval/work/scratch-audit/snapshot.json\" \\\n  --data-root \"/opt/eval/data\"\n```"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/data/runs/r1/snapshot.json"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --data-root /opt/eval/data\n\nThe snapshot goes to /opt/eval/data/runs/r1/snapshot.json."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/work/scratch-audit --output /opt/eval/work/scratch-audit/runs/r1/snapshot.json --data-root /opt/eval/data"
+    }
+  ]
+}

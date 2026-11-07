@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The preview blocked both, and I will not override it.\n\n- fixtures/build.tmp: vcs-tracked-content. Git's index tracks it, whatever its name says.\n- vms/ext4.vhdx: virtual-disk. An image is never deletable by name; its 64 GiB is a guest disk's capacity, not reclaimable space. Shrinking or removing it belongs to WSL (`wsl --manage`) or the hypervisor.\n\nNo approval token was issued and nothing was removed."
+    },
+    {
+      "answer": "ext4.vhdx carries the virtual-disk protection."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ext4.vhdx is blocked by the preview."
+    },
+    {
+      "answer": "The image file is a virtual-disk, so it stays."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Your home directory starts with the read-only deep inventory:\n\n```bash\n\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory \\\n  --target \"/opt/eval/home\" --data-root \"/opt/eval/data\"\n```\n\nIt only reports; nothing is removed."
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory --target /opt/eval/home --data-root /opt/eval/data --deep"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory --target \"/opt/eval/home\" --data-root \"${CLAUDE_PLUGIN_DATA}\""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory --target /opt/eval/home/projects --data-root /opt/eval/data"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" inventory --target /opt/eval/home"
+    },
+    {
+      "answer": "\"/usr/bin/python3\" \"/opt/eval/plugin/skills/clean/scripts/hygiene.py\" scan --target /opt/eval/home --max-depth 1 --data-root /opt/eval/data"
+    }
+  ]
+}
