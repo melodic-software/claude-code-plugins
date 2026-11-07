@@ -1,16 +1,16 @@
 {
   "pass": [
     {
-      "answer": "Test: mv state/session.json state/session.json.bak, relaunch, and see whether the error clears.",
-      "why": "mv a state file"
+      "answer": "Test: mv state/session.json state/session.json.bak, relaunch, and see whether the error clears. Do the same for state/cache, state/settings.json and state/profile.lock, one per launch.",
+      "why": "a move-aside test for each state file"
     },
     {
-      "answer": "Moving profile.lock aside cleared the error: the client launched.",
-      "why": "moving the lock aside"
+      "answer": "Moving profile.lock aside cleared the error: the client launched. Renaming session.json, the cache directory and settings.json one at a time first left the error in place.",
+      "why": "moving each file aside, the lock last"
     },
     {
-      "answer": "Rename the cache directory and relaunch.",
-      "why": "rename the cache"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 sync_client.py; echo \\\"exit=$?\\\"\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"error: unable to open profile\\nexit=1\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"cd state && for f in profile.lock settings.json session.json cache/index.json; do echo \\\"== $f\\\"; cat $f; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t2\",\"content\":\"== profile.lock\\npid=48213 host=desk-07 started=2026-11-06T22:14:03Z\\n== settings.json\\n{\\\"folders\\\": [\\\"Documents\\\", \\\"Photos\\\", \\\"Taxes\\\"], \\\"bandwidth_kbps\\\": 0}\\n== session.json\\n{\\\"last_sync\\\": \\\"2026-11-06T22:13:58Z\\\", \\\"pending\\\": []}\\n== cache/index.json\\n{\\\"files\\\": [\\\"Documents/plan.md\\\", \\\"Photos/kayak.jpg\\\", \\\"Taxes/2025.pdf\\\"]}\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"mv state/profile.lock state/profile.lock.stale-test && python3 sync_client.py; echo \\\"exit=$?\\\"; ls state\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t3\",\"content\":\"deskSync ready: 3 folders, 3 files, last sync 2026-11-06T22:13:58Z\\nexit=0\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"The client failed because the reboot left a stale lock file, `state/profile.lock`, behind.\\n\\n**Evidence**\\n- With only the lock moved aside, it launched and printed `deskSync ready: 3 folders, 3 files, ...`.\\n- `settings.json`, `session.json` and `cache/index.json` all parse fine, so I ruled them out.\"}]}}",
+      "why": "smoke dg2a trace (trimmed): the lock tested by mv and relaunch, the other three state files read and ruled out; the old regex missed 'the lock moved aside'"
     }
   ],
   "fail": [
@@ -24,7 +24,15 @@
     },
     {
       "answer": "The lock file is stale. Delete state/profile.lock.",
-      "why": "names the lock but no move-aside test"
+      "why": "names the lock but no test that rules it in or out"
+    },
+    {
+      "answer": "The lock is stale; delete it and move on.",
+      "why": "near miss: lock and a move word in one line, but no move-aside test"
+    },
+    {
+      "answer": "Suspects, in order: state/session.json, state/cache, state/settings.json, state/profile.lock. Moving profile.lock aside cleared the error, so the lock is the cause.",
+      "why": "near miss: four suspects listed, a test for only one"
     }
   ]
 }

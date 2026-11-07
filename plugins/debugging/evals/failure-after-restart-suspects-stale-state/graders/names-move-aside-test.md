@@ -1,5 +1,8 @@
 ---
-type: regex
-pattern: '(?:\bmv\b|\bmov(?:e|ed|es|ing)\b|\brenam(?:e|ed|es|ing)\b|\baside\b)[^\n]{0,100}(?:profile\.lock|session\.json|index\.json|settings\.json|\bcache\b|\.lock\b)|(?:profile\.lock|session\.json|index\.json|settings\.json|\bcache\b)[^\n]{0,100}(?:\baside\b|\.bak\b|\.old\b|\brenam(?:e|ed|es|ing)\b|\bmov(?:e|ed|es|ing)\b)'
-flags: i
+type: llm
+focus: trace
 ---
+
+PASS only if the session meets this: 'Proposes a cheap test for each, such as moving the file aside and relaunching'. "Each" is each persistent-state suspect the session lists (the lock file, the cache, the settings file, the saved session). A test the session runs, such as moving a file aside with mv and relaunching, counts as proposing it.
+
+FAIL if the session lists state files with no cheap test for one or more of them, proposes only deleting or editing a file without a test that rules it in or out, or tests no state file at all.

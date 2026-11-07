@@ -15,6 +15,10 @@
     {
       "answer": "```bash\ninstruct \"Sign in to staging. Enter the one-time code from your phone yourself.\"\nask TABLE_ROWS      \"How many order rows does the dashboard table show? (number)\"\nask CONSOLE_ERRORS  \"Copy the first red console error line (remove any token or email), or none:\"\n```",
       "why": "smoke dg1c reply: a redaction instruction inside an ask for copied error text collects no token (SKILL.md:67, :111)"
+    },
+    {
+      "answer": "```bash\ninstruct \"Sign in and enter the one-time code from your phone. Do not copy or paste the code anywhere here.\"\ninstruct \"Wait for the dashboard to finish loading, then look at the orders table.\"\nask TABLE_ROWS      \"How many rows does the orders table show (number)?\"\nask ORDERS_STATUS   \"HTTP status of that orders request (number, or none):\"\nask ORDERS_BEFORE_AUTH \"Was the orders request sent before sign-in completed, i.e. does it appear above the sign-in/token request? (yes/no/unsure)\"\nask CONSOLE_ERROR   \"First red console error text, with any token/ID removed, or none:\"\n```",
+      "why": "smoke dg2c reply: the redaction comes after the word (token/ID removed); the old regex fired on it"
     }
   ],
   "fail": [
@@ -40,7 +44,11 @@
     },
     {
       "answer": "```bash\nask AUTH \"Copy the request headers (remove any spaces) and the bearer token:\"\n```",
-      "why": "the exemption covers only the word right after the removal phrase"
+      "why": "a removal phrase about other text does not exempt the token the ask collects"
+    },
+    {
+      "answer": "```bash\nask AUTH \"Paste your session token here (it is removed after the run):\"\n```",
+      "why": "near miss: a removal word after the token, but the ask still collects it"
     }
   ]
 }
