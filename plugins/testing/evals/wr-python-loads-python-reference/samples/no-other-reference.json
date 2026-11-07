@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/python.md" } }
+      ],
+      "why": "Python only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/python.md" } },
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/typescript.md" } }
+      ],
+      "why": "also read the TypeScript reference"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/csharp.md" } }
+      ],
+      "why": "read the C# reference"
+    }
+  ]
+}

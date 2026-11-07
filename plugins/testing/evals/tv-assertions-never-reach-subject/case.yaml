@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tv-assertions-never-reach-subject
+description: 'Legacy test-value 7. A totalCart test asserts only on the cart object it built, so it passes whatever totalCart does; the fix asserts the total totalCart returns. The prompt names the skill (test-value is not user-invocable), since natural phrasing alone did not load it. skill-fired reads the Skill calls, asserts-return the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, test-value, no-network]
+expected_outcome: 'Says every assertion reads data the test built, so the test passes whatever totalCart does, and asserts the total totalCart returns instead.'
+execution:
+  prompt: 'Review this test: `const cart = { items: [a, b, c] }; totalCart(cart); expect(cart.items).toHaveLength(3);` Use the `testing:test-value` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: asserts-return
+    type: regex
+    pattern: '\bexpect\(\s*(?:totalCart\(\s*cart\s*\)|total|result|actual)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual|toBeCloseTo)\('
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked for a review of a test that calls totalCart(cart) and then asserts expect(cart.items).toHaveLength(3). PASS only if the reply satisfies every legacy expectation: "Output says every assertion reads data the test built, so the test passes whatever totalCart does" "Output asserts the total that totalCart returns instead". FAIL if any point is missing or contradicted.'

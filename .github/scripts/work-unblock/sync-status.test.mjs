@@ -1,9 +1,11 @@
 // Expected values come from the requested behavior: a listed human's added
-// queue-state or agent-ready label is written to the Work status field unless
-// the field holds a hold; an added hold label and any removal but agent-ready's
-// write nothing; agent-ready taken off, a person stopping the lane, writes
-// confirmed, never a state that reads as ready, only while the field reads
-// agent-ready; a label's absence never resets the field.
+// queue-state label is written to the Work status field unless the field holds
+// a hold; an added agent-ready label writes nothing, since the App's write
+// would admit with no admission record and people set agent-ready on the field
+// itself; an added hold label and any removal but agent-ready's write nothing;
+// agent-ready taken off, a person stopping the lane, writes confirmed, never a
+// state that reads as ready, only while the field reads agent-ready; a label's
+// absence never resets the field.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -35,18 +37,25 @@ function harness({ field = null } = {}) {
 const event = (action, name, issue = { number: 5 }) => ({ action, label: { name }, issue });
 const writesOf = (calls) => calls.filter((call) => call.startsWith("SET ") || call.startsWith("LEAVE "));
 
-test("a person's added queue-state or agent-ready label writes its state, without case", async () => {
+test("a person's added queue-state label writes its state, without case", async () => {
   for (const [label, state] of [
     ["status: ready", "ready"],
     ["Status: Confirmed", "confirmed"],
     ["admission-deferred", "deferred"],
     ["needs-triage", "needs-triage"],
-    ["agent-ready", "agent-ready"],
   ]) {
     const { calls, run } = harness({ field: "needs-triage" });
     const result = await run(event("labeled", label));
     assert.deepEqual(writesOf(calls), state === "needs-triage" ? [] : [`SET 5 ${state}`], label);
     assert.equal(result.outcome, state === "needs-triage" ? "unchanged" : "written", label);
+  }
+});
+
+test("a person's added agent-ready label, in any case, writes nothing and reads nothing", async () => {
+  for (const label of ["agent-ready", "Agent-Ready"]) {
+    const { calls, run } = harness({ field: "needs-triage" });
+    assert.deepEqual(await run(event("labeled", label)), { outcome: "skipped", reason: "agent-ready, which a person sets on the Work status field itself" }, label);
+    assert.deepEqual(calls, [], label);
   }
 });
 

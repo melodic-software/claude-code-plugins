@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: ck-detects-changed-ecosystems
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: phases-in-order
+    type: regex
+    pattern: '^dotnet build\b(?=[\s\S]*^python build\b[\s\S]*^python test\b[\s\S]*^python check\b)[\s\S]*^dotnet test\b[\s\S]*^dotnet check\b|^python build\b(?=[\s\S]*^dotnet build\b[\s\S]*^dotnet test\b[\s\S]*^dotnet check\b)[\s\S]*^python test\b[\s\S]*^python check\b'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: powershell-not-run
+    type: regex
+    pattern: '^powershell\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: table-rows
+    type: regex
+    pattern: '^\|[\s*_`]*dotnet[\s*_`]*\|(?=[\s\S]*^\|[\s*_`]*python[\s*_`]*\|)|^\|[\s*_`]*python[\s*_`]*\|(?=[\s\S]*^\|[\s*_`]*dotnet[\s*_`]*\|)'
+    flags: m
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run checks a repository where a .cs file and a .py module changed and a .ps1 script did not. It meets the legacy expectations: "Detects the affected ecosystems (dotnet, python) by matching changed files against ecosystem globs, not by building the whole repo" "Runs build -> test -> lint in order for each affected ecosystem" "Emits a per-ecosystem results table using pass / FAIL / skip / — statuses" "Does not run ecosystems that have no changed files".'

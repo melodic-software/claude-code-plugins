@@ -46,10 +46,16 @@ on:
         required: false
         type: string
         default: ""
-      app-label:
+      app-field-id:
         description: >-
-          Issue mode: the one label the lanes App may apply to start the lane.
-          Empty keeps every App event stopped.
+          Issue mode: the issue field the lanes App may set to app-field-option
+          to start the lane. Either empty keeps every App event stopped.
+        required: false
+        type: string
+        default: ""
+      app-field-option:
+        description: >-
+          Issue mode: the single-select option of app-field-id that starts the lane.
         required: false
         type: string
         default: ""
@@ -787,8 +793,8 @@ jobs:
 
       # The lanes App bot never starts a write activity, on any event, so one
       # write cannot chain into the next; a re-run must be started by a listed
-      # account. One exception, in issue mode: the App applying the caller's
-      # app-label to an issue.
+      # account. One exception, in issue mode: the App setting the caller's
+      # app-field-id to app-field-option on an issue.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -821,11 +827,12 @@ jobs:
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
-          # Issue mode reads no PR: the account that applied the label, and
-          # any re-runner, must be listed as a human.
+          # Issue mode reads no PR: the account that set the field, and any
+          # re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
-          app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
+          app-field-id: ${{ inputs.issue-number != '' && inputs.app-field-id || '' }}
+          app-field-option: ${{ inputs.issue-number != '' && inputs.app-field-option || '' }}
 
       # The trusted base is the config, actions and trusted-actor source.
       - name: Assert the base is on the default branch
@@ -1419,8 +1426,8 @@ jobs:
           }
           echo "labels=$labels" >>"$GITHUB_OUTPUT"
 
-      # Issue mode, apply-patch: the labels the activity needs present (an
-      # issue's agent-ready), read before the head checkout replaces .base.
+      # Issue mode, apply-patch: the labels the activity needs present, read
+      # before the head checkout replaces .base.
       - name: Read the required labels
         id: required-labels
         if: >-
@@ -1429,7 +1436,10 @@ jobs:
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
-          required=$(jq -ce '[(.selected["applies-when"].labels // [])[] | strings]' "$RESOLVED") || {
+          # agent-ready lives on the Work status field: this job's resolve-config
+          # selection already required it from the field, and the raw label
+          # list apply-patch reads would never hold it.
+          required=$(jq -ce '[(.selected["applies-when"].labels // [])[] | strings | select(. != "agent-ready")]' "$RESOLVED") || {
             echo "::error::cannot read the activity's labels list from the resolved config"
             exit 1
           }
@@ -1714,7 +1724,7 @@ jobs:
           use_commit_signing: true
           # The action refuses a bot actor unless it is listed. The trigger
           # gate has already decided both bot cases: the lanes App passes it
-          # only by applying the app-label in issue mode, and github-actions
+          # only by setting the app field in issue mode, and github-actions
           # only on a dispatcher run it verified, whose id this names.
           allowed_bots: >-
             ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'

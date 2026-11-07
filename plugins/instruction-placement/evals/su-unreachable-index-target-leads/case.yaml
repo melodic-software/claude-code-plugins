@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-unreachable-index-target-leads
+graders:
+  - name: 'leads-unreachable'
+    type: 'regex'
+    pattern: '\bunreachable\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the setup run reports for the stated repository. PASS only if it satisfies every point: (1) Runs the reachability probe rather than only checking the file exists; (2) Leads with UNREACHABLE and explains that the root CLAUDE.md is read instead of the AGENTS.md beside it; (3) Distinguishes reachability from index staleness; (4) Shows the exact remediation without applying it under check. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

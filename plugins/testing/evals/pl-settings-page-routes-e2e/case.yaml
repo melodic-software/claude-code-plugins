@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pl-settings-page-routes-e2e
+description: 'Legacy plan 3. A branch adding a settings page to the web app is classified as needing unit or component tests plus E2E: the plan suggests /testing:write for the missing tests and /testing:run-e2e for the UI path, and does not stop at unit tests. names-write and names-run-e2e read the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, plan, ui, scaffold, no-network]
+expected_outcome: 'Classifies Settings.tsx and the new route as a UI change needing component tests and an end-to-end check, and points at /testing:write and /testing:run-e2e.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'I added a new settings page in the web app. /testing:plan'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?plan"'
+  - name: names-write
+    type: regex
+    pattern: '/testing:write\b'
+    target: last_message
+  - name: names-run-e2e
+    type: regex
+    pattern: '/testing:run-e2e\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run plans tests for a branch that adds a settings page and its route to a web app. PASS only if the reply satisfies every legacy expectation: "Classifies the changed files as including a UI/E2E concern" "Suggests /testing:write for coverage gaps" "Suggests /testing:run-e2e rather than stopping at unit tests". FAIL if any point is missing or contradicted.'

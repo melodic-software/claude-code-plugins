@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: dl-personal-only-entry-not-applied
+graders:
+  - name: 'personal-only-not-applied'
+    type: 'regex'
+    pattern: '^(?=[^\n]*\bpersonal[- ]only\b)(?=[^\n]*(?:\bnot applied\b|\bdoes(?:n''t| not) (?:apply|suppress|take effect)\b|\bno effect\b|\bignored\b))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the delta run does with the personal-layer entry. PASS only if it satisfies every point: (1) Does not suppress on a personal-only entry; (2) Reports it as personal-only, not applied, naming its layer; (3) Names promotion to the team-tracked layer as the fix; (4) Still reports the finding itself. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

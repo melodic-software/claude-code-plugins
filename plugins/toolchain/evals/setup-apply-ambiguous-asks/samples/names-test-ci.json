@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "package.json has two test scripts: `test` (node --test) and `test:ci` (junit reporter). Which should test-cmd run? No linter is configured; should check-cmd stay null?",
+      "why": "asks between both scripts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Drafted typescript: test-cmd `npm test`, check-cmd `npx tsc --noEmit`. Accept?",
+      "why": "picked one script without naming the other"
+    }
+  ]
+}

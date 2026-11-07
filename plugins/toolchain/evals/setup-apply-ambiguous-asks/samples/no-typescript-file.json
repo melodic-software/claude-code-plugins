@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "asked instead of writing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".claude/ecosystems/typescript.yaml"],
+      "why": "guessed a test-cmd and wrote it"
+    }
+  ]
+}

@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.25.4] - 2026-11-07
+
+### Changed
+
+- The scrutinize-dont-coast, point-dont-copy, wait-what, recheck-against-upstream, mind-your-maxims and pick-for-the-problem skills' legacy `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)): 22 new cases and graders added to 4 existing cases. Three recheck-against-upstream legacy cases are held on #8635: they need network access to fetch upstream docs. All six `evals.json` files are deleted.
+
+- The do-your-research and reason-dont-recite skills' legacy `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)): 16 new cases and one scaffold fixture (`evals/fixtures/dyr-gateway-seed.sh`). Two legacy cases or parts are held on #8635: one needs network access to fetch upstream docs, one needs a subagent to fail. Both `evals.json` files are deleted.
+
 ## [0.25.3] - 2026-11-07
 
 ### Changed

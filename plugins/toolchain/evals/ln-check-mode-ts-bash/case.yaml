@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: ln-check-mode-ts-bash
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: checks-ran
+    type: regex
+    pattern: '^typescript check\b(?=[\s\S]*^bash check\b)|^bash check\b(?=[\s\S]*^typescript check\b)'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: check-only
+    type: regex
+    pattern: '^\S+ (?:build|test|fix|code-fix)\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: table-rows
+    type: regex
+    pattern: '^\|[\s*_`]*typescript[\s*_`]*\|(?=[\s\S]*^\|[\s*_`]*bash[\s*_`]*\|)|^\|[\s*_`]*bash[\s*_`]*\|(?=[\s\S]*^\|[\s*_`]*typescript[\s*_`]*\|)'
+    flags: m
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is bare `/toolchain:lint` in a repository where a TypeScript file and a bash script changed. It meets the legacy expectations: "Auto-detects affected ecosystems (typescript, bash) from the changed files" "Runs in check mode by default — reports violations WITHOUT modifying any files" "Runs lint/format checks only, not a build or test cycle (that is /toolchain:check)" "Presents a per-ecosystem results table with pass / FAIL / skip / — statuses".'

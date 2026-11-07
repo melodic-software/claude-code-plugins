@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --per-file --break-glass off --name no-print --field violations --command 'python3 tools/lint.py --rule no-print --per-file' --goal 'no new no-print violations; warn until 2099-03-31, then error'" } }
+      ],
+      "why": "dated warn step"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --per-file --break-glass off --name no-print --field violations --command 'python3 tools/lint.py --rule no-print --per-file' --goal 'no new no-print violations; fix existing ones down to 0'" } }
+      ],
+      "why": "error-severity baseline, no warn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --per-file --break-glass off --name no-print --field violations --command 'python3 tools/lint.py --rule no-print --per-file' --goal 'no new no-print violations while the rule is at warn'" } }
+      ],
+      "why": "warn with no end date"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --per-file --break-glass off --name no-print --field violations --command 'python3 tools/lint.py --rule no-print --per-file' --goal 'warn until later, then error'" } }
+      ],
+      "why": "warn until with no date"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No changes found. Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>`.",
+      "why": "points at lint all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No changes found. Use `/toolchain:check all` to verify the full repo.",
+      "why": "points at the other skill"
+    },
+    {
+      "answer": "No changes found. Use `/toolchain:lint bash` for a specific ecosystem.",
+      "why": "no full-repo pointer"
+    }
+  ]
+}

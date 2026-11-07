@@ -75,10 +75,13 @@ escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `cl
 `alt`, and images uploaded this session.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument <medium>]
+"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "<option>" [--argument <medium>]
 ```
 
-Pass the real path of the folder, not one through a symlink. Pass `--argument <medium>`, `<medium>`
+Pass the real path of the folder, not one through a symlink. `<option>` is this plugin's `medium`
+option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted
+placeholder. Read each option value from this text; never put a `${user_config.*}` string in a
+shell command. Pass `--argument <medium>`, `<medium>`
 being the word, only when the user's own argument to this invocation names a medium; exit 2 with a
 `usage:` line on stderr means the word names none, so run it again without `--argument`. On exit 0, print each
 line of the output's `report` as it stands: it names the medium and what decided it, then any

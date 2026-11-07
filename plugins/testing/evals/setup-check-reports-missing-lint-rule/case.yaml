@@ -32,3 +32,6 @@ graders:
     min: 0
     max: 0
     arm: 'both'
+  - name: 'meets-legacy-setup-1'
+    type: 'llm'
+    criteria: 'The run is `/testing:setup check` in a repository with one tracked pytest file and a ruff select of E, F and PLR0124 (legacy setup 1 asked in natural words whether the testing plugin is configured and which test lint rules are missing; the skill is disable-model-invocation, so the slash form stands in). PASS only if the run matches the legacy expected output: "Runs setup.sh check read-only and shows its four sections: the resolved testing config (or that no layer exists), one lint row per rule for each language the tracked tests use with every missing rule reported as a finding rather than a neutral absence and Bash, PowerShell and Go marked no maintained rule, the optional instruction line offered for pasting, and the hook-entry section. Writes nothing and does not edit CLAUDE.md or AGENTS.md." The Bash, PowerShell and Go note applies only when such tests exist; this repository has Python tests only. FAIL if any other part is missing or contradicted.'

@@ -107,8 +107,10 @@ and mergeability all come from one response when its first read settles. A `labe
 predicate always reads labels from that response, never from the payload, so a hold added after
 the event still holds a queued run.
 
-On an `issues` event there is no PR: `labeled` maps to the `labeled` event, labels come from the
-issue in the payload (a `labels-absent` predicate reads `GET /issues/{n}` instead).
+On an `issues` event there is no PR: `labeled` and `field_added` map to the events of the same name,
+labels come from the issue in the payload (a `labels-absent` predicate reads `GET /issues/{n}`
+instead), and with `models.issue-status` set the trusted Work status is folded into them as
+`read-status.mjs` `statusLabels` does, so a field-only `agent-ready` matches `labels: [agent-ready]`.
 
 ## Output
 

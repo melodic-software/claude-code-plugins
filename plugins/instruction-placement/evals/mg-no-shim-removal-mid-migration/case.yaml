@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: mg-no-shim-removal-mid-migration
+graders:
+  - name: 'routes-to-cutover'
+    type: 'regex'
+    pattern: '\bcutover-check\b|\bremove-shims\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-instructions-loaded'
+    type: 'regex'
+    pattern: '\bInstructionsLoaded\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the migrate run does with the request. PASS only if it satisfies every point: (1) Deletes no CLAUDE.md shim by hand during the migration run; (2) Names the availability cases where a directly read AGENTS.md would load nothing; (3) Names the observability that a directly read AGENTS.md loses: no InstructionsLoaded hook; (4) Routes removal to cutover-check and remove-shims rather than doing it here. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "def test_formats_ninety_minutes():\n    assert format_duration(5400) == \"1h30m\"\n",
+      "why": "a literal example"
+    },
+    {
+      "answer": "@pytest.mark.parametrize(\n    (\"seconds\", \"expected\"),\n    [\n        (5400, \"1h30m\"),  # the documented example\n        (0, \"0s\"),\n    ],\n)\ndef test_format_duration_renders_seconds_as_h_m_s(seconds, expected):\n    assert format_duration(seconds) == expected\n",
+      "why": "smoke reply (testing batch d, llm not failed): literal pairs in a parametrize table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def test_formats(seconds):\n    assert format_duration(seconds) == expected\n",
+      "why": "no literal on either side"
+    },
+    {
+      "answer": "def test_parses():\n    assert parse_duration(\"1h30m\") == 5400\n",
+      "why": "a parse example only, no format literal"
+    },
+    {
+      "answer": "@pytest.mark.parametrize(\n    (\"text\", \"expected\"),\n    [\n        (\"1h30m\", 5400),\n    ],\n)\ndef test_parse(text, expected):\n    assert parse_duration(text) == expected\n",
+      "why": "a parse table only: the string comes first, so no seconds-to-text pair"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "See `/testing:test-value`: an expected value needs a source outside the code under test.",
+      "why": "slash form"
+    },
+    {
+      "answer": "The testing:test-value rule applies here.",
+      "why": "qualified name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The expected value needs an independent source; this one reruns the split.",
+      "why": "the rule without the pointer"
+    },
+    {
+      "answer": "Run the audit's rule-recomputed-derived check against your test-values file.",
+      "why": "a different word, test-values, not the skill"
+    }
+  ]
+}

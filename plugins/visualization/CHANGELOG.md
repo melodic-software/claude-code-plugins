@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.16] - 2026-11-07
+
+### Fixed
+
+- `/visualization:present`'s `check-deck.mjs` command takes `--option "<option>"` in place of the `${user_config.medium}` token, and the skill passes `""` when the `medium` option reads empty or unsubstituted, as `/visualization:visualize` already did ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
 ## [1.0.15] - 2026-11-07
 
 ### Changed

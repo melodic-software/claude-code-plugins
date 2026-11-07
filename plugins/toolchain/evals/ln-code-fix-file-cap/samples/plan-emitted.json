@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Code-fix plan — ecosystems: python (43 files scoped)\n- python: bash tools/run.sh python code-fix <files>  (43 files)",
+      "why": "the plan header"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "file-cap exceeded (43 > 40; pass --all-files to override). Nothing applied.",
+      "why": "no plan shown"
+    }
+  ]
+}

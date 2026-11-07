@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "globs: [\"*.py\", \"pyproject.toml\"]\ntest-cmd: \"python3 -m pytest -q -m 'not integration'\"\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "globs: [\"*.py\", \"pyproject.toml\"]\ntest-cmd: \"uv run pytest -x -q\"\n",
+      "why": "overwritten"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Solstice AI\n\n### HIGH\n\n- **Solstice Code v3.6 adds native subagent checkpointing**\n- **Solstice Code v3.5 ships background tasks**",
+      "why": "merged body"
+    },
+    {
+      "answer": "I folded the three items from the new-items list into their provider sections.\n\n## Northwind Systems\n\n### HIGH\n\n- **Northwind IDE 4.1 ships inline Cloud Agent handoff**",
+      "why": "prose mention of the fold, no delta heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Northwind Systems\n\n*No notable items this window.*\n\n---\n\n## New items collected today\n\n- Northwind IDE 4.1 ships inline Cloud Agent handoff",
+      "why": "the delta section survives"
+    },
+    {
+      "answer": "## Meridian Labs\n\n### HIGH\n\n- Meridian Desktop app enters public beta.\n\n## Run 2\n\n- Meridian Agent CLI 0.9 adds an `--effort` flag",
+      "why": "a Run N section"
+    },
+    {
+      "answer": "## Solstice AI\n\n- Solstice Code v3.5\n\n**Supplement (2026-06-23)**\n\n- Solstice Code v3.6",
+      "why": "bold supplement heading"
+    }
+  ]
+}

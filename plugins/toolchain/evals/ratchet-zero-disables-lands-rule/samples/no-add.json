@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "bash count-disables.sh" } },
+        { "tool": "Bash", "input": { "command": "git grep -n -E 'ratchet\\.py.{0,2} check'" } }
+      ],
+      "why": "measured, looked for a check call, recorded nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "python3 /p/ratchet.py add --file .ratchets.json --name eslint-disables --field disables --command 'bash count-disables.sh' --goal 'no new disables'" } }
+      ],
+      "why": "ratcheted at 0 despite the forbidding rule"
+    }
+  ]
+}

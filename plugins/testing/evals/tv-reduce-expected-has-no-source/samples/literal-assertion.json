@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```ts\nconst items = [{ price: 10 }, { price: 5 }];\nexpect(calculateTotal(items)).toBe(15);\n```",
+      "why": "hand-computed literal"
+    },
+    {
+      "answer": "expect(calculateTotal([{ price: 2.5 }, { price: 1.25 }])).toEqual(3.75)",
+      "why": "decimal literal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "expect(calculateTotal(items)).toBe(expected);",
+      "why": "still the recomputed variable"
+    },
+    {
+      "answer": "expect(calculateTotal(items)).toBe(items[0].price + items[1].price);",
+      "why": "recomputed inline"
+    }
+  ]
+}

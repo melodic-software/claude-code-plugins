@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:plan" } }],
+      "why": "the skill loaded"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no Skill call" },
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:write" } }],
+      "why": "another testing skill"
+    }
+  ]
+}

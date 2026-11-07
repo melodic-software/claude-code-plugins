@@ -36,3 +36,6 @@ graders:
     min: 0
     max: 0
     arm: both
+  - name: meets-legacy-lint-2
+    type: llm
+    criteria: 'The run is `/toolchain:lint --fix` in a repository whose tracked bash.yaml has a format-only fix-cmd and a separate code-fix-cmd (legacy lint 2 used `/toolchain:lint python --fix` with ruff; the rule is the same, and with no filter the bash ecosystem is the one detected). It meets the legacy expectations: "Parses --fix as format-only fix mode (not code-changing) and python as the ecosystem filter" "Runs the resolved fix-cmd only — does NOT run code-fix-cmd / ruff check --fix / golangci-lint --fix / biome check --write" "Reports which ecosystems were format-fixed vs which are check-only (no non-null fix-cmd)". Read "python as the ecosystem filter" as the detected bash ecosystem here.'
