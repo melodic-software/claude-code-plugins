@@ -3422,6 +3422,11 @@ jobs:
       contents: read
     env:
       API_BUDGET_TOKEN: github-token
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
+      # npm's fetch timeout and retries, from the one file that sets them.
+      npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
         id: tip
@@ -3464,6 +3469,14 @@ jobs:
       # is unauthenticated, so it reads only a public repository. The data
       # sits under the workspace, since run-claude-cli's --restricted reads
       # nothing outside it.
+      # write-issue.mjs reads the Work status field events and config through
+      # resolve-config.mjs, whose packages the resolve-config action below
+      # installs only after this pass.
+      - name: Install resolve-config's packages for the summary pass
+        if: steps.node.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
       - name: Write the reused branch's diff and issue for the summary pass
         id: summary-data
         if: steps.node.outcome == 'success'

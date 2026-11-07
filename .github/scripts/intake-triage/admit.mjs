@@ -132,7 +132,7 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
-import { matchesRecord, readAdmissionRecord, writeAdmissionRecord } from "../lib/admission-record.mjs";
+import { writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 
@@ -2754,14 +2754,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // The admission record names the title and body decide() read in this one
   // read; the issue lane freezes its run there (write-issue.mjs). It goes up
   // before any deferral for room too, since work-unblock's sweep later admits
-  // a deferred issue by the field alone. A record already naming this text is
-  // not posted again. A failed post throws, so nothing is admitted without it.
-  const record = async () => {
-    const newest = readAdmissionRecord(comments, appId);
-    if (!newest || !matchesRecord(newest.record, { title: issue.title, body: issue.body ?? "" })) {
-      await writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
-    }
-  };
+  // a deferred issue by the field alone. Each evaluation posts its own record,
+  // even over one naming the same text, so a re-admission anchors here and not
+  // at an earlier admission. A failed post throws, so nothing is admitted
+  // without it.
+  const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();
   // A queued count check-wip-cap could not read (fail-open) admits nothing,

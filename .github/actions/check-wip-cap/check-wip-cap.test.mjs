@@ -158,6 +158,8 @@ test("the queued listing leaves out pull requests and hold labels in any case, i
     { number: 6, labels: [{ name: "status: needs-info" }] },
     { number: 7, labels: [{ name: "agent-ready" }, { name: "priority: high" }, null, { name: 7 }] },
     { number: 8, labels: [{ name: "status: ready" }] },
+    { number: 9, labels: [{ name: "Host-Run" }] },
+    { number: 10, labels: [{ name: "attended" }] },
   ];
   const reads = await read({ merged: 24, queued });
   assert.deepEqual(reads.queued, [1, 7, 8]);

@@ -2451,12 +2451,15 @@ describe("admit", () => {
     assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")), "the deferred listing reads the Work status, not a label search");
   });
 
-  test("a deferral for room posts no second record when the newest App record already names the issue's text", async () => {
+  // A re-admission anchors at its own record: reusing an older one naming the
+  // same text would freeze the run at the earlier admission and drop every
+  // comment since.
+  test("a deferral for room posts a fresh record even when an older App record names the same text", async () => {
     const record = { id: 41, user: { id: APP }, created_at: "2026-10-21T00:00:00Z", body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) };
     const fake = fakeGitHub({ older: 1, comments: [record] });
     const result = await go(fake);
     assert.equal(result.outcome, "deferred");
-    assert.deepEqual(writes(fake.calls), [STATUS("deferred")]);
+    assert.deepEqual(writes(fake.calls), [RECORD, STATUS("deferred")]);
   });
 
   // work-unblock's sweep counts these blockers as decide() does, so such an

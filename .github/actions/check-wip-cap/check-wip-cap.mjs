@@ -69,9 +69,11 @@ const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOUR_MS = 3_600_000;
 export const HOLD_LABELS = new Set(["needs-human", "do-not-merge"]);
 export const HOLD_LINE = "Hold: a human merges this";
-// Issue labels a person decides; an issue carrying one, in any case, is not
-// queued work.
-const ISSUE_HOLDS = new Set(["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]);
+// Issue labels that keep an issue off the issue lane: those a person decides,
+// and host-run and attended, whose Work status stays agent-ready while a host
+// session or the owner takes the step. An issue carrying one, in any case, is
+// not queued work.
+const ISSUE_HOLDS = new Set(["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "host-run", "attended"]);
 const lowered = (names) => names.filter((name) => typeof name === "string").map((name) => name.toLowerCase());
 // Whether label names (with the Work status field's hold added, read-status.mjs)
 // make a listed issue queued work: agent-ready and no hold.
