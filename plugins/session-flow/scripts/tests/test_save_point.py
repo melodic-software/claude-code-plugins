@@ -2501,7 +2501,7 @@ SHAPE3_VALUES = {
     "observations": "- The thing takes a minute to run.",
     "commands": "None. No command waits on the user.",
     "environment": "Branch `main`, clean tree; nothing to recreate.",
-    "decisions": "- The thing over the other thing.",
+    "decisions": "- [D1] The thing over the other thing.",
     "skills": "None. Remaining work runs inline.",
     "did": "did the thing",
     "left": "the rest",
@@ -3453,7 +3453,7 @@ def test_ids_first_adopting_hop_seeds_above_the_predecessor_text(tmp_path):
     assert frontmatter_int(hop2, "next_decision_id") == 4
 
 
-def test_ids_an_id_less_question_or_decision_never_fails(tmp_path):
+def test_ids_an_id_less_question_or_decision_passes_on_a_first_hop(tmp_path):
     repo = make_repo(tmp_path)
     values = {"open-questions": "- Which color?", "decisions": "- Paint first."}
     result = strict(s3_hop(repo, tmp_path, values=values))
@@ -3463,6 +3463,47 @@ def test_ids_an_id_less_question_or_decision_never_fails(tmp_path):
     twice = strict(s3_hop(make_repo(other), other, values=duplicate))
     assert twice.returncode == 1, out(twice)
     assert "Open questions: duplicate id [Q1]" in out(twice), out(twice)
+
+
+@pytest.mark.parametrize(
+    ("slot", "title", "prefix"),
+    [
+        ("open-questions", "Open questions", "Q"),
+        ("decisions", "Decisions in force", "D"),
+    ],
+)
+def test_ids_an_id_less_entry_fails_once_the_predecessor_carries_the_floor(
+    tmp_path, slot, title, prefix
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={slot: "- Paint before polish."},
+    )
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert f"{title}: entry without a [{prefix}<n>] id" in out(result), out(result)
+
+
+def test_ids_an_id_less_entry_passes_when_the_predecessor_has_no_floor(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    values = {
+        "open-questions": "- Which color?",
+        "decisions": "- [D1] The thing over the other thing.\n- Paint first.",
+    }
+    hop2 = s3_hop(
+        repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z", values=values
+    )
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    assert "without a [" not in out(result), out(result)
 
 
 @pytest.mark.parametrize(

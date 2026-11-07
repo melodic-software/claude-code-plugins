@@ -1843,12 +1843,19 @@ def _validate_shape3(
 
     for spec in ID_SPECS:
         seen: set[int] = set()
+        # Questions and decisions need ids only once the predecessor carries
+        # their floor, so chains started before ids existed still validate.
+        required = spec is RULES or (
+            pred is not None
+            and pred.shape == 3
+            and _fm_int(pred, spec.floor_key) is not None
+        )
         for n, entry, title in _id_entries(doc, spec):
             if n is None:
-                # Id-less questions and decisions stay valid until the
-                # skeleton asks for their ids.
-                if spec is RULES:
-                    f.fail(f"{title}: entry without a [R<n>] id: {entry.text[:60]!r}")
+                if required:
+                    f.fail(
+                        f"{title}: entry without a [{spec.prefix}<n>] id: {entry.text[:60]!r}"
+                    )
             elif n in seen:
                 f.fail(f"{title}: duplicate id [{spec.prefix}{n}]")
             else:
@@ -3453,7 +3460,7 @@ def build_skeleton_3(
     )
     goal_new = slot(
         "goal-new",
-        "optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten; delete this line when nothing changes",
+        f"optional: a new dated verbatim owner amendment, or the owner's intent and vision lines when this section lacks them, appended below; the lines above are copied off disk and never rewritten here: an amendment that no longer binds leaves only through the slots' 'retire' list as {{'ref': 'amendment#<i>', 'reason': ...}} (i counts amendment units from the top), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Original goal']}'; a unit with any clause still binding stays whole, or that clause is first written as an [R<n>] rule and the unit retired 'codified in [R<n>]'; delete this line when nothing changes",
     )
     if pred is None or pred.section("Original goal") is None:
         goal = [
@@ -3510,13 +3517,14 @@ def build_skeleton_3(
     )
 
     trail_line = f"one line per change of direction, '- [h<k>] <change> (<cause>)', the cause owner-directed (quoting the owner) or agent-initiated; flag a remaining action that serves no recorded goal or detour as '- [h{hop}] DRIFT: <action>'"
+    trail_retire = f"; a carried line that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[h<k>]#<i>', 'reason': ...}} (i counts the lines tagged [h<k>]), which lists it in {hop_rel} under '## {RETIRED_ENTRY_SECTIONS['Direction changes']}'"
     if carried:
         trail = [
             *_section_lines(pred, "Direction changes"),
             "",
             slot(
                 "trail-new",
-                f"optional: this hop's lines below the carried ones, {trail_line}; delete this line when the direction did not change",
+                f"optional: this hop's lines below the carried ones, {trail_line}{trail_retire}; delete this line when the direction did not change",
             ),
         ]
     elif pred is None:
@@ -3556,7 +3564,7 @@ def build_skeleton_3(
         (
             "Open questions",
             "open-questions",
-            "each open question with its options and a recommendation, and what it unblocks; 'None.' plus a reason when there are none",
+            f"one per line, '- [Q<n>] <question>' with its options, a recommendation and what it unblocks, new ids from Q{floors['next_question_id']}; a carried question keeps its id; one that is answered or no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[Q<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[1].retired_heading}'; 'None.' plus a reason when there are none",
         ),
     ):
         section(title, [slot(name, instruction)])
@@ -3604,7 +3612,7 @@ def build_skeleton_3(
         (
             "Decisions in force",
             "decisions",
-            "the decisions the remaining actions depend on, one line each with its reason; settled history stays in the archive",
+            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {ID_SPECS[2].retired_heading}'; settled history stays in the archive",
         ),
         (
             "Suggested skills",
