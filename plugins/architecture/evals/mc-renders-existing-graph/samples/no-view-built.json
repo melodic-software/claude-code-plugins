@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-components/scripts/render-components.sh\" --graph \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\" --dialect c4-plantuml --group-by directory --root \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/eval/plugins/architecture/scripts/build-view.mjs\" --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/eval/plugins/architecture/scripts/build-view.mjs\" components --record docs/architecture/dependency-graph.json --from src/Billing.Api/Billing.Api.csproj",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/eval/plugins/architecture/scripts/build-view.mjs components --record \"docs/architecture/dependency-graph.json\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

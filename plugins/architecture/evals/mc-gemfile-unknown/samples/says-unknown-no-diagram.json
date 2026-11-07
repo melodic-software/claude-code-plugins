@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "# Component view\n\nGenerated on 2026-11-07 from dependency-graph.json.\n\nUnknown: the dependency graph reports ecosystem `unknown`. Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\n\nNo diagram is drawn. An unrecognized ecosystem is not an empty architecture.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Component view\n\nGenerated on 2026-11-07 from dependency-graph.json.\n\nUnknown: the dependency graph reports ecosystem `unknown`. Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\n\nNo diagram is drawn. An unrecognized ecosystem is not an empty architecture.\n\n```plantuml\n@startuml\n@enduml\n```\n",
+      "why": "an empty diagram"
+    },
+    {
+      "answer": "# Component view\n\nGenerated on 2026-11-07 from dependency-graph.json.\n\nUnknown: the dependency graph reports ecosystem `unknown`. Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph.\n\nComponents read from the Gemfile: rails, pg, sidekiq. An unrecognized ecosystem is not an empty architecture.\n",
+      "why": "gems listed as components"
+    },
+    {
+      "answer": "# Component view\n\nComponents: 0. Edges: 0.\n",
+      "why": "empty architecture, unknown not said"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record docs/architecture/dependency-graph.json --out docs/architecture",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "never rendered"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,40p \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read the renderer only"
+    }
+  ]
+}

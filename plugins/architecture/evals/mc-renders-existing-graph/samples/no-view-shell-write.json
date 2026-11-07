@@ -1,0 +1,133 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-components/scripts/render-components.sh\" --graph \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\" --dialect c4-plantuml --group-by directory --root \"/opt/eval/ws\"",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "render then read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -3 docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the record"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.load(open('docs/architecture/dependency-graph.json'))['schema_version'])\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only interpreter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.dumps(json.load(open('docs/architecture/dependency-graph.json')), indent=2))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only pretty-print to stdout"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '# Component view\\n' > docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > docs/architecture/components.md <<'EOF'\n# Component view\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "tee docs/architecture/components.md < /opt/eval/view.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/\"result\":\"ok\"/\"result\":\"ok\"/' docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "in-place edit of the record"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; d=json.load(open('docs/architecture/dependency-graph.json')); json.dump(d, open('docs/architecture/dependency-graph.json','w'), indent=2)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pretty-prints the record"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/eval/view.md docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    }
+  ]
+}

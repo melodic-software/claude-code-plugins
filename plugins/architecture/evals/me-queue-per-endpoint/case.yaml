@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: me-queue-per-endpoint
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: queues-per-endpoint
+    type: regex
+    pattern: '^(?=[\s\S]*"kind":"consume",[^\n]*"line":24,"queue":"orders")(?=[\s\S]*"kind":"consume",[^\n]*"line":29,"queue":"orders")(?=[\s\S]*"kind":"consume",[^\n]*"line":34,"queue":"audit")(?=[\s\S]*"kind":"consume",[^\n]*"line":39,"queue":"-")'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: competing-orders-only
+    type: regex
+    pattern: '^(?![\s\S]*"kind"\s*:\s*"competing"[^\n]*\bqueue (?!orders")[^"\n]*")[\s\S]*"kind"\s*:\s*"competing"\s*,\s*"contract"\s*:\s*"Orders\.Contracts\.OrderPlaced"[^\n]*\b2 consumers on queue orders"'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: publish-no-queue
+    type: regex
+    pattern: '^(?![\s\S]*"kind":"publish",[^\n]*"queue":"(?!-")[^"]*")[\s\S]*"kind":"publish",[^\n]*"line":21,"queue":"-"'
+    target: { source: file, path: docs/architecture/events.json }

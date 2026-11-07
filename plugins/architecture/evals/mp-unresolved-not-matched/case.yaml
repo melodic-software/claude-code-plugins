@@ -27,3 +27,40 @@ graders:
     flags: 'i'
     match: 'not_contains'
     target: last_message
+  - name: outside-root-unresolved
+    type: regex
+    pattern: '"to"\s*:\s*"\.\./\.\./\.\./SiblingCheckout/Shared/Shared\.csproj"[^\n]*"status"\s*:\s*"unresolved"'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: reply-not-matched-by-name
+    type: regex
+    pattern: '(?:\b(?:not|never|none|no|neither)\b|n''t\b)[^\n.]{0,80}\bmatch(?:ed)?\b[^\n.]{0,60}\bby (?:file |project )?name\b'
+    flags: 'i'
+    target: last_message
+  - name: no-glob-name-search
+    type: tool_used
+    tool: 'Glob'
+    input_match: 'Shared\.csproj|SiblingCheckout'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-name-search-or-outside-read
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:find|locate|fd)\b(?:[^"\\]|\\.)*?Shared\.csproj|\b(?:ls|cat|find|stat|test|head|tail|tree|less|realpath|readlink)\b(?:[^"\\|;&]|\\.)*?SiblingCheckout)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-outside-read
+    type: tool_used
+    tool: 'Read'
+    input_match: 'SiblingCheckout'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-outside-grep
+    type: tool_used
+    tool: 'Grep'
+    input_match: '"path":"[^"]*SiblingCheckout'
+    min: 0
+    max: 0
+    arm: both

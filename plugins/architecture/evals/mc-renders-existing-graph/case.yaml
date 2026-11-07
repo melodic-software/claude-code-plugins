@@ -1,0 +1,66 @@
+schema_version: "1.1"
+name: mc-renders-existing-graph
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-recollect
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?dependency-graph\.sh(?:\\"|'')?[ \t]+(?!--help\b|-h\b)[^\s|;&>]'
+    min: 0
+    max: 0
+    arm: both
+  - name: renders-with-script
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?!(?:[^"\\]|\\.)*?--group-by[\s=]+(?:\\"|'')?(?:namespace|layer))(?:[^"\\]|\\.)*?render-components\.sh(?:[^"\\]|\\.)*?--dialect[\s=]+(?:\\"|'')?c4-plantuml\b'
+    min: 1
+  - name: components-and-edges
+    type: regex
+    pattern: '^(?=[\s\S]*\nGrouping: directory\.)(?=[\s\S]*Component\([^)\n]*"Billing\.Api")(?=[\s\S]*Component\([^)\n]*"Billing\.Application")(?=[\s\S]*Component\([^)\n]*"Billing\.Domain")(?=[\s\S]*\nRel\(cmp_src_Billing_Api_Billing_Api_csproj, cmp_src_Billing_Application_Billing_Application_csproj,)(?=[\s\S]*\nRel\(cmp_src_Billing_Application_Billing_Application_csproj, cmp_src_Billing_Domain_Billing_Domain_csproj,)(?![\s\S]*\nRel\(cmp_src_Billing_Domain_)(?![\s\S]*\nRel\(cmp_src_Billing_Api_Billing_Api_csproj, cmp_src_Billing_Domain_)(?=[\s\S]*\n\| Billing\.Api \| Billing\.Application \| project \| src/Billing\.Api/Billing\.Api\.csproj: <ProjectReference )(?=[\s\S]*\n\| Billing\.Application \| Billing\.Domain \| project \| src/Billing\.Application/Billing\.Application\.csproj: <ProjectReference )'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: one-plantuml-block
+    type: regex
+    pattern: '^(?![\s\S]*\n```(?!plantuml\n)[A-Za-z])(?![\s\S]*\n```plantuml\n[\s\S]*\n```plantuml\n)[\s\S]*\n```plantuml\n[^`]*!include <C4/C4_Component>'
+    target: { source: file, path: docs/architecture/components.md }
+  - name: no-view-write
+    type: tool_used
+    tool: 'Write'
+    input_match: 'components\.md|dependency-graph\.json'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-view-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: 'components\.md|dependency-graph\.json'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-view-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:\bcp\b|\bmv\b|\binstall\b|\bdd\b|\bsed\s+-i|\bperl\s+-\S*i|\btee\b|>\||>>?)(?:[^"\\|;&]|\\.)*?(?:components\.md|dependency-graph\.json)|\b(?:python3?\s+-c|node\s+-e)\b(?:[^"\\]|\\.)*?(?:(?:write|dump\(|shutil\.(?:move|copy\w*)|os\.(?:rename|replace)|\.rename\(|\.replace\((?=\s*[^,()]*(?:\([^()]*\)[^,()]*)?\))|copyFile(?:Sync)?|rename(?:Sync)?|cp(?:Sync)?\(|(?:os|fs)\.(?:sym)?link(?:Sync)?|''[wa]\+?''|\\"[wa]\+?\\")(?:[^"\\]|\\.)*?(?:components\.md|dependency-graph\.json)|(?:components\.md|dependency-graph\.json)(?:[^"\\]|\\.)*?(?:write|dump\(|shutil\.(?:move|copy\w*)|os\.(?:rename|replace)|\.rename\(|\.replace\((?=\s*[^,()]*(?:\([^()]*\)[^,()]*)?\))|copyFile(?:Sync)?|rename(?:Sync)?|cp(?:Sync)?\(|(?:os|fs)\.(?:sym)?link(?:Sync)?|''[wa]\+?''|\\"[wa]\+?\\"))|\|\s*(?:bash|zsh|dash|sh)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: fixed-report-order
+    type: regex
+    pattern: '(?:^|\n)[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Artifacts(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Container(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Grouping(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Components(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Thin result(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Layer violations(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Aggregated(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?External and unresolved(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Graph source(?:\*\*|__)?[ \t]*(?::|\|)[\s\S]*?\n[ \t]*(?:[-*+][ \t]+|\d+[.)][ \t]+|\|[ \t]*)?(?:\*\*|__)?Dialect(?:\*\*|__)?[ \t]*(?::|\|)'
+    flags: 'i'
+    target: last_message
+  - name: quotes-summary-counts
+    type: regex
+    pattern: '\bcomponents=3\b[\s\S]{0,160}?\bedges=2\b[\s\S]{0,160}?\bdrawn_edges=2\b'
+    target: last_message
+  - name: no-view-built
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'build-view\.mjs(?:\\"|'')?[ \t]+(?!--help\b)[a-z]'
+    min: 0
+    max: 0
+    arm: both
+  - name: offers-view
+    type: llm
+    focus: last_message
+    criteria: "PASS only if the reply meets this: 'Offers the view in one sentence and builds only after the reader accepts'. The offer is for an interactive view of the Billing.Api component record and leaves the choice to the reader, as a question or as a statement inviting a yes. FAIL if the reply makes no offer of the view, only describes what the skill could do, says it cannot build the view without offering it, offers something other than the view, or says the view was already built."

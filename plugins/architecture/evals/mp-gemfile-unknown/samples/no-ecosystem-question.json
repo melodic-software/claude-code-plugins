@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "- **Result**: unknown. Found build manifests for ruby (Gemfile) and none that a shipped adapter reads (dotnet, node, go, python, rust, jvm). Those adapters are not shipped, so this run did not invent an empty graph."
+    },
+    {
+      "answer": "Ruby is not a shipped ecosystem, so there is nothing to chart."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which ecosystem should I read instead?"
+    },
+    {
+      "answer": "Please choose an ecosystem adapter to run: dotnet, node or go."
+    }
+  ]
+}
