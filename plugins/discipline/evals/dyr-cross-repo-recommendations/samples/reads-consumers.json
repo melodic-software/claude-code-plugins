@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/repos/billing-api/.github/workflows/lint.yml\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"shared-lint-action\",\"path\":\"repos\"}}]}}\n",
+      "why": "search for consumers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/notes/recommendations.md\"}}]}}\n",
+      "why": "the note only"
+    }
+  ]
+}

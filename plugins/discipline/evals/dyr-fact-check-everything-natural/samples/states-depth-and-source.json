@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Depth: tiered (default; the configured research_deep_verification value is empty)."
+    },
+    {
+      "answer": "No argument was given, so the configured value applies: full."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Depth: tiered (from the argument).",
+      "why": "no argument was given"
+    },
+    {
+      "answer": "Depth: tiered.",
+      "why": "depth without its source"
+    }
+  ]
+}

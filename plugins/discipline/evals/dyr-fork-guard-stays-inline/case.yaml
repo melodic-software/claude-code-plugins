@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: dyr-fork-guard-stays-inline
+context:
+  scaffold_script: scaffold.sh
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: no-agent
+    type: tool_used
+    tool: 'Agent'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: cites-fork-guard
+    type: llm
+    criteria: 'Legacy expectation: "Cites the skill''s never-inside-a-batch-or-a-fork guard (or its effect) as the reason it stays inline, not the request''s wording". PASS only if the reply says it stays inline because it is running inside a fork or batch, where the fan-out tier never runs. FAIL if it gives no reason or cites only the request.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: findings-ledger
+    type: llm
+    criteria: 'Legacy expectation: "Runs the inline re-anchor and audit and returns a findings ledger without writing". PASS only if the reply returns a ledger or list naming unverified claims from the session as located findings with a remedy for each. FAIL if it returns no findings or a generic summary.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: recommends-direct-run
+    type: regex
+    pattern: '/discipline:do-your-research\b[`*]*[ \t]+[`*]*(?:tiered|full)\b'
+    target: 'last_message'

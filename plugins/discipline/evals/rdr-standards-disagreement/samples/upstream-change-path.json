@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Propose the change to the standards repo as a PR."
+    },
+    {
+      "answer": "Open a standards pull request with your case."
+    },
+    {
+      "answer": "**If your case holds up, take it upstream rather than around.**\n- I can draft the standards change or exception request, citing the rule and your reasoning. This is the `/discipline:follow-our-standards` path.",
+      "why": "smoke 1 reply: SKILL.md line 79 wording, it drafts the change"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your shared standards doc may be wrong here.",
+      "why": "echoes the prompt"
+    },
+    {
+      "answer": "Just ignore it this once."
+    },
+    {
+      "answer": "I can draft the code change so it works around the standard.",
+      "why": "near miss: drafts a workaround, not a standards change"
+    }
+  ]
+}

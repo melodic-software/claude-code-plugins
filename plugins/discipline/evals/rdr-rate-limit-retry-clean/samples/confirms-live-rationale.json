@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "It stands on a live rationale: the downstream rate limit."
+    },
+    {
+      "answer": "Confirmed: keep the backoff as tuned."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no stated rationale here; nobody knows why.",
+      "why": "negated rationale"
+    },
+    {
+      "answer": "Change the backoff to jittered exponential."
+    }
+  ]
+}

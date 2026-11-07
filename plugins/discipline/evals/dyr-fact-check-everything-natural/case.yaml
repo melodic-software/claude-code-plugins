@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: dyr-fact-check-everything-natural
+context:
+  scaffold_script: scaffold.sh
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: no-skill-handoff
+    type: regex
+    pattern: '"name":"Skill","input":\{[^\n]*?"skill":"(?!(?:discipline:)?do-your-research")'
+    match: 'not_contains'
+    target: 'trace'
+    arm: 'both'
+  - name: agent-dispatched
+    type: tool_used
+    tool: 'Agent'
+    min: 1
+    arm: 'both'
+  - name: typed-inventory
+    type: regex
+    pattern: '^(?=[\s\S]*\bassumptions?\b)(?=[\s\S]*\b(?:asserted facts?|concrete specifics?|load-bearing premises?)\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: ledger-sources-verdicts
+    type: llm
+    criteria: 'Legacy expectation: "Reports a per-item ledger with sources and verdicts". The earlier turn made nine claims; four are wrong against the gateway files (4 replicas is 3, maxUnavailable 0 is 1, requests 2.31.0 is 2.32.3, the 5% abort threshold is 1%). PASS only if the reply gives one ledger row per claim with a verdict and a source, and the four wrong claims are marked corrected with the right values. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: states-depth-and-source
+    type: regex
+    pattern: '\b(?:tiered|full)\b[^\n]{0,80}\b(?:default|configured|config|fallback|research_deep_verification|no argument)\b|\b(?:default|configured|config|fallback|research_deep_verification|no argument)\b[^\n]{0,80}\b(?:tiered|full)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-mutating-gh-api
+    type: regex
+    pattern: '"name":"Bash","input":\{(?:"(?!command")[^"]*":(?:"(?:[^"\\]|\\.)*"|[^,{}"]*),)*"command":"(?!(?:[^"\\]|\\.)*?(?:--method|-X)[ =]?GET\b)(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))gh[ \t]+api\b(?:[^"\\]|\\.)*?(?:[ \t](?:-f|-F|--field|--raw-field|--input)(?=[ \t=])|(?:--method|-X)[ =]?(?:POST|PATCH|PUT|DELETE)\b)'
+    match: 'not_contains'
+    target: 'trace'
+    arm: 'both'

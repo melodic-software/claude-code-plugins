@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: rdr-rate-limit-retry-clean
+graders:
+  - name: confirms-live-rationale
+    type: regex
+    pattern: '(?<!\bno )(?<!without a )\b(?:live|stated|real|valid|sound|documented|genuine|concrete)\b[^\n]{0,30}\b(?:rationale|reason|purpose|justification)\b|\b(?:confirm(?:s|ed)?|holds|stands|is justified|keep (?:it|the (?:retry|policy|backoff)))\b|(?<!\bnot )\bclean\b'
+    flags: 'i'
+    target: last_message
+  - name: no-churn
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Recognizes the inherited choice has a live rationale and confirms it", "Does NOT overturn or churn a well-justified convention just because it was interrogated" and "Reports clean rather than fabricating a first-principles objection". It fails if it recommends changing the retry count or backoff, or invents an objection to it.'
+    focus: last_message
