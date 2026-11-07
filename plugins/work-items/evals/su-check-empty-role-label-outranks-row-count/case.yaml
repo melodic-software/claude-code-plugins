@@ -3,7 +3,7 @@ name: su-check-empty-role-label-outranks-row-count
 graders:
   - name: 'role-label-fail'
     type: 'regex'
-    pattern: '(?:role[- ]label|recurring-maintenance|role_labels)[^\n.;|]{0,40}(?:\|[\s*_`]{0,6})?\bFAIL\b|\bFAIL\b[^\n.;|]{0,40}(?:role[- ]label|recurring-maintenance|role_labels)'
+    pattern: '(?:role[- ]label|recurring-maintenance|role_labels)(?:(?!\b(?:INFO|FAIL|PASS|WARN)\b)[^\n.;|]){0,40}(?:\|[\s*_`]{0,6})?\bFAIL\b|\bFAIL\b(?:(?!\b(?:INFO|FAIL|PASS|WARN)\b)[^\n.;|]){0,40}(?:role[- ]label|recurring-maintenance|role_labels)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

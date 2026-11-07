@@ -25,6 +25,10 @@
     {
       "answer": "ci-pin-review is overdue, so next_due moves to 2027-02-05; dependency-review and security-review are kept unchanged.",
       "why": "near miss: resets the overdue row while keeping the other two"
+    },
+    {
+      "answer": "ci-pin-review: next_due advanced to 2027-02-05, other rows kept unchanged",
+      "why": "near miss: a comma joins another rows' keep to the reset"
     }
   ]
 }
