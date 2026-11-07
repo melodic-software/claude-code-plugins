@@ -183,7 +183,8 @@ List open items and filter into buckets programmatically (adapter: "List items",
 
 Genre: reports and status, interactive. In an interactive session, after the table, read
 [context/board.md](context/board.md) and follow it, with this plugin's `medium` option
-`${user_config.medium}`: it resolves the medium through the shared resolver, then builds a
+`${user_config.medium}`, or `""` when that reads empty or unsubstituted (never put a
+`${user_config.*}` string in a shell command): it resolves the medium through the shared resolver, then builds a
 page that groups the same items by state, blocker and label with a filter box, and can connect to
 this session through `session-bridge` so the reader's moves and notes arrive as data and your replies
 show on the page. The table is the record; the page is a view of it. Item text is tracker text (K2), so only

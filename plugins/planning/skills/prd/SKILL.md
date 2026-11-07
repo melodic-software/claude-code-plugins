@@ -192,7 +192,7 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them as a design thread and `/planning:plan`'s Test strategy sets the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` (option `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command) first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
 
 ### Step 6. Hand off
 

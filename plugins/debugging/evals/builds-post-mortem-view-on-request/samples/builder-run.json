@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/plugins/debugging/scripts/build-view.mjs\" <<'JSON'\n{\"title\": \"Checkout times out above $1k\", \"cause\": \"unbounded RATE_LIMITED retry\", \"hypotheses\": []}\nJSON",
+            "description": "Build the post-mortem view"
+          }
+        }
+      ],
+      "why": "the builder fed JSON on stdin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/plugins/debugging/scripts/build-view.mjs < /tmp/pm-view.json",
+            "description": "Build the post-mortem view"
+          }
+        }
+      ],
+      "why": "unquoted path, JSON from a file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/plugins/debugging/scripts/build-view.mjs",
+            "description": "Read the builder before node build-view.mjs"
+          }
+        }
+      ],
+      "why": "reads the builder; the run appears only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --check /opt/plugins/debugging/scripts/build-view.mjs",
+            "description": "Check the builder parses"
+          }
+        }
+      ],
+      "why": "syntax check, no build"
+    }
+  ]
+}

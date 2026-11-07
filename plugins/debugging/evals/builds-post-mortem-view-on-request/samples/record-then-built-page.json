@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Post-mortem (for the PR description): checkout timed out above $1k because the pricing client retried RATE_LIMITED with no bound (41,213 calls in one request). The fix caps attempts at 3 and test/client.test.js covers a $1,200 order. Hypotheses: retry loop (confirmed), gateway timeout (refuted), fraud check (refuted).\n\nview: file (plugin default)\n\nThe interactive view is at /tmp/debugging-views/post-mortem-checkout.html.",
+      "why": "record, resolver report line, then the printed path"
+    },
+    {
+      "answer": "I wrote the post-mortem to `notes/checkout-timeout-postmortem.md`: the unbounded RATE_LIMITED retry in `src/pricing/client.js`, now capped at 3 attempts.\n\nview: terminal (docs/conventions/rendered-views.yaml)\n\nThe repository's setting shows views in the terminal, so no page was built; the post-mortem above is the whole record.",
+      "why": "record first; the resolved medium builds no page and the reply names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Post-mortem: the pricing client retried with no bound; capped at 3 attempts.\n\nI couldn't build the view: running the medium resolver was refused because Claude Code is in don't ask mode.",
+      "why": "the build was refused"
+    },
+    {
+      "answer": "Post-mortem: the pricing client retried with no bound; capped at 3 attempts.\n\nWant me to build the interactive view of it?",
+      "why": "offers again though the reader already asked"
+    },
+    {
+      "answer": "Here's the view, open it in a browser:\n<html><body><h1>Checkout timeout</h1></body></html>",
+      "why": "no record, hand-written page"
+    }
+  ]
+}
