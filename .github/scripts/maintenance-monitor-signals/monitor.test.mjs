@@ -8,6 +8,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+
 import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
 import { errorLines, readHoldRule, readJobsCarry, writePlan } from "./monitor.mjs";
 import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
@@ -88,12 +90,6 @@ function store() {
     if (method === "PATCH") Object.assign(issue, body);
     if (method === "POST" && path.endsWith("/comments")) (comments[number] ??= []).push(body.body);
     if (method === "POST" && path.endsWith("/labels")) issue.labels = [...new Set([...issue.labels, ...body.labels])];
-    if (method === "DELETE") {
-      const name = decodeURIComponent(path.split("/labels/")[1]);
-      // GitHub answers 404 when the label is not on the issue.
-      if (!issue.labels.includes(name)) throw Object.assign(new Error(`DELETE ${path}: HTTP 404`), { status: 404 });
-      issue.labels = issue.labels.filter((l) => l !== name);
-    }
     return {};
   };
   return { issues, calls, comments, call };
@@ -107,11 +103,35 @@ async function runOnce(s, data, extra = {}) {
 }
 
 const nothing = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
-const rewrite = (n) => [
-  `POST /repos/o/r/issues/${n}/comments`,
-  `DELETE /repos/o/r/issues/${n}/labels/agent-ready`,
-  `PATCH /repos/o/r/issues/${n}`,
-];
+const rewrite = (n) => [`POST /repos/o/r/issues/${n}/comments`, `PATCH /repos/o/r/issues/${n}`];
+
+const ROOT = new URL("../../..", import.meta.url).pathname;
+// The org Work status field and the option ids it maps, written by hand.
+const FIELD = 48484079;
+const OPTION = { "needs-triage": 84879216, "needs-owner-decision": 84879218, "agent-ready": 84879220 };
+// One issue's Work status field reading `state`, last set by account `setter`,
+// behind a real statusWriter. A POST sets it as the lanes App, or throws
+// `postError`; `written` lists the states POSTed.
+function workStatus(state, setter, postError) {
+  const written = [];
+  const value = () => (state === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }]);
+  const github = async (method, path, body) => {
+    if (method === "GET" && path.endsWith("/issue-field-values")) return value();
+    if (method === "POST" && path === "/graphql") {
+      const nodes = state === null ? [] : [{ __typename: "IssueFieldAddedEvent", value: state, actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
+      return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+    }
+    if (method === "POST" && path.endsWith("/issue-field-values")) {
+      if (postError) throw postError;
+      state = body.issue_field_values[0].value;
+      written.push(state);
+      setter = 337595936;
+      return value();
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" }) };
+}
 
 for (const [signal, first, changed] of CASES) {
   test(`${signal}: one rolling issue, rewritten on a new state, closed when clear, reopened when it fires again`, async () => {
@@ -129,8 +149,8 @@ for (const [signal, first, changed] of CASES) {
     const three = await runOnce(s, changed);
     assert.deepEqual(three.updated, [100]);
     assert.equal(s.issues.length, 1);
-    assert.deepEqual(s.calls.slice(-3), rewrite(100));
-    assert.deepEqual(s.issues[0].labels, ["source: factory-monitor"]);
+    assert.deepEqual(s.calls.slice(-2), rewrite(100));
+    assert.ok(!s.calls.some((c) => c.startsWith("DELETE")), "no label DELETE: the Work status field takes agent-ready off");
     assert.deepEqual(await runOnce(s, changed), nothing);
 
     const clear = await runOnce(s, {});
@@ -143,7 +163,7 @@ for (const [signal, first, changed] of CASES) {
     assert.deepEqual(back, { ...nothing, reopened: [100] });
     assert.equal(s.issues.length, 1);
     assert.equal(s.issues[0].state, "open");
-    assert.deepEqual(s.calls.slice(-3), rewrite(100));
+    assert.deepEqual(s.calls.slice(-2), rewrite(100));
   });
 }
 
@@ -206,49 +226,55 @@ test("open per-key issues close as superseded by the rolling issue filed in the 
   assert.deepEqual(await runOnce(s, CASES[2][1]), nothing);
 });
 
-test("a rewrite of an issue without agent-ready takes the 404 as done; a 500 leaves the old state to retry", async () => {
+const HUMAN = 153232337;
+const rewriteWith = async (s, leaveAgentReady) => {
+  const findings = detect({ now, windowStart, ...CASES[2][2] });
+  return writePlan({ plan: planIssues({ findings, existing: [...s.issues] }), call: s.call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
+};
+
+for (const [why, state, setter, written] of [
+  ["an unset field", null, undefined, ["needs-triage"]],
+  ["a field at agent-ready", "agent-ready", HUMAN, ["needs-triage"]],
+  ["a person's needs-owner-decision", "needs-owner-decision", HUMAN, []],
+]) {
+  test(`a rewrite with ${why} writes Work status ${written.join() || "nothing"} and deletes no label`, async () => {
+    const s = store();
+    await runOnce(s, CASES[2][1]);
+    s.issues[0].labels.push("agent-ready");
+    const f = workStatus(state, setter);
+    const done = await rewriteWith(s, (await f.writer()).leaveAgentReady);
+    assert.deepEqual(done, { ...nothing, updated: [100] });
+    assert.deepEqual(f.written, written);
+    assert.ok(!s.calls.some((c) => c.startsWith("DELETE")), "agent-ready comes off through the field, never a label DELETE");
+  });
+}
+
+test("a rewrite whose Work status write fails reports it and leaves the PATCH for the next run", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
-  assert.deepEqual((await runOnce(s, CASES[2][2])).updated, [100]);
-
-  const t = store();
-  await runOnce(t, CASES[2][1]);
-  const oldBody = t.issues[0].body;
-  const failing = async (method, path, body) => {
-    if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
-    return t.call(method, path, body);
-  };
-  const findings = detect({ now, windowStart, ...CASES[2][2] });
-  const done = await writePlan({
-    plan: planIssues({ findings, existing: [...t.issues] }),
-    call: failing,
-    repo: "o/r",
-    labels: [],
-    runUrl: url(900),
-    wait: async () => {},
-  });
+  const oldBody = s.issues[0].body;
+  const f = workStatus(null, undefined, new Error("HTTP 500"));
+  const done = await rewriteWith(s, (await f.writer()).leaveAgentReady);
   assert.deepEqual(done.updated, []);
-  assert.deepEqual(done.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
-  assert.ok(!t.calls.includes("PATCH /repos/o/r/issues/100"));
-  assert.equal(t.issues[0].body, oldBody);
-  assert.deepEqual(
-    planIssues({ findings, existing: [...t.issues] }).update.map((u) => u.number),
-    [100],
-  );
+  assert.equal(done.failed.length, 1);
+  assert.equal(done.failed[0].target, "#100");
+  assert.match(done.failed[0].error, /^#100's Work status field was not set to `needs-triage`: HTTP 500/);
+  assert.ok(!s.calls.includes("PATCH /repos/o/r/issues/100"));
+  assert.equal(s.issues[0].body, oldBody);
 });
 
-test("a rewrite takes agent-ready off the label and the Work status field before the PATCH", async () => {
+test("a rewrite takes agent-ready off through the Work status field before the PATCH", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
   s.issues[0].labels.push("agent-ready");
   const existing = structuredClone(s.issues);
   const log = [];
   const call = async (method, path, body) => (log.push(method), s.call(method, path, body));
-  const leaveAgentReady = async (number, state) => log.push(["FIELD", number, state]);
+  const leaveAgentReady = async (number, state, options) => log.push(["FIELD", number, state, options]);
   const findings = detect({ now, windowStart, ...CASES[2][2] });
   const done = await writePlan({ plan: planIssues({ findings, existing }), call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
-  assert.deepEqual(log, ["POST", "DELETE", ["FIELD", 100, "needs-triage"], "PATCH"]);
+  assert.deepEqual(log, ["POST", ["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
 });
 
 test("a rewrite whose Work status write fails leaves the PATCH for the next run", async () => {
@@ -264,7 +290,7 @@ test("a rewrite whose Work status write fails leaves the PATCH for the next run"
   const done = await writePlan({ plan: planIssues({ findings, existing }), call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
-  assert.deepEqual(log, ["POST", "DELETE"]);
+  assert.deepEqual(log, ["POST"]);
 });
 
 test("a failed write is reported and the rest still run", async () => {
