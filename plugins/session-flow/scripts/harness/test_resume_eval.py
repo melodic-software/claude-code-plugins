@@ -1088,3 +1088,246 @@ def test_judge_votes_count_only_verdicts(tmp_path):
     failed = (0, json.dumps({"result": "FAIL: missing"}), "")
     assert _judge_with(tmp_path, passed, failed, passed)("q", "c", "a") is True
     assert _judge_with(tmp_path, failed, failed, passed)("q", "c", "a") is False
+
+
+# --- shape-3 predecessors ---------------------------------------------------------
+
+SUPERSEDED = "Also log every drain exit to stderr."
+BINDING = "Never delete a telemetry row.\nThis binds every later hop."
+NEWER = "Exit reasons go to telemetry only."
+RETIRED_DECISION = "The drain cap is 42 items, settled with the owner."
+
+
+def _shape3_spec(**overrides):
+    pred = {
+        "shape": 3,
+        "topic": "drain-exit",
+        "hops": 4,
+        "start": "2026-07-06T08:00:00Z",
+        "goal": "Make the drain exit deterministic.",
+        "vision": "Telemetry says why a drain stopped.",
+        "opening_ask": "Make the drain exit deterministic.",
+        "injections": [
+            {
+                "id": "superseded",
+                "hop": 2,
+                "section": "amendment",
+                "text": SUPERSEDED,
+                "retire": {"hop": 3, "reason": "superseded by the hop-3 amendment"},
+                "visible_in_reads": False,
+            },
+            {
+                "id": "binding",
+                "hop": 2,
+                "section": "amendment",
+                "text": BINDING,
+                "visible_in_reads": True,
+            },
+            {"id": "newer", "hop": 3, "section": "amendment", "text": NEWER},
+            {
+                "id": "question",
+                "hop": 1,
+                "section": "open-questions",
+                "text": "Which exit codes? Options: 0 or 1; recommendation: 0.",
+                "retire": {"hop": 4, "reason": "answered: 0 and 1"},
+            },
+            {
+                "id": "decision",
+                "hop": 2,
+                "section": "decisions",
+                "text": RETIRED_DECISION,
+                "retire": {"hop": 3, "reason": "moved to docs/work-loop.md"},
+                "visible_in_reads": False,
+            },
+            {
+                "id": "detour",
+                "hop": 2,
+                "section": "trail",
+                "text": "detour to the flaky test (owner-directed)",
+                "retire": {"hop": 4, "reason": "the detour closed"},
+            },
+            {
+                "id": "rule",
+                "hop": 3,
+                "section": "rules",
+                "text": "Rows are append-only.",
+            },
+        ],
+    }
+    pred.update(overrides)
+    return {
+        "name": "re-shape3-probe",
+        "seed": {
+            "predecessor": pred,
+            "history": {"after_reads": "I've read the handoff."},
+        },
+    }
+
+
+def _hop_file(chain, hop):
+    found = list((chain[0].parent / "archive").glob(f"*/h{hop}-*.md"))
+    assert len(found) == 1, found
+    return found[0]
+
+
+def _section(text, title):
+    return text.split(f"\n## {title}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def _shape3_chain(tmp_path):
+    import resume_cases
+
+    spec = _shape3_spec()
+    return spec, resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+
+
+def test_shape3_keeps_live_amendments_and_lists_the_retired_one_in_its_hop_file(
+    tmp_path,
+):
+    _, chain = _shape3_chain(tmp_path)
+    newest = chain[-1].read_text(encoding="utf-8")
+    assert "handoff_shape: 3" in newest
+    goal = _section(newest, "Original goal")
+    assert "**Amended (owner, 2026-07-06):** " + BINDING in goal
+    assert "**Amended (owner, 2026-07-06):** " + NEWER in goal
+    assert SUPERSEDED not in newest
+    listed = _section(
+        _hop_file(chain, 3).read_text(encoding="utf-8"), "Retired goal amendments"
+    )
+    assert (
+        f"**Amended (owner, 2026-07-06):** {SUPERSEDED}\n"
+        "Retired: superseded by the hop-3 amendment"
+    ) in listed
+    review = _section(newest, "Review before you continue").split("\n")
+    pointer = f"{_hop_file(chain, 3).name} § Retired goal amendments"
+    assert any(pointer in line for line in review), review
+
+
+def test_shape3_retires_ids_and_trail_lines_through_fill(tmp_path):
+    _, chain = _shape3_chain(tmp_path)
+    newest = chain[-1].read_text(encoding="utf-8")
+    hop3 = _hop_file(chain, 3).read_text(encoding="utf-8")
+    hop4 = _hop_file(chain, 4).read_text(encoding="utf-8")
+    decision = _section(hop3, "Retired decisions")
+    assert f"] {RETIRED_DECISION}\nRetired: moved to docs/work-loop.md" in decision
+    assert (
+        decision.split(f"] {RETIRED_DECISION}")[0].rsplit("- [", 1)[1].startswith("D")
+    )
+    assert RETIRED_DECISION not in newest
+    question = _section(hop4, "Retired open questions")
+    assert (
+        "Which exit codes? Options: 0 or 1; recommendation: 0.\nRetired: answered: 0 and 1"
+        in question
+    )
+    assert (
+        "- [h2] detour to the flaky test (owner-directed)\nRetired: the detour closed"
+        in _section(hop4, "Retired direction changes")
+    )
+    assert "Rows are append-only." in _section(newest, "Current rules")
+    for title, prefix in (("Open questions", "Q"), ("Decisions in force", "D")):
+        entries = [e for e in _section(newest, title).split("\n") if e.strip()]
+        assert entries and all(e.startswith(f"- [{prefix}") for e in entries), entries
+
+
+def test_shape3_chain_is_deterministic_and_a_successor_builds_on_it(tmp_path):
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import resume_cases
+
+    spec, chain = _shape3_chain(tmp_path)
+    first = {p.name: p.read_bytes() for p in chain}
+    shutil.rmtree(tmp_path / "repo")
+    again = resume_cases.build_predecessor_chain(spec, tmp_path / "repo")
+    assert {p.name: p.read_bytes() for p in again} == first
+    memory = tmp_path / "repo" / ".work"
+    projects = memory / "predecessor-transcripts"
+    sid = "11111111-2222-4333-8444-555555555555"
+    (projects / "seed" / f"{sid}.jsonl").write_text("", encoding="utf-8")
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(resume_cases.HERE.parent / "save_point.py"),
+            "new",
+            "--topic",
+            "drain-exit",
+            "--memory-dir",
+            str(memory),
+            "--repo-root",
+            str(tmp_path / "repo"),
+            "--projects-root",
+            str(projects),
+            "--session-id",
+            sid,
+            "--previous",
+            str(again[-1]),
+            "--now",
+            "2027-01-01T00:00:00Z",
+            "--shape",
+            "3",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert made.returncode == 0, made.stderr
+    successor = Path(made.stdout.strip()).read_text(encoding="utf-8")
+    assert "UNVERIFIED" not in successor
+    assert BINDING.split("\n")[0] in successor
+
+
+def test_shape3_history_sees_live_amendments_and_not_retired_entries(tmp_path):
+    import resume_cases
+
+    spec, chain = _shape3_chain(tmp_path)
+    turns = resume_cases.seed_history(spec, chain)
+    seen = "\n".join(t["result"] for t in turns if t["role"] == "tool")
+    assert BINDING.split("\n")[1] in seen
+    assert SUPERSEDED not in seen and RETIRED_DECISION not in seen
+
+
+def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
+    import resume_cases
+
+    bad = (
+        {"target_bytes": 20_000},
+        {"injections": [{"id": "x", "hop": 1, "section": "constraints", "text": "t"}]},
+        {
+            "injections": [
+                {
+                    "id": "x",
+                    "hop": 2,
+                    "section": "amendment",
+                    "text": "t",
+                    "retire": {"hop": 2, "reason": "r"},
+                }
+            ]
+        },
+        {
+            "injections": [
+                {
+                    "id": "x",
+                    "hop": 2,
+                    "section": "amendment",
+                    "text": "t",
+                    "retire": {"hop": 3, "reason": " "},
+                }
+            ]
+        },
+        {
+            "injections": [
+                {"id": "x", "hop": 2, "section": "amendment", "text": "t\n**bold**"}
+            ]
+        },
+        {"shape": 4},
+    )
+    for i, overrides in enumerate(bad):
+        repo = tmp_path / str(i)
+        try:
+            resume_cases.build_predecessor_chain(_shape3_spec(**overrides), repo)
+        except ValueError:
+            assert not (repo / ".work" / "handoffs").exists(), overrides
+        else:
+            raise AssertionError(f"accepted {overrides}")
