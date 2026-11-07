@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ck-consumer-config-wins
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-consumer-test
+    type: regex
+    pattern: '^dotnet test$'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: no-bundled-dotnet
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:sudo|env|timeout|time|nohup|xargs|exec)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*)*(?:\S*/)?dotnet(?:\.exe)?\s+(?:test|build)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run checks a .NET repository whose tracked .claude/ecosystems/dotnet.yaml declares its own commands. It meets the legacy expectations: "Resolves commands via the ladder with the consumer''s `.claude/ecosystems/dotnet.yaml` taking precedence (rung 1)" "Uses the bundled portable default only as the rung-4 fallback when no consumer file is present" "Runs the consumer''s declared test-cmd, not the bundled default''s".'
