@@ -1,6 +1,10 @@
 // The recurring filer: files one issue for each .github/recurring-schedule.json
 // row whose next_due has arrived and that no open `recurring` issue's body
-// marker names. It never edits the schedule: `/work-items:track recheck`
+// marker names. A due row whose precondition sets
+// requires_operator_confirmation is held, not filed: no automation observes
+// that precondition, so an operator who confirms it files the issue
+// (plugins/work-items/reference/standing-item-preconditions.md). It never
+// edits the schedule: `/work-items:track recheck`
 // closes the issue and advances next_due. No model. Writes with the job's own
 // token, one call at a time, 1 s apart, within its call budget.
 //
@@ -42,7 +46,6 @@ export function issueBody(row) {
         "## Precondition",
         "",
         row.precondition.prompt,
-        ...(row.precondition.requires_operator_confirmation === true ? ["", "An operator confirms this precondition before work starts."] : []),
         "",
       ]
     : [];
@@ -77,8 +80,10 @@ export async function listOpenRecurring({ call, repo }) {
   return open;
 }
 
-// One result per row: { id, next_due, due, outcome: filed | covered | not-due
-// | failed, issue?, reason? }. A list that cannot be read fails every due row
+export const HELD = "needs an operator's confirmation (requires_operator_confirmation)";
+
+// One result per row: { id, next_due, due, outcome: filed | covered | held |
+// not-due | failed, issue?, reason? }. A list that cannot be read fails every due row
 // rather than filing a duplicate.
 export async function fileDue({ schedule, today, call, repo, wait = () => delay(1000) }) {
   const rows = Array.isArray(schedule?.items) ? schedule.items : [];
@@ -88,6 +93,7 @@ export async function fileDue({ schedule, today, call, repo, wait = () => delay(
     const problem = rowProblem(row);
     if (problem) results.push({ id: String(row?.id ?? ""), next_due: row?.next_due ?? null, due: false, outcome: "failed", reason: problem });
     else if (row.next_due > today) results.push({ id: row.id, next_due: row.next_due, due: false, outcome: "not-due" });
+    else if (row.precondition?.requires_operator_confirmation === true) results.push({ id: row.id, next_due: row.next_due, due: true, outcome: "held", reason: HELD });
     else due.push(row);
   }
   if (due.length === 0) return results;
@@ -133,6 +139,7 @@ export function summarize(results) {
     due: results.filter((r) => r.due).length,
     filed: of("filed").length,
     covered: of("covered").length,
+    held: of("held").length,
     notDue: of("not-due").length,
     failed: of("failed").length,
   };
@@ -141,12 +148,13 @@ export function summarize(results) {
     markdown: [
       "### Recurring schedule filer",
       "",
-      "| Rows | Due | Filed | Skipped (covered) | Skipped (not due) | Failed |",
-      "|---|---|---|---|---|---|",
-      `| ${counts.rows} | ${counts.due} | ${counts.filed} | ${counts.covered} | ${counts.notDue} | ${counts.failed} |`,
+      "| Rows | Due | Filed | Skipped (covered) | Held (needs confirmation) | Skipped (not due) | Failed |",
+      "|---|---|---|---|---|---|---|",
+      `| ${counts.rows} | ${counts.due} | ${counts.filed} | ${counts.covered} | ${counts.held} | ${counts.notDue} | ${counts.failed} |`,
       "",
       ...of("filed").map((r) => `- filed #${r.issue} for \`${r.id}\``),
       ...of("covered").map((r) => `- covered \`${r.id}\` by #${r.issue}`),
+      ...of("held").map((r) => `- held \`${r.id}\`: ${r.reason}`),
       ...of("failed").map((r) => `- failed \`${r.id}\`: ${r.reason}`),
       "",
     ].join("\n"),
@@ -185,7 +193,7 @@ export async function main({ argv = process.argv.slice(2), env = process.env, ca
   for (const r of results) log(`file-due ${JSON.stringify({ today, ...r })}`);
   const summary = summarize(results);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary.markdown);
-  log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${api.used() ?? "n/a"}`);
+  log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, held ${summary.held}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${api.used() ?? "n/a"}`);
   if (summary.failed > 0) {
     log(`::error::${summary.failed} recurring schedule row(s) failed; see the step summary`);
     return 1;
