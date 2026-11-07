@@ -2847,8 +2847,8 @@ ISSUE_STATUS_QUERY = (
     "name field{...field}}}} "
     "timelineItems(last:100,itemTypes:[ISSUE_FIELD_ADDED_EVENT,"
     "ISSUE_FIELD_CHANGED_EVENT,ISSUE_FIELD_REMOVED_EVENT]){nodes{__typename "
-    "... on IssueFieldAddedEvent{actor{...who} issueField{...field}} "
-    "... on IssueFieldChangedEvent{actor{...who} issueField{...field}} "
+    "... on IssueFieldAddedEvent{value actor{...who} issueField{...field}} "
+    "... on IssueFieldChangedEvent{newValue actor{...who} issueField{...field}} "
     "... on IssueFieldRemovedEvent{actor{...who} issueField{...field}}}}}}} "
     "fragment who on Actor{__typename login ... on User{databaseId} "
     "... on Bot{databaseId}} "
@@ -2862,16 +2862,17 @@ FIELD_EVENT_WINDOW = 100
 def issue_status(
     repo: str, ref: str, number: int, config: IssueStatusConfig
 ) -> str | None:
-    """The state issue `number`'s Work status field holds (`config`), or None
-    when it is unset or no counted account set it (issue-status.mjs
-    issueStatus). The setter is the actor of the newest Work status event; a
-    removal leaves none. A listed human or the lanes App on the trusted list
-    at `ref` counts for every state; a `bot-setters` account for every state
-    but `PERSON_ONLY_STATE`, github-actions[bot] always and any other only
-    while the list holds it as a bot with the same id and login. Raises
-    `PolicyReadError` on a malformed `config`, a failed or malformed read, an
-    unreadable trusted list, a counted value no option maps, a full page of
-    field values, or a full event window with a value and no Work status
+    """The state the newest counted Work status event on issue `number` left
+    (`config`), or None when that event removed the value or no event counts.
+    An event counts when a listed human or the lanes App on the trusted list
+    at `ref` wrote it, or a `bot-setters` account wrote any state but
+    `PERSON_ONLY_STATE`, github-actions[bot] always and any other only while
+    the list holds it as a bot with the same id and login. Unlike
+    issue-status.mjs issueStatus, which reads the newest event's setter, an
+    uncounted later change or removal leaves a counted state standing.
+    Raises `PolicyReadError` on a malformed `config`, a failed or malformed
+    read, an unreadable trusted list, a counted state no option maps, a full
+    page of field values, or a full event window with a value and no counted
     event."""
     if config.error:
         raise PolicyReadError(config.error)
@@ -2896,41 +2897,47 @@ def issue_status(
         return json_object(json_object(node).get(key)).get("fullDatabaseId") == field_id
 
     value = next((json_object(v).get("name") for v in values if ours(v, "field")), None)
-    if value is None:
-        return None
-    newest = next(
-        (json_object(e) for e in reversed(events) if ours(e, "issueField")), None
-    )
-    if newest is None:
-        if len(events) >= FIELD_EVENT_WINDOW:
-            raise PolicyReadError(
-                f"#{number} Work status: no setter in its newest {FIELD_EVENT_WINDOW} field events"
-            )
-        return None
-    setter = json_object(newest.get("actor")).get("databaseId")
-    if newest.get("__typename") == "IssueFieldRemovedEvent" or type(setter) is not int:
-        return None
-    actors = trusted_listing(repo, ref)
-    person = any(
-        i == setter and (kind == "human" or login == LANES_APP_LOGIN)
-        for i, login, kind in actors
-    )
+    ours_newest_first = [
+        json_object(e) for e in reversed(events) if ours(e, "issueField")
+    ]
+    actors = trusted_listing(repo, ref) if ours_newest_first else ()
+    people = {
+        i for i, login, kind in actors if kind == "human" or login == LANES_APP_LOGIN
+    }
     listed_bots = {
         (i, login)
         for i, login, kind in actors
         if kind == "bot" and isinstance(login, str)
     }
-    bot = any(
-        entry[0] == setter and (entry == ACTIONS_BOT or entry in listed_bots)
+    bots = {
+        entry[0]
         for entry in config.bot_setters
-    )
-    if not (person or bot):
-        return None
-    if value not in config.order:
-        raise PolicyReadError(
-            f"#{number} Work status holds {value!r}, which {ISSUE_STATUS_KEY} does not map"
+        if entry == ACTIONS_BOT or entry in listed_bots
+    }
+    # An uncounted event neither sets nor clears a counted state: the newest
+    # counted one decides, whatever came after it.
+    for event in ours_newest_first:
+        setter = json_object(event.get("actor")).get("databaseId")
+        kind = event.get("__typename")
+        state = (
+            None
+            if kind == "IssueFieldRemovedEvent"
+            else event.get("newValue" if kind == "IssueFieldChangedEvent" else "value")
         )
-    return None if bot and value == PERSON_ONLY_STATE else value
+        if type(setter) is not int or not (
+            setter in people or setter in bots and state != PERSON_ONLY_STATE
+        ):
+            continue
+        if state is not None and state not in config.order:
+            raise PolicyReadError(
+                f"#{number} Work status holds {state!r}, which {ISSUE_STATUS_KEY} does not map"
+            )
+        return state
+    if value is not None and len(events) >= FIELD_EVENT_WINDOW:
+        raise PolicyReadError(
+            f"#{number} Work status: no counted setter in its newest {FIELD_EVENT_WINDOW} field events"
+        )
+    return None
 
 
 def status_label_names(

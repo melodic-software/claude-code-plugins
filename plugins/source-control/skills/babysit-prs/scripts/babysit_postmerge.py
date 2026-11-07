@@ -4040,7 +4040,12 @@ def remediate(
                 existing.append(records[failure.marker])
                 notes_by_issue[filed] = []
                 if status:
-                    _hold_record(owner, name, filed, status, role_label)
+                    # A failed hold is reported and fails the run; the next
+                    # record is still filed.
+                    try:
+                        _hold_record(owner, name, filed, status, role_label)
+                    except PostMergeWriteError as exc:
+                        report["errors"].append(f"demotion issue: {exc}")
                 continue
             records[failure.marker] = match
             number = match.get("number")

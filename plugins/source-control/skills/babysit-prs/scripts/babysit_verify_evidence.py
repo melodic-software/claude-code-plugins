@@ -5262,6 +5262,8 @@ def capped_close(
             ],
             "pull request record",
         )
+    # Issues a hold read again before their park kept unparked.
+    held: list[int] = []
     for issue, comments, attempt, parked, labels in plan:
         _, issue_body = capped_close_bodies(
             number,
@@ -5286,6 +5288,15 @@ def capped_close(
                 f"#{issue} record",
             )
         base = f"repos/{repo}/issues/{issue}/labels"
+        # Read again right before the park writes: a hold set since the hold
+        # read stays, and the issue is not parked over it.
+        if (
+            labels == "park"
+            and read_status
+            and status(issue) in merge_policy.HOLD_STATES
+        ):
+            held.append(issue)
+            labels = "none"
         if labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
@@ -5334,8 +5345,9 @@ def capped_close(
         "closed": True,
         "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
-        "parked": [i for i, _, _, parked, _ in plan if parked],
+        "parked": [i for i, _, _, parked, _ in plan if parked and i not in held],
         "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
+        **({"held": held} if held else {}),
     }
 
 

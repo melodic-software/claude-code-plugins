@@ -134,24 +134,49 @@ def setter(actor_id: int, login: str, kind: str = "Bot") -> dict[str, Any]:
     return {"__typename": kind, "login": login, "databaseId": actor_id}
 
 
+WORK_STATUS = {"fullDatabaseId": str(FIELD)}
+
+
+def field_event(
+    who: dict[str, Any], to: str | None, changed: bool = False
+) -> dict[str, Any]:
+    """A Work status event as the GraphQL timeline names it: an add's
+    `value`, a change's `newValue`, or a removal."""
+    if to is None:
+        return {
+            "__typename": "IssueFieldRemovedEvent",
+            "actor": who,
+            "issueField": WORK_STATUS,
+        }
+    kind, key = (
+        ("IssueFieldChangedEvent", "newValue")
+        if changed
+        else ("IssueFieldAddedEvent", "value")
+    )
+    return {"__typename": kind, key: to, "actor": who, "issueField": WORK_STATUS}
+
+
 def answer(
     value: str | None,
     who: dict[str, Any] | None,
     *,
     removed: bool = False,
     padding: int = 0,
+    later: tuple[dict[str, Any], ...] = (),
+    now: Any = "same",
 ) -> dict[str, Any]:
-    """The PolicyIssueStatus answer: the field's option name, and its events,
-    oldest first, after `padding` events of another field."""
-    ref = {"fullDatabaseId": str(FIELD)}
+    """The PolicyIssueStatus answer: `who` setting the field to `value` (or
+    removing it) after `padding` events of another field, then the `later`
+    Work status events; the field holds `now` (`value` unless given)."""
     other = {"fullDatabaseId": "1"}
     events = [
         {"__typename": "IssueFieldAddedEvent", "actor": who, "issueField": other}
     ] * padding
     if who is not None:
-        kind = "IssueFieldRemovedEvent" if removed else "IssueFieldAddedEvent"
-        events.append({"__typename": kind, "actor": who, "issueField": ref})
-    values = [] if value is None else [{"name": value, "field": ref}]
+        events.append(field_event(who, None if removed else value))
+    events += later
+    held = value if now == "same" else now
+    values = [] if held is None else [{"name": held, "field": WORK_STATUS}]
     return {
         "repository": {
             "issue": {
@@ -317,6 +342,50 @@ class TheFieldReader(StatusCase):
             self.read(full)
         del nodes[0]
         self.assertEqual(self.read(full), "needs-human")
+
+    def test_an_uncounted_later_event_leaves_a_counted_hold(self) -> None:
+        human = setter(HUMAN_ID, "kyle-sexton", "User")
+        claude = setter(4004, "claude")
+        drive_by = setter(3003, "drive-by", "User")
+        changed = answer(
+            "needs-human",
+            human,
+            later=(field_event(claude, "ready", changed=True),),
+            now="ready",
+        )
+        self.assertEqual(self.read(changed), "needs-human")
+        removed = answer(
+            "needs-human", human, later=(field_event(drive_by, None),), now=None
+        )
+        self.assertEqual(self.read(removed), "needs-human")
+        only_uncounted = answer(
+            "needs-human",
+            claude,
+            later=(field_event(drive_by, "ready", changed=True),),
+            now="ready",
+        )
+        self.assertIsNone(self.read(only_uncounted))
+
+    def test_a_counted_later_event_decides(self) -> None:
+        human = setter(HUMAN_ID, "kyle-sexton", "User")
+        actions = setter(41898282, "github-actions")
+        cleared = answer(
+            "needs-human", human, later=(field_event(human, None),), now=None
+        )
+        self.assertIsNone(self.read(cleared))
+        moved = answer(
+            "needs-spec",
+            human,
+            later=(field_event(actions, "needs-human", changed=True),),
+            now="needs-human",
+        )
+        self.assertEqual(self.read(moved), "needs-human")
+
+    def test_a_full_window_of_uncounted_events_with_a_value_raises(self) -> None:
+        claude = setter(4004, "claude")
+        flood = tuple(field_event(claude, "ready", changed=True) for _ in range(99))
+        with self.assertRaises(policy.PolicyReadError):
+            self.read(answer("ready", claude, later=flood))
 
     def test_a_short_window_with_no_setter_reads_as_unset(self) -> None:
         self.assertIsNone(self.read(answer("needs-human", None, padding=99)))
@@ -636,6 +705,21 @@ class TheCappedClose(unittest.TestCase):
             ],
         )
 
+    def test_a_hold_set_before_the_park_keeps_the_issue_unparked(self) -> None:
+        reads = iter(["ready", "needs-human"])
+        world = self.parked_world()
+        result = self.run_close(world, lambda *a: next(reads))
+        self.assertEqual((result["parked"], result["held"]), ([], [CAPPED_ISSUE]))
+        base = f"repos/{CAPPED_REPO}/issues/{CAPPED_ISSUE}"
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
+                f"POST {base}/comments",
+                f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
+            ],
+        )
+
     def test_a_held_field_keeps_it_open(self) -> None:
         world = World()
         result = self.run_close(world, lambda *a: "needs-owner-decision")
@@ -734,6 +818,22 @@ class TheDemotionRecord(CheckCase):
 
     def creates(self) -> list[list[str]]:
         return [w for w in self.gh.writes() if f"repos/{PM_REPO}/issues" in w]
+
+    def test_a_failed_hold_still_files_the_next_record(self) -> None:
+        self.gh.pipeline = SMALL
+        self.gh.field_answer = 502
+        self.gh.merged = [identity_merge()]
+        self.all_green()
+        verdict = self.check(pinned=OTHER_SHA)
+        first = verdict.failures[0]
+        second = dataclasses.replace(first, signal="second", run_url=None)
+        verdict = dataclasses.replace(verdict, failures=(first, second))
+        report = pm.remediate(PM_REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(len(self.creates()), 2)
+        labels = [w for w in self.gh.writes() if w[3].endswith("/labels")]
+        self.assertEqual(len(labels), 2)
+        self.assertEqual(len(report["errors"]), 2)
+        self.assertTrue(all("Work status not set" in e for e in report["errors"]))
 
     def test_configured_files_unlabeled_then_sets_the_field(self) -> None:
         self.gh.pipeline = SMALL
