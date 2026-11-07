@@ -255,7 +255,7 @@ describe("earlier reviews and blocking only", () => {
     assert.equal(readAfterFirstReview(loop("  findings-after-first-review: all").replaceAll("\n", "\r\n")), "all");
     assert.equal(readAfterFirstReview(loop("  findings-after-first-review: blocking-only")), "blocking-only");
     assert.equal(readAfterFirstReview(loop("  findings-after-first-review: everything")), "blocking-only");
-    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: alls")), "blocking-only");
+    assert.equal(readAfterFirstReview(loop("  findings-after-first-review: all-findings")), "blocking-only");
     assert.equal(readAfterFirstReview(loop("")), "blocking-only");
     assert.equal(readAfterFirstReview("lanes:\n  x:\n    findings-after-first-review: all\nloop:\n  review-rounds: 3\n"), "blocking-only");
     assert.equal(readAfterFirstReview(""), "blocking-only");
