@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: rdr-standards-disagreement
+graders:
+  - name: routes-follow-our-standards
+    type: regex
+    pattern: 'follow[- ]our[- ]standards'
+    flags: 'i'
+    target: last_message
+  - name: upstream-change-path
+    type: regex
+    pattern: '\bstandards?\b[^\n]{0,60}\b(?:PR|pull request|change request|proposal|amend\w*)\b|\b(?:PR|pull request|propos\w*|amend\w*)\b[^\n]{0,60}\bstandards?\b|\bdraft\w*\b[^\n]{0,30}\bstandards? change\b'
+    flags: 'i'
+    target: last_message
+  - name: neither-silent
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Does not endorse silently ignoring the standard, nor silently complying with one believed wrong" and "Routes the standards disagreement upstream (a standards PR) via /discipline:follow-our-standards". It fails if it tells the user to ignore the rule, or to follow it without raising the disagreement.'
+    focus: last_message

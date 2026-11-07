@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Route it through /discipline:follow-our-standards."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Follow the standards doc for now.",
+      "why": "not the skill"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The flag is `--jobs` (synccli/cli.py:5); there is no --parallel."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Confirmed: the flag is --parallel.",
+      "why": "old claim"
+    },
+    {
+      "answer": "Use --jobs-max instead.",
+      "why": "a different flag"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugin/skills/do-your-research/SKILL.md\"}}]}}\n",
+      "why": "only the hub read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I will stay inline; reference/fan-out-tier.md is not needed here.\"}]}}\n",
+      "why": "named in text, not read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugin/skills/do-your-research/reference/fan-out-tier.md\"}}]}}\n",
+      "why": "reads the fan-out tier"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat /opt/eval/plugin/skills/do-your-research/reference/fan-out-tier.md\"}}]}}\n",
+      "why": "shell read of it"
+    }
+  ]
+}

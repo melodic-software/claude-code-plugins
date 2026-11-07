@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | free tier 120 rpm | corrected: 60 requests per minute | rate_limits.yaml:4 |\n| 4 | 24-hour tokens | corrected: 3600 s | auth.py:3 |\n| 6 | Free 100,000 calls | corrected: 10,000 calls a month | pricing.md:5 |"
+    },
+    {
+      "answer": "Free tier: 60 rpm. Tokens last one hour. Free includes 10000 calls."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Free tier: 120 requests per minute. Tokens last 24 hours. Free includes 100,000 calls.",
+      "why": "old claims"
+    },
+    {
+      "answer": "Free tier: 60 requests per minute. Tokens last 24 hours. Free includes 100,000 calls.",
+      "why": "only one corrected"
+    }
+  ]
+}

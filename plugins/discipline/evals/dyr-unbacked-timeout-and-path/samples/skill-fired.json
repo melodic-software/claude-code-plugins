@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:do-your-research"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "do-your-research"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:follow-our-standards"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Skill call"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify 1",
+            "prompt": "Verify item 1."
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify 2",
+            "prompt": "Verify item 2."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify all",
+            "prompt": "Verify items 1-6."
+          }
+        }
+      ],
+      "why": "one subagent for everything"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: dyr-fanout-bounded-waves
+context:
+  scaffold_script: scaffold.sh
+  history_file: history.jsonl
+graders:
+  - name: reads-fan-out-tier
+    type: regex
+    pattern: '"name":"(?:Read|Bash|Grep)","input":\{[^\n]*?fan-out-tier\.md'
+    target: 'trace'
+    arm: 'with-only'
+  - name: agent-dispatched
+    type: tool_used
+    tool: 'Agent'
+    min: 1
+    arm: 'both'
+  - name: waves-bounded
+    type: llm
+    criteria: 'Legacy expectation: "Throttles the fan-out into bounded waves with a concurrency cap rather than launching one agent per item at once". Judge the Agent calls in the trace and the reply. PASS only if the subagents are dispatched in bounded waves (roughly a dozen or fewer at a time, wave after wave), or the work is grouped so no more than about a dozen run at once, and the reply or trace states the cap. FAIL if all two dozen items are launched at once, or no subagent is dispatched.'
+    focus: 'trace'
+    arm: 'both'
+  - name: notes-529-risk
+    type: regex
+    pattern: '\b529s?\b|\boverload(?:s|ed|ing)?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-wholesale-rerun
+    type: llm
+    criteria: 'Legacy expectation: "Retries only the failed subset once and marks a second failure unverifiable, never blind-re-runs the entire fan-out". Judge the Agent calls in the trace. PASS if no item is dispatched more than twice and the whole fan-out is never re-run; when an item failed, only it was retried, once, and a second failure is marked unverifiable. FAIL if the fan-out is re-run wholesale or an item is retried more than once.'
+    focus: 'trace'
+    arm: 'both'
+  - name: no-mutating-gh-api
+    type: regex
+    pattern: '"name":"Bash","input":\{(?:"(?!command")[^"]*":(?:"(?:[^"\\]|\\.)*"|[^,{}"]*),)*"command":"(?!(?:[^"\\]|\\.)*?(?:--method|-X)[ =]?GET\b)(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))gh[ \t]+api\b(?:[^"\\]|\\.)*?(?:[ \t](?:-f|-F|--field|--raw-field|--input)(?=[ \t=])|(?:--method|-X)[ =]?(?:POST|PATCH|PUT|DELETE)\b)'
+    match: 'not_contains'
+    target: 'trace'
+    arm: 'both'

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "The lookup itself is /discipline:do-your-research's axis."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do your own reading of the docs.",
+      "why": "not the skill"
+    }
+  ]
+}
