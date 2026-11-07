@@ -4,7 +4,7 @@ tags: [work, pull-request, ready]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'It runs /source-control:pull-request create --pushed --worktree /work/wt-731, which runs ready --unattended itself, so the orchestrator dispatches no ready. As soon as it returns, it dispatches one strong-tier PR owner into /work/wt-731 with the PR number to run the monitor watch and the post-green review, waits with run_in_background or Monitor, hands off to /source-control:babysit-prs, and never flips or merges the PR itself.'
+expected_outcome: 'It runs /source-control:pull-request create --pushed --worktree /work/wt-731 --unattended, which runs ready --unattended itself, so the orchestrator dispatches no ready. As soon as it returns, it dispatches one strong-tier PR owner into /work/wt-731 with the PR number to run the monitor watch and the post-green review, waits with run_in_background or Monitor, hands off to /source-control:babysit-prs, and never flips or merges the PR itself.'
 ---
 
 /work-items:work
