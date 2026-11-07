@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Only threads created after the merge count, over the **`--stranded-days`** window (default 3).",
+      "why": "bold code span"
+    },
+    {
+      "answer": "The window is merges since the older of --stranded-days ago and the bookmark.",
+      "why": "prose with the bookmark"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It skips threads older than the merge; the window is set by --stale-hours.",
+      "why": "near miss: the telemetry staleness flag"
+    },
+    {
+      "answer": "The section only lists threads created after the merge, over the last three days.",
+      "why": "names no window setting"
+    }
+  ]
+}

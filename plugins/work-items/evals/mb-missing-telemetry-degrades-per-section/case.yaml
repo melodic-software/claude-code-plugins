@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: mb-missing-telemetry-degrades-per-section
+graders:
+  - name: 'names-empty-states'
+    type: 'regex'
+    pattern: 'no telemetry issue found[\s\S]*no queue labels found|no queue labels found[\s\S]*no telemetry issue found'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:morning-brief session does with the stated state. PASS only if it satisfies every point: (1) The response says the brief still renders rather than failing; (2) The response reports "no telemetry issue found" for the Lane telemetry section and "no queue labels found" for the Queues section; (3) The response names `--telemetry-issue` and `--queue-labels` as the way to pin a specific issue or label set. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
