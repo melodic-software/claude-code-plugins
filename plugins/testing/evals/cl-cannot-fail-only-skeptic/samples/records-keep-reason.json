@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work/testing-cleanup/shop.tests/decisions.md <<'EOF'\n| Price_feed_resolves | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\nEOF"
+          }
+        }
+      ],
+      "why": "decision table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work/testing-cleanup/shop.tests/decisions.md <<'EOF'\n| Price_feed_resolves | keep |\nEOF"
+          }
+        }
+      ],
+      "why": "keep without the reason"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Price_feed_resolves: keep. Proposed for deletion, waiting for your yes: Wiring_is_sane, Price_feed_type_exists.",
+      "why": "two deletions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Price_feed_resolves: keep. Proposed for deletion: Wiring_is_sane.",
+      "why": "one deletion"
+    }
+  ]
+}
