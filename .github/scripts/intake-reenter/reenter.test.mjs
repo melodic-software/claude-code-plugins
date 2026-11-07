@@ -758,6 +758,17 @@ test("a re-run that sees the job token's or the lanes App's own needs-triage wri
   }
 });
 
+test("a listed human who set the hold and then clears it releases it", async () => {
+  for (const fieldNodes of [
+    [heldBy(OWNER, "needs-human"), removed(OWNER)],
+    [heldBy(LANES_APP, "ready"), changed(OWNER, "ready", "needs-human"), removed(OWNER)],
+  ]) {
+    const w = world({ labels: [], fieldNodes });
+    assert.equal(await runField(w, "field_removed"), 0);
+    expectDispatched(w);
+  }
+});
+
 test("a listed human who removes a hold and then sets needs-triage releases it", async () => {
   const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(OWNER, "needs-triage")] });
   assert.equal(await runField(w, "field_added"), 0);
