@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | INFO: zero rows; `apply --seed-schedule` seeds it |\n| Recurring-maintenance role label | **INFO**: `recurring` absent, must exist before the schedule is seeded |",
+      "why": "table row with bold verdict"
+    },
+    {
+      "answer": "Probe 6 (role label): INFO, because the schedule carries zero rows, so no recurring item can be created yet.",
+      "why": "prose"
+    },
+    {
+      "answer": "| 6 | `recurring` label | INFO | The label is absent from the repo. With zero rows no recurring item can be created, so this is not a gate. |",
+      "why": "review re-smoke c2r reply: the row names the resolved label, as in held setup 10"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | INFO: zero rows |\n| Recurring-maintenance role label | FAIL: `recurring` absent |",
+      "why": "near miss: the empty schedule row is INFO but the role-label row FAILs"
+    },
+    {
+      "answer": "The recurring-maintenance role label is missing, so this is a hard FAIL until it is provisioned.",
+      "why": "FAIL verdict"
+    },
+    {
+      "answer": "recurring-maintenance role label: FAIL; schedule validity: INFO (zero rows)",
+      "why": "near miss: prose on one line, the INFO belongs to the schedule probe"
+    },
+    {
+      "answer": "Role label: FAIL, schedule validity: INFO (zero rows)",
+      "why": "near miss: a comma joins the schedule probe's INFO to the role-label clause"
+    }
+  ]
+}
