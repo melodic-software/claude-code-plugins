@@ -4,7 +4,7 @@ tags: [work, dispatch, pull-request, review]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'The run dispatches a scope-fenced subagent that provisions its own out-of-tree worktree and never opens the PR; the orchestrator never runs /source-control:worktree create, does the full-diff read when the gate applies, and opens the PR with /source-control:pull-request create --pushed. The brief carries the PR contract and the concurrency cap from work_dispatch_concurrency_cap. After green, the unrelated one-line fix goes in its own small PR with no issue, the structural finding is deferred to an issue filed through /work-items:track add and cited in the reply and in ## Related via a read-modify-write, and the PR is handed to /source-control:babysit-prs, never merged.'
+expected_outcome: 'The run dispatches a scope-fenced subagent that provisions its own out-of-tree worktree and never opens the PR; the orchestrator never runs /source-control:worktree create, does the full-diff read when the gate applies, and opens the PR with /source-control:pull-request create --pushed. The brief carries the PR contract and the concurrency cap from work_dispatch_concurrency_cap. After green, the unrelated one-line fix is placed as plugins/source-control/reference/review-discipline.md D4.6 says, the structural finding is deferred to an issue filed through /work-items:track add and cited in the reply and in ## Related via a read-modify-write, and the PR is handed to /source-control:babysit-prs, never merged.'
 ---
 
 /work-items:work
