@@ -27,6 +27,14 @@
       "why": "omits it"
     },
     {
+      "answer": "The disclaimer setting is true.",
+      "why": "names the setting only"
+    },
+    {
+      "answer": "Every comment goes out without the disclaimer.",
+      "why": "negated"
+    },
+    {
       "answer": "",
       "why": "empty"
     }
