@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: viz-ambiguous-target
+context:
+  history_file: history.jsonl
+graders:
+  - name: asks-one-question
+    type: 'regex'
+    pattern: '\?'
+    match: 'count:1'
+    target: 'last_message'
+  - name: recommended-first
+    type: 'regex'
+    pattern: '^(?:(?!(?:^|\n)[ \t]*(?:\d+[.)]|[-*+]|\(?[A-Da-d][.)])[ \t])[\s\S])*?(?:^|\n)[ \t]*(?:1[.)]|[-*+]|\(?[Aa][.)])[ \t][^\n]*recommend|(?:^|\n)[^\n]*?[ \t:?]1[.)][ \t]+(?:(?![ \t]2[.)])[^\n])*?recommend'
+    flags: 'i'
+    target: 'last_message'
+  - name: renders-nothing
+    type: 'regex'
+    pattern: '^[ \t]*(?:```|~~~)|[├└│┌┬┼]|[▁▂▃▄▅▆▇█]{2,}|^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-+:?[ \t]*\||-->|->>'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'

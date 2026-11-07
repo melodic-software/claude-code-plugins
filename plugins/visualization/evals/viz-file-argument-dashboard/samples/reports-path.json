@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (argument)\n\nWrote the dashboard as a self-contained local file and opened it: /opt/eval/tmp/visualize-Ab12Cd/visualize.html\n\nNothing was published."
+    },
+    {
+      "answer": "Opened `/opt/eval/tmp/visualize-Q9/visualize.html`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Opened visualize.html in your browser.",
+      "why": "no absolute path"
+    },
+    {
+      "answer": "The dashboard is ready at https://example.org/dash.html",
+      "why": "a URL, not a local path"
+    }
+  ]
+}

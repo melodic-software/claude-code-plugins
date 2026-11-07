@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (team)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```"
+    },
+    {
+      "answer": "No personal override is set, so the team file decided: view: file (team)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Error: personal override docs/conventions/rendered-views.local.yaml not found."
+    },
+    {
+      "answer": "Warning: could not read rendered-views.local.yaml, falling back to the team file.",
+      "why": "warning naming the file"
+    }
+  ]
+}

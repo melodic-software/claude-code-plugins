@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugins/visualization/skills/visualize/context/decision-matrix.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/rendered-views.yaml"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/rendered-views.local.yaml"
+          }
+        }
+      ],
+      "why": "the personal file"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: viz-session-state-file-tree
+context:
+  history_file: history.jsonl
+graders:
+  - name: file-tree
+    type: 'regex'
+    pattern: '^(?=[\s\S]*?[├└][^\n]*?store\.ts)(?=[\s\S]*?[├└][^\n]*?events\.ts)(?=[\s\S]*?[├└][^\n]*?client\.ts)'
+    target: 'last_message'
+  - name: responsibility-per-entry
+    type: 'regex'
+    pattern: '^(?=[\s\S]*?store\.ts[ \t]*(?:[-–—:#|]+|//|\()?[ \t]*[A-Za-z][^\n]{3,})(?=[\s\S]*?events\.ts[ \t]*(?:[-–—:#|]+|//|\()?[ \t]*[A-Za-z][^\n]{3,})(?=[\s\S]*?client\.ts[ \t]*(?:[-–—:#|]+|//|\()?[ \t]*[A-Za-z][^\n]{3,})'
+    target: 'last_message'
+  - name: single-fence
+    type: 'regex'
+    pattern: '^[ \t]*(?:```|~~~)'
+    flags: 'm'
+    match: 'count:2'
+    target: 'last_message'
+  - name: no-menu
+    type: 'regex'
+    pattern: '\brecommend|\?[ \t]*(?:\*\*|__|\*|_)?[ \t]*$'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'

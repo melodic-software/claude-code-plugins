@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nfor attempt in 1..5:\n    response = send(request)\n    if response.ok or not is_5xx(response): return response\n    if attempt == 5: raise last_error\n    sleep(2 ^ (attempt - 1) seconds)   # 1, 2, 4, 8\n```"
+    },
+    {
+      "answer": "```\nrepeat up to 5 attempts:\n  r = call()\n  if r.status < 500: return r\n  wait backoff[attempt]\nsurface last error\n```",
+      "why": "status < 500"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[try] -->|5xx| B[wait]\n```",
+      "why": "mermaid"
+    },
+    {
+      "answer": "Try the request; on a 5xx wait 1, 2, then 4 seconds, up to five attempts.",
+      "why": "prose, no fence"
+    }
+  ]
+}

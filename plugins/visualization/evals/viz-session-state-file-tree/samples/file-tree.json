@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\nsrc/sessions/store.ts\nsrc/sessions/events.ts\nsrc/transport/client.ts\n```",
+      "why": "no box-drawing glyphs"
+    },
+    {
+      "answer": "```text\n├── store.ts   map\n└── events.ts  emits\n```",
+      "why": "client.ts missing"
+    }
+  ]
+}

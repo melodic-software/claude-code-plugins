@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "The artifact argument was not honored: a pull-request diff stays in the terminal until this lane is wired through the escape helper.\n\n```diff\n src/transport/client.ts\n   connect(url)\n-    openStream(url)\n+    openStream(url, { resumeFrom: lastEventId })\n+    stream.onEvent(id => lastEventId = id)\n src/transport/stream.ts\n+  interface StreamOptions { resumeFrom? }\n-  openStream(url)\n+  openStream(url, opts)  // sends Last-Event-ID\n```"
+    },
+    {
+      "answer": "Kept in the terminal: this is a PR diff, and those are never rendered to HTML yet.",
+      "why": "stays-terminal arm"
+    },
+    {
+      "answer": "I didn't publish an artifact because pull-request diffs stay terminal-only for now.",
+      "why": "didn't publish"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't publish an artifact in this session, so here is the diff in the terminal.",
+      "why": "tool reason, not the content rule"
+    },
+    {
+      "answer": "Here is the PR diff as a sketch.",
+      "why": "no reason"
+    },
+    {
+      "answer": "The artifact argument was not honored.\nThis is a PR diff.",
+      "why": "the two halves on different lines"
+    }
+  ]
+}

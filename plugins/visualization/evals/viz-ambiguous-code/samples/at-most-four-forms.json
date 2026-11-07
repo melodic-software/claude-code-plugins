@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "This code could be shown a few ways, and none clearly wins. Which do you want?\n\n1. **Call tree** (recommended): `PostalCarrier.quote` → `RateTable.services_for` and `RateTable.price`.\n2. **Types and signatures**: the classes and method signatures only.\n3. **File tree**: the three modules and what each one holds.\n\nReply with a number and I'll render it."
+    },
+    {
+      "answer": "Which view?\n\n1. Call tree (recommended)\n2. Types and signatures\n3. File tree\n4. Pseudocode",
+      "why": "four forms"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which view?\n\n1. Call tree (recommended)\n2. Types and signatures\n3. File tree\n4. Pseudocode\n5. Component tree",
+      "why": "five forms"
+    },
+    {
+      "answer": "Which view? Call tree (recommended), types and signatures, file tree, pseudocode, or the whole block?",
+      "why": "five forms inline"
+    }
+  ]
+}

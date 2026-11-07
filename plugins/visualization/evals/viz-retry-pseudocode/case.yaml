@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: viz-retry-pseudocode
+graders:
+  - name: pseudocode-fence
+    type: 'regex'
+    pattern: '(?:```|~~~)(?!mermaid)[^\n]*\n(?=(?:(?!```|~~~)[\s\S])*?\b(?:for|while|repeat|loop|until|attempts?)\b)(?=(?:(?!```|~~~)[\s\S])*?\b(?:wait|sleep|delay|backoff)\b)(?=(?:(?!```|~~~)[\s\S])*?(?:5xx|5\d\d|>=?[ \t]*500|server error))'
+    flags: 'i'
+    target: 'last_message'
+  - name: single-fence
+    type: 'regex'
+    pattern: '^[ \t]*(?:```|~~~)'
+    flags: 'm'
+    match: 'count:2'
+    target: 'last_message'
+  - name: no-page-or-mermaid
+    type: 'regex'
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact|```mermaid'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-question
+    type: 'regex'
+    pattern: '\?[ \t]*(?:\*\*|__|\*|_)?[ \t]*$'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'

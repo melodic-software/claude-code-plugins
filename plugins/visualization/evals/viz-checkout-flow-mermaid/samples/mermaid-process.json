@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto): a mermaid flowchart as source.\n\n```mermaid\nflowchart TD\n  A[Validate stock] --> B[Reserve inventory]\n  B --> C[Charge payment]\n  C -->|success| D[Emit order-placed]\n  C -->|failure| E[Release reservation]\n```\n\nThis is mermaid source; the terminal does not render it. Paste it into a mermaid renderer to see the picture."
+    },
+    {
+      "answer": "```mermaid\nsequenceDiagram\n  Cart->>Inventory: reserve\n  Cart->>Payments: charge\n  Payments-->>Cart: failed\n  Cart->>Inventory: release reservation\n```"
+    },
+    {
+      "answer": "```mermaid\n---\ntitle: Checkout\n---\ngraph LR\n  V[validate] --> R[reserve stock] --> P[pay]\n  P -- fail --> X[release]\n```",
+      "why": "frontmatter title, graph keyword"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```mermaid\nstateDiagram-v2\n  [*] --> Reserved\n  Reserved --> Released\n```",
+      "why": "a state diagram, not a process family"
+    },
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Validate] --> B[Charge]\n```\nReserve and release happen around the charge.",
+      "why": "steps outside the fence"
+    },
+    {
+      "answer": "```text\nvalidate -> reserve -> charge -> release\n```",
+      "why": "not mermaid"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```"
+    },
+    {
+      "answer": "```\n├── store.ts: SessionStore map\n├── events.ts: emits events\n└── client.ts: token and reconnect\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```\n├── store.ts\n├── events.ts\n└── client.ts\n```",
+      "why": "names only"
+    },
+    {
+      "answer": "```\n├── store.ts   SessionStore map\n├── events.ts\n└── client.ts  token\n```",
+      "why": "one entry bare"
+    }
+  ]
+}

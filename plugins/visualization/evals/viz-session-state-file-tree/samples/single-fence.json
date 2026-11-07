@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```\n\n```text\nSessionStore.open()\n└── emit('session-opened')\n```"
+    },
+    {
+      "answer": "├── store.ts  map",
+      "why": "no fence"
+    }
+  ]
+}

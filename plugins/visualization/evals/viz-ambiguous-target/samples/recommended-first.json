@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "There are three things here and no form was named. Which one should I visualize?\n\n1. **Module dependency graph** (recommended): a mermaid flowchart of the five modules.\n2. **Rollout timeline**: a mermaid timeline of the four phases.\n3. **Error-rate numbers**: a small bar chart."
+    },
+    {
+      "answer": "Which target?\n\n- Module dependency graph (recommended)\n- Rollout timeline\n- Error-rate numbers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which target?\n\n1. Rollout timeline\n2. Module dependency graph (recommended)\n3. Error-rate numbers"
+    },
+    {
+      "answer": "Which target? I recommend the dependency graph.\n\n- Rollout timeline\n- Dependency graph\n- Error rates",
+      "why": "recommendation outside the first option"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto): a mermaid flowchart as source.\n\n```mermaid\nflowchart TD\n  A[Validate stock] --> B[Reserve inventory]\n  B --> C[Charge payment]\n  C -->|success| D[Emit order-placed]\n  C -->|failure| E[Release reservation]\n```\n\nThis is mermaid source; the terminal does not render it. Paste it into a mermaid renderer to see the picture."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I wrote the page to /opt/eval/tmp/visualize-a1b2c3/visualize.html and opened it."
+    },
+    {
+      "answer": "<html><body><pre class=\"mermaid\">flowchart TD</pre></body></html>",
+      "why": "page markup in the reply"
+    }
+  ]
+}

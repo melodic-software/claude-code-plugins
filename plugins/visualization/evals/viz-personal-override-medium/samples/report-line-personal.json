@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (personal override)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: auto (plugin default)\n\nThe medium is a local file, but the mermaid gate kept the source (mmdc is not installed), so no page was written. Here is the mermaid source, unrendered:\n\n```mermaid\nflowchart LR\n  A[push to main] --> B[build image] --> C[unit tests]\n  C --> D[push image] --> E[deploy staging] --> F[smoke tests]\n  F -->|pass| G[manual approval] --> H[deploy production]\n  F -->|fail| R[roll back staging]\n```",
+      "why": "the plugin default"
+    },
+    {
+      "answer": "The personal override setting chose a local file.",
+      "why": "paraphrased, not the printed line"
+    }
+  ]
+}
