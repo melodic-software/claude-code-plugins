@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n- transition: all 450ms ease-in;\n+ transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);\n```",
+      "why": "a diff fence"
+    },
+    {
+      "answer": "-  transform: scale(0);\n+  transform: translateX(100%);",
+      "why": "plus and minus lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I changed the transition to 300ms.",
+      "why": "near miss: describes the change, shows no diff"
+    }
+  ]
+}
