@@ -72,6 +72,14 @@ test("a legacy issue whose labels name the state is listed once beside the field
   assert.deepEqual(numbers(await list(pages(nodes).github, ["deferred", "needs-human"])), ["6 deferred", "7 null", "9 null"]);
 });
 
+test("an untrusted change after a person's hold leaves the issue listed as held", async () => {
+  const held = issue(11, { value: "needs-human" });
+  held.issueFieldValues.nodes[0].name = "ready";
+  held.timelineItems.nodes.push({ __typename: "IssueFieldChangedEvent", createdAt: "2026-11-09T00:00:00Z", previousValue: "needs-human", newValue: "ready", actor: { __typename: "User", login: "stranger", databaseId: STRANGER_ID }, issueField: { fullDatabaseId: FIELD } });
+  assert.deepEqual(numbers(await list(pages([held]).github, ["needs-human"])), ["11 needs-human"]);
+  assert.deepEqual(numbers(await list(pages([held]).github, ["ready"])), []);
+});
+
 test("a listing past the page cap throws rather than stopping short", async () => {
   let calls = 0;
   const endless = async () => {

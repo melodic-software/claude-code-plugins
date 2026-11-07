@@ -129,6 +129,7 @@ export async function fieldStatusSetter({ github, repository, number, config, tr
     fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
     fieldEvents: await events(github, repository, number),
   };
+  facts.fieldEventsFull = facts.fieldEvents.full === true;
   return status(facts, config, trustedActors);
 }
 

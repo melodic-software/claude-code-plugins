@@ -87,9 +87,11 @@ const FIELD_EVENT_NODES = `nodes {
       }`;
 const FIELD_FRAGMENTS = `fragment who on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }
 fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
+// The newest field events one issue read takes.
+const FIELD_EVENT_LIMIT = 100;
 const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
-    timelineItems(last: 100, itemTypes: ${FIELD_EVENT_TYPES}) {
+    timelineItems(last: ${FIELD_EVENT_LIMIT}, itemTypes: ${FIELD_EVENT_TYPES}) {
       ${FIELD_EVENT_NODES}
     }
   } }
@@ -123,7 +125,8 @@ export async function fieldEvents(github, repository, number) {
   if (!Array.isArray(nodes)) {
     throw new Error("the issue's field events answer holds no event list");
   }
-  return eventsFrom(nodes);
+  // `full`: the window held its limit, so older events went unread.
+  return Object.assign(eventsFrom(nodes), { full: nodes.length >= FIELD_EVENT_LIMIT });
 }
 
 function eventsFrom(nodes) {
@@ -233,7 +236,7 @@ export async function issuesByStatus(github, repository, states, { since, config
       if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !events.some((event) => event.field === statusField)) {
         throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
       }
-      const state = issueStatus({ fieldValues, fieldSetters: settersOf(events) }, config, trustedActors);
+      const state = issueStatus({ fieldValues, fieldEvents: events, fieldEventsFull: nodes.length >= LISTED_FIELD_EVENTS }, config, trustedActors);
       if (state === null ? labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });
       }

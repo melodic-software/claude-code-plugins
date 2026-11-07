@@ -50,11 +50,14 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // status event whose setter counts for the value it set decides, null for a
 // removal, so an uncounted change neither sets nor clears a counted state. The
 // newest event's value is the REST value; an older event's is the option it
-// names. Without it, the newest setter (`facts.fieldSetters`) decides the REST
-// value, and `facts.fieldNames`, when given, maps a field id to the option name
-// its newest field event left. Either way a REST value that names another
-// option than the newest event left throws: the two reads saw different
-// writes, and the hold may be the one unseen.
+// names. A REST value (or its absence) that differs from what the newest event
+// left throws: the two reads saw different writes, and the hold may be the one
+// unseen. With `facts.fieldEventsFull` (the event window was full), a value
+// with no counted event throws, since its setter may be older than the window.
+// Without `facts.fieldEvents`, the newest setter (`facts.fieldSetters`) decides
+// the REST value, and `facts.fieldNames`, when given, maps a field id to the
+// option name its newest field event left; a value that names another option
+// throws.
 export function issueStatus(facts, config, trustedActors) {
   return issueStatusSetter(facts, config, trustedActors).state;
 }
@@ -83,7 +86,11 @@ export function issueStatusSetter(facts, config, trustedActors) {
     const people = trustedSetters(trustedActors);
     const states = new Set(Object.values(config.options));
     const events = facts.fieldEvents.filter((event) => event?.field === String(fieldId));
-    disagree(events.at(-1)?.to);
+    const rest = row === undefined ? null : config.options[String(row.option)];
+    if (events.length > 0 && rest !== undefined && (events.at(-1).to ?? null) !== rest) {
+      const left = events.at(-1).to === null ? "removed it" : `set \`${events.at(-1).to}\``;
+      throw new Error(`issue field ${fieldId} (Work status) holds ${row === undefined ? "no value" : `option ${row.option}`}, but its newest field event ${left}`);
+    }
     for (let i = events.length - 1; i >= 0; i -= 1) {
       const { actorId, removed, to } = events[i];
       const person = people.has(actorId);
@@ -102,6 +109,9 @@ export function issueStatusSetter(facts, config, trustedActors) {
       if (person || state !== PERSON_ONLY_STATE) {
         return { state, setter: actorId };
       }
+    }
+    if (facts.fieldEventsFull && row !== undefined) {
+      throw new Error(`issue field ${fieldId} (Work status) has no counted setter among its newest field events, and older ones were not read`);
     }
     return { state: null, setter: undefined };
   }

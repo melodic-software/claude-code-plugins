@@ -75,7 +75,7 @@ function fieldWorld(option, setter) {
     calls.push([method, path, body]);
     if (method === "GET" && path.endsWith("/issue-field-values")) return option === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: option } }];
     if (method === "POST" && path === "/graphql") {
-      const nodes = option === null ? [] : [{ __typename: "IssueFieldAddedEvent", actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
+      const nodes = option === null ? [] : [{ __typename: "IssueFieldAddedEvent", value: CONFIG.options[String(option)], actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
       return { data: { repository: { issue: { timelineItems: { nodes } } } } };
     }
     if (method === "POST" && path.endsWith("/issue-field-values")) {

@@ -248,3 +248,15 @@ test("events: a REST value the newest event does not name throws", () => {
 test("events: github-actions[bot] setting agent-ready over a person's ready leaves ready", () => {
   assert.equal(fromEvents([set(LISTED, "ready"), set(ACTIONS_BOT, "agent-ready")], "agent-ready"), "ready");
 });
+
+test("events: a newest set with no REST value, or a newest removal over one, throws", () => {
+  assert.throws(() => fromEvents([set(LISTED, "needs-human")]), /holds no value, but its newest field event set `needs-human`/);
+  assert.throws(() => fromEvents([set(LISTED, "needs-human"), removal(LISTED)], "needs-human"), /but its newest field event removed it/);
+});
+
+test("events: a full window with no counted setter throws; one with a counted setter decides", () => {
+  const full = (fieldEvents, now) =>
+    readStatus({ fieldValues: [{ field: FIELD, option: OPTIONS[now] }], fieldSetters: {}, fieldEvents, fieldEventsFull: true }, CONFIG, TRUSTED);
+  assert.throws(() => full([set(UNLISTED, "ready")], "ready"), /no counted setter among its newest field events/);
+  assert.equal(full([set(LISTED, "needs-human"), set(UNLISTED, "ready")], "ready"), "needs-human");
+});
