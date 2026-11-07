@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| # | BC Name (2-3 words) | Key Events |\n|---|---|---|\n| 1 | **Course Authoring** | Course Published |\n| 2 | Learning & Completion | Lesson Completed |\n| 3 | Instructor Payout Processing | Payout Sent |", "why": "two and three words, the header excluded"}
+  ],
+  "fail": [
+    {"answer": "| 1 | Refunds & Disputes Management Center | Refund Issued |", "why": "four words"},
+    {"answer": "| 2 | **Course Discovery And Purchase Flow** | Checkout Started |", "why": "five words, bold"},
+    {"answer": "| 1 | Payments | Payment Captured |", "why": "one word"},
+    {"answer": "| 3 | **Learning** | Lesson Started |", "why": "one word, bold"}
+  ]
+}

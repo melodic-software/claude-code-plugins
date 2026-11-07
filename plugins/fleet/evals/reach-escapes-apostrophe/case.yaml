@@ -5,11 +5,11 @@ context:
 graders:
   - name: 'expected-output'
     type: 'llm'
-    criteria: 'Reads the fleet manifest (FLEET.md), then composes the one-shot WSL hop. Escapes the apostrophe in what''s before substituting into the single-quoted remote command: replace each '' with ''\'''' or wrap the remote command in $''...'' quoting. Does not paste the contraction unescaped into the outer single quotes, because that would close the local shell quote before ssh runs.'
+    criteria: 'Reads the fleet manifest (FLEET.md), then composes the one-shot WSL hop with the prompt on stdin (printf ''%s\n'' ''<prompt>'' | ssh.exe <wsl-alias> claude -p). Escapes the apostrophe in what''s inside the single-quoted printf argument: replace each '' with ''\'''' or wrap that argument in $''...'' quoting. Does not paste the contraction unescaped into the single quotes, because that would close the local shell quote before ssh runs.'
     focus: 'trace'
   - name: 'windows-openssh-client'
     type: 'regex'
-    pattern: '\bssh\.exe\s+(?:-n\s+)?desk-wsl\b'
+    pattern: '\bssh\.exe\s+desk-wsl\b'
     flags: 'i'
     target: 'last_message'
   - name: 'skill-fired'

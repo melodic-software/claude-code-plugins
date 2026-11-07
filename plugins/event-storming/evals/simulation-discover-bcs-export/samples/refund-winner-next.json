@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The arrow-voting winner, refund disputes, scopes to Refund Handling: recommended next exploration.", "why": "one line ties the three"},
+    {"answer": "Contexts above.\n\nNext: the winner (Refund disputes take 6+ days) points at Payments & Refunds.", "why": "winner, next and refund on one line"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "The arrow-voting winner was refund disputes.", "why": "no next-exploration recommendation"},
+    {"answer": "Explore Course Authoring next.", "why": "not tied to the winner"}
+  ]
+}

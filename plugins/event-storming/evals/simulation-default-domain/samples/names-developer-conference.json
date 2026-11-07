@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "No domain given, so I'll default to **Developer Conference**.", "why": "default named"},
+    {"answer": "Domain: developer-conference (the default).", "why": "hyphenated"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I'll simulate an online grocery delivery business.", "why": "another domain"},
+    {"answer": "Which domain should I simulate?", "why": "no default"}
+  ]
+}

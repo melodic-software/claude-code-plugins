@@ -264,6 +264,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    name a `pull_request_review_comment` run of the relay that lists the PR in `pull_requests`,
    started and any re-run by a listed human, never the lanes App, at the PR's current head
    ([ADR 0088](../../adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+   A `pull_request_target` run of `pr-unblock-dispatch.yml` vouches for a `pr-refine.yml` run only,
+   through one `pull_requests` entry for this PR on the default branch with base and head in this
+   repository and the run's `head_branch` as head ref, an actor and triggering actor that are each
+   the lanes App or a listed human, and a `pr-unblock-target-dispatched-<commit>-<this run's id>`
+   artifact whose commit, not the run's `head_sha` (the PR head), must be on the default branch
+   ([ADR 0090](../../adr/0090-let-a-pull-request-target-dispatcher-start-pr-refine.md)).
    A job after pr-unblock's model job
    passes that job's `head-sha` as `expected-upstream-head`, and apply-feedback-patch's
    `pushed-commit` output as `pushed-commit`: the review must then be of that head, and the PR
@@ -2046,7 +2052,14 @@ a `pull_request` run of `pr-review-hosted.yml` or `pr-review-security-hosted.yml
 repository, started (and any re-run) by the lanes bot or a listed human, at the PR's current head,
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
-this run was created, and the upstream run lists this pull request. The client
+this run was created, and the upstream run lists this pull request. A `pr-unblock-dispatch.yml`
+run started by `pull_request_target` vouches for a `pr-refine.yml` run only: its head repository is
+this one, one `pull_requests` entry names this pull request with base `main`, base and head in this
+repository and head ref the run's `head_branch`, its actor and triggering actor are each the lanes
+bot or a listed human, and its `pr-unblock-target-dispatched-<commit>-<this run's id>` artifact
+names the `main` commit that the ancestry and file checks read in place of its `head_sha`, which is
+the PR head ([ADR 0090](../../adr/0090-let-a-pull-request-target-dispatcher-start-pr-refine.md)).
+Each record name is accepted only on its own event. The client
 retries only a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
 `Retry-After`
 ([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
@@ -2073,7 +2086,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, `work-unblock.yml` or `intake-triage.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml` or `maintenance-tidy-code-upkeep.yml` only; `maintenance-measure-skill-edit.yml` on any event but `workflow_dispatch` |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the commit the dispatcher run ran (its head, or for `pull_request_target` the commit its record names) differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
@@ -2517,11 +2530,14 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
   `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
-- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at that run's head
-  differs from the tip's, which the broker would refuse as `workflow-modified`. The caller's
-  `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any select job, so
-  nothing runs and the run ends green with no check and no stop, and the next dispatcher finds the
-  head unhandled. A read it cannot make leaves the run to the broker.
+- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at the commit that
+  run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
+  is the run's head, or for a `pull_request_target` run the one its
+  `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
+  The caller's `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any
+  select job, so nothing runs and the run ends green with no check and no stop, and the next
+  dispatcher finds the head unhandled. A read it cannot make, or a record not yet uploaded, leaves
+  the run to the broker.
 
 ## Bounds
 

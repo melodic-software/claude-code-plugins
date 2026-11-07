@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.22] - 2026-11-07
+
+### Fixed
+
+- `/fleet:reach` sends a remote headless `claude -p` prompt over SSH on stdin (`printf '%s\n' '<prompt>' | <ssh> <alias> claude -p`), with no prompt text inside the quoted remote command, and warns that `ssh -n` would drop the piped prompt. The eval fixture's FLEET.md rows and the graders keyed to the old form follow ([#13856](https://github.com/melodic-software/claude-code-plugins/issues/13856)).
+
 ## [0.2.21] - 2026-11-06
 
 ### Fixed

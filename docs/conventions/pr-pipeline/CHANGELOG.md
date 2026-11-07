@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.0] - 2026-11-07
+
+### Added
+
+- The trusted-trigger gate accepts a `pull_request_target` run of the unblock dispatcher that vouches for one `pr-refine.yml` run, proven by the pull request entry and a record naming the `main` commit it ran (ADR 0090). No workflow carries the trigger yet.
+
+## [9.0.0] - 2026-11-06
+
+### Changed
+
+- **Breaking:** `pr-pipeline.schema.json` requires `merge.verify-capture.proxy.driver-token-cap`, so a `pr-pipeline.yaml` whose `proxy` lacks it fails validation; add it. It bounds the tokens the capture job's trusted driver legs may spend through the key proxy's loopback port, apart from `token-cap`, which now bounds only the driven session ([#13724](https://github.com/melodic-software/claude-code-plugins/issues/13724)).
+
+## [8.63.3] - 2026-11-06
+
+### Fixed
+
+- The pull-request unblock section names every case `fix-docs-head-held` runs for: an unread head or human-gated hold, and a plan that could not read the changed files.
+
 ## [8.63.2] - 2026-11-06
 
 ### Fixed

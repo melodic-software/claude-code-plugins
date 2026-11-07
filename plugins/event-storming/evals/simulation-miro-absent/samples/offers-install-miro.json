@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "2. Install + enable the `miro` plugin, then retry.", "why": "the skill's path 2"},
+    {"answer": "Or connect Miro and run it on a live board.", "why": "connect"},
+    {"answer": "You can enable the miro plugin through /plugin.", "why": "enable"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Miro isn't enabled, so I'll use markdown.", "why": "no install or connect path"},
+    {"answer": "You don't need to install Miro.", "why": "negated"}
+  ]
+}

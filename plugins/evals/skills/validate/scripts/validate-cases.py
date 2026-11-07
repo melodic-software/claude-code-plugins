@@ -122,6 +122,21 @@ Claude Code 2.1.318 refusing four debugging cases set to `focus: reply` with
 `invalid case.yaml: graders.0.focus: Invalid input`. AS OF: 2026-11-05.
 Recheck when that table adds or drops a value.
 
+Drift record. CLAIM: a case.yaml `context.history_file` holding more than one
+record is a FAIL unless the records form one chain: each has a `uuid`, the
+first has `parentUuid: null`, and each later one has the previous record's
+`uuid`. A record that is not JSON is a FAIL too. A record whose `type` is not
+`user`, `assistant` or `system` and that carries no `uuid`, such as a `summary`
+or `file-history-snapshot` line, is off the chain and skipped. BASIS: the
+plugin-evals page's case.yaml field table says only "A `.jsonl` transcript in
+the case directory to resume" (https://code.claude.com/docs/en/plugin-evals,
+read 2026-11-06); the
+chain rule is the #13860 report of Claude Code 2.1.319's resume warning, which
+says the loader walks `parentUuid` back from the last record, and the adhd
+cases it found, where an unchained transcript resumed only its last record. AS
+OF: 2026-11-06. Recheck when the page documents the history file's record
+shape, or a release resumes an unchained file whole.
+
 Python 3.8+, standard library only: these scripts run from a consumer checkout
 where no third-party package is provisioned.
 """
@@ -943,6 +958,96 @@ def check_plugins(case_dir, root, value, case, path, findings):
         )
 
 
+CHAIN_RECORD_TYPES = ("user", "assistant", "system")
+
+
+def on_history_chain(record):
+    """Whether a history record belongs on the uuid/parentUuid chain: every
+    message record, and any other record that carries a uuid. A non-message
+    record with no uuid (a `summary` or `file-history-snapshot` line) is off
+    the chain and skipped."""
+    if not isinstance(record, dict):
+        return True
+    return record.get("type") in CHAIN_RECORD_TYPES or "uuid" in record
+
+
+def history_chain_records(records):
+    """The (1-based record number, record) pairs on the chain."""
+    return [
+        (number, record)
+        for number, record in enumerate(records, start=1)
+        if on_history_chain(record)
+    ]
+
+
+def history_chain_break(records):
+    """The first chain record that breaks the uuid/parentUuid chain, as
+    (1-based record number, problem), or None when every link holds."""
+    seen = set()
+    previous = None
+    for number, record in history_chain_records(records):
+        uuid = record.get("uuid") if isinstance(record, dict) else None
+        if not isinstance(uuid, str) or not uuid:
+            return number, "has no uuid"
+        if uuid in seen:
+            return number, 'repeats uuid "%s"' % uuid
+        seen.add(uuid)
+        expected = previous
+        if "parentUuid" not in record or record["parentUuid"] != expected:
+            if expected is None:
+                return number, "is the first record and needs parentUuid null"
+            return number, 'needs parentUuid "%s", the previous record\'s uuid' % (
+                expected
+            )
+        previous = uuid
+    return None
+
+
+def check_history_chain(case_dir, case, history_file, findings):
+    """FAIL a multi-record history_file whose records are not one chain."""
+    if not isinstance(history_file, str) or not history_file:
+        return
+    try:
+        # JSONL ends a record at "\n" only: splitlines() would also cut at
+        # U+2028 and the like, which JSON allows raw inside a string.
+        lines = read_text(os.path.join(case_dir, history_file)).split("\n")
+    except (OSError, ValueError):
+        return
+    records = []
+    for number, line in enumerate(
+        (line for line in lines if line.strip()), start=1
+    ):
+        try:
+            records.append(json.loads(line))
+        except ValueError:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    history_file,
+                    "history_file record %d is not JSON, so the transcript "
+                    "cannot resume" % number,
+                )
+            )
+            return
+    if len(history_chain_records(records)) < 2:
+        return
+    broken = history_chain_break(records)
+    if broken is None:
+        return
+    findings.append(
+        Finding(
+            "FAIL",
+            case,
+            history_file,
+            "history_file record %d %s; the resume walks parentUuid back from "
+            "the last record, so every record before the break is dropped. "
+            "Chain them: a uuid on each record, parentUuid null on the first "
+            "and the previous record's uuid on each later one" % broken,
+        )
+    )
+
+
 def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
     """WARN when a named skill's pre-computed context line has no Bash grant."""
     value, path = fields.get("allowed_tools", ([], home))
@@ -1723,6 +1828,11 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
             for key in ("runs", "plugins"):
                 if key in yaml_data:
                     fields[key] = (yaml_data[key], "case.yaml")
+            context = yaml_data.get("context")
+            if isinstance(context, dict):
+                check_history_chain(
+                    case_dir, case, context.get("history_file"), findings
+                )
             execution = yaml_data.get("execution")
             if isinstance(execution, dict):
                 if isinstance(execution.get("prompt"), str):

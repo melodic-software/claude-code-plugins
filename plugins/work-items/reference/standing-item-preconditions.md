@@ -30,7 +30,7 @@ Before claiming (tier 4) or recheck-closing:
 2. Ask whether a Claude model release of the class the row's `prompt` names occurred
    **after** that date.
 3. If **no** (or unknown): **do not claim, do not recheck-close**. Leave the open
-   `[Maintenance]` issue open and report the `prompt` text inline.
+   recurring issue open and report the `prompt` text inline.
 4. If **yes**: proceed, and record in the claim/recheck comment that the operator
    confirmed a post-`last_checked` release.
 

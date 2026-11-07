@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Start with Big Picture rather than jumping straight to Design-Level.", "why": "rejects the narrow start"},
+    {"answer": "Don't start with Process Modeling; that comes once a context is chosen.", "why": "negated"},
+    {"answer": "Begin with Big Picture. Process Modeling follows for the winning context.", "why": "narrow format only as a later step"}
+  ],
+  "fail": [
+    {"answer": "Start with Design-Level so you get aggregates quickly.", "why": "opens at Design-Level"},
+    {"answer": "I'd begin with a Process Modeling session on claims intake.", "why": "opens at Process Modeling"},
+    {"answer": "Jump straight into Design-Level for the claims core.", "why": "jumps to Design-Level"},
+    {"answer": "Teams like yours have begun with Process Modeling and done fine.", "why": "begun inflection"}
+  ]
+}

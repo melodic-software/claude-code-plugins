@@ -1,0 +1,90 @@
+name: maintenance-file-recurring-issues
+
+# Daily: files one issue for each .github/recurring-schedule.json row whose
+# next_due has arrived and that no open `recurring` issue names by its
+# `<!-- recurring-schedule id=<id> -->` body line, so a due row is filed
+# without someone first running /work-items:track due. A row whose
+# precondition sets requires_operator_confirmation is held and logged, never
+# filed: the operator who confirms it files the issue. It never edits the
+# schedule: /work-items:track recheck closes the issue and advances next_due,
+# and until then the open issue keeps a second run from filing again. The
+# script and tests are in .github/scripts/recurring-schedule/.
+#
+# It runs no model and holds no lanes App token or secret: the job's own
+# GITHUB_TOKEN reads contents and writes only issues. Only the schedule and a
+# manual run with no inputs start it. Schedule and issue text reaches the
+# script as files and API responses, never through a `${{ }}` expression.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+#
+# 07:21 UTC sits clear of the other scheduled runs here.
+
+on:
+  schedule:
+    - cron: "21 7 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-file-recurring-issues
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  file-recurring-issues:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out the schedule and the script
+      issues: write # file the due rows' issues
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
+
+      - name: File the due rows
+        if: steps.kill.outputs.proceed == 'true'
+        working-directory: .base
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CALL_BUDGET: "50"
+        run: node .github/scripts/recurring-schedule/file-due.mjs .github/recurring-schedule.json
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

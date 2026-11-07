@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "| **Orange** | Domain Event |\n| **Blue** | Command / Action |", "why": "reference only"},
+    {"answer": "Want the full notation file too?", "why": "a follow-up offer, not a discovery question"},
+    {"answer": "Which reference do you want to see next: patterns or glossary?", "why": "a reference choice, not discovery"}
+  ],
+  "fail": [
+    {"answer": "What are you trying to accomplish? This determines which format to use.", "why": "Step 2 question"},
+    {"answer": "What's your goal for the session?", "why": "reworded goal question"},
+    {"answer": "What domain or problem space are we exploring?", "why": "Step 3 question"},
+    {"answer": "Which business domain should we model?", "why": "reworded domain question"},
+    {"answer": "Is this a new project or an existing system?", "why": "clarifying question"}
+  ]
+}

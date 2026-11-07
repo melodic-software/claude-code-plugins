@@ -74,7 +74,7 @@ fi
 # The exempt ids are the trusted-actor list's Dependabot, release App and
 # standards-sync App.
 ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
-want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .login == "melodic-plugin-release[bot]" or .login == "melodic-standards-sync[bot]") | .id] | sort | join(" ")' "$ACTORS")"
+want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .id == 337859524 or .login == "melodic-standards-sync[bot]") | .id] | sort | join(" ")' "$ACTORS")"
 got_ids="$(sed -nE "s/^exempt_author_ids='([0-9 ]+)'$/\1/p" "$TMP_ROOT/body.sh" | tr ' ' '\n' | sort -n | paste -sd' ')"
 if [[ -n "$got_ids" && "$got_ids" == "$want_ids" ]]; then
   ok "the exempt author ids are Dependabot's, the release App's and the standards-sync App's ($got_ids)"
