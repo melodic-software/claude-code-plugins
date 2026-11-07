@@ -858,8 +858,14 @@ test("a re-run of the same release finds its record and dispatches nothing", asy
 });
 
 test("a removal then a needs-triage add by the same person is one release, whichever run reads it", async () => {
-  const w = world({ labels: [], fieldNodes: [heldBy(), removed(OWNER), heldBy(OWNER, "needs-triage")] });
-  assert.equal(await runField(w, "field_removed"), 0);
+  const fieldNodes = [heldBy(), removed(OWNER)];
+  const w = world({ labels: [], fieldNodes });
+  const github = async (method, path, body) => {
+    const answer = await w.github(method, path, body);
+    if (method === "POST" && path.endsWith("/comments")) fieldNodes.push(fieldNode("IssueFieldAddedEvent", OWNER, { value: "needs-triage", createdAt: "2026-11-06T00:05:00Z" }));
+    return answer;
+  };
+  assert.equal(await runField({ ...w, github }, "field_removed"), 0, "the add lands after the first run's record");
   assert.equal(await runField(w, "field_added"), 0, "the queued run for the add finds the removal's record");
   expectDispatched(w);
   assert.deepEqual(records(w), [OWNER_RELEASE]);
