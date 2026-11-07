@@ -1098,7 +1098,7 @@ models:
       - id: 337859524
         login: "melodic-release[bot]"
     # Bot field events before this time are label mirrors and never count as history.
-    field-events-since: "2026-11-07T07:05:00Z"
+    field-events-since: "2026-11-07T09:45:00Z"
     options:
       "84879216": needs-triage
       "84879217": needs-reporter-info

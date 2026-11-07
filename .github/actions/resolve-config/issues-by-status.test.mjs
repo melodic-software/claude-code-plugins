@@ -115,7 +115,15 @@ test("a GraphQL error, a malformed answer, or a counted option name the config d
   await assert.rejects(() => list(async () => ({ errors: [{ message: "nope" }] }), ["deferred"]), /open issues could not be read: nope/);
   await assert.rejects(() => list(async () => ({ data: { repository: { issues: null } } }), ["deferred"]), /holds no issue list/);
   await assert.rejects(
-    () => list(pages([issue(1, { value: "parked" })]).github, ["deferred"]),
+    () => list(pages([issue(1, { value: "parked", labels: ["admission-deferred"] })]).github, ["deferred"]),
     (error) => error.code === "unmapped-status" && error.message.includes("parked"),
   );
+});
+
+test("an unreadable issue that could not be one of the states is skipped, so the others still list", async () => {
+  const lost = issue(13, { value: "needs-human" });
+  lost.timelineItems.nodes = sizeEvents(100);
+  const nodes = [issue(12, { value: "parked" }), lost, issue(14, { value: "deferred" })];
+  assert.deepEqual(numbers(await list(pages(nodes).github, ["deferred"])), ["14 deferred"]);
+  await assert.rejects(() => list(pages(nodes).github, ["needs-human"]), /#13's Work status setter is older than its newest 100 field events/);
 });

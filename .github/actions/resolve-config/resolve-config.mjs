@@ -233,10 +233,26 @@ export async function issuesByStatus(github, repository, states, { since, config
       // The value and its events come from one read, so no fieldNames check.
       const events = eventsFrom(nodes);
       const statusField = String(config["field-id"]);
-      if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !events.some((event) => event.field === statusField)) {
-        throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
+      // An issue whose status cannot be read fails the listing only when it
+      // could be one of `states`: a wanted label, or a Work status value or
+      // event naming one of them. Any other is skipped, so one issue's
+      // unreadable field cannot stop a listing it has no part in.
+      const couldMatch = () =>
+        labels.some((label) => wanted.has(label.toLowerCase())) ||
+        (node?.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
+        events.some((event) => event.field === statusField && states.includes(event.to));
+      let state;
+      try {
+        if (nodes.length >= LISTED_FIELD_EVENTS && fieldValues.some((value) => String(value.field) === statusField) && !events.some((event) => event.field === statusField)) {
+          throw new Error(`#${node.number}'s Work status setter is older than its newest ${LISTED_FIELD_EVENTS} field events`);
+        }
+        state = issueStatus({ fieldValues, fieldEvents: events, fieldEventsFull: nodes.length >= LISTED_FIELD_EVENTS }, config, trustedActors);
+      } catch (error) {
+        if (couldMatch()) {
+          throw error;
+        }
+        continue;
       }
-      const state = issueStatus({ fieldValues, fieldEvents: events, fieldEventsFull: nodes.length >= LISTED_FIELD_EVENTS }, config, trustedActors);
       if (state === null ? labels.some((label) => wanted.has(label.toLowerCase())) : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });
       }

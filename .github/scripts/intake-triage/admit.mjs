@@ -2588,7 +2588,8 @@ export async function deferredAhead(github, repository, issue, listing, pullsFor
       }
     }
     return older.length > DEFERRED_AHEAD_READS;
-  } catch {
+  } catch (error) {
+    console.log(`::warning title=admit::the deferred listing could not be read, so #${issue.number} counts an older deferred issue ahead of it: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return true;
   }
 }
