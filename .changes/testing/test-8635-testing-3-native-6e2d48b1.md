@@ -14,7 +14,8 @@ bump: patch
     - `e2e-workspace-none-collide`: also accepts "port 5173 may already be taken".
     - `hand-off-target` (`e2e-mask-hand-off-source-fails`, `e2e-mask-hand-off-none-source-publishes`): also accepts the path named inside the trusted root, "`.claude/skills/control-browser/SKILL.md` inside `/srv/trusted/shop`"; the checkout's copy still fails.
     - `e2e-hub-driver-wins`: also accepts "playwright. It comes from the control skill's hub".
-    - The three own-instance cases: also accept "is not reused" and "does not adopt it", and now also require the reply to name the case's own instance port (51877, or 49210 in `e2e-own-instance-auto-unattended`), so a reply about another app's port fails. `e2e-own-instance-auto-unattended` also accepts "doesn't reuse" or "does not reuse".
+    - The three own-instance cases: also accept "is not reused" and "does not adopt it", and now also require the reply to name the case's own instance port (51877, or 49210 in `e2e-own-instance-auto-unattended`), so a reply about another app's port fails. `e2e-own-instance-auto-unattended` also accepts "doesn't reuse", "does not reuse", and a negation within 40 characters of "reuse" or "adopt", such as "doesn't make the run adopt it".
+    - `summary-held` (`e2e-mask-hand-off-source-fails`): also accepts "summary" for `e2e-summary.json` and the verb "does not join", as in "the summary does not join `publishable`".
     - `e2e-worst-case-word-scenario`: also accepts the code-span "not the `worst-case` action".
     - `e2e-native-run-disabled`: also accepts "invocation refused (disableBundledSkills" when more reason text follows inside the parentheses.
   - Prompt fixes after the first smoke data, where both graders failed because of how the case was built:
