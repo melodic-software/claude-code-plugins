@@ -199,8 +199,8 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
 **Verification level.** Before Stage 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin verification --skill confirm --file docs/conventions/verification.yaml` and copy its line, plus the second line it prints when a branch's copy differs, into the report beside the proof-level line. It reads `verification_skills.confirm`, else `verification`, from `docs/conventions/verification.yaml`, the file that holds `proof_level`, on the default branch, and always prints a level ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `standard` is the paragraph above. `strict` drops the mechanical, behavior-preserving exemption: the verifier renders the verdict for every change. Under `light`, and `off`, which acts as `light` at this step, dispatch no verifier for a change the paragraph above sends to one, and never render the verdict yourself in its place: the report writes `verification: skipped (<level>)` and the verdict is `NOT VERIFIED`, recorded as such, so a skipped check never reads as `CONFIRMED`. No level drops Stage 1 or any evidence the resolved `proof_level` requires.
 
-**Record the verdict for the head it judged.** Once the verdict is final (the last verifier's as
-returned, where one ran, or a `NOT VERIFIED` from the Stage 1 gate), store it for the commit it
+**Record the verdict for the head it judged.** Once the verdict is final (where a verifier ran, the
+last one's as returned; including a `NOT VERIFIED` from the Stage 1 gate), store it for the commit it
 judged, so the pull request `ready` report can name it:
 
 ```bash

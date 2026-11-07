@@ -94,6 +94,7 @@ Show what changed structurally with `git diff --stat` and `git diff --name-statu
 - Tests covering refactored code: <X tests, Y assertions>
 - Test gap areas: <N untested public methods>
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
+- Verifier verdicts: <each verdict returned on this head, in order, as returned; the last is the verdict> / none (no verifier ran: <why>)
 ```
 
 ### 7. Verdict

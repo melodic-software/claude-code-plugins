@@ -14,7 +14,7 @@ graders:
     target: 'last_message'
   - name: 'no-confirmed-verdict'
     type: 'regex'
-    pattern: '[Vv]erdict\W{0,8}CONFIRMED'
+    pattern: '[Vv]erdict(?:\*\*)?\s*[:|]\W{0,6}CONFIRMED'
     match: 'not_contains'
     target: 'last_message'
   - name: 'verdict-kept'

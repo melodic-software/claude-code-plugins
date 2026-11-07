@@ -95,6 +95,7 @@ Pay special attention to tests in same module or feature area as the fix. These 
 | Fix is minimal (no unrelated changes) | PASS/FAIL | <assessment> |
 | Sibling code paths checked | PASS/SKIP | <findings> |
 | Verifier model | <model> / NOT MATCHED | <model passed to the fresh-context verifier, or: producing model unknown> |
+| Verifier verdicts | <each, in order> / none | <each verdict returned on this head, as returned; the last is the verdict; or why no verifier ran> |
 
 ### Sibling Check
 <did the same pattern exist elsewhere? If so, were those instances fixed too?>
