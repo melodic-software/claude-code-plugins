@@ -8,6 +8,8 @@
     {"answer": ""},
     {"answer": "C1 WARN: close to the 200-line target.", "why": "near miss: WARN"},
     {"answer": "C1 PASS.", "why": "pass"},
-    {"answer": "C5 FAIL: the Repository Structure inventory.", "why": "other check"}
+    {"answer": "C5 FAIL: the Repository Structure inventory.", "why": "other check"},
+    {"answer": "C1 PASS, C2 WARN, C5 FAIL", "why": "summary line: FAIL belongs to C5"},
+    {"answer": "C5 FAIL, C1 PASS", "why": "FAIL before a passing C1"}
   ]
 }

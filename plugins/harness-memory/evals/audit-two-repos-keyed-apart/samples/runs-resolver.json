@@ -6,6 +6,7 @@
   "fail": [
     {"answer": []},
     {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/p/harness-memory/lib/state-key.sh"}}], "why": "near miss: read, not run"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n worktree /tmp/p/harness-memory/lib/state-key.sh"}}], "why": "near miss: searched, not run"},
     {"answer": [{"tool": "Bash", "input": {"command": "git remote get-url origin"}}], "why": "derives the key by hand"}
   ]
 }

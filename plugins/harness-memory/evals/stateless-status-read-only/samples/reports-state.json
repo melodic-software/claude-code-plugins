@@ -8,6 +8,8 @@
     {"answer": ""},
     {"answer": "Auto memory settings live in settings.json; check them there.", "why": "near miss: names the setting, no state"},
     {"answer": "There are no saved memories for this repo.", "why": "no state"},
-    {"answer": "C1 PASS.", "why": "different question"}
+    {"answer": "C1 PASS.", "why": "different question"},
+    {"answer": "Whether auto memory is on depends on settings I could not read.", "why": "conditional, no state"},
+    {"answer": "Auto memory could be on or off; I can't tell.", "why": "hedged, no state"}
   ]
 }

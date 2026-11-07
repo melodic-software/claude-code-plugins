@@ -9,6 +9,8 @@
     {"answer": ""},
     {"answer": "That's I15, not C6: audit-instructions owns precedence.", "why": "attributes to I15"},
     {"answer": "I15 owns it; C6 only covers project files.", "why": "near miss: C6 mentioned, I15 named owner"},
-    {"answer": "Auto memory is on.", "why": "different question"}
+    {"answer": "Auto memory is on.", "why": "different question"},
+    {"answer": "C6 does not own this pair; I15 does.", "why": "leading C6, negated"},
+    {"answer": "C6 isn't the owner here, I15 is.", "why": "leading C6, contraction"}
   ]
 }

@@ -3,7 +3,7 @@ name: audit-c6-owns-user-project-conflict
 graders:
   - name: 'c6-owns-it'
     type: 'regex'
-    pattern: '^[\s*_`#>-]*(?:it''s |it is |that''s |that is |answer:\s*)?[\s*_`]{0,3}C6\b|\bC6\b[\s*_`]{0,3}(?:Consistency[\s*_`]{0,3})?(?:owns|covers|handles|is the (?:owner|one|check))\b|\b(?:owned by|belongs (?:to|under)|it''s|it is|that''s|that is|falls under)[\s*_`]{0,3}(?:the\s+)?C6\b'
+    pattern: '^[\s*_`#>-]*(?:it''s |it is |that''s |that is |answer:\s*)?[\s*_`]{0,3}C6\b(?![\s*_`]{0,3}(?:Consistency[\s*_`]{0,3})?(?:does(?:n''t| not)|is(?:n''t| not)|never|won''t|will not)\b)|\bC6\b[\s*_`]{0,3}(?:Consistency[\s*_`]{0,3})?(?:owns|covers|handles|is the (?:owner|one|check))\b|\b(?:owned by|belongs (?:to|under)|it''s|it is|that''s|that is|falls under)[\s*_`]{0,3}(?:the\s+)?C6\b'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

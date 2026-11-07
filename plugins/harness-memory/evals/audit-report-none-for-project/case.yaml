@@ -6,7 +6,7 @@ graders:
   - name: 'runs-resolver'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*state-key\.sh'
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\b(?:bash|sh)\s+(?:-\w+\s+)*|[;&|(]\s*))?(?:\\")?[^"\s;&|]*state-key\.sh'
   - name: 'none-for-this-project'
     type: 'regex'
     pattern: '\bno\b[^\n]{0,40}\baudit\b[^\n]{0,60}\b(?:this (?:project|repo\w*|checkout)|here)\b|\baudit\b[^\n]{0,40}\b(?:not|never)\b[^\n]{0,20}\b(?:been\s+)?run\b[^\n]{0,40}\b(?:this (?:project|repo\w*|checkout)|here)\b'

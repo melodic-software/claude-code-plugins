@@ -6,6 +6,6 @@
   "fail": [
     {"answer": []},
     {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/data/harness-memory/audit/last-audit.md"}}], "why": "reads the unkeyed file"},
-    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/p/harness-memory/lib/state-key.sh"}}], "why": "near miss: read, not run"}
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -n 1,40p /tmp/p/harness-memory/lib/state-key.sh"}}], "why": "near miss: printed, not run"}
   ]
 }

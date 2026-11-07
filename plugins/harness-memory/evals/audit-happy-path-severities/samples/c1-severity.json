@@ -8,6 +8,7 @@
     {"answer": ""},
     {"answer": "C1 line budget looks fine, 14 lines.", "why": "near miss: no severity"},
     {"answer": "PASS overall. Everything is in good shape.", "why": "no per-check id"},
-    {"answer": "Your rules layer has two files.", "why": "different question"}
+    {"answer": "Your rules layer has two files.", "why": "different question"},
+    {"answer": "C1 looks fine; C2 PASS.", "why": "severity belongs to C2"}
   ]
 }

@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'repo-check-id'
     type: 'regex'
-    pattern: '(?<![\w/.-])REPO(?:[-_ ]?\d+)?(?![\w/.-])'
+    pattern: '(?<![\w/.-])REPO(?:[-_][A-Z0-9]+)*(?![\w/-])(?!\.\w)'
     target: 'last_message'
   - name: 'meets-expectations'
     type: 'llm'

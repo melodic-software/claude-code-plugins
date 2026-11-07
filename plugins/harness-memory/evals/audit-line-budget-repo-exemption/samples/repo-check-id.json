@@ -2,7 +2,9 @@
   "pass": [
     {"answer": "| REPO-1 | Instruction budget exemption | PASS | CLAUDE.md is exempt per .claude/rules/instruction-budget.md |", "why": "numbered id"},
     {"answer": "**REPO** (consumer convention): the 200-line target is waived here.", "why": "bare id in bold"},
-    {"answer": "C1 WARN, exempt by repo rule (REPO).", "why": "in parentheses"}
+    {"answer": "C1 WARN, exempt by repo rule (REPO).", "why": "in parentheses"},
+    {"answer": "The exemption is reported under REPO.", "why": "sentence end"},
+    {"answer": "REPO-BUDGET: CLAUDE.md is exempt from the 200-line target.", "why": "named id"}
   ],
   "fail": [
     {"answer": ""},

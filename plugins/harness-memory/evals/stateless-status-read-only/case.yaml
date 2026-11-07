@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'reports-state'
     type: 'regex'
-    pattern: 'auto[\s-]?memory[^\n]{0,80}?\b(?:on|off|enabled|disabled|conflicting)\b|\b(?:on|off|enabled|disabled|conflicting)\b[^\n]{0,30}?\bauto[\s-]?memory\b'
+    pattern: '(?<!whether )(?<!if )\bauto[\s-]?memory[^\n.]{0,80}?(?<!not )(?<!n''t )(?<!be )(?<!or )(?<!based )(?<!depends )(?<!relies )\b(?:on|off|enabled|disabled|conflicting)\b(?! (?:the|this|whether|which|what|your|my)\b)|\b(?:enabled|disabled|conflicting)\b[^\n]{0,30}?\bauto[\s-]?memory\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
