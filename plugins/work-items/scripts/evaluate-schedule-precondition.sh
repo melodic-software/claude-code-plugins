@@ -60,6 +60,12 @@ frontier-release-since-last-checked)
     echo "needs-confirmation"
     exit 2
   fi
+  # With no operator gate the caller settles the check itself, so it gets the
+  # prompt's steps (standing-item-preconditions.md) ahead of the marker.
+  if [[ "$requires_confirm" != "true" ]]; then
+    prompt="$(jq -r '.precondition.prompt // empty' <<<"$row")"
+    [[ -z "$prompt" ]] || printf '%s\n' "$prompt"
+  fi
   echo "met"
   exit 0
   ;;
