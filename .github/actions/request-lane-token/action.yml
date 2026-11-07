@@ -403,7 +403,7 @@ runs:
           # unknown, so the outage posture's element 2 holds instead of failing.
           # Only the allowlisted $rate_limit text reaches the notice.
           if [[ $RATE_LIMIT_HOLD_OK == true && $status == 503 && $reason == github-rate-limited ]]; then
-            msg="lane-token-held: the broker answered 503 github-rate-limited past the retry budget${rate_limit}; this run takes no token and skips the rest, and the next run asks again"
+            msg="lane-token-held: the broker answered 503 github-rate-limited after its retries${rate_limit}; this run takes no token and skips the rest, and the next run asks again"
             echo "::notice title=Lane token hold::$msg"
             printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
             echo "skip-reason=rate-limited" >>"$GITHUB_OUTPUT"

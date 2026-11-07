@@ -333,7 +333,7 @@ test("with rate-limit-hold-ok, a github-rate-limited Retry-After past the budget
   assert.equal(run.output, "skip-reason=rate-limited\n", "skip-reason set, no token or failure-reason");
   assert.match(
     run.stdout,
-    /^::notice title=Lane token hold::lane-token-held: the broker answered 503 github-rate-limited past the retry budget; GitHub's secondary rate limit \(core\) resets at \S+, past the 1-minute retry budget; this run takes no token/m,
+    /^::notice title=Lane token hold::lane-token-held: the broker answered 503 github-rate-limited after its retries; GitHub's secondary rate limit \(core\) resets at \S+, past the 1-minute retry budget; this run takes no token/m,
   );
   assert.doesNotMatch(run.stdout, /::error::/);
   assert.match(run.summary, /^- lane-token-held: /m);
