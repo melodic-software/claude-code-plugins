@@ -9,7 +9,7 @@ graders:
     target: 'last_message'
   - name: 'retry-storm-kept'
     type: 'regex'
-    pattern: 'retry-storm[^\n]{0,150}?(?:\bKEEP\b|\bkept\b|\bkeep (?:it|this)\b|not (?:be )?flagged|carve-?out|navigation[\s-]pointer)|(?:\bKEEP\b|carve-?out|navigation[\s-]pointer)[^\n]{0,150}?retry-storm'
+    pattern: '(?:retry-storm|Where to Look First)[^\n]{0,150}?(?:\bKEEP\b|\bkept\b|\bkeep (?:it|this)\b|not (?:be )?flagged|carve-?out|navigation[\s-]pointer)|(?:\bKEEP\b|carve-?out|navigation[\s-]pointer)[^\n]{0,150}?(?:retry-storm|Where to Look First)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
