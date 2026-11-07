@@ -10,7 +10,7 @@ expected_outcome: "The reply says the publickey denial is not a key problem: Git
 /fleet:reach I'm in a native Windows Claude session on the desktop and tried to reach the laptop's WSL lane with my Bash tool:
 
 ```console
-$ ssh laptop-wsl 'claude -p "echo ok" < /dev/null'
+$ printf '%s\n' 'echo ok' | ssh laptop-wsl claude -p
 laptop-wsl: Permission denied (publickey).
 ```
 

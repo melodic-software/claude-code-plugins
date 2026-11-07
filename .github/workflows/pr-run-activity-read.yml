@@ -526,12 +526,13 @@ jobs:
           activity: ${{ inputs.activity }}
           kill-switch-ok: true
 
-      # The key-credit gate (ci-workflows check-key-credit, gate.cjs: one
-      # artifact-list call for the marker the caller uploads after a key
-      # leg's credit stop), on the first call alone. Every failure runs the
-      # key: skip-key is then empty. Probing is off. A marker is forgeable by
-      # any same-repository workflow; a forged one only moves the call to the
-      # subscription leg: plan capacity, no credential.
+      # The key-credit gate (ci-workflows select-model-credential, its start
+      # call: check-key-credit's one artifact-list call for the marker the
+      # caller uploads after a key leg's credit stop), on the first call
+      # alone. Every failure runs the key: skip-key is then empty. Probing is
+      # off. A marker is forgeable by any same-repository workflow; a forged
+      # one only moves the call to the subscription leg: plan capacity, no
+      # credential.
       - name: Read the key's credit history
         id: credit
         if: >-
@@ -539,10 +540,12 @@ jobs:
           && inputs.key-credit-job != '' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: ${{ inputs.key-credit-job }}
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key's secret name, from the role as run-claude-cli names
@@ -1664,63 +1667,53 @@ jobs:
       # fallback-ready true that leg hands off too, and the caller's third
       # call runs on the central fallback token (act-fallback), the last leg.
       # Only whether the secret is set leaves these steps, never its value.
+      # Each is ci-workflows select-model-credential's leg call: the key leg
+      # is held off when broker-check's credit read skipped the key, and the
+      # subscription leg checks the caller's fallback input as its reason.
+      # Whether the subscription leg may hand off stays the caller's
+      # fallback-ready, so no fallback-set is passed.
       - name: Check the API key
         id: key-present
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == ''
-        env:
-          PRESENT: ${{ secrets.claude-api-key != '' }}
-          SECRET_NAME: ${{ steps.launch.outputs.key-name }}
-          SKIP_KEY: ${{ needs.broker-check.outputs.skip-key }}
-        run: |
-          if [ "$SKIP_KEY" = true ]; then
-            echo "::notice::$SECRET_NAME's last credit stop is inside the key-credit window; the caller's next call runs the activity on the subscription token"
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          elif [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty; the caller's fallback call runs the activity on the subscription token"
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: ${{ inputs.role }}
+          credential-set: ${{ secrets.claude-api-key != '' }}
+          selected: ${{ needs.broker-check.outputs.skip-key == 'true' && 'subscription' || '' }}
 
       - name: Check the OAuth token
         id: token-present
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback != '' && inputs.fallback != 'fallback'
-        env:
-          PRESENT: ${{ secrets.claude-code-oauth-token != '' }}
-          FALLBACK_READY: ${{ inputs.fallback-ready }}
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            if [ "$FALLBACK_READY" = true ]; then
-              echo "::warning::the role's OAuth token is empty; the caller's fallback call runs the activity on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
-            else
-              echo "::warning::the role's OAuth token is empty; the activity does not run"
-            fi
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: ${{ inputs.role }}
+          credential-set: ${{ secrets.claude-code-oauth-token != '' }}
+          reason: ${{ inputs.fallback }}
 
       - name: Check the fallback token
         id: fallback-present
         if: >-
           steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
           && inputs.fallback == 'fallback'
-        env:
-          PRESENT: ${{ secrets.fallback-claude-code-oauth-token != '' }}
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty; the activity does not run"
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: ${{ inputs.role }}
+          credential-set: ${{ secrets.fallback-claude-code-oauth-token != '' }}
+
+      # The leg's start time, for the lane record.
+      - name: Record when the leg starts
+        id: leg-start
+        if: >-
+          steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
+          || steps.fallback-present.outcome == 'success'
+        run: echo "at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing its step, from ending the job before the reply,
@@ -2036,10 +2029,10 @@ jobs:
             && format('{0}/{1} (token {2} handed off)', inputs.lane, inputs.activity, steps.launch.outputs.token-name)
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
-          step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at || steps.fallback-present.outputs.started-at }}
+          step-started-at: ${{ steps.leg-start.outputs.at }}
           step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
           credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
-          fallback-reason: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.token-present.outputs.fallback-reason }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
           handoff: ${{ steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
@@ -2196,7 +2189,7 @@ jobs:
           # takes them; each is left out of lane.json when empty, and
           # report-outcome re-checks both before its marker names them.
           LANE_CREDENTIAL: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
-          LANE_FALLBACK: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
+          LANE_FALLBACK: ${{ steps.token-present.outputs.fallback-reason }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"

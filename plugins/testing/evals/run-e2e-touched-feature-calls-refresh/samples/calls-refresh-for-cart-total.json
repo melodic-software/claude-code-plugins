@@ -7,6 +7,14 @@
     {
       "answer": "Then `app-control:map refresh` `cart/total` with --unattended.",
       "why": "backticked id"
+    },
+    {
+      "answer": "3. `Skill(\"app-control:map\", \"refresh cart/total --unattended\")`, after drive's cleanup.",
+      "why": "Skill tool call form"
+    },
+    {
+      "answer": "2. **Step 4, after the run and its cleanup:** `/app-control:map` with arguments\n   `refresh cart/total --unattended`",
+      "why": "skill name and arguments on separate lines"
     }
   ],
   "fail": [
@@ -21,6 +29,18 @@
     {
       "answer": "Then /app-control:map refresh checkout --unattended.",
       "why": "the untouched feature"
+    },
+    {
+      "answer": "2. `/app-control:map` with arguments\n   `refresh checkout --unattended`, after the drive of cart/total.",
+      "why": "split-line form refreshing the wrong feature, with cart/total named nearby"
+    },
+    {
+      "answer": "1. `/app-control:map` was not called. The drive of cart/total ran, then the run stopped without a refresh.",
+      "why": "names the skill and cart/total but makes no refresh call"
+    },
+    {
+      "answer": "3. `Skill(\"app-control:map\", \"refresh --unattended\")` once the drive of cart/total finished.",
+      "why": "Skill-call form with no feature on the refresh"
     }
   ]
 }

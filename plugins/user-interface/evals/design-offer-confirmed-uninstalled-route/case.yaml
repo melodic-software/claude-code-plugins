@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'design-offer-confirmed-uninstalled-route'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The answer offers Pencil for the handoff and asks whether to install it'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The answer points to https://docs.pen.dev/getting-started/installation for the install and sign-in steps rather than stating an install command of its own'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'The answer offers no route other than Pencil to install or connect for the handoff: the figma@claude-plugins-official, canva@claude-plugins-official, sketch and penpot rows stay deferred in the merged routes. Naming apps that can open a file the answer would write itself, such as an SVG, is not an offer of those tools'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'The answer installs nothing and runs no install command'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-interface:)?design"'

@@ -68,7 +68,7 @@ jobs:
       pull-requests: read # list open pull requests
     outputs:
       units: ${{ steps.collect.outputs.units }}
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -112,26 +112,28 @@ jobs:
           WINDOW_HOURS: "24"
         run: node .base/.github/scripts/maintenance-audit-lane-runs/collect.mjs
 
-      # The key-credit gate (ci-workflows check-key-credit, gate.cjs: one
-      # artifact-list call for the marker judge-handoffs uploads after a key
-      # leg's credit stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS
-      # (1 hour unset) skips the key leg. Every failure runs the key.
-      # Probing is off.
+      # The key-credit gate (ci-workflows select-model-credential, its start
+      # call: check-key-credit's one artifact-list call for the marker
+      # judge-handoffs uploads after a key leg's credit stop). A credit stop
+      # inside the window names the subscription leg and skips the key leg.
+      # Every failure runs the key. Probing is off.
       - name: Read the key's credit history
         id: credit
         if: steps.collect.outputs.units != '' && steps.collect.outputs.units != '[]'
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: judge
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -173,7 +175,7 @@ jobs:
     needs: collect
     # A key the credit gate skipped runs nothing here; judge-handoffs routes
     # every unit to judge-subscription.
-    if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.skip-key != 'true'
+    if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.next-leg != 'subscription'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     cache-mode: read
@@ -234,20 +236,15 @@ jobs:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Only whether the secret is set reaches the action, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
-          SECRET_NAME: AUTOMATIONS_CLAUDE_API_KEY
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty; judge-subscription judges this unit."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -378,13 +375,27 @@ jobs:
       # A matrix job's outputs are not per unit, so the handoff is a marker
       # artifact the route job reads: the unit and the launcher's reason,
       # each checked against a closed set.
+      # The leg this unit goes to next, from this job's credential decision
+      # and a clean handoff (select-model-credential). No if:, as the record
+      # step after it has none: it names a leg only when every step before it
+      # passed.
+      - name: Pick the next leg
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outputs.clean == 'true' }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+
       - name: Record the handoff
         id: handoff
-        if: steps.key-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false'
+        if: steps.next.outputs.next-leg == 'subscription'
         env:
           LEG: key
           UNIT: ${{ matrix.unit }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.judge.outputs.handoff-reason }}
+          REASON: ${{ steps.next.outputs.next-reason }}
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoff
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs record
 
@@ -473,7 +484,7 @@ jobs:
     needs: [collect, judge]
     if: >-
       ${{ !cancelled() && (needs.judge.result != 'skipped'
-      || needs.collect.outputs.skip-key == 'true' && needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]') }}
+      || needs.collect.outputs.next-leg == 'subscription' && needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -504,7 +515,7 @@ jobs:
 
       - name: Download the handoff markers
         id: download
-        if: steps.kill.outputs.proceed == 'true' && needs.collect.outputs.skip-key != 'true'
+        if: steps.kill.outputs.proceed == 'true' && needs.collect.outputs.next-leg != 'subscription'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: judge-handoff-*
@@ -523,7 +534,7 @@ jobs:
       # subscription leg as a credit-stop handoff.
       - name: Route every unit past the skipped key
         id: route-skipped
-        if: steps.kill.outputs.proceed == 'true' && needs.collect.outputs.skip-key == 'true'
+        if: steps.kill.outputs.proceed == 'true' && needs.collect.outputs.next-leg == 'subscription'
         env:
           UNITS: ${{ needs.collect.outputs.units }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs route-skipped
@@ -557,7 +568,8 @@ jobs:
   # repeat the key leg's from a fresh checkout but for the credential, the
   # leg check and the fallback reason (workflow.test.mjs holds them equal).
   # Only this job references the subscription token. matrix.reason reaches
-  # only the fallback-reason expression, compared to fixed strings.
+  # only the credential call's reason input, which the action checks against
+  # its closed list of fallback reasons.
   judge-subscription:
     needs: judge-handoffs
     if: ${{ !cancelled() && needs.judge-handoffs.result == 'success' && needs.judge-handoffs.outputs.count != '' && needs.judge-handoffs.outputs.count != '0' }}
@@ -620,31 +632,19 @@ jobs:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Only whether each secret is set reaches the action, never its value.
+      # matrix.reason is checked there against the closed list of fallback
+      # reasons.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          SECRET_NAME: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
-          # Whether the fallback leg can run, never the token.
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::$SECRET_NAME is empty; judge-fallback judges this unit on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN."
-            else
-              echo "::warning::$SECRET_NAME is empty; this leg does not judge."
-            fi
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
-          if [ "$FALLBACK_PRESENT" = true ]; then
-            echo "fallback-ready=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: automations
+          credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ matrix.reason }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -774,13 +774,27 @@ jobs:
       # A matrix job's outputs are not per unit, so the handoff is a marker
       # artifact the route job reads: the unit and the launcher's reason,
       # each checked against a closed set.
+      # The leg this unit goes to next, from this job's credential decision
+      # and a clean handoff (select-model-credential). No if:, as the record
+      # step after it has none: it names a leg only when every step before it
+      # passed.
+      - name: Pick the next leg
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outputs.clean == 'true' }}
+          handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
+
       - name: Record the handoff
         id: handoff
-        if: steps.sub-leg.outputs.clean == 'true' || steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true'
+        if: steps.next.outputs.next-leg == 'fallback'
         env:
           LEG: subscription
           UNIT: ${{ matrix.unit }}
-          REASON: ${{ steps.credential.outputs.present == 'false' && 'no-key' || steps.judge.outputs.handoff-reason }}
+          REASON: ${{ steps.next.outputs.next-reason }}
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoff
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs record
 
@@ -819,7 +833,7 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a
@@ -981,20 +995,18 @@ jobs:
           model-route: triage-issue
           output-path: ${{ runner.temp }}/lane-sweep-models.json
 
-      # Only whether the secret is set leaves this step, never its value.
+      # Only whether the secret is set reaches the action, never its value.
+      # matrix.reason is checked there against the closed list of fallback
+      # reasons.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
-        env:
-          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          SECRET_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-        run: |
-          if [ "$PRESENT" = true ]; then
-            echo "present=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "::warning::$SECRET_NAME is empty; this leg does not judge."
-            echo "present=false" >>"$GITHUB_OUTPUT"
-          fi
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: automations
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ matrix.reason }}
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -1120,7 +1132,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           # Why this leg ran, for its lane record.
-          fallback-reason: ${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a

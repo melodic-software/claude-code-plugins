@@ -1,9 +1,23 @@
 {
-  "pass": [
+  "fail": [
     {
       "answer": "The fleet file has the desktop as **desk-01**. Since you only want the free space on D:, a script is enough. It answers directly and doesn't start a Claude session on the desktop, so it uses no usage. Run this from your lap-01 WSL shell:\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'df -h /mnt/d'\n```\n\n- It uses the Windows `ssh.exe` because your WSL distro has no SSH key.\n- It connects to the desktop's WSL lane on port 2222, where Windows' D: drive appears as `/mnt/d`.\n- The `Avail` column is the free space.\n\nIf you'd rather have the desktop's Claude answer, run this instead. It starts a Claude session on the desktop, which costs usage, and you may get a permission prompt:\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p \"Report the free space on the D drive (/mnt/d) in GB. Run df -h /mnt/d and reply with just the hostname and the Avail value.\" < /dev/null'\n```\n\n`hostname` shows which machine answered.\n\n**One thing to check:** the fleet file I found was made for desk-01, not your laptop, so I took the `desk-wsl` alias from it. If the laptop's `~/.ssh/config` doesn't define `desk-wsl`, ssh will say it can't resolve the hostname. In that case, use whatever alias the laptop has for the desktop's WSL lane on port 2222.",
-      "why": "observed reply, check3 run 0: claude -p line keeps < /dev/null"
+      "why": "observed reply, check3 run 0: prompt inside the remote command"
     },
+    {
+      "answer": "ssh.exe desk-wsl 'claude -p \"df\" < /dev/null'",
+      "why": "prompt inside the remote command, with the old redirect"
+    },
+    {
+      "answer": "ssh.exe desk-wsl claude -p \"df\"",
+      "why": "prompt as an unquoted remote argument"
+    },
+    {
+      "answer": "printf '%s\\n' 'df' | ssh.exe -n desk-wsl claude -p",
+      "why": "ssh -n drops the piped prompt"
+    }
+  ],
+  "pass": [
     {
       "answer": "Run this from your WSL shell on lap-01:\n\n```zsh\n/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win '(Get-PSDrive D).Free / 1GB'\n```\n\nIt prints the free space on desk-01's D: drive in GB, for example `412.73`. If you'd rather see used and free space in bytes, swap the quoted part for `Get-PSDrive D | Select-Object Used,Free`.\n\n**Why this command:**\n- **No Claude needed.** Checking free space is a one-line script, so it runs PowerShell directly over SSH instead of starting a Claude session on the desktop. That's faster and doesn't use any Claude usage.\n- **`desk-win` (port 22)** is the desktop's Windows SSH entry, which is meant for PowerShell commands like this one. It logs in as `ssh-admin`, which can read drive info.\n- **The Windows `ssh.exe`** is needed because WSL has no SSH key of its own; the Windows SSH client does.\n\n**Two caveats:**\n- The fleet file I read was generated for desk-01, not lap-01. So I'm assuming your laptop's Windows SSH config also has a `desk-win` alias. If you get \"Could not resolve hostname\", that alias is missing on the laptop.\n- The fleet notes list this kind of command over port 22 as untested. If it fails, use the desktop's WSL entry instead (same idea, tested route):\n  ```zsh\n  /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'df -h /mnt/d'\n  ```\n  This works only if D: is mounted at `/mnt/d` in the desktop's WSL.",
       "why": "observed reply, check3 run 1: script only"
@@ -13,22 +27,20 @@
       "why": "observed reply, check3 run 2: script only"
     },
     {
-      "answer": "ssh.exe desk-wsl 'claude -p \"df\" < /dev/null'",
-      "why": "names it"
+      "answer": "printf '%s\\n' 'df' | ssh.exe desk-wsl claude -p",
+      "why": "prompt on stdin"
     },
     {
-      "answer": "ssh.exe -n desk-wsl 'claude -p \"df\"'",
-      "why": "ssh -n in place of the redirect"
-    }
-  ],
-  "fail": [
-    {
-      "answer": "ssh.exe desk-wsl 'claude -p \"df\"'",
-      "why": "claude -p over ssh without the redirect"
+      "answer": "printf '%s\\n' 'Report free space on D' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p'",
+      "why": "prompt on stdin, hostname inside the quoted remote command"
     },
     {
-      "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe desk-wsl 'hostname && claude -p \"Report free space on D\"'",
-      "why": "redirect missing after hostname"
+      "answer": "Run `printf '%s\\n' 'df' | ssh.exe desk-wsl claude -p` or `printf '%s\\n' 'df -h' | ssh.exe desk-wsl claude -p`.",
+      "why": "two stdin commands on one prose line"
+    },
+    {
+      "answer": "printf '%s\\n' 'df' | ssh.exe desk-wsl 'claude -p --output-format json' | grep '^{'",
+      "why": "a quoted argument after a pipe that follows the remote command"
     }
   ]
 }

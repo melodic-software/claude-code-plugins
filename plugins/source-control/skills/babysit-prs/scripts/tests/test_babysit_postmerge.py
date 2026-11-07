@@ -639,15 +639,21 @@ class AutoMergeDerivation(CheckCase):
         ]
         self.assertEqual(self.numbers(self.check()), [])
 
-    def test_pr_moved_onto_page_one_mid_read_makes_the_history_unreadable(
+    def test_pr_moved_onto_page_one_mid_read_is_read_from_the_reread(
         self,
     ) -> None:
         # #7002 sat on page 2; an update while page 1 was being read moved it
-        # to page 1, so page 2 no longer has it and the walk would miss it.
+        # to page 1, so page 2 no longer has it and the walk missed it.
         moved = merged_pr(
             number=7002,
             mergedAt="2026-10-12T09:00:00Z",
             updatedAt="2026-10-12T10:30:00Z",
+        )
+        # Merged before the floor and updated since: not a merge to judge.
+        old = merged_pr(
+            number=6990,
+            mergedAt="2026-10-11T23:00:00Z",
+            updatedAt="2026-10-12T10:20:00Z",
         )
         self.gh.merged_pages = [
             {
@@ -657,12 +663,17 @@ class AutoMergeDerivation(CheckCase):
             {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []},
             {
                 "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
-                "nodes": [moved, merged_pr()],
+                "nodes": [
+                    moved,
+                    old,
+                    merged_pr(),
+                ],
             },
         ]
-        verdict = self.check()
-        self.assertFalse(verdict.readable)
-        self.assertFalse(verdict.ok)
+        found = pm._merged_since(
+            "o", "r", "main", datetime(2026, 10, 12, tzinfo=UTC)
+        )
+        self.assertEqual(sorted(pr["number"] for pr in found), [7001, 7002])
 
     def test_stable_history_across_the_reread_is_readable(self) -> None:
         page = {
