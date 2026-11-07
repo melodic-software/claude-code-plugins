@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Clean on the duplication axis."
+    },
+    {
+      "answer": "No findings: all three are yours."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Finding 1: the cache config is copied from the cache docs; replace it with a link."
+    },
+    {
+      "answer": "This is not clean.",
+      "why": "negated"
+    }
+  ]
+}

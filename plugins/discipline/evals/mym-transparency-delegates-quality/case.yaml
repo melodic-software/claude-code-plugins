@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: mym-transparency-delegates-quality
+context:
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?mind-your-maxims"'
+    min: 1
+    arm: 'with-only'
+  - name: transparency-finding
+    type: llm
+    criteria: 'Legacy expectation: "Flags undisclosed uncertainty / unstated boundary as a Transparency finding". PASS only if the reply names, as a Transparency finding, that the answer asserted the rate limit (and its other numbers) as settled while the writer was unsure they are current, and corrects it by disclosing that uncertainty. FAIL otherwise.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: delegates-quality
+    type: regex
+    pattern: '"name":"Skill","input":\{[^\n]*?"skill":"(?:discipline:)?do-your-research"|^(?=[^\n]*"type":"assistant")[^\n]*?/discipline:do-your-research\b'
+    flags: 'm'
+    target: 'trace'
+  - name: scope-shape-not-evidence
+    type: llm
+    criteria: 'Legacy expectations: "Delegates verifying the claim''s truthfulness to /discipline:do-your-research rather than adjudicating the fact" and "Keeps its scope to message shape and boundary disclosure, not evidence". PASS only if the maxims findings are about how the answer discloses its limits and how it is shaped (for example many numbers stated flatly), and any check of whether 600 requests a minute is current is handed to /discipline:do-your-research rather than settled inside the maxims audit. FAIL if the maxims audit itself rules the numbers right or wrong.'
+    focus: 'last_message'
+    arm: 'both'

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: ww-shorter-keeps-rationale
+context:
+  history_file: history.jsonl
+graders:
+  - name: keeps-numbers
+    type: regex
+    pattern: '(?=[\s\S]*(?:\b(?:5|five)\b[^\n]{0,30}\b(?:retries|attempts|tries)\b|\b(?:retries|attempts)\b[^\n]{0,30}\b(?:5|five)\b))(?=[\s\S]*\bjitter)(?=[\s\S]*\b10[ -]?(?:s|secs?|seconds?)\b)(?=[\s\S]*(?:\b60[ -]?(?:s|secs?|seconds?)\b|\bevery minute\b|\bone minute\b))'
+    flags: 'i'
+    target: last_message
+  - name: premise-restored
+    type: regex
+    pattern: '\b(?:at the same (?:time|moment)|at once|synchroni[sz]\w*|in lockstep|together|simultaneous\w*)\b'
+    flags: 'i'
+    target: last_message
+  - name: short-sentences
+    type: regex
+    pattern: '(?:[^\s.!?;:|]+[ \t]+){34,}[^\s.!?;:|]+'
+    match: 'not_contains'
+    target: last_message
+  - name: regrounded-not-blunt
+    type: llm
+    criteria: 'The user asked for a shorter re-pitch of a dense reply about capping retries at 5 with full-jitter backoff, but still wants the full rationale. The reply meets the legacy expectations: "Preserves full technical precision rather than trading it for brevity"; "Restores the missing premise so the reader can follow"; "Refuses a shorter-but-blunter reply that is no clearer". It fails if it drops a number or condition that carries the rationale (the 60 s budget reset, the 10 s gateway timeout, the 6.2 s versus 12.6 s worst case) or reduces the rationale to a one-line summary.'
+    focus: last_message

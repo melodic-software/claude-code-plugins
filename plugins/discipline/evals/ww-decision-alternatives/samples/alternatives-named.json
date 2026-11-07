@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Two alternatives were rejected. Raising the pod memory limit only moves the problem. The chunked variant still buffers the zip index."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The chunked variant still buffers the zip index."
+    },
+    {
+      "answer": "Raising the memory limit only moves the problem."
+    }
+  ]
+}

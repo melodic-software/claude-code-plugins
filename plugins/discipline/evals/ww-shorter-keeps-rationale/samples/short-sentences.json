@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "We stop after 5 retries. Each wait has jitter. The gateway times out at 10 s."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We stop after five retries with full jitter because the upstream budget resets every sixty seconds and forty pods that retry together would push it over again which is why the cap matters so much for the gateway timeout of ten seconds that we must stay under"
+    }
+  ]
+}

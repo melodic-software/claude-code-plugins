@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: rau-pinned-adr-recheck
+graders:
+  - name: deliberate-classified
+    type: regex
+    pattern: '(?<!\bnot )(?<!\bnot a )(?<!n''t )\b(?:deliberate|intentional)\b'
+    flags: 'i'
+    target: last_message
+  - name: rationale-still-holds
+    type: regex
+    pattern: '\b(?:still (?:holds|stands|applies|valid|open|unfixed|needed|required|justified|current)|not (?:yet )?(?:fixed|resolved|obsolete\w*|overtaken)|remains (?:valid|open|unfixed|needed|justified|in force))\b'
+    flags: 'i'
+    target: last_message
+  - name: recheck-not-revert
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Classifies it as a deliberate divergence because a rationale is recorded, and does not revert it", "Re-checks whether the recorded rationale still holds against current upstream rather than trusting it as permanent" and "Reports clean if the rationale stands; flags it only if upstream has obsoleted the workaround". Here the given upstream state shows the hang unfixed, so the pin stays and the result is clean. It fails if it recommends bumping pg, or accepts the ADR without checking it against the given changelog and issue.'
+    focus: last_message

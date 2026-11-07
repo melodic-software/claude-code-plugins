@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Sources: Grice, \"Logic and Conversation\"; Miehling et al., arXiv:2403.15115."
+    },
+    {
+      "answer": "See [Cooperative principle](https://en.wikipedia.org/wiki/Cooperative_principle) and https://arxiv.org/abs/2403.15115."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "This covers Grice's maxims: Quantity, Quality, Relation, Manner.",
+      "why": "no AI-maxims source"
+    },
+    {
+      "answer": "Per arXiv:2403.15115, plus Transparency.",
+      "why": "no Grice source"
+    }
+  ]
+}

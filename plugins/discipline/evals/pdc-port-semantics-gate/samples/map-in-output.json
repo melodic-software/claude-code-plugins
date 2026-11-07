@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Port it.\"}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"## Semantics map\\n### What the source does\\n...\\n### Preserved / changed / dropped\\n- dropped: threading.Lock; the invariant moves to the event loop's run-to-completion\\n### Edge-case parity\\n| case | Python | TS |\\n### Open questions\\n...\"}]}}\n",
+      "why": "map in the reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\"notes/semantics-map.md\",\"content\":\"## Semantics map\\n### What the source does\\n...\\n### Preserved / changed / dropped\\n- dropped: threading.Lock; the invariant moves to the event loop's run-to-completion\\n### Edge-case parity\\n| case | Python | TS |\\n### Open questions\\n...\"}}]}}\n",
+      "why": "map written to a file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Semantics map: a preserved / changed / dropped ledger; an edge-case parity table\"}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Here is the port.\"}]}}\n",
+      "why": "only the skill text has the words"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Preserved: the refill math. Dropped: the lock.\"}]}}\n",
+      "why": "no parity table"
+    }
+  ]
+}
