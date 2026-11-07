@@ -318,8 +318,9 @@ changes). An adapter that declares no `set-fields` key exits `6`.
 single-select issue field, so a caller such as planning's Work size can use a tracker's own size
 values. `--field` is the field's exact name or its numeric id; `--repo` picks the repository whose
 organization is read (default: the working directory's remote). It prints `{schema_version, field,
-options: [{id, name}]}`. A field the organization does not have, or one with no options, prints an
-empty `options` list and exits `0`; a caller that gets one falls back to its own defaults. Only the
+field_id, options: [{id, name}]}`, where `field_id` is the matched field's numeric id (the id
+`set-fields` takes) or `null` when the organization has no such field. A field the organization
+does not have, or one with no options, prints an empty `options` list and exits `0`; a caller that gets one falls back to its own defaults. Only the
 GitHub adapter implements it, from the same `GET /orgs/{org}/issue-fields` listing `set-fields`
 validates against (same `read:org` need). An adapter that declares no `get-field-options` key exits
 `6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
