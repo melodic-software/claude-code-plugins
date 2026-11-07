@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: fos-managed-seam-cited-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?follow-our-standards"'
+    min: 1
+    arm: 'with-only'
+  - name: only-cited-findings
+    type: llm
+    criteria: 'Legacy expectation: "Drops any finding it cannot tie to a specific convention doc; opinions are not standards violations". The standards are docs/standards/logging.md and docs/standards/ci.md; no standard covers variable naming. PASS only if every finding the reply reports cites one of those docs, and the one-letter variable name `l` in src/report.py is either not reported or explicitly dropped as uncitable. FAIL if any finding carries no doc citation.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-managed-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path"\s*:\s*"[^"]*lint\.yml"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-managed-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"[^"]*lint\.yml"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: routes-upstream
+    type: llm
+    criteria: 'Legacy expectation: "Does not propose editing the upstream-managed file directly; routes that change upstream". .github/workflows/lint.yml is listed as managed in standards-sync.yaml. PASS only if the reply routes any change to that file to the upstream standards distribution (names it and drafts or describes the change for the upstream repo, offered to the user) instead of proposing to edit the local copy. FAIL if it proposes or makes an edit to the local lint.yml, or opens a pull request or issue without the user asking.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-convention-restated
+    type: regex
+    pattern: 'because the log pipeline indexes fields,? not free text|because a red lint run that still reports success trains everyone to ignore it'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Replace it and migrate the existing call sites."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Just use a new retry helper in the new code."
+    }
+  ]
+}

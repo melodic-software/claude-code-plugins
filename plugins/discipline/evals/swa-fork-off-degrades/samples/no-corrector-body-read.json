@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/skills/use-your-skills/SKILL.md",
+            "limit": 12
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/skills/sweep-all/SKILL.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/skills/use-your-skills/SKILL.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/skills/use-your-skills/SKILL.md",
+            "limit": 200
+          }
+        }
+      ]
+    }
+  ]
+}

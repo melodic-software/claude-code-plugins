@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: ror-recorded-divergence-clean
+graders:
+  - name: reports-clean
+    type: regex
+    pattern: '(?:^|[.!?\n])(?:(?!\bnot\b|n''t\b)[^.!?\n])*(?:\bclean\b|\bno (?:finding|second way|parallel way|violation)s?\b|\bnothing to (?:correct|fix|flag)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-fabricated-finding
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Confirms new work that reuses the established way audits clean", "Accepts a divergence whose rationale is recorded at the right blast-radius level" and "Does not fabricate a finding or treat recorded divergence as a violation".'
+    focus: last_message

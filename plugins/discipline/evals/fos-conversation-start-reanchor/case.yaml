@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: fos-conversation-start-reanchor
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-standards-index
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:standards/README\.md)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:Applies when)'
+    flags: 'm'
+    target: 'trace'
+  - name: states-resolved-source
+    type: regex
+    pattern: '\b(?:resolved|source(?: of truth)?|declared)\b[^\n]{0,80}\bdocs/standards\b|\bdocs/standards\b[^\n]{0,80}\b(?:resolved|source|declared)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: principles-reanchored
+    type: llm
+    criteria: 'Legacy expectation: "Resolves the source and re-anchors the core principles as active". PASS only if the reply says which standards source resolved (docs/standards/ declared in CLAUDE.md) and states the core design principles are now active, pointing at the docs rather than reprinting them at length. FAIL if no source is named or the principles are not re-anchored.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-findings
+    type: llm
+    criteria: 'Legacy expectations: "Does NOT manufacture audit findings when there is no work in flight" and "Stops after the re-anchor". The repository holds only standards docs and no code or earlier work. PASS only if the reply reports no violations or findings and ends after the re-anchor. FAIL if it lists findings, audits the standards docs themselves, or starts other work.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'

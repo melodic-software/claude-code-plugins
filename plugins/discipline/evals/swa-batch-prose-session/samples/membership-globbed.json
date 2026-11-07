@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "*/SKILL.md",
+            "path": "/opt/eval/plugin/skills"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "/opt/eval/plugin/skills/*/SKILL.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "docs/*.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/skills/sweep-all/reference/inheritance-preflight.md"
+          }
+        }
+      ]
+    }
+  ]
+}

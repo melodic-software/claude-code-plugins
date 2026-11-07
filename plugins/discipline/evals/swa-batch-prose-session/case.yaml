@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: swa-batch-prose-session
+context:
+  history_file: history.jsonl
+graders:
+  - name: forks-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: '\"subagent_type\":\"fork\"'
+    min: 2
+  - name: membership-globbed
+    type: tool_used
+    tool: Glob
+    input_match: 'skills|SKILL\.md'
+    min: 1
+  - name: never-not-fanned
+    type: tool_used
+    tool: Agent
+    input_match: 'scrutinize-dont-coast/SKILL\.md|/discipline:scrutinize-dont-coast\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: never-reported
+    type: regex
+    pattern: 'scrutinize-dont-coast[^\n]{0,160}\b(?:never|directly|not batched|excluded|out of the batch)\b|\b(?:never|directly|not batched|excluded|out of the batch)\b[^\n]{0,160}scrutinize-dont-coast'
+    flags: 'i'
+    target: last_message
+  - name: core-ran
+    type: regex
+    pattern: '(?=[\s\S]*use-your-skills)(?=[\s\S]*do-your-research)(?=[\s\S]*mind-your-maxims)(?=[\s\S]*tighten-your-output)'
+    target: last_message
+  - name: skip-reported
+    type: regex
+    pattern: '\b(?:skip(?:ped|s|ping)?|not (?:relevant|run|running|included|in scope)|left out|leaving out|excluded|excluding|out of scope)\b[^\n]{0,160}\b(?:recheck-against-upstream|reason-dont-recite|point-dont-copy|follow-our-standards|reuse-or-replace|pick-for-the-problem|script-the-deterministic-work)\b|\b(?:recheck-against-upstream|reason-dont-recite|point-dont-copy|follow-our-standards|reuse-or-replace|pick-for-the-problem|script-the-deterministic-work)\b[^\n]{0,160}\b(?:skip(?:ped|s|ping)?|not (?:relevant|run|running|included|in scope)|left out|leaving out|excluded|excluding|out of scope)\b|\b(?:skip(?:ped|s|ping)?|not (?:relevant|run|running|included|in scope)|left out|leaving out|excluded|excluding|out of scope)\b[^\n:]{0,40}:[*_]*[ \t]*\n(?:[ \t]*\n)?(?:[ \t]*[-*+][ \t][^\n]*\n)*?[ \t]*[-*+][ \t][^\n]*?\b(?:recheck-against-upstream|reason-dont-recite|point-dont-copy|follow-our-standards|reuse-or-replace|pick-for-the-problem|script-the-deterministic-work)\b'
+    flags: 'i'
+    target: last_message
+  - name: batch-shape
+    type: llm
+    criteria: 'The trace is a full sweep-all batch over a prose-only session. It meets the legacy expectations: "Resolves membership from tier metadata by globbing, not from a hardcoded member list"; "Uses conversation-inheriting fork subagents for audit-only work, applying corrections on the main thread"; "Dedups ledgers by root cause between collect and correct, then applies corrections in rank order with tighten-your-output last"; "Runs core correctors unconditionally and gates situational ones on relevance to this conversation"; "Reports which situational correctors were skipped and why"; "Does not silently drop a situational corrector"; "Keeps never-tier correctors out of the batch fan-out"; "Resolves the never set from tier metadata by globbing, not from hardcoded member names"; "Does not fold a never-tier corrector into the autonomous batch". It fails if any of these is missing from the trace.'
+    focus: trace

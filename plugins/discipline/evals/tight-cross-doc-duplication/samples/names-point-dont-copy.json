@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The policy appearing in both docs is a duplication concern: /discipline:point-dont-copy owns it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I removed the copy from the FAQ and linked to refunds.md."
+    },
+    {
+      "answer": "Do not use point-dont-copy here."
+    }
+  ]
+}

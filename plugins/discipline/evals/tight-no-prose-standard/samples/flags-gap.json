@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "There is no dedicated prose-terseness standard to cite. That is a gap, a candidate upstream addition."
+    },
+    {
+      "answer": "This repository doesn't declare a convention for prose terseness; I'm flagging the gap."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I am applying the Plain Language Standard, section 4."
+    },
+    {
+      "answer": "There is no dedicated standard, so I used my own rubric."
+    },
+    {
+      "answer": "Gap: the doc repeats itself."
+    }
+  ]
+}
