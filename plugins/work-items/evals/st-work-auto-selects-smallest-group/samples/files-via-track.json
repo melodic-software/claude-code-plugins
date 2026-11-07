@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "add \"Exports: move onto the async job queue\""
+          }
+        }
+      ],
+      "why": "track add"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:triage"
+          }
+        }
+      ],
+      "why": "other skill"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "tools/work-item-tracker/adapters/redmine/common.sh",
+        "tools/work-item-tracker/adapters/redmine/capabilities.json"
+      ],
+      "why": "generated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "adapters/redmine/common.sh"
+      ],
+      "why": "wrong root"
+    },
+    {
+      "answer": [],
+      "why": "nothing created"
+    }
+  ]
+}

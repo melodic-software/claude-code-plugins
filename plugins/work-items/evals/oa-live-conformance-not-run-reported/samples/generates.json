@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/skills/onboard-adapter/scripts/generate-adapter.sh --spec adapter-spec.json"
+          }
+        }
+      ],
+      "why": "real run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"$P/generate-adapter.sh\" --spec adapter-spec.json --dry-run"
+          }
+        }
+      ],
+      "why": "dry run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat adapter-spec.json"
+          }
+        }
+      ],
+      "why": "reads the spec only"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}
