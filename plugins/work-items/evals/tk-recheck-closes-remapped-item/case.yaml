@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: tk-recheck-closes-remapped-item
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'lists-remapped-label'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'list-items\b[^\n]*--label[ \t=]+(?:\\?[\"''])?scheduled-upkeep\b'
+    min: 1
+  - name: 'no-default-label-query'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '--label[ \t=]+(?:\\?[\"''])?recurring\b(?!-)'
+    min: 0
+    max: 0
+  - name: 'item-closed'
+    type: 'regex'
+    pattern: '^state:[ \t]*[\"'']?closed\b'
+    flags: 'm'
+    target:
+      source: 'file'
+      path: '.work-items/1.md'
+  - name: 'other-item-open'
+    type: 'regex'
+    pattern: '^state:[ \t]*[\"'']?open\b'
+    flags: 'm'
+    target:
+      source: 'file'
+      path: '.work-items/2.md'
+  - name: 'row-updated'
+    type: 'regex'
+    pattern: '\"id\":[ \t]*\"dependency-review\"[^}]*\"last_checked\":[ \t]*\"2026-08-01\"'
+    match: 'not_contains'
+    target:
+      source: 'file'
+      path: '.github/recurring-schedule.json'
+  - name: 'other-row-unchanged'
+    type: 'regex'
+    pattern: '\"id\":[ \t]*\"ci-pins\"[^}]*\"last_checked\":[ \t]*\"2026-09-01\"[^}]*\"next_due\":[ \t]*\"2026-10-01\"'
+    target:
+      source: 'file'
+      path: '.github/recurring-schedule.json'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the trace as the account of what /work-items:track recheck did under a remapped recurring-maintenance role. PASS only if it satisfies every point: (1) Resolves the recurring-maintenance role before reading tracker items; (2) Lists items with the scheduled-upkeep label rather than the recurring label; (3) Matches the item by its body''s recurring-schedule id=dependency-review marker before closing, never by title; (4) Updates only the matched schedule row and closes only its associated item. A point counts only when the reply states it or the trace plainly shows it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

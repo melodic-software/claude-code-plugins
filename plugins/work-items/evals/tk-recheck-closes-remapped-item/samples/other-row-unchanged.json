@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "{\"items\": [\n  {\n    \"id\": \"ci-pins\",\n    \"title\": \"Check CI pins\",\n    \"cadence\": \"monthly\",\n    \"last_checked\": \"2026-09-01\",\n    \"next_due\": \"2026-10-01\"\n  }\n]}",
+      "why": "untouched, reformatted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"items\": [{\"id\": \"ci-pins\", \"cadence\": \"monthly\", \"last_checked\": \"2026-11-07\", \"next_due\": \"2026-12-07\"}]}",
+      "why": "also advanced"
+    }
+  ]
+}
