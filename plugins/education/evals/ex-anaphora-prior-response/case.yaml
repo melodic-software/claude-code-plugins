@@ -13,7 +13,7 @@ execution:
 graders:
   - name: no-what-ask
     type: regex
-    pattern: '\b(?:what|which)\b[^\n?]*\b(?:explain\w*|mean|referring|refer to|talking about|lost you|confus\w*)\b[^\n?]*\?'
+    pattern: '^\s*[^\n]{0,60}?\b(?:what|which)\b[^\n?]*\b(?:explain\w*|mean|referring|refer to|talking about|lost you|confus\w*)\b[^\n?]*\?|\b(?:what|which)\b[^\n?]*\b(?:explain\w*|mean|referring|refer to|talking about|lost you|confus\w*)\b[^\n?]*\?\s*$'
     flags: 'i'
     match: 'not_contains'
     target: last_message

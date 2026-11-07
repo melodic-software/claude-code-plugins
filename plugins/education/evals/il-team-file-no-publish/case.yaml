@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: il-team-file-no-publish
-description: "A team rendered-views.yaml saying medium: artifact never publishes: illustrate leaves the file to the shared resolver and prints its report line and its notice that a team file never publishes. A runner with CI set makes the resolver fall back to the terminal, so run this case outside CI"
+description: "A team rendered-views.yaml saying medium: artifact never publishes: illustrate leaves the file to the shared resolver and prints its report line and its notice that a team file never publishes."
 tags: [education, illustrate, outcome, medium, scaffold, no-network]
 expected_outcome: "Bash runs view-settings.mjs resolve --lane education:illustrate; the reply prints view: file (plugin default) and the notice that the team file's medium: artifact is ignored because a team file never publishes; the run never reads docs/conventions/rendered-views.yaml itself."
 context:
@@ -13,7 +13,7 @@ execution:
 graders:
   - name: report-and-team-notice
     type: regex
-    pattern: '^(?=[\s\S]*\bview:\s*file\s*\(plugin default\))(?=[\s\S]*\ba team file never publishes\b)'
+    pattern: '^(?=[\s\S]*\bview:\s*(?:file\s*\(plugin default\)|\w+\s*\(fell back:\s*file unreachable\b))(?=[\s\S]*\ba team file never publishes\b)'
     target: last_message
   - name: no-team-file-read
     type: tool_used

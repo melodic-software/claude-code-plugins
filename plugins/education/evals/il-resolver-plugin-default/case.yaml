@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: il-resolver-plugin-default
-description: "With no medium named, the medium option unset and no rendered-views file, illustrate runs the shared view-settings.mjs resolver and prints its report line naming the plugin default (view: file) instead of reading convention files itself. A runner with CI set makes the resolver fall back to the terminal, so run this case outside CI"
+description: "With no medium named, the medium option unset and no rendered-views file, illustrate runs the shared view-settings.mjs resolver and prints its report line naming the plugin default (view: file) instead of reading convention files itself."
 tags: [education, illustrate, outcome, medium, no-network]
 expected_outcome: "Bash runs view-settings.mjs resolve --lane education:illustrate, and the reply prints its report line view: file (plugin default)."
 execution:
@@ -11,7 +11,7 @@ execution:
 graders:
   - name: report-line-plugin-default
     type: regex
-    pattern: '\bview:\s*file\s*\(plugin default\)'
+    pattern: '\bview:\s*(?:file\s*\(plugin default\)|\w+\s*\(fell back:\s*file unreachable\b)'
     target: last_message
   - name: resolver-not-self-read
     type: llm

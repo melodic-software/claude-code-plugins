@@ -11,7 +11,7 @@ execution:
 graders:
   - name: no-root-question
     type: regex
-    pattern: '\b(?:where|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
+    pattern: '\b(?:where\s+(?:should|shall|would you like|do you want)|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
     flags: 'i'
     match: 'not_contains'
     target: last_message

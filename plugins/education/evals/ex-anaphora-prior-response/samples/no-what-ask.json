@@ -7,6 +7,10 @@
     {
       "answer": "",
       "why": "empty reply asks nothing"
+    },
+    {
+      "answer": "Think of a coat-check ticket.\n\nSo what does that mean? The app gives each purchase its own ticket, and a retry with the same ticket gets the first answer.\n\nThat's the plain version, want the high-school one?",
+      "why": "near miss: a rhetorical question inside the explanation"
     }
   ],
   "fail": [

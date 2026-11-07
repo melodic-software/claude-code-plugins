@@ -5,15 +5,15 @@
       "why": "report line as printed"
     },
     {
+      "answer": "...record...\n\nview: terminal (fell back: file unreachable: non-interactive session)",
+      "why": "the resolver's report line on a CI runner, where file falls back"
+    },
+    {
       "answer": "Record above.\n\n`view: file (plugin default)`",
       "why": "backticked"
     }
   ],
   "fail": [
-    {
-      "answer": "view: terminal (fell back: file unreachable: non-interactive run)",
-      "why": "fell back"
-    },
     {
       "answer": "view: artifact (userConfig)",
       "why": "another decider"

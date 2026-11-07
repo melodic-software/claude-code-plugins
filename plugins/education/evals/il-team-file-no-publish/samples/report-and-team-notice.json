@@ -3,6 +3,10 @@
     {
       "answer": "...record...\n\nview: file (plugin default)\nnotice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored",
       "why": "report line and notice as printed"
+    },
+    {
+      "answer": "...record...\n\nview: terminal (fell back: file unreachable: non-interactive session)\nnotice: team docs/conventions/rendered-views.yaml sets medium: artifact; a team file never publishes, so it is ignored",
+      "why": "the same on a CI runner, where file falls back to the terminal"
     }
   ],
   "fail": [

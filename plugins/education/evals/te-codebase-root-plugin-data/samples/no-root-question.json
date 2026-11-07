@@ -7,6 +7,10 @@
     {
       "answer": "",
       "why": "empty reply asks nothing"
+    },
+    {
+      "answer": "Before I create it, I need to know where the sign-in code lives: this directory has no repository files, so which repo should the auth-flow workspace ground in?",
+      "why": "near miss: asks where the code lives, not where the workspace goes"
     }
   ],
   "fail": [
