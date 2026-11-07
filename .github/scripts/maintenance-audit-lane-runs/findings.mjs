@@ -97,7 +97,14 @@ const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: 
 // the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
 export const DIGEST_TITLE = "Lane sweep: open findings";
-const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))? -->$/;
+// slice and wf ride on the marker so a tracked or cut entry keeps them; a
+// marker without them is an older entry, read from its Where block.
+const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))?(?: slice=([ACD]))?(?: wf=(\S+))? -->$/;
+// The workflow is model text for slice C, so only a plain workflow path is kept.
+const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
+const workflowPath = (path) => (typeof path === "string" && WORKFLOW_PATH.test(path) ? path : null);
+const entryMarker = ({ fingerprint: fp, tracked, slice, workflow }) =>
+  `<!-- lane-sweep-entry fp=${fp}${tracked ? ` tracked=${tracked}` : ""}${SLICES.has(slice) ? ` slice=${slice}` : ""}${workflowPath(workflow) ? ` wf=${workflow}` : ""} -->`;
 const END = "<!-- lane-sweep-end -->";
 export const MAX_FIELD = 2000;
 export const BODY_LIMIT = 60000;
@@ -113,7 +120,8 @@ const clip = (text) => {
 // One entry's section, model text inside fences. A finding an earlier sweep
 // filed an open issue for points at that issue instead of repeating it.
 export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
-  const head = [`<!-- lane-sweep-entry fp=${fp}${tracked ? ` tracked=${tracked}` : ""} -->`, `### ${inertTitle(finding.title)}`, ""];
+  const marker = entryMarker({ fingerprint: fp, tracked, slice: finding.slice, workflow: finding.workflow });
+  const head = [marker, `### ${inertTitle(finding.title)}`, ""];
   if (tracked) return [...head, `Slice ${finding.slice}, fingerprint \`${fp}\`. Tracked in #${tracked}.`].join("\n");
   return [
     ...head,
@@ -175,13 +183,50 @@ export function renderDigest(entries, runUrl) {
   return `${body}${tail}`;
 }
 
-// The entries a digest body holds, each with its rendered text and title.
+const FENCE = /^(`{3,})text$/;
+const SLICE_LINE = /^Slice ([ACD]), fingerprint `[0-9a-f]{16}`/;
+
+// The slice and workflow an entry's text names, each null when absent: a
+// tracked or cut entry has no Where block. Fences are tracked so a
+// "**Where**" line inside model text is never read as the heading.
+function entryWhere(lines) {
+  const slice = SLICE_LINE.exec(lines[3] ?? "")?.[1] ?? null;
+  let fence = null;
+  let armed = false;
+  let workflow = null;
+  for (const line of lines) {
+    if (fence) {
+      if (line === fence.close) fence = null;
+      else if (fence.where && fence.first) workflow = /^workflow (.+)$/.exec(line)?.[1] ?? null;
+      if (fence) fence.first = false;
+      continue;
+    }
+    const open = FENCE.exec(line);
+    if (open) {
+      fence = { close: open[1], where: armed, first: true };
+      armed = false;
+      continue;
+    }
+    if (line === "**Where**") armed = true;
+  }
+  return { slice, workflow };
+}
+
+// The entries a digest body holds, each with its rendered text, title, and
+// the slice and workflow it names.
 export function readEntries(body) {
   const entries = [];
   let current = null;
+  let fence = null;
   for (const line of String(body ?? "").split("\n")) {
+    if (fence) {
+      if (line === fence) fence = null;
+      current?.lines.push(line);
+      continue;
+    }
     const m = ENTRY.exec(line);
     if (!m && line !== END) {
+      fence = FENCE.exec(line)?.[1] ?? null;
       current?.lines.push(line);
       continue;
     }
@@ -190,15 +235,20 @@ export function readEntries(body) {
       current = null;
       break;
     }
-    current = { fingerprint: m[1], tracked: m[2] ? Number(m[2]) : null, lines: [line] };
+    current = { fingerprint: m[1], tracked: m[2] ? Number(m[2]) : null, slice: m[3] ?? null, wf: m[4] ?? null, lines: [line] };
   }
   if (current) entries.push(current);
-  return entries.map(({ fingerprint: fp, tracked, lines }) => ({
-    fingerprint: fp,
-    tracked,
-    title: (lines[1] ?? "").replace(/^### /, ""),
-    text: lines.join("\n").trimEnd(),
-  }));
+  return entries.map(({ fingerprint: fp, tracked, slice, wf, lines }) => {
+    const where = entryWhere(lines);
+    return {
+      fingerprint: fp,
+      tracked,
+      title: (lines[1] ?? "").replace(/^### /, ""),
+      text: lines.join("\n").trimEnd(),
+      slice: slice ?? where.slice,
+      workflow: wf !== null ? workflowPath(wf) : workflowPath(where.workflow),
+    };
+  });
 }
 
 export function renderDigestComment({ added, dropped, retracked = [] }, runUrl) {
@@ -229,8 +279,10 @@ export const readFingerprint = (body) => (isDigest(body) ? null : lastLineFp(bod
 // items: [{fingerprint, finding}]; existing: sweep issues of any state, with
 // no time window, with body; openNumbers: open issue and PR numbers; complete:
 // every unit's findings were read, so an entry not seen in this sweep is gone
-// rather than unread.
-export function planDigest({ items, existing, openNumbers, complete = true }) {
+// rather than unread. When not complete, carry(entry) names why an earlier
+// entry this sweep did not see may still hold, or returns null to drop it;
+// with no carry, every such entry carries.
+export function planDigest({ items, existing, openNumbers, complete = true, carry = () => "unread" }) {
   const byFp = new Map();
   let digest = null;
   for (const issue of existing) {
@@ -265,10 +317,16 @@ export function planDigest({ items, existing, openNumbers, complete = true }) {
     entries.push({ fingerprint: fp, tracked, title: inertTitle(finding.title), text: renderEntry({ fingerprint: fp, finding, tracked }) });
   }
   const before = digest ? readEntries(digest.body) : [];
+  const carried = [];
   if (!complete) {
     for (const entry of before.filter((e) => !seen.has(e.fingerprint))) {
-      entries.push(entry);
+      const reason = carry(entry);
+      if (!reason) continue;
+      // An older entry's marker gains the slice and workflow its Where block named.
+      const [, ...rest] = entry.text.split("\n");
+      entries.push({ ...entry, text: [entryMarker(entry), ...rest].join("\n") });
       seen.add(entry.fingerprint);
+      carried.push({ fingerprint: entry.fingerprint, reason });
     }
   }
   const was = new Map(before.map((e) => [e.fingerprint, e]));
@@ -279,6 +337,7 @@ export function planDigest({ items, existing, openNumbers, complete = true }) {
     added: entries.filter((e) => !was.has(e.fingerprint)),
     dropped: before.filter((e) => !seen.has(e.fingerprint)),
     retracked: entries.filter((e) => was.has(e.fingerprint) && was.get(e.fingerprint).tracked !== e.tracked),
+    carried,
     skip,
   };
   const unchanged = digest !== null && lastLineFp(digest.body) === digestFingerprint(entries);
