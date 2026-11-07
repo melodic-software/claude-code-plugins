@@ -4,10 +4,9 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: read-agents-md
-    type: tool_used
-    tool: Read
-    input_match: 'AGENTS\.md|CLAUDE\.md'
-    min: 1
+    type: regex
+    target: trace
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{[^}]{0,300}?(?:AGENTS|CLAUDE)\.md|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,400}?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cat|head|tail|sed|awk|less|more|nl|bat|grep|rg)\b(?:[^"\\;|&]|\\[^n])*?(?:AGENTS|CLAUDE)\.md'
     arm: with-only
   - name: recommends-repo-location
     type: regex

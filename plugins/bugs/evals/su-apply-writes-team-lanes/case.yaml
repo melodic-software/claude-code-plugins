@@ -4,13 +4,9 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: check-before-write
-    type: tool_order
-    before:
-      tool: Bash
-      input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git\b'
-    after:
-      tool: Write
-      input_match: 'docs/conventions/bugs\.yaml'
+    type: regex
+    target: trace
+    pattern: '^(?:(?!(?:\\?"name\\?":\s*\\?"Write\\?",\s*\\?"input\\?":\s*\{[^}]{0,300}?docs/conventions/bugs\.yaml|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml))[\s\S])*?\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))git\b(?:[\s\S]*?(?:\\?"name\\?":\s*\\?"Write\\?",\s*\\?"input\\?":\s*\{[^}]{0,300}?docs/conventions/bugs\.yaml|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml)|(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\")?(?:[^\s;|&"\\]*/)?|(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))tee\b(?:[^"\\]|\\.)*?)docs/conventions/bugs\.yaml)'
   - name: team-file-lanes
     type: regex
     target: { source: file, path: docs/conventions/bugs.yaml }
@@ -44,7 +40,7 @@ graders:
   - name: verifies-after-write
     type: llm
     focus: trace
-    criteria: "PASS only if, after the call that writes docs/conventions/bugs.yaml, the trace shows a later call that re-reads that file (a Read, cat or a YAML parse of it) and a later git check-ignore on docs/conventions/bugs.yaml, and the final reply reports what those showed. A check-ignore or read that ran only before the write does not count. FAIL if no such file was written, or nothing re-checks it after the write."
+    criteria: "The run must verify the written file by re-reading it and by git check-ignore. PASS only if, after docs/conventions/bugs.yaml is written (by the Write tool or a shell write such as a heredoc), the trace shows that file re-read (a Read, cat or a YAML parse of it) and git check-ignore run on docs/conventions/bugs.yaml, either in a later call or later in the same shell command as the write, and the final reply reports what those showed. A check-ignore or read that ran only before the write does not count. FAIL if no such file was written, or nothing re-checks it after the write."
   - name: recommends-ignore-line
     type: regex
     pattern: '\.claude/\*\*/\*\.local\.\*'

@@ -1,45 +1,42 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/opt/eval/ws/AGENTS.md"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugins/bugs/reference/config.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git rev-parse --show-toplevel && ls -la && ls docs docs/conventions 2>&1; cat CLAUDE.md AGENTS.md 2>&1 | head -50; cat .gitignore 2>&1\",\"description\":\"run\"}}]}}",
+      "why": "the smoke run's shell read of CLAUDE.md and AGENTS.md"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "CLAUDE.md"
-          }
-        },
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "AGENTS.md"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/AGENTS.md\"}}]}}",
+      "why": "Read tool on AGENTS.md"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"CLAUDE.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"AGENTS.md\"}}]}}",
+      "why": "Read tool on both"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"ls\\nhead -40 AGENTS.md\",\"description\":\"run\"}}]}}",
+      "why": "head after an escaped newline"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "README.md"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"README.md\"}}]}}",
+      "why": "README only"
     },
     {
-      "answer": []
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"ls -la AGENTS.md\",\"description\":\"run\"}}]}}",
+      "why": "listed, never read"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"ls -R docs src; git log --stat --oneline | head -20\",\"description\":\"run\"}}]}}",
+      "why": "git log --stat names AGENTS.md in its output; the command never reads it"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"cat .gitignore; ls AGENTS.md\",\"description\":\"run\"}}]}}",
+      "why": "cat of another file, AGENTS.md only listed"
     }
   ]
 }

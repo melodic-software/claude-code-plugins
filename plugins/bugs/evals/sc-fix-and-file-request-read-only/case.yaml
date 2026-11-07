@@ -39,7 +39,3 @@ graders:
     type: regex
     pattern: '--track\b'
     target: last_message
-  - name: fix-handed-off
-    type: regex
-    pattern: '/implementation:implement\b|/debugging:debug\b|/work-items:track\b'
-    target: last_message

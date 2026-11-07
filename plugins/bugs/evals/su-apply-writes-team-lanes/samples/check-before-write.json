@@ -1,95 +1,38 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git rev-parse --show-toplevel",
-            "description": "run"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git log --name-only -20",
-            "description": "run"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/opt/eval/ws/docs/conventions/bugs.yaml",
-            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugins/bugs/reference/config.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git rev-parse --show-toplevel && ls -a && ls docs/conventions .claude 2>&1; git ls-files | head -100\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"cat README.md .gitignore; git check-ignore -v docs/conventions/bugs.yaml; ls ~/.claude/bugs.md .claude/bugs.local.md 2>&1\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p docs/conventions && cat > docs/conventions/bugs.yaml <<'EOF'\\nlanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\nEOF\\npython3 -I -c \\\"import yaml;print(yaml.safe_load(open('docs/conventions/bugs.yaml')))\\\"\\ngit check-ignore -v docs/conventions/bugs.yaml; echo ignore-exit=$?\",\"description\":\"run\"}}]}}",
+      "why": "the smoke run's shape: git probes, then a heredoc write"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "ls docs\ngit ls-files",
-            "description": "run"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "docs/conventions/bugs.yaml",
-            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"git rev-parse --show-toplevel\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --name-only -20\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/docs/conventions/bugs.yaml\",\"content\":\"lanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\n\"}}]}}",
+      "why": "git probes, then the Write tool"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"ls docs\\ngit ls-files\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"docs/conventions/bugs.yaml\",\"content\":\"lanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\n\"}}]}}",
+      "why": "git after an escaped newline, then Write"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "docs/conventions/bugs.yaml",
-            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git check-ignore -v docs/conventions/bugs.yaml",
-            "description": "run"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Write\",\"input\":{\"file_path\":\"docs/conventions/bugs.yaml\",\"content\":\"lanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git check-ignore -v docs/conventions/bugs.yaml\",\"description\":\"run\"}}]}}",
+      "why": "Write before any git probe"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "README.md"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "docs/conventions/bugs.yaml",
-            "content": "lanes:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"README.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Write\",\"input\":{\"file_path\":\"docs/conventions/bugs.yaml\",\"content\":\"lanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\n\"}}]}}",
+      "why": "no git probe at all"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git status",
-            "description": "run"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugins/bugs/reference/config.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p docs/conventions && cat > docs/conventions/bugs.yaml <<'EOF'\\nlanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\nEOF\\npython3 -I -c \\\"import yaml;print(yaml.safe_load(open('docs/conventions/bugs.yaml')))\\\"\\ngit check-ignore -v docs/conventions/bugs.yaml; echo ignore-exit=$?\",\"description\":\"run\"}}]}}",
+      "why": "one heredoc call that writes, then runs git check-ignore, with no earlier git call"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"git status\",\"description\":\"run\"}}]}}",
+      "why": "probe only, nothing written"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"cat docs/conventions/bugs.yaml\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p docs/conventions && cat > docs/conventions/bugs.yaml <<'EOF'\\nlanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\nEOF\\nls docs/conventions/bugs.yaml\",\"description\":\"run\"}}]}}",
+      "why": "no git call; the heredoc write has no probe before it"
     }
   ]
 }
