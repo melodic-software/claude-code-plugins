@@ -11,7 +11,7 @@ cat >docs/testing.md <<'EOF'
 # Testing
 
 - Framework: pytest with plain `assert`.
-- Tests live in `tests/test_<module>.py`; name each test `test_<function>_<behaviour>`.
+- Tests live in `tests/test_<module>.py`; name each test `test_<function>_<behavior>`.
 EOF
 cat >src/__init__.py <<'EOF'
 EOF

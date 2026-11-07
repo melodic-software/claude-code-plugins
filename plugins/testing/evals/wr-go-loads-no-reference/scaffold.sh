@@ -23,19 +23,19 @@ type Interval struct{ Start, End int }
 
 // Merge combines two interval lists into one sorted list with overlapping intervals joined.
 func Merge(a, b []Interval) []Interval {
-	all := append(append([]Interval{}, a...), b...)
-	sort.Slice(all, func(i, j int) bool { return all[i].Start < all[j].Start })
-	var out []Interval
-	for _, iv := range all {
-		if n := len(out); n > 0 && iv.Start <= out[n-1].End {
-			if iv.End > out[n-1].End {
-				out[n-1].End = iv.End
-			}
-			continue
-		}
-		out = append(out, iv)
-	}
-	return out
+  all := append(append([]Interval{}, a...), b...)
+  sort.Slice(all, func(i, j int) bool { return all[i].Start < all[j].Start })
+  var out []Interval
+  for _, iv := range all {
+    if n := len(out); n > 0 && iv.Start <= out[n-1].End {
+      if iv.End > out[n-1].End {
+        out[n-1].End = iv.End
+      }
+      continue
+    }
+    out = append(out, iv)
+  }
+  return out
 }
 EOF
 g add -A

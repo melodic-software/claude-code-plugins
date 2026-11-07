@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "package intervals\n\nimport (\n\t\"testing\"\n\n\t\"pgregory.net/rapid\"\n)\n",
+      "answer": "package intervals\n\nimport (\n  \"testing\"\n\n  \"pgregory.net/rapid\"\n)\n",
       "why": "the library go.mod already requires"
     }
   ],
   "fail": [
     {
-      "answer": "package intervals\n\nimport (\n\t\"testing\"\n\t\"testing/quick\"\n)\n",
+      "answer": "package intervals\n\nimport (\n  \"testing\"\n  \"testing/quick\"\n)\n",
       "why": "a different property library than the module uses"
     },
     {
