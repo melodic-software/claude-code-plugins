@@ -1139,6 +1139,9 @@ models:
 
 loop:
   review-rounds: 3
+  # What a review lane reports on heads after the first one it reviewed
+  # whole: blocking-only (the default) or all.
+  findings-after-first-review: blocking-only
   dependency-review-rounds: 2
   # Fixes fix-ci may push to one pull request before the next run hands it to
   # a person instead. 3 matches review-rounds: past it, CI failing again after

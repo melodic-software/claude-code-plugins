@@ -3669,8 +3669,12 @@ comment that names the open threads. A round cap is a lane bound, not
 an intent question, and pr-verify's FAIL already holds the merge until it passes a later head. Removing the label alone does not resume it, since
 the rounds already run still count: a person resolves the open threads, or a write-access fix
 request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
-<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
-repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+<M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 3; this
+repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. `loop.findings-after-first-review`
+sets what a CI review lane reports on a head after the first one it reviewed whole: `blocking-only`
+(the default) reports blocking findings only, `all` reports every finding on every head. The lane's
+prior-findings step reads it from the default branch's `docs/conventions/pr-pipeline.yaml`; an
+absent or unread value is `blocking-only`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
