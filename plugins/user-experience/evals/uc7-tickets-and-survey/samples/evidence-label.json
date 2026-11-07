@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Synthesis: export\n\nEvidence: evidence-based\nAI use: codes suggested"
+    },
+    {
+      "answer": "**Evidence:** `mixed`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The evidence is strong: 12 tickets."
+    },
+    {
+      "answer": "Evidence: see tickets"
+    }
+  ]
+}

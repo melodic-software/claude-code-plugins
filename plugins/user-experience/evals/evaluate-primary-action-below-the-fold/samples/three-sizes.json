@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| Phone | on screen |\n| Tablet | on screen |\n| Desktop | below the fold by 280 px |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At desktop size the Yes and No buttons sit below the fold."
+    },
+    {
+      "answer": "On a phone and a tablet the buttons are visible."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: evaluate-same-session-goes-fresh
+description: 'Legacy evaluate 6. A flow written in this session is evaluated by the user-experience:evaluator agent, whose brief carries the artifact path and the method only (evaluate SKILL.md 38-43). Grants Agent and Write so the flow can be written first and given a path. dispatches-evaluator and brief-path-and-method grade the Agent call; legacy-evaluate-6 (llm) quotes both legacy expectations. Needs --allow-tools Write.'
+tags: [evaluate, fresh-context, legacy]
+runs: 3
+expected_outcome: 'A password-reset flow written to a file, then an Agent call to user-experience:evaluator whose brief names that file''s path and the cognitive walkthrough method, without the reasoning behind the flow.'
+execution:
+  prompt: 'Write a user flow for password reset, then evaluate it with a cognitive walkthrough.'
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, Write]
+  max_turns: 40
+  timeout_seconds: 1200
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    weight: 0.1
+  - name: 'dispatches-evaluator'
+    type: 'tool_used'
+    tool: 'Agent'
+    input_match: '"subagent_type"\s*:\s*"user-experience:evaluator"'
+  - name: 'brief-path-and-method'
+    type: 'tool_used'
+    tool: 'Agent'
+    input_match: '^(?=.*"subagent_type"\s*:\s*"user-experience:evaluator")(?=.*[Cc]ognitive[ -][Ww]alkthrough)(?=.*[\s"/(](?!evaluation\.md)[\w.-]+\.md\b)'
+  - name: 'legacy-evaluate-6'
+    type: 'llm'
+    criteria: 'The run writes a password-reset flow in this session and is asked to evaluate it with a cognitive walkthrough. It meets the legacy expectations: "An Agent call dispatches user-experience:evaluator" "The brief to the evaluator names the artifact path and the cognitive walkthrough method, without the reasoning behind the flow".'
+    focus: 'trace'

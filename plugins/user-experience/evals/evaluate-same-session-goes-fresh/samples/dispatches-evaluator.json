@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "user-experience:evaluator",
+            "prompt": "Method: cognitive walkthrough. Artifact: /w/.work/password-reset/user-flow.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "prompt": "Act as user-experience:evaluator on /w/flow.md"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Screener: interview study\n1. How often do you..."
+    },
+    {
+      "answer": "**Screener questions**\n1. ..."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't email your customers from here."
+    },
+    {
+      "answer": "Here is what a screener should cover: usage and role."
+    }
+  ]
+}

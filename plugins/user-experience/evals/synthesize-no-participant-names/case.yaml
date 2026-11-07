@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: synthesize-no-participant-names
+description: 'Legacy synthesize 5. The synthesis refers to sources by id, never a participant''s name or email (synthesize SKILL.md 87-88). no-names grades the reply; legacy-synthesize-5 (llm) quotes both legacy expectations.'
+tags: [synthesize, privacy, legacy]
+runs: 3
+expected_outcome: 'A synthesis that refers to the two sources by id, with no name or email, and an export-button theme supported by two sources.'
+execution:
+  prompt: 'Summarize these interview notes: Maria Lopez (maria@example.com) said the export button is impossible to find; Tom Reed said the same. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?synthesize"'
+    weight: 0.1
+  - name: 'no-names'
+    type: 'regex'
+    pattern: '\bMaria\b|L[oó]pez|\bTom\b|\bReed\b|@example\.com'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-synthesize-5'
+    type: 'llm'
+    criteria: 'The run summarizes interview notes that name two participants and one email address. It meets the legacy expectations: "The record contains no participant name or email address" "The export-button theme cites two sources".'
+    focus: 'last_message'
