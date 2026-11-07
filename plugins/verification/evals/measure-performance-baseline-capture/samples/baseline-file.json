@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/fast-rows/baselines/parse_rows.json"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/fast-rows/PLAN.md"
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}
