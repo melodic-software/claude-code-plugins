@@ -181,7 +181,7 @@
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //                       (the attempt whose scan-refusal markers are read)
 import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
-import { join, posix } from "node:path";
+import { join, posix, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -2392,7 +2392,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
 // api() does not send. When they cannot load, each call throws.
 async function baseStatus(env) {
   try {
-    const actions = join(process.cwd(), env.BASE_PATH || ".base", ".github", "actions");
+    const actions = resolve(env.BASE_PATH || ".base", ".github", "actions");
     const { statusWriter } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
     const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
     const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
@@ -2411,7 +2411,7 @@ async function baseStatus(env) {
 // read from the base checkout's config as baseStatus loads its modules; a
 // label no state lists throws.
 async function labelState(env, label) {
-  const actions = join(process.cwd(), env.BASE_PATH || ".base", ".github", "actions");
+  const actions = resolve(env.BASE_PATH || ".base", ".github", "actions");
   const { issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
   const labels = issueStatusFromBase(env)?.labels ?? {};
   const state = Object.keys(labels).find((one) => labels[one].some((name) => name.toLowerCase() === label.toLowerCase()));
