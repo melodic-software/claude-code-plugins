@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "There is no earlier message in this session to clarify. What would you like me to clarify? Paste it or point me at the file."
+    },
+    {
+      "answer": "Nothing to work from yet. Could you paste the text you want broken down?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Make this clear: you want clarity."
+    },
+    {
+      "answer": "Here is a clear version of your request."
+    }
+  ]
+}

@@ -33,3 +33,8 @@ graders:
     type: regex
     pattern: '^(?=[\s\S]*CHANGELOG\.md:41)(?=[\s\S]*#212)'
     target: last_message
+  - name: lens-line-closes
+    type: regex
+    pattern: '(?:\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b)[^\n]*(?:\n\s*(?:[`*_>-][ \t]*)*(?:view:|notice:|[^\n]*\b(?:resolver|node)\b)[^\n]*)*\s*$'
+    flags: 'i'
+    target: 'last_message'

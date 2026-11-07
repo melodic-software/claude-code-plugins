@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Caveman mode is active in this session (SessionStart hook): it strips words to save tokens, while adhd:shape adds structure for the reader, so the two pull opposite ways on output shape. I can't turn the hook off. Which one do you want for this session: caveman or shape?"
+    },
+    {
+      "answer": "Keep caveman, or switch to shape?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shaping is on for the rest of this session."
+    },
+    {
+      "answer": "Caveman is active. Shaping anyway."
+    }
+  ]
+}
