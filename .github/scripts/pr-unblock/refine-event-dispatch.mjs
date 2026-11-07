@@ -1,16 +1,16 @@
 // Starts pr-refine's fix-docs for the one pull request a pull_request_target
-// run of pr-unblock-dispatch.yml names (its refine job, ADR 0090), under the
-// push dispatcher's own rule: dispatchDocsFixes (fix-docs-dispatch.mjs) reads
-// this PR alone, in the listing's shape, and decides as it decides for a
-// listed PR, once per PR. The dispatch record is not read or saved: the half-hourly
-// tick keeps it, and stays the backstop for any PR this run skips.
+// run of pr-unblock-dispatch.yml names (its refine job, ADR 0090), the only
+// start fix-docs has: dispatchDocsFixes (fix-docs-dispatch.mjs) reads this PR
+// alone, in the listing's shape, and decides once per PR. The dispatch record
+// is not read or saved, so each event reads the PR's history afresh. A PR this
+// run skips waits for its next event: a push, a reopen or a ready flip.
 //
 // The trusted-trigger gate refuses a Refine run whose dispatcher run was
 // started by anyone but the lanes App or a listed human, and a refused run
 // counts toward fix-docs's per-PR cap, so an event from anyone else
-// dispatches nothing and is left to the tick. A re-run keeps the original
-// event's sender while anyone with write access may have started it, so only
-// a first attempt (RUN_ATTEMPT exactly 1) dispatches; the tick covers the rest.
+// dispatches nothing. A re-run keeps the original event's sender while
+// anyone with write access may have started it, so only a first attempt
+// (RUN_ATTEMPT exactly 1) dispatches.
 //
 // Reads only PR_NUMBER and SENDER_ID from the event, as numbers. Logs carry PR numbers,
 // SHAs, run ids and counts only. The dispatched run id is appended to
@@ -46,13 +46,13 @@ export async function main(
   }
   const number = Number(env.PR_NUMBER);
   if (env.RUN_ATTEMPT !== "1") {
-    log(`::notice::skip fix-docs #${number}: this run is not its event's first attempt, and a re-run keeps the event's sender whoever started it; the next tick decides`);
+    log(`::notice::skip fix-docs #${number}: this run is not its event's first attempt, and a re-run keeps the event's sender whoever started it; the PR's next event decides`);
     return 0;
   }
   const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
   const sender = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
   if (sender === null || (sender !== appSenderId && !readHumans().has(sender))) {
-    log(`skip fix-docs #${number}: its event's sender is neither the lanes App nor a listed human; the next tick decides`);
+    log(`skip fix-docs #${number}: its event's sender is neither the lanes App nor a listed human; the PR's next event decides`);
     return 0;
   }
   const budget = api ? null : budgetedFetch({ log });
@@ -88,7 +88,7 @@ export async function main(
         appSenderId,
       });
     } catch (error) {
-      log(`::warning::#${number} could not be read (${error.message}); nothing dispatched, the next tick retries`);
+      log(`::warning::#${number} could not be read (${error.message}); nothing dispatched, the PR's next event retries`);
       return 0;
     }
     log(`dispatched ${result.dispatched.length} run(s), ${result.failed} failure(s)`);

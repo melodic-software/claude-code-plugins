@@ -5,21 +5,20 @@
 // either lane fix-docs has run in, whoever opened it except the accounts in
 // excludedAuthorIds, and is not a work-resolve-issue PR (the lanes App's, on a
 // lane branch, whose one commit is the lane run's) tidied in its own run
-// (within the tidy cutoffs). It runs from
-// the same dispatcher run as dispatch.mjs (pr-unblock-dispatch.yml), so the
-// trigger gate and the broker check it as they check a resolve-conflicts
-// dispatch.
+// (within the tidy cutoffs). It runs from pr-unblock-dispatch.yml's refine
+// job for the one PR whose pull_request_target event started that run
+// (refine-event-dispatch.mjs), so the trigger gate and the broker check it as
+// they check a resolve-conflicts dispatch.
 //
-// Once per PR, when it is first seen ready, not after each push. The listing is
-// dispatch.mjs's LIST_QUERY, one GraphQL query per page of 50 pull requests
-// shared with the run's other dispatchers, whose rateLimit.cost is logged; it drops a PR
-// whose head already has the check run. For each PR left, lowest number
+// Once per PR, not after each push. The listing the caller passes (that one
+// PR, read by dispatch.mjs's PULL_QUERY) logs its rateLimit.cost; it drops a
+// PR whose head already has the check run. For each PR left, lowest number
 // first, one more query reads the check runs on its last HISTORY_COMMITS
 // commits, and a PR with one on any of them is done for good: its head goes
-// into the dispatch record so the next run skips that read. A run older than
-// that window, or a force-push that dropped its commit, costs one more run.
-// At most `fix-docs-per-run` dispatches per dispatcher run; 0 sends none and
-// makes no GitHub call. Logs carry PR
+// into the dispatch record, when the caller keeps one, so a later run skips
+// that read. A run older than that window, or a force-push that dropped its
+// commit, costs one more run. At most `fix-docs-per-run` dispatches per
+// dispatcher run; 0 sends none and makes no GitHub call. Logs carry PR
 // numbers, SHAs, run ids and counts only.
 //
 // A run whose model leg emitted an empty head, or that stopped at its trigger
@@ -27,8 +26,8 @@
 // PR be dispatched every cycle. The newest runs of the workflow, read once
 // for the in-flight guard, settle it too: a PR with a completed run titled
 // for it is done, and its head goes into the dispatch record, unless each such
-// run says nothing about the PR. Those get another dispatch, the next tick
-// being the probe (outage posture element 3):
+// run says nothing about the PR. Those get another dispatch, the PR's next
+// event being the probe (outage posture element 3):
 //   - one lost run (LOST: cancelled, timed_out or startup_failure);
 //   - fewer than maxRunsPerHead runs that went red, or that ended green on a
 //     failed or lagging handoff read (heldHandoff) or an unread PR head
@@ -40,7 +39,9 @@
 // a kill switch stopped from one that ran the model, so each that ended green
 // ends the PR too. A run older than that listing costs one more run.
 //
-// The dispatch record also keeps the fix-docs runs dispatched on each head;
+// A dispatch record the caller keeps also holds the fix-docs runs dispatched
+// on each head; refine-event-dispatch.mjs keeps none, so each event's run
+// starts from an empty one;
 // once `limit-stops-per-head` are kept, each one's status and jobs are read
 // through the Actions API, and a head with that many whose broker-allowed job
 // succeeded (which no run job can write: handoff-evidence.sh's allowed) goes
@@ -74,7 +75,7 @@ export const DEFAULTS = Object.freeze({
   // run only after it succeeded.
   allowedJob: "fix-docs / broker-allowed",
   // fix-docs runs with a broker allow one head gets:
-  // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
+  // limits.limit-stops-per-head's default, which refine-event-dispatch.mjs passes resolved.
   maxRunsPerHead: 3,
 });
 

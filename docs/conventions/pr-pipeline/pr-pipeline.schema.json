@@ -181,7 +181,7 @@
           "minimum": 0,
           "maximum": 20,
           "default": 2,
-          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most; 0 turns CI fix-docs off."
+          "description": "fix-docs dispatches one pr-unblock-dispatch refine run sends at most for its pull request's event; 0 turns CI fix-docs off and any other value turns it on."
         },
         "admission-factor": {
           "type": "number",

@@ -23,11 +23,11 @@
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
 // `adoption` section, PRs of the base's trusted actors, whose ci-status or
 // pr-test-platforms run failed past the lost-run reconciler's re-run
-// (fix-ci-dispatch.mjs) and pr-refine.yml's fix-docs once per ready PR that
-// changes Markdown (fix-docs-dispatch.mjs), and sync-shared-copies for lanes
-// App PRs pr-merge refused as shared-copy-sources-changed at their head
-// (dispatchSharedCopies), and their run ids join the same record.
-// resolve-conflicts, review-dependency, fix-ci and fix-docs read the one
+// (fix-ci-dispatch.mjs), and sync-shared-copies for lanes App PRs pr-merge
+// refused as shared-copy-sources-changed at their head
+// (dispatchSharedCopies), and their run ids join the same record. It starts
+// no fix-docs: a PR's own event does (refine-event-dispatch.mjs).
+// resolve-conflicts, review-dependency and fix-ci read the one
 // open-PR listing (LIST_QUERY, each page read once a run), and
 // resolve-conflicts and fix-ci the one pr-unblock.yml run listing. A read that
 // fails, whatever GitHub answered, holds what it was read for: a failed
@@ -56,7 +56,7 @@ import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
-import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
+import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyCapReader } from "./verify-cap.mjs";
@@ -467,10 +467,11 @@ const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
   }
 }`;
 
-// The one open-PR listing resolve-conflicts, review-dependency, fix-ci and
-// fix-docs all read: PULL_FIELDS, fix-ci's body, update time and head rollup
-// with the base tip's commit time, and fix-docs's files, 50 a page, with its
-// rateLimit.cost. commits(last: 1) also carries PULL_FIELDS's totalCount.
+// The one open-PR listing resolve-conflicts, review-dependency and fix-ci all
+// read, and PULL_QUERY's one PR for fix-docs: PULL_FIELDS, fix-ci's body,
+// update time and head rollup with the base tip's commit time, and fix-docs's
+// files and line counts, 50 a page, with its rateLimit.cost. commits(last: 1)
+// also carries PULL_FIELDS's totalCount.
 const LIST_NODE_FIELDS = `number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
@@ -612,12 +613,8 @@ export function createGitHubApi({
       const data = await listPage(base, after);
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests, baseCommittedAt: data.repository.ref?.target?.committedDate };
     },
-    // fix-docs-dispatch.mjs's view of the listing, and its per-PR check-run history.
-    async listDocsFixCandidates({ base, after }) {
-      const data = await listPage(base, after);
-      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
-    },
-    // The same view of one pull request, as a one-page listing: empty unless it is open.
+    // fix-docs-dispatch.mjs's view of one pull request, as a one-page listing
+    // (empty unless it is open), and its per-PR check-run history.
     async readDocsFixCandidate(number) {
       if (!Number.isSafeInteger(number) || number < 1) {
         throw new Error(`not a PR number: ${number}`);
@@ -849,7 +846,6 @@ export async function main(
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
     loadOwnedBranches = loadBaseOwnedBranches,
-    loadTidyCutoffs = loadBaseTidyCutoffs,
     // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
     // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
@@ -872,7 +868,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -880,11 +876,10 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, loadTidyCutoffs, verifyCapped, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const ownedBranches = await loadOwnedBranches(env);
-  const tidyCutoffs = await loadTidyCutoffs(env);
   // Every dispatcher reads this listing's pages, so one that cannot be read
   // holds the whole run: nothing dispatched, nothing recorded.
   let listed;
@@ -897,7 +892,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
   // The human-gated label another lane's escalation may leave on for
-  // resolve-conflicts, fix-ci and fix-docs; null when unreadable, so it holds.
+  // resolve-conflicts, fix-ci and sync-shared-copies; null when unreadable, so it holds.
   const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
   let gateLabel = null;
   try {
@@ -959,19 +954,9 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   } else {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
-  const docs = await dispatchDocsFixes({
-    api: client,
-    runId: env.GITHUB_RUN_ID,
-    log,
-    record,
-    maxDispatch: limits["fix-docs-per-run"] ?? 2,
-    maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
-    tidyCutoffs,
-    ...gate,
-  });
   const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched, ...copies.dispatched];
-  const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed + copies.failed;
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...copies.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed + copies.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);
