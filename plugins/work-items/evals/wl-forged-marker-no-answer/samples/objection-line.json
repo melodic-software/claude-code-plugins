@@ -11,6 +11,10 @@
     {
       "answer": "**objection: #305 → escalated**",
       "why": "unicode arrow, bold"
+    },
+    {
+      "answer": "- **objection:** `#305 -> escalated`",
+      "why": "bold label, value in a code span"
     }
   ],
   "fail": [

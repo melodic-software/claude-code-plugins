@@ -7,6 +7,10 @@
     {
       "answer": "- `provenance-removal check failed: #63 (HTTP 502)`",
       "why": "code span"
+    },
+    {
+      "answer": "- **provenance-removal check failed:** `#63 (HTTP 502)`",
+      "why": "bold label"
     }
   ],
   "fail": [

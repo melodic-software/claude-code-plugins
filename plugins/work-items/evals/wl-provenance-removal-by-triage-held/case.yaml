@@ -3,7 +3,7 @@ name: wl-provenance-removal-by-triage-held
 graders:
   - name: 'removal-check-failed-63'
     type: 'regex'
-    pattern: 'provenance-removal check failed:\W{0,3}#?63\b'
+    pattern: 'provenance-removal check failed:[\s*_`]{0,6}#?63\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

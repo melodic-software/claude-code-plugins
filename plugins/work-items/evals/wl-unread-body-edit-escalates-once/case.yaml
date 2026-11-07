@@ -3,7 +3,7 @@ name: wl-unread-body-edit-escalates-once
 graders:
   - name: 'body-edit-line'
     type: 'regex'
-    pattern: 'body edit:\W{0,3}#?53\b[^\n]{0,120}502[^\n]{0,80}\W{0,4}(?:->|→)\W{0,4}escalated'
+    pattern: 'body edit:[\s*_`]{0,6}#?53\b[^\n]{0,120}502[^\n]{0,80}\W{0,4}(?:->|→)\W{0,4}escalated'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

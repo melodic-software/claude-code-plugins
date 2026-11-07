@@ -3,7 +3,7 @@ name: wl-body-edit-after-admission-escalated
 graders:
   - name: 'body-edit-line'
     type: 'regex'
-    pattern: 'body edit:\W{0,3}#?51\b[^\n]{0,200}\W{0,4}(?:->|→)\W{0,4}escalated'
+    pattern: 'body edit:[\s*_`]{0,6}#?51\b[^\n]{0,200}\W{0,4}(?:->|→)\W{0,4}escalated'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

@@ -7,6 +7,10 @@
     {
       "answer": "- `labeler refused: #41 \"agent-ready\" applied by quill-ops (read, triage)`",
       "why": "code span"
+    },
+    {
+      "answer": "- **labeler refused:** `#41 \"agent-ready\" applied by quill-ops (triage)`",
+      "why": "bold label"
     }
   ],
   "fail": [

@@ -3,7 +3,7 @@ name: wl-objection-window-open-skips
 graders:
   - name: 'window-open-line'
     type: 'regex'
-    pattern: 'objection window open:\W{0,3}#?301\b\W{0,3}until\W{0,3}2026-10-06T09:00(?::00)?Z'
+    pattern: 'objection window open:[\s*_`]{0,6}#?301\b[\s*_`]{0,6}until[\s*_`]{0,6}2026-10-06T09:00(?::00)?Z'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

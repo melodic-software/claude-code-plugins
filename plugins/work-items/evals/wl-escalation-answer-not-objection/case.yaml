@@ -3,7 +3,7 @@ name: wl-escalation-answer-not-objection
 graders:
   - name: 'no-objection-escalation'
     type: 'regex'
-    pattern: '^(?![\s\S]*objection:\W{0,3}#?306\b\W{0,4}(?:->|→)\W{0,4}escalated)(?=[\s\S]*#306\b)'
+    pattern: '^(?![\s\S]*objection:[\s*_`]{0,6}#?306\b\W{0,4}(?:->|→)\W{0,4}escalated)(?=[\s\S]*#306\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

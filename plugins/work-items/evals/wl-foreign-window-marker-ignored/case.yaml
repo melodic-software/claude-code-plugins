@@ -3,7 +3,7 @@ name: wl-foreign-window-marker-ignored
 graders:
   - name: 'no-window-line'
     type: 'regex'
-    pattern: '^(?![\s\S]*objection window open:\W{0,3}#?303\b)(?=[\s\S]*#303\b)'
+    pattern: '^(?![\s\S]*objection window open:[\s*_`]{0,6}#?303\b)(?=[\s\S]*#303\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

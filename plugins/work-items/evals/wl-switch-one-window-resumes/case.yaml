@@ -3,7 +3,7 @@ name: wl-switch-one-window-resumes
 graders:
   - name: 'account-switch-resumed'
     type: 'regex'
-    pattern: 'account-switch:\W{0,3}resumed\b'
+    pattern: 'account-switch:[\s*_`]{0,6}resumed\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

@@ -7,6 +7,10 @@
     {
       "answer": "`labeler check failed: #43 (exit 8)`",
       "why": "code span"
+    },
+    {
+      "answer": "- **labeler check failed:** `#43 (exit 8)`",
+      "why": "bold label"
     }
   ],
   "fail": [

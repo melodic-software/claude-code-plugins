@@ -7,6 +7,10 @@
     {
       "answer": "**account-switch: resumed**",
       "why": "bold"
+    },
+    {
+      "answer": "- **account-switch:** `resumed`",
+      "why": "bold label"
     }
   ],
   "fail": [

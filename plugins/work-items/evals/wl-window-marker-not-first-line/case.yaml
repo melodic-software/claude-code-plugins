@@ -3,7 +3,7 @@ name: wl-window-marker-not-first-line
 graders:
   - name: 'no-window-line'
     type: 'regex'
-    pattern: '^(?![\s\S]*objection window open:\W{0,3}#?305\b)(?=[\s\S]*#305\b)'
+    pattern: '^(?![\s\S]*objection window open:[\s*_`]{0,6}#?305\b)(?=[\s\S]*#305\b)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
