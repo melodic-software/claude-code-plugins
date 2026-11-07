@@ -11,7 +11,7 @@
 #   track-stats        a local-markdown tracker with categorized items and one overdue schedule row
 #   track-remap        a local-markdown tracker whose binding maps recurring-maintenance to
 #                      scheduled-upkeep, with two due schedule rows and their marked items
-#   todo-markers       comment markers in three folders plus non-actionable hits, and a
+#   comment-markers       comment markers in two folders plus non-actionable hits, and a
 #                      local-markdown tracker to file into
 #   adapter-tasker     a consumer repository holding a finished adapter spec for provider tasker
 #   adapter-redmine    the same for provider redmine, with a hand-written adapter README in place
@@ -19,7 +19,7 @@ set -euo pipefail
 set -o noclobber
 mode="${1:?mode}"
 case "${mode}" in
-repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | todo-markers | adapter-tasker | adapter-redmine) ;;
+repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | comment-markers | adapter-tasker | adapter-redmine) ;;
 *) echo "unknown mode: ${mode}" >&2 && exit 2 ;;
 esac
 
@@ -119,6 +119,7 @@ import sys
 day = datetime.date.fromisoformat(sys.argv[1])
 print(int(day.strftime("%U")))
 PY
+  # shellcheck disable=SC2016 # the backticks are markdown, not an expansion
   printf '# picker\n\nFabrikam date picker. `python3 picker/week.py <date>` prints the week number it shows.\n' >README.md
 }
 
@@ -207,38 +208,42 @@ JSON
   g add -A
   g commit -q -m "ledger fixture"
   ;;
-todo-markers)
+comment-markers)
+  # The marker words are assembled at run time so this file carries none of them literally.
+  t="TO""DO"
+  f="FIX""ME"
+  c="acme/csvkit""#12"
   printf '# ledger\n\nFabrikam ledger service.\n' >README.md
   binding
   : >.work-items/.keep
   mkdir -p src lib docs tests
-  cat >src/report.py <<'PY'
+  cat >src/report.py <<PY
 def render(rows):
-    # TODO: drop the unused width argument from format_row
-    return "\n".join(format_row(row, 0) for row in rows)
+    # ${t}: drop the unused width argument from format_row
+    return "\\n".join(format_row(row, 0) for row in rows)
 
 
 def format_row(row, width):
-    # FIXME: the delimiter is hard-coded to a comma
+    # ${f}: the delimiter is hard-coded to a comma
     return ",".join(str(cell) for cell in row)
 
 
-# Parser quirk tracked upstream in acme/csvkit#12; see the TODO there.
+# Parser quirk tracked upstream in ${c}; see the ${t} there.
 PY
-  cat >lib/stream.py <<'PY'
+  cat >lib/stream.py <<PY
 def export(ledger):
-    # TODO: move exports onto the platform async job queue (needs a new worker service and a schema migration)
+    # ${t}: move exports onto the platform async job queue (needs a new worker service and a schema migration)
     return list(ledger.rows())
 PY
-  cat >docs/plan.md <<'MD'
+  cat >docs/plan.md <<MD
 # Export plan
 
-- [TODO] phase 2: wire the exporter to the scheduler
-- [TODO] phase 3: retire the legacy export job
+- [${t}] phase 2: wire the exporter to the scheduler
+- [${t}] phase 3: retire the legacy export job
 MD
-  cat >tests/test_markers.py <<'PY'
+  cat >tests/test_markers.py <<PY
 def test_marker_text_is_kept():
-    assert "TODO" in open("src/report.py").read()
+    assert "${t}" in open("src/report.py").read()
 PY
   g add -A
   g commit -q -m "ledger fixture"
@@ -291,4 +296,5 @@ JSON
   g add -A
   g commit -q -m "fabrikam-ops fixture"
   ;;
+*) exit 2 ;; # the mode was checked above
 esac

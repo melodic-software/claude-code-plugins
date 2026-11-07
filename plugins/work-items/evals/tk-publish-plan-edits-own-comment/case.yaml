@@ -3,7 +3,7 @@ name: tk-publish-plan-edits-own-comment
 graders:
   - name: 'edits-4410'
     type: 'regex'
-    pattern: '(?:edit|updat|replac|patch|rewrit)[^\n]{0,80}\b4410\b|\b4410\b[^\n]{0,80}(?:edit|updat|replac|in place|patch|rewrit)'
+    pattern: '(?:edit|update[ds]?|updating|replac|patch|rewrit)[^\n]{0,80}\b4410\b|\b4410\b[^\n]{0,80}(?:edit|update[ds]?|updating|replac|in place|patch|rewrit)'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
