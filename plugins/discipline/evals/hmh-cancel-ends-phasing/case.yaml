@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: hmh-cancel-ends-phasing
+context:
+  history_file: history.jsonl
+graders:
+  - name: says-phasing-stopped
+    type: regex
+    pattern: '\b(?:phasing|phases?|hand-holding|one (?:phase|step) at a time)\b[^\n.]{0,60}\b(?:stopped|is off|turned off|ended|is over|no longer|dropped)\b|\b(?:stopped|stopping|ending|ended|dropping|dropped|no more)\b[^\n.]{0,40}\b(?:phasing|phases|the phased|hand-holding)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: finishes-or-hands-back
+    type: llm
+    criteria: 'Legacy expectation: "Finishes or hands back the phase in progress instead of abandoning it mid-step". Phase 2 (register the runner with config.cmd on BUILD01) was in progress and only the user can run it. PASS only if the reply finishes that phase or explicitly hands its remaining step back to the user (the registration command and how to tell it worked), then covers the remaining work in ordinary prose or a plain list. FAIL if Phase 2''s registration step is dropped.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: no-more-phasing
+    type: regex
+    pattern: '\bPhase[ \t]+\d+[a-z]?[ \t]+of[ \t]+\d+\b|`phase[ \t]+\d+[a-z]?[ \t]+done`'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

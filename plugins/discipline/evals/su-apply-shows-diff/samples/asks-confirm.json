@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Should I write this diff?"
+    },
+    {
+      "answer": "Re-run with --yes to apply it?"
+    },
+    {
+      "answer": "Do you want this change written?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I wrote the change."
+    },
+    {
+      "answer": "Nothing was written. Run it again later."
+    }
+  ]
+}

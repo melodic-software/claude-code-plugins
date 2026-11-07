@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Before: INFO docs/conventions/discipline.yaml: absent; every key resolves from userConfig or its default."
+    },
+    {
+      "answer": "| lever_scope | INFO | file absent |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The file did not exist, so I created it."
+    },
+    {
+      "answer": "INFO: wrote the file.\nIt was absent."
+    }
+  ]
+}

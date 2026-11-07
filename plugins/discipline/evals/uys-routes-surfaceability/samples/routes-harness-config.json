@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Listing-budget overflow routes to /harness-config:audit."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Raise the listing budget in settings."
+    }
+  ]
+}

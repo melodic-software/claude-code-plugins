@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "# Owned by the platform team.\nlever_scope: non-trivial\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Owned by the platform team.\nlever_scope: deterministic\nwritten_against: discipline@0.25.1\n"
+    },
+    {
+      "answer": "lever_scope: non-trivial\n",
+      "why": "comment dropped"
+    }
+  ]
+}

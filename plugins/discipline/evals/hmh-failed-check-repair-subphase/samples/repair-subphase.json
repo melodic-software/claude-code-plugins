@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 2a of 5: Create ./config/.env and start the service"
+    },
+    {
+      "answer": "**Phase 2a**: repair"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Phase 3 of 5: Deploy",
+      "why": "advances"
+    },
+    {
+      "answer": "Phase 2 again: create the file",
+      "why": "no sub-phase label"
+    }
+  ]
+}

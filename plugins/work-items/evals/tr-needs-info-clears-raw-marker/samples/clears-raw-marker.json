@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "In one label edit: add status:ready and agent-ready, remove needs-triage.",
+      "why": "remove"
+    },
+    {
+      "answer": "needs-triage is cleared in the same edit.",
+      "why": "cleared"
+    },
+    {
+      "answer": "The edit replaces needs-triage with status:needs-info.",
+      "why": "replaces"
+    },
+    {
+      "answer": "Then one label edit applies `status:needs-info`, removing any other `status:` label and replacing the raw marker.",
+      "why": "raw marker, from smoke r1"
+    },
+    {
+      "answer": "In one edit, swap `needs-triage` for `status: ready` plus the autonomous role label (default `agent-ready`).",
+      "why": "swap, from smoke v1"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Adds status:ready and agent-ready to #42.",
+      "why": "stacks on the marker"
+    },
+    {
+      "answer": "needs-triage stays on the item alongside agent-ready.",
+      "why": "kept"
+    },
+    {
+      "answer": "The raw marker stays; agent-ready is added beside it.",
+      "why": "raw marker kept"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

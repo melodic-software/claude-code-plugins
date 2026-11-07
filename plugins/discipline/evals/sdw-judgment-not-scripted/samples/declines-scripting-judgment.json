@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Whether a boundary is right is reasoning-only."
+    },
+    {
+      "answer": "I won't script the verdict itself."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is a script that decides whether each module has the right boundaries.",
+      "why": "echo"
+    },
+    {
+      "answer": "Sure, script below."
+    }
+  ]
+}

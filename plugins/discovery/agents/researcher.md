@@ -352,7 +352,9 @@ reading of the table or the headers.
 ## Return exactly this, and nothing resembling a transcript
 
 One fenced YAML block, then at most one paragraph of prose. Your file reads, queries, and fetched
-pages stay here. That is the entire point of dispatching you.
+pages stay here. That is the entire point of dispatching you. With `persistence: written`, aim for
+3,400 bytes; the whole message must stay under 4,096, and detail goes in the artifact `artifact:`
+points at.
 
 ```yaml
 preload_token: <echoed verbatim from the skill file, or MISSING>

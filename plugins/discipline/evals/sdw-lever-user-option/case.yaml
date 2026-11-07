@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: sdw-lever-user-option
+graders:
+  - name: scope-user-non-trivial
+    type: regex
+    pattern: 'lever_scope[`*]*\s*[:=][`*\s]*non-trivial[`*]*\s*\([^)\n]*\b(?:user|userConfig|option)\b'
+    flags: 'i'
+    target: last_message
+  - name: answers-build
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*build-a-lever\b'
+    flags: 'i'
+    target: last_message
+  - name: names-established-tool
+    type: regex
+    pattern: '\b(?:codemods?|OpenRewrite|Rector|comby|ast-grep|jscodeshift|ts-morph|semgrep|Spoon|refactoring tool|language[- ]server|IDE (?:refactor\w*|rename)|structural (?:search|rewrite|replace))\b'
+    flags: 'i'
+    target: last_message
+  - name: pilot-diff
+    type: regex
+    pattern: '\b(?:pilot\w*|first (?:class|site|call site|file|fixture|handler)|one (?:class|site|call site|file|fixture))\b[\s\S]{0,300}?\bdiff\w*\b'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: tool-not-scratch-script
+    type: llm
+    criteria: 'The reply meets the legacy expectations "Answers build-a-lever with a reason that names the per-class variation", "Names an established codemod or refactoring tool as the lever and rules out a from-scratch refactoring script" and "States the pilot: one class edited by hand, then the tool''s result on that class diffed against it".'
+    focus: last_message

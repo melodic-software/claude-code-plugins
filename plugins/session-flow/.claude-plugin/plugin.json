@@ -162,6 +162,13 @@
       "default": "offer",
       "options": ["off", "offer"]
     },
+    "retro_offer": {
+      "type": "string",
+      "title": "Retro offer",
+      "description": "Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask.",
+      "default": "offer",
+      "options": ["off", "offer"]
+    },
     "recommend_skills_exclude": {
       "type": "string",
       "title": "Recommend-skills exclusions",

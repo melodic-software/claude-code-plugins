@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Cycle report: proposed class C3 (scoped) for #4399.",
+      "why": "proposed"
+    },
+    {
+      "answer": "Class: not applied (directive). I recommend C3 (scoped) in the cycle report.",
+      "why": "recommended in the cycle report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No class proposed.",
+      "why": "missing"
+    },
+    {
+      "answer": "Applied labels: C3, agent-ready, status:ready.",
+      "why": "applies the class label instead of proposing it"
+    },
+    {
+      "answer": "Not applying agent-ready: the C3 class label is missing, so I add needs-human.",
+      "why": "human-gated fallback"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

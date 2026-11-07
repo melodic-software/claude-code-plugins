@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "A script can flag modules over a fan-out threshold as candidates."
+    },
+    {
+      "answer": "Script the detect half only."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This needs judgment; I'll review the modules.",
+      "why": "no detect step"
+    }
+  ]
+}

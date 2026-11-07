@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The file is written but untracked: commit it to share it with the team."
+    },
+    {
+      "answer": "It is not yet committed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done. The team now has lever_scope: non-trivial."
+    }
+  ]
+}

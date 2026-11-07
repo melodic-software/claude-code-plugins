@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tr-briefed-outcome-clears-raw-marker
+graders:
+  - name: 'clears-raw-marker'
+    type: 'regex'
+    pattern: '(?:remov|clear|drop|replac|swap)\w*[^\n]{0,60}(?:needs-triage|raw[ \t-]+marker)|(?:needs-triage|raw[ \t-]+marker)[^\n]{0,60}(?:remov|clear|drop|replac|swap|off\b|gone)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does when briefing #42 for autonomous pickup. PASS only if it satisfies every point: (1) Clears needs-triage in the same edit that applies the outcome''s labels, as a transition off raw rather than an addition; (2) Leaves the item with the brief, status:ready and the autonomous-eligible role label and without needs-triage; (3) States that an open item carrying the raw marker beside a briefed, ready or role label is re-selected by the attention view every cycle; (4) Recognizes that a close outcome instead drops the item from the open-only attention view, making the raw marker moot. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
