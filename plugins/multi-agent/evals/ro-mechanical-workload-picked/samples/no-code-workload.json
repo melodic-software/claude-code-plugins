@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker mechanical session=opus"
+          }
+        }
+      ],
+      "why": "mechanical"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker code session=opus"
+          }
+        }
+      ],
+      "why": "code"
+    }
+  ]
+}

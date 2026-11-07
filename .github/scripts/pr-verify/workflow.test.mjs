@@ -56,26 +56,14 @@ const chunkScript = readFileSync(new URL("./chunk-diff.sh", import.meta.url), "u
 const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-([1-9][0-9]*)\}$/m.exec(chunkScript)?.[1]);
 const SLOTS = Array.from({ length: CEILING }, (_, i) => i + 1);
 const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # \S/;
-// The subscription job's one lane record names why the key did not judge,
-// in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml);
-// a key the credit gate skipped is a credit stop too.
-const FALLBACK_REASON =
-  "${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || needs.check-intent.outputs.skip-key == 'true' && 'credit-stop' || '' }}";
-// The fallback job's record names why the subscription did not judge, from
-// its handoff-reason (ci-workflows intake-triage.yml, the fallback job).
-const FB_REASON =
-  "${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || needs.check-intent-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}";
+// Each later leg's lane record names why the leg before it did not judge:
+// select-model-credential's fallback-reason, from the previous job's
+// next-reason (credential-legs.test.mjs holds it to the expressions before).
+const FALLBACK_REASON = "${{ steps.credential.outputs.fallback-reason }}";
+const FB_REASON = FALLBACK_REASON;
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
-// Whether the fallback leg can run, never the token (ci-workflows
-// intake-triage.yml and pr-review-cli.yml, "Check the credential").
-const FALLBACK_PRESENT = `          FALLBACK_PRESENT: \${{ secrets.${FALLBACK} != '' }}`;
-const FALLBACK_READY = [
-  '          if [ "$FALLBACK_PRESENT" = true ]; then',
-  '            echo "fallback-ready=true" >>"$GITHUB_OUTPUT"',
-  "          else",
-  '            echo "fallback-ready=false" >>"$GITHUB_OUTPUT"',
-  "          fi",
-].join("\n");
+// The one credential action every leg calls, and its call in each job.
+const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@[0-9a-f]{40} # \S/m;
 // check-intent's reads, which the subscription job's resolver takes through
 // env only (resolve-pr.mjs takeReads).
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
@@ -89,8 +77,9 @@ const FOUND = {
 const foundLine = (job) => `          FOUND_CAPTURE: ${FOUND[job]}`;
 const CAPTURE_OUTPUT = (comment) => [comment, "      capture: ${{ steps.capture.outputs.carry }}"];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
-// The key job's credit gate: a key it skipped runs no pre-judge setup.
-const KEY_SKIP = " && steps.credit.outputs.skip-key != 'true'";
+// The key job's credit gate, read inside its credential call: a key it
+// held off runs no pre-judge setup.
+const KEY_SKIP = " && steps.credential.outputs.key-skipped != 'true'";
 const CREDIT_STEPS = ["Read the key's credit history", "Report the skipped key leg"];
 // The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
@@ -347,40 +336,56 @@ test("the key job runs on main for a same-repository pull_request run that passe
   assert.doesNotMatch(jobText(KEY), /^ {4}needs:/m);
 });
 
-// ci-workflows check-key-credit (gate.cjs at the pinned SHA): skip-key is
-// `true` only while the newest credit-stop marker this job uploaded is inside
-// the window; any failure leaves it empty, so the key runs as before the gate.
-// It spends one artifact-list call, so it runs only for a head the resolver
-// would judge: a run that skips there (a judged head, a draft, a run red for
-// anything but a hold) spends none.
-const GATED_SETUP = ["Resolve the verifier's model", "Check the credential", "Apply the Claude managed settings", "Isolate the runner", "Write the prompt and schema"];
+// ci-workflows select-model-credential's key call with key-job reads
+// check-key-credit's history inline (gate.cjs at the pinned SHA):
+// key-skipped is `true` only while the newest credit-stop marker this job
+// uploaded is inside the window; any failure of the read runs the key, as
+// before the gate. It spends one artifact-list call, so it runs only for a
+// head the resolver would judge: a run that skips there (a judged head, a
+// draft, a run red for anything but a hold) spends none.
+const GATED_SETUP = ["Resolve the verifier's model", "Apply the Claude managed settings", "Isolate the runner", "Write the prompt and schema"];
 test("the credit gate runs in the key job after the resolver, the trigger gate and the reads hand-on, and only then", () => {
-  assert.equal(text.match(/check-key-credit@/g).length, 1);
+  assert.doesNotMatch(text, /check-key-credit@/);
+  // Its own step under continue-on-error and a 2-minute limit: a read that
+  // fails or hangs leaves next-leg empty, and the key judges.
   const gate = step("Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
   assert.match(gate, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
   assert.match(gate, /^ {8}continue-on-error: true$/m);
-  assert.match(gate, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/check-key-credit@[0-9a-f]{40} # \S/m);
+  assert.match(gate, /^ {8}timeout-minutes: 2$/m);
+  assert.match(gate, SELECT);
+  assert.equal(input(gate, "leg"), "start");
   assert.doesNotMatch(gate, /secrets\./);
+  // The key call runs whatever the read chose; only whether the key is set reaches it.
+  const key = step("Check the credential");
+  assert.match(key, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
+  assert.match(key, SELECT);
+  assert.equal(input(key, "leg"), "key");
+  assert.equal(input(key, "role"), "pr-verify");
+  assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
+  assert.equal(input(key, "key-job"), undefined);
+  assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.equal(index("Check the credential"), index("Read the key's credit history") + 1);
   for (const before of ["Resolve the pull request", "Check the trigger", "Assert the gate and the resolver agree", "Hand the reads on"]) {
     assert.ok(index(before) >= 0 && index(before) < index("Read the key's credit history"), before);
   }
-  for (const after of GATED_SETUP) assert.ok(index(after) > index("Read the key's credit history"), after);
+  for (const after of GATED_SETUP) assert.ok(index(after) > index("Check the credential"), after);
   // The marker's name carries the key-job input; the key job's id stays its display name.
   assert.equal(input(gate, "key-job"), KEY);
   assert.doesNotMatch(jobText(KEY), /^ {4}name:/m);
-  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
+  // The window's default lives only in the action: an empty variable is its 1 hour.
+  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
+  assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
 });
 
 test("a key the credit gate skipped runs no pre-judge setup, no judge and no verdict failure, and hands on", () => {
   const SKIPPED = KEY_SKIP;
   for (const name of GATED_SETUP) assert.match(step(name), new RegExp(`^ {8}if: steps\\.agree\\.outcome == 'success'${SKIPPED.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"), name);
-  // Every judge step needs the credential step's present=true, which a skip leaves empty.
+  // Every judge step needs the credential step's present=true, which a held key sets false.
   assert.match(step("Judge the pull request"), /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
   const fail = /^ {8}if: (.*)$/m.exec(step("Fail without a verdict"))[1];
   assert.ok(fail.startsWith(`always() && steps.agree.outcome == 'success'${SKIPPED} && `), fail);
-  const key = jobText(KEY);
-  assert.match(key, /^ {6}skip-key: \$\{\{ steps\.credit\.outputs\.skip-key \}\}$/m);
+  assert.match(jobText(KEY), /^ {6}next-leg: \$\{\{ steps\.next\.outputs\.next-leg \}\}$/m);
 });
 
 // ci-workflows#973 (bc62beb): the gate reads one exact-name artifact, its
@@ -389,7 +394,7 @@ test("a key the credit gate skipped runs no pre-judge setup, no judge and no ver
 // credit-stop handoff (pr-review-cli.yml's key job does the same).
 // ci-workflows#980 (09cf6f2) adds the probing marker the next test covers.
 test("the key job uploads the gate's marker only after a credit-stop handoff, and nothing carries a record", () => {
-  assert.match(step("Read the key's credit history"), / {8}uses: [^\n]*\/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 /);
+  assert.match(step("Check the credential"), SELECT);
   assert.doesNotMatch(text, /Record the key's credit stop|origin-run/);
   const [write, scan, upload] = MARKER_STEPS;
   const writeStep = step(write);
@@ -425,7 +430,7 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   for (const job of [SUB, FB]) for (const name of MARKER_STEPS) assert.equal(index(name, job), -1, `${job} ${name}`);
   // The skipped key leg still leaves its lane record, so leg counts compare.
   const report = step("Report the skipped key leg");
-  assert.match(report, /^ {8}if: steps\.credit\.outputs\.skip-key == 'true'$/m);
+  assert.match(report, /^ {8}if: steps\.credential\.outputs\.key-skipped == 'true'$/m);
   assert.equal(input(report, "outcome"), "skipped");
   assert.equal(input(report, "lane-id"), "pr-verify");
   assert.equal(input(report, "credential"), CREDENTIAL[KEY][1]);
@@ -469,9 +474,9 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   assert.equal(input(uploadStep, "retention-days"), "1");
   assert.equal(input(uploadStep, "if-no-files-found"), "error");
   for (const name of PROBE_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
-  // Right after the credential check that follows the gate, before any judge step.
-  assert.ok(index("Read the key's credit history") < index("Check the credential"));
-  assert.equal(index(write), index("Check the credential") + 1);
+  // Right after the model resolves, which follows the credential call, before any judge step.
+  assert.ok(index("Check the credential") < index("Resolve the verifier's model"));
+  assert.equal(index(write), index("Resolve the verifier's model") + 1);
   assert.equal(index(scan), index(write) + 1);
   assert.equal(index(upload), index(scan) + 1);
   assert.ok(index(upload) < index("Judge the pull request"));
@@ -519,26 +524,18 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
     [
       "!cancelled()",
       `&& ${TRIGGER_GATE}`,
-      "&& ((needs.check-intent.result == 'success'",
-      "&& ((needs.check-intent.outputs.handoff == 'true'",
-      "&& needs.check-intent.outputs.key-leg-clean == 'true')",
-      "|| needs.check-intent.outputs.credential-present == 'false'",
-      "|| needs.check-intent.outputs.skip-key == 'true')))",
+      "&& needs.check-intent.result == 'success'",
+      "&& needs.check-intent.outputs.next-leg == 'subscription'",
     ].join(" "),
   );
   // !cancelled() keeps a gate-skipped key job from skipping this one, so the
   // key job's success is spelled out: a failed key job skips it.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
   const run = (key) => admits(gate, withNeeds({ [KEY]: key }));
-  const handedOff = { handoff: "true", "key-leg-clean": "true", "credential-present": "true" };
-  assert.ok(run({ result: "success", outputs: handedOff }));
-  assert.ok(run({ result: "success", outputs: { "credential-present": "false" } }));
-  assert.ok(!run({ result: "success", outputs: { ...handedOff, "key-leg-clean": "" } }));
-  assert.ok(!run({ result: "success", outputs: { "credential-present": "true" } }));
-  assert.ok(!run({ result: "failure", outputs: handedOff }));
-  assert.ok(run({ result: "success", outputs: { "skip-key": "true" } }));
-  assert.ok(!run({ result: "success", outputs: { "skip-key": "false", "credential-present": "true" } }));
-  assert.ok(!run({ result: "failure", outputs: { "skip-key": "true" } }));
+  const handedOn = { "next-leg": "subscription" };
+  assert.ok(run({ result: "success", outputs: handedOn }));
+  assert.ok(!run({ result: "success", outputs: { "next-leg": "" } }));
+  assert.ok(!run({ result: "failure", outputs: handedOn }));
   // A key job skipped for any other reason (the trigger gate) judges nothing.
   assert.ok(!run({ result: "skipped", outputs: {} }));
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
@@ -548,19 +545,16 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, foundLine(SUB), ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
+    [CARRIED, "          reason: ${{ needs.check-intent.outputs.next-reason }}", foundLine(SUB)],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
   assert.equal(
     outputs,
     [
-      `      lane-class: \${{ ${chainOf((id) => `steps.${id}.outputs.lane-class`, "judge")} }}`,
-      `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
-      "      credential-present: ${{ steps.credential.outputs.present }}",
-      `      key-leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "key-leg")} }}`,
+      "      next-leg: ${{ steps.next.outputs.next-leg }}",
+      "      next-reason: ${{ steps.next.outputs.next-reason }}",
       "      reads: ${{ steps.carry.outputs.reads }}",
-      "      skip-key: ${{ steps.credit.outputs.skip-key }}",
       ...WAKE_OUTPUTS,
       ...CAPTURE_OUTPUT("      # For the later judge jobs: the capture this job found (find-capture.mjs)."),
       "",
@@ -571,15 +565,10 @@ test("the subscription job runs only on a clean handoff, an empty key or a key t
   assert.equal(
     /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(job)?.[1],
     [
-      `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
-      `      handoff-reason: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`,
-      `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
+      "      next-leg: ${{ steps.next.outputs.next-leg }}",
+      "      next-reason: ${{ steps.next.outputs.next-reason }}",
       ...WAKE_OUTPUTS,
       ...CAPTURE_OUTPUT("      # For check-intent-fallback: the capture this job found (find-capture.mjs)."),
-      "      # For check-intent-fallback: an empty token hands the judgment on when",
-      "      # the fallback token is set.",
-      "      credential-present: ${{ steps.credential.outputs.present }}",
-      "      fallback-ready: ${{ steps.credential.outputs.fallback-ready }}",
       "",
     ].join("\n"),
   );
@@ -602,33 +591,27 @@ test("the fallback job runs only on the subscription job's clean handoff, or its
       "!cancelled()",
       "&& needs.check-intent-subscription.result == 'success'",
       `&& ${TRIGGER_GATE}`,
-      "&& (needs.check-intent-subscription.outputs.handoff == 'true'",
-      "&& needs.check-intent-subscription.outputs.leg-clean == 'true'",
-      "|| needs.check-intent-subscription.outputs.credential-present == 'false'",
-      "&& needs.check-intent-subscription.outputs.fallback-ready == 'true')",
+      "&& needs.check-intent-subscription.outputs.next-leg == 'fallback'",
     ].join(" "),
   );
-  assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { "credential-present": "false", "fallback-ready": "true" } } })), "an empty subscription token");
-  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { "credential-present": "false", "fallback-ready": "false" } } })), "every token empty");
   // The implicit success() needs every ancestor, so a key job the credit gate
   // skipped would skip this job; the subscription job's success is spelled out.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
-  const handedOff = { handoff: "true", "leg-clean": "true" };
-  assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: handedOff } })));
-  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "failure", outputs: handedOff } })));
-  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { ...handedOff, "leg-clean": "" } } })));
+  const handedOn = { "next-leg": "fallback" };
+  assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: handedOn } })));
+  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "failure", outputs: handedOn } })));
+  assert.ok(!admits(gate, withNeeds({ [SUB]: { result: "success", outputs: { "next-leg": "" } } })));
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [foundLine(FB), ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FB_REASON}`)],
+    ["          reason: ${{ needs.check-intent-subscription.outputs.next-reason }}", foundLine(FB)],
   );
 });
 
 test("the subscription job hands the judgment on only after a clean handoff, and only with the fallback token set", () => {
   const credential = step("Check the credential", SUB);
-  assert.ok(credential.split("\n").includes(FALLBACK_PRESENT));
-  assert.ok(credential.includes(FALLBACK_READY));
+  assert.equal(input(credential, "fallback-set"), `\${{ secrets.${FALLBACK} != '' }}`);
   assert.equal(input(step("Judge the pull request", SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
   assert.equal(input(step("Judge the pull request", KEY), "fallback-ready"), undefined);
   const leg = step("Check the subscription leg", SUB);
@@ -669,12 +652,29 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
   assert.ok(run.lastIndexOf("::warning::") < run.indexOf("check-key-leg"));
   assert.equal(index("Check the key leg", SUB), -1);
   assert.equal(index("Check the key leg", FB), -1);
+  const legs = { [KEY]: "key", [SUB]: "subscription", [FB]: "fallback" };
   for (const job of JOBS) {
     const credential = step("Check the credential", job);
-    assert.equal(/^ {8}if: (.*)$/m.exec(credential)[1], ifOf(job, "steps.agree.outcome == 'success'"), job);
-    assert.match(credential, new RegExp(`^ {10}PRESENT: \\$\\{\\{ secrets\\.${CREDENTIAL[job][1]} != '' \\}\\}$`, "m"), job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(credential)[1], "steps.agree.outcome == 'success'", job);
+    assert.match(credential, SELECT, job);
+    assert.equal(input(credential, "leg"), legs[job], job);
+    assert.equal(input(credential, "credential-set"), `\${{ secrets.${CREDENTIAL[job][1]} != '' }}`, job);
     assert.ok(index("Check the credential", job) < index("Judge the pull request", job), job);
   }
+  // Each later leg's reason is the job before it's next-reason.
+  assert.equal(input(step("Check the credential", SUB), "reason"), "${{ needs.check-intent.outputs.next-reason }}");
+  assert.equal(input(step("Check the credential", FB), "reason"), "${{ needs.check-intent-subscription.outputs.next-reason }}");
+  // The key and subscription jobs name the next leg from a clean handoff of any chunk, with no if:.
+  for (const [job, legStep] of [[KEY, "key-leg"], [SUB, "sub-leg"]]) {
+    const next = step("Pick the next leg", job);
+    assert.match(next, SELECT, job);
+    assert.doesNotMatch(next, /^ {8}if:/m, job);
+    assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}", job);
+    assert.equal(input(next, "handoff"), `\${{ (${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")}) && (${chainOf((id) => `steps.${id}.outputs.clean`, legStep)}) == 'true' }}`, job);
+    assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
+    assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 1, job);
+  }
+  assert.equal(index("Pick the next leg", FB), -1);
 });
 
 test("the subscription job repeats the key job's steps but for the credential", () => {
@@ -697,7 +697,9 @@ test("the subscription job repeats the key job's steps but for the credential", 
           // The key's probing marker: only the key leg probes the key.
           !PROBE_STEPS.includes(s.name) &&
           // The credit gate: only the key leg can be out of credit.
-          !CREDIT_STEPS.includes(s.name),
+          !CREDIT_STEPS.includes(s.name) &&
+          // Each leg's credential call, checked above.
+          s.name !== "Check the credential",
       )
       .map((s) =>
         lines(s.block)
@@ -705,12 +707,11 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/\n {10}FOUND_CAPTURE: .*$/m, "")
           .replace(`if: steps.agree.outcome == 'success'${NOT_CARRIED}`, "if: steps.agree.outcome == 'success'")
           .replace(KEY_SKIP, "")
-          .replace(`\n${FALLBACK_PRESENT}`, "")
-          .replace(`\n${FALLBACK_READY}`, "")
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
           .replace(/^( {10}handoff: .*steps\.)sub(-leg)/m, "$1key$2")
+          .replace(/steps\.sub-leg/g, "steps.key-leg")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
           .replace(" && !(steps.credential.outputs.present == 'false' && steps.credential.outputs.fallback-ready == 'true')", "")
@@ -722,14 +723,11 @@ test("the subscription job repeats the key job's steps but for the credential", 
   // reads the role's. The last leg hands nothing on, so it has no handoff input.
   const fallback = STEPS[FB].map((s) => ({
     ...s,
-    block: s.block
-      .replace(`PRESENT: \${{ secrets.${FALLBACK} != '' }}\n          SECRET_NAME: ${FALLBACK}`, "PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}\n          SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN")
-      .replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}")
-      .replace(`\n          fallback-reason: ${FB_REASON}`, `\n          fallback-reason: ${FALLBACK_REASON}`),
+    block: s.block.replace(`fallback-token: \${{ secrets.${FALLBACK} }}`, "subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}"),
   }));
   assert.deepEqual(
     normalize(fallback),
-    normalize(STEPS[KEY]).map((block) => block.replace(/\n {10}handoff: .*$/m, "")),
+    normalize(STEPS[KEY].filter((s) => s.name !== "Pick the next leg")).map((block) => block.replace(/\n {10}handoff: .*$/m, "")),
   );
 });
 
@@ -855,7 +853,7 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   // Only a hand-off spares the key job its red; an empty subscription token fails its job unless the fallback token takes over.
   assert.match(
     STEPS[KEY].at(-1).block,
-    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.credit\\.outputs\\.skip-key != 'true' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
+    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.credential\\.outputs\\.key-skipped != 'true' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
   );
   assert.match(
     STEPS[SUB].at(-1).block,
@@ -876,20 +874,12 @@ test("a handoff leaves one lane record per leg, the leg that handed off marked h
   // the leg check refused stays an error.
   assert.equal(input(report, "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
   assert.equal(input(step("Report the judgment's outcome", SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
-  // The subscription job, which runs
-  // exactly when key-leg-clean is true, records the run with a plain lane
-  // name and says why in fallback-reason, one of report-lane-outcome's
-  // credit-stop, auth or no-key.
-  assert.match(jobText(SUB), /needs\.check-intent\.outputs\.key-leg-clean == 'true'/);
-  // The last credit-stop is the credit gate's skip of the key job.
-  assert.deepEqual([...FALLBACK_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["credit-stop", "auth", "no-key", "credit-stop"]);
-  assert.match(FALLBACK_REASON, /lane-class == 'auth' && 'auth'/);
-  // A clean subscription handoff skips the subscription job's report the
-  // same way; the fallback job, which runs exactly when leg-clean is true,
-  // records the run with report-lane-outcome's limit-stop, credit-stop or auth,
-  // or no-key after an empty subscription token.
-  assert.match(jobText(FB), /needs\.check-intent-subscription\.outputs\.leg-clean == 'true'/);
-  assert.deepEqual([...FB_REASON.matchAll(/&& '([a-z-]+)'/g)].map((m) => m[1]), ["limit-stop", "credit-stop", "auth", "no-key"]);
+  // The subscription job, which runs exactly when the key job names it, and
+  // the fallback job, the same after the subscription job, each record why
+  // in fallback-reason, select-model-credential's reason from the job before
+  // it (credential-legs.test.mjs holds it to the expressions before).
+  assert.match(jobText(SUB), /needs\.check-intent\.outputs\.next-leg == 'subscription'/);
+  assert.match(jobText(FB), /needs\.check-intent-subscription\.outputs\.next-leg == 'fallback'/);
   // No gate keys the subscription leg on the credit-stop class any more:
   // run-claude-cli's handoff output is the one signal.
   for (const line of text.split("\n").filter((l) => /^\s+(- )?if: /.test(l) || /^\s+&& /.test(l))) {
@@ -901,11 +891,14 @@ test("every ci-workflows action is pinned to one commit, report-lane-outcome to 
   const all = [...text.matchAll(/uses: melodic-software\/ci-workflows\/([^@\s]+)@([0-9a-f]{40}) # \S.*$/gm)].map((m) => ({ action: m[1], sha: m[2] }));
   assert.equal(all.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
   const isReport = (r) => r.action.endsWith("/report-lane-outcome");
-  const refs = all.filter((r) => !isReport(r)).map((r) => r.sha);
+  const isSelect = (r) => r.action.endsWith("/select-model-credential");
+  const refs = all.filter((r) => !isReport(r) && !isSelect(r)).map((r) => r.sha);
   const reportRefs = all.filter(isReport).map((r) => r.sha);
+  const selectRefs = all.filter(isSelect).map((r) => r.sha);
   assert.ok(refs.length >= 6);
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
   assert.equal(new Set(reportRefs).size, 1, `one report-lane-outcome pin: ${[...new Set(reportRefs)].join(", ")}`);
+  assert.equal(new Set(selectRefs).size, 1, `one select-model-credential pin: ${[...new Set(selectRefs)].join(", ")}`);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {
@@ -1015,13 +1008,13 @@ test("a handoff from any chunk hands the whole judgment on, and a denial in any 
   const outputs = (job) => /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(job))[1];
   const id = (k) => (k === "spec" ? "judge-spec" : judgeId(k));
   const leg = (k) => (k === "spec" ? "-spec" : suffix(k));
-  const handoff = `      handoff: \${{ ${chain((k) => `steps.${id(k)}.outputs.handoff == 'true'`)} }}\n`;
-  assert.ok(outputs(KEY).includes(handoff));
-  assert.ok(outputs(SUB).includes(handoff));
-  assert.ok(outputs(KEY).includes(`      lane-class: \${{ ${chain((k) => `steps.${id(k)}.outputs.lane-class`)} }}\n`));
-  assert.ok(outputs(KEY).includes(`      key-leg-clean: \${{ ${chain((k) => `steps.key-leg${leg(k)}.outputs.clean`)} }}\n`));
-  assert.ok(outputs(SUB).includes(`      handoff-reason: \${{ ${chain((k) => `steps.${id(k)}.outputs.handoff-reason`)} }}\n`));
-  assert.ok(outputs(SUB).includes(`      leg-clean: \${{ ${chain((k) => `steps.sub-leg${leg(k)}.outputs.clean`)} }}\n`));
+  // Any chunk's clean handoff names the next leg.
+  for (const [job, legStep] of [[KEY, "key-leg"], [SUB, "sub-leg"]]) {
+    const next = step("Pick the next leg", job);
+    assert.equal(input(next, "handoff"), `\${{ (${chain((k) => `steps.${id(k)}.outputs.handoff == 'true'`)}) && (${chain((k) => `steps.${legStep}${leg(k)}.outputs.clean`)}) == 'true' }}`, job);
+    assert.equal(input(next, "handoff-reason"), `\${{ ${chain((k) => `steps.${id(k)}.outputs.handoff-reason`)} }}`, job);
+    assert.ok(outputs(job).includes("      next-leg: ${{ steps.next.outputs.next-leg }}\n"), job);
+  }
 });
 
 test("the prompt step gives each chunk its own parts, and a lone chunk no note", () => {
@@ -1390,7 +1383,8 @@ test("the capture gates run first, then the reach probe after runner isolation a
   // red for every failure but a handoff, before the head checkout.
   assert.match(capStep(PROBE), /^ {8}continue-on-error: true$/m);
   assert.doesNotMatch(capStep(PROBE_CHECK), /continue-on-error/);
-  assert.equal(capIndex(PROBE_CHECK) + 1, capIndex(HEAD_CHECKOUT));
+  // Only the next-leg call, which runs no head code, sits between them.
+  assert.equal(capIndex(PROBE_CHECK) + 2, capIndex(HEAD_CHECKOUT));
   const probe = capStep(PROBE);
   assert.match(probe, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@[0-9a-f]{40} /);
   assert.deepEqual(list(probe, "tools"), ["Bash", "Read", "Write", "Grep"]);
@@ -1460,7 +1454,7 @@ test("the step that starts the app holds no credential in any env it inherits, a
   // The key reaches the key proxy's start, before the runner is isolated, and no other step.
   const readers = CAP_STEPS.filter((s) => /secrets\.PR_VERIFY_CLAUDE_API_KEY\b/.test(s.block)).map((s) => s.name);
   assert.deepEqual(readers.filter((name) => name !== "Check the credential"), [PROXY_START]);
-  assert.match(capStep("Check the credential"), /^ {10}PRESENT: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}$/m);
+  assert.match(capStep("Check the credential"), /^ {10}credential-set: \$\{\{ secrets\.PR_VERIFY_CLAUDE_API_KEY != '' \}\}$/m);
   assert.ok(capIndex(PROXY_START) < capIndex(ISOLATE));
   assert.doesNotMatch(CAPTURE_TEXT, /secrets: inherit|toJSON\(secrets\)|secrets\[/);
 });
@@ -1736,8 +1730,11 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const bash = list(driver, "allowed-tools").filter((rule) => /^Bash\b/.test(rule));
   // The verbs the control skill's hub runs the driver with.
   const hub = readFileSync(new URL("../../../plugins/harness-ops/skills/control-claude-code/SKILL.md", import.meta.url), "utf8");
-  const verbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
-  assert.deepEqual([...verbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
+  const hubVerbs = [...new Set([...hub.matchAll(/`node <skill-dir>\/driver\/driver\.mjs ([a-z]+)\b/g)].map((m) => m[1]))];
+  assert.deepEqual([...hubVerbs].sort(), ["launch", "log", "plugins", "ready", "record", "screenshot", "stop"]);
+  // The feature pages drive the terminal session with type and wait-for, which the hub names only in
+  // prose; capture run 42313414930 had every typed entry point refused without them.
+  const verbs = [...hubVerbs, "type", "wait-for"];
   const driverRules = DRIVER_PATHS.flatMap((p) => verbs.map((verb) => `Bash(node ${p} ${verb} *)`));
   driverRules.push(ACCOUNT_RULE);
   const git = [
@@ -1759,9 +1756,9 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
   const scriptRules = [`${WS}/.base/plugins/testing/scripts`].flatMap((dir) =>
     [["resolve-config.sh", "e2e"], ["check-browser-driver.sh", "--user"]].flatMap(([script, first]) => [`Bash(bash ${dir}/${script} ${first} *)`, `Bash(bash "${dir}/${script}" ${first} *)`]),
   );
-  // drive's Affected script stays refused: its --out write follows a symlink the head or the sandbox can plant.
+  // drive's Affected step (app-control drive SKILL.md:150), isolated, main's copy only; the script replaces a link at its output rather than writing through it.
   const affected = `${WS}/.base/plugins/app-control/scripts/affected_features.py`;
-  const otherRules = [...scriptRules, "Bash(claude plugin list --json)", "Bash(cmp *)"];
+  const otherRules = [...scriptRules, `Bash(python3 -I ${affected} *)`, "Bash(claude plugin list --json)", "Bash(cmp *)"];
   assert.deepEqual([...bash].sort(), [...driverRules, ...gitRules, ...otherRules].sort());
   const allowed = (command) => bash.some((rule) => bashRuleMatches(rule, command));
   // What the control skill and run-e2e run passes.
@@ -1775,6 +1772,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     `git -C ${WS}/head fetch origin 'main'`,
     `bash "${WS}/.base/plugins/testing/scripts/resolve-config.sh" e2e --user 'e2e_driver=auto' --user 'reuse_running_instance=auto'`,
     `bash "${WS}/.base/plugins/testing/scripts/check-browser-driver.sh" --user 'browser_driver=playwright'`,
+    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
     "claude plugin list --json",
     "cmp /tmp/before.diff /tmp/after.diff",
   ]) assert.ok(allowed(command), command);
@@ -1785,7 +1783,7 @@ test("the driver leg's Bash runs only main's driver, one rule per verb the contr
     "wget https://example.com",
     "python3 -c 'print(1)'",
     "python -c 'print(1)'",
-    `python3 -I ${affected} --repo ${WS}/head --base main --head HEAD --out ${WS}/capture-run/r1 --app claude-code-plugins`,
+    `python3 ${affected} --out /tmp/x`,
     "python3 -I head/plugins/app-control/scripts/affected_features.py --out /tmp/x",
     `python3 -I ${WS}/head/plugins/app-control/scripts/affected_features.py --out /tmp/x`,
     "bash -c 'curl https://example.com'",
@@ -1865,9 +1863,10 @@ test("the no-real-key check fails on the real key in the managed settings or a p
 });
 
 // The capture's credit gate (#12232: the owner treats a credit stop as a
-// capacity limit, never a red run). check-key-credit names its markers from
-// the caller's workflow file and key-job (gate.cjs markerName and probeName
-// at b8bdd7f: `key-credit-stop-<file>-<key-job>`,
+// capacity limit, never a red run). select-model-credential's key call reads
+// it through check-key-credit, which names its markers from the caller's
+// workflow file and key-job (gate.cjs markerName and probeName:
+// `key-credit-stop-<file>-<key-job>`,
 // `key-credit-probing-<file>-<key-job>`), so this workflow writes its own.
 const CAP_MARKER = "key-credit-stop-pr-verify-capture.yml-capture";
 const CAP_PROBING = "key-credit-probing-pr-verify-capture.yml-capture";
@@ -1885,25 +1884,31 @@ test("the capture's credit gate reads the key's credit history after the agree s
   assert.match(gate, /^ {8}continue-on-error: true$/m);
   assert.match(gate, /^ {8}timeout-minutes: 2$/m);
   assert.doesNotMatch(gate, /secrets\./);
-  // The same pin as pr-verify.yml's gate.
-  assert.equal(/^ {8}uses: (.*)$/m.exec(gate)[1], /^ {8}uses: (.*)$/m.exec(step("Read the key's credit history"))[1]);
+  // The same pin as pr-verify.yml's credential calls.
+  assert.equal(/^ {8}uses: (.*)$/m.exec(gate)[1], /^ {8}uses: (.*)$/m.exec(step("Check the credential"))[1]);
+  assert.equal(input(gate, "leg"), "start");
   assert.equal(input(gate, "key-job"), CAP);
   assert.match(CAP, /^[a-z][a-z0-9-]{0,99}$/);
-  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}");
+  assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
+  assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
   assert.equal(capIndex("Read the key's credit history"), capIndex("Assert the gate and the resolver agree") + 1);
-  for (const name of ["Resolve the capture's model", "Check the credential"]) {
-    assert.equal(stepIf(capStep(name)), "steps.agree.outcome == 'success' && steps.credit.outputs.skip-key != 'true'", name);
-    assert.ok(capIndex(name) > capIndex("Read the key's credit history"), name);
-  }
-  // A skip leaves the credential step skipped, so present is empty and no leg starts.
-  const credential = (skip) => runs(capStep("Check the credential"), { steps: { agree: { outcome: "success" }, credit: { outputs: { "skip-key": skip } } } });
-  assert.ok(!credential("true"));
-  assert.ok(credential("false") && credential(""));
+  // The key call runs whatever the read chose; only whether the key is set reaches it.
+  const key = capStep("Check the credential");
+  assert.equal(stepIf(key), "steps.agree.outcome == 'success'");
+  assert.equal(input(key, "leg"), "key");
+  assert.equal(input(key, "role"), "pr-verify");
+  assert.equal(input(key, "selected"), "${{ steps.credit.outputs.next-leg }}");
+  assert.deepEqual(key.match(/secrets\.[^\n]*/g), ["secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}"]);
+  assert.equal(capIndex("Check the credential"), capIndex("Read the key's credit history") + 1);
+  const models = capStep("Resolve the capture's model");
+  assert.equal(stepIf(models), "steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true'");
+  assert.ok(capIndex("Resolve the capture's model") > capIndex("Check the credential"));
+  // A held key sets present false, so no leg step starts.
   for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt", PROBE]) {
     assert.equal(stepIf(capStep(name)), "steps.credential.outputs.present == 'true'", name);
   }
   const report = capStep("Report the skipped key leg");
-  assert.equal(stepIf(report), "steps.credit.outputs.skip-key == 'true'");
+  assert.equal(stepIf(report), "steps.credential.outputs.key-skipped == 'true'");
   assert.match(report, /^ {8}continue-on-error: true$/m);
   assert.equal(input(report, "outcome"), "skipped");
   assert.equal(input(report, "lane"), "pr-verify-capture");
@@ -1932,7 +1937,7 @@ test("the capture writes, scans and uploads the probing marker once its probe wi
   assert.equal(input(upload, "retention-days"), "1");
   assert.equal(input(upload, "if-no-files-found"), "error");
   for (const name of CAP_PROBING_STEPS) assert.match(capStep(name), /^ {8}continue-on-error: true$/m, name);
-  assert.equal(capIndex(CAP_PROBING_STEPS[0]), capIndex("Check the credential") + 1);
+  assert.equal(capIndex(CAP_PROBING_STEPS[0]), capIndex("Resolve the capture's model") + 1);
   assert.deepEqual(CAP_PROBING_STEPS.map(capIndex), [0, 1, 2].map((i) => capIndex(CAP_PROBING_STEPS[0]) + i));
   assert.ok(capIndex(CAP_PROBING_STEPS[2]) < capIndex(PROBE));
 });
@@ -2017,28 +2022,32 @@ test("capture-subscription runs only when the capture job's key could not captur
       "!cancelled()",
       `&& ${TRIGGER_GATE}`,
       "&& needs.capture.result == 'success'",
-      "&& (needs.capture.outputs.handoff == 'true'",
-      "|| needs.capture.outputs.credential-present == 'false'",
-      "|| needs.capture.outputs.skip-key == 'true')",
+      "&& needs.capture.outputs.next-leg == 'subscription'",
     ].join(" "),
   );
   const run = (result, outputs) => admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result, outputs } }));
-  assert.ok(run("success", { handoff: "true", "credential-present": "true" }));
-  assert.ok(run("success", { "credential-present": "false" }));
-  assert.ok(run("success", { "skip-key": "true" }));
+  assert.ok(run("success", { "next-leg": "subscription" }));
   // A key that captured, or a capture job that stopped at its gates (no app, a judged head), runs nothing more.
-  assert.ok(!run("success", { handoff: "false", "credential-present": "true", "skip-key": "false" }));
+  assert.ok(!run("success", { "next-leg": "" }));
   assert.ok(!run("success", {}));
   // A red capture job (a probe that found a reachable credential) runs no second leg.
-  assert.ok(!run("failure", { handoff: "true" }));
+  assert.ok(!run("failure", { "next-leg": "subscription" }));
   assert.ok(!run("skipped", {}));
-  assert.ok(!admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result: "success", outputs: { "skip-key": "true" } } }, { head_repository: { full_name: "someone/fork" } })));
-  // The capture job's outputs: launcher and gate outputs, each compared to a
-  // fixed string in that `if`, and no step of this job reads `needs.`.
+  assert.ok(!admits(jobIf(CAPTURE_TEXT, CAP_SUB), withNeeds({ [CAP]: { result: "success", outputs: { "next-leg": "subscription" } } }, { head_repository: { full_name: "someone/fork" } })));
+  // The capture job's outputs: the next-leg call's, compared to a fixed
+  // string in that `if`, and no step of this job reads `needs.`.
   assert.equal(
     /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobIn(CAPTURE_TEXT, CAP))?.[1],
-    ["      handoff: ${{ steps.probe.outputs.handoff }}", "      handoff-reason: ${{ steps.probe.outputs.handoff-reason }}", "      credential-present: ${{ steps.credential.outputs.present }}", "      skip-key: ${{ steps.credit.outputs.skip-key }}", ""].join("\n"),
+    ["      next-leg: ${{ steps.next.outputs.next-leg }}", "      next-reason: ${{ steps.next.outputs.next-reason }}", ""].join("\n"),
   );
+  // The capture's next leg comes from its credential decision and its probe's handoff, after every other step.
+  const next = capStep("Pick the next leg");
+  assert.doesNotMatch(next, /^ {8}if:/m);
+  assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}");
+  assert.equal(input(next, "handoff"), "${{ steps.probe.outputs.handoff }}");
+  assert.equal(input(next, "handoff-reason"), "${{ steps.probe.outputs.handoff-reason }}");
+  assert.equal(capIndex("Pick the next leg"), capIndex(HEAD_CHECKOUT) - 1);
+  assert.equal(capIndex("Pick the next leg"), capIndex(PROBE_CHECK) + 1);
   assert.doesNotMatch(job.slice(job.indexOf("\n    steps:\n")), /needs\./);
 });
 
@@ -2079,7 +2088,7 @@ test("capture-subscription records the capture blocked, since a subscription tok
   });
   assert.match(ran.stdout, /^::notice::the key could not capture \(credit-stop\); /m);
   // The job's notice still names why the key leg could not capture.
-  assert.match(jobIn(CAPTURE_TEXT, CAP_SUB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture\.outputs\.handoff-reason \|\| /m);
+  assert.match(jobIn(CAPTURE_TEXT, CAP_SUB), /^ {6}LEG_FALLBACK_REASON: \$\{\{ needs\.capture\.outputs\.next-reason \}\}$/m);
 });
 
 test("capture-subscription repeats the capture job's gate steps, then writes the blocked capture", () => {
@@ -2256,9 +2265,11 @@ test("the proxy config comes from main's pr-pipeline.yaml, and the driven settin
   assert.equal(config.upstream.href, "https://api.anthropic.com/");
   assert.equal(config.socketMode, 0o660);
   assert.ok(config.maxInFlight >= 2);
+  const value = (key) => JSON.parse(yq(`.merge."verify-capture".proxy."${key}"`));
+  assert.equal(config.tokenCap, value("token-cap"));
+  assert.equal(config.driverTokenCap, value("driver-token-cap"));
   const settingsFilter = /^jq -n --arg main "\$main" --arg small "\$small" --arg ceiling "\$ceiling" '([^']+)' \|$/m.exec(script)?.[1];
   assert.ok(settingsFilter);
-  const value = (key) => JSON.parse(yq(`.merge."verify-capture".proxy."${key}"`));
   const built = spawnSync("jq", ["-n", "--arg", "main", value("driven-model"), "--arg", "small", value("driven-small-model"), "--arg", "ceiling", String(value("max-tokens-ceiling")), settingsFilter], { encoding: "utf8" });
   assert.equal(built.status, 0, built.stderr);
   const settings = JSON.parse(built.stdout);
@@ -2599,15 +2610,23 @@ test("the prompt frames the capture as untrusted data that never fails a head, a
 // Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault,
 // a rate-guard stop included, holds the resolver green (resolve-pr.mjs
 // closing), and the lost-run reconciler finds the held run by its marker step
-// (reconcile.mjs faultHeld). Only the resolver holds: the trigger check is a
-// gate, and a gate that held green would pass what it could not read
-// (rate-guard.mjs createRateLimitLatch).
+// (reconcile.mjs faultHeld). The trigger check is a gate, and a gate that
+// held green would pass what it could not read (rate-guard.mjs
+// createRateLimitLatch), so it sets no API_BUDGET_HOLD and still stops; a stop
+// a read fault caused reads read-fault (fault-reason), and the marker step,
+// right after the gate, notes that hold too with the `held: ` notice the
+// reconciler reads (reconcile.mjs heldNoted).
 test("each job's resolver holds a rate stop green, and a held run is marked for the reconciler", () => {
   for (const job of JOBS) {
     assert.equal(input(step("Resolve the pull request", job), "API_BUDGET_HOLD"), '"1"', job);
     assert.equal(input(step("Check the trigger", job), "API_BUDGET_HOLD"), undefined, job);
-    assert.equal(index(HELD_STEP, job), index("Resolve the pull request", job) + 1, job);
-    assert.match(step(HELD_STEP, job), new RegExp(`^ {8}if: steps\\.pr\\.outputs\\.reason == '${HELD_REASON}'$`, "m"), job);
+    assert.equal(input(step("Check the trigger", job), "fault-reason"), '"true"', job);
+    assert.equal(index("Check the trigger", job), index("Resolve the pull request", job) + 1, job);
+    assert.equal(index(HELD_STEP, job), index("Check the trigger", job) + 1, job);
+    const held = step(HELD_STEP, job);
+    assert.match(held, new RegExp(`^ {8}if: steps\\.pr\\.outputs\\.reason == '${HELD_REASON}' \\|\\| steps\\.gate\\.outputs\\.reason == 'read-fault'$`, "m"), job);
+    assert.match(held, /^ {10}GATE_REASON: \$\{\{ steps\.gate\.outputs\.reason \}\}$/m, job);
+    assert.match(held, /if \[\[ \$GATE_REASON == read-fault \]\]; then\n {12}echo "::notice title=pr-verify::held: /, job);
   }
   // Only those three steps opt in: never a job or the workflow.
   assert.equal(text.match(/^ +API_BUDGET_HOLD:/gm).length, JOBS.length);

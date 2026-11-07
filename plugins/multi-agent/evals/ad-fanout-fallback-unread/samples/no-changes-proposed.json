@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No changes proposed.",
+      "why": "contract line"
+    },
+    {
+      "answer": "**No changes proposed.** Both sources are unread.",
+      "why": "bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```diff\n- as_of: 2026-10-10\n+ as_of: 2026-11-06\n```",
+      "why": "diff instead"
+    },
+    {
+      "answer": "Nothing to change.",
+      "why": "other words"
+    }
+  ]
+}

@@ -473,8 +473,8 @@ before the model turn: a person who comments, or a hold that lands, while the ru
 stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
 
-On a PR carrying the human-gated role label (`needs-human` unless the base's
-`.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
+On a PR carrying the human-gated role label (`needs-human` unless the base's tracker binding in
+`docs/conventions/work-items.yaml` names another), `address-feedback` works a thread only when it carries
 a fix request, after the lane's escalation when there is one. Without such a
 thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
 stays held; with one, the write runner lifts only the human-gated hold for that run, and
@@ -629,7 +629,8 @@ alone cannot tell a read that failed from a broker that refused, so the count is
 refusal, and an outage past that many runs still ends the PR. A held run ends green, so the
 dispatcher reads the jobs of each green run it finds for a candidate: a leg that handed off, whose
 handoff job succeeded, with no next leg started, is a held run, and so is a run whose
-`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head. A
+`fix-docs-head-held` job succeeded, which runs only when `fix-docs-head` could not read the head
+or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for a later run.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
@@ -1748,7 +1749,7 @@ except six:
   date is not idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting
   and the list read at the default branch head,
   and that no hold applies to: the `do-not-merge` label, the
-  tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
+  tracker's human-gated role label as `docs/conventions/work-items.yaml` binds it, or a hold line in
   the body. Its activity is the newest of its opening, the head's arrival (the newest GitHub
   Actions check suite for the head commit on its branch, since a commit's dates are its
   pusher's; a `pull_request` workflow run that a label or title edit starts adds such a suite, so
@@ -2681,7 +2682,8 @@ no capture runs), and `retention-days` (default 30, at most 30, the `pr-capture-
 key proxy, the only route the driven Claude Code in the capture's sibling sandbox has to the API:
 `claude-code-version` (the version `package-lock.json` pins, which the capture installs),
 `driven-model` and `driven-small-model`, `models` (the model ids it forwards), `token-cap` (the
-tokens one capture job may spend, cache tokens counted in full), `max-tokens-ceiling` (the largest
+tokens the driven session of one capture job may spend, cache tokens counted in full),
+`driver-token-cap` (the same for the job's trusted driver legs), `max-tokens-ceiling` (the largest
 `max_tokens` it forwards, also the driven session's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`),
 `max-body-bytes`, `max-in-flight` (at least 2), `max-count-tokens-requests`,
 `max-preflight-requests` (the messages requests that may reach its count_tokens preflight),
@@ -2972,7 +2974,7 @@ false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
 rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
-`.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
+the tracker binding in `docs/conventions/work-items.yaml` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run unless a person
 removed it after the comment last changed (see the reasons comment above); a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
@@ -3108,7 +3110,7 @@ No ruleset requires a review check (github-iac ADR 0017); ci-status, the one req
 them on every `pull_request` run, contract-only runs included:
 
 - **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
-  unless the base's `.work-item-tracker.json` names another). Removing it approves.
+  unless the base's `docs/conventions/work-items.yaml` binding names another). Removing it approves.
 - **Only a trusted person lifts a review-lane hold.** A hold is the newest hold comment or the
   newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
   so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
@@ -3458,7 +3460,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
@@ -3707,9 +3709,12 @@ the sweep again, so stopping is safe and costs at most one sweep.
 The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-call.bash` with
 `--read`: at most three tries, waiting out a recorded rate stop or a capped, fully jittered backoff,
 within 60 s of waits in all. Without `--read` a command runs once, so a write is never repeated.
-Each try reads `gh pr list` and the open count, and passes only when the two agree.
-A listing that reaches its limit of 1000 may be cut short whatever the count says, and another try
-reads the same, so it is not tried again and is unknown at once. A listing still unknown ends the
+Each try reads the open pull requests through GraphQL, 100 a page with the open count on each
+page, and passes only when every page's count agrees and the listing holds that many. A listing
+with more than 10 pages (1000 pull requests) is cut short, and another try reads the same, so it is
+not tried again and is unknown at once. The trusted actors' pull requests are kept by numeric
+account id (`User.databaseId` or `Bot.databaseId` against trusted-actors.json's `id`), so a renamed
+account still matches; the lanes App and Dependabot are kept by their own switches. A listing still unknown ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
 output, so the job lists, gates, merges, files, dequeues, re-fires and clears nothing, and the next
 scheduled run lists again. A failed read, a past-budget rate stop and a full listing leave this job
@@ -3890,8 +3895,8 @@ person opened. A PR is adopted when all of these hold:
 
 - an account on the trusted-actor list opened it, a person or an App, matched by numeric id;
 - it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
-  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
-  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  `needs-human` or human-gated label (`tracker.config.role_labels["human-gated"]` in the base
+  `docs/conventions/work-items.yaml`, as pr-merge resolves it; a file yq cannot read holds every
   owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
   two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline

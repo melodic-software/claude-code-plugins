@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all session=sonnet"
+          }
+        }
+      ],
+      "why": "all, sonnet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all"
+          }
+        }
+      ],
+      "why": "no alias"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh verifier session=sonnet"
+          }
+        }
+      ],
+      "why": "one role"
+    }
+  ]
+}

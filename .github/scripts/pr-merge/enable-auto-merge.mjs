@@ -186,8 +186,8 @@
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   REPORT_ONLY          `false` writes; anything else reports only
 //   LANES_BOT_LOGIN      merge.agent-identity, an App bot login
-//   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
-//                        label (default .base/.work-item-tracker.json)
+//   TRACKER_CONFIG       the base tracker binding, for the human-gated
+//                        label (default .base/docs/conventions/work-items.yaml)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
 //                        decision and the approvers who lift a hold path (default .base/.github/standards/trusted-actors/trusted-actors.json)
@@ -1668,7 +1668,7 @@ const SKIP_CHUNK = 20;
 // and every script it, the verifier and the risk score run.
 export const SKIP_MAIN_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
-  ".work-item-tracker.json",
+  "docs/conventions/work-items.yaml",
   ".github/standards/trusted-actors/trusted-actors.json",
   ".github/workflows/pr-merge.yml",
   ".github/actions",
@@ -1806,7 +1806,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
     const minutes = /^[0-9]+$/.test(env.RISK_ESCALATION_MINUTES ?? "") ? Number(env.RISK_ESCALATION_MINUTES) : RISK_ESCALATION_MINUTES;
     // The pr-merge/unarmed statuses for the status job (UNARMED_OUTPUT).
     const statuses = [];
-    const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
+    const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
     // merge.diff-check.path-holds (owner decision Q15): off, no hold path
     // holds, and a refusal naming only hold paths comes off (approvalLift).

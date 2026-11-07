@@ -77,8 +77,9 @@ check.
    degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
 4. **Schedule validity**, a present file parses as JSON with the root `{"items": [ ... ]}` shape
    (FAIL otherwise), and **both reconciliation keys are unique across the whole `items` array, every
-   `id` AND every `title`**. A duplicate `id` (the key `recheck <id>` resolves against) or duplicate
-   `title` (the key `due` / `work` match `[Maintenance] {title}` against) silently breaks
+   `id` AND every `title`**. A duplicate `id` (the key `recheck <id>` resolves against and an
+   item's recurring marker names) or duplicate `title` (the key `recheck <text match>` resolves
+   against) silently breaks
    reconciliation, FAIL, naming the collision. A valid file whose `items` array is empty is the
    skipped first-time bind's skeleton, INFO: the schedule carries no rows, so `due` / `recheck` /
    `work` have nothing to act on; `apply --seed-schedule` seeds it. (Report this only once the root
@@ -101,10 +102,10 @@ check.
    present-but-empty `{"items": []}` on disk, so a file-presence gate hard-FAILs the expected
    post-bind steady state over an item that can never be created:
    - **Schedule carries ≥1 item**. Verify the resolved label is present via the adapter's label
-     listing (GitHub adapter: `gh label list`): an absent label means a seeded `[Maintenance]` item
+     listing (GitHub adapter: `gh label list`): an absent label means a seeded recurring item
      lands unlabeled and goes invisible to the next `due` / `work` pass. FAIL, with the remediation
      being the repo's declared label provisioning process (never `gh label create` ad hoc).
-   - **Schedule absent, or present with an empty `items` array**, no `[Maintenance]` item can be
+   - **Schedule absent, or present with an empty `items` array**, no recurring item can be
      created from a schedule with no rows, so an absent label is INFO, not a gate: report it, and
      note it must exist before the schedule is ever seeded.
    - **Schedule present but not parseable as the `{"items": [ ... ]}` root**. It has no readable row

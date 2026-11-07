@@ -30,8 +30,9 @@
 #   HEAD_SHA            the gated head; it is the resume key
 #   ESCALATION_REASON   a key of escalation-routes.json; any other well-formed
 #                       reason holds for a person
-#   TRACKER_CONFIG      base .work-item-tracker.json
-#                       (default .base/.work-item-tracker.json)
+#   TRACKER_CONFIG      the base tracker binding: the `tracker` mapping of a
+#                       .yaml file, else a JSON file
+#                       (default .base/docs/conventions/work-items.yaml)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
 #                       counts (default melodic-automation-lanes[bot])
 #
@@ -237,11 +238,16 @@ esac
 bot=${LANES_BOT_LOGIN:-melodic-automation-lanes[bot]}
 issue="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER"
 dispatch="gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity"
-tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
+tracker=${TRACKER_CONFIG:-.base/docs/conventions/work-items.yaml}
 label=needs-human
 if [[ -f $tracker ]]; then
+  if [[ $tracker == *.yaml ]]; then
+    binding=$(yq -o=json -I=0 '.tracker' "$tracker") || die "cannot read the human-gated role label from $tracker"
+  else
+    binding=$(<"$tracker")
+  fi
   label=$(jq -er '.config.role_labels // {}
-    | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
+    | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' <<<"$binding") ||
     die "cannot read the human-gated role label from $tracker"
 fi
 

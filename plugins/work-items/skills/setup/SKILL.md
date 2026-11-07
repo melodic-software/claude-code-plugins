@@ -90,8 +90,8 @@ when this pass must stop instead of guessing.
    `empty`). Exit `1` names a value it cannot copy (a null, an empty object, a list of mappings);
    `3` an `OVERRIDE` path that no `.gitignore` rule covers or that the index holds; `4` a repository
    where no home applies or whose pointer is broken. Each writes nothing and is a finding to report. The JSON files
-   stay where they are, unchanged: babysit-prs, the autonomy plugin's resolve-prerequisites, and the
-   work, triage, attend-queue and track preflights still read only them. Say so, and say that a later
+   stay where they are, unchanged: older installed plugin versions and the repository's own tooling
+   may still read only them. Say so, and say that a later
    binding edit lands only in the YAML file. Then treat the copy as the current binding. If neither
    file binds the repository, say so and continue to the interview.
 2. **Choose the provider**, recommendation first. One line each below; the selection detail,
@@ -286,14 +286,14 @@ unambiguous; ask only where an item genuinely needs the user.
    verifies that string actually exists.) Key this on the schedule's **final row count**, not on what
    this run wrote: with ≥1 row (written now or already on disk) a missing label is reported as a hard
    finding, exactly as spelled out below. With zero
-   rows, the skipped first-time bind's empty skeleton, no `[Maintenance]` item can ever be created
+   rows, the skipped first-time bind's empty skeleton, no recurring item can ever be created
    from that schedule, so a missing label is **informational, not a gate**: report it, note it must
    exist before the schedule is ever seeded, and continue without blocking the bind.
    Resolve the role from the binding's `config.role_labels["recurring-maintenance"]`,
    defaulting to `recurring` only when the file or entry is absent (a malformed, empty, or non-string
    configured value is an error, not a fallback). `due` / `work` enumerate open maintenance items with
    that resolved label, and the create path filters out labels the repo lacks, so if you write a
-   schedule while the resolved label is absent, the first `[Maintenance]` item created (by the recurring
+   schedule while the resolved label is absent, the first recurring item created (by the recurring
    automation or the `work` due-recurring tier) lands without that label, is invisible to the next
    `due` / `work` pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's
    label listing (for the GitHub adapter, `gh label list`). **When the repository declares a
@@ -301,7 +301,7 @@ unambiguous; ask only where an item genuinely needs the user.
    hoc.** When the resolved label is missing and the schedule carries rows, tell the user plainly that
    the schedule cannot be reconciled until the label is added through the repository's declared
    provisioning process; do not silently treat it as optional. This step files no items; for a row now
-   in the schedule, its `[Maintenance]` item is created, item only, no extra schedule row, by the consuming repo's
+   in the schedule, its recurring item is created, item only, no extra schedule row, by the consuming repo's
    recurring automation or the `work` due-recurring tier when `next_due` arrives. Do **not** point users
    at `add --recurring` to create it: that per-item path appends another schedule row, duplicating an
    already-seeded item.
@@ -319,22 +319,23 @@ unambiguous; ask only where an item genuinely needs the user.
    two rows, replace one, or pick a unique value; never write a schedule with a duplicate `id` or
    `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is tracked, not
    ignored.
-11. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
-   row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
-   longer carries that title, so `due` / `work`, which derive recurring candidates only from the
-   schedule, and whose frontier tiers exclude items carrying the resolved recurring-maintenance label, will never surface it again,
-   leaving it stale outside the normal flow (a rename additionally risks a duplicate under the new
-   title). For each renamed or dropped existing row, look up its open item under the OLD title (adapter:
-   "Search items", `--label <resolved recurring-maintenance label>`). Provider search is
-   substring/prefix, not exact-title equality,
-   so it can return a longer item (`[Maintenance] Review CI workflow pins`) when the old title was
-   `Review CI`. **filter the results to the one whose title equals `[Maintenance] {old title}`
-   exactly** before acting, and never reconcile against a mere prefix/substring match. When exactly one
-   exact match exists. **Renamed row:** rename that item to `[Maintenance] {new title}` (a provider title-edit op.
-   GitHub adapter: `gh issue edit <N> --title ...`) to keep the reconciliation key consistent, or
-   close it (adapter: "Close item") if the user is instead retiring the item; **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
-   was retired from the schedule. Otherwise the `recurring`-labeled issue lingers unreachable.
-   A rename or drop with no exact-match open item needs no reconciliation.
+11. **Reconcile an existing row's open item when its `id` is renamed OR the row is dropped.** Both
+   operations strand the row's live recurring item (if still open), whose body's
+   `<!-- recurring-schedule id=<old id> -->` line
+   ([`../../reference/issue-conventions.md`](../../reference/issue-conventions.md) "Recurring marker")
+   names an `id` the written schedule no longer carries, so `due` / `work`, which derive recurring
+   candidates only from the schedule, and whose frontier tiers exclude items carrying the resolved
+   recurring-maintenance label, will never surface it again, leaving it stale outside the normal flow
+   (an id rename additionally risks a duplicate under the new id). A title-only edit strands nothing,
+   since the title is not the match key. For each id-renamed or dropped existing row, look up its open
+   item (adapter: "List items", `--label <resolved recurring-maintenance label>`, with bodies) and keep
+   only the one whose marker names the OLD `id` exactly. When exactly one exists. **Renamed id:**
+   rewrite that marker line to the new `id` (a provider body-edit op, read-modify-write of the whole
+   body; GitHub adapter: `gh issue edit <N> --body-file ...`), or close it (adapter: "Close item") if
+   the user is instead retiring the item; **Dropped row:** close that item (adapter: "Close item") with
+   a comment noting the recurring item was retired from the schedule. Otherwise the
+   `recurring`-labeled issue lingers unreachable. An id rename or drop with no matching open item
+   needs no reconciliation.
 
 12. **Verify after remediation.** Re-run the `check` probes on the written binding and schedule. Binding
    validity, including that any `config.role_labels` step 2 wrote survived the step-10 write intact and

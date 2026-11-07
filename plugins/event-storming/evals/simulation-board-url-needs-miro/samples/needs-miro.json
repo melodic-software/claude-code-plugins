@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Reading an existing board requires Miro, and the miro plugin isn't enabled.", "why": "requires Miro"},
+    {"answer": "Miro is required for --discover-bcs with a board URL.", "why": "Miro required"},
+    {"answer": "This mode needs the `miro` plugin to read the board.", "why": "needs miro"},
+    {"answer": "I can't run `--discover-bcs` against `https://miro.com/app/board/abc123` yet. The `miro` plugin isn't enabled in this session, and I found no tools ending in `__miro_list_boards` or `__miro_create_board`. Without them I can't read the board.", "why": "the smoke run es1n: without the Miro tools the board cannot be read"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I need the board at https://miro.com/app/board/abc123 first.", "why": "only the URL names miro"},
+    {"answer": "Miro is not required; I'll model it in markdown.", "why": "negated"}
+  ]
+}

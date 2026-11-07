@@ -3,6 +3,12 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-06
+
+### Changed
+
+- The learn-style, produce, rotoscope and setup `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Seventeen new cases: `ls-fresh-runs-controls-first` (a fresh pack starts with controls.py measure on all four inputs, never learn.py first), `ls-learn-cuts-and-negatives` (learn.py gets the shot starts as `--cuts` and the calibration half as `--negative`, and no geometry, frames or clip land in the pack), `ls-scene-check-renders-mp4` (a scene check renders through render.py with `--encode mp4` at the pack's base fps, leaves the pack alone and claims no match unread), `pr-fresh-brief-boards-stop` (a fresh brief gets init, a brief naming the pack and the boards gate, then stops for approval), `pr-skip-boards-render-refused` (a request to skip the boards renders nothing and says the film waits for approval), `pr-edited-boards-gate-closed` (a board edited after approval reads as a closed gate and asks for approval again), `ro-clip-extract-via-pydeps` (a clip starts with extract.py through `pydeps.py run --data-dir`), `ro-thin-range-bias-override` (a thin range becomes a bias override or a ranged fit, re-measured with `--only` and logged in learnings.md), `ro-done-needs-review` (a passing table is not done until review.py runs and every crop is read), `ro-review-reads-every-crop` (every crop is read, not only the flagged one, and none is shrunk or turned into a GIF), four near misses (pixel-art sprites and plain video editing route to neither learn-style nor rotoscope), `su-bare-check-runs-probe` (bare setup runs prereq.py, reports the table and installs nothing), `su-apply-stays-check-only` (setup apply stays check-only and names each FAIL's remedy) and `su-numpy-info-caveat` (a numpy INFO row is a reproducibility caveat pointing at `pydeps.py run`). `pr-approve-runs-gate-script` gains the cut-list graders (the first shot starts at 0, each shot meets the next, and `inkstats.py --cuts` gets the `shots.json` path). The four `evals.json` files are deleted.
+
 ## [1.0.4] - 2026-11-06
 
 ### Changed

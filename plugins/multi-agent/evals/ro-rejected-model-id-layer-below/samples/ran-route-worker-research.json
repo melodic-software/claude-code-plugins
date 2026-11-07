@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker research session=sonnet"
+          }
+        }
+      ],
+      "why": "worker research"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh\" worker research"
+          }
+        }
+      ],
+      "why": "no alias"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker session=sonnet"
+          }
+        }
+      ],
+      "why": "no workload"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/multi-agent.local.yaml"
+          }
+        }
+      ],
+      "why": "read the file only"
+    }
+  ]
+}

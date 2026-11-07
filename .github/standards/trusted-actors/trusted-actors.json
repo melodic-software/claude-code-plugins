@@ -13,6 +13,6 @@
     { "id": 300690090, "login": "melodic-ci-runner-host[bot]", "kind": "bot" },
     { "id": 302525172, "login": "melodic-ci-runner-observer[bot]", "kind": "bot" },
     { "id": 315045210, "login": "melodic-claude-lanes-repin[bot]", "kind": "bot" },
-    { "id": 337859524, "login": "melodic-plugin-release[bot]", "kind": "bot" }
+    { "id": 337859524, "login": "melodic-release[bot]", "kind": "bot" }
   ]
 }

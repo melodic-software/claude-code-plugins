@@ -30,6 +30,7 @@ condition 1 and the actor and author parts of condition 2).
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 | `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
+| `fault-reason` | empty | `true` writes reason `read-fault` for a stop that a read GitHub failed to answer caused (a 5xx or 429, a rate-guard stop, or no answer); `proceed` stays `false`, and a refusal on an answer GitHub gave keeps its reason |
 | `reconciler-workflow` | empty | The lost-run reconciler's workflow path: a `github-actions[bot]` re-run proceeds only as its recorded re-run; empty stops every such re-run |
 
 ## Rules
@@ -56,7 +57,8 @@ condition 1 and the actor and author parts of condition 2).
     through `GET /actions/runs/{github.run_id}`, has `path` equal to `dispatched-workflow` and
     `event` `workflow_dispatch`;
   - its `repository` is this repository and its `path` equals `dispatcher-workflow`;
-  - its `head_branch` is the default branch, and no tag has that name
+  - its `head_branch` is the default branch (a `pull_request_target` dispatcher: see below), and
+    no tag has that name
     (`GET /git/ref/tags/{default branch}` answers 404), so the name cannot stand for a tag;
   - its `head_sha` is an ancestor of the branch tip: the tip SHA is resolved once through
     `GET /git/ref/heads/{default branch}`, and `GET /compare/{head_sha}...{tip SHA}` reports
@@ -97,6 +99,24 @@ condition 1 and the actor and author parts of condition 2).
     it. The repository and head checks above apply unchanged. The relay's `GITHUB_REF` is the
     PR's merge ref, so its file is treated as PR-controlled and only these run facts, which GitHub
     sets, are trusted ([ADR 0088](../../../docs/adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+
+  A dispatcher run whose `event` is `pull_request_target` reports the PR's branch and head as
+  `head_branch` and `head_sha`, so it is checked the same way, except:
+  - this run's `path` must be `.github/workflows/pr-refine.yml`, whatever `dispatched-workflow`
+    says;
+  - its `head_repository` is this repository, and in place of the branch check one entry of its
+    `pull_requests` has this PR's `number`, `base.ref` the default branch, `base.repo.id` and
+    `head.repo.id` this repository's id, and `head.ref` equal to its `head_branch` (an empty list
+    stops the run; the entry's head SHA is not compared);
+  - its `actor` and `triggering_actor` are each the lanes App (`lanes-app-id`) or a listed human,
+    and a re-run attempt still needs a listed human;
+  - its record is named `pr-unblock-target-dispatched-<40-hex commit>-<this run's id>`, and the
+    tag and ancestry checks read that commit, read after the record, in place of `head_sha`.
+    Since 2025-12-08 a `pull_request_target` run takes its workflow file and checkout commit
+    from the default branch, so only that branch's dispatcher can upload the record
+    ([ADR 0090](../../../docs/adr/0090-let-a-pull-request-target-dispatcher-start-pr-refine.md)).
+
+  Each record name is read only for its own dispatcher event.
 
   Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
   `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler
@@ -262,7 +282,7 @@ that cannot stops it with `untrusted-rerunner`.
 | Output | Values |
 |---|---|
 | `proceed` | `true` or `false` |
-| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
+| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable`, or `read-fault` with `fault-reason: true` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
 
 Reasons are checked in the order list and denied ids, event and PR, head lag, fork, base, denied actor, actor,

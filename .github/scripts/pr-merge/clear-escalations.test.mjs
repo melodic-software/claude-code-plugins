@@ -23,7 +23,7 @@ const ACTIONS_BOT = { login: "github-actions[bot]", type: "Bot" };
 const MAIN = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const KEY = "c".repeat(40);
-const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/.work-item-tracker.json" };
+const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/work-items.yaml" };
 
 const escalationBody = (reason) =>
   `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- Reason: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;

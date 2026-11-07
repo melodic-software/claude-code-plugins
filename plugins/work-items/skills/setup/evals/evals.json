@@ -45,13 +45,13 @@
       "id": 4,
       "name": "reconciles-renamed-or-dropped-row-open-item",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries several items; over the interview the user renames one row's id and title and drops another.)",
-      "expected_output": "When an existing schedule row is renamed or dropped, it looks up that row's open [Maintenance] item under the OLD title, filtering provider search results to an exact [Maintenance] {old title} match (never a mere prefix/substring). A renamed row's item is retitled to the new title (or closed if retiring); a dropped row's item is closed with a note. A rename or drop with no exact-match open item needs no reconciliation.",
+      "expected_output": "When an existing row's id is renamed or the row is dropped, it lists that row's open recurring items with their bodies and keeps only the one whose <!-- recurring-schedule id=<id> --> marker names the OLD id exactly. A renamed row's item gets its marker line rewritten to the new id (or is closed if retiring); a dropped row's item is closed with a note. The title edit alone strands nothing, since the title is not the match key. An id rename or drop with no matching open item needs no reconciliation.",
       "files": [],
       "expectations": [
-        "Looks up the stranded open item under the row's OLD title when a row is renamed or dropped",
-        "Filters provider search to an exact [Maintenance] {old title} match, never a prefix or substring match",
-        "Retitles the item for a renamed row and closes it (with a note) for a dropped row",
-        "Performs no reconciliation when no exact-match open item exists"
+        "Looks up the stranded open item by the marker naming the row's OLD id when the id is renamed or the row dropped",
+        "Never matches the item by title, old or new",
+        "Rewrites the item's marker to the new id for a renamed row and closes it (with a note) for a dropped row",
+        "Performs no reconciliation when no open item's marker names the old id"
       ]
     },
     {
@@ -110,7 +110,7 @@
       "id": 9,
       "name": "check-zero-row-schedule-reports-label-info-not-fail",
       "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying zero rows ({\"items\": []}), and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
-      "expected_output": "The role-label probe branches on the schedule's row count, not on whether the schedule file exists. With zero rows no [Maintenance] item can be created from that schedule, so the absent label is reported as INFO — noting the label must exist before the schedule is ever seeded — rather than as a FAIL. This matches apply's own treatment of the identical state, where zero rows make a missing label informational and not a gate. The present-but-empty schedule is also reported as INFO from the validity probe, pointing at apply --seed-schedule. Nothing is written and no label is created.",
+      "expected_output": "The role-label probe branches on the schedule's row count, not on whether the schedule file exists. With zero rows no recurring item can be created from that schedule, so the absent label is reported as INFO — noting the label must exist before the schedule is ever seeded — rather than as a FAIL. This matches apply's own treatment of the identical state, where zero rows make a missing label informational and not a gate. The present-but-empty schedule is also reported as INFO from the validity probe, pointing at apply --seed-schedule. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
         "Reports the recurring-maintenance role-label probe as INFO, not FAIL, when the schedule carries zero rows",
@@ -124,11 +124,11 @@
       "id": 10,
       "name": "check-populated-schedule-still-fails-on-missing-label",
       "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying three items, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
-      "expected_output": "With the schedule carrying rows, the absent recurring-maintenance label is still a hard FAIL: a seeded [Maintenance] item would land unlabeled and go invisible to the next due/work pass. The remediation named is the repository's declared label provisioning process, never an ad hoc gh label create. The row-count branch relaxes nothing here — the label requirement fires exactly where it is load-bearing. Nothing is written and no label is created.",
+      "expected_output": "With the schedule carrying rows, the absent recurring-maintenance label is still a hard FAIL: a seeded recurring item would land unlabeled and go invisible to the next due/work pass. The remediation named is the repository's declared label provisioning process, never an ad hoc gh label create. The row-count branch relaxes nothing here — the label requirement fires exactly where it is load-bearing. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
         "Reports the recurring-maintenance role-label probe as FAIL when the schedule carries at least one row and the resolved label is absent",
-        "Explains that an unlabeled [Maintenance] item goes invisible to the next due/work pass",
+        "Explains that an unlabeled recurring item goes invisible to the next due/work pass",
         "Names the repository's declared label provisioning process as the remediation, never gh label create ad hoc",
         "Writes no file and creates no label"
       ]
@@ -269,7 +269,7 @@
       "id": 21,
       "name": "apply-copies-a-legacy-json-binding-and-keeps-the-json-file",
       "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json at the repo root binds github with config.lease_ttl_hours 24, and .work-item-tracker.local.json beside it sets config.lease_ttl_hours 6. AGENTS.md binds no convention home, and docs/conventions/work-items.yaml holds only ai_disclaimer: false. .gitignore carries a .work-item-tracker.local.json line and nothing else. This runs unattended.)",
-      "expected_output": "Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the personal override's lease_ttl_hours. It announces both copies and says the JSON files stay unchanged because babysit-prs, resolve-prerequisites and the work, triage, attend-queue and track preflights still read only them. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.",
+      "expected_output": "Check reports that the binding exists only in the legacy JSON file. Apply ensures a .gitignore rule covers docs/conventions/work-items.local.yaml and announces that edit, then runs migrate-binding.sh, which appends a tracker mapping to docs/conventions/work-items.yaml below ai_disclaimer and writes docs/conventions/work-items.local.yaml with the personal override's lease_ttl_hours. It announces both copies and says the JSON files stay unchanged because older installed plugin versions and the repository's own tooling may still read only them. It does not delete, rewrite or ask the user to edit .work-item-tracker.json, and it keeps the copied binding rather than re-binding a provider.",
       "files": [],
       "expectations": [
         "Check reports the binding as existing only in .work-item-tracker.json",

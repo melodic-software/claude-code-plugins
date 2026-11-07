@@ -590,7 +590,7 @@ STUB_PULL="$(pull 'Closes #1' '{"id":2,"login":"someone","type":"User"}')"
 STUB_CONFIG="$OWNER_CONFIG" author_run "under lane-or-owner, an unlisted person's queued pull request skips the carry steps" false false
 STUB_PULL="$(pull 'Closes #1' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}')"
 STUB_CONFIG=$'merge:\n  verify-authors: any' author_run "a dependency manager's queued pull request is never judged, so the carry steps skip" false false
-STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-plugin-release[bot]","type":"Bot"}')"
+STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
 STUB_CONFIG="$OWNER_CONFIG" author_run "under lane-or-owner, a listed bot's queued pull request runs the carry steps" false true
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
 author_run "a queued user account with the lanes App's login skips the carry steps" false false
@@ -1113,7 +1113,7 @@ STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyl
   expect "in the merge queue, a member's veto does not hold an owner pull request" 0 1 "$NOT_HELD"
 STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
   expect "in the merge queue, a hold path does not hold an owner pull request" 0 1 "$NOT_HELD"
-STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-plugin-release[bot]","type":"Bot"}')"
+STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
 STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 1 "pr-verify's reader refuses this head (verify:fail: why)"
 STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 1 "$NOT_HELD"
 for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do

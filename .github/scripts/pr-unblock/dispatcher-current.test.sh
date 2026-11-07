@@ -16,6 +16,7 @@ HEAD=1111111111111111111111111111111111111111
 BLOB_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 BLOB_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 UNBLOCK=.github/workflows/pr-unblock-dispatch.yml
+NO_ARTIFACTS='{"artifacts":[]}'
 FAILED=0
 
 ok() { printf 'ok - %s\n' "$1"; }
@@ -39,6 +40,12 @@ emit() {
   cat "$1"
 }
 case $2 in
+repos/o/r/actions/runs/*/artifacts\?*)
+  [[ -f $STUB/fail_artifacts ]] && exit 1
+  [[ -z $include ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4990\r\nX-Ratelimit-Used: 10\r\nX-Ratelimit-Reset: 1790000000\r\nX-Ratelimit-Resource: core\r\n\r\n'
+  # The filter the script passes runs on the listing, as gh --jq would.
+  jq -r "$4" "$STUB/artifacts"
+  ;;
 repos/o/r/actions/runs/*)
   [[ -f $STUB/fail_run ]] && exit 1
   emit "$STUB/run"
@@ -58,9 +65,12 @@ STUB
 chmod +x "$TMP/bin/gh" "$TMP/bin/git"
 
 # run_case <path> <head> <blob at that head> <blob at the tip> [run id]
+# EVENT is the dispatcher run's event (push), ARTIFACTS its artifact listing,
+# SELF_RUN this run's id.
 run_case() {
   STUB="$(mktemp -d "$TMP/case.XXXXXX")"
-  printf '%s\n%s\n' "$1" "$2" >"$STUB/run"
+  printf '%s\n%s\n%s\n' "$1" "$2" "${EVENT-push}" >"$STUB/run"
+  printf '%s\n' "${ARTIFACTS-$NO_ARTIFACTS}" >"$STUB/artifacts"
   printf '%s\n' "$3" >"$STUB/blob"
   printf '%s\n' "$4" >"$STUB/tip"
   : >"$STUB/calls"
@@ -69,7 +79,7 @@ run_case() {
   [[ -z ${FAIL:-} ]] || : >"$STUB/$FAIL"
   set +e
   env PATH="$TMP/bin:$PATH" STUB="$STUB" RUNNER_TEMP="${CASE_RUNNER_TEMP-}" GH_TOKEN=t GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$STUB/output" \
-    DISPATCHER_RUN_ID="${5-41217038328}" "$SUT" >"$STUB/out" 2>&1
+    DISPATCHER_RUN_ID="${5-41217038328}" GITHUB_RUN_ID="${SELF_RUN-41217040000}" "$SUT" >"$STUB/out" 2>&1
   RC=$?
   set -e
 }
@@ -111,6 +121,50 @@ run_case '../secrets.yml' "$HEAD" "$BLOB_A" "$BLOB_B"
 check "a path outside the workflows reads no contents" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
 run_case "$UNBLOCK" 'main' "$BLOB_A" "$BLOB_B"
 check "a head that is no commit id reads no contents" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
+
+# A pull_request_target dispatcher's head is the PR head; the commit it ran is
+# the one its record names for this run.
+REC=4444444444444444444444444444444444444444
+artifact() { printf '{"name":"%s","expired":%s,"workflow_run":{"id":%s}}' "$1" "${2-false}" "${3-41217038328}"; }
+listing() {
+  local IFS=,
+  printf '{"artifacts":[%s]}' "$*"
+}
+OWN_RECORD="$(artifact "pr-unblock-target-dispatched-$REC-41217040000")"
+
+EVENT=pull_request_target ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_A"
+check "target, same file: not stale" '' "$(cat "$STUB/output")"
+check "target: reads the run, its record, then the file at the recorded commit, never at the PR head" \
+  "repos/o/r/actions/runs/41217038328 repos/o/r/actions/runs/41217038328/artifacts?per_page=100 repos/o/r/contents/$UNBLOCK?ref=$REC" \
+  "$(tr '\n' ' ' <"$STUB/calls" | sed 's/ $//')"
+
+EVENT=pull_request_target ARTIFACTS="$(listing "$(artifact other)" "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "target, older file: stale" 'stale=true' "$(cat "$STUB/output")"
+
+for case in \
+  "no record|$(listing)" \
+  "an expired record|$(listing "$(artifact "pr-unblock-target-dispatched-$REC-41217040000" true)")" \
+  "another run's upload|$(listing "$(artifact "pr-unblock-target-dispatched-$REC-41217040000" false 41217038329)")" \
+  "a record of another dispatched run|$(listing "$(artifact "pr-unblock-target-dispatched-$REC-41217040001")")" \
+  "a record of a longer run id|$(listing "$(artifact "pr-unblock-target-dispatched-$REC-412170400000")")" \
+  "a push dispatcher's record|$(listing "$(artifact pr-unblock-dispatched-41217040000)")" \
+  "a record with a short commit|$(listing "$(artifact pr-unblock-target-dispatched-4444444-41217040000)")"; do
+  EVENT=pull_request_target ARTIFACTS="${case#*|}" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+  check "target, ${case%%|*}: left to the broker" '' "$(cat "$STUB/output")"
+  check "target, ${case%%|*}: no file read" 0 "$(grep -c contents "$STUB/calls")"
+  check "target, ${case%%|*}: says so" 1 "$(grep -c '^::notice::.*the token broker decides$' "$STUB/out")"
+done
+
+FAIL=fail_artifacts EVENT=pull_request_target ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "target, failed record read: left to the broker" '' "$(cat "$STUB/output")"
+check "target, failed record read: no file read" 0 "$(grep -c contents "$STUB/calls")"
+
+SELF_RUN='1/../2' EVENT=pull_request_target ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "target, malformed own run id: reads no record" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
+
+ARTIFACTS="$(listing "$OWN_RECORD")" run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"
+check "push dispatcher: a target record is not read, and its head is compared" \
+  "repos/o/r/actions/runs/41217038328 repos/o/r/contents/$UNBLOCK?ref=$HEAD" "$(tr '\n' ' ' <"$STUB/calls" | sed 's/ $//')"
 
 # In a job the script wraps its gh calls: each response's header block becomes
 # a reading in the job's api-budget state, and the verdict is unchanged.

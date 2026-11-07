@@ -246,12 +246,12 @@ jobs:
       MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}
       FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # The proposer's key-credit gate (ci-workflows check-key-credit, gate.cjs:
-  # one artifact-list call for the marker propose uploads after a key leg's
-  # credit stop). A credit stop inside vars.KEY_CREDIT_WINDOW_HOURS (1 hour
-  # unset) starts the proposal on the subscription, with no refused key
-  # attempt first. No secret, no model, no checkout; every failure runs the
-  # key (skip-key empty). Probing is off.
+  # The proposer's key-credit gate (ci-workflows select-model-credential, its
+  # start call: check-key-credit's one artifact-list call for the marker
+  # propose uploads after a key leg's credit stop). A credit stop inside the
+  # window names the subscription leg, so the proposal starts on the
+  # subscription with no refused key attempt first. No secret, no model, no
+  # checkout; every failure runs the key. Probing is off.
   propose-key-credit:
     needs: [gate, pass-a, pass-a2]
     if: needs.pass-a.result == 'success' && needs.pass-a2.result == 'success'
@@ -260,23 +260,25 @@ jobs:
     permissions:
       actions: read # list this repository's credit-stop markers
     outputs:
-      skip-key: ${{ steps.credit.outputs.skip-key }}
+      next-leg: ${{ steps.credit.outputs.next-leg }}
       marker: ${{ steps.credit.outputs.marker }}
     steps:
       - name: Read the key's credit history
         id: credit
         continue-on-error: true
         timeout-minutes: 2
-        uses: melodic-software/ci-workflows/.github/actions/check-key-credit@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
         with:
+          leg: start
           key-job: propose
-          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS || '1' }}
+          window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
+          reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
-        if: steps.credit.outputs.skip-key == 'true'
+        if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
@@ -436,47 +438,22 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' '{"type":"object","properties":{"file":{"type":"string","minLength":1,"maxLength":200},"old_string":{"type":"string","minLength":1,"maxLength":20000},"new_string":{"type":"string","maxLength":20000},"rationale":{"type":"string","maxLength":4000},"findings":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":500}}},"required":["file","old_string","new_string","rationale","findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
-      # Which legs can run, never a secret's value. The key runs unless it is
-      # empty or propose-key-credit skipped it; key-reason says why the
-      # proposal starts on the subscription.
+      # Whether the key leg runs, never a secret's value (select-model-credential):
+      # not when the key is empty or propose-key-credit named the subscription
+      # leg. The three legs share this job, so each leg's credential call and
+      # next-leg call are steps: the subscription leg runs after the key leg
+      # hands off (a credit stop, or a 401 or 402) or did not run, and the
+      # central fallback token's leg after the subscription leg hands off (a
+      # limit stop, a credit stop, or a 401 or 402) or finds its token empty.
       - name: Check the API key
         id: key
         if: steps.prompt.outcome == 'success'
-        env:
-          KEY: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
-          SKIP_KEY: ${{ needs.propose-key-credit.outputs.skip-key }}
-        run: |
-          key=$KEY
-          reason=""
-          if [ "$SKIP_KEY" = true ]; then
-            key=false
-            reason=credit-stop
-          elif [ "$KEY" != true ]; then
-            echo "::warning::MAINTENANCE_CLAUDE_API_KEY is empty; the subscription leg proposes"
-            reason=no-key
-          fi
-          { echo "key=$key"; echo "key-reason=$reason"; } >>"$GITHUB_OUTPUT"
-
-      # The subscription leg runs after the key leg hands off (a credit stop,
-      # or a 401 or 402) or did not run, and the central fallback token's leg
-      # after the subscription leg hands off (a limit stop, a credit stop, or
-      # a 401 or 402) or finds its token empty.
-      - name: Check the credentials
-        id: credential
-        if: steps.prompt.outcome == 'success'
-        env:
-          KEY_USABLE: ${{ steps.key.outputs.key }}
-          PRESENT: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          FALLBACK_PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-        run: |
-          if [ "$KEY_USABLE" != true ] && [ "$PRESENT" != true ]; then
-            if [ "$FALLBACK_PRESENT" = true ]; then
-              echo "::warning::MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN is empty; the fallback leg proposes on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"
-            else
-              echo "::notice::no maintenance credential and no FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is usable; no leg runs"
-            fi
-          fi
-          { echo "present=$PRESENT"; echo "fallback-ready=$FALLBACK_PRESENT"; } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: key
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_API_KEY != '' }}
+          selected: ${{ needs.propose-key-credit.outputs.next-leg }}
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
@@ -492,7 +469,7 @@ jobs:
       # has Read, Grep and Glob only, no Bash (run-claude-cli's one-job rule).
       - name: Propose the edit on the API key
         id: run-key
-        if: steps.prompt.outcome == 'success' && steps.key.outputs.key == 'true'
+        if: steps.prompt.outcome == 'success' && steps.key.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -529,11 +506,35 @@ jobs:
           json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
           leg-timeout-minutes: "25"
 
+      # The leg after the key's, from its credential decision and the
+      # launcher's handoff. No if:, as the leg steps after it have none: it
+      # names a leg only when every step before it passed.
+      - name: Pick the leg after the key
+        id: next-key
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.key.outputs.state }}
+          handoff: ${{ steps.run-key.outputs.handoff }}
+          handoff-reason: ${{ steps.run-key.outputs.handoff-reason }}
+
+      # Only on the subscription leg's turn: a key leg that finished hands
+      # nothing on, whatever the subscription token holds.
+      - name: Check the credentials
+        id: credential
+        if: steps.next-key.outputs.next-leg == 'subscription'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: subscription
+          role: maintenance
+          credential-set: ${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ steps.next-key.outputs.next-reason }}
+
       - name: Propose the edit
         id: run
-        if: >-
-          steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
-          && (steps.run-key.outcome == 'skipped' || steps.run-key.outputs.handoff == 'true')
+        if: steps.prompt.outcome == 'success' && steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -571,12 +572,29 @@ jobs:
           json-schema-file: ${{ runner.temp }}/hill-climb-schema.json
           leg-timeout-minutes: "25"
 
+      - name: Pick the leg after the subscription
+        id: next
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          state: ${{ steps.credential.outputs.state }}
+          handoff: ${{ steps.run.outputs.handoff }}
+          handoff-reason: ${{ steps.run.outputs.handoff-reason }}
+
+      - name: Check the fallback token
+        id: fallback
+        if: steps.next.outputs.next-leg == 'fallback'
+        uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
+        with:
+          leg: fallback
+          role: maintenance
+          credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          reason: ${{ steps.next.outputs.next-reason }}
+
       - name: Propose the edit on the fallback token
         id: run-fallback
-        if: >-
-          steps.prompt.outcome == 'success' && steps.credential.outputs.fallback-ready == 'true'
-          && (steps.run.outputs.handoff == 'true'
-          || steps.credential.outputs.present != 'true' && (steps.run-key.outcome == 'skipped' || steps.run-key.outputs.handoff == 'true'))
+        if: steps.prompt.outcome == 'success' && steps.fallback.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 30
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -708,7 +726,7 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           known-failure-class: ${{ steps.run.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.run-key.outputs.handoff-reason || steps.key.outputs.key-reason }}
+          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
       # The fallback leg's lane-outcome record: its credential, outcome, handoff,
       # fallback reason and durationMs.
@@ -726,7 +744,7 @@ jobs:
           handoff: ${{ steps.run-fallback.outputs.handoff }}
           known-failure-class: ${{ steps.run-fallback.outputs.lane-class }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          fallback-reason: ${{ steps.run.outputs.handoff-reason || 'no-key' }}
+          fallback-reason: ${{ steps.fallback.outputs.fallback-reason }}
 
       # Read from the launcher's file only after the leg's init message reports
       # dontAsk; the scan job validates it.

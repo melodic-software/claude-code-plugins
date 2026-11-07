@@ -13,7 +13,7 @@ Three layers, resolved in this order, where a later layer refines an earlier one
 
 | Order | Layer | Path | Version control |
 |---|---|---|---|
-| 1 | user-global | `~/.claude/improvement.md` | outside the worktree, so no git verdict applies |
+| 1 | user-global | `~/.claude/improvement.md`: one Read of that literal path, `~` kept; never Glob for it, spell out a home directory, or search the home tree | outside the worktree, so no git verdict applies |
 | 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/improvement.md` | must be tracked, the only layer teammates receive |
 | 3 | personal override | `${CLAUDE_PROJECT_DIR}/.claude/improvement.local.md` | must be gitignored, never staged |
 

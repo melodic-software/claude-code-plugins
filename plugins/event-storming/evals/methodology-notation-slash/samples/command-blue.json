@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| **Blue** | Command / Action | An intention that triggers an event |", "why": "table row"},
+    {"answer": "Commands go on blue stickies.", "why": "prose"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "| **Orange** | Domain Event |\n| **Lilac** | Policy |", "why": "no command row"},
+    {"answer": "Commands are lilac.", "why": "wrong color"}
+  ]
+}

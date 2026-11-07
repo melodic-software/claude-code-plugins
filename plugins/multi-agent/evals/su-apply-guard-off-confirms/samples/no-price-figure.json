@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Every parallel worker then runs on Fable; rates are on the pricing page.",
+      "why": "no figure"
+    },
+    {
+      "answer": "Set roles.worker.effort=high.",
+      "why": "no price"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fable costs $25 per million output tokens.",
+      "why": "dollar figure"
+    },
+    {
+      "answer": "That is 15 USD per run.",
+      "why": "USD"
+    },
+    {
+      "answer": "Input is 5/MTok.",
+      "why": "MTok"
+    }
+  ]
+}

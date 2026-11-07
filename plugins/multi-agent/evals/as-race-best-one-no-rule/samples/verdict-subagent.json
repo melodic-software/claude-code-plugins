@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: three delegated fix attempts fit one turn; no selection rule is stated, so the race must not start until one is stated\nshape: race (no selection rule stated)\n",
+      "why": "subagent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: workflow\nreason: x\nshape: race (no selection rule stated)\n",
+      "why": "workflow"
+    },
+    {
+      "answer": "verdict: single\nreason: x\n",
+      "why": "single"
+    }
+  ]
+}

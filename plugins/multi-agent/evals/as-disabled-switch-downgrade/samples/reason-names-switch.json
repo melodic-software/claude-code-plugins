@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 60 independent scripts would suit a workflow, but `disableWorkflows` is true in .claude/settings.json\nshape: sections",
+      "why": "names the key"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 60 independent items; workflows are off in .claude/settings.json\nshape: sections",
+      "why": "names the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: 60 independent items, and the Workflow tool is not callable here\nshape: sections",
+      "why": "names only the missing tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 60 independent items; workflows are off\nshape: sections\n\nThe switch is disableWorkflows in .claude/settings.json.",
+      "why": "switch named off the reason line"
+    }
+  ]
+}

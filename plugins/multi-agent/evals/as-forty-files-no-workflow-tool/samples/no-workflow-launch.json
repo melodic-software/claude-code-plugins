@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/assess/scripts/workflow-availability.sh"
+          }
+        }
+      ],
+      "why": "script only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Workflow",
+          "input": {
+            "name": "license-headers",
+            "args": {}
+          }
+        }
+      ],
+      "why": "called Workflow"
+    }
+  ]
+}

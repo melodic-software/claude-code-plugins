@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Shall I write it?",
+      "why": "question"
+    },
+    {
+      "answer": "Reply yes to write the file.",
+      "why": "reply yes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Written: docs/conventions/multi-agent.yaml.",
+      "why": "no question"
+    },
+    {
+      "answer": "The preview is above.",
+      "why": "no ask"
+    }
+  ]
+}

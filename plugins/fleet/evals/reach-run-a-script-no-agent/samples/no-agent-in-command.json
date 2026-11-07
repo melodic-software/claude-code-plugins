@@ -14,7 +14,7 @@
     },
     {
       "answer": "/mnt/c/Windows/System32/OpenSSH/ssh.exe -n laptop-win 'Get-ChildItem C:\\Users'",
-      "why": "observed reply form: ssh -n, which the skill recommends, with no agent"
+      "why": "observed reply form: ssh -n on a script, with no agent"
     },
     {
       "answer": "Run `ssh.exe laptop-win 'Get-ChildItem C:\\Users'`; it runs as `ssh-admin`, which has no Claude sign-in.",
@@ -33,6 +33,10 @@
     {
       "answer": "ssh.exe laptop-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p \"list C:\\Users\"'",
       "why": "Windows-lane agent"
+    },
+    {
+      "answer": "printf '%s\\n' 'Run Get-ChildItem C:\\Users' | ssh.exe laptop-wsl claude -p",
+      "why": "starts an agent, prompt on stdin"
     }
   ]
 }

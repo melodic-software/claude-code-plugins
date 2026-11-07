@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all session=fable"
+          }
+        }
+      ],
+      "why": "all, fable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh\" all session=fable"
+          }
+        }
+      ],
+      "why": "quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all session=sonnet"
+          }
+        }
+      ],
+      "why": "own model alias"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker session=fable"
+          }
+        }
+      ],
+      "why": "one role"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

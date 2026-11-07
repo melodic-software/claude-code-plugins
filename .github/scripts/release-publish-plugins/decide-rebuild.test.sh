@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .work-item-tracker.json
+# test-scope: docs/conventions/work-items.yaml
 # Tests for decide-rebuild.sh on a throwaway origin and clone, with a stub gh
 # on PATH and a stub fragment gate on main whose exit code GATE_RC sets; the
 # gate's own cases (scripts/check-changelog-fragments.test.sh) cover what it

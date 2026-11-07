@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Sources: 0 read, 2 unread.",
+      "why": "count before"
+    },
+    {
+      "answer": "Sources unread: 2 of 2.",
+      "why": "count after"
+    },
+    {
+      "answer": "Two sources unread, none read.",
+      "why": "words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| fanout | model | opus | unread |",
+      "why": "no count"
+    },
+    {
+      "answer": "Both sources are unread.",
+      "why": "both, no number"
+    }
+  ]
+}

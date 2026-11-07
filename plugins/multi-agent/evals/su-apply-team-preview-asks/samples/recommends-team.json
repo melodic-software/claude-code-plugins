@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The team layer fits a setting for everyone.",
+      "why": "team layer"
+    },
+    {
+      "answer": "Preview: setup.sh apply --layer team roles.verifier.effort=xhigh",
+      "why": "command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I recommend the local layer.",
+      "why": "local"
+    },
+    {
+      "answer": "For everyone on this repo, write the shared file.",
+      "why": "no team word"
+    }
+  ]
+}
