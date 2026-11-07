@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'raw-marker-stays'
     type: 'regex'
-    pattern: 'needs-triage[^\n]{0,80}\b(?:stays|remains|kept|left|still)\b|\b(?:keeps?|leaves?|left|kept)\b[^\n]{0,60}needs-triage'
+    pattern: '(?:needs-triage|raw[ \t-]+marker)[^\n]{0,80}\b(?:stays|remains|kept|left|still)\b|\b(?:keeps?|leaves?|left|kept)\b[^\n]{0,60}(?:needs-triage|raw[ \t-]+marker)|(?:\bnot|n[''’]t|\bnever)[ \t]+(?:remove|clear|drop)\w*[^\n]{0,20}needs-triage'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
