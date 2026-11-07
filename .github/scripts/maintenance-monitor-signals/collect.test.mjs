@@ -2,6 +2,7 @@
 // seen on this repository's runs (workflow_runs, jobs with steps, check-run
 // annotations, artifacts, pulls) and githubstatus.com's v2 API.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
@@ -1044,6 +1045,7 @@ const holdRoutes = () => [
   [/workflows\/intake-triage\.yml\/runs/, { workflow_runs: [] }],
   [/workflows\/pr-verify\.yml\/runs/, { workflow_runs: [] }],
   [/workflows\/pr-review-main\.yml\/runs/, { workflow_runs: [] }],
+  [/workflows\/pr-merge\.yml\/runs\?status=/, { workflow_runs: [] }],
   [/runs\/84\/jobs/, { jobs: [] }],
   [/runs\/81\/jobs/, { jobs: [{ id: 810, name: "label-unblocked", conclusion: "success" }, { id: 811, name: "wip-state", conclusion: "success" }] }],
   [/check-runs\/810\/annotations/, [
@@ -1325,12 +1327,46 @@ test("lane holds: pr-review-main counts a held trigger job or matrix leg, readin
   for (const id of [70000, 70002, 70020, 70021]) assert.ok(!api.calls.some((c) => c.includes(`check-runs/${id}/`)), id);
 });
 
+// pr-merge green runs: 7100 a sweep whose merge job held on its lane token,
+// 7101 a verdict wake whose enable-auto-merge job held, 7102 a sweep with no
+// hold. The notice is the action's own text.
+const tokenHold = /^ +msg="(lane-token-held: [^"]*)"$/m
+  .exec(readFileSync(new URL("../../actions/request-lane-token/action.yml", import.meta.url), "utf8"))[1]
+  .replace("${rate_limit}", "");
+
+test("lane holds: pr-merge counts a lane token hold in its merge or enable-auto-merge job", async () => {
+  const runs = [
+    run(7100, { event: "schedule", updated_at: "2026-10-19T16:00:00Z" }),
+    run(7101, { event: "workflow_dispatch", updated_at: "2026-10-19T16:01:00Z" }),
+    run(7102, { event: "schedule", updated_at: "2026-10-19T16:02:00Z" }),
+  ];
+  const job = (id, name) => ({ id, name, conclusion: "success" });
+  const api = fakeApi([
+    [/workflows\/pr-merge\.yml\/runs\?status=/, { workflow_runs: runs }],
+    [/runs\/7100\/jobs/, { jobs: [job(71000, "post-merge-dispatch"), job(71001, "merge")] }],
+    [/runs\/7101\/jobs/, { jobs: [job(71010, "enable-auto-merge")] }],
+    [/runs\/7102\/jobs/, { jobs: [job(71020, "merge"), job(71021, "enable-auto-merge")] }],
+    [/check-runs\/71001\/annotations/, [notice("Lane token hold", tokenHold)]],
+    [/check-runs\/71010\/annotations/, [notice("Lane token hold", tokenHold)]],
+    [/check-runs\/7102[01]\/annotations/, [notice("api-budget", "end github-token core remaining=1 used=1 limit=2 reset=x")]],
+    ...holdRoutes(),
+  ]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-merge").map((h) => [h.runId, h.reason]), [
+    [7101, "lane token rate-limited"],
+    [7100, "lane token rate-limited"],
+  ]);
+  // A job outside the lane's two is never read.
+  assert.ok(!api.calls.some((c) => c.includes("check-runs/71000/")));
+});
+
 test("a carried held run of another repository or an unknown lane, or a bad span, is refused", () => {
   assert.deepEqual(parseHeldCarry(JSON.stringify({ version: JOBS_VERSION, repository: repo, runs: [] }), repo), { runs: [], from: null, through: null });
   const [first] = CARRIED.runs;
   for (const text of [
     jobsCarryFile("other/repo", [], CARRIED),
-    jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, lane: "pr-merge" }] }),
+    jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, lane: "pr-unblock" }] }),
     jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, at: "never" }] }),
     jobsCarryFile(repo, [], { ...CARRIED, runs: [{ ...first, item: 812 }] }),
     jobsCarryFile(repo, [], { ...CARRIED, from: "never" }),

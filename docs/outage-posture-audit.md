@@ -193,7 +193,7 @@ The lane runs from `.github/workflows/pr-unblock.yml`, with the dispatchers
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | met | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:406`, `.github/actions/request-lane-token/action.yml:324`, `.github/actions/request-lane-token/action.yml:405` (lines at this change) | The listing's `retry_call` meets the element. `withRetry` resends only a GraphQL mutation lost on the network (`:407`), and leaves reads to the shared client's 3 attempts, so no read stacks. A resent arm or disarm is pinned to the head the run read and read back once on an error (`:394-398`); the REST refusal comment goes out once. The lane-token request sends at most 3 requests and waits at most 60 s in all (`action.yml:323-324`); a rate-limit wait past that is not taken, and with `rate-limit-hold-ok`, which both of pr-merge's token steps set (`.github/workflows/pr-merge.yml:1167`, `:2463`), it holds green with a `Lane token hold` notice and `skip-reason` `rate-limited`, and every step that uses the token skips on the empty `token`, as on a kill-switch stop. |
+| 1 | met | `.github/scripts/pr-merge/retry-call.bash:39`, `.github/scripts/pr-merge/enable-auto-merge.mjs:406`, `.github/actions/request-lane-token/action.yml:324`, `.github/actions/request-lane-token/action.yml:405` (lines at this change) | The listing's `retry_call` meets the element. `withRetry` resends only a GraphQL mutation lost on the network (`:407`), and leaves reads to the shared client's 3 attempts, so no read stacks. A resent arm or disarm is pinned to the head the run read and read back once on an error (`:394-398`); the REST refusal comment goes out once. The lane-token request sends at most 3 requests and waits at most 60 s in all (`action.yml:323-324`); a rate-limit wait past that is not taken, and with `rate-limit-hold-ok`, which both of pr-merge's token steps set (`.github/workflows/pr-merge.yml:1167`, `:2463`), it holds green with a `Lane token hold` notice and `skip-reason` `rate-limited`, and every step that uses the token skips on the empty `token`, as on a kill-switch stop. Monitor signal 13 counts the hold (`signals.mjs` `HOLD_LANES`). |
 | 2 | gap | `.github/workflows/pr-merge.yml:1279`, `.github/workflows/pr-merge.yml:1283` (lines at the later change below) | A failed listing, a past-budget rate stop and a listing at the limit hold green with the `Merge lane hold` notice, and signal 12 counts each held sweep. The other rate-limit stops (`:303`, `:415`, `:565`, `:969`, `:1467`, `:1760`, `:2263`) still end red, kept on evidence, and so does a failed cover read's dispatch with no cap (`:420`) (see Remaining). |
 | 3 | gap | `.github/workflows/pr-merge.yml:1075` | The lane's own hold waits for the next tick. But the hub's lane breaker sets the stored kill switch, which pr-merge stops on, and the rule that clears it lives with the breaker, outside this repository (see Remaining). |
 | 4 | met | `.github/workflows/pr-merge.yml:1419`, `.github/workflows/pr-merge.yml:1413`, `.github/workflows/post-merge-demotion-alert.yml:1595-1626` | The lane files only on a judged failure and skips filing on a held listing. A later complete read closes the record it filed: post-merge-demotion-alert's `close-cleared` job closes a schedule or dispatch record (`babysit_postmerge.py` `SELF_CLEARING_SIGNALS`) at the oldest green full run on main that clears it, and `babysit_lift.py close` closes a canary, revert or read-back record once it lifts by the merge gate's rule (`babysit_merge_policy.py` `_lift`); a failed read closes nothing (#12282). A canary or revert record with no lift block keeps a person-only close, by owner decision (#7531, #11022 Q3). |
@@ -304,7 +304,10 @@ A third part 2 change fixed pr-merge's two script gaps, each with a test:
   A later change holds that rate limit green for a caller that opts in: with `rate-limit-hold-ok`,
   a last answer of 503 `github-rate-limited` ends the step with a `Lane token hold` notice,
   `skip-reason` `rate-limited` and no token. Both pr-merge token steps opt in, and every step that
-  uses the token already skips on an empty `token`, as for a kill-switch stop. The other callers keep the red
+  uses the token already skips on an empty `token`, as for a kill-switch stop. The skipped sweep
+  writes no sweep line, so signals 3 and 12 never see the hold; signal 13 counts it instead, through
+  pr-merge's `HOLD_LANES` entry and the fixed reason `lane token rate-limited` (`signals.mjs`
+  `HOLD_NOTICES`). The other callers keep the red
   until their workflow opts in (`.github/actions/request-lane-token/request-lane-token.test.mjs`).
 
 A fourth part 2 change fixed these gaps, each with a test:
@@ -446,8 +449,8 @@ pr-review-main's 425 on 2026-11-05 make about 47 jobs reads an hour, plus one or
 per lane a pass. Monitor signal 13 counts these holds since the trigger-gate change below.
 
 The holds above end green with only a notice, so the monitoring lane's signal 13 counts them: the
-`retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and unread heads, and
-intake-triage's held verdicts (`apply-verdict.mjs` `closing`). A
+`retry-spent` fault hold, work-resolve-issue's `WIP cap hold`, work-unblock's held listings and issue reads, pr-refine's held `fix-docs` reads and unread heads,
+intake-triage's held verdicts (`apply-verdict.mjs` `closing`), and pr-merge's `Lane token hold`. A
 lane with `monitor.lane-holds.threshold` held runs over `monitor.lane-holds.window-hours` in
 `docs/conventions/pr-pipeline.yaml` raises the signal's issue, as signal 12 does for pr-merge
 (`.github/scripts/maintenance-monitor-signals/signals.mjs` `laneHoldFindings`). It adds no stop
@@ -646,8 +649,8 @@ change's head, not `222d8023`.
   no `listed`, and a green exit after one call (`.github/workflows/pr-merge.yml:1279`). Nothing
   after it gates, arms or merges, and the next scheduled run lists again. The sweep summary records
   `listing_held`, so signal 12 counts these sweeps (`signals.mjs` `listingHeldFindings`, fed by
-  `collect.mjs:412`). A `HOLD_LANES` entry would count the same hold a second time, under signal 13,
-  so pr-merge has none.
+  `collect.mjs:412`). Counting it under signal 13 too would count the same hold twice, so pr-merge's
+  `HOLD_LANES` entry has no `Merge lane hold` pattern and counts only the lane token hold.
 - **pr-merge, element 2: the other rate-limit stops, kept.** The post-merge check (`:303`,
   `:1467`), the cover read (`:415`), the dispatch (`:565`), the gate (`:1760`) and the jobs' first
   step after post-merge-dispatch's stop (`:969`, `:2263`) still end red. The red skips every later
