@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'verdict-not-preserved'
     type: 'regex'
-    pattern: '[Vv]erdict\W{0,8}(?:NOT CONFIRMED|BEHAVIORAL CHANGE DETECTED|NEEDS WORK)'
+    pattern: '\b(?:NOT CONFIRMED|BEHAVIORAL CHANGE DETECTED)\b|[Vv]erdict\W{0,8}NEEDS WORK'
     target: 'last_message'
   - name: 'behavior-preserved'
     type: 'llm'

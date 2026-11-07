@@ -8,6 +8,12 @@
     },
     {
       "answer": "**Verdict: NEEDS WORK.** Behavior was not preserved. The test suite caught a behavior change."
+    },
+    {
+      "answer": "**Result: BEHAVIORAL CHANGE DETECTED**"
+    },
+    {
+      "answer": "The refactor is NOT CONFIRMED: test_po_box_line now fails."
     }
   ],
   "fail": [
@@ -19,6 +25,9 @@
     },
     {
       "answer": "not confirmed yet"
+    },
+    {
+      "answer": "This change still NEEDS WORK on its docs."
     }
   ]
 }
