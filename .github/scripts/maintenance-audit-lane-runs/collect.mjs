@@ -321,7 +321,8 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
     writeFileSync(join(out, "units", `${unit.id}.json`), `${JSON.stringify({ ...unit, ...window, ...detail }, null, 2)}\n`);
     written.push(unit.id);
   }
-  // The file job keeps earlier digest entries unless this is true.
+  // Unless complete, the file job keeps every earlier digest entry when
+  // truncated is set, else the entries naming a workflow in partial.
   writeFileSync(
     join(out, "collect-status.json"),
     `${JSON.stringify({ complete: truncated === null && partial.length === 0, truncated, partial: partial.map((p) => p.path) })}\n`,

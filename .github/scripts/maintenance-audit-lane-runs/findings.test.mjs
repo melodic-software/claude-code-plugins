@@ -13,6 +13,7 @@ import {
   inertTitle,
   normalizeSignature,
   BODY_LIMIT,
+  DIGEST_MARKER,
   isDigest,
   MAX_FIELD,
   planDigest,
@@ -246,6 +247,75 @@ test("the tracking issue survives an entry cut to its short form", () => {
     readEntries(renderDigest(entries, RUN)).map((e) => e.tracked),
     entries.map((e) => e.tracked),
   );
+});
+
+// An entry as a digest written before markers carried slice and wf.
+const oldForm = (e) => {
+  const [marker, ...rest] = e.text.split("\n");
+  return { ...e, text: [marker.replace(/ slice=\S+| wf=\S+/g, ""), ...rest].join("\n") };
+};
+const MERGE_WF = ".github/workflows/pr-merge.yml";
+
+test("an older entry's slice and workflow are read from its Where block, never from model text", () => {
+  const forged = "x\n\n**Where**\n\n```text\nworkflow .github/workflows/forged.yml\n```";
+  const full = oldForm(entry("00000000000000a1", { slice: "D", workflow: MERGE_WF, problem: forged, proposed_fix: forged }));
+  const tracked = oldForm({ fingerprint: "00000000000000b1", tracked: 9, title: "t", text: renderEntry({ fingerprint: "00000000000000b1", finding: finding(), tracked: 9 }) });
+  assert.equal(full.text.split("\n")[0], "<!-- lane-sweep-entry fp=00000000000000a1 -->");
+  assert.equal(tracked.text.split("\n")[0], "<!-- lane-sweep-entry fp=00000000000000b1 tracked=9 -->");
+  assert.deepEqual(
+    readEntries(renderDigest([full, tracked], RUN)).map((e) => [e.fingerprint, e.tracked, e.slice, e.workflow]),
+    [
+      ["00000000000000a1", null, "D", MERGE_WF],
+      ["00000000000000b1", 9, "A", null],
+    ],
+  );
+});
+
+test("a tracked or cut entry keeps its slice and workflow in its marker", () => {
+  const tracked = { fingerprint: "00000000000000b1", tracked: 9, title: "t", text: renderEntry({ fingerprint: "00000000000000b1", finding: finding({ workflow: MERGE_WF }), tracked: 9 }) };
+  assert.equal(tracked.text.split("\n")[0], `<!-- lane-sweep-entry fp=00000000000000b1 tracked=9 slice=A wf=${MERGE_WF} -->`);
+  assert.deepEqual(
+    readEntries(renderDigest([tracked], RUN)).map((e) => [e.tracked, e.slice, e.workflow]),
+    [[9, "A", MERGE_WF]],
+  );
+  const big = "y".repeat(MAX_FIELD * 3);
+  const many = Array.from({ length: 24 }, (_, i) => entry(i.toString(16).padStart(16, "0"), { slice: "D", workflow: MERGE_WF, problem: big, root_cause: big, proposed_fix: big }));
+  const body = renderDigest(many, RUN);
+  assert.match(body, /details left out to fit the issue body limit/);
+  const read = readEntries(body);
+  assert.equal(read.length, 24);
+  assert.ok(read.every((e) => e.slice === "D" && e.workflow === MERGE_WF), "every entry, cut ones included, keeps its slice and workflow");
+});
+
+test("a workflow outside the plain workflow path pattern reads as no workflow", () => {
+  const odd = renderEntry({ fingerprint: "00000000000000c1", finding: finding({ slice: "C", workflow: "see .github/workflows/x.yml" }) });
+  assert.equal(odd.split("\n")[0], "<!-- lane-sweep-entry fp=00000000000000c1 slice=C -->");
+  const forgedMarker = "<!-- lane-sweep-entry fp=00000000000000c2 slice=C wf=.github/workflows/../../x.yml -->\n### t\n\nSlice C, fingerprint `00000000000000c2`.";
+  const read = readEntries(`${DIGEST_MARKER}\n\n${odd}\n\n${forgedMarker}`);
+  assert.deepEqual(
+    read.map((e) => [e.fingerprint, e.slice, e.workflow]),
+    [
+      ["00000000000000c1", "C", null],
+      ["00000000000000c2", "C", null],
+    ],
+  );
+});
+
+test("a carried older entry's marker gains the slice and workflow its Where block named", () => {
+  const open = digest([oldForm(entry("00000000000000a1", { workflow: MERGE_WF }))]);
+  const plan = planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: false, carry: () => "partial-window" });
+  assert.equal(plan.entries[0].text.split("\n")[0], `<!-- lane-sweep-entry fp=00000000000000a1 slice=A wf=${MERGE_WF} -->`);
+  assert.equal(plan.action, null, "a marker upgrade alone does not rewrite the digest");
+});
+
+test("an incomplete sweep with a carry rule keeps only the unseen entries it names", () => {
+  const open = digest([entry("00000000000000a1"), entry("00000000000000b1", { workflow: ".github/workflows/pr-merge.yml" })]);
+  const carry = (e) => (e.workflow === ".github/workflows/pr-merge.yml" ? "partial-window" : null);
+  const plan = planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: false, carry });
+  assert.deepEqual(plan.entries.map((e) => e.fingerprint), ["00000000000000b1"]);
+  assert.deepEqual(plan.dropped.map((e) => e.fingerprint), ["00000000000000a1"]);
+  assert.deepEqual(plan.carried, [{ fingerprint: "00000000000000b1", reason: "partial-window" }]);
+  assert.deepEqual(planDigest({ items: [], existing: [open], openNumbers: new Set(), complete: true, carry: () => "x" }).entries, []);
 });
 
 test("an incomplete sweep keeps every earlier entry it did not see", () => {
