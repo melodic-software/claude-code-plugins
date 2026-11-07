@@ -3,7 +3,7 @@ name: pdc-threshold-two
 graders:
   - name: two-is-enough
     type: regex
-    pattern: '\b(?:don''?t|do not|no need to|no reason to|not)\b[^\n]{0,20}\bwait\b[^\n]{0,60}\b(?:third|3rd)\b|\b(?:two|second|2nd)\b[^\n]{0,60}\b(?:copies|copy|places|docs)\b[^\n]{0,60}\b(?:already|is|counts?|enough)\b[^\n]{0,40}\bduplicat\w*|\bthreshold\b[^\n]{0,40}\b(?:two|2)\b'
+    pattern: '\b(?:don''?t|do not|no need to|no reason to|not)(?:[ \t]+(?:have|need) to)?[ \t]+wait\b[^\n.;?!]{0,60}\b(?:third|3rd)\b|\b(?:two|second|2nd)\b[^\n.;?!]{0,60}\b(?:copies|copy|places|docs)\b(?:(?!\b(?:not|fine|ok|okay|yet|only|until|wait)\b|n''t)[^\n.;?!]){0,60}\b(?:already|is|counts?|enough)\b(?:(?!\b(?:not|fine|ok|okay|yet|only|until|wait)\b|n''t)[^\n.;?!]){0,40}\bduplicat\w*|\bthreshold\b(?:(?!\b(?:three|third|3|3rd|not)\b|n''t)[^\n.;?!]){0,40}\b(?:two|2)\b'
     flags: 'i'
     target: last_message
   - name: consolidate-and-point

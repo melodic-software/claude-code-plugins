@@ -6,6 +6,18 @@
     {
       "answer": "`useDefineForClassFields` is an undocumented divergence. Either document the reason in docs/adr/, or drop the override.",
       "why": "record first, adopt second"
+    },
+    {
+      "answer": "`useDefineForClassFields: false` is undocumented. Option 1: drop `useDefineForClassFields` and take the ES2022 default. Option 2: keep it and record it in an ADR.",
+      "why": "option named by the setting"
+    },
+    {
+      "answer": "useDefineForClassFields: false is an undocumented divergence, so this is your call: adopt the docs' way, or keep the divergence and record its rationale.",
+      "why": "SKILL.md line 72-73 wording"
+    },
+    {
+      "answer": "useDefineForClassFields has no written rationale. Either remove `\"useDefineForClassFields\": false` from tsconfig.json, or file an ADR explaining it.",
+      "why": "quoted JSON key and 'file an ADR'"
     }
   ],
   "fail": [
@@ -16,6 +28,26 @@
     {
       "answer": "useDefineForClassFields is undocumented. strict false is backed by ADR 0003; keep it and drop nothing.",
       "why": "both words come from the strict paragraph"
+    },
+    {
+      "answer": "useDefineForClassFields: false overrides the default (true for ES2022), and no ADR covers it.",
+      "why": "classifies only: 'default' and 'ADR' describe the setting"
+    },
+    {
+      "answer": "useDefineForClassFields: false has no recorded rationale; the default for ES2022 is true.",
+      "why": "classifies only: 'recorded' and 'default' describe the setting"
+    },
+    {
+      "answer": "useDefineForClassFields: false is undocumented; adopt the default.",
+      "why": "one option only"
+    },
+    {
+      "answer": "useDefineForClassFields: false doesn't use the default, and no ADR documents the reason.",
+      "why": "negated verbs describe the divergence"
+    },
+    {
+      "answer": "useDefineForClassFields: false means the project never adopted the ES2022 default; nothing documents why.",
+      "why": "'never adopted' and 'nothing documents' describe the divergence"
     }
   ]
 }

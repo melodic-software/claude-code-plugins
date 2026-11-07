@@ -11,6 +11,14 @@
     },
     {
       "answer": "I said `payout run`; the glossary term is settlement batch."
+    },
+    {
+      "answer": "You said \"The payout run slipped because the PSP moved the cutoff.\" In project terms, the settlement batch closed early.",
+      "why": "inline-quoted echo of the old sentence"
+    },
+    {
+      "answer": "My “payout run slipped” meant the settlement batch closed early.",
+      "why": "curly-quoted echo"
     }
   ],
   "fail": [
@@ -19,6 +27,22 @@
     },
     {
       "answer": "Payout runs close at 17:00 UTC."
+    },
+    {
+      "answer": "You said \"settlement batch\", but the payout run slipped.",
+      "why": "a closed quote earlier on the line does not exempt a later unquoted use"
+    },
+    {
+      "answer": "I wrote \"payout run\" before. The payout run is the settlement batch.",
+      "why": "quoted mapping followed by an unquoted use on the same line"
+    },
+    {
+      "answer": "Short version: \"The payout run closes at 17:00 UTC, so late captures land two business days later.\" The settlement batch is the glossary term.",
+      "why": "the re-pitch itself sits in quotes; only a verbatim echo of the old reply is exempt"
+    },
+    {
+      "answer": "In short: \"the payout run slipped\". The settlement batch closed early.",
+      "why": "a quoted span that is neither the bare term nor the old reply's verbatim words"
     }
   ]
 }

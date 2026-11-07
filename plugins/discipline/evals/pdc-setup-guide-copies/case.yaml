@@ -31,7 +31,7 @@ graders:
     target: { source: file, path: docs/setup-guide.md }
   - name: examples-marked
     type: regex
-    pattern: '\b(?:such as|for example|e\.g\.|for instance|examples?)\b[^\n]{0,120}\b(?:label\w*|reviewers?|stale)\b|\b(?:label\w*|reviewers?|stale issues)\b[^\n]{0,120}\b(?:examples?|not (?:a )?(?:fixed|complete|exhaustive)|among others)\b'
+    pattern: '(?:\b(?:such as|for example|for instance|examples?)\b|\be\.g\.)[^\n]{0,120}\b(?:label\w*|reviewers?|stale)\b|\b(?:label\w*|reviewers?|stale issues)\b[^\n]{0,120}\b(?:examples?|not (?:a )?(?:fixed|complete|exhaustive)|among others)\b'
     flags: 'i'
     target: { source: file, path: docs/setup-guide.md }
   - name: observed-error-kept

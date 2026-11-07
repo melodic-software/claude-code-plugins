@@ -1,5 +1,5 @@
 ---
-description: "The prior reply is supplied inline because the case runs single-turn. The re-pitch must read the project glossary, use its term (settlement batch), add the missing premises (PSP, T+2 as two business days), and keep sentences short. no-improvised-term fails an unquoted 'payout run', the synonym the glossary bans; a quoted mapping to the glossary term, or a blockquoted echo of the old reply, passes"
+description: "The prior reply is supplied inline because the case runs single-turn. The re-pitch must read the project glossary, use its term (settlement batch), add the missing premises (PSP, T+2 as two business days), and keep sentences short. no-improvised-term fails an unquoted 'payout run', the synonym the glossary bans; the term quoted on its own (a quoted mapping to the glossary term), an inline-quoted verbatim echo of the old reply's first clause, or a blockquoted echo passes"
 tags: [discipline, wait-what, outcome, scaffold]
 max_turns: 10
 timeout_seconds: 300
