@@ -702,7 +702,9 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // The comment and labels of a stop whose route is not hold, which carries no
 // escalation marker: retry and wait keep Work status at agent-ready
 // (work-unblock restarts it and the next run resumes the branch), host-run and
-// attended add their label, intake and fail move Work status to needs-triage,
+// attended add their label and move Work status to confirmed, so a listed
+// human's agent-ready later is a change that starts a run, intake and fail
+// move Work status to needs-triage,
 // park to confirmed (finishStop writes admission's comment first), and close
 // closes the issue. No route writes a status label: the field is the state.
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
@@ -737,8 +739,8 @@ export async function stripStateLabels(github, base, had) {
   return removed;
 }
 const ROUTE_TEXT = {
-  "host-run": `It added \`${HOST_RUN_LABEL}\`: an agent run on a host builds it, and it waits on no decision from a person.`,
-  attended: `It added \`${ATTENDED_LABEL}\`: the step needs the owner present, and it waits on no decision from a person.`,
+  "host-run": `It added \`${HOST_RUN_LABEL}\` and set Work status to confirmed: an agent run on a host builds it, and it waits on no decision from a person.`,
+  attended: `It added \`${ATTENDED_LABEL}\` and set Work status to confirmed: the step needs the owner present, and it waits on no decision from a person.`,
   intake: "It set Work status to needs-triage, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
   "intake-security": "It set Work status to needs-triage, so the hourly triage sweep sends it back through intake triage.",
   park: `It set Work status to confirmed, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
@@ -803,7 +805,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     runId,
     comment: lines.join("\n"),
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
-    ...(route === "park" && { status: PARK_STATUS }),
+    ...((route === "park" || Object.hasOwn(ROUTE_LABEL, route)) && { status: PARK_STATUS }),
     ...(pr && { pr }),
     ...(after && { after }),
     ...(route === "park" && { admission: parkReason(stop, why || stopWhy(shown)) }),

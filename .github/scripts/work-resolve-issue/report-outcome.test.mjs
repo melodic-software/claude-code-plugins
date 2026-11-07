@@ -809,7 +809,7 @@ test("a run whose patch collector refused goes to a person, whatever its outcome
 // token-leak path, owner decision on #11021), and any other invalid patch or
 // an apply fault back to the lane.
 for (const [reason, why, action, labels] of [
-  ["patch-protected-path", /a path the issue lane may not push/, "host-run", ["host-run"]],
+  ["patch-protected-path", /a path the issue lane may not push/, "host-run", ["host-run", "status: confirmed"]],
   ["patch-credential", /credential shape/, "hand-back", ["needs-human"]],
   ["patch-invalid", /not a valid patch/, "retry", []],
   ["patch-not-applied", /did not apply/, "retry", []],
@@ -952,6 +952,9 @@ test("a pushback holds only for an explicit hold code, never for a security word
   const host = run("host-only: needs the GPU desktop.");
   assert.equal(host.stop, "host-only");
   assert.equal(host.action, "host-run");
+  // Work status leaves agent-ready, so a listed human's agent-ready after the
+  // host step is a field change that starts a run.
+  assert.equal(host.status, "status: confirmed");
   // One that names a security risk after the code reaches a person (owner
   // decision 2026-10-29), and a capability phrasing names none.
   for (const reason of ["host-only: needs the deploy token printed in the log.", "manual-external: rotate the leaked deploy token in the DNS account."]) {
@@ -965,6 +968,7 @@ test("a pushback holds only for an explicit hold code, never for a security word
   const attended = run("manual-external: add the DNS record for the docs site.");
   assert.equal(attended.stop, "manual-external");
   assert.equal(attended.action, "attended");
+  assert.equal(attended.status, "status: confirmed");
   // A non-hold, non-lane code goes through intake.
   for (const reason of ["blocked-by-pr: #12 changes the same file.", "already-done: abc1234 fixed it.", "report-delivered: the report is posted."]) {
     const plan = run(reason);
