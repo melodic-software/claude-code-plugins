@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "As integer minor units (cents) in a *_cents column, never a float or a decimal string.",
+      "why": "full"
+    },
+    {
+      "answer": "Integer cents in *_cents columns; no floats or decimal strings.",
+      "why": "short"
+    },
+    {
+      "answer": "Amounts stay integer cents, so refunds go in refund_cents as an integer, not a float or decimal.",
+      "why": "applied"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "As decimals with two places, like 12.50.",
+      "why": "decimal"
+    },
+    {
+      "answer": "In the currency's normal format.",
+      "why": "vague"
+    },
+    {
+      "answer": "In a *_cents column.",
+      "why": "half"
+    }
+  ]
+}

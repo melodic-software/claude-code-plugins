@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "KEEP: the `docs/runbooks/2025-11-retry-storm.md` pointer (navigation-pointer carve-out).", "why": "KEEP first"},
+    {"answer": "The retry-storm runbook pointer is not flagged: it is a curated navigation pointer.", "why": "not flagged"},
+    {"answer": "Where to Look First (retry-storm.md): keep it, C5 carve-out.", "why": "keep it"},
+    {"answer": "- **Lines 214–218 (Where to Look First):** a curated navigation pointer to an unindexed decision record. This is the C5 KEEP branch, not a codebase description.", "why": "smoke hm-ga-1 reply: names the section, not the file"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C5: remove the retry-storm.md pointer; Claude can find runbooks with Glob.", "why": "flags it"},
+    {"answer": "The retry-storm runbook is referenced in Where to Look First.", "why": "near miss: no verdict"},
+    {"answer": "KEEP the pnpm build:proto gotcha.", "why": "other kept line"},
+    {"answer": "Where to Look First (214-218): flag it; Claude can find runbooks with Glob.", "why": "near miss: section named, flagged"}
+  ]
+}

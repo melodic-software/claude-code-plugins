@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "Next: `/testing:write` for the Settings component tests.", "why": "names the skill" }
+  ],
+  "fail": [
+    { "answer": "Next: write the Settings component tests.", "why": "no skill named" },
+    { "answer": "Next: `/testing:writer` for the tests.", "why": "a different name" }
+  ]
+}

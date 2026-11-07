@@ -629,11 +629,19 @@ CAPPED_CLOSE_RE = re.compile(
 # uploaded later, as no pass clears them. A pass uploaded later can clear any other refusal, and a read may
 # answer otherwise.
 STANDING = (FAIL, REPEATED_FAIL)
+# An issue's comments, a page of up to 100 with the cursor to the next.
+COMMENT_FIELDS = (
+    "totalCount pageInfo{hasNextPage endCursor} nodes{databaseId createdAt "
+    "updatedAt lastEditedAt body author{...actor} editor{...actor}}"
+)
+# The most comment pages one issue's read takes (resolve-pr.mjs
+# COMMENT_PAGES, the same value): every trusted comment is spec, so none may
+# be skipped, and past the cap the read refuses and says so.
+COMMENT_PAGES = 10
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
-    "comments(first:100){totalCount nodes{databaseId createdAt updatedAt lastEditedAt "
-    "body author{...actor} editor{...actor}}} "
+    f"comments(first:100){{{COMMENT_FIELDS}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
     "nodes{number state author{...actor} repository{nameWithOwner}}}"
 )
@@ -662,8 +670,13 @@ SPLIT_CHILD_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
     "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
-    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
-    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
+    f"editor{{...actor}} comments(first:100){{{COMMENT_FIELDS}}}}}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+# The pages after the first of an issue's comments (`_whole_comments`).
+COMMENT_PAGE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!,$after:String!){repository(owner:$o,name:$r){"
+    f"issue(number:$n){{number comments(first:100,after:$after){{{COMMENT_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
 # The pull request's body edits and its issue connect and disconnect events,
@@ -2584,7 +2597,9 @@ class Reader:
         is a size split's sub-issue whose body counts (`split_child_body`),
         read once per Reader under the Actions token (`issues: read`). A
         failed read raises `_Unreadable` (`verify:unreadable`), as
-        resolve-pr.mjs fails on it; a cut comment read counts nothing."""
+        resolve-pr.mjs fails on it, as do a parent past COMMENT_PAGES pages
+        of comments and a failed page read; a cut comment read counts
+        nothing."""
         app_id = self._lane_app_id()
         number = issue.get("number")
         if (
@@ -2598,9 +2613,23 @@ class Reader:
             with run_cache.track() as taken:
                 task_list = self._task_list()
                 run_cache.note(run_cache.now())
-                node = self._graphql(
-                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
-                ).get("issue")
+                node = json_object(
+                    self._graphql(
+                        SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+                    ).get("issue")
+                )
+                parent = json_object(node.get("parent"))
+                if (
+                    json_object(parent.get("repository")).get("nameWithOwner")
+                    == self.repo
+                ):
+                    comments = self._whole_comments(
+                        parent.get("number"),
+                        parent.get("comments"),
+                        "the split parent",
+                        env=self._env(),
+                    )
+                    node = node | {"parent": parent | {"comments": comments}}
                 body = split_child_body(
                     node, self.repo, self._trusted_humans(), app_id, task_list
                 )
@@ -2731,8 +2760,10 @@ class Reader:
         what: str,
         missing: str | None = None,
         env: dict[str, str] | None = None,
+        after: str | None = None,
     ) -> dict[str, Any]:
-        """The query's `repository`, read under `env`'s token when given. A
+        """The query's `repository`, read under `env`'s token when given,
+        with `after` as the `$after` cursor when given. A
         NOT_FOUND for `missing` alone (`merge_policy.names_nothing`), which
         gh exits nonzero on, reads as `missing` an empty object, so a null
         there without that error stays apart; any other error raises
@@ -2740,6 +2771,8 @@ class Reader:
         owner, _, name = self.repo.partition("/")
         args = ["api", "graphql", "-f", f"query={query}"]
         args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
+        if after is not None:
+            args += ["-f", f"after={after}"]
         try:
             proc = (
                 postmerge.gh_capture(args, env_overrides=env)
@@ -2762,6 +2795,48 @@ class Reader:
         if not is_json_object(repository):
             raise _Unreadable(f"#{number}: the {what} answer has no repository")
         return repository
+
+    def _whole_comments(
+        self,
+        number: Any,
+        first: Any,
+        subject: str,
+        env: dict[str, str] | None = None,
+    ) -> Any:
+        """Issue `number`'s comments from `first`, the first page a read
+        returned, with up to COMMENT_PAGES - 1 more pages appended, as
+        resolve-pr.mjs wholeComments reads them. A list that stays short (no
+        next cursor, or a page that adds nothing) comes back short for the
+        caller's own whole-list check; past the cap, or on a failed page
+        read, raises `_Unreadable`."""
+        first = json_object(first)
+        nodes, total = first.get("nodes"), first.get("totalCount")
+        if not is_json_array(nodes) or type(total) is not int:
+            return first
+        cap = COMMENT_PAGES * 100
+        if total > cap:
+            raise _Unreadable(
+                f"#{number}: {subject} has {total} comments, more than the "
+                f"{cap} ({COMMENT_PAGES} pages) this read takes"
+            )
+        nodes, page, pages = list(nodes), first, 1
+        while len(nodes) < total and pages < COMMENT_PAGES and type(number) is int:
+            info = json_object(page.get("pageInfo"))
+            cursor = info.get("endCursor")
+            if info.get("hasNextPage") is not True or not isinstance(cursor, str):
+                break
+            issue = json_object(
+                self._graphql(
+                    COMMENT_PAGE_QUERY, number, "comments", env=env, after=cursor
+                ).get("issue")
+            )
+            page = json_object(issue.get("comments"))
+            more = page.get("nodes")
+            if issue.get("number") != number or not is_json_array(more) or not more:
+                break
+            nodes += more
+            pages += 1
+        return first | {"nodes": nodes}
 
     def _closing_issues(self, number: int) -> dict[Any, Any]:
         """The PR's closing issues in this repository now, each with its
@@ -2794,6 +2869,11 @@ class Reader:
             for node in nodes
             if json_object(json_object(node).get("repository")).get("nameWithOwner")
             == self.repo
+        }
+        live = {
+            n: issue
+            | {"comments": self._whole_comments(n, issue.get("comments"), "the issue")}
+            for n, issue in live.items()
         }
         for issue in live.values():
             for part in ISSUE_LISTS:
@@ -5181,15 +5261,17 @@ def capped_close(
     same way (owner decision on the issue this fixes, 2026-10-30). In
     order, so a failed write leaves the pull request open for the next run,
     which finds its comments and writes the rest: the record on the pull
-    request, then on each issue; the issue's `agent-ready` comes off and
-    goes back on (tried twice), which starts the fresh attempt, only when the
-    issue carried it (one that did not is recorded and not restarted); the pull
-    request closes, so a closed one never leaves its issue without
-    `agent-ready`. An issue that already had `attempts` fresh attempts
-    (`merge.verify-cap-attempts`) is parked instead, before the close: with
-    `issue_status`, its Work status field at `confirmed` and no status label
-    written; without, `status: confirmed` with `status: ready` off; either
-    way `agent-ready` off. A pull
+    request, then on each issue; the fresh attempt starts, only when the
+    issue carried `agent-ready` (one that did not is recorded and not
+    restarted): with `issue_status`, its Work status field is cleared (a 404
+    is fine) and set to agent-ready, touching no label; without, `agent-ready`
+    comes off and goes back on (tried twice); the pull request closes, so a
+    closed one never leaves its issue without agent-ready. An issue that
+    already had `attempts` fresh attempts (`merge.verify-cap-attempts`) is
+    parked instead, before the close: with `issue_status`, its Work status
+    field at `confirmed` and no label written; without, `status: confirmed`
+    with `status: ready` and `agent-ready` off. An issue held at the cap
+    loses `agent-ready` only without `issue_status`. A pull
     request not open at `head`, not the lanes App's, or carrying a hold label
     (`holds`) is left alone, and so is one whose issue link the pr-merge lane
     does not take (`Reader.link_refusal`: one issue, clearing the trust hold)
@@ -5200,7 +5282,12 @@ def capped_close(
     issue label, except putting back an `agent-ready` the newest removal of
     which was the lanes App's own at or after its record (`_lane_removals`);
     one carrying it with no such removal is toggled, since the run that
-    wrote the record stopped before the label came off.
+    wrote the record stopped before the label came off. With `issue_status`
+    the rerun reads field events instead (`issue_status_set_since`): a lanes
+    App agent-ready set at or after the record is the restart already made,
+    and with none the field restarts unless it reads a state other than
+    agent-ready or unset; a parked one is done when the field reads
+    `confirmed`.
     FAIL findings come only from runs of verified origin. Raises
     `RuntimeError` on a failed
     write or a failed issue or Work status read, `PostMergeReadError` on a
@@ -5296,8 +5383,8 @@ def capped_close(
         return {"closed": False, "reason": "reopened after its capped-close record"}
     # `attempt` None: the issue did not carry agent-ready when read (a person
     # may have taken it off), so it is recorded without an attempt and not
-    # restarted. `labels`: which label writes it gets (park, toggle, add or
-    # none). On a rerun, a record with no attempt writes none; a parked one
+    # restarted. `labels`: which writes it gets (park, toggle, add or none;
+    # with `issue_status`, toggle and add both restart the field). On a rerun, a record with no attempt writes none; a parked one
     # writes the park labels only while unfinished; one naming an attempt
     # toggles only when no lanes App removal followed the record, and puts
     # agent-ready back only when the newest removal is that one
@@ -5325,11 +5412,35 @@ def capped_close(
             }
             if parked:
                 # Written once: the park labels go on again only while unfinished.
-                done = STATUS_CONFIRMED in names and not names & {
-                    STATUS_READY,
-                    AGENT_READY,
-                }
+                done = (
+                    states.get(issue) == STATUS_FIELD_CONFIRMED
+                    if issue_status is not None
+                    else STATUS_CONFIRMED in names
+                    and not names & {STATUS_READY, AGENT_READY}
+                )
                 labels = "none" if done else "park"
+            elif issue_status is not None:
+                # The lanes App's own agent-ready set at or after the record is
+                # the restart that run made; with none, the run stopped before
+                # it, and the attempt starts unless a person has since moved
+                # the field to another state.
+                try:
+                    restarted = merge_policy.issue_status_set_since(
+                        repo,
+                        issue,
+                        issue_status,
+                        identity,
+                        merge_policy.AGENT_READY_STATE,
+                        since,
+                    )
+                except merge_policy.PolicyReadError as exc:
+                    raise RuntimeError(f"#{issue} Work status: {exc}") from exc
+                labels = (
+                    "none"
+                    if restarted
+                    or states.get(issue) not in (None, merge_policy.AGENT_READY_STATE)
+                    else "toggle"
+                )
             else:
                 removed, newest = _lane_removals(
                     postmerge._paginated(
@@ -5360,8 +5471,9 @@ def capped_close(
             labels = "park" if parked else ("toggle" if carried else "none")
         plan.append((issue, comments, attempt, parked, labels))
     # Read again before any record or park write: a hold set since the hold
-    # read stays, and the issue is recorded with no attempt, not parked, and
-    # loses agent-ready, since its attempts are spent.
+    # read stays, and the issue is recorded with no attempt, not parked, and,
+    # in a repository with no Work status field, loses agent-ready, since its
+    # attempts are spent.
     held: dict[int, str] = {}
     for i, (issue, comments, _, _, labels) in enumerate(plan):
         if labels == "park" and read_status:
@@ -5405,7 +5517,7 @@ def capped_close(
             held.get(issue),
         )
         base = f"repos/{repo}/issues/{issue}/labels"
-        if issue in held:
+        if issue in held and issue_status is None:
             # At the cap: no attempt restarts when the hold clears. Before the
             # record, since a rerun that finds the record writes no labels.
             _gh_write(
@@ -5448,6 +5560,20 @@ def capped_close(
                 missing_ok=True,
             )
         if labels == "none":
+            continue
+        if issue_status is not None:
+            if parked:
+                continue
+            # write-status.mjs restart: clear the field, then set it to
+            # agent-ready, so GitHub sends the field_added that starts a run.
+            _gh_write(
+                merge_policy.issue_status_clear(repo, issue, issue_status.field_id),
+                f"#{issue} Work status clear",
+                missing_ok=True,
+            )
+            postmerge.set_issue_status(
+                repo, issue, issue_status, merge_policy.AGENT_READY_STATE
+            )
             continue
         if labels != "add":
             _gh_write(

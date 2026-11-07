@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Gap report: state invoice editor (validation errors); driver resolved: the chat-only screenshot tool; a driver that writes PNG files (the Playwright CLI or a repository harness) is needed.",
+      "why": "gap report and PNG"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll capture the state through the chat screenshot tool and save it by hand as a PNG.",
+      "why": "captures through chat"
+    }
+  ]
+}

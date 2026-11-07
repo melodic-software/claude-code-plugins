@@ -24,6 +24,8 @@
 - The spec kind: the verdict write-verdict.mjs builds from resolve-pr's spec
   text records `spec_kind`, and the gate allows a pass only when it matches
   how the issue is linked now (a `Refs:` slice or a closing issue).
+- The comment page cap: the same COMMENT_PAGES, so an issue one side reads
+  whole the other does too.
 - The merge queue's pass lookup: ci-status's lines that find the head's pass
   in pr-require-checks.yml, run under bash against stubbed run reads, allow
   a pass from the runs the gate counts, under the exact names it reads.
@@ -112,6 +114,21 @@ def gate_counts(run: dict[str, Any], verdict: str) -> bool:
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheGateAndTheResolverAgree(unittest.TestCase):
+    def test_the_comment_page_caps_are_the_same(self) -> None:
+        script = "import { COMMENT_PAGES } from %s; console.log(COMMENT_PAGES);"
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script % json.dumps(RESOLVER.as_uri()),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(int(proc.stdout), ve.COMMENT_PAGES)
+
     def test_the_dependency_managers_are_the_same(self) -> None:
         answer = resolver(USERS, [])
         self.assertEqual(set(answer["managers"]), classify.DEPENDENCY_MANAGER_LOGINS)

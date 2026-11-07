@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: au-content-in-claude-migrate-advisory
+graders:
+  - name: 'names-migrate-plan'
+    type: 'regex'
+    pattern: '/instruction-placement:migrate[`*]*\s+[`*]*plan\b|\bmigrate(?:''s)? plan\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-cutover-check'
+    type: 'regex'
+    pattern: '\bcutover[- ]check\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the audit run does with the stated files. PASS only if it satisfies every point: (1) Reports a content-home advisory for the root CLAUDE.md that names `/instruction-placement:migrate plan`; (2) Gives the .claude/CLAUDE.md no content-home advisory, because migrate''s plan emits no DIR row for it; (3) Does not recommend deleting the CLAUDE.md or removing a shim, and says the `@AGENTS.md` shim stays; (4) Names migrate''s `cutover-check` as what decides shim removal; (5) Routes the Claude-specific hooks section to `.claude/rules/` with a `paths:` glob; (6) Treats the advisory as having no finding_id or status, separate from any demote finding; (7) Mutates no instruction file. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

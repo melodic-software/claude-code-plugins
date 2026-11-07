@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-snapshot-only
+description: 'Legacy audit 16. A Jest receipt test whose only oracle is toMatchSnapshot. The scan reports rule-snapshot-only and the reply keeps the snapshot and adds one literal assertion. skill-fired and ran-scanner read the tool calls, snapshot-rule-and-literal the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+tags: [testing, audit, snapshot-only, scaffold, no-network]
+expected_outcome: 'Reports testing/audit/rule-snapshot-only, says the snapshot is the only oracle to review as code, and proposes a literal assertion beside it.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Our receipt test only calls toMatchSnapshot. Is that enough? Use the `testing:audit` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?audit"'
+  - name: ran-scanner
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|;|\||\\n|\(|\$\()\s*)?(?:(?:do|then)\s+)?(?:(?:env|time|timeout\s+\d+)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:(?:bash|sh)\s+)?(?:\\")?[^\s"\\]*cant-fail-scan\.sh(?:\\")?(?=[\s"\\;&|)]|$)'
+  - name: snapshot-rule-and-literal
+    type: regex
+    pattern: '^(?=[\s\S]*(?:(?:testing/audit/)?rule-snapshot-only))(?=[\s\S]*(?:review(?:ed)? (?:it )?as code|\bonly oracle\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether a receipt test that only calls toMatchSnapshot is enough. PASS only if the reply satisfies every legacy expectation: "Output reports testing/audit/rule-snapshot-only and says the snapshot is the only oracle to review as code" "Output proposes a literal assertion beside the snapshot rather than removing the snapshot". FAIL if any point is missing or contradicted.'

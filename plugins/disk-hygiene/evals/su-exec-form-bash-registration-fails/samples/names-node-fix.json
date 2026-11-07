@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Fix: set \"command\": \"node\" and put hooks/exec-bash.mjs first in args, then hooks/run-python-hook.sh and its arguments."
+    },
+    {
+      "answer": "Change each registration to `command: node`, `args: [\"${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs\", \"${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh\", ...]`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fix: set command to node and run hooks/run-python-hook.sh directly."
+    },
+    {
+      "answer": "Fix: put C:\\Program Files\\Git\\bin ahead of System32 on PATH."
+    },
+    {
+      "answer": "Fix: run hooks/run-python-hook.sh through hooks/exec-bash.mjs."
+    }
+  ]
+}

@@ -37,3 +37,6 @@ graders:
   - name: names-a-counter-instead
     type: llm
     criteria: 'PASS only if the final reply declines to set a ceiling on the 212-second wall time and either names a count that changes only when the code changes (specs run, HTTP requests, database queries, process spawns) as the thing to ratchet, or says no ceiling can be set until such a counter exists. FAIL if it records or proposes any duration ceiling, including one with headroom.'
+  - name: meets-legacy-ratchet-2
+    type: llm
+    criteria: 'The user asks for a CI ceiling on a suite''s wall time (legacy ratchet 2 asked about an API test suite; this case asks about the end-to-end suite, and the rule is the same). The run meets the legacy expectations: "Does not record a ceiling on 212 seconds or any duration" "States that a duration ceiling fails with host load rather than with the code" "Names a counter to ratchet instead, or says one must exist first".'

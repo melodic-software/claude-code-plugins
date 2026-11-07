@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "broken-glob: `.claude/rules/payments.md` `src/payments/**/*.ts` (41 -> 0)",
+      "why": "class first"
+    },
+    {
+      "answer": "| payments.md | src/payments/**/*.ts | valid -> 0 matches | broken-glob |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing moved: the rules folder is untouched.",
+      "why": "accepts the premise"
+    },
+    {
+      "answer": "`.claude/rules/payments.md` now matches 0 files (zero-match).",
+      "why": "names the check status, not the transition class"
+    },
+    {
+      "answer": "broken-glob: none.",
+      "why": "no rule named"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

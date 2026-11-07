@@ -24,7 +24,8 @@ import { LANES_APP_LOGIN, matchesHoldPath } from "../pr-merge/merge-holds.mjs";
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SHA = /^[0-9a-f]{40}$/;
-const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
+// The handoff key grammar ci-mode.md states verbatim; a test holds the two equal.
+export const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const branchFor = (plugin, release) => `changelog/${plugin}/v${release}`;
@@ -238,6 +239,35 @@ export function readPlan(text, ctx) {
   return validatePlan(plan, ctx);
 }
 
+// Which part of a handoff key breaks KEY or the release prefix, with its
+// length; never any of its text.
+export function keyProblem(key, release) {
+  if (typeof key !== "string") return "is not a string";
+  const prefix = `changelog:${release}..${release}:`;
+  const size = `(${key.length} characters)`;
+  if (!key.startsWith(prefix)) return `does not start with ${prefix} ${size}`;
+  const rest = key.slice(prefix.length);
+  const colon = rest.indexOf(":");
+  const lens = colon < 0 ? rest : rest.slice(0, colon);
+  if (!/^[a-z-]+$/.test(lens)) return `has a lens that is empty or has characters outside [a-z-] ${size}`;
+  const surface = colon < 0 ? "" : rest.slice(colon + 1);
+  if (!surface) return `has an empty surface ${size}`;
+  if (surface.length > 200) return `has a surface over 200 characters ${size}`;
+  if (!/^[A-Za-z0-9_./-]+$/.test(surface)) return `has a surface with characters outside [A-Za-z0-9_./-] ${size}`;
+  return KEY.test(key) ? null : `does not match the key grammar ${size}`;
+}
+
+// Which PLUGIN rule a plugin name breaks, with its length; never its text.
+export function pluginProblem(plugin) {
+  if (typeof plugin !== "string") return "is not a string";
+  const size = `(${plugin.length} characters)`;
+  if (!plugin) return "is empty";
+  if (plugin.length > 64) return `is over 64 characters ${size}`;
+  if (!/^[a-z0-9]/.test(plugin)) return `does not start with [a-z0-9] ${size}`;
+  if (!PLUGIN.test(plugin)) return `has characters outside [a-z0-9-] ${size}`;
+  return null;
+}
+
 // Every message names a field and its index, never a value: the plan is
 // model output and the scan job reports these before it scans anything.
 export function validatePlan(plan, { release, baseSha }) {
@@ -259,7 +289,8 @@ export function validatePlan(plan, { release, baseSha }) {
   const seen = new Set();
   branches.forEach((b, i) => {
     const at = `branches[${i}]`;
-    if (!PLUGIN.test(b?.plugin ?? "")) fail(`${at}.plugin is malformed`);
+    const badPlugin = pluginProblem(b?.plugin);
+    if (badPlugin) fail(`${at}.plugin ${badPlugin}`);
     if (seen.has(b.plugin)) fail(`${at}.plugin repeats an earlier branch's plugin`);
     seen.add(b.plugin);
     if (b.branch !== branchFor(b.plugin, release)) fail(`${at}.branch is not changelog/<plugin>/v<release>`);
@@ -274,7 +305,8 @@ export function validatePlan(plan, { release, baseSha }) {
   const keys = new Set();
   handoffs.forEach((h, i) => {
     const at = `handoffs[${i}]`;
-    if (!KEY.test(h?.key ?? "") || !h.key.startsWith(`changelog:${release}..${release}:`)) fail(`${at}.key is malformed`);
+    const badKey = keyProblem(h?.key, release);
+    if (badKey) fail(`${at}.key ${badKey}`);
     if (keys.has(h.key)) fail(`${at}.key repeats an earlier handoff's key`);
     keys.add(h.key);
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);

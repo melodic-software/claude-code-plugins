@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: su-bare-runs-check
+description: 'Legacy setup 1. The bare /disk-hygiene:setup, with no action, runs the read-only check (setup SKILL.md lines 16-17): a PASS/FAIL/INFO table with no question about which action to run, and no Edit or Write. reads-skill-scripts (llm, trace) grades that the run reads the clean skill and its bundled scripts rather than reciting setup SKILL.md (lines 21-25). The setup skill sets disable-model-invocation, so the prompt is the slash command and carries no Skill grader; ran-kill-switch-probe is the with-only indicator. names-python-floor grades the 3.11 floor parsed from MIN_PYTHON. Needs --allow-tools Bash Edit Write; run with --disallow-tools Glob Grep if a Glob or Grep on the plugin dir reads INVALID.'
+tags: [setup, check, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The run defaults to check: it probes the machine, reads the clean skill and its scripts for the prerequisites, and replies with a PASS/FAIL/INFO table with one remediation line per FAIL. It asks no question about which action to run, and edits or writes no file.'
+execution:
+  prompt: /disk-hygiene:setup
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ran-kill-switch-probe
+    type: tool_used
+    tool: Bash
+    input_match: 'kill_switch_probe\.py'
+    arm: with-only
+  - name: status-table
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:PASS|FAIL)\b)(?=[\s\S]*\bINFO\b)'
+    target: last_message
+    arm: both
+  - name: no-action-question
+    type: regex
+    pattern: '\b(?:which|what)\b[^\n?]{0,40}\b(?:action|check|apply)\b[^\n?]*\?|\bcheck\b[^\n?]{0,40}\bor\b[^\n?]{0,20}\bapply\b[^\n?]*\?|\bapply\b[^\n?]{0,40}\bor\b[^\n?]{0,20}\bcheck\b[^\n?]*\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: names-python-floor
+    type: regex
+    pattern: '(?:floor|MIN_PYTHON|>=|≥|minimum|requires?|needs?|at least)[^\n]{0,40}(?:\b3\.11\b(?!\.\d)|\(\s*3\s*,\s*11\s*\))|\b3\.11\b(?!\.\d)(?:\+|[^\n]{0,20}(?:floor|MIN_PYTHON|minimum|or (?:later|newer|above)))'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: reads-skill-scripts
+    type: llm
+    criteria: 'Pass only if the trace shows the run reading the clean skill and its bundled scripts (for example skills/clean/SKILL.md, hygiene.py and its MIN_PYTHON constant, hooks/exec-bash.mjs, kill_switch_probe.py) and probing the machine, so that its table comes from those sources: the legacy expectation "Reads the clean skill and its bundled scripts as the source of truth for prerequisites rather than reciting SKILL.md". Fail if the table only restates the setup skill''s own text with no such read or probe.'
+    focus: trace
+    arm: both

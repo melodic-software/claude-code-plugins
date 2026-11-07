@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run `cant-fail-scan.sh --check`: exit 1 when a gating rule fired, exit 2 when it could not read its inputs or examined 0 test files, exit 0 only for a fully read clean scan. mock-only-oracle gates only with --strict.",
+      "why": "all three codes"
+    },
+    {
+      "answer": "| Exit | Meaning |\n|---|---|\n| 0 | clean, fully read |\n| 1 | gating finding |\n| 2 | could not read inputs |\n\nAdd `--strict` to gate mock-only-oracle; use `--check` in CI.",
+      "why": "table form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use `--check`: exit 1 on a finding, exit 0 otherwise. Add --strict for mock-only-oracle.",
+      "why": "no fail-closed exit 2"
+    }
+  ]
+}

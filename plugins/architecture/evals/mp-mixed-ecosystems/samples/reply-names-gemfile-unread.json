@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "- **Result**: ok. Not read: ruby (Gemfile). No adapter for it is shipped."
+    },
+    {
+      "answer": "The Gemfile was not read: Ruby is a declined ecosystem."
+    },
+    {
+      "answer": "Ruby (`Gemfile`) is declined and left unread."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Result**: ok, ecosystem mixed (node, go).",
+      "why": "Gemfile not mentioned"
+    },
+    {
+      "answer": "Read the Gemfile too: rake is an external package.",
+      "why": "claims it was read"
+    }
+  ]
+}

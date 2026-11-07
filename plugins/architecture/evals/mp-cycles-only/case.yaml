@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: mp-cycles-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: passes-cycles-only
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?render-dependencies\.sh(?:\\"|'')?[ \t](?:[^"\\]|\\.)*?--cycles-only\b'
+    min: 1
+  - name: cycles-above-diagram
+    type: regex
+    pattern: '^(?![\s\S]*\n## Diagram\b[\s\S]*\n## Cycles\b)[\s\S]*\n## Cycles\n(?:(?!\n## )[\s\S])*src/Orders/Orders\.csproj(?:(?!\n## )[\s\S])*src/Payments/Payments\.csproj(?:(?!\n## )[\s\S])*src/Shipping/Shipping\.csproj[\s\S]*\n## Diagram\b'
+    target: { source: file, path: docs/architecture/dependency-graph.md }
+  - name: flowchart-only-cycle
+    type: regex
+    pattern: '^(?![\s\S]*\bC4(?:Component|Container|Context)\b)(?![\s\S]*Analytics)(?![\s\S]*```mermaid\n(?:(?!```)[\s\S])*Logging)[\s\S]*```mermaid\nflowchart\b(?:(?!```)[\s\S])*Orders\.csproj(?:(?!```)[\s\S])*Payments\.csproj(?:(?!```)[\s\S])*Shipping\.csproj(?:(?!```)[\s\S])*-->'
+    target: { source: file, path: docs/architecture/dependency-graph.md }
+  - name: record-keeps-all-edges
+    type: regex
+    pattern: '^(?![\s\S]*Analytics)(?=[\s\S]*\n[ \t]*\{"from":"src/Orders/Orders\.csproj","to":"src/Logging/Logging\.csproj","kind":"project","status":"resolved")(?=[\s\S]*\n[ \t]*\{"from":"src/Shipping/Shipping\.csproj","to":"src/Orders/Orders\.csproj","kind":"project","status":"resolved")'
+    target: { source: file, path: docs/architecture/dependency-graph.json }

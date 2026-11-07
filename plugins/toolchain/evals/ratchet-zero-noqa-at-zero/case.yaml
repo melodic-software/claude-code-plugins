@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: ratchet-zero-noqa-at-zero
+description: 'Legacy ratchet 7. A suppression count of 0 with no rule that rejects the comment is ratcheted at 0: ratchet.py add records a ceiling of 0 in a new .ratchets.json (no check call exists yet), and the check step goes inside the required `test` job. ceiling-zero reads .ratchets.json, step-in-required-job ci.yml, add-ran the Bash calls; meets-expectations (llm) quotes the legacy expectations. A run needs --scaffold and --allow-tools Bash Edit Write.'
+tags: [ratchet, suppressions, zero, scaffold, no-network]
+expected_outcome: '.ratchets.json holds a noqa counter with a ceiling of 0, recorded by ratchet.py add; the `test` job in ci.yml gains a step running ratchet.py check --file .ratchets.json; the reply does not claim a linter rule now blocks new noqa comments.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/toolchain:ratchet the count of `# noqa` comments. `bash count-noqa.sh` prints noqa=0. Ruff has no rule that rejects every noqa comment. Write the proposed files into the working tree; do not commit.'
+  allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ceiling-zero
+    type: regex
+    pattern: '\{(?=[^{}]*"field":\s*"noqa")[^{}]*"ceiling":\s*0(?![\d.])'
+    target: { source: file, path: .ratchets.json }
+  - name: step-in-required-job
+    type: regex
+    pattern: '^  test:\n(?:(?!^  \S)[\s\S])*?ratchet\.py"?\s+check\s+--file\s+\.ratchets\.json'
+    flags: m
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: add-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'ratchet\.py\S*\s+add\b'
+    min: 1
+    arm: with-only
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run ratchets a count of `# noqa` comments that is 0, where ruff has no rule rejecting every noqa comment. It meets the legacy expectations: "Records a ceiling of 0 with ratchet.py add" "Does not claim a linter rule now blocks new noqa comments" "Adds or reuses a check step inside the required job".'

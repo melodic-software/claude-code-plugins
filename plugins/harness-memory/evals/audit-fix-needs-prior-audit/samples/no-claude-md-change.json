@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no Bash call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "wc -l CLAUDE.md"}}], "why": "near miss: reads CLAUDE.md"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /tmp/p/harness-memory/lib/state-key.sh"}}], "why": "resolver only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -i '/camelCase/d' CLAUDE.md"}}], "why": "in-place edit"},
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '# Parcel tracker\\n' > CLAUDE.md"}}], "why": "overwrite"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -v 'Prefer const' CLAUDE.md | tee CLAUDE.md"}}], "why": "tee rewrite"}
+  ]
+}

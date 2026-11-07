@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Warning: `.claude/ecosystems/dotnet.yaml` is malformed (unclosed flow sequence on line 1); falling back to inference.",
+      "why": "names the file and the problem"
+    },
+    {
+      "answer": "**Malformed consumer config:** `.claude/ecosystems/dotnet.yaml` could not be parsed, so commands were inferred from Cart.csproj.",
+      "why": "verdict word first"
+    },
+    {
+      "answer": "Warning: malformed consumer config `.claude/ecosystems/dotnet.yaml`; inferring commands from Cart.csproj.",
+      "why": "verdict word before the full path, nothing after it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Read `.claude/ecosystems/dotnet.yaml` and resolved its commands.",
+      "why": "no warning"
+    },
+    {
+      "answer": "`.claude/ecosystems/dotnet.yaml` is not malformed; resolved build-cmd from it.",
+      "why": "negated verdict"
+    },
+    {
+      "answer": "Used `.claude/ecosystems/dotnet.yaml`, then dotnet build failed: invalid project file.",
+      "why": "the verdict word belongs to another clause"
+    },
+    {
+      "answer": "Cart.csproj is invalid. Read `.claude/ecosystems/dotnet.yaml` and resolved its commands.",
+      "why": "a sentence-ending dot still stops the verdict-first gap"
+    }
+  ]
+}

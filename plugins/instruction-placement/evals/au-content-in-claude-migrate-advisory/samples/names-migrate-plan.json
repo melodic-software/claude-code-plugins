@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Advisory: root CLAUDE.md holds content. Run `/instruction-placement:migrate plan` for the move.",
+      "why": "command in a code span"
+    },
+    {
+      "answer": "Next: /instruction-placement:migrate **plan**",
+      "why": "bold argument"
+    },
+    {
+      "answer": "migrate's plan will split the content into AGENTS.md.",
+      "why": "possessive form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Delete CLAUDE.md and use AGENTS.md; run /instruction-placement:migrate.",
+      "why": "no plan step"
+    },
+    {
+      "answer": "Plan: move the hooks section to `.claude/rules/hooks.md`.",
+      "why": "plan without migrate"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

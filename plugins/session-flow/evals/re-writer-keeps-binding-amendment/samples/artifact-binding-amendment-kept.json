@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "handoff": "## Original goal\n\n**Amended (owner, 2026-08-10):** Write every amount as integer minor units (cents) in a *_cents column; never as a float or a decimal string.\n",
+      "why": "kept verbatim"
+    },
+    {
+      "handoff": "## Current rules\n\n- [R6] Write every amount as integer minor units (cents) in a *_cents column; never as a float or a decimal string.\n",
+      "why": "codified as a rule"
+    }
+  ],
+  "fail": [
+    {
+      "handoff": "## Review before you continue\n\n- Retired entries: archive/x/h6-1a2b3c4d.md § Retired goal amendments\n",
+      "why": "retired"
+    },
+    {
+      "handoff": "Amounts are in cents.\n",
+      "why": "paraphrased outside a rule"
+    },
+    {
+      "handoff": "- [R6] Amounts are integer minor units.\n",
+      "why": "rule without the float ban"
+    }
+  ]
+}

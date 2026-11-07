@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "What I can do: compress the section in place.",
+      "why": "verb"
+    },
+    {
+      "answer": "Alternatives: compression in place, or keep it as is.",
+      "why": "noun"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote `.claude/rules/secrets.md` with `paths: **/.env*`.",
+      "why": "applies it"
+    },
+    {
+      "answer": "Refused: the Secrets section is held back.",
+      "why": "bare refusal with no alternative"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

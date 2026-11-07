@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Node exec-form launcher registration | FAIL | both wired hooks set \"command\": \"bash\" |"
+    },
+    {
+      "answer": "Step 1 FAIL: hooks.json registers the guard with bare bash as command."
+    },
+    {
+      "answer": "| Launcher | FAIL | the wired hooks use bare `bash` in command |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Launcher registration | PASS | command is node |"
+    },
+    {
+      "answer": "| bash | FAIL | System32\\bash.exe resolves first on PATH |"
+    },
+    {
+      "answer": "FAIL: reorder PATH so Git's bash comes before System32."
+    }
+  ]
+}

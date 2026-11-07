@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-dependencies/scripts/render-dependencies.sh\" --record \"docs/architecture/dependency-graph.json\" --out \"docs/architecture\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/eval/plugins/architecture/scripts/build-view.mjs\" dependencies --record docs/architecture/dependency-graph.json",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

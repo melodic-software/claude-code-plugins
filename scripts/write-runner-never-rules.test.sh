@@ -121,7 +121,7 @@ say(/"\$RUNNER_TEMP\/base-script\/\$\(basename "\$SCRIPT"\)"/.test(script), "a s
 const skill = byId("act-skill");
 const args = String(skill.with?.claude_args ?? "");
 // The action admits the lanes App, which the trigger gate passes only on its
-// app-label, and github-actions only on a dispatcher-sent run the gate
+// app field write, and github-actions only on a dispatcher-sent run the gate
 // verified; never '*'. cant-fail-ok: the allowed_bots value is the contract.
 say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions' || 'melodic-automation-lanes[bot]' }}",
   `the skill admits the lanes App, and github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.with?.allowed_bots)})`);

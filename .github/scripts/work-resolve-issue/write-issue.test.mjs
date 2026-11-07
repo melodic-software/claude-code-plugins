@@ -3,11 +3,12 @@
 // its author id is listed, it was not posted through an unlisted App, and it
 // was never edited or last edited by a listed id), from the trusted-actor
 // list's kinds (only a `human` entry can record a decision), and from the
-// label-only admission rule (the issue is admitted as it stood when the
-// account that applied the label last added it, and the App's restart, a
-// removal no trusted `status: ready` followed, admits nothing new; admit.mjs
-// removalStands). Ids and logins are the shared
-// trusted-actors fixture's.
+// admission rule (the issue is admitted as it stood at the lanes App's newest
+// admission record or a listed human's newest Work status set of
+// agent-ready, at or before the event that started the run; an App restart
+// writes no record and admits nothing new; ../lib/admission-record.mjs).
+// Ids and logins are the shared trusted-actors fixture's; the Work status
+// field and option are docs/conventions/pr-pipeline.yaml's.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -17,9 +18,11 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { bodyVersion, REFINE_MARKER, splitChildHeader, splitItemsLine } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
+import { recordBody } from "../lib/admission-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(HERE, "..", "..", "..");
 const SHARED_LIST = path.join(HERE, "..", "..", "actions", "check-trusted-trigger", "fixtures", "trusted-actors.json");
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton" };
@@ -48,15 +51,30 @@ const ISSUE = {
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
 };
 
-// Label events land at noon, so a comment or edit at midnight that day is before them.
-const labelEvent = (event, actor, day, name) => ({ event, label: { name }, actor, created_at: at(day).replace("T00", "T12") });
-const labeled = (actor, day, name = "agent-ready") => labelEvent("labeled", actor, day, name);
-const unlabeled = (actor, day, name = "agent-ready") => labelEvent("unlabeled", actor, day, name);
+// Admissions land at noon, so a comment or edit at midnight that day is before them.
+const noon = (day) => at(day).replace("T00", "T12");
+// A Work status field set, as resolve-config.mjs fieldEvents reads it from GraphQL.
+const set = (actor, day, to = "agent-ready") => ({
+  __typename: "IssueFieldAddedEvent",
+  createdAt: noon(day),
+  value: to,
+  actor: { __typename: actor === LANES_BOT ? "Bot" : "User", login: actor.login, databaseId: actor.id },
+  issueField: { fullDatabaseId: "48484079" },
+});
+// The lanes App's admission record of `text` (by default ISSUE's), posted at noon.
+const record = (day, text = ISSUE, user = LANES_BOT) => ({
+  ...comment(9000 + day, user, recordBody({ actorId: LANES_BOT.id, title: text.title, body: text.body })),
+  created_at: noon(day),
+  updated_at: noon(day),
+});
 
-// By default the owner added agent-ready after every comment a test posts.
+// By default the owner set agent-ready after every comment a test posts.
+// `admissions` holds field sets (set) and records (record), which join the comments.
 // `spec` is the issue's text as admission's SPEC_QUERY answers it (admit.mjs
 // specOf); by default ISSUE's body, which a listed human wrote, with no comments.
-function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {}, issue = ISSUE, spec = {} }) {
+function fakeGitHub({ comments: posted, edits = {}, issueEdits = {}, users = {}, fail = "", admissions = [set(OWNER, 28)], compare = {}, issue = ISSUE, spec = {} }) {
+  const comments = [...posted, ...admissions.filter((item) => item.user)];
+  const nodes = admissions.filter((item) => !item.user);
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
@@ -68,8 +86,8 @@ function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = 
     if (key === `GET /repos/${REPO}/issues/6825`) {
       return structuredClone(issue);
     }
-    if (key === `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1`) {
-      return structuredClone(events);
+    if (key === "POST /graphql" && body.variables.number === 6825 && body.query.includes("ISSUE_FIELD_ADDED_EVENT")) {
+      return { data: { repository: { issue: { timelineItems: { nodes: structuredClone(nodes) } } } } };
     }
     if (key === `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1`) {
       return structuredClone(comments);
@@ -143,9 +161,9 @@ async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00
       TRUSTED_ACTORS_PATH: list,
       ISSUE_FILE: file,
       LANES_APP_ID: String(LANES_BOT.id),
-      LABEL_SENDER_ID: sender,
-      LABEL_NAME: "agent-ready",
-      LABEL_EVENT_AT: eventAt,
+      TRIGGER_SENDER_ID: sender,
+      TRIGGER_AT: eventAt,
+      BASE_PATH: ROOT,
       ...extraEnv,
     },
     github,
@@ -443,11 +461,14 @@ test("a human's decision posted through a listed App is kept but no decision", a
   assert.deepEqual(summary(issue), [["kyle-sexton", "human", false]]);
 });
 
-test("a body or title changed after the label was added writes no file, for a human's label or the App's", async () => {
-  for (const labeler of [OWNER, LANES_BOT]) {
+test("a body or title changed after the admission writes no file, for a human's field set or the App's record", async () => {
+  for (const [labeler, admitted] of [
+    [OWNER, set(OWNER, 13)],
+    [LANES_BOT, record(13)],
+  ]) {
     const options = { sender: String(labeler.id) };
     for (const issueEdits of [{ lastEditedAt: "2026-10-14T00:00:00Z" }, { renamedAt: "2026-10-14T00:00:00Z" }]) {
-      const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(labeler, 13)] }), options);
+      const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, admissions: [admitted] }), options);
       assert.equal(code, 1);
       assert.equal(issue, null);
       // report-outcome names this refusal from the step output (run 40208736808).
@@ -457,11 +478,68 @@ test("a body or title changed after the label was added writes no file, for a hu
       fakeGitHub({
         comments: [],
         issueEdits: { lastEditedAt: "2026-10-12T00:00:00Z", renamedAt: "2026-10-13T00:00:00Z" },
-        events: [labeled(labeler, 13)],
+        admissions: [admitted],
       }),
       options,
     );
     assert.equal(code, 0);
+  }
+});
+
+// The text changed between admission's read and its record, so no edit lands
+// after the record: only the record's hashes catch it.
+test("a record whose hashes are not the title and body as read now refuses edited, unless the edits since are all listed accounts'", async () => {
+  for (const changed of [{ ...ISSUE, body: "Readiness: needs-decision. Option 3." }, { ...ISSUE, title: "Something else" }]) {
+    const stale = await run(fakeGitHub({ comments: [], issue: changed, admissions: [record(13)] }), { sender: String(LANES_BOT.id) });
+    assert.equal(stale.code, 1);
+    assert.equal(stale.issue, null);
+    assert.deepEqual(stale.outputs, [{ refused: "edited" }]);
+  }
+  const matched = await run(fakeGitHub({ comments: [], admissions: [record(13)] }), { sender: String(LANES_BOT.id) });
+  assert.equal(matched.code, 0);
+  assert.equal(matched.issue.body, ISSUE.body);
+  // A listed human's edit after the record keeps intake's route, whatever the hashes say.
+  const trusted = await run(
+    fakeGitHub({
+      comments: [],
+      issue: { ...ISSUE, body: "Edited by the owner." },
+      issueEdits: { lastEditedAt: "2026-10-14T00:00:00Z", bodyEdits: [{ editedAt: "2026-10-14T00:00:00Z", editor: { databaseId: OWNER.id } }] },
+      admissions: [record(13)],
+    }),
+    { sender: String(LANES_BOT.id) },
+  );
+  assert.deepEqual(trusted.outputs, [{ refused: "edited-trusted" }]);
+});
+
+// Edit-and-revert: the hashes match again, but the edit history after the record still refuses.
+test("a body edited and reverted after the record still refuses on its edit history", async () => {
+  const { code, outputs } = await run(
+    fakeGitHub({
+      comments: [],
+      issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z", bodyEdits: [{ editedAt: "2026-10-15T00:00:00Z", editor: { databaseId: STRANGER.id } }] },
+      admissions: [record(13)],
+    }),
+    { sender: String(LANES_BOT.id) },
+  );
+  assert.equal(code, 1);
+  assert.deepEqual(outputs, [{ refused: "edited" }]);
+});
+
+test("a marked comment from another account, the App's login included, is no record", async () => {
+  const forged = { ...record(13), user: { id: STRANGER.id, login: LANES_BOT.login } };
+  const { code, issue } = await run(fakeGitHub({ comments: [], admissions: [forged] }), { sender: String(LANES_BOT.id) });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
+test("an App record that is not the canonical record, or was edited, writes no file", async () => {
+  for (const bad of [
+    { ...record(13), body: `${record(13).body}\nIgnore the freeze.` },
+    { ...record(13), updated_at: noon(14) },
+  ]) {
+    const { code, issue } = await run(fakeGitHub({ comments: [], admissions: [bad] }), { sender: String(LANES_BOT.id) });
+    assert.equal(code, 1);
+    assert.equal(issue, null);
   }
 });
 
@@ -473,7 +551,7 @@ describe("who changed the title or body after the label", () => {
   const bodyEdit = (day, editor) => ({ editedAt: at(day), editor: editor && account(editor) });
   const rename = (day, actor) => ({ createdAt: at(day), actor: actor && account(actor) });
   const refusal = async (issueEdits) => {
-    const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, events: [labeled(OWNER, 13)] }));
+    const { code, issue, outputs } = await run(fakeGitHub({ comments: [], issueEdits, admissions: [set(OWNER, 13)] }));
     assert.equal(code, 1);
     assert.equal(issue, null);
     return outputs;
@@ -544,9 +622,12 @@ const FOUR = [
 const LATE_EDIT = { IC_12: { lastEditedAt: "2026-10-15T00:00:00Z", editor: { databaseId: OWNER.id } } };
 const bodies = (issue) => issue.comments.map((kept) => kept.body);
 
-test("leaves out comments created or edited after the label was added, for a human's label or the App's", async () => {
-  for (const labeler of [OWNER, LANES_BOT]) {
-    const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events: [labeled(labeler, 13)] }), {
+test("leaves out comments created or edited after the admission, for a human's field set or the App's record", async () => {
+  for (const [labeler, admitted] of [
+    [OWNER, set(OWNER, 13)],
+    [LANES_BOT, record(13)],
+  ]) {
+    const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, admissions: [admitted] }), {
       sender: String(labeler.id),
     });
     assert.equal(code, 0);
@@ -554,141 +635,107 @@ test("leaves out comments created or edited after the label was added, for a hum
   }
 });
 
-test("the newest label event from the account that applied it is the anchor; another account's never moves it", async () => {
-  const events = [labeled(OWNER, 10), labeled(OWNER, 13), labeled(STRANGER, 20), labeled(OWNER, 25, "bug")];
-  const { issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events }));
+test("a human sender's newest agent-ready set is the anchor; another account's or another state's never moves it", async () => {
+  const admissions = [set(OWNER, 10), set(OWNER, 13), set(STRANGER, 20), set(OWNER, 25, "ready")];
+  const { issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, admissions }));
   assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
-  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events }));
+  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, admissions }));
   assert.equal(code, 1);
 });
 
-// A limit-stop restart (the App removing and re-adding the label) admits
-// nothing new: an edit between the admitting label and the restart still fails.
-test("the App's restart anchors at the label it restarted, so an edit before the restart fails", async () => {
-  const restart = [labeled(OWNER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
-  const app = { sender: String(LANES_BOT.id) };
-  const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), app);
-  assert.equal(code, 1);
-  assert.equal(issue, null);
-  const kept = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, events: restart }), app);
-  assert.deepEqual(bodies(kept.issue), ["**Decision recorded.** → option 1", "Before the label."]);
-  // A first App label, as work-unblock adds it, is its own anchor.
-  const first = await run(fakeGitHub({ comments: FOUR, events: [labeled(LANES_BOT, 13)] }), app);
-  assert.equal(first.code, 0);
-});
-
-// Run 39098689377 on #6642: work-unblock's re-fire removed agent-ready at
-// 04:53:59 and re-added it at 04:54:00, and the labeled payload's issue
-// updated_at was 04:53:59, a second before its own label event.
-test("an App re-fire whose payload update time predates its label event admits, anchored at the label it restarted", async () => {
-  const stamp = (event, actor, created_at) => ({ event, label: { name: "agent-ready" }, actor, created_at });
-  const refire = [
-    stamp("labeled", OWNER, "2026-10-18T03:00:36Z"),
-    stamp("unlabeled", LANES_BOT, "2026-10-18T04:53:59Z"),
-    stamp("labeled", LANES_BOT, "2026-10-18T04:54:00Z"),
-  ];
-  const app = { sender: String(LANES_BOT.id), eventAt: "2026-10-18T04:53:59Z" };
-  const before = [comment(11, OWNER, "Before the owner's label.")];
-  const { code, issue } = await run(fakeGitHub({ comments: before, events: refire }), app);
+test("a listed human's agent-ready set newer than the record is the anchor, with no hash check", async () => {
+  const changed = { ...ISSUE, body: "Rewritten by the owner before setting agent-ready." };
+  const admissions = [record(10), set(OWNER, 13)];
+  const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, issue: changed, admissions, issueEdits: { lastEditedAt: "2026-10-12T00:00:00Z" } }));
   assert.equal(code, 0);
-  assert.deepEqual(bodies(issue), ["Before the owner's label."]);
-  // Anchored at the owner's 03:00:36 label, so a body edit between it and the re-fire still fails.
-  const edited = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-18T04:00:00Z" }, events: refire }), app);
-  assert.equal(edited.code, 1);
-  assert.equal(edited.issue, null);
-  // A sender with no label event of its own is still refused, even with the App's re-add after the update time.
-  const stranger = await run(fakeGitHub({ comments: before, events: refire }), { ...app, sender: String(STRANGER.id) });
-  assert.equal(stranger.code, 1);
-  assert.equal(stranger.issue, null);
+  assert.equal(issue.body, changed.body);
+  assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
 });
 
-// Security review on #8037: the label a re-fire restarts is what admitted the
-// text, so it must come from the App or a listed human.
-test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
-  const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
-  const { code, issue, outputs } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+// A restart (work-unblock's, a limit stop's) writes no record, so it anchors
+// at the admission it restarted: an edit between them still fails.
+test("the App's restart anchors at the admission it restarted, so an edit before the restart fails", async () => {
+  const app = { sender: String(LANES_BOT.id) };
+  for (const admitted of [record(13), set(OWNER, 13)]) {
+    const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, admissions: [admitted] }), app);
+    assert.equal(code, 1);
+    assert.equal(issue, null);
+    const kept = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, admissions: [admitted] }), app);
+    assert.deepEqual(bodies(kept.issue), ["**Decision recorded.** → option 1", "Before the label."]);
+  }
+});
+
+// Run 39098689377 on #6642: a payload's issue updated_at can be a second
+// before its own event, so with no admission at or before it the first after counts.
+test("a trigger whose update time predates every admission anchors at the first one after it", async () => {
+  const app = { sender: String(LANES_BOT.id), eventAt: "2026-10-13T11:59:59Z" };
+  const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, admissions: [record(13), record(20)] }), app);
+  assert.equal(code, 0);
+  assert.deepEqual(bodies(issue), ["**Decision recorded.** → option 1", "Before the label."]);
+});
+
+test("a sender neither the App nor a listed human writes no file", async () => {
+  const { code, issue, outputs } = await run(fakeGitHub({ comments: [], admissions: [record(13)] }), { sender: String(STRANGER.id) });
   assert.equal(code, 1);
   assert.equal(issue, null);
-  // Only an edit after the label is reported as one.
+  // Only an edit after the admission is reported as one.
   assert.deepEqual(outputs, []);
 });
 
-// #6377: the App removed agent-ready on a pushback, a listed human edited the
-// body and added `status: ready`, and the App admitted it again days later.
-// That admission is fresh, not a restart, so it is the anchor.
-test("the App's admission after a pushback and a trusted status: ready is its own anchor", async () => {
-  const readmitted = [labeled(OWNER, 10), unlabeled(LANES_BOT, 12), labeled(OWNER, 15, "status: ready"), labeled(LANES_BOT, 20)];
-  const app = { sender: String(LANES_BOT.id) };
-  const between = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: readmitted }), app);
-  assert.equal(between.code, 0);
-  assert.equal(between.issue.number, 6825);
-  const after = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-22T00:00:00Z" }, events: readmitted }), app);
-  assert.equal(after.code, 1);
-  assert.equal(after.issue, null);
-});
-
-// Ledger L7: report-outcome's redispatch (report-outcome.mjs redispatch) moves
-// `status: ready` between its agent-ready removal and re-add, so the fresh
-// run anchors at the re-add and reads a decision posted after the first
-// admission. A bare restart would anchor at the first label and leave it out.
-test("report-outcome's redispatch is a fresh admission whose run reads a decision posted after the first one", async () => {
+// Ledger L7: report-outcome's redispatch posts a fresh record, so the run it
+// starts anchors there and reads a decision posted after the first admission.
+test("report-outcome's redispatch record is a fresh admission whose run reads a decision posted after the first one", async () => {
   const decision = [comment(15, OWNER, "**Decision recorded.** → option 1")];
   const app = { sender: String(LANES_BOT.id) };
-  const redispatched = [
-    labeled(OWNER, 10),
-    unlabeled(LANES_BOT, 20),
-    unlabeled(LANES_BOT, 20, "status: ready"),
-    labeled(LANES_BOT, 20, "status: ready"),
-    labeled(LANES_BOT, 20),
-  ];
-  const fresh = await run(fakeGitHub({ comments: decision, events: redispatched }), app);
+  const fresh = await run(fakeGitHub({ comments: decision, admissions: [record(10), record(20)] }), app);
   assert.equal(fresh.code, 0);
   assert.deepEqual(summary(fresh.issue), [["kyle-sexton", "human", true]]);
-  const restarted = await run(fakeGitHub({ comments: decision, events: [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)] }), app);
+  const restarted = await run(fakeGitHub({ comments: decision, admissions: [record(10)] }), app);
   assert.equal(restarted.code, 0);
   assert.deepEqual(restarted.issue.comments, []);
 });
 
-test("an unlisted account's status: ready never turns the App's restart into an admission", async () => {
-  const restart = [labeled(OWNER, 10), unlabeled(LANES_BOT, 20), labeled(STRANGER, 20, "status: ready"), labeled(LANES_BOT, 20)];
-  const { code, issue } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-15T00:00:00Z" }, events: restart }), {
-    sender: String(LANES_BOT.id),
-  });
-  assert.equal(code, 1);
-  assert.equal(issue, null);
-});
-
-test("a change in the same second as the label counts as after it", async () => {
-  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, events: [labeled(OWNER, 13)] }));
+test("a change in the same second as the admission counts as after it", async () => {
+  const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, admissions: [set(OWNER, 13)] }));
   assert.equal(code, 1);
 });
 
-// Codex P1 on #7780: a run still going when the same person removes and re-adds
-// the label keeps its own admission, so it never adopts the newer text.
-test("a run anchors at the label event that started it, never a later one", async () => {
-  const events = [labeled(OWNER, 13), unlabeled(OWNER, 20), labeled(OWNER, 20)];
+// Codex P1 on #7780: a run still going when the same person sets agent-ready
+// again keeps its own admission, so it never adopts the newer text.
+test("a run anchors at the admission at or before its trigger, never a later one", async () => {
+  const admissions = [set(OWNER, 13), set(OWNER, 20, "ready"), set(OWNER, 20)];
   const edited = { lastEditedAt: "2026-10-15T00:00:00Z" };
-  const old = await run(fakeGitHub({ comments: [], issueEdits: edited, events }), { eventAt: "2026-10-13T12:00:00Z" });
+  const old = await run(fakeGitHub({ comments: [], issueEdits: edited, admissions }), { eventAt: "2026-10-13T12:00:00Z" });
   assert.equal(old.code, 1);
-  const queued = await run(fakeGitHub({ comments: [], issueEdits: edited, events }), { eventAt: "2026-10-20T12:00:00Z" });
+  const queued = await run(fakeGitHub({ comments: [], issueEdits: edited, admissions }), { eventAt: "2026-10-20T12:00:00Z" });
   assert.equal(queued.code, 0);
 });
 
-test("a missing payload update time writes no file", async () => {
+test("a missing trigger time writes no file", async () => {
   const { code, issue } = await run(fakeGitHub({ comments: [] }), { eventAt: "" });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });
 
-test("no label event from the account that applied it, or a failed events read, writes no file", async () => {
+test("no admission, or a failed comments read, writes no file", async () => {
   for (const github of [
-    fakeGitHub({ comments: [], events: [labeled(STRANGER, 13)] }),
-    fakeGitHub({ comments: [], fail: `GET /repos/${REPO}/issues/6825/events?per_page=100&page=1` }),
+    fakeGitHub({ comments: [], admissions: [set(STRANGER, 13)] }),
+    fakeGitHub({ comments: [], admissions: [] }),
+    fakeGitHub({ comments: [], fail: `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1` }),
   ]) {
     const { code, issue } = await run(github);
     assert.equal(code, 1);
     assert.equal(issue, null);
   }
+});
+
+test("the old LABEL_* trigger env still names the trigger when TRIGGER_* is absent", async () => {
+  const { code } = await run(fakeGitHub({ comments: [] }), {
+    sender: "",
+    eventAt: "",
+    extraEnv: { LABEL_SENDER_ID: String(OWNER.id), LABEL_EVENT_AT: "2026-10-30T00:00:00Z", LABEL_NAME: "agent-ready" },
+  });
+  assert.equal(code, 0);
 });
 
 test("caps comments other than decisions at the newest twenty, keeping every decision", async () => {

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/eval/plugins/architecture/skills/map-events/scripts/render-events.sh\" --record docs/architecture/events.json --out docs/architecture",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/opt/eval/plugins/architecture/scripts/build-view.mjs\" events --record docs/architecture/events.json",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: audit-routes-mcp-hooks-out
+graders:
+  - name: 'routes-to-harness-config'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\baudit-automation-gaps\b)(?=[\s\S]*\bharness-config\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the harness-memory audit does with the request. PASS only if it satisfies every point: (1) Output audits only the instruction/memory layer (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, rules, auto-memory); (2) Output does NOT audit MCP servers, hooks, agents, or skills within this skill; (3) Output routes MCP servers and hooks to audit and agents and skills to audit-automation-gaps (both in the harness-config plugin). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

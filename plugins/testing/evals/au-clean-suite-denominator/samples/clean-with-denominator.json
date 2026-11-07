@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No findings. The scan examined 3 test files of 3 enumerated and parsed 24 test blocks.",
+      "why": "clean plus denominator"
+    },
+    {
+      "answer": "Result: 0 findings.\n\n- test files: 3 examined of 3\n- test blocks parsed: 24",
+      "why": "list form"
+    },
+    {
+      "answer": "The audit found no can't-fail tests.\n\n- It examined 3 of 3 test files.\n- It parsed 17 test blocks, and none fired a rule.",
+      "why": "the smoke reply's wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No findings: your tests are discriminating.",
+      "why": "clean with no denominator"
+    },
+    {
+      "answer": "Two findings in 3 test files examined: rule-weak-oracle.",
+      "why": "invents findings"
+    },
+    {
+      "answer": "No findings. 0 test files examined, 0 blocks parsed.",
+      "why": "a scan of nothing presented as clean"
+    }
+  ]
+}

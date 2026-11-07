@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: gen-merge-open-window
+graders:
+  - name: no-delta-section
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)(?:Run[ \t]+\d+|Supplement\b|New items collected today\b)'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: northwind-populated
+    type: regex
+    pattern: '^[ \t]*(?:#{1,4}[ \t]+|\*\*)Northwind Systems\b[^\n]*(?:\n(?![ \t]*#{1,2}[ \t])(?![^\n]*\bno notable items\b)[^\n]*){0,15}?\bIDE 4\.1\b'
+    flags: 'im'
+    target: last_message
+  - name: prior-preserved
+    type: regex
+    pattern: '^(?=[\s\S]*\bSolstice Code v3\.5\b)(?=[\s\S]*\bMCP registry\b)(?=[\s\S]*\bMeridian Desktop\b)'
+    flags: 'i'
+    target: last_message
+  - name: merged-under-tiers
+    type: llm
+    criteria: "Legacy expectation: 'New items are merged into the existing provider buckets under their HIGH/MED/LOW headings (add-only = MERGE)'. PASS only if Solstice Code v3.6 sits under the Solstice AI section's HIGH heading, Northwind IDE 4.1 under the Northwind Systems section's HIGH heading, and Meridian Agent CLI 0.9 under the Meridian Labs section's MED (or MEDIUM) heading. FAIL if any of the three sits in a separate new-items, update or delta list, or outside its provider's section."
+    focus: last_message
+  - name: one-section-per-provider
+    type: llm
+    criteria: "Legacy expectation: 'Each provider appears once with its items consolidated under it, not duplicated across multiple sections'. PASS only if the briefing has exactly one section each for Solstice AI, Meridian Labs and Northwind Systems, with all of that provider's items under it. FAIL if any provider has two sections or headings, or any item appears twice."
+    focus: last_message

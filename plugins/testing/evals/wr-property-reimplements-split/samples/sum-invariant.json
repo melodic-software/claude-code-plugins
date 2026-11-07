@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```python\nshares = split_bill(total_cents, people)\nassert sum(shares) == total_cents\nassert len(shares) == people\n```",
+      "why": "conserved total"
+    },
+    {
+      "answer": "assert total_cents == sum(split_bill(total_cents, people))",
+      "why": "inline call, operands swapped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "assert split_bill(total_cents, people) == [total_cents // people] * people",
+      "why": "the original oracle"
+    },
+    {
+      "answer": "assert sum(shares) <= total_cents",
+      "why": "a weaker bound, not conservation"
+    }
+  ]
+}

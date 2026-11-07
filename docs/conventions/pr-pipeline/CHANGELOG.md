@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [9.9.1] - 2026-11-07
+
+### Fixed
+
+- work-unblock moves a closed issue's Work status from agent-ready to needs-triage, on the close
+  path, the sweep and a finished split parent's close, so a reopened issue no longer reads as
+  queued work with no run behind it. A post-merge fix issue and an issue open again keep theirs,
+  and any state other than agent-ready stays.
+
+## [9.9.0] - 2026-11-07
+
+### Changed
+
+- Intake admission posts an admission record (a new lanes-App comment with the sha256 of the issue title and body it admitted) before it sets the Work status to agent-ready. The issue lane freezes a run's text at the newest admission record or a listed human's agent-ready Work status set, at or before the event that started the run, instead of at an agent-ready label event, and refuses a run whose title or body no longer matches the record's hashes.
+
+- The Work status field decides agent-ready like any other queue state: a trusted field state of
+  agent-ready reads as the `agent-ready` label, and any other state drops a stale one.
+- resolve-issue starts on the Work status `field_added` event, and resolve-config folds the
+  trusted field into the issue's labels, so a field-only admission matches `labels: [agent-ready]`
+  and a field hold matches `labels-absent`.
+- The WIP cap check lists queued issues from the Work status listing, not the `agent-ready` label.
+- sync-status no longer writes agent-ready to the field when a person adds the label.
+- `.github/scripts/lib/admission-record.mjs` joins the hold floor.
+
 ## [9.8.0] - 2026-11-07
 
 ### Added

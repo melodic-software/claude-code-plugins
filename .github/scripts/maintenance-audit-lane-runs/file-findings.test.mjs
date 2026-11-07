@@ -10,10 +10,12 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createBudget } from "./collect.mjs";
+import * as fileFindings from "./file-findings.mjs";
 import { droppedLine, listSweepIssues, prepareItems, writeDigest } from "./file-findings.mjs";
-import { planDigest } from "./findings.mjs";
+import { MAX_FIELD, planDigest, renderDigest, renderEntry } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 const finding = (over = {}) => ({
   slice: "D",
@@ -270,6 +272,141 @@ test("prepareItems is not complete when the collector read part of a window or s
   assert.equal(run(), false);
 });
 
+// An earlier digest holding five entries the new sweep does not see: one
+// naming pr-verify-capture.yml, one naming pr-merge.yml, one tracked
+// elsewhere naming pr-verify-capture.yml in its marker, one of slice C, and
+// one tracked entry in the older marker form, which names no workflow. The
+// sweep is run through prepareItems and planDigest as main() wires them.
+const CAPTURE = ".github/workflows/pr-verify-capture.yml";
+const MERGE = ".github/workflows/pr-merge.yml";
+const E_CAPTURE = "00000000000000e1";
+const E_MERGE = "00000000000000e2";
+const E_TRACKED = "00000000000000e3";
+const E_C = "00000000000000e4";
+const E_OLD = "00000000000000e5";
+function carrySweep(t, { status, units, findings }) {
+  const base = tempDir("lane-sweep-file-");
+  const dir = tempDir("lane-sweep-findings-");
+  const out = tempDir("lane-sweep-units-");
+  t.after(() => {
+    for (const d of [base, dir, out]) rmSync(d, { recursive: true, force: true });
+  });
+  const unitsDir = join(out, "units");
+  mkdirSync(unitsDir);
+  for (const unit of units) writeFileSync(join(unitsDir, `${unit.id}.json`), JSON.stringify(unit));
+  for (const [name, data] of Object.entries(findings)) {
+    mkdirSync(join(dir, name));
+    writeFileSync(join(dir, name, "findings.json"), typeof data === "string" ? data : JSON.stringify(data));
+  }
+  const statusPath = join(out, "collect-status.json");
+  if (status !== undefined) writeFileSync(statusPath, JSON.stringify(status));
+  const prepared = prepareItems({ findingsDir: dir, baseDir: base, unitsDir, statusPath });
+  const earlier = [
+    [E_CAPTURE, { slice: "A", workflow: CAPTURE, job: "capture" }, null],
+    [E_MERGE, { slice: "A", workflow: MERGE, job: "merge" }, null],
+    [E_TRACKED, { slice: "A", workflow: CAPTURE, job: "capture" }, 9000],
+    [E_C, { slice: "C", workflow: ".github/workflows/pr-ci.yml", job: "pr" }, null],
+  ].map(([fp, over, tracked]) => ({ fingerprint: fp, tracked, title: "t", text: renderEntry({ fingerprint: fp, finding: finding(over), tracked }) }));
+  earlier.push({ fingerprint: E_OLD, tracked: 9001, title: "t", text: `<!-- lane-sweep-entry fp=${E_OLD} tracked=9001 -->\n### t\n\nSlice A, fingerprint \`${E_OLD}\`. Tracked in #9001.` });
+  const digestIssue = { number: 50, state: "open", state_reason: null, body: renderDigest(earlier, "https://run/0") };
+  const plan = planDigest({
+    items: prepared.items,
+    existing: [digestIssue],
+    openNumbers: new Set(),
+    complete: prepared.complete,
+    carry: prepared.carry,
+  });
+  return {
+    complete: prepared.complete,
+    kept: plan.entries.map((e) => e.fingerprint).sort(),
+    dropped: plan.dropped.map((e) => e.fingerprint).sort(),
+    reasons: Object.fromEntries((plan.carried ?? []).map((c) => [c.fingerprint, c.reason])),
+    plan,
+  };
+}
+const ciUnit = { id: "a1", slice: "A", workflow: ".github/workflows/pr-ci.yml" };
+const readA1 = { "findings-a1": { unit: "a1", findings: [] } };
+
+test("a partly read workflow carries only the unseen entries naming it; a fully read one drops", (t) => {
+  const sweep = carrySweep(t, {
+    status: { complete: false, truncated: null, partial: [MERGE] },
+    units: [ciUnit],
+    findings: readA1,
+  });
+  assert.equal(sweep.complete, false);
+  assert.ok(sweep.dropped.includes(E_CAPTURE), "the pr-verify-capture.yml entry drops: that workflow was read in full");
+  assert.ok(sweep.kept.includes(E_MERGE), "the pr-merge.yml entry carries: that workflow was read in part");
+  assert.ok(sweep.dropped.includes(E_TRACKED), "a tracked entry whose marker names a fully read workflow drops");
+  assert.ok(sweep.kept.includes(E_OLD), "an entry naming no workflow carries");
+  assert.deepEqual(sweep.kept, [E_MERGE, E_OLD]);
+  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_TRACKED, E_C]);
+  assert.deepEqual(sweep.reasons, { [E_MERGE]: "partial-window", [E_OLD]: "no-workflow" });
+  assert.equal(
+    fileFindings.carriedNote(sweep.plan.carried),
+    "2 earlier entries carried over: 1 partial-window, 1 no-workflow",
+  );
+});
+
+test("a collector that stopped early, or left no readable status, carries every unseen entry", (t) => {
+  const all = [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD];
+  const stopped = carrySweep(t, {
+    status: { complete: false, truncated: "stopped at unit d2: call budget", partial: [MERGE] },
+    units: [ciUnit],
+    findings: readA1,
+  });
+  assert.deepEqual(stopped.kept, all);
+  assert.deepEqual(new Set(Object.values(stopped.reasons)), new Set(["collector-stopped"]));
+  const missing = carrySweep(t, { status: undefined, units: [ciUnit], findings: readA1 });
+  assert.deepEqual(missing.kept, all);
+  assert.deepEqual(new Set(Object.values(missing.reasons)), new Set(["collector-status-unreadable"]));
+});
+
+test("a unit whose findings were not read carries the unseen entries of its slice and workflow", (t) => {
+  const unparsable = { unit: "a2", findings: [], dropped: [{ index: null, reason: "unparsable" }] };
+  const sweep = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit, { id: "a2", slice: "A", workflow: CAPTURE }],
+    findings: { ...readA1, "findings-a2": unparsable },
+  });
+  assert.deepEqual(sweep.kept, [E_CAPTURE, E_TRACKED, E_OLD]);
+  assert.deepEqual(sweep.reasons, { [E_CAPTURE]: "unit-unread", [E_TRACKED]: "unit-unread", [E_OLD]: "no-workflow" });
+
+  const unreadC = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit, { id: "c1", slice: "C" }],
+    findings: readA1,
+  });
+  assert.deepEqual(unreadC.kept, [E_C, E_OLD], "an unread C unit binds no workflow, so every C entry carries");
+
+  const unreadable = carrySweep(t, {
+    status: { complete: true, truncated: null, partial: [] },
+    units: [ciUnit],
+    findings: { ...readA1, "findings-a2": "not json" },
+  });
+  assert.deepEqual(unreadable.kept, [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD], "an unreadable findings file names no unit, so all carry");
+});
+
+test("a complete sweep drops every unseen entry, one naming no workflow included", (t) => {
+  const sweep = carrySweep(t, { status: { complete: true, truncated: null, partial: [] }, units: [ciUnit], findings: readA1 });
+  assert.equal(sweep.complete, true);
+  assert.deepEqual(sweep.kept, []);
+  assert.deepEqual(sweep.dropped, [E_CAPTURE, E_MERGE, E_TRACKED, E_C, E_OLD]);
+});
+
+test("entries cut to their short form drop when their workflow was read in full", () => {
+  const big = "y".repeat(MAX_FIELD * 3);
+  const many = Array.from({ length: 24 }, (_, i) => {
+    const fp = i.toString(16).padStart(16, "0");
+    return { fingerprint: fp, tracked: null, title: "t", text: renderEntry({ fingerprint: fp, finding: finding({ problem: big, root_cause: big, proposed_fix: big }) }) };
+  });
+  const digestIssue = { number: 50, state: "open", state_reason: null, body: renderDigest(many, "https://run/0") };
+  assert.match(digestIssue.body, /details left out to fit the issue body limit/);
+  const carry = fileFindings.carryRule({ all: null, partial: new Set(), unread: [] });
+  const plan = planDigest({ items: [], existing: [digestIssue], openNumbers: new Set(), complete: false, carry });
+  assert.deepEqual(plan.entries, []);
+  assert.equal(plan.dropped.length, 24);
+});
+
 const FP = "0123456789abcdef";
 const store = (issues = []) => {
   const calls = [];
@@ -282,14 +419,38 @@ const store = (issues = []) => {
     }
     const issue = issues.find((i) => i.number === Number(/issues\/(\d+)/.exec(path)[1]));
     if (method === "PATCH") Object.assign(issue, body);
-    if (method === "DELETE") {
-      if (!issue.labels.includes("agent-ready")) throw Object.assign(new Error(`DELETE ${path}: HTTP 404`), { status: 404 });
-      issue.labels = issue.labels.filter((l) => l !== "agent-ready");
-    }
     return {};
   };
   return { issues, calls, call };
 };
+const ROOT = new URL("../../..", import.meta.url).pathname;
+// The org Work status field and the option ids it maps, written by hand.
+const FIELD = 48484079;
+const OPTION = { "needs-triage": 84879216, "needs-owner-decision": 84879218, "agent-ready": 84879220 };
+const HUMAN = 153232337;
+// One issue's Work status field reading `state`, last set by account `setter`,
+// behind a real statusWriter. A POST sets it as the lanes App, or throws
+// `postError`; `written` lists the states POSTed.
+function workStatus(state, setter, postError) {
+  const written = [];
+  const value = () => (state === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: OPTION[state] } }]);
+  const github = async (method, path, body) => {
+    if (method === "GET" && path.endsWith("/issue-field-values")) return value();
+    if (method === "POST" && path === "/graphql") {
+      const nodes = state === null ? [] : [{ __typename: "IssueFieldAddedEvent", value: state, actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
+      return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+    }
+    if (method === "POST" && path.endsWith("/issue-field-values")) {
+      if (postError) throw postError;
+      state = body.issue_field_values[0].value;
+      written.push(state);
+      setter = 337595936;
+      return value();
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" }) };
+}
 const run = async (s, items, extra = {}) => {
   const plan = planDigest({ items, existing: s.issues, openNumbers: new Set(), ...extra });
   return writeDigest({ plan, call: s.call, repo: "o/r", labels: ["source: lane-sweep"], runUrl: "https://run/1", wait: async () => {} });
@@ -312,12 +473,12 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.deepEqual(await run(s, [b]), { ...nothing, updated: [100] });
   assert.equal(s.issues.length, 1);
   assert.deepEqual(
-    s.calls.slice(-3).map(([m, p]) => `${m} ${p}`),
-    ["POST /repos/o/r/issues/100/comments", "DELETE /repos/o/r/issues/100/labels/agent-ready", "PATCH /repos/o/r/issues/100"],
+    s.calls.slice(-2).map(([m, p]) => `${m} ${p}`),
+    ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"],
   );
-  assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
-  assert.match(s.calls.at(-3)[2].body, /New:\n\n- fix\(ci\): another/);
-  assert.match(s.calls.at(-3)[2].body, /No longer seen:\n\n- fix\(ci\): skip the dispatch/);
+  assert.ok(!s.calls.some(([m]) => m === "DELETE"), "no label DELETE: the Work status field takes agent-ready off");
+  assert.match(s.calls.at(-2)[2].body, /New:\n\n- fix\(ci\): another/);
+  assert.match(s.calls.at(-2)[2].body, /No longer seen:\n\n- fix\(ci\): skip the dispatch/);
   assert.ok(!s.issues[0].body.includes(FP), "the fixed finding dropped off");
 
   assert.deepEqual(await run(s, []), { ...nothing, updated: [100] });
@@ -329,14 +490,14 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   assert.equal(s.issues.length, 1);
 });
 
-test("a rewrite takes agent-ready off the label and the Work status field before the PATCH", async () => {
+test("a rewrite takes agent-ready off through the Work status field before the PATCH", async () => {
   const log = [];
   const call = async (method) => (log.push(method), {});
-  const leaveAgentReady = async (number, state) => log.push(["FIELD", number, state]);
+  const leaveAgentReady = async (number, state, options) => log.push(["FIELD", number, state, options]);
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
-  assert.deepEqual(log, ["POST", "DELETE", ["FIELD", 100, "needs-triage"], "PATCH"]);
+  assert.deepEqual(log, ["POST", ["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
 });
 
 test("a rewrite whose Work status write fails leaves the PATCH for the next run", async () => {
@@ -349,7 +510,7 @@ test("a rewrite whose Work status write fails leaves the PATCH for the next run"
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
-  assert.deepEqual(log, ["POST", "DELETE"]);
+  assert.deepEqual(log, ["POST"]);
 });
 
 test("a sweep missing a unit's findings carries the earlier entries over", async () => {
@@ -365,20 +526,42 @@ test("a sweep missing a unit's findings carries the earlier entries over", async
   assert.equal(s.calls.length, before);
 });
 
-test("a failed agent-ready removal other than 404 skips the PATCH and leaves the old state to retry", async () => {
+const rewriteWith = async (s, leaveAgentReady) => {
+  const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
+  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
+  const done = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", leaveAgentReady, wait: async () => {} });
+  return { done, next: planDigest({ items, existing: s.issues, openNumbers: new Set() }).action };
+};
+
+for (const [why, state, setter, written] of [
+  ["an unset field", null, undefined, ["needs-triage"]],
+  ["a field at agent-ready", "agent-ready", HUMAN, ["needs-triage"]],
+  ["a person's needs-owner-decision", "needs-owner-decision", HUMAN, []],
+]) {
+  test(`a rewrite with ${why} writes Work status ${written.join() || "nothing"} and deletes no label`, async () => {
+    const s = store();
+    await run(s, [{ fingerprint: FP, finding: finding() }]);
+    s.issues[0].labels.push("agent-ready");
+    const f = workStatus(state, setter);
+    const { done } = await rewriteWith(s, (await f.writer()).leaveAgentReady);
+    assert.deepEqual(done, { ...nothing, updated: [100] });
+    assert.deepEqual(f.written, written);
+    assert.ok(!s.calls.some(([m]) => m === "DELETE"), "agent-ready comes off through the field, never a label DELETE");
+  });
+}
+
+test("a rewrite whose Work status write fails reports it and leaves the old state to retry", async () => {
   const s = store();
   await run(s, [{ fingerprint: FP, finding: finding() }]);
   const old = s.issues[0].body;
-  const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
-  const failing = async (method, path, body) => {
-    if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
-    return s.call(method, path, body);
-  };
-  const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
-  const result = await writeDigest({ plan, call: failing, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
-  assert.deepEqual(result.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
+  const f = workStatus(null, undefined, new Error("HTTP 500"));
+  const { done, next } = await rewriteWith(s, (await f.writer()).leaveAgentReady);
+  assert.deepEqual(done.updated, []);
+  assert.equal(done.failed.length, 1);
+  assert.equal(done.failed[0].target, "#100");
+  assert.match(done.failed[0].error, /^#100's Work status field was not set to `needs-triage`: HTTP 500/);
   assert.equal(s.issues[0].body, old);
-  assert.equal(planDigest({ items, existing: s.issues, openNumbers: new Set() }).action, "update");
+  assert.equal(next, "update");
 });
 
 test("a failed filing is recorded", async () => {
@@ -417,5 +600,5 @@ test("a budget spent mid-rewrite stops before the PATCH and reports the failure"
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
   const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
   assert.deepEqual(done.failed, [{ target: "#100", error: "call budget of 1 reached" }]);
-  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no DELETE, no PATCH");
+  assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no PATCH");
 });

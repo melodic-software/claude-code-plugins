@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: audit-placement-auto-memory-no-import-split
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'imports-load-at-launch'
+    type: 'regex'
+    pattern: '(?:@[\w./-]*|\bimport\w*)[^\n]{0,120}?\b(?:(?:load(?:s|ed)?|expand(?:s|ed)?|pulled in) (?:at|on) (?:launch|(?:session )?start(?:up)?)|(?:still|all) load|saves? nothing|no (?:context )?(?:saving|saves)|(?:does(?:n''t| not)|won''t|will not|would not|wouldn''t) (?:reduce|save|cut|shrink|lower))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'learnings-to-auto-memory'
+    type: 'regex'
+    pattern: '(?:learn\w*|running log|build notes?|figured out)[^\n]{0,120}?auto[\s-]?memory|auto[\s-]?memory[^\n]{0,120}?(?:learn\w*|running log|build notes?|figured out)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the report of a harness-memory audit of a 300-line CLAUDE.md that is half a running log of build learnings and half a Terraform walkthrough relevant only under infra/, where the operator proposed splitting the second half into @path imports. PASS only if it satisfies every point: (1) Routes the accumulated learnings to auto memory as their correct destination rather than leaving them in CLAUDE.md; (2) States that @path imports do NOT reduce context because imported files load at launch, and does not propose an import split as a saving; (3) Names a load-deferring destination (skill or path-scoped rule) for the only-sometimes-relevant Terraform walkthrough, justified by relevance rather than by the line budget, and states the post-compaction cost of that destination alongside the recommendation (path-scoped rules and nested CLAUDE.md come back only when Claude works with a matching file again, so content that must survive compaction stays unscoped or in the project-root CLAUDE.md). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

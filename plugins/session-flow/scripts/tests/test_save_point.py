@@ -2445,7 +2445,7 @@ def test_fill_value_with_a_lone_cr_is_not_split(tmp_path):
 def test_help_exits_zero():
     result = run("--help")
     assert result.returncode == 0
-    for command in ("new", "fill", "validate", "emit"):
+    for command in ("new", "fill", "amend", "validate", "emit"):
         assert command in out(result), out(result)
 
 
@@ -2501,7 +2501,7 @@ SHAPE3_VALUES = {
     "observations": "- The thing takes a minute to run.",
     "commands": "None. No command waits on the user.",
     "environment": "Branch `main`, clean tree; nothing to recreate.",
-    "decisions": "- The thing over the other thing.",
+    "decisions": "- [D1] The thing over the other thing.",
     "skills": "None. Remaining work runs inline.",
     "did": "did the thing",
     "left": "the rest",
@@ -3453,16 +3453,108 @@ def test_ids_first_adopting_hop_seeds_above_the_predecessor_text(tmp_path):
     assert frontmatter_int(hop2, "next_decision_id") == 4
 
 
-def test_ids_an_id_less_question_or_decision_never_fails(tmp_path):
+def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     repo = make_repo(tmp_path)
     values = {"open-questions": "- Which color?", "decisions": "- Paint first."}
     result = strict(s3_hop(repo, tmp_path, values=values))
-    assert result.returncode == 0 and "WARN" not in out(result), out(result)
+    assert result.returncode == 1, out(result)
+    assert "Open questions: entry without a [Q<n>] id" in out(result), out(result)
+    assert "Decisions in force: entry without a [D<n>] id" in out(result), out(result)
+    ok = tmp_path / "ok"
+    with_ids = {"open-questions": "- [Q1] Which color?", "decisions": "- [D1] Paint first."}
+    passed = strict(s3_hop(make_repo(ok), ok, values=with_ids))
+    assert passed.returncode == 0 and "WARN" not in out(passed), out(passed)
     duplicate = {"open-questions": "- [Q1] Which color?\n- [Q1] Which size?"}
     other = tmp_path / "dup"
     twice = strict(s3_hop(make_repo(other), other, values=duplicate))
     assert twice.returncode == 1, out(twice)
     assert "Open questions: duplicate id [Q1]" in out(twice), out(twice)
+
+
+@pytest.mark.parametrize(
+    ("slot", "title", "prefix"),
+    [
+        ("open-questions", "Open questions", "Q"),
+        ("decisions", "Decisions in force", "D"),
+    ],
+)
+def test_ids_an_id_less_entry_fails_once_the_predecessor_carries_the_floor(
+    tmp_path, slot, title, prefix
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={slot: "- Paint before polish."},
+    )
+    result = strict(hop2)
+    assert result.returncode == 1, out(result)
+    assert f"{title}: entry without a [{prefix}<n>] id" in out(result), out(result)
+
+
+def test_ids_an_id_less_entry_passes_when_the_predecessor_has_no_floor(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    values = {
+        "open-questions": "- Which color?",
+        "decisions": "- [D1] The thing over the other thing.\n- Paint first.",
+    }
+    hop2 = s3_hop(
+        repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z", values=values
+    )
+    result = strict(hop2)
+    assert result.returncode == 0, out(result)
+    assert "without a [" not in out(result), out(result)
+
+
+def test_ids_a_legacy_id_less_predecessor_keeps_the_carry_checks_failing(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(hop1, "next_question_id: 1\nnext_decision_id: 1\n", "")
+    hop2 = s3_hop(
+        repo,
+        tmp_path,
+        hop1,
+        sid=SID_B,
+        now="2026-09-02T10:00:00Z",
+        values={"open-questions": "- Which color?"},
+    )
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    edit(hop3, "- [R2] Never push to main.\n", "")
+    dropped = strict(hop3)
+    assert dropped.returncode == 1, out(dropped)
+    assert "failed validation" not in out(dropped), out(dropped)
+    assert "[R2] left this file without a retirement" in out(dropped), out(dropped)
+
+
+def test_ids_amend_refuses_an_id_less_entry_once_the_predecessor_carries_the_floor(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    before = (hop2.read_bytes(), archived.read_bytes())
+    idless = amend(
+        hop2, tmp_path, {"sections": {"Open questions": "- Which size?"}}, now=AMEND_NOW
+    )
+    assert idless.returncode == 1, out(idless) + err(idless)
+    assert "Open questions: entry without a [Q<n>] id" in out(idless) + err(idless)
+    assert (hop2.read_bytes(), archived.read_bytes()) == before
+    with_id = amend(
+        hop2,
+        tmp_path,
+        {"sections": {"Open questions": "- [Q1] Which size?"}},
+        now=AMEND_NOW,
+    )
+    assert with_id.returncode == 0, out(with_id) + err(with_id)
+    assert "- [Q1] Which size?" in hop2.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -3676,3 +3768,364 @@ def test_retire_pointers_carry_forward_verbatim(tmp_path):
     dropped = strict(hop3)
     assert dropped.returncode == 1, out(dropped)
     assert "the predecessor's retire pointer is missing" in out(dropped), out(dropped)
+
+
+# --- shape 3: amend ---------------------------------------------------------------
+#
+# Expected values come from PLAN.md AC6 and AC7 and the design resolution: `amend`
+# takes `sections`, `append`, `retire`, `next` and `floors`; a replaced body goes to
+# this hop's file under `## Amended <UTC> <title>`; `append` archives nothing; every
+# refusal leaves both files byte-identical; only a FAIL the amend introduces blocks
+# the write, never a size FAIL; `new` refuses to rewrite a hop file holding amend or
+# retire output.
+
+AMEND_NOW = "2026-09-01T12:00:00Z"
+LATE_TRAIL = "- [h1] late: the owner added the gadget (owner-directed)."
+
+
+def amend(
+    hot: Path, tmp_path: Path, payload: object, now: str = AMEND_NOW
+) -> subprocess.CompletedProcess[bytes]:
+    return run(
+        "amend",
+        str(hot),
+        "--json",
+        slots_file(tmp_path, payload, "amend.json"),
+        "--now",
+        now,
+    )
+
+
+def amend_hop1(repo: Path, tmp_path: Path, values=ID_VALUES) -> tuple[Path, Path]:
+    """A filled first hop holding [Q1], [D1], [R1], [R2], and its hop file."""
+    hop1 = s3_hop(repo, tmp_path, values=values)
+    return hop1, hop_file(repo / ".work" / "handoffs", HOP1, 1, SID_A)
+
+
+def test_amend_rewrites_a_section_archives_the_old_body_and_emits(tmp_path):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    result = amend(
+        hot,
+        tmp_path,
+        {
+            "sections": {
+                "Remaining actions, in order": "1. Do the late thing.\n2. Ship."
+            }
+        },
+    )
+    assert result.returncode == 0, err(result)
+    text = hot.read_text(encoding="utf-8")
+    assert (
+        "## Remaining actions, in order\n\n1. Do the late thing.\n2. Ship.\n\n## "
+        in text
+    )
+    assert "1. Do the next thing." not in text
+    assert archived.read_text(encoding="utf-8").endswith(
+        f"\n## Amended {AMEND_NOW} Remaining actions, in order\n\n1. Do the next thing.\n"
+    )
+    printed = out(result)
+    verdict = printed.index(f"validate: PASS {real_posix(hot)}\n")
+    assert verdict < printed.index("Read @"), printed
+    assert printed.endswith(_section_body(hot, "Resume prompt")), printed
+    assert strict(hot).returncode == 0, out(strict(hot))
+
+
+@pytest.mark.parametrize(
+    "payload, prep, code, needle",
+    [
+        ({}, None, 1, "nothing to amend"),
+        ({"sections": {"Prior sessions": "x"}}, None, 1, "is carried"),
+        ({"sections": {"Resume prompt": "x"}}, None, 1, "is carried"),
+        ({"sections": {"Side quests": "x"}}, None, 1, "is not in"),
+        (
+            {"sections": {"Remaining actions, in order": "1. Do the next thing."}},
+            None,
+            1,
+            "already holds that text",
+        ),
+        ({"next": ["Do the next thing"]}, None, 1, "already read that way"),
+        ({"floors": {"next_rule_id": 1}}, None, 1, "would not change"),
+        ({"floors": {"hop": 5}}, None, 1, "frontmatter: amend changes only"),
+        (
+            {"floors": {"next_question_id": 3}},
+            ("next_question_id: 1\n", "next_question_id: 5\n"),
+            1,
+            "only rises",
+        ),
+        ({"append": {"Current rules": ["- [R3] x"]}}, None, 1, "'append' adds lines"),
+        (
+            {"append": {"Direction changes": [LATE_TRAIL]}},
+            ("## Direction changes\n", ""),
+            1,
+            "is not in",
+        ),
+        (
+            {"sections": {"Observations": "<!-- FILL: x — y -->"}},
+            None,
+            1,
+            "carries the literal",
+        ),
+        (
+            {"sections": {"Open questions": "None. Answered."}},
+            None,
+            1,
+            "removes [Q1], added this hop; retire it",
+        ),
+        (
+            {"sections": {"Original goal": "> Do the thing."}},
+            None,
+            1,
+            "removes an entry added this hop",
+        ),
+        (
+            {
+                "sections": {
+                    "Current rules": "- [R1] The thing must stay green.\n"
+                    "- [R1] Twice.\n- [R2] Never push to main."
+                }
+            },
+            None,
+            1,
+            "adds a FAIL the file did not have",
+        ),
+        ({"retire": [{"ref": "[Q9]", "reason": "gone"}]}, None, 1, "names nothing"),
+        ({"bogus": 1}, None, 2, "'bogus' is not one of"),
+        ({"next": []}, None, 2, "non-empty list of headline lines"),
+        ({"floors": {"next_rule_id": True}}, None, 2, "an integer from 1 up"),
+    ],
+    ids=[
+        "empty",
+        "prior-sessions",
+        "resume-prompt",
+        "unknown-section",
+        "same-body",
+        "same-next",
+        "same-floor",
+        "other-frontmatter",
+        "lower-floor",
+        "append-elsewhere",
+        "append-absent",
+        "fill-mark",
+        "this-hop-id",
+        "this-hop-unit",
+        "introduced-fail",
+        "bad-retire",
+        "unknown-key",
+        "empty-next",
+        "bool-floor",
+    ],
+)
+def test_amend_refusals_leave_both_files_byte_identical(
+    tmp_path, payload, prep, code, needle
+):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    if prep:
+        edit(hot, *prep)
+    before = (hot.read_bytes(), archived.read_bytes())
+    result = amend(hot, tmp_path, payload)
+    assert result.returncode == code, err(result)
+    assert needle in err(result), err(result)
+    assert out(result) == ""
+    assert (hot.read_bytes(), archived.read_bytes()) == before
+
+
+@pytest.mark.parametrize(
+    "prep, code, needle",
+    [
+        ("skeleton", 1, "unfinished skeleton"),
+        ("shape2", 2, "shape-3 hot files only"),
+        ("not-handoff", 2, "not a handoff file"),
+    ],
+)
+def test_amend_refuses_a_file_it_never_rewrites(tmp_path, prep, code, needle):
+    repo = make_repo(tmp_path)
+    if prep == "skeleton":
+        hot = Path(out(s3_new(repo, tmp_path)).strip())
+    else:
+        hot, _ = amend_hop1(repo, tmp_path)
+        old, new = (
+            ("handoff_shape: 3", "handoff_shape: 2")
+            if prep == "shape2"
+            else ("type: handoff\n", "type: note\n")
+        )
+        edit(hot, old, new)
+    before = hot.read_bytes()
+    result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
+    assert result.returncode == code, err(result)
+    assert needle in err(result), err(result)
+    assert hot.read_bytes() == before
+
+
+def test_amend_keeps_a_fail_the_file_already_had(tmp_path):
+    rules = SHAPE3_VALUES["rules"] + "\n- A rule with no id."
+    hot, _ = amend_hop1(make_repo(tmp_path), tmp_path, {**ID_VALUES, "rules": rules})
+    assert "entry without a [R<n>] id" in out(strict(hot))
+    result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
+    assert result.returncode == 0, err(result)
+    assert LATE_TRAIL + "\n" in hot.read_text(encoding="utf-8")
+    assert "FAIL: Current rules: entry without a [R<n>] id" in out(result), out(result)
+    assert "validate: FAIL" in out(result) and "Read @" in out(result), out(result)
+
+
+def test_amend_compares_fails_by_key_not_by_message_text(tmp_path):
+    rules = SHAPE3_VALUES["rules"] + "\n- A rule with no id."
+    hot, _ = amend_hop1(make_repo(tmp_path), tmp_path, {**ID_VALUES, "rules": rules})
+    reworded = SHAPE3_VALUES["rules"] + "\n- A reworded rule, still with no id."
+    result = amend(hot, tmp_path, {"sections": {"Current rules": reworded}})
+    assert result.returncode == 0, err(result)
+    assert "- A reworded rule, still with no id.\n" in hot.read_text(encoding="utf-8")
+    assert "entry without a [R<n>] id: 'A reworded rule" in out(result), out(result)
+
+
+def test_amend_never_blocks_on_size(tmp_path):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    text = hot.read_text(encoding="utf-8")
+    anchor = SHAPE3_VALUES["observations"] + "\n"
+    target = READ_CAP - 63
+    pad = target - len(text.encode("utf-8")) - 1
+    hot.write_text(
+        text.replace(anchor, anchor + "x" * pad + "\n", 1),
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert len(hot.read_bytes()) == target
+    before = archived.read_bytes()
+    late = LATE_TRAIL[:-1] + ", " + "with the detail the next session needs. " * 3
+    result = amend(hot, tmp_path, {"append": {"Direction changes": [late]}})
+    assert result.returncode == 0, err(result)
+    assert len(hot.read_bytes()) > READ_CAP
+    assert late + "\n" in hot.read_text(encoding="utf-8")
+    assert archived.read_bytes() == before
+    assert f"{READ_CAP}-byte Read page cap" in out(result), out(result)
+    assert "Read @" in out(result), out(result)
+
+
+def test_amend_retires_an_id_added_this_hop_and_raises_its_floor(tmp_path):
+    repo = make_repo(tmp_path)
+    hot, archived = amend_hop1(repo, tmp_path)
+    assert frontmatter_int(hot, "next_question_id") == 1
+    result = amend(
+        hot,
+        tmp_path,
+        {
+            "sections": {"Open questions": "None. Answered this hop."},
+            "retire": [{"ref": "[Q1]", "reason": "answered: blue"}],
+        },
+    )
+    assert result.returncode == 0, err(result)
+    assert QUESTION not in hot.read_text(encoding="utf-8")
+    assert frontmatter_int(hot, "next_question_id") == 2
+    heading = "Retired open questions"
+    sections = _sections_by_hand(archived.read_text(encoding="utf-8"))
+    assert sections[heading] == f"{QUESTION}\nRetired: answered: blue"
+    review = _sections_by_hand(hot.read_text(encoding="utf-8"))
+    assert f"§ {heading}" in review["Review before you continue"]
+    assert strict(hot).returncode == 0, out(strict(hot))
+    hop2 = s3_hop(repo, tmp_path, hot, sid=SID_B, now="2026-09-02T10:00:00Z")
+    assert frontmatter_int(hop2, "next_question_id") == 2
+
+
+@pytest.mark.parametrize(
+    "lines, region",
+    [
+        (
+            ["Do the late thing", "Then: /session-flow:handoff"],
+            "Next:\nDo the late thing\nThen: /session-flow:handoff\n" + "─" * 58,
+        ),
+        ([NEXT_CLOSED], f"{NEXT_CLOSED}\n" + "─" * 58),
+    ],
+    ids=["headlines", "closed"],
+)
+def test_amend_rewrites_the_next_headlines_and_archives_the_old(
+    tmp_path, lines, region
+):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    result = amend(hot, tmp_path, {"next": lines})
+    assert result.returncode == 0, err(result)
+    assert region in hot.read_text(encoding="utf-8")
+    assert archived.read_text(encoding="utf-8").endswith(
+        f"\n## Amended {AMEND_NOW} Resume prompt Next:\n\nNext:\nDo the next thing\n"
+    )
+    assert strict(hot).returncode == 0, out(strict(hot))
+
+
+def test_amend_append_adds_lines_and_archives_nothing(tmp_path):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    before = archived.read_bytes()
+    unit = '**Amended (2026-09-01, owner verbatim):** "Add the gadget."'
+    result = amend(
+        hot,
+        tmp_path,
+        {"append": {"Original goal": [unit], "Direction changes": [LATE_TRAIL]}},
+    )
+    assert result.returncode == 0, err(result)
+    assert archived.read_bytes() == before
+    sections = _sections_by_hand(hot.read_text(encoding="utf-8"))
+    goal, trail = sections["Original goal"], sections["Direction changes"]
+    assert goal.endswith(f"\n\n{unit}"), goal
+    assert trail.endswith(f"{TRAIL_NARROW}\n{LATE_TRAIL}"), trail
+    assert strict(hot).returncode == 0, out(strict(hot))
+
+
+def test_amend_keeps_each_files_crlf(tmp_path):
+    hot, archived = amend_hop1(make_repo(tmp_path), tmp_path)
+    for path in (hot, archived):
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    result = amend(
+        hot,
+        tmp_path,
+        {
+            "sections": {"Observations": "- Line one.\r\n- Line two."},
+            "append": {"Direction changes": [LATE_TRAIL]},
+        },
+    )
+    assert result.returncode == 0, err(result)
+    for path in (hot, archived):
+        data = path.read_bytes()
+        assert data.count(b"\n") == data.count(b"\r\n"), path
+    assert b"\r\n- Line one.\r\n- Line two.\r\n" in hot.read_bytes()
+    observed = SHAPE3_VALUES["observations"]
+    assert f"Observations\r\n\r\n{observed}\r\n".encode() in archived.read_bytes()
+    assert strict(hot).returncode == 0, out(strict(hot))
+
+
+def test_amend_refuses_a_file_that_is_no_longer_the_tip(tmp_path):
+    repo = make_repo(tmp_path)
+    hot, archived = amend_hop1(repo, tmp_path)
+    hop2 = s3_hop(repo, tmp_path, hot, sid=SID_B, now="2026-09-02T10:00:00Z")
+    before = (hot.read_bytes(), archived.read_bytes())
+    result = amend(hot, tmp_path, {"append": {"Direction changes": [LATE_TRAIL]}})
+    assert result.returncode == 1, err(result)
+    assert f"{real_posix(hop2)} names it in previous_handoff" in err(result)
+    assert f" amend {real_posix(hop2)} --json " in err(result), err(result)
+    assert (hot.read_bytes(), archived.read_bytes()) == before
+
+
+@pytest.mark.parametrize("through", ["amend", "fill-retire"])
+def test_new_refuses_to_rewrite_a_hop_file_holding_amend_output(tmp_path, through):
+    repo = make_repo(tmp_path)
+    if through == "amend":
+        hop1 = s3_hop(repo, tmp_path, values=ID_VALUES)
+        hot = s3_hop(
+            repo,
+            tmp_path,
+            hop1,
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+            values=ID_VALUES,
+        )
+        result = amend(hot, tmp_path, {"sections": {"Observations": "- Late."}})
+        assert result.returncode == 0, err(result)
+    else:
+        filled, hot, _ = fill_hop2(
+            repo, tmp_path, [{"ref": "amendment#2", "reason": "superseded"}]
+        )
+        assert filled.returncode == 0, err(filled)
+        hop1 = repo / ".work" / "handoffs" / HOP1
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    before = archived.read_bytes()
+    retry = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-03T10:00:00Z")
+    assert retry.returncode == 1, err(retry)
+    assert "save_point.py amend" in err(retry), err(retry)
+    assert archived.read_bytes() == before
+    assert not (repo / ".work" / "handoffs" / HOP3).exists()

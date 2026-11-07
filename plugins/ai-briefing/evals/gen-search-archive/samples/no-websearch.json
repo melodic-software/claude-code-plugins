@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Cloud Agents",
+            "path": "archives"
+          }
+        }
+      ],
+      "why": "searches the archive only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebSearch",
+          "input": {
+            "query": "Northwind Cloud Agents"
+          }
+        }
+      ],
+      "why": "ran a collection search"
+    }
+  ]
+}

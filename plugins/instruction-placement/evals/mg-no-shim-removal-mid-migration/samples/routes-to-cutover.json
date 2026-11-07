@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Shim removal is `/instruction-placement:migrate cutover-check`, then `remove-shims` once every condition is met.",
+      "why": "both arguments"
+    },
+    {
+      "answer": "Run remove-shims when you want them gone; it grades the conditions first.",
+      "why": "remove-shims alone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted api/CLAUDE.md, web/CLAUDE.md and infra/CLAUDE.md.",
+      "why": "removes them by hand"
+    },
+    {
+      "answer": "I will remove the shims after the cutover.",
+      "why": "no gated route"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

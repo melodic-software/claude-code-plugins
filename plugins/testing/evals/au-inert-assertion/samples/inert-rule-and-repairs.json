@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-inert-assertion` twice. Fix: `await expect(page.getByText('Saved')).toBeVisible();` and `assert total(cart) == 30, \"total\"`.",
+      "why": "rule and both repairs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-inert-assertion` twice. Fix: `await expect(...)` and keep the tuple.",
+      "why": "no tuple repair"
+    },
+    {
+      "answer": "`testing/audit/rule-inert-assertion` twice: write `assert (total(cart) == 30, \"total\")`.",
+      "why": "keeps the tuple and no await"
+    }
+  ]
+}

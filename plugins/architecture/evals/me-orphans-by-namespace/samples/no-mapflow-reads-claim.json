@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "- **Handoff**: cross-process edges are in the Handoff section, keyed by `file:line` to match a `/architecture:map-flow` hop cite; map-flow reads nothing from events.md."
+    },
+    {
+      "answer": "Map-flow never reads events.md; the keys only line up with its hop cites."
+    },
+    {
+      "answer": "Trace one entry point with /architecture:map-flow next."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/architecture:map-flow reads events.md to continue the trace across the broker."
+    },
+    {
+      "answer": "map-flow then consumes the events.json record for its hand-offs."
+    }
+  ]
+}

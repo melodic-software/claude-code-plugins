@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "- **Counts**: `dependencies: result=ok ecosystem=dotnet nodes=3 internal_edges=1 external_edges=1 unresolved=0 membership=0 unread_files=0 cycles=0 aggregated=no drawn_edges=1`"
+    },
+    {
+      "answer": "Counts: result=ok, nodes=3, internal_edges=1, external_edges=1, cycles=0."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Counts**: 3 nodes, 1 internal edge, 1 external package.",
+      "why": "counted, not quoted"
+    },
+    {
+      "answer": "- **Counts**: result=ok nodes=3 internal_edges=2 external_edges=1",
+      "why": "wrong count"
+    }
+  ]
+}

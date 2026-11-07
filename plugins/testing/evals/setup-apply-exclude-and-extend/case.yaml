@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: setup-apply-exclude-and-extend
+description: 'Legacy setup 2, invoked as `/testing:setup apply` because the skill is disable-model-invocation and a natural request cannot load it. apply runs check, then setup.sh apply with --exclude ''legacy/**'' and --extend js-vitest.files=''*.it.ts'', keeping tdd_refactor_step: off in docs/conventions/testing.yaml, re-runs check, and offers git add and commit without running them. ran-apply and no-commit read the Bash calls, team-file reads docs/conventions/testing.yaml; meets-expected-output (llm) quotes the legacy expected output. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, setup, apply, scaffold, no-network]
+expected_outcome: 'docs/conventions/testing.yaml holds the legacy/** exclude, the *.it.ts extension for js-vitest and the existing tdd_refactor_step: off; check runs again; nothing is committed.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/testing:setup apply Exclude our legacy folder from the can''t-fail audit and scan *.it.ts files as Vitest tests.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: ran-apply
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup\.sh(?:\\")?(?:(?:[^"\\]|\\.)*?\$\{?\w+\}?(?:\\")?)?[ \t]+apply\b'
+    arm: with-only
+  - name: team-file
+    type: regex
+    pattern: '(?=[\s\S]*legacy/\*\*)(?=[\s\S]*\*\.it\.ts)(?=[\s\S]*^tdd_refactor_step:\s*off\b)'
+    flags: m
+    target: { source: file, path: docs/conventions/testing.yaml }
+  - name: no-commit
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\s+(?:-C\s+\S+\s+)?(?:add|commit)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The run is `/testing:setup apply` asking to exclude the legacy folder from the can''t-fail audit and scan *.it.ts files as Vitest tests, in a repository whose docs/conventions/testing.yaml already holds tdd_refactor_step: off. PASS only if the run matches the legacy expected output: "Runs check first, then apply with --exclude ''legacy/**'' and --extend js-vitest.files=''*.it.ts'', keeping any values the existing file already holds. Only the team file in use is written: docs/conventions/testing.yaml (created when no team file exists), else the config block of docs/conventions/testing.md, else .claude/testing.yaml. Re-runs check and shows the hook-entry section: test-quality findings come from /testing:audit, which scans *.it.ts too, while the test-weaken hook skips it because no shipped row matches it. Prints no settings hook entry and never suggests a per-edit PostToolUse hook. Offers the git add and commit without running them unasked." FAIL if any part is missing or contradicted.'

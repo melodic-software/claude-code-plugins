@@ -71,9 +71,12 @@ export async function writeState({ github, repository, number, state, config, cu
 //   read alone decides a skip; a hold (HOLD_STATES) a listed human set is not
 //   replaced unless it is `releases`, the hold the write answers: `set`
 //   answers `{outcome: "held", state}` and the caller treats the issue as held;
-// - `leaveAgentReady(number, state)` writes `state` only while the field's
-//   trusted state (read-status.mjs fieldStatus) is agent-ready, so taking
-//   agent-ready off never resets another state.
+// - `leaveAgentReady(number, state, {orUnset})` writes `state` only while the
+//   field's trusted state (read-status.mjs fieldStatus) is agent-ready, so
+//   taking agent-ready off never resets another state. With `orUnset`, it also
+//   writes while no trusted state is set: an unset field leaves the labels
+//   deciding (read-status.mjs statusLabels), so only a set field takes an
+//   agent-ready label off.
 // A config that cannot be read makes every call throw StatusWriteError; a
 // trusted-actor list that cannot be read, every call that reads the field.
 export async function statusWriter({ env, github, repository }) {
@@ -119,12 +122,42 @@ export async function statusWriter({ env, github, repository }) {
     wrote.set(number, result.option);
     return result;
   };
-  const leaveAgentReady = async (number, state) => {
+  const leaveAgentReady = async (number, state, { orUnset = false } = {}) => {
     if (failure) {
       throw failure;
     }
     const { state: held } = await readField(number);
-    return held === "agent-ready" ? set(number, state) : { outcome: "unchanged", state: held };
+    const leave = held === "agent-ready" || (orUnset && (held === null || held === undefined));
+    return leave ? set(number, state) : { outcome: "unchanged", state: held };
   };
-  return { set, leaveAgentReady };
+  // Restarts the issue lane: clears the field, then sets agent-ready with no
+  // skip, so GitHub sends the field_added that starts a run. A hold a listed
+  // human set stops it (`{outcome: "held"}`); so does a trusted state outside
+  // `from` (the states the caller restarts from, null for unset), since a
+  // person may have moved the issue off agent-ready after the caller's read
+  // (`{outcome: "moved"}`). With no `from`, any state but a hold restarts.
+  const restart = async (number, { from } = {}) => {
+    if (failure) {
+      throw failure;
+    }
+    const now = await readField(number);
+    if (now.personHold) {
+      return { outcome: "held", state: now.state };
+    }
+    if (Array.isArray(from) && !from.includes(now.state ?? null)) {
+      return { outcome: "moved", state: now.state };
+    }
+    try {
+      await github("DELETE", `/repos/${repository}/issues/${number}/issue-field-values/${config["field-id"]}`, undefined, FIELD_API);
+    } catch (error) {
+      if (!/\bstatus 404\b/.test(String(error?.message ?? error))) {
+        throw new StatusWriteError(`#${number}'s Work status field was not cleared for a restart: ${error?.message ?? error}`, { cause: error });
+      }
+    }
+    wrote.delete(number);
+    const result = await writeState({ github, repository, number, state: "agent-ready", config, current: null });
+    wrote.set(number, result.option);
+    return result;
+  };
+  return { set, leaveAgentReady, restart };
 }

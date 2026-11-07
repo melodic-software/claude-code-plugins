@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "FAIL [N1]: plugins/foo/AGENTS.md never loads; add a one-line `@AGENTS.md` CLAUDE.md beside it.", "why": "spine line"},
+    {"answer": "| N1 | `plugins/foo/AGENTS.md` | FAIL | unwired |", "why": "table row"},
+    {"answer": "`plugins/foo/AGENTS.md` is unreachable (N1 FAIL).", "why": "path first"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "plugins/foo/AGENTS.md looks fine.", "why": "no finding"},
+    {"answer": "N1: no unwired nested AGENTS.md found.", "why": "near miss: N1 without the file"},
+    {"answer": "C1 FAIL: 241 loaded lines.", "why": "other check"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "| REPO-1 | Instruction budget exemption | PASS | CLAUDE.md is exempt per .claude/rules/instruction-budget.md |", "why": "numbered id"},
+    {"answer": "**REPO** (consumer convention): the 200-line target is waived here.", "why": "bare id in bold"},
+    {"answer": "C1 WARN, exempt by repo rule (REPO).", "why": "in parentheses"},
+    {"answer": "The exemption is reported under REPO.", "why": "sentence end"},
+    {"answer": "REPO-BUDGET: CLAUDE.md is exempt from the 200-line target.", "why": "named id"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "C1 FAIL: 260 lines against the 200-line target.", "why": "unqualified FAIL"},
+    {"answer": "C1 is exempt per this repo's rules.", "why": "near miss: lowercase repo, no check-ID"},
+    {"answer": "See .claude/REPO/notes.md for details.", "why": "REPO inside a path"}
+  ]
+}

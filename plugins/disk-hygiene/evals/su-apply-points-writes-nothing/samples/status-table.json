@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Python floor 3.11 | PASS |\n| Git | INFO |"
+    },
+    {
+      "answer": "| node | FAIL |\n| Plugin registration | INFO |\nRemediation: install Node.js."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything looks fine on this machine."
+    },
+    {
+      "answer": "| Python | PASS |\n| node | PASS |"
+    }
+  ]
+}

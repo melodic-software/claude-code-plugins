@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "The report is contributor-local: it covers your personal auto memory.", "why": "both terms"},
+    {"answer": "It audits per-contributor auto memory, which differs for each team member.", "why": "per- form"},
+    {"answer": "Audit output is **contributor-local** by design.", "why": "bold"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Saved to docs/audit/health-report.md for the team.", "why": "wrote it to the repo"},
+    {"answer": "The report is local to this machine.", "why": "near miss: machine, not contributor"},
+    {"answer": "C1 PASS, M1 PASS.", "why": "different question"}
+  ]
+}

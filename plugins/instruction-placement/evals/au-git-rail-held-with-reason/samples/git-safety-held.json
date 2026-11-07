@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Git safety (AGENTS.md:10-13): held back, hard-deny irreversible-action class, no destination.",
+      "why": "held-back line"
+    },
+    {
+      "answer": "I'm holding the Git safety section back: it stays where it is.",
+      "why": "verb form"
+    },
+    {
+      "answer": "| Git safety | safety rail | hard-denied | no destination |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Git safety -> `.claude/rules/git.md` with paths: `**/*`",
+      "why": "gives it a destination"
+    },
+    {
+      "answer": "Git safety is not held back here; it becomes `.claude/rules/git-safety.md`.",
+      "why": "negated hold"
+    },
+    {
+      "answer": "Held back: Secrets.",
+      "why": "holds a different section"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

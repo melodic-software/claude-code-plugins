@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote `.claude/ecosystems/bash.yaml`. It is not ignored, but it is written but untracked: commit it to share it with the team.",
+      "why": "the skill's report"
+    },
+    {
+      "answer": "`.claude/ecosystems/bash.yaml` is written but not yet committed; run git add and commit.",
+      "why": "not yet committed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote `.claude/ecosystems/bash.yaml` successfully. Setup complete.",
+      "why": "reports success, not the untracked state"
+    },
+    {
+      "answer": "Wrote `.claude/ecosystems/bash.yaml`; it is not untracked noise, it is config.",
+      "why": "negated"
+    }
+  ]
+}

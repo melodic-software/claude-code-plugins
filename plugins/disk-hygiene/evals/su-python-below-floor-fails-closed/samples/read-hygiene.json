@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugin/skills/clean/scripts/hygiene.py\",\"limit\":60}}]}}",
+      "why": "Read of the engine file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"^MIN_PYTHON\",\"path\":\"/opt/eval/plugin/skills/clean/scripts/hygiene.py\",\"output_mode\":\"content\"}}]}}",
+      "why": "Grep of MIN_PYTHON in the engine file, as the real run did"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugin/README.md\"}}]}}",
+      "why": "reads the README copy of the floor"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"hygiene.py\",\"path\":\"/opt/eval/plugin/skills/clean/SKILL.md\",\"output_mode\":\"content\"}}]}}",
+      "why": "greps SKILL.md for the engine name, never opens the engine"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"MIN_PYTHON = (3, 11) in skills/clean/scripts/hygiene.py, so the floor is 3.11.\"}]}}",
+      "why": "names the engine file in prose with no tool call"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```ts\nconst total = totalCart({ items: [a, b, c] });\nexpect(total).toBe(42);\n```",
+      "why": "asserts the returned total"
+    },
+    {
+      "answer": "expect(totalCart(cart)).toEqual(42)",
+      "why": "inline call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "expect(cart.items).toHaveLength(3);",
+      "why": "still the test's own data"
+    },
+    {
+      "answer": "expect(cart.items[0]).toBe(a);",
+      "why": "another read of the built cart"
+    }
+  ]
+}

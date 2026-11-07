@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/p/skills/audit/scripts/cant-fail-scan.sh"
+          }
+        }
+      ],
+      "why": "scan only"
+    },
+    {
+      "answer": [],
+      "why": "no shell call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '5,12d' test/cant-fail-js.test.js"
+          }
+        }
+      ],
+      "why": "deletes lines in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -v adds test/cant-fail-js.test.js > /tmp/x && cat /tmp/x > test/cant-fail-js.test.js"
+          }
+        }
+      ],
+      "why": "rewrites the file by redirect"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`testing/audit/rule-snapshot-only`: snapshot is the only oracle: review it as code. Keep it and add `expect(receipt.total).toBe('$12.50')`.",
+      "why": "rule and phrase"
+    },
+    {
+      "answer": "The audit flagged it as `rule-snapshot-only`. The snapshot is its only oracle, so an approved wrong snapshot stays green. Keep it and assert the total.",
+      "why": "only-oracle wording (the smoke run reply, which the llm grader passed)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`testing/audit/rule-snapshot-only`: replace the snapshot with explicit asserts.",
+      "why": "no review-as-code"
+    }
+  ]
+}

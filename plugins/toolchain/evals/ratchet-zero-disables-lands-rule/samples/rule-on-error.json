@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"rules\": {\n    \"no-console\": \"error\",\n    \"@eslint-community/eslint-comments/no-use\": \"error\"\n  }\n}\n",
+      "why": "error"
+    },
+    {
+      "answer": "{ \"rules\": { \"@eslint-community/eslint-comments/no-use\": [\"error\", { \"allow\": [] }] } }",
+      "why": "array form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{ \"rules\": { \"@eslint-community/eslint-comments/no-use\": \"warn\" } }",
+      "why": "warn, not error"
+    },
+    {
+      "answer": "{ \"rules\": { \"no-console\": \"error\", \"@eslint-community/eslint-comments/no-use\": \"off\" } }",
+      "why": "still off"
+    }
+  ]
+}

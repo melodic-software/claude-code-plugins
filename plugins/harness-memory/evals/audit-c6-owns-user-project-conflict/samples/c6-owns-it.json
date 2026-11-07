@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": "C6 owns it. Both files are in the discover-instruction-surfaces population.", "why": "leading C6"},
+    {"answer": "**It's C6.** I15 does not grade that pair.", "why": "bold it's"},
+    {"answer": "That conflict falls under C6 Consistency, not I15.", "why": "falls under"},
+    {"answer": "Short answer: the pair is owned by C6.", "why": "owned by"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "That's I15, not C6: audit-instructions owns precedence.", "why": "attributes to I15"},
+    {"answer": "I15 owns it; C6 only covers project files.", "why": "near miss: C6 mentioned, I15 named owner"},
+    {"answer": "Auto memory is on.", "why": "different question"},
+    {"answer": "C6 does not own this pair; I15 does.", "why": "leading C6, negated"},
+    {"answer": "C6 isn't the owner here, I15 is.", "why": "leading C6, contraction"}
+  ]
+}

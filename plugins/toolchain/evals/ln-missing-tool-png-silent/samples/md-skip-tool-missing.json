@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| markdown | skip (tool missing: mdlint-absent) | INCOMPLETE |",
+      "why": "named skip"
+    },
+    {
+      "answer": "| markdown | skip (tool missing: `mdlint-absent`) | INCOMPLETE |",
+      "why": "code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| markdown | FAIL (mdlint-absent: command not found) | FAIL |",
+      "why": "missing tool reported as FAIL"
+    },
+    {
+      "answer": "| markdown | skip (opt-in unmet: mdlint-absent config) | PASS |",
+      "why": "wrong skip class"
+    }
+  ]
+}

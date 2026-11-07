@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Because the ledger loader double-counted refunds when they sat in a separate file beside the weekly CSV (#4318); refunds became a signed refund_cents column instead.",
+      "why": "full"
+    },
+    {
+      "answer": "Splitting refunds across two files made the loader count them twice, so the owner moved them into a signed column in the weekly file.",
+      "why": "mechanism"
+    },
+    {
+      "answer": "Hop 3's retired amendment says the separate refunds file was dropped: the ledger loader double-counted refunds split across two files. They are a signed refund_cents column now.",
+      "why": "from the retired listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Current rules say refunds are a signed refund_cents column, never a separate file.",
+      "why": "rule only, no reason"
+    },
+    {
+      "answer": "A separate file doubled the export runtime.",
+      "why": "invented reason"
+    },
+    {
+      "answer": "Refunds should go to a separate refunds-<date>.csv file.",
+      "why": "wrong direction"
+    }
+  ]
+}

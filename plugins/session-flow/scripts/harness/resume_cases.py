@@ -5,10 +5,12 @@
 A case directory under `plugins/session-flow/evals/re-<name>/` holds one
 `resume-eval.json`. This module turns its `seed` into what every arm starts from:
 
-- `build_predecessor_chain` writes the case's shape-2 handoff chain through the real
-  `save_point.py new`, hop by hop, with deterministic lane-like content sized like
-  the audited chains, plus the case's injected entries at their hops. Every hop
-  passes `save_point.py validate --strict-transcript`.
+- `build_predecessor_chain` writes the case's handoff chain through the real
+  `save_point.py new`, hop by hop, with deterministic lane-like content, plus the
+  case's injected entries at their hops. Shape 2, sized like the audited chains, is
+  the default; `"shape": 3` builds hot files and hop files filled through
+  `save_point.py fill`, whose `retire` moves each injection with a `retire` hop
+  into that hop's file. Every hop passes `save_point.py validate --strict-transcript`.
 - `seed_history` returns the session the writer resumes from: the pasted resume
   prompt of the newest handoff, the reads a real resume makes of it (tool turns whose
   results are real slices of the file), and the case's work turns.
@@ -27,6 +29,7 @@ import hashlib
 import json
 import re
 import sys
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -35,7 +38,12 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-from hop_chain import FILL_RE, between_rails, run_save_point  # noqa: E402
+from hop_chain import (  # noqa: E402
+    FILL_RE,
+    between_rails,
+    frontmatter_value,
+    run_save_point,
+)
 
 CASE_FILE = "resume-eval.json"
 NAMESPACE = uuid.UUID("3c1f9a52-7d4e-5b60-9e1a-2f8c4d6b7a90")
@@ -339,12 +347,24 @@ def _did_left(pred: dict, hop: int, lane: str) -> tuple[str, str]:
     return did, left
 
 
+def _injection_items(pred: dict, hop: int, slot: str) -> list[dict]:
+    """The case's injections into `slot` at `hop`, the `first` ones ahead of the rest."""
+    items = [
+        item
+        for item in pred.get("injections", [])
+        if int(item["hop"]) == hop and item["section"] == slot
+    ]
+    return [i for i in items if i.get("position") == "first"] + [
+        i for i in items if i.get("position") != "first"
+    ]
+
+
 def _injections(pred: dict, hop: int, slot: str) -> tuple[list[str], list[str]]:
-    first, last = [], []
-    for item in pred.get("injections", []):
-        if int(item["hop"]) == hop and item["section"] == slot:
-            (first if item.get("position") == "first" else last).append(item["text"])
-    return first, last
+    items = _injection_items(pred, hop, slot)
+    return (
+        [i["text"] for i in items if i.get("position") == "first"],
+        [i["text"] for i in items if i.get("position") != "first"],
+    )
 
 
 def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
@@ -413,6 +433,289 @@ def _fill(path: Path, pred: dict, hop: int, width: int, lane: str) -> int:
     return generated
 
 
+# --- shape 3 ---------------------------------------------------------------------
+#
+# A shape-3 predecessor is filled through `save_point.py fill`, so its retirements are
+# the script's own: an injection's `retire` names the hop that retires it, and `fill`
+# moves the entry into that hop's file under its retire heading and points Review
+# before you continue at it.
+
+SHAPE3_SECTIONS = ("amendment", "trail", "rules", "open-questions", "decisions")
+ID_PREFIX = {"rules": "R", "open-questions": "Q", "decisions": "D"}
+SHAPE3_RULES = 3
+SHAPE3_RULE_WIDTH = 200
+SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (optional:)?")
+
+
+def _check_shape3_spec(pred: dict, hops: int) -> None:
+    for item in pred.get("injections", []):
+        if item["section"] not in SHAPE3_SECTIONS:
+            raise ValueError(
+                f"injection {item['id']!r}: section {item['section']!r} is not a shape-3 target {SHAPE3_SECTIONS}"
+            )
+        if item["section"] == "amendment" and any(
+            not line.strip() or line.startswith("**")
+            for line in item["text"].split("\n")[1:]
+        ):
+            raise ValueError(
+                f"injection {item['id']!r}: an amendment's continuation lines are non-blank and never start with '**', or the unit splits"
+            )
+        retire = item.get("retire")
+        if retire is None:
+            continue
+        reason = str(retire.get("reason", ""))
+        if not int(item["hop"]) < int(retire["hop"]) <= hops:
+            raise ValueError(
+                f"injection {item['id']!r}: retire hop {retire['hop']} must follow hop {item['hop']} and be at most {hops}"
+            )
+        if not reason.strip() or "\n" in reason:
+            raise ValueError(
+                f"injection {item['id']!r}: a retire reason is one non-empty line"
+            )
+
+
+def _slots(path: Path) -> dict[str, bool]:
+    """Slot name to whether it is optional, from the skeleton `new` wrote."""
+    return {
+        m.group(1): bool(m.group(2))
+        for m in SLOT_RE.finditer(path.read_text(encoding="utf-8"))
+    }
+
+
+def _section_body(text: str, title: str) -> list[str]:
+    lines = text.split("\n")
+    start = lines.index(f"## {title}") + 1
+    end = next(
+        (i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines)
+    )
+    return lines[start:end]
+
+
+def _ordinal(lines: list[str], body, text: str, what: str) -> int:
+    """1-based ordinal, among the lines `body` maps to a string, of the one line whose
+    body is exactly `text`'s first line."""
+    first = text.split("\n")[0]
+    bodies = [b for b in map(body, lines) if b is not None]
+    hits = [i for i, b in enumerate(bodies, 1) if b == first]
+    if len(hits) != 1:
+        raise ValueError(
+            f"{what}: {len(hits)} entries read {first[:60]!r} in the file it retires from; want 1"
+        )
+    return hits[0]
+
+
+def _fill_3(path: Path, pred: dict, hop: int, lane: str, live: dict) -> None:
+    """Fill a shape-3 skeleton through `save_point.py fill`. `live` carries, hop to hop,
+    the id-carrying lines Open questions and Decisions in force rewrite each hop and the
+    ref each injection was given."""
+    from save_point import AMENDMENT_RE  # hop_chain put the scripts dir on sys.path
+
+    hops = int(pred["hops"])
+    final = (pred.get("final") or {}) if hop == hops else {}
+    date = _when(pred, hop)[:10]
+    slots = _slots(path)
+    floors = {
+        prefix: int(frontmatter_value(path, key))
+        for prefix, key in (
+            ("R", "next_rule_id"),
+            ("Q", "next_question_id"),
+            ("D", "next_decision_id"),
+        )
+    }
+
+    def new_id(prefix: str) -> str:
+        n = floors[prefix]
+        floors[prefix] += 1
+        return f"[{prefix}{n}]"
+
+    def id_lines(section: str, generated: list[str]) -> list[str]:
+        """This hop's new entries for an id section: injections around generated text."""
+        items = _injection_items(pred, hop, section)
+        firsts = [i for i in items if i.get("position") == "first"]
+        rest = [i for i in items if i.get("position") != "first"]
+        out = []
+        for item in firsts:
+            live["refs"][item["id"]] = ref = new_id(ID_PREFIX[section])
+            out.append(f"- {ref} {item['text']}")
+        out += [f"- {new_id(ID_PREFIX[section])} {text}" for text in generated]
+        for item in rest:
+            live["refs"][item["id"]] = ref = new_id(ID_PREFIX[section])
+            out.append(f"- {ref} {item['text']}")
+        return out
+
+    f = _fields(f"{lane}/{hop}/shape3", lane)
+    values: dict[str, str] = {}
+
+    amendments = [
+        i["text"]
+        if hop == 1 and n == 0
+        else f"**Amended (owner, {date}):** {i['text']}"
+        for n, i in enumerate(_injection_items(pred, hop, "amendment"))
+    ]
+    if hop == 1:
+        values["goal"] = f"> {pred['goal']} (owner, {pred['start'][:10]})"
+        values["intent"] = pred.get("intent") or "None stated."
+        values["vision"] = pred.get("vision") or "None stated."
+        values["amended"] = "\n".join(amendments) or "None."
+        values["opening-ask"] = pred["opening_ask"]
+    elif amendments:
+        values["goal-new"] = "\n".join(amendments)
+
+    trail = (
+        [f"start: the {lane} work on the goal above (owner-directed: the opening ask)"]
+        if hop == 1
+        else [
+            f"moved to the {f['phrase']} change (agent-initiated: {f['wf']} run {f['run']} showed it)"
+        ]
+    )
+    first, last = _injections(pred, hop, "trail")
+    values["trail" if hop == 1 else "trail-new"] = "\n".join(
+        f"- [h{hop}] {text}" for text in [*first, *trail, *last]
+    )
+
+    rules = (
+        [
+            _entry(
+                "constraints",
+                f"{pred['topic']}/1/rules/{i}",
+                lane,
+                SHAPE3_RULE_WIDTH,
+            )
+            for i in range(SHAPE3_RULES)
+        ]
+        if hop == 1
+        else []
+    )
+    rule_lines = id_lines("rules", rules)
+    if hop == 1:
+        values["rules"] = "\n".join(rule_lines)
+        values["preferences"] = "None. No standing preference is pending promotion."
+    elif rule_lines:
+        values["rules-new"] = "\n".join(rule_lines)
+
+    questions = (
+        [
+            f"Does {f['wf']} still need its {f['n']}-minute timeout? Options: keep it, or cut it to {f['n'] - 1}; recommendation: keep it until {f['m']} runs pass; unblocks the drain cap."
+        ]
+        if hop == 1
+        else []
+    )
+    live["open-questions"] += id_lines("open-questions", questions)
+    live["open-questions"] += [
+        f"- {new_id('Q')} {text}" for text in final.get("open-questions", [])
+    ]
+    values["open-questions"] = "\n".join(live["open-questions"])
+
+    # Each hop settles a new batch cap and retires the last one, so every hop file
+    # carries a retire listing and Review before you continue a pointer to it.
+    retire: list[dict] = []
+    decisions = (
+        [
+            _pick(f"{lane}/1/decision/{i}", TEMPLATES["decisions"]).format(
+                **_fields(f"{lane}/1/decision/{i}", lane)
+            )
+            for i in range(2)
+        ]
+        if hop == 1
+        else []
+    )
+    rolling = f"Cap each drain batch at {f['n']} items from hop {hop} on (measured on run {f['run']})."
+    added = id_lines("decisions", [*decisions, rolling])
+    rolling_line = next(line for line in added if line.endswith(rolling))
+    old = live["rolling"]
+    if old:
+        retire.append(
+            {
+                "ref": old.split(" ", 2)[1],
+                "reason": f"superseded by {rolling_line.split(' ', 2)[1]} at hop {hop}",
+            }
+        )
+    live["rolling"] = rolling_line
+    live["decisions"] += added
+    live["decisions"] += [
+        f"- {new_id('D')} {text}" for text in final.get("decisions", [])
+    ]
+    values["decisions"] = "\n".join(live["decisions"])
+    if old:
+        live["decisions"].remove(old)
+
+    for name in ("brief", "criteria", "remaining", "environment", "skills", "next"):
+        values[name] = "\n".join(_hot(pred, hop, name, lane))
+    values["brief"] = values["brief"].replace(
+        "Read Constraints that must hold first.", "Read Current rules first."
+    )
+    values["review"] = "\n".join(
+        final.get("review")
+        or [
+            "- Read Current rules first.",
+            "- Re-read the queue: gh pr list --label lane-queue --json number,title,headRefName.",
+        ]
+    )
+    values["observations"] = "\n".join(
+        final.get("observations")
+        or [
+            f"- The {lane} queue held {f['n']} open items at hop {hop}; detail stays in this hop's file."
+        ]
+    )
+    values["commands"] = "None. No command waits on the user."
+    values["did"], values["left"] = _did_left(pred, hop, lane)
+    values["rescan"] = (
+        "the re-scan read the lossless on-disk transcript; no compaction occurred."
+    )
+
+    # Ordinals count in the file as `fill` writes it, before any retirement.
+    text = path.read_text(encoding="utf-8")
+    goal = [
+        new
+        for line in _section_body(text, "Original goal")
+        for new in (
+            values.get("goal-new", "").split("\n")
+            if "<!-- FILL: goal-new " in line
+            else [line]
+        )
+    ]
+    trail_lines = _section_body(text, "Direction changes")
+    for item in pred.get("injections", []):
+        if int((item.get("retire") or {}).get("hop", 0)) != hop:
+            continue
+        section = item["section"]
+        if section == "amendment":
+            ref = "amendment#%d" % _ordinal(
+                goal,
+                lambda line: (
+                    line[m.end() :].strip() if (m := AMENDMENT_RE.match(line)) else None
+                ),
+                item["text"],
+                item["id"],
+            )
+        elif section == "trail":
+            tag = f"- [h{item['hop']}] "
+            ref = f"[h{item['hop']}]#%d" % _ordinal(
+                trail_lines,
+                lambda line: line[len(tag) :] if line.startswith(tag) else None,
+                item["text"],
+                item["id"],
+            )
+        else:
+            ref = live["refs"][item["id"]]
+            if section in live:
+                live[section] = [
+                    line for line in live[section] if line.split(" ", 2)[1] != ref
+                ]
+        retire.append({"ref": ref, "reason": item["retire"]["reason"]})
+    if retire:
+        values["retire"] = retire  # type: ignore[assignment]
+    for name in [n for n in values if n != "retire" and n not in slots]:
+        raise ValueError(f"hop {hop}: generated slot {name!r} is not in the skeleton")
+
+    with tempfile.TemporaryDirectory(prefix="resume-fill-") as tmp:
+        slots_file = Path(tmp) / "slots.json"
+        slots_file.write_text(json.dumps(values), encoding="utf-8")
+        filled = run_save_point(["fill", str(path), "--slots", str(slots_file)])
+    if filled.returncode != 0:
+        raise SystemExit(f"`fill` failed at hop {hop}: {filled.stdout}{filled.stderr}")
+
+
 def build_predecessor_chain(
     case_spec: dict, out_dir: Path, memory_dir: Path | None = None
 ) -> list[Path]:
@@ -432,6 +735,16 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
     hops = int(pred["hops"])
     target = pred.get("target_bytes")
     lane = pred.get("lane", pred["topic"])
+    # The audited chains are shape 2, so the cases rebuild that shape unless one opts
+    # into shape 3.
+    shape = int(pred.get("shape", 2))
+    if shape not in (2, 3):
+        raise ValueError(f"{case}: predecessor shape {shape} is not 2 or 3")
+    if shape == 3:
+        if target:
+            raise ValueError(f"{case}: target_bytes steers shape-2 chains only")
+        _check_shape3_spec(pred, hops)
+    live: dict = {"refs": {}, "open-questions": [], "decisions": [], "rolling": None}
     out_dir = Path(out_dir)
     memory = Path(memory_dir) if memory_dir else out_dir / ".work"
     (memory / "handoffs").mkdir(parents=True, exist_ok=True)
@@ -466,9 +779,8 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
             session_id,
             "--now",
             _when(pred, hop),
-            # The audited chains are shape 2; the cases rebuild that shape.
             "--shape",
-            "2",
+            str(shape),
         ]
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
         made = run_save_point(args)
@@ -477,7 +789,11 @@ def _build(case_spec: dict, out_dir: Path, memory_dir: Path | None) -> list[Path
                 f"{case}: `new` failed at hop {hop}: {made.stdout}{made.stderr}"
             )
         path = Path(made.stdout.strip())
-        generated = _fill(path, pred, hop, width, lane)
+        if shape == 3:
+            _fill_3(path, pred, hop, lane, live)
+            generated = 0
+        else:
+            generated = _fill(path, pred, hop, width, lane)
         checked = run_save_point(
             [
                 "validate",
@@ -665,12 +981,15 @@ def seed_history(
         visible = item.get("visible_in_reads")
         if visible is None:
             continue
-        if (item["text"] in seen) != bool(visible):
+        # Read results number each line, so a multi-line entry is seen line by line.
+        lines = item["text"].split("\n")
+        shown = all(line in seen for line in lines)
+        if shown != bool(visible):
             raise ValueError(
                 f"{case_spec['name']}: injection {item['id']!r} visible_in_reads={visible} "
-                f"but the read slices {'show' if item['text'] in seen else 'miss'} it"
+                f"but the read slices {'show' if shown else 'miss'} it"
             )
-        if not visible and item["text"] in said:
+        if not visible and any(line in said for line in lines):
             raise ValueError(
                 f"{case_spec['name']}: a work turn restates hidden injection {item['id']!r}"
             )

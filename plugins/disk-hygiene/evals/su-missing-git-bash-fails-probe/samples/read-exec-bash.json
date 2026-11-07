@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/hooks/exec-bash.mjs"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/plugin/hooks/hooks.json"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Commit-message formatting -> `.claude/rules/commit-messages.md` (always-relevant: every commit).",
+      "why": "arrow form"
+    },
+    {
+      "answer": "| Commit messages | Claude-specific | `.claude/rules/commits.md` |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Commit-message formatting -> root `AGENTS.md`.",
+      "why": "puts it in AGENTS.md"
+    },
+    {
+      "answer": "Build commands stay in AGENTS.md; the rest goes to `.claude/rules/`.",
+      "why": "never ties the commit section to rules"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

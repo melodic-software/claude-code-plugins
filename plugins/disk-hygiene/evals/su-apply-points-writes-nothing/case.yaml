@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: su-apply-points-writes-nothing
+description: 'Legacy setup 2. apply runs the check first, then points at each remediation and writes nothing (setup SKILL.md lines 191-194, 228-234): a PASS/FAIL/INFO table, the disk_hygiene_enabled userConfig toggle named as the only tunable, no Edit, no Write, and no claude plugin configure, install or uninstall run (that command writes home config the sandbox denies, so a run that tries it may read INVALID). ran-kill-switch-probe is the with-only indicator; the prompt is the slash command, so no Skill grader. Needs --allow-tools Bash Edit Write; run with --disallow-tools Glob Grep if a Glob or Grep on the plugin dir reads INVALID.'
+tags: [setup, apply, read-only, no-network]
+plugins: ["../.."]
+expected_outcome: 'The run performs the check before any remediation and shows its PASS/FAIL/INFO table, then points at each fix as guidance. It names disk_hygiene_enabled, the native userConfig toggle, as the only setting the plugin has, and writes, edits or configures nothing.'
+execution:
+  prompt: /disk-hygiene:setup apply
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ran-kill-switch-probe
+    type: tool_used
+    tool: Bash
+    input_match: 'kill_switch_probe\.py'
+    arm: with-only
+  - name: status-table
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:PASS|FAIL)\b)(?=[\s\S]*\bINFO\b)'
+    target: last_message
+    arm: both
+  - name: names-toggle
+    type: regex
+    pattern: 'disk_hygiene_enabled'
+    target: last_message
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plugin-command-run
+    type: tool_used
+    tool: Bash
+    input_match: '\bclaude\s+plugin\s+(?:configure|install|uninstall)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: guidance-only
+    type: llm
+    criteria: 'Pass only if all three legacy expectations hold. "Runs check before offering remediation": the trace shows the probes running and the reply shows the check table before any remediation. "Writes nothing, the plugin owns no consumer-project configuration": no file is written or changed and the reply claims no change. "Names the native userConfig toggle as the only tunable": the reply names disk_hygiene_enabled as the plugin''s only setting, changed through Claude Code''s own plugin configuration. Fail if the reply says it changed a setting or offers a plugin config file of its own.'
+    focus: trace
+    arm: both

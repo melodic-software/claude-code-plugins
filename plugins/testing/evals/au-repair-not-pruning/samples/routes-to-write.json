@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "I won't delete them. Each needs a real assertion; /testing:write authors it, and the review fix pass applies it.",
+      "why": "routes to write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't delete them; run /testing:cleanup to prune them behind the mutation gate.",
+      "why": "routes to cleanup, not write"
+    },
+    {
+      "answer": "Deleted the three tests.",
+      "why": "deletes"
+    }
+  ]
+}

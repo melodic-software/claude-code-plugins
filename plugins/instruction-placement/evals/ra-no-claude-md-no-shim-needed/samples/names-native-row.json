@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "`render-index.sh wiring` reports `src/billing/AGENTS.md` as NATIVE: nothing on its path displaces it.",
+      "why": "row named"
+    },
+    {
+      "answer": "| src/billing/AGENTS.md | NATIVE |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created src/billing/AGENTS.md and src/billing/CLAUDE.md; the shim is what makes it load.",
+      "why": "claims the shim is required"
+    },
+    {
+      "answer": "Claude Code reads it natively.",
+      "why": "no wiring row"
+    },
+    {
+      "answer": "wiring: UNWIRED",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

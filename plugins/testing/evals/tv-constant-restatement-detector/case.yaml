@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: tv-constant-restatement-detector
+description: 'Legacy test-value 3. `expect(X_POST_CHARACTER_LIMIT).toBe(280)` can fail, so it is a change detector (rule-constant-restatement), not a test that cannot fail; the fix tests the boundary (281 rejected), with cant-fail-ok: kept for a literal fixed by an external contract. The prompt names the skill (test-value is not user-invocable), since natural phrasing alone did not load it. skill-fired reads the Skill calls, boundary-281 the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+tags: [testing, test-value, change-detector, no-network]
+expected_outcome: 'Says the test can fail and is a change detector, recommends testing 280 accepted and 281 rejected, and limits cant-fail-ok: to an external-contract literal.'
+execution:
+  prompt: 'Is `expect(X_POST_CHARACTER_LIMIT).toBe(280)` a tautological test that cannot fail? Use the `testing:test-value` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: boundary-281
+    type: regex
+    pattern: '\b281\b[^.;|,\n]{0,60}?\b(?:reject\w*|fail\w*|refus\w*|invalid|error\w*|too long)\b|\b(?:reject\w*|fail\w*|refus\w*)\b[^.;|,\n]{0,60}?\b281\b|\b281\b[^\n;]{0,40}?\.(?:toBe\(\s*false\s*\)|toBeFalsy\(\s*\)|toThrow\w*\()'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether `expect(X_POST_CHARACTER_LIMIT).toBe(280)` is a tautological test that cannot fail. PASS only if the reply satisfies every legacy expectation: "Output says the test can fail and is a change detector (rule-constant-restatement), not a test that cannot fail" "Output recommends testing the boundary: 280 characters accepted, 281 rejected" "Output limits cant-fail-ok: to a literal fixed by an external contract". FAIL if any point is missing or contradicted.'

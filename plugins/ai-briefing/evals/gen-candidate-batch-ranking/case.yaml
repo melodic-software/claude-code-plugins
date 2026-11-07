@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: gen-candidate-batch-ranking
+graders:
+  - name: partisan-dropped
+    type: regex
+    pattern: 'newswire\.example/(?:deepfake-meme|partisan-horse-race)|\b(?:deepfake|horse[- ]race)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: vendorco-kept
+    type: regex
+    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\b(?:legal|regulat\w*)\b[^\n]*|\*\*[^*\n]*\b(?:legal|regulat\w*)\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\bVendorCo\b'
+    flags: 'im'
+    target: last_message
+  - name: robotics-extras
+    type: regex
+    pattern: '^[ \t]*(?:#{1,4}[ \t]+[^\n]*\bEXTRAS?\b[^\n]*|\*\*[^*\n]*\bEXTRAS?\b[^*\n]*\*\*[ \t]*$)(?:\n(?![ \t]*(?:#{1,2}[ \t]|\*\*[^*\n]+\*\*[ \t]*$))[^\n]*){0,20}?\b(?:Anchorpoint|Unit-7)\b'
+    flags: 'im'
+    target: last_message
+  - name: impact-annotation
+    type: regex
+    pattern: '\bimpact\b\**[ \t]*[:=][ \t]*\**[ \t]*(?:high|medium|low|none)\b'
+    flags: 'i'
+    target: last_message
+  - name: tooling-high
+    type: llm
+    criteria: "Legacy expectation: 'Tooling/IDE/CLI releases usable within a week are ranked HIGH (the Solstice Code, Meridian Agent CLI, and Northwind IDE items) ahead of research speculation'. PASS only if all three of Solstice Code v3.6, Meridian Agent CLI 0.9 and Northwind IDE 4.1 are ranked HIGH. FAIL if any of them is MED, LOW, EXTRAS or missing, or if the scaling-laws speculation post is ranked above any of them."
+    focus: last_message
+  - name: speculation-not-high
+    type: llm
+    criteria: "Legacy expectation: 'The research-speculation post and the hype post are ranked LOW/MED, not HIGH'. PASS only if the Meridian scaling-laws speculation post and the 'AGI is basically here' influencer post are each listed and ranked MED or LOW. FAIL if either is ranked HIGH or is missing from the briefing."
+    focus: last_message

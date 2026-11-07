@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: wr-handler-unit-tests
+description: 'Legacy write 1. A new create-template-item command handler in a Python repository whose docs/testing.md co-locates unit tests beside the code and sets a test naming pattern. The skill routes to context/write.md, treats the handler as application logic needing unit tests, lists happy, validation and edge cases, and writes the tests at the documented path with the documented names and plain pytest asserts. skill-fired and read-write-md read the tool calls; colocated-file, documented-names, plain-asserts and no-tests-dir read the files; meets-expected-output (llm) quotes the legacy expected output. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [testing, write, placement, naming, scaffold, no-network]
+expected_outcome: 'src/templates/create_template_item_test.py holds at least three tests named test_<action>_<outcome>_when_<condition>, using plain assert; no tests/ folder is created.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'I just wrote a new command handler for creating template items, src/templates/create_template_item.py. Write tests for it.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: read-write-md
+    type: tool_used
+    tool: Read
+    input_match: '"file_path"\s*:\s*"[^"]*skills/write/context/write\.md"'
+  - name: colocated-file
+    type: file_exists
+    path: src/templates/create_template_item_test.py
+  - name: documented-names
+    type: regex
+    pattern: '(?:[\s\S]*?\bdef test_[a-z0-9]+(?:_[a-z0-9]+)*_when_[a-z0-9_]+\s*\(){3}'
+    target: { source: file, path: src/templates/create_template_item_test.py }
+  - name: plain-asserts
+    type: regex
+    pattern: '\bimport unittest\b|\bunittest\.TestCase\b|\bself\.assert[A-Z]'
+    match: not_contains
+    target: { source: file, path: src/templates/create_template_item_test.py }
+  - name: no-tests-dir
+    type: file_exists
+    path: tests/**/*.py
+    exists: false
+  - name: meets-expected-output
+    type: llm
+    criteria: 'The user asked for tests of a new create-template-item command handler in a Python repository whose docs/testing.md sets pytest with plain assert, co-located unit tests and a naming pattern. PASS only if the run matches the legacy expected output: "Routes to context/write.md. Identifies the handler as application-layer logic needing unit tests. Follows TDD: generates a test list (happy path, validation failures, edge cases), names tests using the consuming project''s documented naming pattern (mirroring the ecosystem''s own idiom when undocumented), and places them in the project''s documented co-located test location. Defers to the consuming project''s documented framework and assertion conventions rather than assuming any specific stack." FAIL if any part is missing or contradicted.'

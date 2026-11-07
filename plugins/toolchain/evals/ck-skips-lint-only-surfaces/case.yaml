@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ck-skips-lint-only-surfaces
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: lint-only-not-run
+    type: regex
+    pattern: '^(?:yaml|cross-cutting)\b'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .calls.log }
+  - name: covered-ran
+    type: regex
+    pattern: '^bash check\b(?=[\s\S]*^markdown check\b)|^markdown check\b(?=[\s\S]*^bash check\b)'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is `/toolchain:check all` in a repository whose workflow YAML, README and a shell script changed, with tracked yaml and cross-cutting configs present. It meets the legacy expectations: "Runs only the seven ecosystems `/toolchain:check` covers (dotnet, python, typescript, bash, powershell, markdown, go)" "Does NOT run the `yaml` surface for the workflow file — that surface is `/toolchain:lint`-only" "Does NOT run the `cross-cutting` surface — its `**` glob is never matched by `/toolchain:check` (both `yaml` and `cross-cutting` are `/toolchain:lint`-only surfaces)". The repository disables dotnet, python, typescript, powershell and go with `enabled: false`, so reporting those as skipped or disabled is correct.'

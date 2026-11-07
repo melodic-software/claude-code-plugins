@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Expanded tier: 200 swept, 980 skipped (session time bound, priority order).",
+      "why": "swept and skipped"
+    },
+    {
+      "answer": "- **Skipped:** `980` docs files past the 200-file bound",
+      "why": "bold label, code span"
+    },
+    {
+      "answer": "980 files under docs/ were not swept.",
+      "why": "not swept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Swept 200 docs files; no findings.",
+      "why": "no skipped count"
+    },
+    {
+      "answer": "Audit complete: 1,180 files swept, zero findings.",
+      "why": "claims full coverage"
+    },
+    {
+      "answer": "Skipped: most of docs/.",
+      "why": "no number"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

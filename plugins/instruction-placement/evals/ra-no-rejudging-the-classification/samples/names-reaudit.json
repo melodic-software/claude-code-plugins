@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "If the classification looks wrong, the fix is a re-audit of IP-005.",
+      "why": "re-audit"
+    },
+    {
+      "answer": "Run the audit again on that section: `/instruction-placement:audit`.",
+      "why": "audit again"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Built `.claude/skills/deploy/SKILL.md` instead of the rule.",
+      "why": "substitutes a destination"
+    },
+    {
+      "answer": "Stopping on IP-005.",
+      "why": "no route named"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

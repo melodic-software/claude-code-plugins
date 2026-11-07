@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/briefing-2026-11-07.md",
+            "content": "# AI Briefing\n"
+          }
+        }
+      ],
+      "why": "a markdown briefing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/briefing.html",
+            "content": "<html></html>"
+          }
+        }
+      ],
+      "why": "hand-written HTML page"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/meetings/briefing.pptx",
+            "content": "deck"
+          }
+        }
+      ],
+      "why": "a deck file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/briefing.htm",
+            "content": "<html></html>"
+          }
+        }
+      ],
+      "why": "htm suffix"
+    }
+  ]
+}
