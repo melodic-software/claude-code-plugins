@@ -616,15 +616,25 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     data.stalledStops = [];
     const cutoff = now.getTime() - STALLED_HOURS * 3600_000;
     let checks = 0;
+    // A gap under "open lane pulls" means signal 8's lane PR list is incomplete.
+    const laneGap = (message) => gaps.push(`open lane pulls: ${message}`);
     const listed = await queryRepo(
       graphql,
       repo,
       `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number headRefOid author { __typename login } comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
-    );
-    if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
+    ).catch((error) => {
+      laneGap(error.message);
+      throw error;
+    });
+    if (!listed.pullRequests) {
+      laneGap("GraphQL: no open pull request list");
+      throw new Error("GraphQL: no open pull request list");
+    }
     const total = listed.pullRequests.totalCount ?? 0;
     if (total > LIMITS.stalledPulls) {
-      gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
+      const truncated = `${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`;
+      gaps.push(`stalled stops: ${truncated}`);
+      laneGap(truncated);
     }
     // The lanes App's open PRs feed signal 8, which counts only its candidates.
     data.openLanePulls = (listed.pullRequests?.nodes ?? [])

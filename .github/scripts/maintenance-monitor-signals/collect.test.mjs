@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { ceilingFindings } from "./signals.mjs";
+import { unreadSignals } from "./issues.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -737,6 +738,46 @@ test("stalled stops: the worst case spends at most 1 + 2 + 20 calls", async () =
   const spent = api.calls.filter((p) => p === GRAPHQL || /\/pulls\?state=open|\/issues\/\d+\/comments|check-runs\?check_name/.test(p)).length;
   assert.ok(spent <= 1 + 2 + 20, `${spent} calls`);
   assert.equal(data.stalledStops.length, 20);
+});
+
+// Only a gap that leaves the lanes App's open PR list incomplete leaves
+// signal 8 unread; the per-PR stop reads past the list do not.
+test("open lane pulls: a failed or truncated open-PR list leaves signal 8 unread", async () => {
+  const failed = await collect(input(fakeApi([[GRAPHQL, new Error("GraphQL: HTTP 502")], ...routes()])));
+  assert.ok(failed.gaps.includes("open lane pulls: GraphQL: HTTP 502"), failed.gaps.join("\n"));
+  assert.ok(unreadSignals(failed.gaps).has("8 throughput"));
+  const many = Array.from({ length: 145 }, (_, i) => idle(9000 + i, 1 + (i % 17)));
+  const truncated = await collect(input(fakeApi([[/\/pulls\?state=open/, openPulls(many)], [/\/issues\/9\d{3}\/comments/, []], ...routes()])));
+  assert.ok(truncated.gaps.includes("open lane pulls: 145 open pull requests, only the 40 most recently updated read"), truncated.gaps.join("\n"));
+  assert.ok(unreadSignals(truncated.gaps).has("8 throughput"));
+});
+
+test("open lane pulls: the 20-stop cap and a 300-comment PR leave signal 8 read", async () => {
+  const stopped = Array.from({ length: 30 }, (_, i) => idle(9300 + i, 3));
+  const capped = await collect(
+    input(
+      fakeApi([
+        [/\/pulls\?state=open/, openPulls(stopped)],
+        [/\/issues\/93\d{2}\/comments/, (path) => [stopComment(Number(/issues\/(\d+)/.exec(path)[1]), sha("e"), "2026-10-19T10:00:00Z")]],
+        [/\/commits\/e{40}\/check-runs/, { check_runs: [] }],
+        ...routes(),
+      ]),
+    ),
+  );
+  assert.ok(capped.gaps.some((g) => g.startsWith(`stalled stops: over ${LIMITS.stalledChecks} candidate stops`)), capped.gaps.join("\n"));
+  assert.deepEqual([...unreadSignals(capped.gaps)], ["10 stalled lane stop"]);
+  const chatter = Array.from({ length: 320 }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" }, created_at: "2026-10-18T10:00:00Z" }));
+  const deep = await collect(
+    input(
+      fakeApi([
+        [/\/pulls\?state=open/, [{ number: 8502, head: { sha: sha("2") } }]],
+        [/\/issues\/8502\/comments/, [stopComment(8502, sha("2"), "2026-10-19T12:00:00Z"), ...chatter, { ...stopComment(8502, sha("8"), "2026-10-18T12:00:00Z"), id: 3 }]],
+        ...routes(),
+      ]),
+    ),
+  );
+  assert.ok(deep.gaps.some((g) => g.startsWith("stalled stops: #8502 has over 300 comments")), deep.gaps.join("\n"));
+  assert.deepEqual([...unreadSignals(deep.gaps)], ["10 stalled lane stop"]);
 });
 
 // Review finding on #10252: an older head's lane-stopped comment among the

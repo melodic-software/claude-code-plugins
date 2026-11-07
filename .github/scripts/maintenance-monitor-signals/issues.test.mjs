@@ -112,7 +112,8 @@ test("each collect source maps to the signals it feeds, and an unknown gap leave
   assert.deepEqual([...unreadSignals(["post-merge reports: x"])], ["11 post-merge unreadable"]);
   assert.deepEqual([...unreadSignals(["pr-merge sweep: x"])], ["3 throttling", "5 held PRs", "8 throughput", "12 listing held"]);
   assert.deepEqual([...unreadSignals(["pr-merge listed sweep: x"])], ["5 held PRs", "8 throughput"]);
-  assert.deepEqual([...unreadSignals(["stalled stops: x"])], ["10 stalled lane stop", "8 throughput"]);
+  assert.deepEqual([...unreadSignals(["stalled stops: x"])], ["10 stalled lane stop"]);
+  assert.deepEqual([...unreadSignals(["open lane pulls: x"])], ["8 throughput"]);
   assert.deepEqual([...unreadSignals(["lane holds: x"])], ["13 lane holds"]);
   assert.deepEqual(new Set(unreadSignals(["new source: x"])), new Set(SIGNALS));
   assert.equal(unreadSignals([]).size, 0);
