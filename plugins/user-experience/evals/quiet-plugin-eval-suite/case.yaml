@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: quiet-plugin-eval-suite
+description: 'Legacy evaluate 5. Evaluating a Claude Code plugin''s eval suite is not a UX evaluation, so /user-experience:evaluate does not fire (evaluate SKILL.md 2 and 105-106). no-evaluate-fired grades the trace; legacy-evaluate-5 (llm) quotes the legacy expectation.'
+tags: [quiet, control, legacy]
+runs: 3
+expected_outcome: 'No Skill call reaches user-experience:evaluate, and the reply does not answer with a usability evaluation.'
+execution:
+  prompt: 'Evaluate this plugin: run its eval suite and tell me whether its skills beat the no-plugin baseline.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 600
+graders:
+  - name: 'no-evaluate-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-evaluate-5'
+    type: 'llm'
+    criteria: 'The run is asked to evaluate a Claude Code plugin''s eval suite. It meets the legacy expectation: "No Skill call reaches user-experience:evaluate". It also fails if the reply answers with a usability evaluation (heuristics, severities or findings about a user interface).'
+    focus: 'trace'

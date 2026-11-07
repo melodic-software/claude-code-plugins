@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The 400 px image is upscaled to 1,200 px (3x), so it looks blurry."
+    },
+    {
+      "answer": "The image is stretched to three times its natural width."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The image file is 400 px wide and is shown at 1,200 px wide."
+    },
+    {
+      "answer": "The screenshot is out of date."
+    }
+  ]
+}

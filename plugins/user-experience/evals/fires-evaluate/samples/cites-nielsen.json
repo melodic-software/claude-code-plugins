@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Heuristic set: Nielsen's ten usability heuristics."
+    },
+    {
+      "answer": "| H1 Visibility of system status (Nielsen) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Heuristic: visibility of system status (severity 3)."
+    },
+    {
+      "answer": "I used standard usability heuristics."
+    }
+  ]
+}
