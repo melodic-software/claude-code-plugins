@@ -6,6 +6,10 @@
     {
       "answer": "```\n Client.connect\n+  openStream(url, { resumeFrom })\n```",
       "why": "plain fence, diff-shaped lines"
+    },
+    {
+      "answer": "```text\nA\n```\n\n- `resumeFrom` is now passed to openStream\n\n```diff\n Client.connect\n+  openStream(url, { resumeFrom })\n```",
+      "why": "a diff fence after a non-diff fence and a bulleted line"
     }
   ],
   "fail": [
@@ -20,6 +24,14 @@
     {
       "answer": "```text\nClient.connect\n└── openStream(url, { resumeFrom })\n```",
       "why": "a call tree naming resumeFrom, not a diff"
+    },
+    {
+      "answer": "```text\nA\n```\n\n- `resumeFrom` is now passed to openStream\n\n```text\nB\n```",
+      "why": "the resumeFrom line is prose between two fences, not inside one"
+    },
+    {
+      "answer": "+ openStream(url, { resumeFrom })\n\n```text\nB\n```",
+      "why": "a diff-shaped line before any fence"
     }
   ]
 }

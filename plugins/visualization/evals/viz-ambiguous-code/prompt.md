@@ -1,5 +1,5 @@
 ---
-description: "A bare paste of code with no context, where several code-shape forms fit about equally, gets one question listing the forms with the recommended one first, and nothing is rendered yet. names-two-forms and at-most-four-forms grade legacy visualize 11's 'listing two to four fitting code-shape forms' as two to four distinct form names in the reply."
+description: "A bare paste of code with no context, where several code-shape forms fit about equally, gets one question listing the forms with the recommended one first, and nothing is rendered yet. names-two-forms and at-most-four-forms grade legacy visualize 11's 'listing two to four fitting code-shape forms' as two to four distinct forms named in the reply, each form counted once whatever its spelling (call tree or call-tree, types and signatures or type signatures)."
 tags: [visualization, visualize, outcome, ambiguity]
 max_turns: 10
 timeout_seconds: 300

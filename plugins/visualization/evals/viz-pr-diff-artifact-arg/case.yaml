@@ -3,8 +3,7 @@ name: viz-pr-diff-artifact-arg
 graders:
   - name: terminal-fence
     type: 'regex'
-    pattern: '```[^\n]*\n(?:(?!```)[\s\S])*?^[ \t]*[+-][^\n]*resumeFrom(?:(?!```)[\s\S])*?```'
-    flags: 'm'
+    pattern: '^(?:(?!```)[\s\S])*?(?:```[^\n]*\n(?:(?!```)[\s\S])*?```(?:(?!```)[\s\S])*?)*?```[^\n]*\n(?:(?!```)[\s\S])*?(?<=\n)[ \t]*[+-][^\n]*resumeFrom(?:(?!```)[\s\S])*?```'
     target: 'last_message'
   - name: reason-given
     type: 'regex'

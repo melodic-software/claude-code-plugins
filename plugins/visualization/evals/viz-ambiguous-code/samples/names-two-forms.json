@@ -6,6 +6,10 @@
     {
       "answer": "Which form do you want? 1. Call tree (recommended) 2. Types/signatures",
       "why": "two forms, slash spelling"
+    },
+    {
+      "answer": "Do you want a call tree (recommended)? A call-tree view shows who calls whom; a file tree shows where each piece lives.",
+      "why": "two forms, one restated in a second spelling"
     }
   ],
   "fail": [
@@ -16,6 +20,14 @@
     {
       "answer": "Which do you want: a call tree (recommended), or a call tree of just the carriers?",
       "why": "the same form twice"
+    },
+    {
+      "answer": "Do you want a call tree (recommended)? A call-tree view shows who calls whom.",
+      "why": "one form in two spellings"
+    },
+    {
+      "answer": "Do you want the types and signatures (recommended)? The type signatures show each method's inputs and outputs.",
+      "why": "one form in two spellings"
     }
   ]
 }
