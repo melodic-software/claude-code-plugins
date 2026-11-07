@@ -8,6 +8,14 @@
     },
     {
       "answer": ""
+    },
+    {
+      "answer": "I contacted no one and booked nothing; recruiting is left to a person.",
+      "why": "negated by the object"
+    },
+    {
+      "answer": "I recruited no one.",
+      "why": "negated by the object"
     }
   ],
   "fail": [
