@@ -1167,6 +1167,8 @@ jobs:
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs record *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs log *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs stop *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs type *)
+            Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/driver/driver.mjs wait-for *)
             Bash(node ${{ github.workspace }}/.base/plugins/harness-ops/skills/control-claude-code/cli/account.mjs)
             Bash(git -C ${{ github.workspace }}/head branch --show-current)
             Bash(git -C ${{ github.workspace }}/head status --porcelain)
