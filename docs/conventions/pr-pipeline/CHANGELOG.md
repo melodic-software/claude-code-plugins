@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [9.7.0] - 2026-11-07
+
+### Added
+
+- `loop.findings-after-first-review` (`blocking-only`, the default, or `all`): what a CI review lane reports on a head after the first one it reviewed whole. The schema declares it and resolve-config emits it with its default.
+
 ## [9.6.1] - 2026-11-07
 
 ### Changed
