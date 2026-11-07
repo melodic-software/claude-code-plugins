@@ -2608,7 +2608,12 @@ before the merge. The spec entry then lists them in
 `credited_siblings` with their bodies, and the verifier judges the diff only for the done-when items
 those bodies do not say they delivered; a named sibling that fails a check earns no credit, so the
 diff is judged against the whole issue. The verdict records no sibling, and the merge gate weighs
-such a pass as any closing one. resolve-pr marks each spec entry's
+such a pass as any closing one. An issue `maintenance-file-recurring-issues.yml` filed
+(github-actions[bot], with exactly one `<!-- recurring-schedule id=<id> -->` line) takes its spec
+from that row of main's `.github/recurring-schedule.json`, the title and body the filer builds from
+it, never the issue's own text (owner decision 2026-11-07); its entry carries `source`
+`recurring-schedule`. The merge gate still counts only a human-written issue, so it refuses such a
+pass `verify:untrusted-spec` and a person merges. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
