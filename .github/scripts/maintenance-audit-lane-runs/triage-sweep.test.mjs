@@ -184,7 +184,8 @@ test("the Work status field drops a candidate, adds one a stale label hid, and a
     6: { state: "deferred" },
     7: { state: "needs-triage" },
   };
-  assert.deepEqual(await fieldSelect(issues, fields), [2, 5]);
+  // #4's agent-ready label is stale under a needs-triage field, so it is a candidate again.
+  assert.deepEqual(await fieldSelect(issues, fields), [2, 4, 5]);
   assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number), [1, 2, 3, 6]);
 });
 
