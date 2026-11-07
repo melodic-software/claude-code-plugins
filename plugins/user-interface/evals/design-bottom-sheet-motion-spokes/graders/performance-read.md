@@ -1,5 +1,5 @@
 ---
 type: tool_used
 tool: Read
-input_match: 'performance\.md'
+input_match: 'animation/performance\.md'
 ---

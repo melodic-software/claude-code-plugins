@@ -7,6 +7,10 @@
     {
       "answer": "transition: scale var(--motion-fast) var(--motion-ease-enter);",
       "why": "uses the project's tokens"
+    },
+    {
+      "answer": ":root { --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1); --motion-medium: 240ms; }",
+      "why": "quotes the project's own exit and medium tokens"
     }
   ],
   "fail": [

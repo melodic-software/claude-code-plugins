@@ -27,6 +27,17 @@
         }
       ],
       "why": "another file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/types/web/performance.md"
+          }
+        }
+      ],
+      "why": "the web-performance spoke, not the motion one"
     }
   ]
 }
