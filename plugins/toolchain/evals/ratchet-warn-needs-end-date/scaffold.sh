@@ -82,6 +82,10 @@ jobs:
           persist-credentials: false
       - run: python3 tools/lint.py
 EOF
-printf '# Contributing\n\nThe only status check required for merge is the `test` job in `.github/workflows/ci.yml`.\n' >CONTRIBUTING.md
+cat >CONTRIBUTING.md <<'EOF'
+# Contributing
+
+The only status check required for merge is the `test` job in `.github/workflows/ci.yml`.
+EOF
 g add -A
 g commit -q -m "platform service"

@@ -5,7 +5,7 @@ context:
 graders:
   - name: warns-malformed
     type: regex
-    pattern: 'dotnet\.yaml[^\n.;|,]{0,100}?(?<!\bnot )(?<!n''t )\b(?:malformed|invalid|unparsable|unparseable|not valid YAML|fail(?:s|ed)? to parse|could(?: not|n''t) be parsed|parse (?:error|failure))|(?<!\bnot )\b(?:malformed|invalid|unparsable|unparseable)\b[^\n.;|,]{0,80}?dotnet\.yaml'
+    pattern: 'dotnet\.yaml[^\n.;|,]{0,100}?(?<!\bnot )(?<!n''t )\b(?:malformed|invalid|unpars\w*able|not valid YAML|fail(?:s|ed)? to parse|could(?: not|n''t) be parsed|parse (?:error|failure))|(?<!\bnot )\b(?:malformed|invalid|unpars\w*able)\b[^\n.;|,]{0,80}?dotnet\.yaml'
     flags: i
     target: last_message
   - name: overall-line

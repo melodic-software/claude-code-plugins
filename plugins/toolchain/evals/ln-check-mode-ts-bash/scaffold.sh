@@ -15,4 +15,4 @@ printf '#!/usr/bin/env bash\nset -euo pipefail\necho release\n' >scripts/release
 g add -A
 g commit -q -m "storefront"
 printf 'export const total = (a: number, b: number): number => Math.round((a + b) * 100) / 100;\n' >src/cart.ts
-printf '#!/usr/bin/env bash\nset -euo pipefail\necho "release $1"\n' >scripts/release.sh
+printf '#!/usr/bin/env bash\nset -euo pipefail\necho "release to staging"\n' >scripts/release.sh

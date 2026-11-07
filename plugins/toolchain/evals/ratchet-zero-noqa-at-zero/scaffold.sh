@@ -39,6 +39,11 @@ jobs:
           persist-credentials: false
       - run: echo "docs preview"
 EOF
-printf '# Contributing\n\nThe only status check required for merge is the `test` job in `.github/workflows/ci.yml`. `docs` is informational.\n' >CONTRIBUTING.md
+cat >CONTRIBUTING.md <<'EOF'
+# Contributing
+
+The only status check required for merge is the `test` job in `.github/workflows/ci.yml`.
+`docs` is informational.
+EOF
 g add -A
 g commit -q -m "billing"
