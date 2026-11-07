@@ -5,6 +5,14 @@
     },
     {
       "answer": "Run the test with 30 to 50 admins."
+    },
+    {
+      "answer": "I recruited no one and ran nothing; this plan is for your researcher.",
+      "why": "negated by the object"
+    },
+    {
+      "answer": "We have scheduled nobody yet.",
+      "why": "negated by the object"
     }
   ],
   "fail": [
