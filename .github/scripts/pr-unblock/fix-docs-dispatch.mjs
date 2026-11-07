@@ -2,8 +2,9 @@
 // each open, ready, same-repository PR into the base that changes a Markdown
 // file, carries no hold label (the human-gated one only when a lane escalation
 // put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
-// either lane fix-docs has run in, whoever opened it except the accounts in
-// excludedAuthorIds, and is not a work-resolve-issue PR (the lanes App's, on a
+// either lane fix-docs has run in, by any author except the accounts in
+// excludedAuthorIds (refine-event-dispatch.mjs offers only a PR whose event's
+// sender is the lanes App or a listed human), and is not a work-resolve-issue PR (the lanes App's, on a
 // lane branch, whose one commit is the lane run's) tidied in its own run
 // (within the tidy cutoffs). It runs from pr-unblock-dispatch.yml's refine
 // job for the one PR whose pull_request_target event started that run

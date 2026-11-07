@@ -52,7 +52,7 @@ export async function main(
   const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
   const sender = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
   if (sender === null || (sender !== appSenderId && !readHumans().has(sender))) {
-    log(`skip fix-docs #${number}: its event's sender is neither the lanes App nor a listed human; the PR's next event decides`);
+    log(`skip fix-docs #${number}: its event's sender is neither the lanes App nor a listed human; only an event one of them sends starts it`);
     return 0;
   }
   const budget = api ? null : budgetedFetch({ log });

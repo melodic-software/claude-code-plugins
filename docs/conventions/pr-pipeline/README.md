@@ -596,7 +596,8 @@ Only `pr-unblock-dispatch.yml`'s `refine` job dispatches `pr-refine.yml`'s `fix-
 pull request's own `pull_request_target` event (`refine-event-dispatch.mjs`); a push to the
 default branch, the half-hourly tick and a hand run of the dispatcher start none. It dispatches
 once per pull request: one GraphQL query, its `rateLimit.cost` logged, reads that pull request,
-and it keeps it when it is a non-draft, same-repository one into `main`, whoever opened it, except Dependabot (account
+and it keeps it when it is a non-draft, same-repository one into `main` whose event the lanes App or a listed human
+sent (a pull request whose events come only from other senders gets no fix-docs), except Dependabot (account
 49699333, whose own rebases a lane commit stops), the release App (337859524) and the
 standards-sync App (300666570), whose files are generated or synced, and `work-resolve-issue`
 PRs tidied in their own run (within the tidy cutoffs): the lanes App's on a lane branch

@@ -796,8 +796,8 @@ lanes:
     stage: refine
     slots:
       # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file, whoever opened it except Dependabot, the release App
-      # and the standards-sync App.
+      # Markdown file, on an event the lanes App or a listed human sent,
+      # except Dependabot, the release App and the standards-sync App.
       - activity: fix-docs
       # Runs after fix-docs, in its own job with its own token.
       - activity: apply-patch
