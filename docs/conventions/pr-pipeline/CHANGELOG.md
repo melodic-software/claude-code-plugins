@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [9.1.4] - 2026-11-07
+
+### Fixed
+
+- The pr-pipeline convention's signal 13 row names each lane's own run cap (`holdRuns` in
+  `HOLD_LANES`) instead of a flat 6 green runs per lane.
+
+## [9.1.3] - 2026-11-07
+
+### Fixed
+
+- The PR capture's key proxy allows the beta under its real name, `fallback-credit-2026-06-01`. The earlier entry, `fallback-credit-2`, was a truncated reading and matched nothing, so captures still failed at "Check the probe" whenever Claude Code sent the beta.
+
 ## [9.1.2] - 2026-11-07
 
 ### Fixed

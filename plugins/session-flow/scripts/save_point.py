@@ -126,6 +126,29 @@ CORE_3 = (
 )
 RULE_SECTIONS = ("Current rules", "Standing preferences")
 RULE_ID_RE = re.compile(r"^\[R(\d+)\]\s*")
+# The hop-file section that lists each rule id leaving the hot file, with why.
+# The hop file already holds the predecessor's whole Current rules, so only this
+# section proves a rule was retired rather than dropped to meet the cap.
+RETIRED_RULES = "Retired rules"
+# Sections `new` writes and the writer cannot shorten (frontmatter aside).
+CARRIED_3 = ("Prior sessions", "Resume prompt")
+# The frontmatter keys `new` writes; any other line, and text before the first
+# heading, counts as written.
+FRONTMATTER_KEYS_3 = (
+    "type",
+    "handoff_shape",
+    "date",
+    "topic",
+    "session_id",
+    "transcript",
+    "previous_handoff",
+    "chain_root",
+    "hop",
+    "archive",
+    "archive_from",
+    "next_rule_id",
+    "repo",
+)
 # Shape 3 keeps the predecessor's last rows only; older rows live in hop files.
 PRIOR_ROWS_KEPT = 3
 ARCHIVE_DIR = "archive"
@@ -1321,6 +1344,21 @@ def _rule_entries(doc: Doc) -> list[tuple[int | None, Entry, str]]:
     return found
 
 
+def _retired_rules(archived: str) -> dict[int, str]:
+    """Rule id to reason, from the hop file's `## Retired rules` section only."""
+    found: dict[int, str] = {}
+    inside = False
+    for line in archived.splitlines():
+        if line.startswith("## "):
+            inside = line[3:].strip() == RETIRED_RULES
+            continue
+        if inside:
+            m = re.match(r"^- \[R(\d+)\]\s*(.*)$", line.strip())
+            if m:
+                found[int(m.group(1))] = m.group(2).strip()
+    return found
+
+
 def _squash(text: str) -> str:
     return " ".join(text.split())
 
@@ -1343,6 +1381,61 @@ def _section_bytes(doc: Doc, titles: tuple[str, ...]) -> int:
 def _cap_state(doc: Doc) -> tuple[int, int]:
     """The hot file's size on disk and the bytes its core sections hold."""
     return len(doc.path.read_bytes()), _section_bytes(doc, CORE_3)
+
+
+def _size_parts(doc: Doc) -> tuple[int, int, int, int]:
+    """Size, core, carried (frontmatter and the sections `new` writes) and
+    written non-core bytes."""
+    size, core = _cap_state(doc)
+    fence = sum(
+        len(line.encode("utf-8")) + 1
+        for line in doc.lines[: doc.body_start]
+        if line.strip() == "---" or line.split(":", 1)[0] in FRONTMATTER_KEYS_3
+    )
+    carried = fence + _section_bytes(doc, CARRIED_3)
+    return size, core, carried, size - core - carried
+
+
+def _size_text(core: int, carried: int, written: int) -> str:
+    return f"core {core} bytes, carried {carried} bytes (frontmatter, {', '.join(CARRIED_3)}), written non-core {written} bytes"
+
+
+# Never shorten the core to meet the cap; a rule leaves only as retired.
+CORE_NEVER_MOVES = (
+    f"the core ({', '.join(CORE_3)}) never moves and no rule leaves to meet the cap"
+)
+
+
+def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
+    """The size verdict: ('FAIL'|'UNVALIDATED', message), or None under the cap."""
+    size, core, carried, written = _size_parts(doc)
+    parts = _size_text(core, carried, written)
+    if size > READ_CAP_BYTES:
+        fix = (
+            f"move written non-core content into {rel}"
+            if core + carried <= READ_CAP_BYTES
+            else "the core and carried sections alone are over it, so no edit the writer may make passes"
+        )
+        return (
+            "FAIL",
+            f"size: {size} bytes is over the {READ_CAP_BYTES}-byte Read page cap, so one Read cannot hold this file; {fix} ({parts})",
+        )
+    if size <= HOT_FILE_MAX_BYTES:
+        return None
+    if core > HOT_FILE_MAX_BYTES:
+        return (
+            "UNVALIDATED",
+            f"the core sections alone are over the {HOT_FILE_MAX_BYTES}-byte hot-file cap ({parts}); {CORE_NEVER_MOVES}, so this file stands unvalidated",
+        )
+    if core + carried > HOT_FILE_MAX_BYTES:
+        return (
+            "UNVALIDATED",
+            f"the core plus carried content is over the {HOT_FILE_MAX_BYTES}-byte hot-file cap ({parts}); the carried sections are written by `new` and {CORE_NEVER_MOVES}, so this file stands unvalidated; do not cut written sections for it",
+        )
+    return (
+        "FAIL",
+        f"size: {size} bytes is over the {HOT_FILE_MAX_BYTES}-byte hot-file cap; move written non-core content into {rel} before validating ({parts}); {CORE_NEVER_MOVES}",
+    )
 
 
 def _sibling(directory: Path, name: str) -> Doc | None:
@@ -1515,21 +1608,15 @@ def _validate_shape3(
         _check_hop_path(f, pred, start)
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
-    size, core = _cap_state(doc)
-    if size > READ_CAP_BYTES:
-        f.fail(
-            f"size: {size} bytes is over the {READ_CAP_BYTES}-byte Read page cap, so one Read cannot hold this file; move non-core content into {rel} (the core holds {core} bytes)"
-        )
-    elif size > HOT_FILE_MAX_BYTES:
-        if core > HOT_FILE_MAX_BYTES:
-            f.unvalidated = True
-            f.warn(
-                f"UNVALIDATED: the core sections ({', '.join(CORE_3)}) alone hold {core} bytes, over the {HOT_FILE_MAX_BYTES}-byte hot-file cap; core never moves to the archive, so this file stands unvalidated"
-            )
-        else:
-            f.fail(
-                f"size: {size} bytes is over the {HOT_FILE_MAX_BYTES}-byte hot-file cap; move non-core content into {rel} before validating (the core holds {core} bytes)"
-            )
+    verdict = _size_finding(doc, rel)
+    if verdict is None:
+        return
+    level, message = verdict
+    if level == "FAIL":
+        f.fail(message)
+    else:
+        f.unvalidated = True
+        f.warn(f"UNVALIDATED: {message}")
 
 
 def _check_carry_3(
@@ -1558,6 +1645,7 @@ def _check_carry_3(
         if archived is None:
             return
         own = {rid: e for rid, e, _ in _rule_entries(doc) if rid is not None}
+        retired = _retired_rules(archived)
         for rule_id, entry, title in _rule_entries(pred):
             if rule_id is None:
                 continue
@@ -1570,6 +1658,10 @@ def _check_carry_3(
             elif prior not in arch:
                 report(
                     f"{title}: predecessor rule [R{rule_id}] is in neither this file nor {rel}"
+                )
+            elif not retired.get(rule_id):
+                report(
+                    f"{title}: predecessor rule [R{rule_id}] left this file without a retirement; keep it here, or list it in {rel} under '## {RETIRED_RULES}' as '- [R{rule_id}] <why it no longer binds>'. A rule never leaves to meet the size cap"
                 )
         return
     if first_split:
@@ -1748,19 +1840,14 @@ def cmd_emit(args: argparse.Namespace) -> int:
             )
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
     if doc.shape == 3:
-        size, core = _cap_state(doc)
-        if size > READ_CAP_BYTES:
-            # The prompt is never withheld (save-point.md, "Three failed attempts
-            # do not withhold the rails"); the notice says validate fails it.
-            print(
-                f"FAIL: this hot file holds {size} bytes, over the {READ_CAP_BYTES}-byte Read page cap; `validate` fails it and one Read cannot hold it; the prompt is emitted",
-                file=sys.stderr,
-            )
-        elif size > HOT_FILE_MAX_BYTES and core > HOT_FILE_MAX_BYTES:
-            print(
-                f"UNVALIDATED: this hot file's core holds {core} bytes, over the {HOT_FILE_MAX_BYTES}-byte cap; the prompt is emitted, the file was not validated",
-                file=sys.stderr,
-            )
+        # The prompt is never withheld (save-point.md, "Three failed attempts
+        # do not withhold the rails"); the notice says validate fails it.
+        verdict = _size_finding(doc, "this hop's file")
+        over_read = _cap_state(doc)[0] > READ_CAP_BYTES
+        if verdict and (verdict[0] == "UNVALIDATED" or over_read):
+            level, message = verdict
+            tail = "`validate` fails it" if over_read else "the file was not validated"
+            print(f"{level}: {message}; {tail}; the prompt is emitted", file=sys.stderr)
     real = _posix(path)
     out: list[str] = []
     for line in _trim_blank(body):
@@ -2576,7 +2663,7 @@ def build_skeleton_3(
             "",
             slot(
                 "rules-new",
-                f"optional: new rules, {rule_line}; a changed rule is rewritten in place under its id and a retired one deleted, its prior text staying in {hop_rel}; delete this line when nothing changes",
+                f"optional: new rules, {rule_line}; a changed rule is rewritten in place under its id, its prior text staying in {hop_rel}; a retired one is deleted here and listed in {hop_rel} under '## {RETIRED_RULES}' as '- [R<n>] <why it no longer binds>'; no rule leaves to meet the size cap; delete this line when nothing changes",
             ),
         ]
     else:
@@ -2648,7 +2735,7 @@ def build_skeleton_3(
             "Prior sessions", [PRIOR_HEADER, PRIOR_SEPARATOR, *rows[-PRIOR_ROWS_KEPT:]]
         )
 
-    pref_line = "one per line, '- [R<n>] <the preference, verbatim> (pending promotion: <instruction file>)', ids shared with Current rules; a preference its instruction file already holds leaves this file"
+    pref_line = f"one per line, '- [R<n>] <the preference, verbatim> (pending promotion: <instruction file>)', ids shared with Current rules; a preference its instruction file already holds leaves this file, listed in {hop_rel} under '## {RETIRED_RULES}' as '- [R<n>] promoted to <instruction file>'"
     if carried:
         prefs = [
             *_section_lines(pred, "Standing preferences"),
