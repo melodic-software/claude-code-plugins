@@ -15,7 +15,7 @@ graders:
     target: last_message
   - name: summary-held
     type: regex
-    pattern: 'e2e-summary\.json`?[^\n.;]{0,120}\b(?:out of|not in|not listed in|not added to|excluded from|left out of|kept out of|withheld from)\b[^\n.;]{0,20}publishable|\b(?:out of|not in|excluded from|left out of|kept out of|withheld from)\b[^\n.;]{0,20}publishable[^\n.;]{0,120}e2e-summary\.json'
+    pattern: '(?:e2e-summary\.json`?|\bsummary\b)[^\n.;]{0,120}\b(?:out of|not in|not listed in|not added to|excluded from|left out of|kept out of|withheld from|does not join)\b[^\n.;]{0,20}publishable|\b(?:out of|not in|excluded from|left out of|kept out of|withheld from)\b[^\n.;]{0,20}publishable[^\n.;]{0,120}e2e-summary\.json'
     flags: i
     target: last_message
   - name: meets-expectations
