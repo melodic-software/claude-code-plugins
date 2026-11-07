@@ -17,7 +17,7 @@ graders:
     weight: 0.1
   - name: 'accommodations'
     type: 'regex'
-    pattern: 'accommodat\w*|adjustments?\b|access needs|adapt(?:s|ed|ing)? (?:the |each )?sessions?'
+    pattern: 'accommodat\w*|adjustments?\b|access needs|session needs|adapt(?:s|ed|ing)? (?:the |each )?sessions?|captioning|captions\b|interpreter|extra time|longer sessions?|\bbreaks\b'
     flags: 'i'
     target: 'last_message'
   - name: 'no-contact-claim'

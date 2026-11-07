@@ -11,6 +11,10 @@
     },
     {
       "answer": "Adjustments: captions, longer sessions, breaks."
+    },
+    {
+      "answer": "| **Access** | Allow breaks and flexible pacing, and plan about 1.5 times your usual session length. Offer a sign language interpreter or live captioning when needed, and let the participant choose. |",
+      "why": "smoke a2 reply, judged PASS by legacy-plan-user-research-5"
     }
   ],
   "fail": [
@@ -22,6 +26,10 @@
     },
     {
       "answer": "Make the study accessible."
+    },
+    {
+      "answer": "Include people who use screen readers, switch access and magnification.",
+      "why": "criteria only, no session accommodation"
     }
   ]
 }
