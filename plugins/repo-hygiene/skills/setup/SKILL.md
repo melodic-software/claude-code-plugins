@@ -82,10 +82,10 @@ Install nothing, and run no mutating tier.
    no Node.
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
-   - It registers from the `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md` frontmatter,
-     not from a plugin-level `hooks/hooks.json`. This plugin ships none: do not look for one, and do not list the `hooks/` directory (Read that SKILL.md; its block runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`). Claude Code
+   - It registers from the frontmatter `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`,
+     not from a plugin-level `hooks/hooks.json`, which this plugin does not ship. Claude Code
      arms it once `/repo-hygiene:clean` is invoked and keeps it armed for the rest of that session,
-     so a session that never invoked the skill has no guard and nothing is wrong with that.
+     so a session that never invoked the skill has no guard and nothing is wrong with that. Read that SKILL.md for the block (it runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`); never look for a `hooks.json` or list `hooks/`.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
      an empty value means the manifest default `true`). Read it from this text as rendered; never
      echo it through Bash, where an unexpanded token is invalid shell syntax and the call is
