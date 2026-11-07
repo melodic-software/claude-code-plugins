@@ -85,17 +85,21 @@ function fakeApi({
   labelEvents = new Map(),
   reviewComments = new Map(),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [], tips: [] };
+  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [], tips: [], docs: [] };
   let round = 0;
   return {
     calls,
     async listCiFixCandidates() {
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
     },
+    // fix-docs's listing and history reads, recorded so a test can show the
+    // tick never makes them: only a PR's own event starts fix-docs.
     async listDocsFixCandidates() {
+      calls.docs.push("list");
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
     },
     async readDocsFixHistory() {
+      calls.docs.push("history");
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } };
     },
     async readBaseTip(base) {
@@ -508,18 +512,17 @@ test("another lane's escalation does not hold resolve-conflicts; its own does", 
 test("main reads a held PR's timeline once, however many dispatchers ask", async () => {
   const held = pr(61, LABELS("needs-human"));
   const ci = { ...ciFixPull(61), labels: { nodes: [{ name: "needs-human" }] } };
-  const docs = { ...docsPull(61), labels: { nodes: [{ name: "needs-human" }] } };
-  const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], docsPulls: [docs], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
+  const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
   const dir = tempDir("pr-unblock-dispatch-");
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-  assert.deepEqual(api.calls.dispatch, [], "a person's label holds all three");
+  assert.deepEqual(api.calls.dispatch, [], "a person's label holds both");
   assert.deepEqual(api.calls.timeline, [61]);
   assert.deepEqual(api.calls.reviewComments, [], "a PR the timeline alone holds needs no review read");
 });
@@ -528,14 +531,12 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
 // (#10526, #10533): it is only in pulls/<n>/comments, with in_reply_to_id.
 const inlineReply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
 
-test("a person's inline review-thread reply since another lane's escalation holds all three, read once", async () => {
+test("a person's inline review-thread reply since another lane's escalation holds both, read once", async () => {
   const held = pr(71, LABELS("needs-human"));
   const ci = { ...ciFixPull(71), labels: { nodes: [{ name: "needs-human" }] } };
-  const docs = { ...docsPull(71), labels: { nodes: [{ name: "needs-human" }] } };
   const api = fakeApi({
     pages: [[held]],
     ciFixPulls: [ci],
-    docsPulls: [docs],
     labelEvents: new Map([[71, labeledBy(APP_USER)]]),
     comments: new Map([[71, escalationComment("feedback-disputed")]]),
     reviewComments: new Map([[71, inlineReply(OWNER)]]),
@@ -544,12 +545,12 @@ test("a person's inline review-thread reply since another lane's escalation hold
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-  assert.deepEqual(api.calls.dispatch, [], "the person's inline reply holds all three");
+  assert.deepEqual(api.calls.dispatch, [], "the person's inline reply holds both");
   assert.deepEqual([api.calls.timeline, api.calls.reviewComments, api.calls.reviews], [[71], [71], [71]]);
 });
 
@@ -794,7 +795,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null, now },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], now },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -927,26 +928,38 @@ const docsPull = (number) => {
   };
 };
 
-test("main records fix-docs dispatches beside the others, capped by limits.fix-docs-per-run", async () => {
-  const docsPulls = [docsPull(171), docsPull(172), docsPull(173)];
-  const capped = await runMain({ pages: [[pr(170)]], docsPulls }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": 1 });
-  assert.deepEqual(capped, { code: 0, output: "run-ids=9170 9171\n" });
-  const fallback = await runMain({ pages: [[]], docsPulls });
-  assert.deepEqual(fallback, { code: 0, output: "run-ids=9171 9172\n" }, "with no fix-docs limit the default of 2 holds");
-  const off = await runMain({ pages: [[pr(170)]], docsPulls }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": 0 });
-  assert.deepEqual(off, { code: 0, output: "run-ids=9170\n" }, "0 sends no fix-docs and leaves the others");
+// The owner's rule: Refine starts on a PR's own event only, never from a push
+// to main, the half-hourly tick or a hand run of the dispatcher.
+test("a push, tick or hand run starts no fix-docs, with fix-docs candidates listed and limits.fix-docs-per-run on", async () => {
+  for (const limits of [{ ...LIMIT_DEFAULTS, "fix-docs-per-run": 2 }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": undefined }]) {
+    const api = fakeApi({ pages: [[pr(170)]], docsPulls: [docsPull(171), docsPull(172)] });
+    const dir = tempDir("pr-unblock-dispatch-");
+    try {
+      const out = join(dir, "out");
+      const code = await main(
+        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: out, APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+        { api, sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
+      );
+      assert.equal(code, 0);
+      assert.equal(readFileSync(out, "utf8"), "run-ids=9170\n", "only the conflicting PR's resolve-conflicts run");
+      assert.deepEqual(api.calls.dispatch.filter((call) => call.workflow === "pr-refine.yml"), [], "no pr-refine.yml dispatch");
+      assert.deepEqual(api.calls.docs, [], "no fix-docs listing or history read");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 // main against a fake API whose run listing fails with `error`, holding one
-// candidate for resolve-conflicts, fix-ci and fix-docs each.
+// candidate for resolve-conflicts and fix-ci each.
 async function mainWithFailedListing(error) {
-  const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], docsPulls: [docsPull(183)], workflowRuns: error });
+  const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], workflowRuns: error });
   const lines = [];
   const dir = tempDir("pr-unblock-dispatch-");
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     return { api, code, lines };
   } finally {
@@ -958,7 +971,7 @@ test("main lists each workflow's runs once, and a rate-limited listing ends the 
   const { api, code, lines } = await mainWithFailedListing(rateLimitedListing());
   assert.equal(code, 0);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.deepEqual(api.calls.runs, ["pr-unblock.yml", "pr-refine.yml"], "resolve-conflicts and fix-ci share one pr-unblock.yml listing");
+  assert.deepEqual(api.calls.runs, ["pr-unblock.yml"], "resolve-conflicts and fix-ci share one pr-unblock.yml listing, and no pr-refine.yml listing is read");
   assert.ok(lines.includes("dispatched 0 run(s), 0 failure(s)"));
 });
 
@@ -981,7 +994,7 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
     const out = join(dir, "out");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: out, APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.equal(code, 0);
     assert.deepEqual(api.calls.dispatch, []);
@@ -992,11 +1005,12 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
   }
 });
 
-// main with fix-docs candidates whose history reads go through the real
-// adapter and budgetedFetch to GitHub's scripted GraphQL answers: `answers`
-// maps a PR number to the responses its reads get, in order; a PR left out is
-// answered with an empty history.
-async function mainWithHistoryAnswers(answers, pulls) {
+// dispatchDocsFixes, as refine-event-dispatch.mjs runs it, over fix-docs
+// candidates whose history reads go through the real adapter and
+// budgetedFetch to GitHub's scripted GraphQL answers: `answers` maps a PR
+// number to the responses its reads get, in order; a PR left out is answered
+// with an empty history.
+async function docsWithHistoryAnswers(answers, pulls) {
   const sent = new Map();
   const fetch = async (_url, init) => {
     const { number } = JSON.parse(init.body).variables;
@@ -1011,37 +1025,29 @@ async function mainWithHistoryAnswers(answers, pulls) {
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
   const budget = budgetedFetch({ fetch, log: () => {}, sleep: async () => {}, random: () => 0, latch });
   const adapter = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
-  const api = { ...fakeApi({ pages: [[]], docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
+  const api = { ...fakeApi({ docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
   const lines = [];
-  const dir = tempDir("pr-unblock-dispatch-");
-  try {
-    const code = await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
-    );
-    return { api, code, lines, sent };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  const { failed } = await dispatchDocsFixes({ api, runId: "1", log: (line) => lines.push(line), maxDispatch: 2 });
+  return { api, failed, lines, sent };
 }
 
 const badGateway = () => new Response("bad gateway", { status: 502 });
 
 test("a fix-docs history read answered 502 twice is sent again and the PR dispatched", async () => {
-  const { api, code, sent } = await mainWithHistoryAnswers(new Map([[191, [badGateway, badGateway]]]), [docsPull(191)]);
+  const { api, failed, sent } = await docsWithHistoryAnswers(new Map([[191, [badGateway, badGateway]]]), [docsPull(191)]);
   assert.equal(sent.get(191), 3);
   assert.deepEqual(dispatchedNumbers(api), ["191"]);
-  assert.equal(code, 0);
+  assert.equal(failed, 0);
 });
 
-test("a fix-docs history read that keeps answering 502 skips that PR with a warning, dispatches the others, and exits 0", async () => {
+test("a fix-docs history read that keeps answering 502 skips that PR with a warning, dispatches the others, and fails nothing", async () => {
   const always = Array.from({ length: 10 }, () => badGateway);
-  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[192, always]]), [docsPull(192), docsPull(193)]);
+  const { api, failed, lines, sent } = await docsWithHistoryAnswers(new Map([[192, always]]), [docsPull(192), docsPull(193)]);
   assert.equal(sent.get(192), 3, "the first send and the two bounded retries");
   assert.deepEqual(dispatchedNumbers(api), ["193"]);
   assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("#192") && line.includes("502")));
   assert.ok(!lines.some((line) => line.startsWith("::error::")));
-  assert.equal(code, 0);
+  assert.equal(failed, 0);
 });
 
 // The step still ends red on the limit: the rate guard's latch fails the
@@ -1053,11 +1059,11 @@ test("a rate-limited fix-docs history read is sent once and holds that PR", asyn
       status: 403,
       headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset), "x-ratelimit-resource": "graphql" },
     });
-  const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[194, [limited, limited]]]), [docsPull(194)]);
+  const { api, failed, lines, sent } = await docsWithHistoryAnswers(new Map([[194, [limited, limited]]]), [docsPull(194)]);
   assert.equal(sent.get(194), 1);
   assert.deepEqual(dispatchedNumbers(api), []);
   assert.ok(lines.some((line) => line.startsWith("::warning::#194: could not read fix-docs history or holds")), lines.join("\n"));
-  assert.equal(code, 0);
+  assert.equal(failed, 0);
 });
 
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
@@ -1087,7 +1093,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
     writeFileSync(output, "");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
-      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.equal(code, 1);
     assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
@@ -1109,7 +1115,7 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
     };
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
-      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
     assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
@@ -1251,8 +1257,8 @@ test("the GitHub adapter calls the documented endpoints", async () => {
   );
 });
 
-test("resolve-conflicts, fix-ci and fix-docs page through one listing: each page is one GraphQL request, and a failed page is sent again", async () => {
-  const draft = (number) => ({ ...pr(number), isDraft: true, headRefOid: String(number).repeat(40).slice(0, 40), files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } } });
+test("resolve-conflicts and fix-ci page through one listing: each page is one GraphQL request, and a failed page is sent again", async () => {
+  const draft = (number) => ({ ...pr(number), isDraft: true, headRefOid: String(number).repeat(40).slice(0, 40) });
   const page = (nodes, endCursor) => ({
     data: {
       rateLimit: { cost: 2, remaining: 4000 },
@@ -1281,21 +1287,17 @@ test("resolve-conflicts, fix-ci and fix-docs page through one listing: each page
   const lines = [];
   const log = (line) => lines.push(line);
   assert.deepEqual(await dispatchCiFixes({ api, runId: "1", log, appSenderId: 100, maxDispatch: 2, restarts: 1 }), { dispatched: [], failed: 0 });
-  assert.deepEqual(await dispatchDocsFixes({ api, runId: "1", log, maxDispatch: 2 }), { dispatched: [], failed: 0 });
   assert.deepEqual(sent.map((body) => body.variables.after), [null, "c1", "c1"], "page 1 once, page 2 again only after it failed");
   assert.ok(sent.every((body) => body.query === LIST_QUERY));
-  for (const activity of ["fix-ci", "fix-docs"]) {
-    for (const n of [1, 2]) {
-      assert.ok(lines.includes(`${activity} listing page ${n}: rateLimit.cost=2 remaining=4000`), `${activity} page ${n}`);
-    }
+  for (const n of [1, 2]) {
+    assert.ok(lines.includes(`fix-ci listing page ${n}: rateLimit.cost=2 remaining=4000`), `fix-ci page ${n}`);
   }
   const ci = await api.listCiFixCandidates({ base: "main" });
   assert.equal(ci.baseCommittedAt, "2026-11-01T00:00:00Z");
-  assert.deepEqual((await api.listDocsFixCandidates({ base: "main" })).pullRequests.nodes[0].files.nodes, [{ path: "README.md" }]);
-  assert.equal(sent.length, 3, "the later views read no page again");
+  assert.equal(sent.length, 3, "the later view reads no page again");
   // Each consumer's own fields: resolve-conflicts's mergeable state and
-  // Dependabot's commit count, fix-ci's rollup states, fix-docs's file paths.
-  for (const field of ["mergeable", "changedFiles", "commits(last: 1) {\n          totalCount", "conclusion title completedAt", "files(first: 100) { nodes { path } pageInfo { hasNextPage } }", "first: 50"]) {
+  // Dependabot's commit count, fix-ci's rollup states.
+  for (const field of ["mergeable", "changedFiles", "commits(last: 1) {\n          totalCount", "conclusion title completedAt", "first: 50"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
 });
@@ -1444,7 +1446,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   };
   // A recorded head no open PR carries any more is dropped.
   writeFileSync(path, JSON.stringify({ version: 6, handled: { [CHECK_NAME]: ["f".repeat(40)] }, bases: { ["f".repeat(40)]: "b".repeat(40) }, dispatched: {} }));
-  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null });
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
@@ -1518,7 +1520,7 @@ test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns o
       checked: new Map([[fixCi.headRefOid, [notApplicable, notApplicable, notApplicable]]]),
     });
     const lines = [];
-    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], loadTidyCutoffs: async () => null } };
+    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] } };
   };
   const warning = `::warning::#151: head ${fixCi.headRefOid}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`;
   try {

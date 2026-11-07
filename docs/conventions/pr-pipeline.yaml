@@ -796,8 +796,8 @@ lanes:
     stage: refine
     slots:
       # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file, whoever opened it except Dependabot, the release App
-      # and the standards-sync App.
+      # Markdown file, on an event the lanes App or a listed human sent,
+      # except Dependabot, the release App and the standards-sync App.
       - activity: fix-docs
       # Runs after fix-docs, in its own job with its own token.
       - activity: apply-patch
@@ -1160,11 +1160,12 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts; 0 turns CI fix-docs off.
+  # fix-docs runs one pr-unblock-dispatch refine run starts for its PR's own
+  # event; each event offers one PR, so 0 turns CI fix-docs off and any other
+  # value turns it on. A push to main or the tick starts none.
   # On for every PR not tidied in its own run (work-resolve-issue's within
   # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
   # D100 to those PRs.
-  # 2 matches fix-ci-per-run.
   fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.

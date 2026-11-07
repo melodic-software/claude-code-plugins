@@ -50,8 +50,11 @@ dispatcher's form.
 
 The trigger ships on `pr-unblock-dispatch.yml`: its `refine` job holds the four invariants,
 each pinned by a test in `workflow-gates.test.mjs`, and records each dispatch under a name built
-from `github.workflow_sha` and the run id the dispatch API returned. The half-hourly tick stays as
-the backstop.
+from `github.workflow_sha` and the run id the dispatch API returned.
+
+Amended 2026-11-07: the half-hourly tick no longer dispatches fix-docs, so this trigger is
+fix-docs's only start (issue #13717's done-when, after an event-started Refine was seen reaching
+review).
 
 ## Alternatives considered
 

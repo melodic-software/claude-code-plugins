@@ -110,9 +110,18 @@ test("a push while the dispatcher has not yet appeared ends the wait at the next
   assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
 });
 
-test("a moved head read once mid-wait and not confirmed: the review runs", async () => {
-  const w = world(refined(refineRun({ status: "in_progress", conclusion: null }), steps(pull(), pull(MOVED), pull())));
-  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "head-read-moved" });
+test("a moved head read once mid-wait and not confirmed resumes the wait: Refine is waited for and the review runs", async () => {
+  const w = world(refined(steps(refineRun({ status: "in_progress", conclusion: null }), refineRun()), steps(pull(), pull(MOVED), pull())));
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll and its 30 s confirming read, then Refine reads completed");
+  assert.equal(w.reads.filter((line) => line === `actions/runs/${REFINE_ID}`).length, 2, "Refine is read again after the unconfirmed move");
+});
+
+test("a moved head read once at the start and not confirmed waits for the dispatcher and Refine: the review runs", async () => {
+  const w = world(refined(steps(refineRun({ status: "in_progress", conclusion: null }), refineRun()), steps(pull(MOVED), pull())));
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(w.elapsed(), 60_000, "the 30 s confirming read, then one 30 s Refine poll");
+  assert.ok(w.reads.includes(LIST), "the dispatcher listing is read");
 });
 
 test("the record on an older dispatcher run of this head is found and its Refine waited for", async () => {
@@ -170,7 +179,7 @@ test("a head that already moved when the job starts is skipped after one confirm
   const w = world({ "pulls/7": pull(MOVED) });
   assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
   assert.equal(w.elapsed(), 30_000);
-  assert.deepEqual(w.reads.filter((line) => !line.startsWith("log ")), ["pulls/7", "pulls/7", "pulls/7"]);
+  assert.deepEqual(w.reads.filter((line) => !line.startsWith("log ")), ["pulls/7", "pulls/7"], "the first read and its one confirming read, no third");
 });
 
 test("one lagging head read is read again before a skip: a head that matches on the second read is reviewed", async () => {
