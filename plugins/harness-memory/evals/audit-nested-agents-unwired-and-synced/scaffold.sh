@@ -33,8 +33,8 @@ scheduler search storage telemetry ui webhooks workers"
   done
 } >AGENTS.md
 n=1
-while [ "$(grep -c . AGENTS.md)" -lt 240 ]; do
-  printf -- '- Shared setting `LH_SHARED_%02d` is read by every component.\n' "$n" >>AGENTS.md
+while [[ "$(grep -c . AGENTS.md)" -lt 240 ]]; do
+  printf -- "- Shared setting \`LH_SHARED_%02d\` is read by every component.\n" "$n" >>AGENTS.md
   n=$((n + 1))
 done
 

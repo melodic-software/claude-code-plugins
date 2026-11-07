@@ -31,8 +31,8 @@ webhooks wishlist"
   echo
 } >CLAUDE.md
 n=1
-while [ "$(grep -c . CLAUDE.md)" -lt 260 ]; do
-  printf -- '- `STORE_SHARED_%02d` is read by every service at start.\n' "$n" >>CLAUDE.md
+while [[ "$(grep -c . CLAUDE.md)" -lt 260 ]]; do
+  printf -- "- \`STORE_SHARED_%02d\` is read by every service at start.\n" "$n" >>CLAUDE.md
   n=$((n + 1))
 done
 

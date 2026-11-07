@@ -22,12 +22,12 @@ printf 'package main\n' >src/main.go
   echo "## Things we figured out about the build"
   echo
   n=1
-  while [ "$n" -le 117 ]; do
+  while [[ "$n" -le 117 ]]; do
     case $((n % 4)) in
     0) echo "- Build note $n: \`go test ./...\` needs CGO_ENABLED=0 on the CI image, or the sqlite driver fails to link." ;;
     1) echo "- Build note $n: the generated mocks go stale after an interface change; rerun \`make mocks\` before testing." ;;
     2) echo "- Build note $n: \`make lint\` caches results under .cache/lint; delete it when the linter version changes." ;;
-    3) echo "- Build note $n: the release build reads VERSION from the latest tag, so a shallow clone builds as 0.0.0." ;;
+    *) echo "- Build note $n: the release build reads VERSION from the latest tag, so a shallow clone builds as 0.0.0." ;;
     esac
     n=$((n + 1))
   done
