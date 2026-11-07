@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "**Where:** BUILD01, PowerShell run as Administrator, in `C:\\actions-runner`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Where:** BUILD01, PowerShell, in `C:\\actions-runner`.",
+      "why": "elevation missing"
+    },
+    {
+      "answer": "Open an elevated PowerShell in C:\\actions-runner.",
+      "why": "machine missing"
+    }
+  ]
+}

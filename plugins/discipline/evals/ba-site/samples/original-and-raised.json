@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nOriginal: Make me a personal website with a nostalgic late-90s feel.\nRaised:   A late-90s personal site that lets old friends recognize you and write back.\nAxes applied: Altitude | Depth | Range\nCheck: a W3C validator run and a load test on a 56k throttle\n```",
+      "why": "the skill's output block"
+    },
+    {
+      "answer": "**Original:** a nostalgic personal website.\n\n**Raised:** a guestbook-first site your old friends can find and sign.",
+      "why": "bold labels"
+    },
+    {
+      "answer": "| Original | Raised |\n|---|---|\n| A late-90s personal site | A site that brings back the friends who knew that web |",
+      "why": "a two-column table"
+    },
+    {
+      "answer": "### Original\nMake me a personal website.\n\n### Raised\nA site old friends can find and sign.",
+      "why": "headings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is a raised version: a guestbook-first site your old friends can find and sign.",
+      "why": "no original shown beside it"
+    },
+    {
+      "answer": "Original idea aside, I'd build it with a table layout.\nRaised expectations are fine too.",
+      "why": "the words appear but not as labels"
+    }
+  ]
+}

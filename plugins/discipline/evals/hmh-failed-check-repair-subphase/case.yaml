@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: hmh-failed-check-repair-subphase
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?hold-my-hand"'
+    min: 1
+    arm: 'with-only'
+  - name: ran-check
+    type: regex
+    pattern: '"name":"(?:Read|Glob|Grep)","input":\{[^\n]*?config|"name":"Bash","input":\{"command":"[^\n]*?(?:(?:(?<=\\n)|(?<=\\t)|(?<![\w\\-]))(?:ls|test|stat|cat|curl|wget|ss|netstat|lsof)\b|\[[ \t]+-[a-z])[^\n]*?(?:config|8080|health)'
+    target: 'trace'
+  - name: reports-check
+    type: llm
+    criteria: 'Legacy expectation: "Runs a mechanical check before presenting anything further and reports what it returned". PASS only if the reply reports what its own check returned (for example that ./config/.env does not exist or the health request got no answer) before presenting anything further. FAIL if it takes the user''s word without reporting a check result.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: repair-subphase
+    type: regex
+    pattern: '\bPhase[ \t]+2a\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-phase-3
+    type: regex
+    pattern: '\bPhase[ \t]+(?:3|three)\b(?:[ \t]+of[ \t]+\w+)?[ \t]*(?:\*\*)?[ \t]*[:—–(-]'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

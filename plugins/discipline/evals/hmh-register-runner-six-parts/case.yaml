@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: hmh-register-runner-six-parts
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?hold-my-hand"'
+    min: 1
+    arm: 'with-only'
+  - name: where-stated
+    type: regex
+    pattern: '^(?=[\s\S]*\bBUILD01\b)(?=[\s\S]*\bPowerShell\b)(?=[\s\S]*\b(?:admin(?:istrator)?|elevated)\b)(?=[\s\S]*C:\\actions-runner)'
+    flags: 'i'
+    target: 'last_message'
+  - name: numbered-steps
+    type: regex
+    pattern: '^[ \t]*(?:\*\*)?\(?1[.)](?:\*\*)?[ \t]+\S[\s\S]*?^[ \t]*(?:\*\*)?\(?2[.)](?:\*\*)?[ \t]+\S'
+    flags: 'm'
+    target: 'last_message'
+  - name: fenced-real-command
+    type: regex
+    pattern: '```[^\n]*\n(?:(?!```)[^<{])*?\bconfig\.cmd\b(?:(?!```)[^<{])*?--url[ \t]+https://github\.com/acme-builds\b(?:(?!```)[^<{])*?```'
+    target: 'last_message'
+  - name: expected-result-stated
+    type: regex
+    pattern: '\b(?:expected (?:output|result|outcome)|you should (?:now )?see|you will see|you''ll see|success looks like|should (?:now )?(?:show|print|display|return|appear|read|list))\b|\bexpected\b[ \t]*(?:\*\*)?[ \t]*[:—–-]'
+    flags: 'i'
+    target: 'last_message'
+  - name: common-failure
+    type: llm
+    criteria: 'Legacy expectation: "States the expected output after each command and the common failure with its repair". PASS only if the phase names a failure that actually happens when registering a self-hosted runner (for example an expired or already-used registration token, or a runner name already in use) and says how to repair it. FAIL if no failure is named or the repair is missing.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: advancing-reply-literal
+    type: regex
+    pattern: '\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`\"“”]{0,40}[`\"“][^`\"“”\n]{2,40}[`\"”](?![^\n]{0,30}?\b(?:and (?:then )?(?:press|hit|run)|(?:in|into|at) (?:the |a |an |your )?(?:terminal|shell|console|prompt|powershell|pwsh|window|command line|cmd))\b)|\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n]{0,120}:[ \t]*\n+[ \t]*```(?!(?:powershell|pwsh|ps1|bash|sh|shell|cmd|console)\b)[\w-]*[ \t]*\n[ \t]*[^\n`]{2,40}\n[ \t]*```'
+    flags: 'i'
+    target: 'last_message'

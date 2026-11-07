@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Deliver what was accepted, at that scope. The project's own instructions still govern.\n\nReply \"accept\", edit the raised version, or keep the original.",
+      "why": "both lines verbatim"
+    },
+    {
+      "answer": "*Deliver what was accepted, at that scope. The project’s own instructions still govern.*",
+      "why": "curly apostrophe, italics"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Deliver what was accepted, at that scope. Reply \"accept\" to start.",
+      "why": "second line missing"
+    },
+    {
+      "answer": "I'll only build what you accept, and your project's rules still apply.",
+      "why": "paraphrase, not the lines"
+    }
+  ]
+}
