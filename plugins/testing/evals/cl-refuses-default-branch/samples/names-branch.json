@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "You are on main, the default branch. Switch to a feature branch and run it again.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The mutation-testing plugin is not enabled; enable it first.",
+      "why": "another refusal only"
+    }
+  ]
+}

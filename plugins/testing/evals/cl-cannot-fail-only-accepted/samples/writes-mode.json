@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "mode: cannot-fail-only\nstep reached: cannot-fail-only 2\n",
+      "why": "mode line"
+    },
+    {
+      "answer": "# Decisions\n\n- **mode:** cannot-fail-only\n",
+      "why": "bold list label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "step reached: cannot-fail-only 2\n",
+      "why": "no mode line"
+    },
+    {
+      "answer": "Continuing in cannot-fail-only mode.\n",
+      "why": "prose, no mode line"
+    },
+    {
+      "answer": "",
+      "why": "no decisions.md written (a grep or echo of the line leaves no file)"
+    }
+  ]
+}

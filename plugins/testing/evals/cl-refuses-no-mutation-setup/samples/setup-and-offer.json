@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No mutation-testing config: run /mutation-testing:setup apply. Or I can continue in cannot-fail-only mode; say yes to continue.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /mutation-testing:setup apply first, then run cleanup again.",
+      "why": "no offer"
+    }
+  ]
+}
