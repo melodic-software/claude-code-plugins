@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "jobs:\n  measure:\n    steps:\n      - run: |\n          python3 ratchet.py propose-tighten --file .ratchets.json --write\n  draft-pr:\n    steps:\n      - run: |\n          git push origin HEAD\n          gh pr create --draft --fill\n",
+      "why": "the skill's job shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jobs:\n  measure:\n    steps:\n      - run: python3 ratchet.py propose-tighten --file .ratchets.json --write\n  pr:\n    steps:\n      - run: gh pr create --fill\n",
+      "why": "the PR is not a draft"
+    },
+    {
+      "answer": "jobs:\n  measure:\n    steps:\n      - run: python3 ratchet.py propose-tighten --file .ratchets.json\n      - run: gh pr create --draft --fill\n",
+      "why": "propose-tighten without --write"
+    }
+  ]
+}
