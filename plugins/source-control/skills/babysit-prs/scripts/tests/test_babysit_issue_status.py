@@ -620,19 +620,26 @@ class TheLaneGate(StatusCase):
 
 
 class TheStatusLabels(unittest.TestCase):
-    """read-status.mjs statusLabels: labels decide while any status label is
-    on; the field adds only a hold the labels lack, or, with none on, any
-    state but the last in order."""
+    """read-status.mjs statusLabels: the field's state decides; queue-state
+    labels give way to it, hold labels and agent-ready stay. Expected values
+    are the JS reader's output for the same inputs."""
 
-    def test_the_field_adds_only_what_statusLabels_adds(self) -> None:
+    def test_the_field_decides_as_statusLabels_does(self) -> None:
         config = live_config()
         for state, names, want in (
             (None, ["status: ready"], ["status: ready"]),
-            ("confirmed", ["status: ready"], ["status: ready"]),
-            ("needs-spec", ["status: ready"], ["status: ready", "needs-spec"]),
-            ("needs-spec", ["needs-human"], ["needs-human"]),
+            ("confirmed", ["status: ready"], ["status: confirmed"]),
+            ("needs-spec", ["status: ready"], ["needs-spec"]),
+            ("needs-spec", ["needs-human"], ["needs-human", "needs-spec"]),
             ("confirmed", ["bug"], ["bug", "status: confirmed"]),
-            ("needs-triage", ["bug"], ["bug"]),
+            ("needs-triage", ["bug"], ["bug", "needs-triage"]),
+            ("agent-ready", ["status: ready", "agent-ready"], ["agent-ready"]),
+            (
+                "ready",
+                ["Status: Confirmed", "needs-human"],
+                ["needs-human", "status: ready"],
+            ),
+            ("ready", ["status: ready"], ["status: ready"]),
         ):
             with self.subTest(state=state, names=names):
                 self.assertEqual(policy.status_label_names(state, names, config), want)
@@ -741,20 +748,24 @@ class TheCappedClose(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
     def test_a_parked_rerun_is_done_as_statusLabels_reads_it(self) -> None:
-        # read-status.mjs statusLabels: a status label on the issue decides;
-        # the field decides only for an issue with none.
+        # read-status.mjs statusLabels: the field decides; a stale queue-state
+        # label gives way to it.
         parked = (
             f"<!-- verify-capped-close pr={CAPPED_PR} heads= attempt=1 of=1 parked -->"
         )
         close = [f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}"]
-        for labels, done in ((("status: ready",), False), (("bug",), True)):
-            with self.subTest(labels=labels):
+        for field, labels, done in (
+            ("confirmed", ("status: ready",), True),
+            ("confirmed", ("bug",), True),
+            ("ready", ("status: confirmed",), False),
+        ):
+            with self.subTest(field=field, labels=labels):
                 world = World()
                 world.comments[CAPPED_PR] = [
                     comment(f"<!-- verify-capped-close pr={CAPPED_PR} heads= -->")
                 ]
                 world.comments[CAPPED_ISSUE] = [comment(parked)]
-                result = self.run_close(world, lambda *a: "confirmed", labels)
+                result = self.run_close(world, lambda *a, f=field: f, labels)
                 self.assertEqual(result["parked"], [CAPPED_ISSUE])
                 if done:
                     self.assertEqual(world.calls(), close)
