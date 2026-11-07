@@ -20,6 +20,7 @@
 - [Linked changes](#linked-changes)
 - [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
 - [API budget](#api-budget)
+- [Work status trust](#work-status-trust)
 - [Gotchas](#gotchas)
 
 Concrete `gh` mechanics for the `/work-items` skill's **non-coordination** operations against
@@ -657,6 +658,43 @@ Pointer: [best practices for using the REST API](https://docs.github.com/en/rest
 [GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
 As-of: 2026-10-17. Recheck trigger: either rate-limits page changes how limits or resets are
 reported, or a `gh` release changes the `run watch` or `pr checks --watch` interval or adds retries.
+
+## Work status trust
+
+The optional binding key `config.github.status_trust` makes the `get-statuses` verb count a Work
+status value only from an account the repository trusts. Decision readers built on it (the
+autonomous frontier) then never act on a value an untrusted account set. Display readers that
+call `gh` directly see the plain field value.
+
+```yaml
+tracker:
+  config:
+    github:
+      status_trust:
+        trusted_actors: .github/standards/trusted-actors/trusted-actors.json
+        model: docs/conventions/pr-pipeline.yaml
+        lanes_app: melodic-automation-lanes[bot]
+```
+
+- `trusted_actors`: a repo-relative path to the trust list, `{version: 1, actors: [{id, login,
+  kind}]}`, every id a positive whole number.
+- `model`: a repo-relative path to a YAML file whose `models.issue-status` block gives `field-id`,
+  `options` (option id to state), and `bot-setters` (`{id, login}` entries).
+- `lanes_app`: the lanes App's login, which counts for every state while the trust list holds it.
+
+Both files are read from each item repository's default branch. A Work status field event counts
+when a listed `human` or the lanes App wrote it, for any state, or when a `bot-setters` account
+wrote any state but `agent-ready`, provided it is `github-actions[bot]` (id 41898282) or the trust
+list holds it as `kind: bot` with the same id and login. The newest counted event decides; a
+counted removal reads null, and with no counted event the item reads null. The read takes the
+newest 100 field events and 25 field values per issue.
+
+| Exit | When |
+|---|---|
+| `3` | The key is malformed or a member is missing, a file is absent, the trust list is not version 1 or holds a non-positive or non-whole id, or the model's `field-id`, `options` or `bot-setters` is invalid. |
+| `1` | 25 field values fill the page; the 100-event window is full, the field holds a value, and no event counts; or a counted state is one `options` does not map. |
+
+Without the key, or with no binding, the read is the plain field value.
 
 ## Gotchas
 
