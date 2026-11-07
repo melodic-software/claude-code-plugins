@@ -99,7 +99,7 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - email | [A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+
 - organization | (?<=Organization:[ \t]+)[^ \t](?:.*[^ \t])?
 - login method | (?<=Login method:[ \t]+)[^ \t](?:.*[^ \t])?
-- banner plan | (?<=· )Claude[ \t]+(?:Max|Pro|Team|Enterprise)(?![A-Za-z0-9_])
+- banner plan | (?<=·[ \t]+)Claude[ \t]+[^\u2500-\u257F]*[^ \t\u2500-\u257F]
 - session id | (?<=Session ID:[ \t]+)[^ \t]+
 - cwd | (?<=cwd:[ \t]+)[^ \t](?:.*[^ \t])?
 - home path | (?:/home|/Users|[a-z]:\\Users)(?:/|\\)[^ \t]+

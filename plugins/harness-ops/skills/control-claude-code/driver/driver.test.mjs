@@ -992,6 +992,17 @@ test('the startup banner keeps the model and loses the plan tier', () => {
   }
 });
 
+test('the banner loses any plan name after "· Claude", up to a border, and keeps every other row', () => {
+  const mask = (row) => driver.maskCells(toCells(row), MASKS, []).text;
+  assert.equal(mask('Opus 5.5 · Claude Ultra'), 'Opus 5.5 · ************');
+  assert.equal(mask('Sonnet 5.5 · Claude Max'), 'Sonnet 5.5 · **********');
+  assert.equal(mask('Haiku 5.5 ·  Claude Pro   '), 'Haiku 5.5 ·  **********   ');
+  assert.equal(mask('│ Opus 5.5 · Claude Ultra │ Tips │'), '│ Opus 5.5 · ************ │ Tips │');
+  for (const kept of ['Opus 5.5 · API Usage Billing', 'Default (Opus 5.5 · Best for everyday, complex tasks)', 'keep using Claude Code']) {
+    assert.equal(mask(kept), kept);
+  }
+});
+
 test('the key-auth status screen has no account to hide and still loses its session id and cwd', () => {
   const { text } = driver.maskCells(toCells(fixture('status-key-auth-screen.txt')), MASKS, []);
   for (const absent of ['@', 'Email:', 'Organization:', 'Login method:', '00000000-0000', '/home/<user>/project']) {
