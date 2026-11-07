@@ -396,7 +396,7 @@ moving parts, then run what is left in parallel unless the order means something
 3. **Pick a relationship for each pair of moving parts:**
    - *Together* (the default): parts of one object or one moment start at once, and so does any
      pair whose order carries no meaning. An element leaving a group stops taking up space when it
-     starts leaving, so the neighbours slide into its slot during the exit (behaviors.md
+     starts leaving, so the neighbors slide into its slot during the exit (behaviors.md
      `group-exit`); a view swapped inside one container crossfades the same way (behaviors.md
      `view-swap`).
    - *Overlap* (a stagger, `stagger` above): order means something (reading order, cause and
