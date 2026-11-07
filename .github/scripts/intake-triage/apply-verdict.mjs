@@ -534,6 +534,10 @@ export async function verdictStatus(labels, config) {
 
 // The labels that are a Work status state: the field takes their place.
 const STATUS_ADDS = new Set([READY, NEEDS_DECISION]);
+// The queue-state labels the field hides once it is set (read-status.mjs
+// statusLabels), so the field write replaces taking them off. A hold label
+// still holds on top of the field, so a refused or given-way one comes off.
+const QUEUE_LABELS = new Set([READY, NEEDS_TRIAGE, CONFIRMED]);
 
 // `setStatus(number, state, {fields})` (write-status.mjs statusWriter's
 // `set`) writes the Work status verdictStatus gives over `statusConfig`
@@ -676,8 +680,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // A held verdict's reasons comment goes before its labels, so a hold never
   // lands without the record of whether it was flagged (earlierFlags): when
   // the comment write fails, no hold or floor label changes and the
-  // caller fails the job; `status: ready` still comes off, since taking it off
-  // adds no hold.
+  // caller fails the job; the Work status still leaves ready, since that adds
+  // no hold.
   // A ready verdict's comment names admission's outcome, so it goes after; a
   // failed one does not stop the summary.
   let reasonsError = null;
@@ -706,19 +710,12 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const writeState = async () =>
     state ? setStatus(number, state, { fields: counted(fields[field]?.setter) ? { [field]: fields[field] } : {}, ...(HOLD_STATES.includes(state) ? {} : { keepHold: true }) }) : null;
   const labelAdds = add.filter((name) => !STATUS_ADDS.has(name));
-  let stateWrite;
+  const labelRemoves = remove.filter((name) => !QUEUE_LABELS.has(name));
   if (labeled) {
-    const late = remove.filter((name) => name === NEEDS_TRIAGE || name === CONFIRMED);
-    await removeLabels(github, base, remove.filter((name) => !late.includes(name)));
+    await removeLabels(github, base, labelRemoves);
     await addLabels(github, base, labelAdds);
-    stateWrite = await writeState();
-    if (stateWrite?.outcome !== "held") {
-      await removeLabels(github, base, late);
-    }
-  } else {
-    await removeLabels(github, base, unready);
-    stateWrite = await writeState();
   }
+  const stateWrite = await writeState();
   // A person's hold set since the read ends the run: the issue is theirs.
   if (stateWrite?.outcome === "held") {
     const why = `a person's Work status ${stateWrite.state} holds it`;
@@ -754,8 +751,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Issue: #${number}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     labeled
-      ? `- Labels added: ${labelAdds.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
-      : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
+      ? `- Labels added: ${labelAdds.join(", ") || "none"}; removed: ${labelRemoves.join(", ") || "none"}`
+      : "- Labels: none written, since the reasons comment was not written",
     ...(state ? [`- Work status: ${state}`] : []),
     ...(plan.refused.length ? [`- Refused: ${refusedNote(plan.refused)}`] : []),
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
