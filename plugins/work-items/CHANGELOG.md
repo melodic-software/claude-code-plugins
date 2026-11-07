@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.2.6] - 2026-11-07
+
+### Fixed
+
+- `/work-items:morning-brief` and `/work-items:triage`'s board page pass `""` as the `medium` option when it reads empty or unsubstituted, and never put a `${user_config.*}` string in a shell command ([#13955](https://github.com/melodic-software/claude-code-plugins/issues/13955)).
+
 ## [12.2.5] - 2026-11-07
 
 ### Changed
