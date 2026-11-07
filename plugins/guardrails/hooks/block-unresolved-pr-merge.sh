@@ -25,6 +25,9 @@
 #               pullNumber inputs. hooks.json registers that row.
 #
 # WHAT BLOCKS, read over REST so it works where GraphQL is refused:
+#   - a hold label on the PR (merge_guard_hold_labels, matched without case),
+#     for every merge path, auto-merge and merge-queue requests included: a
+#     queued PR that carries one fails its merge group
 #   - an unresolved review thread, outdated ones included (thread resolution
 #     has no plain REST route: GraphQL `reviewThreads` where it is served, else
 #     the Claude Code cloud route `pulls/{n}/ccr/review_threads`; a
@@ -178,6 +181,9 @@
 # `merge_guard_ignored_checks` (comma list of `<app slug>:<check name>`,
 # default `github-actions:merge`, the pr-merge lane's own job) names check runs
 # the guard never judges; set it empty to judge every check.
+# `merge_guard_hold_labels` (comma list of label names, default
+# `do-not-merge,pr-verify-failed,security: outside-actor`) names the labels
+# that hold a merge; set it empty to hold on none.
 #
 # BLOCKING: exits 2 with the list of what is unresolved.
 
@@ -914,10 +920,19 @@ fi
 
 [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "the pull request number could not be read"
 
-# The PR: open state, head commit, the canonical repo name and the base branch.
-_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq '"\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)"' ||
+# Hold labels from merge_guard_hold_labels, lowercased: GitHub label names
+# compare without case. jq -c escapes each entry, so the array is a safe jq literal.
+_bupm_holdset="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_HOLD_LABELS-do-not-merge,pr-verify-failed,security: outside-actor}" \
+  '$s | split(",") | map(gsub("^ +| +$"; "") | ascii_downcase | select(length > 0))')" || _bupm_holdset='[]'
+
+# The PR: open state, head commit, the canonical repo name, the base branch and,
+# after a unit separator, the hold labels it carries.
+# shellcheck disable=SC2016
+_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq "$_bupm_holdset"' as $h
+  | "\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)\u001f\([.labels[]?.name // empty | select(ascii_downcase | IN($h[]))] | join(", "))"' ||
   _bupm_pr_unreadable
-read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$BUPM_OUT"
+IFS=$'\x1f' read -r _bupm_prline _bupm_holds <<<"$BUPM_OUT"
+read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$_bupm_prline"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0
 [[ -n "$_bupm_full" && "$_bupm_full" != null ]] && BUPM_REPO="$_bupm_full"
@@ -1150,7 +1165,7 @@ _bupm_threads="$BUPM_OUT"
 _bupm_nonreq_line=""
 [[ -n "$_bupm_nonreq" ]] &&
   _bupm_nonreq_line="Failing checks that the base branch's rules do not require (not blocking, because this PR changes a workflow or action definition file and each one's run loaded the base branch's copy of this repository's workflows, so it may not run the fix yet): $_bupm_nonreq"
-if [[ -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
+if [[ -z "$_bupm_holds" && -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
   if [[ -n "$_bupm_nonreq_line" ]]; then
     _bupm_msg="guardrails block-unresolved-pr-merge: ${BUPM_REPO}#${BUPM_NUM} is allowed to merge. $_bupm_nonreq_line. Check that each one fails only because it ran the base branch's copy of the workflow or action this PR fixes."
     hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
@@ -1163,6 +1178,8 @@ fi
 
 {
   printf 'BLOCKED: %s#%s is not ready to merge, so this merge is refused (--admin and --auto included).\n' "$BUPM_REPO" "$BUPM_NUM"
+  [[ -n "$_bupm_holds" ]] &&
+    printf 'Hold labels: %s. Merge once the hold ends and the label is removed.\n' "$_bupm_holds"
   if [[ -n "$_bupm_threads" ]]; then
     # The quoted text is a reviewer's comment, carried with the untrusted-content
     # spine. Ten lines at most.
