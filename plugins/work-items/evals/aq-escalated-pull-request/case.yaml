@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-escalated-pull-request
+graders:
+  - name: 'pr-listing'
+    type: 'regex'
+    pattern: '\blist\w*\b[^\n.#]{0,30}\bpull[- ]requests?\b(?![\s*_`]*#)|\bpull[- ]request listing\b|\bgh pr list\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Lists pull request #980 as an [escalated] row; (2) Finds #980 by listing open pull requests carrying the human-gated label, not only the issue listing; (3) Writes the operator''s answer as a comment on #980; (4) Removes the human-gated role label from #980 once the answer removes the blocker; (5) Applies neither the autonomous-eligible role label nor a class label to #980; (6) Does not merge #980. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

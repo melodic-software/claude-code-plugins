@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-release-lease-after-flip
+graders:
+  - name: 'release-with-lease-id'
+    type: 'regex'
+    pattern: '\brelease\w*\b[^\n]{0,100}5858800001'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Performs the single-edit role flip while the claim is held, before clearing @me; (2) Clears @me through the adapter''s assignee edit after the flip; (3) Runs the seam release verb with the claim''s lease_comment_id after the assignee clear; (4) Never hand-writes or PATCHes lease-comment JSON directly. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

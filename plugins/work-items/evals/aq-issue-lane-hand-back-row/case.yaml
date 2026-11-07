@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-issue-lane-hand-back-row
+graders:
+  - name: 'run-link'
+    type: 'regex'
+    pattern: 'actions/runs/7001\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Lists #1301 as [escalated], not under a new row kind; (2) Shows the run link from #1301''s hand-back comment alongside the issue link; (3) Does not list #1302 in any row. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

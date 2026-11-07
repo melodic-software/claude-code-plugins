@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Decisions\n\n- **Q2 / D4**: read refunds only from the reporting replica; the primary is write-hot.",
+      "why": "bold ids"
+    },
+    {
+      "answer": "- D4 (answers Q2): replica only.",
+      "why": "D4 first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Decisions\n\n- Read only from the reporting replica (see PLAN.md).",
+      "why": "near miss: decision with no ids, pointer to the plan"
+    },
+    {
+      "answer": "- D4: replica only.",
+      "why": "Q2 missing"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

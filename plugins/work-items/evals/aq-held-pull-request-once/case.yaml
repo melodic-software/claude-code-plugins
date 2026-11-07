@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-held-pull-request-once
+graders:
+  - name: 'held-and-1203-escalated'
+    type: 'regex'
+    pattern: '(?=[\s\S]*\[held\])(?=[\s\S]*(?:#1203\b[^\n]{0,80}\[escalated\]|\[escalated\][^\n]{0,80}#1203\b))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Lists #1201, #1202 and #1204 as [held] rows, each with its link and the label that holds it; (2) Lists #1203 as [escalated] only, never also as [held]; (3) Finds the pull requests through the pull-request listing, not only the issue listing; (4) Takes no claim and edits no label on the [held] row, and does not merge any pull request. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

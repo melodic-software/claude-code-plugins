@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Notice: team `rendered-views.yaml` sets medium: artifact; a team file **never publishes**, so it is ignored.",
+      "why": "bold, the resolver's notice"
+    },
+    {
+      "answer": "The resolver prints that a team file never publishes, so the default local file decides.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The team file says artifact, so the page publishes as a private Artifact.",
+      "why": "publishes on the team value"
+    },
+    {
+      "answer": "A team file can publish once the Artifact tool is available, so I publish the page.",
+      "why": "near miss: publish vocabulary, wrong outcome"
+    }
+  ]
+}

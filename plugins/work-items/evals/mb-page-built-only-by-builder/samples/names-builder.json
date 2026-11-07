@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Build:** `scripts/build-brief-view.mjs --out <dir>/morning-brief.html < <dir>/morning-brief.txt`, so the title stays escaped JSON data.",
+      "why": "bold label, code span"
+    },
+    {
+      "answer": "Then the builder, build-brief-view.mjs, makes the page from the saved brief.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I wrote the HTML page myself with the hostile title escaped, then saved it beside the brief.",
+      "why": "near miss: hand-written page, escaped title"
+    },
+    {
+      "answer": "The page is built with view-builder.mjs from the template.",
+      "why": "wrong script"
+    }
+  ]
+}
