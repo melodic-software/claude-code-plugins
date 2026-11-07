@@ -22,11 +22,12 @@ name: maintenance-file-dead-links
 #   `<!-- link-check-dead-pointer rollup -->`, and rewrites its list of dead
 #   links. With none it closes an open rollup as completed, with a comment. A
 #   rollup closed as completed is reopened when links are dead again; one
-#   closed as not planned is left alone. With no rollup it opens one, labeled
-#   needs-triage: its token starts no workflow, so intake-triage.yml never
-#   adds that floor label on open, and the hourly triage sweep leaves
-#   github-actions[bot] issues out (triage-sweep.mjs), so the label is what
-#   puts the issue in the untriaged queue. A reopened rollup keeps its labels.
+#   closed as not planned is left alone. With no rollup it opens one with
+#   no status label and sets its Work status to needs-triage (a failed write
+#   fails the run): its token starts no workflow, so intake-triage.yml never
+#   sets that floor state on open, and the hourly triage sweep leaves
+#   github-actions[bot] issues out (triage-sweep.mjs), so the field is what
+#   puts the issue in the untriaged queue. A reopened rollup keeps its state.
 #
 # The trigger names the link-check workflow by its `name:`, which the
 # standards component owns: a rename there disconnects this workflow.
@@ -226,9 +227,16 @@ jobs:
             body="$(render "$keep")"
           done
           if [[ -z "$number" ]]; then
-            gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f 'labels[]=needs-triage' \
-              -f title="Dead links found by the online link check" -f body="$body" >/dev/null
-            summary "Opened the rollup issue with $count dead links."
+            number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+              -f title="Dead links found by the online link check" -f body="$body" --jq .number)"
+            if [[ ! "$number" =~ ^[1-9][0-9]*$ ]] ||
+              ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-triage"}]}' |
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/issue-field-values" \
+                -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null; then
+              echo "::error::the rollup '$number' was opened without Work status needs-triage"
+              exit 1
+            fi
+            summary "Opened the rollup #$number with $count dead links."
           elif [[ "$state" == open ]]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f body="$body" >/dev/null
             summary "Rewrote the rollup #$number with $count dead links."

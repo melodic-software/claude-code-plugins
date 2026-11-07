@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"remaining\": [\"Part B: migrate the callers to the new config key\"]",
+      "why": "json"
+    },
+    {
+      "answer": "remaining: [\"Migrate the callers (part B)\"]",
+      "why": "reworded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"remaining\": []",
+      "why": "empty"
+    },
+    {
+      "answer": "\"remaining\": [\"Part A: add the config key\"]",
+      "why": "the delivered part"
+    }
+  ]
+}

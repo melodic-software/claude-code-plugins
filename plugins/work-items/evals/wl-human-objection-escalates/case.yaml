@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-human-objection-escalates
+graders:
+  - name: 'objection-line'
+    type: 'regex'
+    pattern: 'objection:[\s*_`]{0,6}#?302\b\W{0,4}(?:->|→)\W{0,4}escalated'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Does not dispatch #302; (2) Escalates #302 with a kind=escalated marker comment naming the maintainer''s reply; (3) Applies the human-gated role label resolved from config.role_labels, not a literal; (4) Lists objection: #302 -> escalated in the cycle report. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

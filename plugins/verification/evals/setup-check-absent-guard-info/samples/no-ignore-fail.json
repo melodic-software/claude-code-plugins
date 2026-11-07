@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| INFO | Ignore state | no match |"
+    },
+    {
+      "answer": "Ignore state: INFO, the absent guard is expected, not FAIL"
+    },
+    {
+      "answer": "INFO (never FAIL): ignore guard absent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| FAIL | Ignore state | .work/ is not ignored |"
+    },
+    {
+      "answer": "FAIL: ignore guard missing for .work/"
+    },
+    {
+      "answer": "| Ignore state | FAIL | .work/ is not ignored |"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-ci-resume-skips-committed-pages
+graders:
+  - name: 'third-page-only'
+    type: 'regex'
+    pattern: '\b(?:third|3rd|remaining)\b[^\n]{0,60}\bpage\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Reads the already-committed pages in the checkout before editing; (2) Does not rewrite, recreate or re-commit the two committed pages; (3) Writes and commits only the third page and whatever release record the repository requires. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

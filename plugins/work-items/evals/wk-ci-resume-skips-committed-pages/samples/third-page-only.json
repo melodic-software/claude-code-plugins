@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Write and commit only the third reference page.",
+      "why": "third"
+    },
+    {
+      "answer": "Commit the remaining page plus its changelog fragment.",
+      "why": "remaining"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rewrite all three pages from scratch.",
+      "why": "redoes the work"
+    },
+    {
+      "answer": "Commit the pages.",
+      "why": "no count"
+    }
+  ]
+}

@@ -49,14 +49,22 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 // With `facts.fieldEvents` (resolve-config.mjs fieldEvents), the newest Work
 // status event whose setter counts for the value it set decides, null for a
 // removal, so an uncounted change neither sets nor clears a counted state. The
-// newest event's value is the REST value, read as unset when that event names
-// another option (the two reads saw different writes); an older event's is the
-// option it names. Without it, the newest setter (`facts.fieldSetters`)
-// decides the REST value; `facts.fieldNames`, when given, maps a field id to
-// the option name its newest field event left, and a value that names another
-// option than the REST value maps to reads as unset, since the setter read
-// belongs to another write.
+// newest event's value is the REST value; an older event's is the option it
+// names. A REST value (or its absence) that differs from what the newest event
+// left throws: the two reads saw different writes, and the hold may be the one
+// unseen. With `facts.fieldEventsFull` (the event window was full), a value
+// with no counted event throws, since its setter may be older than the window.
+// Without `facts.fieldEvents`, the newest setter (`facts.fieldSetters`) decides
+// the REST value, and `facts.fieldNames`, when given, maps a field id to the
+// option name its newest field event left; a value that names another option
+// throws.
 export function issueStatus(facts, config, trustedActors) {
+  return issueStatusSetter(facts, config, trustedActors).state;
+}
+
+// issueStatus's `{state, setter}`: setter is the account id whose event
+// decided the state (undefined when none did).
+export function issueStatusSetter(facts, config, trustedActors) {
   const unmapped = (option) =>
     new Rejection(
       "unmapped-status",
@@ -68,14 +76,20 @@ export function issueStatus(facts, config, trustedActors) {
     (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
     actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot");
   const botSetter = (id) => (config["bot-setters"] ?? []).some((entry) => entry.id === id && listed(entry));
+  const row = facts.fieldValues.find((value) => value.field === fieldId);
+  const disagree = (named) => {
+    if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
+      throw new Error(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
+    }
+  };
   if (Array.isArray(facts.fieldEvents)) {
     const people = trustedSetters(trustedActors);
     const states = new Set(Object.values(config.options));
     const events = facts.fieldEvents.filter((event) => event?.field === String(fieldId));
-    const row = facts.fieldValues.find((value) => value.field === fieldId);
-    const named = events.at(-1)?.to;
-    if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
-      return null;
+    const rest = row === undefined ? null : config.options[String(row.option)];
+    if (events.length > 0 && rest !== undefined && (events.at(-1).to ?? null) !== rest) {
+      const left = events.at(-1).to === null ? "removed it" : `set \`${events.at(-1).to}\``;
+      throw new Error(`issue field ${fieldId} (Work status) holds ${row === undefined ? "no value" : `option ${row.option}`}, but its newest field event ${left}`);
     }
     for (let i = events.length - 1; i >= 0; i -= 1) {
       const { actorId, removed, to } = events[i];
@@ -85,7 +99,7 @@ export function issueStatus(facts, config, trustedActors) {
       }
       const newest = i === events.length - 1;
       if (removed || (newest && row === undefined)) {
-        return null;
+        return { state: null, setter: actorId };
       }
       const option = newest ? String(row.option) : to;
       const state = newest ? (Object.hasOwn(config.options, option) ? config.options[option] : undefined) : states.has(to) ? to : undefined;
@@ -93,37 +107,36 @@ export function issueStatus(facts, config, trustedActors) {
         throw unmapped(option);
       }
       if (person || state !== PERSON_ONLY_STATE) {
-        return state;
+        return { state, setter: actorId };
       }
     }
-    return null;
+    if (facts.fieldEventsFull && row !== undefined) {
+      throw new Error(`issue field ${fieldId} (Work status) has no counted setter among its newest field events, and older ones were not read`);
+    }
+    return { state: null, setter: undefined };
   }
   const setter = facts.fieldSetters[String(fieldId)];
-  const named = facts.fieldNames?.[String(fieldId)];
-  const held = facts.fieldValues.find((value) => value.field === fieldId);
-  if (typeof named === "string" && held !== undefined && config.options[String(held.option)] !== named) {
-    return null;
-  }
+  disagree(facts.fieldNames?.[String(fieldId)]);
   if (!botSetter(setter)) {
-    return trustedOption(facts, config, trustedActors, unmapped);
+    return { state: trustedOption(facts, config, trustedActors, unmapped), setter };
   }
-  const row = facts.fieldValues.find((value) => value.field === fieldId);
   if (row === undefined) {
-    return null;
+    return { state: null, setter };
   }
   const option = String(row.option);
   if (!Object.hasOwn(config.options, option)) {
     throw unmapped(option);
   }
   const state = config.options[option];
-  return state === PERSON_ONLY_STATE ? null : state;
+  return { state: state === PERSON_ONLY_STATE ? null : state, setter };
 }
 
 // What the schema cannot check: no two options name one state, every state has
 // labels no other state has, order lists every state once and ends on the
 // floor, and the field is none of models.issue-dimensions'. Each `bot-setters`
 // entry is github-actions[bot] or a `melodic-` bot other than the lanes App,
-// and no id is listed twice. Whether the trusted-actor list still holds an
+// and no id is listed twice. `field-events-since`, when set, is a real UTC
+// time in the form the schema's pattern allows. Whether the trusted-actor list still holds an
 // entry is issueStatus's to read, not a config error.
 export function checkStatus(config, dimensions) {
   const reject = (message) => {
@@ -175,5 +188,9 @@ export function checkStatus(config, dimensions) {
     if (login === LANES_APP_LOGIN || !/^melodic-.+\[bot\]$/.test(login)) {
       reject(`.bot-setters names ${login}, which is neither github-actions[bot] nor a melodic- bot other than the lanes App`);
     }
+  }
+  const since = config["field-events-since"];
+  if (since !== undefined && (typeof since !== "string" || Number.isNaN(Date.parse(since)) || new Date(since).toISOString().replace(".000Z", "Z") !== since)) {
+    reject(`.field-events-since \`${since}\` is no ISO UTC time such as 2026-11-07T12:00:00Z`);
   }
 }

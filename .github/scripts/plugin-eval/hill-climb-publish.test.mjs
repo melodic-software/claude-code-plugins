@@ -157,6 +157,24 @@ test("a long summary is cut, so the body stays under GitHub's limit", () => {
   assert.match(body, /cut at 24000 characters/);
 });
 
+const keptOf = (summary) => {
+  const body = bodyOf({ plugin: "p", skill: "s", runUrl: "u", winTest: "w", summaryA: summary, summaryB: "b", fragment: "f" });
+  const start = body.indexOf("```text\n", body.indexOf("Pass a,")) + "```text\n".length;
+  return body.slice(start, body.indexOf("\n(cut at 24000 characters", start));
+};
+
+test("a long summary is cut at a word, never inside one", () => {
+  const kept = keptOf("abcdef ".repeat(4000));
+  assert.ok(kept.length <= 24000, `kept ${kept.length} characters`);
+  assert.ok(kept === "abcdef ".repeat(3428).trimEnd(), `the cut keeps 3428 whole words and no part of the next; it ends ${JSON.stringify(kept.slice(-12))}`);
+});
+
+test("a single token past the cap is cut hard, never inside a surrogate pair", () => {
+  const kept = keptOf(`${"a".repeat(23999)}\u{1F600}tail`);
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(kept), "no unpaired high surrogate is left");
+  assert.ok(kept === "a".repeat(23999), `the emoji straddling the cap is dropped whole; it ends ${JSON.stringify(kept.slice(-4))}`);
+});
+
 // A recording stand-in for upstream-apply-changelog.mjs's api().
 function fake(routes) {
   const calls = [];

@@ -15,13 +15,16 @@
 //   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
 // It then sets the three issue fields (their ids from
-// models.issue-dimensions, checked against the ids GitHub answers) and adds
-// `status: ready` when all three fields and no flag parsed, no hold label
-// (needs-human, status: needs-info, status: needs-decision) holds the issue,
-// and nothing it found conflicts; otherwise `status: needs-decision` (unless a
+// models.issue-dimensions, checked against the ids GitHub answers) and sets
+// the Work status field to ready when all three fields and no flag parsed, no
+// hold (needs-human, status: needs-info, status: needs-decision, as the issue's
+// labels and the field give them, read-status.mjs) holds the issue,
+// and nothing it found conflicts; otherwise needs-owner-decision (unless a
 // needs-info or needs-decision status is already there), removing a parked
-// `status: confirmed` after the add so one status stands, never
-// `status: ready`, and one lanes App comment, edited in place, that lists why.
+// `status: confirmed` after the write so one status stands, never ready, and
+// one lanes App comment, edited in place, that lists why. The status written
+// is the one the labels left collapse to (verdictStatus), so the triage run's
+// own hold labels reach the field too; those labels stay on the issue.
 // A status hold the lanes App set on an earlier run gives way to a ready
 // verdict and is taken off only when the App's earlier verdict comment lists
 // no flag. One that listed a flag, or no App verdict comment at all (an issue
@@ -84,6 +87,7 @@
 //   STARTED_AT            when this run's first job started (ISO 8601)
 //   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
 //   BASE_PATH             the default branch checkout, for models.issue-dimensions
+//                         and models.issue-status
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
 //   RESOLVED_CONFIG       resolve-config's output: the limits and wip leaves
 //                         admission's cap check reads
@@ -94,15 +98,15 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, isFault, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { checkWip, searchRateLimit, STATUS_READS } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMISSION_STATUS_READS, admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, INTAKE_LANE, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, strongestReason, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
-import { FIELD_API, statusMirror } from "../../actions/resolve-config/write-status.mjs";
-import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { HOLD_STATES, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -257,12 +261,15 @@ export function parseVerdict(body, dimensionsConfig) {
   return { escalated, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
-// The writes the verdict calls for, given the issue's labels and its current
-// field values ({fieldId: {option, setter}}). Pure.
+// The writes the verdict calls for, given the issue's labels as the Work
+// status field decides them, its own `rawLabels`, and its current field
+// values ({fieldId: {option, setter}}). A status label comes off when either
+// carries it, so a stale queue label the field hides still goes. Pure.
 export function planWrites(
   verdict,
-  { labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
+  { labels, rawLabels = labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
 ) {
+  const had = (name) => labels.includes(name) || rawLabels.includes(name);
   const reasons = [...verdict.problems];
   // The owner reason each hold cause is for (../lib/stop-reason.mjs); the
   // strongest (admit.mjs HOLD_ORDER) names a held verdict's stop. A cause no
@@ -392,7 +399,7 @@ export function planWrites(
       add.push(READY);
     }
   } else {
-    if (labels.includes(READY)) {
+    if (had(READY)) {
       remove.push(READY);
     }
     if (!labels.includes(NEEDS_DECISION) && !labels.includes(NEEDS_INFO)) {
@@ -401,7 +408,7 @@ export function planWrites(
   }
   // The verdict is the triage, so the floor label goes after it, and a held
   // verdict's hold replaces a parked status: confirmed: one status stands.
-  const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter((name) => labels.includes(name));
+  const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter(had);
   const reason = ready ? null : (strongestReason(codes) ?? "intent");
   return { add, remove: [...remove, ...after], fieldWrites, ready, reasons, reason, dimensions, refused };
 }
@@ -443,12 +450,15 @@ export function raisedLine(verdictFlags, writtenAt, earlierBody) {
 }
 
 // {setters, triage}: setters maps each hold label on the issue
-// to who added it last, from the issue's events (none when no event names it);
-// triage lists the ones this run's triage applied: absent at `since`, replaying
-// labeled and unlabeled events by time and id (an add with an unreadable time
-// counts as before it, a removal with one removes nothing), and added at or
-// after it only by github-actions[bot].
-async function labelSetters(github, base, labels, since) {
+// to who added it last, from `events()`, the issue's status history
+// (read-status.mjs statusEvents, where a Work status change reads as label
+// events; none when no event names it); triage lists the ones this run's
+// triage applied: absent at `since`, replaying labeled and unlabeled events
+// by time and id (an add with an unreadable time counts as before it, a
+// removal with one removes nothing), and added at or after it only by
+// github-actions[bot] or the lanes App, which writes the triage's labels into
+// the field.
+async function labelSetters(labels, since, events, appId) {
   const held = new Set(labels.filter((label) => HOLDS.has(label)));
   const setters = {};
   if (held.size === 0) {
@@ -462,10 +472,10 @@ async function labelSetters(github, base, labels, since) {
     const at = Date.parse(event?.created_at);
     return Number.isFinite(at) ? at : Number.POSITIVE_INFINITY;
   };
-  const events = (await paginate(github, `${base}/events`)).toSorted(
+  const history = (await events()).toSorted(
     (a, b) => (time(a) === time(b) ? 0 : time(a) < time(b) ? -1 : 1) || (Number(a?.id) || 0) - (Number(b?.id) || 0),
   );
-  for (const event of events) {
+  for (const event of history) {
     const name = event?.label?.name;
     if (!held.has(name) || (event.event !== "labeled" && event.event !== "unlabeled")) {
       continue;
@@ -483,7 +493,7 @@ async function labelSetters(github, base, labels, since) {
     setters[name] = event.actor?.id ?? null;
     if (!after) {
       before.add(name);
-    } else if (setters[name] === ACTIONS_BOT_ID) {
+    } else if (setters[name] === ACTIONS_BOT_ID || isApp(setters[name], appId)) {
       bot.add(name);
     } else {
       other.add(name);
@@ -511,7 +521,26 @@ async function readFields(github, repository, number, fieldSetters) {
   return fields;
 }
 
-export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, mirrorStatus = async () => {}, log = console.log }) {
+// The Work status a verdict leaves on an issue whose label names, with the
+// verdict's label writes applied, are `labels`: the first state in `config`'s
+// order whose label is among them (issue-status.mjs collapseStatus), so the
+// triage run's needs-human, `status: needs-info` and `status: needs-decision`
+// translate to their state; null for agent-ready, which admission writes.
+export async function verdictStatus(labels, config) {
+  const { collapseStatus } = await import("../../actions/resolve-config/issue-status.mjs");
+  const state = collapseStatus(labels, config);
+  return state === "agent-ready" ? null : state;
+}
+
+// The labels that are a Work status state: the field takes their place.
+const STATUS_ADDS = new Set([READY, NEEDS_DECISION]);
+
+// `setStatus(number, state, {fields})` (write-status.mjs statusWriter's
+// `set`) writes the Work status verdictStatus gives over `statusConfig`
+// (models.issue-status; null writes none); a failed write throws. `statusOf`
+// (read-status.mjs statusReader), when given, decides the issue's label names
+// and its status history; without it, its own labels and REST events.
+export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, setStatus = async () => {}, statusConfig = null, statusOf, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
     return { outcome: "stopped" };
@@ -554,9 +583,12 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
 
   const verdict = parseVerdict(comment.body, dimensionsConfig);
-  const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+  const issueLabels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+  // A hold only the Work status field holds counts as its label.
+  const labels = statusOf ? await statusOf(number, issueLabels) : issueLabels;
   const fields = await readFields(github, repository, number, fieldSetters);
-  const { setters, triage } = await labelSetters(github, base, labels, startedAt);
+  const events = statusOf ? () => statusOf.events(number) : () => paginate(github, `${base}/events`);
+  const { setters, triage } = await labelSetters(labels, startedAt, events, appId);
   // A carried flag holds only beside a hold label, and a decision answers only
   // an intent flag, so the trusted comments are read only then. A failed read
   // answers nothing: the earlier flags hold.
@@ -573,6 +605,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const planFor = (current) =>
     planWrites(verdict, {
       labels: current,
+      rawLabels: issueLabels,
       fields,
       dimensionsConfig,
       appId,
@@ -661,18 +694,38 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
   const labeled = reasonsError === null;
   const unready = remove.filter((name) => name === READY);
+  // The Work status the labels this run leaves give, a late hold included,
+  // stands in for the status label adds; the field value read above skips a
+  // match when a counted account set it.
+  const off = new Set(labeled ? remove : unready);
+  const state = statusConfig && (await verdictStatus([...new Set([...labels, ...lateHolds, ...(labeled ? add : [])])].filter((name) => !off.has(name)), statusConfig));
+  const field = String(statusConfig?.["field-id"]);
+  const counted = (setter) => humans.has(setter) || isApp(setter, appId) || (statusConfig?.["bot-setters"] ?? []).some((entry) => entry.id === setter);
+  // A state that is no hold keeps a hold a person set since the first read
+  // (write-status.mjs keepHold), and the issue then goes to no admission.
+  const writeState = async () =>
+    state ? setStatus(number, state, { fields: counted(fields[field]?.setter) ? { [field]: fields[field] } : {}, ...(HOLD_STATES.includes(state) ? {} : { keepHold: true }) }) : null;
+  const labelAdds = add.filter((name) => !STATUS_ADDS.has(name));
+  let stateWrite;
   if (labeled) {
     const late = remove.filter((name) => name === NEEDS_TRIAGE || name === CONFIRMED);
     await removeLabels(github, base, remove.filter((name) => !late.includes(name)));
-    await addLabels(github, base, add);
-    await removeLabels(github, base, late);
+    await addLabels(github, base, labelAdds);
+    stateWrite = await writeState();
+    if (stateWrite?.outcome !== "held") {
+      await removeLabels(github, base, late);
+    }
   } else {
     await removeLabels(github, base, unready);
+    stateWrite = await writeState();
   }
-  // The Work status field mirrors the labels this run left, a late hold
-  // included; admission's own label writes mirror again. The field values
-  // read above skip a match.
-  await mirrorStatus(number, { had: [...labels, ...lateHolds], add: labeled ? add : [], remove: labeled ? remove : unready, fields });
+  // A person's hold set since the read ends the run: the issue is theirs.
+  if (stateWrite?.outcome === "held") {
+    const why = `a person's Work status ${stateWrite.state} holds it`;
+    const summary = `apply-verdict: #${number} left as is (${why}); no admission`;
+    log(summary);
+    return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission: { outcome: "held", reasons: [why], status: stateWrite.state }, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
+  }
   // An admission error stops neither the reasons comment nor the summary; the caller
   // fails the job on it, or holds on a fault (closing).
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
@@ -701,8 +754,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Issue: #${number}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     labeled
-      ? `- Labels added: ${add.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
+      ? `- Labels added: ${labelAdds.join(", ") || "none"}; removed: ${remove.join(", ") || "none"}`
       : `- Labels added: none, since the reasons comment was not written; removed: ${unready.join(", ") || "none"}`,
+    ...(state ? [`- Work status: ${state}`] : []),
     ...(plan.refused.length ? [`- Refused: ${refusedNote(plan.refused)}`] : []),
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
@@ -847,7 +901,7 @@ const WAITS = "none: admission waits for intake to run again, since a blocked-by
 // Where a ready verdict leaves the issue after admission, when admission
 // moved it off `status: ready` or did not finish; null when it stays ready.
 const settled = (admission) =>
-  admission?.outcome === "refused"
+  admission?.outcome === "refused" || admission?.outcome === "held"
     ? (admission.status ?? NEEDS_DECISION)
     : admission?.outcome === "error"
       ? "not settled: admission did not finish"
@@ -875,7 +929,9 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
         admission?.outcome === "refused"
           ? `admission moved the issue to \`${after}\`; its comment says why.`
-          : after === WAITS
+          : admission?.outcome === "held"
+            ? `a person set the Work status to \`${after}\`, which holds the issue.`
+            : after === WAITS
             ? `a blocked-by edge is missing, so the issue carries no \`status:\` label and admission waits for intake to run again, which the hourly triage sweep starts.${
                 refused ? ` GitHub answered 403 for an edge, and ${FORBIDDEN_EDGE}.` : ""
               }`
@@ -919,7 +975,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   } else {
     let closed;
     try {
-      const { issueDimensionsFromBase, issueLaneWebHostsFromBase, fieldSetters } = await import(
+      const { issueDimensionsFromBase, issueLaneWebHostsFromBase, issueStatusFromBase, issuesByStatus, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
       );
       const rate = searchRateLimit();
@@ -930,12 +986,20 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       });
       const repository = env.GITHUB_REPOSITORY;
       const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-      const mirrorStatus = await statusMirror({ env, github, repository });
+      const { set: setStatus } = await statusWriter({ env, github, repository });
+      const statusConfig = issueStatusFromBase(env);
+      const trustedActors = loadTrustedActors(env);
+      // Admission's listing of deferred issues and their status history.
+      const listing = {
+        issues: (states, options) => issuesByStatus(github, repository, states, { ...options, config: statusConfig, trustedActors }),
+        events: (number) => statusEvents({ github, repository, number, config: statusConfig }),
+      };
       // Read only when admitting, so a malformed rules file stops
       // admission and not the verdict.
       const admitIssue = (verdict) =>
         admit({
-          mirrorStatus,
+          setStatus,
+          listing,
           github,
           repository,
           number: Number(env.ISSUE_NUMBER),
@@ -953,7 +1017,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
               limits: readLimits(env.RESOLVED_CONFIG),
               wip: readWip(env.RESOLVED_CONFIG),
               remaining: rate.remaining,
-              statusOf: statusReader({ env, github, repository, limit: STATUS_READS }),
+              statusOf: listedStatusOf({ env, github, repository }),
             }),
         });
       const noteSplit = (issue) =>
@@ -963,6 +1027,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           issue,
           rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
           webHosts: issueLaneWebHostsFromBase(env),
+          statusOf: statusReader({ env, github, repository }),
         });
       const result = await run({
         env,
@@ -971,7 +1036,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         fieldSetters,
         admitIssue,
         noteSplit,
-        mirrorStatus,
+        setStatus,
+        statusConfig,
+        statusOf: statusReader({ env, github, repository }),
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);

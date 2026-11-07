@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Post a `lane=work-loop kind=escalated` marker comment proposing the swap.",
+      "why": "the marker"
+    },
+    {
+      "answer": "<!-- work-items:escalation lane=work-loop kind=escalated -->",
+      "why": "marker line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Post a comment proposing agent-ready.",
+      "why": "no marker"
+    },
+    {
+      "answer": "kind=routed-advisory marker",
+      "why": "the advisory kind"
+    }
+  ]
+}

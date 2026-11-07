@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#303 has no objection window, so it is admitted and dispatched.",
+      "why": "names the item without the line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "objection window open: #303 until 2027-01-01T00:00:00Z",
+      "why": "skipped for the window"
+    },
+    {
+      "answer": "Nothing to dispatch.",
+      "why": "never names the item"
+    }
+  ]
+}

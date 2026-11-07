@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-ci-open-intent-pushes-back
+graders:
+  - name: 'pushback-intent'
+    type: 'regex'
+    pattern: '(?=[\s\S]*"?exit"?[\s*_`]*[:=][\s*_`"]*pushback\b)(?=[\s\S]*\"?cause\"?[\s*_`]*[:=][\s*_`\"]*intent\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Makes no edit before writing the outcome; (2) Writes exit as pushback; (3) Writes cause intent in the outcome file; (4) Puts the open intent question in reason; (5) Does not guess a meaning of better and build it. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
