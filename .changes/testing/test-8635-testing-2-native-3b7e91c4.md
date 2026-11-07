@@ -10,7 +10,7 @@ bump: patch
   - Not graded, because the current skill contradicts them: audit 7's "does not claim to audit bash test files", and audit 11's and 14's "report-only, never gates --check" (the skill now gates inert-assertion and conditional-assertion).
   - Audit scaffolds copy the skill's existing fixtures through a new `evals/fixtures/audit-workspace.sh`, which drops each corpus file's leading header comments. `evals/fixtures/git-workspace.sh` is the testing-native branch's file, unchanged.
   - `cant-fail-scan.test.sh` check (e) reads the native audit cases instead of the deleted `evals.json`.
-  - Five audit prompts now end "Use the `testing:audit` skill if you have it." On the unnamed prompt the skill fired in 0 of 1 runs for `au-boundary-routes-out`, `au-mock-only-advisory`, `au-conditional-assertion`, `au-relation-across-rows` and `au-snapshot-only`, and in 1 of 2 for `au-config-exemption-counted`.
+  - Six audit prompts now end "Use the `testing:audit` skill if you have it." On the unnamed prompt the skill fired in 0 of 1 runs for `au-boundary-routes-out`, `au-mock-only-advisory`, `au-conditional-assertion`, `au-relation-across-rows` and `au-snapshot-only`, and in 1 of 2 for `au-config-exemption-counted`.
   - Grader changes after the first smoke data. In each case the llm grader passed the reply, and every near-miss sample still fails:
     - `ran-scanner` (every scanning audit case): the script path may now be followed by `;`, `&`, `|`, `\` or `)`, not only by a space or a quote. The rejected reply was `bash "…/cant-fail-scan.sh"; echo "exit=$?"`.
     - `au-clean-suite-denominator`: "no can't-fail tests" now counts as a clean result. A new negative rejects a scan that examined 0 test files, with a new sample for it.
