@@ -11,7 +11,8 @@ unusable, or the block is over `LIFT_BLOCK_LIMIT`).
 
 `close` closes each open canary, revert or read-back record that has lifted
 by the merge gate's own rule (`babysit_merge_policy._lift`): a comment naming
-the evidence, the human-gated role label removed, closed as completed. A
+the evidence, the human-gated role label removed where the repository keeps
+status in labels (no `models.issue-status`), closed as completed. A
 record that has not lifted, or whose read fails, is left as it is.
 """
 
@@ -128,7 +129,13 @@ def close_lifted(repo: str, identity: str | None) -> int:
         )
 
     green = policy._GreenMain(owner, name)
-    label = postmerge._role_label(owner, name)
+    # A repository that keeps Work status in the field has its hold ended by
+    # the close (post-merge-demotion-alert.yml close-cleared): no label write.
+    label = (
+        None
+        if postmerge._issue_status(owner, name)
+        else postmerge._role_label(owner, name)
+    )
     closed = 0
     seen: set[int] = set()
     for filer in filers:
@@ -181,7 +188,7 @@ def close_lifted(repo: str, identity: str | None) -> int:
             if comment.returncode:
                 print(f"::warning::could not comment on #{number}: left open")
                 continue
-            unlabel = _api(
+            unlabel = label and _api(
                 "-X",
                 "DELETE",
                 f"repos/{owner}/{name}/issues/{number}/labels/{quote(label, safe='')}",
@@ -198,7 +205,11 @@ def close_lifted(repo: str, identity: str | None) -> int:
             if close.returncode:
                 print(f"::warning::could not close #{number}")
                 continue
-            if unlabel.returncode and policy.gh_http_status(unlabel.stderr or "") != 404:
+            if (
+                unlabel
+                and unlabel.returncode
+                and policy.gh_http_status(unlabel.stderr or "") != 404
+            ):
                 print(f"::warning::could not remove {label} from #{number}")
             print(f"closed #{number}: {lift.why}")
             closed += 1
