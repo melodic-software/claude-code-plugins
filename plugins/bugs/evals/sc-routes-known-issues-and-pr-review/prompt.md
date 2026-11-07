@@ -3,7 +3,7 @@ description: "Two requests that are not a proactive hunt: what is already known 
 tags: [bugs, scan, routing, outcome, no-network]
 max_turns: 8
 timeout_seconds: 300
-allowed_tools: [Skill, Bash, Read, Glob, Grep]
+allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
 expected_outcome: "The reply sends the known-issues question to harness-ops:known-issues, the PR diff check to review:code-review (or review:security-review), says bugs:write handles a defect the user already observed and /bugs:scan hunts unobserved bugs in resting code, and starts no hunt (no Agent call)."
 ---
 

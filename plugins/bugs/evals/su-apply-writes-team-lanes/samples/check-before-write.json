@@ -33,6 +33,10 @@
     {
       "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Bash\",\"input\":{\"command\":\"cat docs/conventions/bugs.yaml\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p docs/conventions && cat > docs/conventions/bugs.yaml <<'EOF'\\nlanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\nEOF\\nls docs/conventions/bugs.yaml\",\"description\":\"run\"}}]}}",
       "why": "no git call; the heredoc write has no probe before it"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/bugs:setup apply\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t0\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/plugins/bugs/reference/config.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p docs/conventions && cat > docs/conventions/bugs.yaml <<'EOF'\\nlanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n  - name: billing-core\\n    globs:\\n      - 'src/billing/**/*.ts'\\nEOF\\npython3 -I -c \\\"import yaml;print(yaml.safe_load(open('docs/conventions/bugs.yaml')))\\\"\\ngit check-ignore -v docs/conventions/bugs.yaml; echo ignore-exit=$?\",\"description\":\"run\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/docs/conventions/bugs.yaml\",\"content\":\"lanes:\\n  - name: entrypoints\\n    globs:\\n      - 'src/api/**/*.ts'\\n\"}}]}}",
+      "why": "heredoc write then git check-ignore in one call, no earlier git call, then a later Write rewrites the file"
     }
   ]
 }
