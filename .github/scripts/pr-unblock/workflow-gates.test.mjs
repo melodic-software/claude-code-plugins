@@ -1476,6 +1476,92 @@ test("refine invariant 1: it checks out only the commit its workflow file ran fr
   const body = lines.join("\n");
   assert.doesNotMatch(body, /github\.head_ref|pull_request\.head\.(?:sha|ref)|merge_commit_sha|refs\/pull\//, "no head ref or SHA");
   assert.match(body, /\n {10}persist-credentials: false\n/);
+  // A run: step could fetch and check out the head itself, so each script is
+  // pinned whole: any change to one needs this test changed with it.
+  const runs = {};
+  let step = "";
+  for (let at = 0; at < lines.length; at += 1) {
+    step = /^ {6}- name: (.*)$/.exec(lines[at])?.[1] ?? step;
+    const inline = /^ {8}run: (.*)$/.exec(lines[at]);
+    if (!inline) continue;
+    const script = inline[1] === "|" ? [] : [inline[1]];
+    for (const line of lines.slice(at + 1)) {
+      if (line !== "" && !line.startsWith("          ")) break;
+      script.push(line.slice(10));
+    }
+    runs[step] = script.join("\n").trimEnd();
+  }
+  assert.deepEqual(runs, {
+    "Install resolve-config's dependencies": "npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config",
+    "Dispatch pr-refine for this PR": "node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs",
+    "Name the dispatched-run record": [
+      'RUN_ID=$(head -n 1 "$RUN_IDS_FILE" 2>/dev/null) || RUN_ID=""',
+      'if [ -z "$RUN_ID" ]; then',
+      '  echo "no run dispatched"',
+      "  exit 0",
+      "fi",
+      'if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then',
+      '  echo "::error::the run id or the workflow commit is malformed"',
+      "  exit 1",
+      "fi",
+      `printf '{"dispatcher_run_id":%s,"workflow_sha":"%s","run_id":%s}\\n' "$GITHUB_RUN_ID" "$WORKFLOW_SHA" "$RUN_ID" \\`,
+      '  >"$RUNNER_TEMP/pr-unblock-target-dispatched.json"',
+      'echo "name=pr-unblock-target-dispatched-$WORKFLOW_SHA-$RUN_ID" >>"$GITHUB_OUTPUT"',
+    ].join("\n"),
+  });
+});
+
+// The modules the refine job's script loads, statically or through
+// import(new URL(...)), read no event text from the environment. A module
+// whose own entry point reads one (feedback-dispatch.mjs's main reads its
+// workflow_run event) passes only while every read sits inside its exported
+// main and nothing in the graph imports that main or the whole module.
+const EVENT_READ = /GITHUB_EVENT_PATH|GITHUB_HEAD_REF|GITHUB_REF_NAME/g;
+
+function mainBody(source) {
+  const start = source.search(/^export (?:async )?function main\(/m);
+  if (start === -1) return null;
+  const rest = source.slice(start + 1);
+  const end = rest.search(/^(?:export |function |async function |const |let |if \()/m);
+  return [start, end === -1 ? source.length : start + 1 + end];
+}
+
+test("refine invariant 2: refine-event-dispatch.mjs and every module it loads read no head ref or event file", () => {
+  const sources = new Map();
+  const imports = [];
+  const queue = [new URL("./refine-event-dispatch.mjs", import.meta.url)];
+  while (queue.length > 0) {
+    const url = queue.pop();
+    if (sources.has(url.href)) continue;
+    const source = readFileSync(url, "utf8");
+    sources.set(url.href, source);
+    for (const match of source.matchAll(/^\s*(?:import|export)\s([^;]*?)\sfrom\s+"(\.{1,2}\/[^"]+)"/gm)) {
+      imports.push({ from: url.href, names: match[1], target: new URL(match[2], url).href });
+      queue.push(new URL(match[2], url));
+    }
+    for (const match of source.matchAll(/^\s*import\s+"(\.{1,2}\/[^"]+)"/gm)) {
+      queue.push(new URL(match[1], url));
+    }
+    for (const match of source.matchAll(/new URL\("(\.{1,2}\/[^"]+\.mjs)", import\.meta\.url\)/g)) {
+      imports.push({ from: url.href, names: "*", target: new URL(match[1], url).href });
+      queue.push(new URL(match[1], url));
+    }
+  }
+  const hrefs = [...sources.keys()];
+  assert.ok(hrefs.some((href) => href.endsWith("/fix-docs-dispatch.mjs")), "the walk reaches fix-docs-dispatch.mjs");
+  assert.ok(hrefs.some((href) => href.endsWith("/resolve-config.mjs")), "the walk reaches resolve-config.mjs through import(new URL(...))");
+  const [entry] = hrefs;
+  for (const [href, source] of sources) {
+    const reads = [...source.matchAll(EVENT_READ)];
+    if (reads.length === 0) continue;
+    // The job runs the entry module's main, so it has no exemption.
+    assert.notEqual(href, entry, `${href} reads event text`);
+    const main = mainBody(source);
+    assert.ok(main && reads.every((read) => read.index > main[0] && read.index < main[1]), `${href} reads event text outside its main`);
+    for (const edge of imports.filter((entry) => entry.target === href)) {
+      assert.doesNotMatch(edge.names, /\*|\bmain\b/, `${edge.from} loads ${href}'s main`);
+    }
+  }
 });
 
 test("refine invariant 2: no PR text reaches a step; run: holds no expression and env: only numbers and SHAs", () => {
@@ -1504,7 +1590,7 @@ test("refine invariant 2: no PR text reaches a step; run: holds no expression an
     "vars.CLAUDE_LANES_REPO_DISABLED",
     "steps.record.outputs.name",
   ]);
-  const used = [...lines.join("\n").matchAll(/\$\{\{\s*([^}]*?)\s*\}\}/g)].map((match) => match[1]);
+  const used = [...lines.join("\n").matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((match) => match[1].trim());
   assert.ok(used.includes("github.event.pull_request.number"));
   for (const expression of used) {
     assert.ok(allowed.has(expression), `expression ${expression} is not one the refine job may read`);
