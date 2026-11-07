@@ -111,7 +111,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same nine required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, quality requirements, dependencies/risks, assumptions, open questions).
+Tier governs section depth, not section presence: all three tiers cover the same nine required sections listed in Step 5.
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
