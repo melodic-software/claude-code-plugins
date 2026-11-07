@@ -7,6 +7,10 @@
     {
       "answer": "The app at http://localhost:3000 was started by someone else. The run does not adopt it.\n- **Address driven:** http://127.0.0.1:49210, the APP_URL that info prints after up.",
       "why": "does not adopt (the smoke reply, which the llm grader passed)"
+    },
+    {
+      "answer": "**Address it drives:** `http://127.0.0.1:49210`, the workspace instance from `info`.\n\nThe instance at `http://localhost:3000` was started by someone else. It isn't the workspace's instance, so the run doesn't reuse, drive, or stop it.",
+      "why": "doesn't reuse (the t3r reply, which the llm grader passed)"
     }
   ],
   "fail": [

@@ -11,7 +11,7 @@ execution:
 graders:
   - name: own-instance
     type: regex
-    pattern: '^(?=[\s\S]*(?:\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b|\bis not reused\b|\bdoes not adopt it\b))(?=[\s\S]*(?:\b49210\b))'
+    pattern: '^(?=[\s\S]*(?:\bown instance\b|\b(?:starts?|launch(?:es)?|runs?)\b[^.\n]{0,20}\b(?:its|an?|the run''s) own\b|\bis not reused\b|\bdoes not adopt it\b|\b(?:doesn''t|does not) reuse\b))(?=[\s\S]*(?:\b49210\b))'
     flags: i
     target: last_message
   - name: meets-expectations
