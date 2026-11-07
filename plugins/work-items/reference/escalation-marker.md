@@ -26,7 +26,8 @@ A marker carrying any other `kind` lists as an `[escalated]` row.
 
 `attend-queue` matches on author **and** marker prefix: a marker counts only from a
 [trusted escalation author](#trusted-escalation-authors). Suppress duplicate markers from the same
-write identity, never from marker text alone, and only while the item still wears the role label:
+write identity, never from marker text alone, and only while the item is still held for a person
+([tracker seam](tracker-seam.md#reading-an-items-status)):
 an item an operator has answered and returned to the frontier has no standing escalation, so a
 later escalation of it posts a fresh marker.
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Instrumenting events is out of scope here; your analytics team owns it."
+    },
+    {
+      "answer": "PostHog already captures the funnel; I add no code."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "posthog.capture('checkout_step_viewed', { step })"
+    },
+    {
+      "answer": "analytics.track(\"payment_started\")"
+    }
+  ]
+}

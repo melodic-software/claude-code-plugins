@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: setup-check-names-malformed-line
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'fail-row-line-5'
+    type: 'regex'
+    pattern: 'FAIL[^\n]*\b(?:line|Line) 5\b|\b(?:line|Line) 5\b[^\n]*FAIL'
+    target: 'last_message'
+  - name: 'remediation-block'
+    type: 'regex'
+    pattern: '(?<!\{)\bjob:\s*synthesis(?![,}])[\s\S]{0,40}?\bid:\s*dovetail'
+    target: 'last_message'
+  - name: 'file-unchanged'
+    type: 'regex'
+    pattern: '- \{job: synthesis, id: dovetail\}'
+    target: { source: file, path: docs/conventions/user-experience.yaml }
+  - name: 'legacy-setup-2'
+    type: 'llm'
+    criteria: 'The run is /user-experience:setup check on a team file whose routing.disable entry is the flow mapping `- {job: synthesis, id: dovetail}`. It meets the legacy expectations: "The team-file row is FAIL and names the line of the flow mapping" "The remediation rewrites the entry as a block mapping of job and id" "The skill does not edit the file during check".'
+    focus: 'trace'
