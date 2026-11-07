@@ -348,11 +348,22 @@ function world({
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
+  // The issue's Work status reads agent-ready: its field row when the fixture
+  // has one, else the agent-ready label on any fixture copy of the issue.
+  const readsAgentReady = (number) => {
+    const row = (fieldValues[number] ?? []).find((item) => String(item.issue_field_id) === String(STATUS_CONFIG["field-id"]));
+    if (row) {
+      return row.single_select_option?.id === OPTION["agent-ready"];
+    }
+    const copies = [issues[number], ...closedList, ...openReady, ...ready, ...openIssues, ...deferred].filter((item) => String(item?.number) === String(number));
+    return copies.some((item) => (item.labels ?? []).some((label) => (label?.name ?? label) === "agent-ready"));
+  };
   // A Work status writer (write-status.mjs statusWriter) that records each
-  // call among the client's, in order.
+  // call among the client's, in order; leaveAgentReady only for an issue
+  // whose Work status reads agent-ready, as the real writer writes.
   const writer = {
     set: async (number, state) => calls.push(`SET ${number} ${state}`),
-    leaveAgentReady: async (number, state) => calls.push(`LEAVE ${number} ${state}`),
+    leaveAgentReady: async (number, state) => readsAgentReady(number) && calls.push(`LEAVE ${number} ${state}`),
     restart: async (number) => calls.push(`RESTART ${number}`),
   };
   return { github: Object.assign(github, { writer }), calls, writer };
@@ -465,7 +476,7 @@ const unlabeled = (name) => `DELETE /repos/${REPO}/issues/10/labels/${encodeURIC
 test("a closed issue keeps its queue labels and loses host-run", async () => {
   const { github, calls } = closedSelf(["priority: high", "agent-ready", "status: ready", "work-class: scoped"]);
   assert.equal(await main({ env: envFor(), github }), 0);
-  assert.deepEqual(writes(calls), [], "no queue-label write");
+  assert.deepEqual(writes(calls), ["LEAVE 10 needs-triage"], "no queue-label write; the Work status leaves agent-ready");
   const deferred = closedSelf(["admission-deferred", "status: ready", "host-run"]);
   assert.equal(await main({ env: envFor(), github: deferred.github }), 0);
   assert.deepEqual(writes(deferred.calls), [unlabeled("host-run")]);
@@ -474,7 +485,7 @@ test("a closed issue keeps its queue labels and loses host-run", async () => {
 test("a closed issue loses host-run alone, and keeps its status labels and attended", async () => {
   const { github, calls } = closedSelf(["status: confirmed", "host-run", "attended", "agent-ready", "status: needs-decision", "status: needs-info"]);
   assert.equal(await main({ env: envFor(), github }), 0);
-  assert.deepEqual(writes(calls), [unlabeled("host-run")]);
+  assert.deepEqual(writes(calls), [unlabeled("host-run"), "LEAVE 10 needs-triage"]);
 });
 
 test("a closed issue with no queue label gets no write", async () => {
@@ -528,8 +539,28 @@ test("a post-merge fix issue keeps agent-ready across its close, for its reopen 
   for (const extra of [{ user: OWNER, body }, { user: alert, body: "Fix main." }]) {
     const other = closedSelf(["agent-ready", "host-run"], extra);
     assert.equal(await main({ env: envFor(), github: other.github }), 0);
-    assert.deepEqual(writes(other.calls), [unlabeled("host-run")], JSON.stringify(extra));
+    assert.deepEqual(writes(other.calls), [unlabeled("host-run"), "LEAVE 10 needs-triage"], JSON.stringify(extra));
   }
+});
+
+// A reopen fires no field change, so a closed issue left at Work status
+// agent-ready would read as queued work with no run behind it.
+test("a closed issue whose Work status is agent-ready moves to needs-triage; a reopened one and a post-merge fix issue do not", async () => {
+  const agentReady = { 10: [{ issue_field_id: STATUS_CONFIG["field-id"], single_select_option: { id: OPTION["agent-ready"] } }] };
+  const closed = world({ blocking: [], issues: { 10: issue(10, { state: "closed" }) }, fieldValues: agentReady });
+  assert.equal(await main({ env: envFor(), github: closed.github }), 0);
+  assert.deepEqual(writes(closed.calls), ["LEAVE 10 needs-triage"], "a closed agent-ready issue leaves agent-ready");
+  const reopened = world({ blocking: [], issues: { 10: issue(10) }, fieldValues: agentReady });
+  assert.equal(await main({ env: envFor(), github: reopened.github }), 0);
+  assert.deepEqual(writes(reopened.calls), [], "an issue open again keeps its Work status");
+  const alert = { login: "github-actions[bot]", type: "Bot" };
+  const fix = world({
+    blocking: [],
+    issues: { 10: { ...issue(10, { state: "closed" }), user: alert, body: "<!-- post-merge-fix check=pr-require-checks / test -->\nFix main." } },
+    fieldValues: agentReady,
+  });
+  assert.equal(await main({ env: envFor(), github: fix.github }), 0);
+  assert.deepEqual(writes(fix.calls), [], "a post-merge fix issue keeps agent-ready for its reopen");
 });
 
 test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
@@ -881,7 +912,7 @@ test("the sweep strips host-run, not the queue labels, from a merge-closed issue
   const mergeClosed = (labels) => ({ ...closedAt(10, "2026-10-16T11:30:00Z"), labels: labels.map((name) => ({ name })) });
   const labeled = world({ closedList: [mergeClosed(["agent-ready", "status: ready", "host-run", "priority: low"])], blocking: [] });
   assert.equal(await sweep({ github: labeled.github }), 0);
-  assert.deepEqual(writes(labeled.calls), [`DELETE /repos/${REPO}/issues/10/labels/host-run`]);
+  assert.deepEqual(writes(labeled.calls), [`DELETE /repos/${REPO}/issues/10/labels/host-run`, "LEAVE 10 needs-triage"]);
   // The strip reuses the close check's read: one GET of the issue in all.
   assert.equal(labeled.calls.filter((call) => call === `GET /repos/${REPO}/issues/10`).length, 1, labeled.calls.join("\n"));
   const bare = world({ closedList: [mergeClosed(["priority: low"])], blocking: [] });
@@ -5498,6 +5529,7 @@ test("closing a split parent removes no queue label it carries", async () => {
   assert.deepEqual(writtenPaths(calls), [
     closeParentWrites[0],
     closeParentWrites[1],
+    "LEAVE 30 needs-triage",
   ]);
 });
 
@@ -5510,6 +5542,7 @@ test("closing a split parent removes its state labels after the close and keeps 
     closeParentWrites[0],
     closeParentWrites[1],
     `DELETE /repos/${REPO}/issues/30/labels/host-run`,
+    "LEAVE 30 needs-triage",
   ]);
 });
 

@@ -1079,9 +1079,10 @@ const unstatused = (issue) => labelNames(issue).filter((name) => !name.toLowerCa
 // and an open issue keeps them; the sweep hands in the issue its close check
 // just read (`read`) instead. A post-merge fix issue keeps agent-ready
 // across its close, as post-merge-demotion-alert.yml reopens it with the label
-// and the sweep relabels it (recurrenceRefusal). No Work status write: the
-// field's states are an open issue's.
-async function stripClosed({ github, repo, number, read }) {
+// and the sweep relabels it (recurrenceRefusal). A Work status of agent-ready
+// moves to needs-triage (write-status.mjs leaveAgentReady), so a reopen does
+// not read as queued work no run picked up; any other state stays.
+async function stripClosed({ github, repo, number, read, writer = NO_WRITER }) {
   const base = `/repos/${repo}/issues/${number}`;
   try {
     const issue = read ?? (await github("GET", base));
@@ -1095,6 +1096,7 @@ async function stripClosed({ github, repo, number, read }) {
     }
     const removed = await stripStateLabels(github, base, unstatused(issue));
     console.log(`label-unblocked: #${number} closed; removed ${removed.length} state label(s)${removed.length > 0 ? `: ${removed.join(", ")}` : ""}`);
+    await writer.leaveAgentReady(Number(number), "needs-triage");
     return 0;
   } catch (error) {
     return failedFor(github, number, error);
@@ -1414,7 +1416,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
         }
         // A merge the App ran closes an issue with no close run, so the sweep
         // strips its queue labels, from the issue the close check just read.
-        failed += await stripClosed({ github, repo, number: source, read: issue });
+        failed += await stripClosed({ github, repo, number: source, read: issue, writer });
       }
       blocked = await paginate(github, `/repos/${repo}/issues/${source}/dependencies/blocking`);
     } catch (error) {
@@ -2446,6 +2448,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
   const states = await stripStateLabels(github, base, unstatused(parent));
   console.log(`label-unblocked: split parent #${parent.number} closed as completed; removed ${states.length} state label(s)`);
+  await writer.leaveAgentReady(Number(parent.number), "needs-triage");
 }
 
 // Hands `parent` (an open issue as read, `names` its names as the field
@@ -2653,7 +2656,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, writer: writeTo, statusOf: statusTo });
     if (!sweep) {
-      failed += await stripClosed({ github, repo, number: Number(event.issue.number) });
+      failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
     }
     if (sweep) {
       // One listing of the open issues, oldest updated first, for the parent
