@@ -92,9 +92,9 @@ with "Deferred" names the issue that tracks it.
 | The `/code-review` boundary follows the code-review page's effort text | 290-030 | review quality-gate code mode | [#6766](https://github.com/melodic-software/claude-code-plugins/pull/6766) |
 | The artifact script-host list follows the artifacts page; the inline-everything policy is unchanged | 281-025 | visualization `decision-matrix.md` | [#6769](https://github.com/melodic-software/claude-code-plugins/pull/6769) |
 | Deferred until a fetched page states the price relation: the observer default's cheapest-tier wording | 293-002 | session-flow `observer_analysis_model` | [#6759](https://github.com/melodic-software/claude-code-plugins/issues/6759) |
-| A self-paced `/loop` ends when a finished iteration made no reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1`; a fixed-interval loop stops only when Claude cancels it | 319-115 | session-flow `reference/save-point.md` loop-aware re-arm | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
-| With the Bash sandbox on, nested `.claude/skills` load only from the start folder or after `/cd`; they stay audited as live grants | 319-114 | harness-config audit-permission-grants `reference/criteria.md` | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
-| The cloud-session note also points at `/permissions`, which now says where the session's rules live | 319-072 | harness-config audit-permission-state `scripts/permission-state.sh` | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
+| A self-paced `/loop` ends when a finished iteration made no reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1`; a fixed-interval loop stops only when Claude cancels it | 319-115 | session-flow `reference/save-point.md` loop-aware re-arm | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
+| With the Bash sandbox on, nested `.claude/skills` load only from the start folder or after `/cd`; they stay audited as live grants | 319-114 | harness-config audit-permission-grants `reference/criteria.md` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
+| The cloud-session note also points at `/permissions`, which now says where the session's rules live | 319-072 | harness-config audit-permission-state `scripts/permission-state.sh` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 
 ## Nominated
 
