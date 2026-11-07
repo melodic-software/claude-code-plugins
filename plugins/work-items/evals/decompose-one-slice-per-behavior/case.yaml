@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-one-slice-per-behavior
+graders:
+  - name: 'two-slices'
+    type: 'regex'
+    pattern: '\b(two|2)\s+(draft\s+)?(vertical[\s-]+)?(slices|items)\b|\*\*2\.\s[^\n]*\*\*(?![\s\S]*\*\*3\.\s)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Proposes exactly two draft slices, one for B1 and one for B2, rather than merging them because both cite AC1 ; (2) The B1 slice carries Phase 1 and the B2 slice carries Phase 2, split by each phase''s **Delivers:** line ; (3) Each slice lists AC1 among its criterion ids ; (4) Each slice''s Criteria carried includes AC2, the id on the Process criteria: line ; (5) Publishes nothing before the user approves the breakdown. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

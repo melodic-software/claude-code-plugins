@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"steps\": [{\"activity\": \"tidy\", \"result\": \"skipped\"}]",
+      "why": "json"
+    },
+    {
+      "answer": "record tidy as skipped",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "tidy still runs on scripts/check-x.sh",
+      "why": "tidies the shared path"
+    },
+    {
+      "answer": "The tidy pass is not run.\n\nskipped",
+      "why": "the words on different lines"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label (agent-ready) and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and the structural class on #4401 do not block the flip: it neither stamps nor asks for a class label first, and does not ask to reclassify #4401. It writes no class label.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "- **#4400**: one edit, `+agent-ready -needs-human`, while claimed, then clear @me.\n- **#4401**: same edit; its structural class stays as it is. No class label is written.",
+      "why": "markdown list with code span"
+    },
+    {
+      "answer": "#4400 and #4401 each get one edit that applies the autonomous-eligible role and removes the human-gated one, while claimed. No class label is written.",
+      "why": "role names only, no literal label"
+    },
+    {
+      "answer": "#4400 and #4401 each flip to agent-ready in one edit while claimed; neither waits until a class label is set, and #4401 is not held until reclassified.",
+      "why": "a correct reply that denies the gate with until (review on #13945)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#4400 flips to agent-ready, but #4401 cannot take agent-ready until it is reclassified away from structural.",
+      "why": "near miss: treats the class as a gate"
+    },
+    {
+      "answer": "#4400 waits until a class label is stamped; #4401 flips to agent-ready.",
+      "why": "near miss: asks for a class label first"
+    },
+    {
+      "answer": "Both rows keep needs-human; class labels are forbidden in this session.",
+      "why": "no flip"
+    },
+    {
+      "answer": "#4400 flips to agent-ready, but #4401 won't take agent-ready until it is reclassified.",
+      "why": "won't ... until (review on #13960)"
+    },
+    {
+      "answer": "#4401 stays needs-human until reclassified.",
+      "why": "stays ... until (review on #13960)"
+    }
+  ]
+}

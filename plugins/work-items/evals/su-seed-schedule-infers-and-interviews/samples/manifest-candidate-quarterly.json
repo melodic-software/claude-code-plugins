@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Review dependency manifest / check for updates** (signal: `package.json`), cadence `quarterly` (RECOMMENDED)",
+      "why": "markdown candidate line"
+    },
+    {
+      "answer": "| Candidate | Signal | Cadence |\n|---|---|---|\n| dependency-review | package.json | quarterly |",
+      "why": "table row"
+    },
+    {
+      "answer": "Recommended cadence quarterly for the item inferred from package.json.",
+      "why": "reverse order"
+    },
+    {
+      "answer": "7. **Infer candidates from the repo.** Each is recommended at `quarterly`:\n   - `package.json` gives a dependency manifest review.",
+      "why": "smoke reply shape the original grader rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. **Review dependency manifest** (signal: `package.json`), cadence `monthly` (RECOMMENDED)",
+      "why": "near miss: candidate from package.json with the wrong cadence"
+    },
+    {
+      "answer": "Seeding is skipped (RECOMMENDED); the skeleton already stops the degradation.",
+      "why": "re-offers and skips seeding instead of inferring"
+    }
+  ]
+}
