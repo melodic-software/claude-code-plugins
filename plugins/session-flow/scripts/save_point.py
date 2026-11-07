@@ -1843,12 +1843,12 @@ def _validate_shape3(
 
     for spec in ID_SPECS:
         seen: set[int] = set()
-        # Questions and decisions need ids only once the predecessor carries
-        # their floor, so chains started before ids existed still validate.
-        required = spec is RULES or (
-            pred is not None
-            and pred.shape == 3
-            and _fm_int(pred, spec.floor_key) is not None
+        # A first hop and any hop whose predecessor carries the floor need ids;
+        # chains started before ids existed (no floor, or shape 2) still validate.
+        required = (
+            spec is RULES
+            or pred is None
+            or (pred.shape == 3 and _fm_int(pred, spec.floor_key) is not None)
         )
         for n, entry, title in _id_entries(doc, spec):
             if n is None:

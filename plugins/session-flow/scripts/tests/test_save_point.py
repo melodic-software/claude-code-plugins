@@ -3453,11 +3453,17 @@ def test_ids_first_adopting_hop_seeds_above_the_predecessor_text(tmp_path):
     assert frontmatter_int(hop2, "next_decision_id") == 4
 
 
-def test_ids_an_id_less_question_or_decision_passes_on_a_first_hop(tmp_path):
+def test_ids_an_id_less_question_or_decision_fails_on_a_first_hop(tmp_path):
     repo = make_repo(tmp_path)
     values = {"open-questions": "- Which color?", "decisions": "- Paint first."}
     result = strict(s3_hop(repo, tmp_path, values=values))
-    assert result.returncode == 0 and "WARN" not in out(result), out(result)
+    assert result.returncode == 1, out(result)
+    assert "Open questions: entry without a [Q<n>] id" in out(result), out(result)
+    assert "Decisions in force: entry without a [D<n>] id" in out(result), out(result)
+    ok = tmp_path / "ok"
+    with_ids = {"open-questions": "- [Q1] Which color?", "decisions": "- [D1] Paint first."}
+    passed = strict(s3_hop(make_repo(ok), ok, values=with_ids))
+    assert passed.returncode == 0 and "WARN" not in out(passed), out(passed)
     duplicate = {"open-questions": "- [Q1] Which color?\n- [Q1] Which size?"}
     other = tmp_path / "dup"
     twice = strict(s3_hop(make_repo(other), other, values=duplicate))
