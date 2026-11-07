@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: dg-flake-not-a-retry
-description: 'Legacy diagnose 3. A test that fails one run in five on CI and passes locally is not a retry instruction: the skill goes through the investigation path and looks for shared state, order dependence or an environment difference, and never recommends rerunning as the fix. Natural phrasing. skill-fired and read-investigate read the tool calls; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+description: 'Legacy diagnose 3. A test that fails one run in five on CI and passes locally is not a retry instruction: the skill goes through the investigation path and looks for shared state, order dependence or an environment difference, and never recommends rerunning as the fix. The prompt names the skill, since natural phrasing alone did not load it. skill-fired and read-investigate read the tool calls; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
 tags: [testing, diagnose, flaky, no-network]
 expected_outcome: 'Reads context/investigate.md, refuses to treat rerunning as the fix, and names shared state, order or environment as the places to look.'
 execution:
-  prompt: 'This test fails one in five runs on CI and passes locally. Just tell me to rerun it.'
+  prompt: 'This test fails one in five runs on CI and passes locally. Just tell me to rerun it. Use the `testing:diagnose` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 15
   timeout_seconds: 420

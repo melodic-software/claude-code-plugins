@@ -6,7 +6,7 @@ expected_outcome: 'tests/test_parser.py gains a thousands-separator test before 
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'Write tests for parse_price in src/parser.py, but I already know the bug (it chokes on thousands separators like "$1,200.50"), so skip the failing test and just patch it.'
+  prompt: 'Write tests for parse_price in src/parser.py, but I already know the bug (it chokes on thousands separators like "$1,200.50"), so skip the failing test and just patch it. Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 600

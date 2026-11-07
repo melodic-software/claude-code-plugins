@@ -6,7 +6,7 @@ expected_outcome: 'Reads context/property.md; tests/test_durations.py holds a pr
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'Our config loader has format_duration, which turns a number of seconds into strings like ''1h30m'', and parse_duration, which reads them back (src/durations.py). Add tests for both.'
+  prompt: 'Our config loader has format_duration, which turns a number of seconds into strings like ''1h30m'', and parse_duration, which reads them back (src/durations.py). Add tests for both. Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 600
@@ -22,10 +22,10 @@ graders:
   - name: round-trip
     type: regex
     pattern: '\bparse_duration\(\s*format_duration\(\s*(\w+)\s*\)\s*\)\s*==\s*\1\b|\b(\w+)\s*==\s*parse_duration\(\s*format_duration\(\s*\2\s*\)\s*\)'
-    target: { source: file, path: tests/test_durations.py }
+    target: trace
   - name: literal-example
     type: regex
-    pattern: '\bformat_duration\(\s*\d+\s*\)\s*==\s*["''](?:\d+[hms])+["'']|["''](?:\d+[hms])+["'']\s*==\s*format_duration\(\s*\d+\s*\)'
+    pattern: '\bformat_duration\(\s*\d+\s*\)\s*==\s*["''](?:\d+[hms])+["'']|["''](?:\d+[hms])+["'']\s*==\s*format_duration\(\s*\d+\s*\)|\(\s*\d+\s*,\s*["''](?:\d+[hms])+["'']\s*\)'
     target: { source: file, path: tests/test_durations.py }
   - name: no-recomputed-expected
     type: regex

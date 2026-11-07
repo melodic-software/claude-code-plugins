@@ -4,7 +4,7 @@ description: 'Legacy write 5. A split_bill property whose expected side is [tota
 tags: [testing, write, property, oracle, no-network]
 expected_outcome: 'Says the oracle reruns the split, names testing:test-value, and proposes sum(shares) == total_cents plus the count and spread invariants.'
 execution:
-  prompt: 'Review my property test for split_bill(total_cents, people): for any total and head count it asserts the result equals [total_cents // people] * people. Is that a good property? Fix it.'
+  prompt: 'Review my property test for split_bill(total_cents, people): for any total and head count it asserts the result equals [total_cents // people] * people. Is that a good property? Fix it. Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 15
   timeout_seconds: 420

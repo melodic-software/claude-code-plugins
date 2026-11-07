@@ -6,7 +6,7 @@ expected_outcome: 'Reads context/organize.md and docs/testing.md, says pricing h
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'Where should I put integration tests for the new shared library in libs/pricing?'
+  prompt: 'Where should I put integration tests for the new shared library in libs/pricing? Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 15
   timeout_seconds: 420

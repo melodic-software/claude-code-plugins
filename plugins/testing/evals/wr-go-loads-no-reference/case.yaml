@@ -6,7 +6,7 @@ expected_outcome: 'Reads context/property.md and nothing under context/property/
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'Our Go module has a Merge function for interval lists (intervals/merge.go) that should be commutative. Write a property-based test for it in intervals/merge_test.go.'
+  prompt: 'Our Go module has a Merge function for interval lists (intervals/merge.go) that should be commutative. Write a property-based test for it in intervals/merge_test.go. Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 600

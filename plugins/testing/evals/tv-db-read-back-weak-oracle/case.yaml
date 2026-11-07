@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: tv-db-read-back-weak-oracle
-description: 'Legacy test-value 4. An integration test reads the users table directly after createUser and asserts toBeDefined(): the read-back is legitimate state verification against a real managed database, and the weakness is the toBeDefined() oracle (rule-weak-oracle). Natural phrasing: test-value is not user-invocable. skill-fired reads the Skill calls, names-weak-oracle the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
+description: 'Legacy test-value 4. An integration test reads the users table directly after createUser and asserts toBeDefined(): the read-back is legitimate state verification against a real managed database, and the weakness is the toBeDefined() oracle (rule-weak-oracle). The prompt names the skill (test-value is not user-invocable), since natural phrasing alone did not load it. skill-fired reads the Skill calls, names-weak-oracle the reply; meets-expectations (llm) quotes the legacy expectations. Read-only tools, graded on the reply.'
 tags: [testing, test-value, weak-oracle, no-network]
 expected_outcome: 'Keeps the direct read as state verification, names toBeDefined() as the weak oracle (rule-weak-oracle), and recommends asserting the row fields.'
 execution:
-  prompt: 'My integration test calls createUser and then queries the users table directly and does expect(row).toBeDefined(). Is reading the database directly the problem?'
+  prompt: 'My integration test calls createUser and then queries the users table directly and does expect(row).toBeDefined(). Is reading the database directly the problem? Use the `testing:test-value` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 15
   timeout_seconds: 420

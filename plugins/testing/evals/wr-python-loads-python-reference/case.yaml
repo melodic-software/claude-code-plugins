@@ -6,7 +6,7 @@ expected_outcome: 'Reads context/property/python.md and neither typescript.md no
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: 'This repository is Python only: a pyproject.toml and pytest, no package.json and no .csproj. Write a property-based test for normalize_tags in src/tags.py, which lowercases, deduplicates and sorts a list of tags.'
+  prompt: 'This repository is Python only: a pyproject.toml and pytest, no package.json and no .csproj. Write a property-based test for normalize_tags in src/tags.py, which lowercases, deduplicates and sorts a list of tags. Use the `testing:write` skill if you have it.'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 30
   timeout_seconds: 600

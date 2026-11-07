@@ -7,6 +7,10 @@
     {
       "answer": "Then add the other side: the validator rejects a post of 281 characters.",
       "why": "reject verb before the number"
+    },
+    {
+      "answer": "```ts\nexpect(validatePost('a'.repeat(280)).ok).toBe(true);\nexpect(validatePost('a'.repeat(281)).ok).toBe(false);\n```",
+      "why": "smoke reply (testing batch c, llm PASS 3/3): the rejection is in code"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Accept 281 characters if the product raises the limit; this test fails then, which is the point.",
       "why": "281 named with no rejection; the fail verb sits past a clause break"
+    },
+    {
+      "answer": "expect(validatePost('a'.repeat(281)).ok).toBe(true);",
+      "why": "281 asserted as accepted"
     }
   ]
 }
