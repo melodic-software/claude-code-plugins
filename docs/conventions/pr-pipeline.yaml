@@ -1740,6 +1740,8 @@ merge:
         class: enforcement
       - glob: ".github/recurring-schedule.json"
         class: enforcement
+      - glob: ".github/scripts/recurring-schedule/file-due.mjs"
+        class: enforcement
       - glob: "plugins/work-items/scripts/charge-words.json"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/dependency-classify.mjs"

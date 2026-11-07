@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Parks it at status:needs-info with a structured comment.",
+      "why": "status label"
+    },
+    {
+      "answer": "Outcome: needs-info.",
+      "why": "short"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Asks the reporter what fix they want.",
+      "why": "no park"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

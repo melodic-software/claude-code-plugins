@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: sdw-pr-body-from-template
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-template
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?pull_request_template\.md|"name":"Bash","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"command":"(?:[^"\\]|\\.)*?pull_request_template\.md'
+    target: trace
+  - name: frame-from-template
+    type: regex
+    pattern: '^(?=[^\n]*"type":"assistant")(?=[^\n]*## What changed)(?=[^\n]*## Why it changed)(?=[^\n]*## Risk and rollback)(?=[^\n]*## Test evidence)|"command":"(?:[^"\\]|\\.)*?(?:(?<=\\n)|(?<=\\t)|(?<![\w\\]))(?:cat\b(?:[^"\\;|&]|\\[^n]|&(?=>)|(?<=>)&)*?pull_request_template\.md(?:[^"\\;|&]|\\[^n]|&(?=>)|(?<=>)&)*?(?:(?:(?<![\d>])|(?<=\s1))>(?!&|>?\s*/dev/null\b)|\|\s*tee\b(?:\s+-a)?\s+[^"\s;|&]*\.md\b)|cp\b(?:[^"\\;|&]|\\[^n])*?pull_request_template\.md(?:[^"\\;|&]|\\[^n])*?\s[^"\s;|&]*\.md\b)'
+    flags: 'm'
+    target: trace
+  - name: judgment-slots-only
+    type: llm
+    criteria: 'The run meets the legacy expectations "Emits the deterministic scaffold from a template/script rather than hand-typing the frame", "Prefers a native mechanism (repo PR/issue template) when one exists" and "Reserves model-authored output for the judgment slots, not the fixed structure": the PR body keeps the template''s four headings and checklist, model-written text sits only under them, and What changed and Why it changed are drawn from notes/branch.md. It fails if the run types the headings or checklist out by hand instead of taking them from the template. notes/branch.md gives no risk, rollback or test-run facts, so what the run puts under Risk and rollback and Test evidence is not graded.'
+    focus: trace

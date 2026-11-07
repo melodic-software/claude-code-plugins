@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Refunds go to the original payment method within 14 days, never as store credit.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Basically, refunds go back within 14 days.\n"
+    },
+    {
+      "answer": "In order to keep it simple, refunds go to the original payment method.\n"
+    }
+  ]
+}

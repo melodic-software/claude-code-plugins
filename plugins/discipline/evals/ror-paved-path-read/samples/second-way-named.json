@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "A plain cron entry would be a second way beside the registry."
+    },
+    {
+      "answer": "That leaves two schedulers."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The cron entry is not a second way; it's fine.",
+      "why": "negated"
+    },
+    {
+      "answer": "Add the cron entry to the deploy config."
+    }
+  ]
+}

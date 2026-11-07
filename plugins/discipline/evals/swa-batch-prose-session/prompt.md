@@ -1,0 +1,10 @@
+---
+description: "Legacy sweep-all 2, 3 and 4 merged, their prompts joined behind the slash command. History: a prose-only session (an onboarding draft with filler and two unsourced claims). A full batch preflights with one canary fork, fans out one fork per in-scope corrector and corrects once on the main thread in rank order (SKILL.md lines 28-33 and 35-58; reference/batched-pass.md steps 1-5). forks-dispatched needs at least two fork Agent calls, membership-globbed a Glob of the corrector directories (SKILL.md line 37 names the Glob tool, so a shell listing does not count), never-not-fanned no fork brief loading scrutinize-dont-coast, never-reported that corrector named as never-batched or invoked directly, core-ran all four core correctors named, skip-reported a situational corrector named as skipped, batch-shape (llm, trace) the legacy expectations of all three cases verbatim. Fork mode is on by default from Claude Code 2.1.302 (sub-agents#turn-fork-mode-on-or-off, read 2026-11-07); if the smoke shows fork dispatch failing in runs, hold this case. Costly: one fork per member plus the canary; size the ceiling from a first run. Reads INVALID if the run Greps the plugin dir: pass --disallow-tools Grep. A history_file case runs single-arm, so pass --ablation with-without. Needs --allow-tools Bash (sweep-all SKILL.md 80-82 resolves the verification level with a shell call)."
+tags: [discipline, sweep-all, outcome, history, no-network]
+max_turns: 30
+timeout_seconds: 900
+allowed_tools: [Skill, Bash, Read, Glob, Grep, Agent]
+expected_outcome: "A canary fork, then one audit fork per in-scope corrector, never scrutinize-dont-coast; the report lists the core correctors' results, the skipped situational correctors with reasons, and scrutinize-dont-coast as never-batched."
+---
+
+/discipline:sweep-all run the whole re-anchor bundle over what we've done so far. This session has been pure prose writing, no config or tooling work, and give the claims a deep verification pass too.

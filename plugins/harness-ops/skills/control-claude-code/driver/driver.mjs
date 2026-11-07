@@ -666,9 +666,12 @@ const unitsOf = (cell) => cell.char.length;
 /**
  * Hides each mask match within a screen row, and each value anywhere on the screen
  * ignoring case, whitespace, `|` and box drawing, so a value wrapped across rows or
- * split by a border is still hidden. Returns the masked rows of cells and their text.
+ * split by a border is still hidden. Each hidden cell is masked through the end of its row
+ * segment, up to the next box-drawing cell or the row's last column, so the stars never show how
+ * long the value was; rows are padded with blanks to `cols` first. Box-drawing cells stay.
+ * Returns the masked rows of cells and their text.
  */
-export function maskCells(cells, masks, values = []) {
+export function maskCells(cells, masks, values = [], cols = 0) {
   const byRow = new Map();
   for (const cell of cells) {
     const copy = { ...cell, link: '', link_id: '' };
@@ -676,6 +679,10 @@ export function maskCells(cells, masks, values = []) {
     byRow.get(copy.y).push(copy);
   }
   const rows = [...byRow.keys()].sort((a, b) => a - b).map((y) => byRow.get(y).sort((a, b) => a.x - b.x));
+  for (const row of rows) {
+    const y = row[0].y;
+    for (let x = row.at(-1).x + 1; x < cols; x++) row.push({ x, y, char: ' ', fg: 'default', bg: 'default', link: '', link_id: '' });
+  }
   const hide = new Set();
   for (const row of rows) {
     const text = row.map((c) => c.char).join('');
@@ -705,11 +712,14 @@ export function maskCells(cells, masks, values = []) {
     for (const [name] of ATTRS) cell[name] = false;
   };
   for (const row of rows) {
-    row.forEach((cell, i) => {
-      if (!hide.has(cell) || cell.char === '') return;
-      blank(cell);
-      for (let j = i + 1; row[j]?.char === ''; j++) blank(row[j]); // keep a wide glyph's columns
-    });
+    let masking = false;
+    for (const cell of row) {
+      if (BOX.test(cell.char)) masking = false;
+      else if (masking || hide.has(cell)) {
+        masking = true;
+        blank(cell); // a wide glyph's '' columns become stars too, so the row keeps its width
+      }
+    }
   }
   return { rows, text: rows.map((row) => row.map((c) => c.char).join('')).join('\n') };
 }
@@ -781,7 +791,7 @@ async function openMirror(ctx, size) {
 async function maskedFrame(t, ctx) {
   ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: statusValues(sessionStatus(ctx)) };
   const size = await t.getSize();
-  const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values);
+  const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values, size.cols);
   return { size, text, draw: renderFrame(rows) };
 }
 

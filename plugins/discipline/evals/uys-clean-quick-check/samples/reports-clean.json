@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Clean: that was a one-line factual answer and no listed skill fits it."
+    },
+    {
+      "answer": "No skill was needed; nothing missed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Not clean: I should have used a skill."
+    },
+    {
+      "answer": "Finding: the git answer should have gone through a research skill."
+    }
+  ]
+}

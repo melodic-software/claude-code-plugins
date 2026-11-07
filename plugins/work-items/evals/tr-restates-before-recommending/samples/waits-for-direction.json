@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Recommendation: needs-info. Shall I apply it?",
+      "why": "ends on the question"
+    },
+    {
+      "answer": "Nothing is applied yet; waiting for your direction.",
+      "why": "states the wait"
+    },
+    {
+      "answer": "I'll wait for your go-ahead before any label or comment.",
+      "why": "go-ahead"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applied status:needs-info and posted the comment.",
+      "why": "mutated without asking"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

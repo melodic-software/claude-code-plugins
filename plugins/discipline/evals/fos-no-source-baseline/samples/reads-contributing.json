@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/CONTRIBUTING.md\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"pytest|pull request\",\"path\":\"CONTRIBUTING.md\",\"output_mode\":\"content\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"3:Run `pytest` before you push. Keep pull requests small.\"}]}}\n",
+      "why": "Grep in content mode returns the file's text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/src/orders.py\"}}]}}\n",
+      "why": "the change only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"CONTRIBUTING.md is short.\"}]}}\n",
+      "why": "named, never read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Glob\",\"input\":{\"pattern\":\"CONTRIBUTING*\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"/opt/eval/ws/CONTRIBUTING.md\"}]}}\n",
+      "why": "Glob lists the file but never reads it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/src/orders.py\"}},{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Glob\",\"input\":{\"pattern\":\"CONTRIBUTING*\"}}]}}\n",
+      "why": "a Read of another file and a Glob of CONTRIBUTING in one message"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"tax\",\"path\":\"CONTRIBUTING.md\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"No files found\"}]}}\n",
+      "why": "a Grep that returns none of the file's text"
+    }
+  ]
+}

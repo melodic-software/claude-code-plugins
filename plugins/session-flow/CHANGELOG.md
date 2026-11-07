@@ -1,5 +1,20 @@
 # Changelog: session-flow plugin
 
+## [7.4.0] - 2026-11-07
+
+### Added
+
+- `save_point.py new` writes `next_question_id` and `next_decision_id` floors beside `next_rule_id`; the first hop that adopts them starts above every `Q<n>` / `D<n>` its predecessor names. `validate` fails a shape-3 hot file that drops a predecessor `[Q<n>]` or `[D<n>]` unless this hop's file lists it, with a reason, under `## Retired open questions` / `## Retired decisions`; an entry without an id still passes (#13847).
+- `save_point.py fill` takes a `retire` key, a list of `{"ref", "reason"}` objects naming `[R<n>]`, `[Q<n>]`, `[D<n>]`, `[h<k>]#<i>` or `amendment#<i>`: it copies each entry's bytes into this hop's file under its retire heading, removes it from the hot file, and adds a Review before you continue line naming the hop file and heading. `validate` requires that pointer for every heading other than `## Retired rules`, and `new` carries the predecessor's pointers forward (#13847).
+
+- `retro_offer` option (`offer` or `off`, default `offer`): under `off`, `/session-flow:workflow wrap-up` offers no retrospective, including the `/session-flow:retro` fallback for a session with errors; `/corrections:codify` is still suggested, since it is not a retro (#7555).
+
+### Changed
+
+- The handoff reference docs describe `## Retired rules` (a rule or promoted preference leaving the hot file is listed in this hop's file with a reason, and a rule never leaves to meet the size cap) and the core, carried and written sizes `validate` reports, including the UNVALIDATED pass when the core plus carried part alone is over the cap (#13847).
+
+- `save_point.py validate` lets a shape-3 hot file retire a predecessor goal amendment or Direction-changes line: each one stays in order or is listed verbatim in this hop's file under `## Retired goal amendments` / `## Retired direction changes`, followed by a `Retired: <reason>` line. The goal quote, intent, vision and opening ask still stay byte for byte. A reason `codified in [R<n>]` fails when `[R<n>]` is not in the hot file (#13847).
+
 ## [7.3.3] - 2026-11-07
 
 ### Fixed

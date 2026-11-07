@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Source resolved: no external standards are declared, so this audit runs against CONTRIBUTING.md and the portable baseline."
+    },
+    {
+      "answer": "Falling back to the portable baseline (DRY, cohesion, SOLID) plus CONTRIBUTING.md."
+    },
+    {
+      "answer": "The portable baseline applies, since nothing else is declared."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "src/orders.py repeats its tax logic in two functions; extract one helper.",
+      "why": "never says what resolved"
+    },
+    {
+      "answer": "Resolved acme/engineering-standards as the source.",
+      "why": "an invented source"
+    }
+  ]
+}

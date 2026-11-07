@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/opt/eval/ws/README.md"
+          }
+        }
+      ],
+      "why": "no Agent call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "netcode specialist",
+            "prompt": "Design the netcode for a three.js party game."
+          }
+        }
+      ],
+      "why": "spawns a specialist instead of proposing the crew"
+    }
+  ]
+}

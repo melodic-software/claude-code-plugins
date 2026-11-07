@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"\\\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\\\" --check\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Bash\",\"input\":{\"command\":\"\\\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\\\" lever_scope=non-trivial\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_03\",\"name\":\"Bash\",\"input\":{\"command\":\"\\\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\\\" --check\"}}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"\\\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\\\" --check\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Bash\",\"input\":{\"command\":\"\\\"/opt/eval/plugin/skills/setup/scripts/setup-apply.mjs\\\" lever_scope=non-trivial\"}}]}}\n",
+      "why": "no check after the write"
+    }
+  ]
+}

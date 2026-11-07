@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: sdw-lever-repo-file-wins
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: scope-repo-deterministic
+    type: regex
+    pattern: 'lever_scope[`*]*\s*[:=][`*\s]*deterministic[`*]*\s*\([^)\n]*docs/conventions/discipline\.yaml'
+    flags: 'i'
+    target: last_message
+  - name: answers-edit
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*edit-by-hand\b'
+    flags: 'i'
+    target: last_message
+  - name: not-build
+    type: regex
+    pattern: '\banswer[`*]*\s*[:=][`*\s]*build-a-lever\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: per-handler-reason
+    type: llm
+    criteria: 'The reply meets the legacy expectation "Answers edit-by-hand with the per-handler judgment as the reason".'
+    focus: last_message

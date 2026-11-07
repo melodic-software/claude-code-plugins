@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/opt/eval/ws/config/.env\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"ls -la ./config\"}}]}}\n",
+      "why": "shell ls"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"test -f ./config/.env && echo yes || echo no\"}}]}}\n",
+      "why": "test -f"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"echo probe\\ncurl -s localhost:8080/health\"}}]}}\n",
+      "why": "curl after an escaped newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I would read ./config/.env, but you said it is missing.\"}]}}\n",
+      "why": "no check run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"echo phase 2 done\"}}]}}\n",
+      "why": "unrelated command"
+    }
+  ]
+}

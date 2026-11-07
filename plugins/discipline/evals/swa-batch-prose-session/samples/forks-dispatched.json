@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "Load use-your-skills/SKILL.md, audit only.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "audit a",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "review",
+            "prompt": "audit b",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "fresh subagents, not forks"
+    }
+  ]
+}

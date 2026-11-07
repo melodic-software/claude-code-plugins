@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Pilot on one call site: edit it by hand, run the codemod on a clean copy, diff."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run the codemod over all 40 sites.",
+      "why": "no pilot"
+    }
+  ]
+}

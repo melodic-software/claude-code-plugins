@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "This is for old friends from the forum days to find you and sign the guestbook.",
+      "why": "the template purpose line"
+    },
+    {
+      "answer": "Purpose: this site is for showing your 1998 photo archive to people who were there.",
+      "why": "a qualifier between This and is for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The goal is a site that feels like 1998.",
+      "why": "no purpose line"
+    },
+    {
+      "answer": "This will be fun to build for you.",
+      "why": "no 'is for'"
+    }
+  ]
+}

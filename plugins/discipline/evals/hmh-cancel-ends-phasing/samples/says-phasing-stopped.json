@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Phasing stopped. Here is everything that is left:"
+    },
+    {
+      "answer": "No more phases; the rest in one go."
+    },
+    {
+      "answer": "OK, dropping the phased format."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is everything that is left:",
+      "why": "never says phasing stopped"
+    },
+    {
+      "answer": "Phase 3 of 4: Install the service",
+      "why": "keeps phasing"
+    }
+  ]
+}

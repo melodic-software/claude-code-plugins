@@ -1,6 +1,6 @@
 ---
-description: "A creative software request (a three.js browser game to play with friends). The reply raises it with the goal behind it, concrete methods, an outside check and more than one field, proposes any specialist crew only as a hand-off to /planning:plan, fences scope, and executes nothing."
-tags: [discipline, be-ambitious, outcome]
+description: "Legacy be-ambitious 2. A creative software request (a three.js browser game to play with friends). The reply raises it with the goal behind it, concrete methods, an outside check and more than one field asked for as the specialist's work, shows a nouns-to-verbs step (nouns-to-verbs, llm), carries the line 'What tool from another field would change what's possible here?' verbatim (cross-field-line, with-only; SKILL.md lines 64-65), proposes any specialist crew only as a hand-off to /planning:plan (crew-handoff, llm) and spawns none (no-agent), names /planning:interview when several decisions stay open (interview-pointer, llm), fences scope, and executes nothing. Needs --allow-tools Bash Write Edit so the no-* graders measure a reachable tool."
+tags: [discipline, be-ambitious, outcome, no-network]
 runs: 3
 max_turns: 60
 timeout_seconds: 1800
