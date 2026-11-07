@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "If you want to keep your overlay tuning, run capture first. Then /gaming:setup apply, then remove and apply.", "why": "capture first" },
+    { "answer": "Step 1: `/gaming:dlss5 capture` to save the tuning. Step 2: re-apply on the new build.", "why": "capture before re-apply" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Run /gaming:setup apply, then remove and apply the game again.", "why": "near miss: no capture" },
+    { "answer": "Run /gaming:setup apply, then remove and apply. Afterwards you can capture new settings.", "why": "near miss: capture only after the re-apply" }
+  ]
+}

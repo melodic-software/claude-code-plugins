@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Before the refresh, run capture if you want to keep your overlay tuning: the refresh rewrites OptiScaler.ini.", "why": "capture before refresh" },
+    { "answer": "1. `/gaming:dlss5 capture` to save the tuning.\n2. Then remove -ConfirmRefresh 0123456789ab once you say yes.", "why": "numbered order" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Steam updated the game. Reply yes and I will give you the refresh command.", "why": "near miss: no capture" },
+    { "answer": "Run the refresh, then capture your new settings afterwards.", "why": "near miss: capture after the refresh" }
+  ]
+}

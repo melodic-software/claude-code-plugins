@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\Gaming\\dlss5\\LEDGER.md", "old_string": "| Cyberpunk 2077 |", "new_string": "| Cyberpunk 2077 (captured) |" } }], "why": "the ledger row is the skill's own write" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json", "old_string": "\"ini\": [", "new_string": "\"ini\": [{\"key\":\"LogLevel\",\"value\":\"4\"}," } }], "why": "adds a not-captured key by hand" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\\OptiScaler.ini", "old_string": "AutoCapture=true", "new_string": "AutoCapture=false" } }], "why": "edits the game folder's ini" }
+  ]
+}

@@ -4,5 +4,11 @@
       "use": "command_anywhere"
     },
     "-Verb\\s+apply\\b"
+  ],
+  "no-config-token": [
+    {
+      "use": "command_anywhere"
+    },
+    "\\$\\{user_config\\."
   ]
 }

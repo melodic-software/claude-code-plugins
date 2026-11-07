@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Captured 2 keys into the local preset `D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json`:\n- [DlssNr] LocalTone=0.300000\n- [DlssNr] WhitePointScale=1.3", "why": "keys and file" },
+    { "answer": "Saved: LocalTone 0.3 and WhitePointScale 1.3, in presets\\cyberpunk-2077.json.", "why": "inline" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Captured 2 keys into your local Cyberpunk preset.", "why": "near miss: no key names or file" },
+    { "answer": "Captured LocalTone and WhitePointScale.", "why": "near miss: no preset file" }
+  ]
+}

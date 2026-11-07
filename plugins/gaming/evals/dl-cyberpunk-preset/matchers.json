@@ -1,0 +1,8 @@
+{
+  "no-setup-bat": [
+    {
+      "use": "command_anywhere"
+    },
+    "setup_windows\\.bat"
+  ]
+}

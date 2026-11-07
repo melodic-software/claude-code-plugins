@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Launcher: Steam. Anti-cheat status: none-disclosed, which means no kernel anti-cheat was disclosed, not that Ready or Not has none.", "why": "status code" },
+    { "answer": "It's the Steam copy, and no kernel-mode anti-cheat was disclosed for it; that is not proof there is none.", "why": "paraphrase of the note" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Anti-cheat status: none-disclosed. Play modded only solo or offline.", "why": "near miss: launcher missing" },
+    { "answer": "The Steam version is eligible. Reply yes to install.", "why": "near miss: no anti-cheat status" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "no-mutating-verb": [
+    {
+      "use": "command_anywhere"
+    },
+    "-Verb\\s+(?:remove|apply|reset)\\b"
+  ]
+}

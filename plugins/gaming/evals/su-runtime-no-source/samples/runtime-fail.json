@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "| Runtime DLL | FAIL | nvngx_dlssnr.dll is missing |", "why": "table row" },
+    { "answer": "The runtime DLL row is FAIL because nvngx_dlssnr.dll is missing and no candidate was found.", "why": "prose" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "| Runtime DLL | INFO | missing; apply will handle it |", "why": "near miss: INFO instead of FAIL" },
+    { "answer": "Set runtime_dll to a copy you have, install a DLSS 5 title, or set runtime_source.", "why": "remedies without the row result" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/reset-notes.md", "content": "LocalTone 0.3 -> 0.5" } }], "why": "not the ini" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64\\OptiScaler.ini", "content": "[DlssNr]\nLocalTone=0.5\nAutoCapture=false\n" } }], "why": "rewrites the ini by hand" }
+  ]
+}

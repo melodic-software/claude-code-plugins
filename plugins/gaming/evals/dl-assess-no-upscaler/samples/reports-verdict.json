@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Verdict: **not-a-candidate**. Hollow Harbor ships no DLSS, FSR 2+ or XeSS DLL.", "why": "verdict code" },
+    { "answer": "The game is not a candidate for the mod: there is no upscaler to hook.", "why": "plain words" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Verdict: eligible. Reply yes to install.", "why": "wrong verdict" },
+    { "answer": "Hollow Harbor ships no upscaler, so the mod has nothing to hook.", "why": "near miss: reason without the verdict" }
+  ]
+}

@@ -15,6 +15,18 @@ graders:
     pattern: '\b(?:solo|offline|single[- ]player)\b'
     flags: 'i'
     target: last_message
+  - name: names-launcher-and-status
+    type: regex
+    pattern: '^(?=[\s\S]*\bSteam\b)(?=[\s\S]*(?:\bnone[- ]disclosed\b|\bno\b[^\n]{0,60}\banti-?cheat\b[^\n]{0,40}\bdisclosed\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-config-token
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?\$\{user_config\.'
+    min: 0
+    max: 0
+    arm: 'both'
   - name: no-apply-run
     type: tool_used
     tool: 'Bash'
