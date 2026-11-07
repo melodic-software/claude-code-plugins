@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 3\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path\nlive_workers: 3\n"
+    }
+  ]
+}

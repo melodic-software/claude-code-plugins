@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "AGENTS.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/conventions/verification.yaml"
+      ]
+    }
+  ]
+}
