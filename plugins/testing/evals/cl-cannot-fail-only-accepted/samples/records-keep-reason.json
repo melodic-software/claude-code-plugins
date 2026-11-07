@@ -5,11 +5,11 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat > .work/testing-cleanup/shop.tests/decisions.md <<'EOF'\n| Price_feed_resolves | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\nEOF"
+            "command": "W=.work/testing-cleanup/shop.tests\ncat > $W/decisions.md <<'EOF'\n| Price_feed_resolves | keep: throw is the only oracle (Shop/ServiceRegistration.cs:17-18) |\nEOF"
           }
         }
       ],
-      "why": "decision table row"
+      "why": "decision table row written by heredoc"
     }
   ],
   "fail": [
@@ -23,6 +23,17 @@
         }
       ],
       "why": "keep without the reason"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'keep: throw is the only oracle' /opt/p/skills/cleanup/SKILL.md"
+          }
+        }
+      ],
+      "why": "reads the phrase from the skill, writes nothing"
     }
   ]
 }
