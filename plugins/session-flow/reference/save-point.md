@@ -249,8 +249,10 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
-  shape-3 file it also checks the hot file against its predecessor and both hop files; each FAIL
-  line names the fix, and a core too large for the size cap passes labeled UNVALIDATED unless
+  shape-3 file it also checks the hot file against its predecessor and both hop files, failing a
+  predecessor rule that left the hot file without a `## Retired rules` line in this hop's file;
+  each FAIL line names the fix; a size finding also names the core, carried and written sizes, and
+  a core (or core plus carried part) too large for the size cap passes labeled UNVALIDATED unless
   the file is over the Read page cap, which always fails.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
