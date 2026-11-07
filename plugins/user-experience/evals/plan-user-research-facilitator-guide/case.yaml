@@ -17,7 +17,7 @@ graders:
     weight: 0.1
   - name: 'think-aloud'
     type: 'regex'
-    pattern: 'think(?:ing)?[- ]aloud|think out loud'
+    pattern: 'think(?:ing)?[- ]aloud|think out loud|(?:say|tell me|talk (?:me )?through) what you(?:[''’]re| are)? (?:thinking|looking for|doing|expect)'
     flags: 'i'
     target: 'last_message'
   - name: 'legacy-plan-user-research-4'

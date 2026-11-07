@@ -5,6 +5,12 @@
     },
     {
       "answer": "The image is stretched to three times its natural width."
+    },
+    {
+      "answer": "The image is shown at three times its natural width, so it looks soft."
+    },
+    {
+      "answer": "The 400 px file is enlarged 3x on screen."
     }
   ],
   "fail": [
@@ -13,6 +19,9 @@
     },
     {
       "answer": "The screenshot is out of date."
+    },
+    {
+      "answer": "Natural size 400 px, displayed size 1,200 px."
     }
   ]
 }

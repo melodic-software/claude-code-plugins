@@ -5,6 +5,12 @@
     },
     {
       "answer": "Think-aloud instructions: say what you are looking for."
+    },
+    {
+      "answer": "As you go, please say what you're thinking."
+    },
+    {
+      "answer": "Talk me through what you are looking for."
     }
   ],
   "fail": [
@@ -13,6 +19,12 @@
     },
     {
       "answer": "Tell me what you think of the checkout."
+    },
+    {
+      "answer": "Tell me what you think of the checkout."
+    },
+    {
+      "answer": "Say when you are done."
     }
   ]
 }

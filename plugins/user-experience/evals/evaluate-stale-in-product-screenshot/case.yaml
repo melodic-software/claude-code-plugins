@@ -17,7 +17,7 @@ graders:
     weight: 0.1
   - name: 'upscale'
     type: 'regex'
-    pattern: 'up-?scal\w*|scaled up|stretched|blur(?:ry|red)?|pixelat\w*'
+    pattern: 'up-?scal\w*|scaled up|stretched|enlarged|magnified|blur(?:ry|red)?|pixelat\w*|fuzzy|three times (?:its|the) (?:natural|file|actual|real|original) (?:size|width)|\b3\s*[x×]|300\s*%'
     flags: 'i'
     target: 'last_message'
   - name: 'legacy-evaluate-9'

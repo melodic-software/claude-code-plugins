@@ -5,6 +5,12 @@
     },
     {
       "answer": "We accommodate each participant's setup."
+    },
+    {
+      "answer": "Ask each person about their access needs before the session."
+    },
+    {
+      "answer": "Adjustments: captions, longer sessions, breaks."
     }
   ],
   "fail": [
@@ -13,6 +19,9 @@
     },
     {
       "answer": "Recruit people with disabilities."
+    },
+    {
+      "answer": "Make the study accessible."
     }
   ]
 }
