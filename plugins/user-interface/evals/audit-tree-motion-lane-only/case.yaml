@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-tree-motion-lane-only
+description: "Hard: at tree scope the pull is to report everything noticed; a named lane limits the pass to that concern's spokes. The scaffold mixes motion defects with color, typography, layering and alt-text defects."
+tags: [audit, tree, lane, read-only, hard, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit runs the motion lane over the whole tree, reports only motion findings in card.css and modal.css, names the motion lane or its spokes, and makes no Edit or Write call"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Run the audit at tree scope on the motion lane only."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900

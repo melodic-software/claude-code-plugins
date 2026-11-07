@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: st-work-auto-selects-smallest-group
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'smallest-group-cleared'
+    type: 'regex'
+    pattern: '\bTODO\b'
+    match: 'not_contains'
+    target:
+      source: 'file'
+      path: 'lib/stream.py'
+  - name: 'other-groups-untouched'
+    type: 'regex'
+    pattern: 'FIXME: the delimiter is hard-coded to a comma'
+    target:
+      source: 'file'
+      path: 'src/report.py'
+  - name: 'files-via-track'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: 'work-items:track\b'
+    min: 1
+  - name: 'item-filed'
+    type: 'file_exists'
+    path: '.work-items/1.md'
+  - name: 'no-gh-create'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgh[ \t]+issue[ \t]+create\b'
+    min: 0
+    max: 0
+  - name: 'no-group-question'
+    type: 'regex'
+    pattern: '\bwhich[ \t]+(?:group|folder)\b[^\n]*\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply and the trace as the account of what /work-items:scan-todos --work did. PASS only if it satisfies every point: (1) Presents the groups, then selects the smallest group (lib/) itself instead of asking which to work; (2) Starts resolving the selected group''s marker and classifies it; (3) Files the significant job-queue marker through /work-items:track add rather than a raw gh issue create, and removes the marker; (4) Leaves no actionable TODO in lib/stream.py. A point counts only when the reply states it or the trace plainly shows it; it need not use the same words. FAIL if any point is missing or contradicted.'
+    focus: 'trace'

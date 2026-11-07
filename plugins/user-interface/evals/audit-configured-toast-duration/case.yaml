@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-configured-toast-duration
+description: "Hard: the bundled linter flags durations over its own fixed limit, so the model must overrule a tool finding with the resolved config. The scaffold writes the team file with animation.duration_ms.large 600 and a toast whose 400ms entrance and 300ms exit are otherwise clean."
+tags: [audit, config, rule-duration, read-only, hard, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit judges the toast's 400ms entrance against the configured large role (600ms), does not report it as a duration finding, and makes no Edit or Write call"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Review the toast animation in src/toast.css. Our team config sets animation.duration_ms.large to 600 and the toast's transition is 400ms."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600

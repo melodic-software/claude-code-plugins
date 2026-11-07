@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The toast is judged against the configured large role, 600ms.",
+      "why": "names the configured value"
+    },
+    {
+      "answer": "animation.duration_ms.large is 600 here, so 400ms is within it.",
+      "why": "names the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "400ms is over the 300ms cap for a toast.",
+      "why": "near miss: the fixed default"
+    }
+  ]
+}

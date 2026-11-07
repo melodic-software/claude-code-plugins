@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: uc3-signup-first-success-flow
-description: "Use case 3 (greenfield, consumer): the sign-up to first-success user flow drawn from the project's PRD and routes, with the states each step handles"
+description: 'Use case 3 (greenfield, consumer): the sign-up to first-success user flow drawn from the project''s PRD and routes, with the states each step handles. Also carries legacy structure 1: evidence-label and legacy-structure-1 (llm) quote its expectations.'
 tags: [use-case, uc3]
 runs: 3
 expected_outcome: "A user flow from sign-up to the first saved recipe built from docs/PRD.md and the app routes, each step with its states and exits, stopping short of visual design"
@@ -11,3 +11,13 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900
+graders:
+  - name: 'evidence-label'
+    type: 'regex'
+    pattern: 'Evidence\**:\**\s*[*`]*(?:assumption-based|evidence-based|mixed)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-structure-1'
+    type: 'llm'
+    criteria: 'The run maps a sign-up to first-success flow. It meets the legacy expectations: "The flow is a mermaid flowchart" "Each step names the states it handles, such as error or empty" "The record opens with an Evidence: line".'
+    focus: 'last_message'

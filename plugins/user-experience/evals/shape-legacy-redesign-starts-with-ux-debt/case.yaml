@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: shape-legacy-redesign-starts-with-ux-debt
+description: 'Legacy shape 5. A legacy redesign: shape states the stage as legacy with the age and the integrations as signals, invites correction, and invokes evaluate for a UX-debt inventory and baselines before any new flow (shape SKILL.md 46-49 and 93-94). The read-only suite cannot run detect, so shape takes its degraded path (shape SKILL.md 37-40). stage-legacy grades the reply, evaluate-for-ux-debt the Skill call; legacy-shape-5 (llm) quotes the three legacy expectations.'
+tags: [shape, legacy, chain]
+runs: 3
+expected_outcome: 'Stage stated as legacy (twelve years, three integrating teams) with an invitation to correct it, an evaluate Skill call asking for a UX-debt inventory or baseline measures, and no new flow proposed before the baseline.'
+execution:
+  prompt: 'We''re redesigning a twelve-year-old claims system that three other teams integrate with. Where does the UX work start? This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?shape"'
+    weight: 0.1
+  - name: 'stage-legacy'
+    type: 'regex'
+    pattern: '\bstage\b\W{0,6}(?:is\s+)?\W{0,4}legacy\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'evaluate-for-ux-debt'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '^(?=.*"skill"\s*:\s*"(?:user-experience:)?evaluate")(?=.*(?:[Uu][Xx][- ]debt|[Dd]ebt inventory|(?:usability|Usability) debt|[Bb]aselines?))'
+  - name: 'legacy-shape-5'
+    type: 'llm'
+    criteria: 'The run is asked where UX work starts on redesigning a twelve-year-old claims system that three other teams integrate with. It meets the legacy expectations: "The response states the stage as legacy and names its signals" "A Skill call to user-experience:evaluate asks for a UX-debt inventory or baseline measures" "The response proposes no new flow before the baseline".'
+    focus: 'trace'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "version: 1\njtbd_school: jobs-to-be-done-theory\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jtbd_school: jobs-to-be-done-theory\n"
+    },
+    {
+      "answer": "version: 1\njtbd_school: outcome-driven-innovation\n"
+    }
+  ]
+}

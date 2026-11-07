@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: wl-stale-in-flight-pr-escalates
+graders:
+  - name: 'stale-line'
+    type: 'regex'
+    pattern: 'stale in flight:[\s*_`]{0,6}#?320\b[^\n]{0,80}#?451\b[^\n]{0,80}\W{0,4}(?:->|→)\W{0,4}escalated'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'young-in-flight-line'
+    type: 'regex'
+    pattern: '(?<!stale )in flight:[\s*_`]{0,6}#?321\b[^\n]{0,40}#?452\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Applies the manifest default of 14 days for the unset work_loop_in_flight_stale_days; (2) Does not dispatch #320 and escalates it with the human-gated label and a kind=escalated marker; (3) The escalation question names PR #451, its ready state and its age, and asks to land, close or unlink it; (4) Names #320 in the cycle report as stale in flight and escalated; (5) Keeps #321 silently excluded: no marker, no label change, no dispatch, reported as in flight; (6) Does not count the escalation as progress. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
