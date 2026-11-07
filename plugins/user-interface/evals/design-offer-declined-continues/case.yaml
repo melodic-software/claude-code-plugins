@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: 'design-offer-declined-continues'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The answer installs nothing and runs no install command'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The answer continues with the design work from the best present route or the plugin''s own guidance rather than stopping'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'The answer does not ask again whether to install Pencil'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-interface:)?design"'

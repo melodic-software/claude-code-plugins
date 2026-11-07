@@ -1,6 +1,6 @@
 ---
 description: "notes_search's Zod inputSchema has no .describe() on query or limit: C6 is FAIL by the checklist (an undescribed parameter blocks a correct call), naming those parameters. The skill runs as context: fork; the prompt names the skill rather than using the slash command, because a slash-invoked fork reports 0 turns and fails the validity gate; outcome graders read last_message."
-tags: [mcp-tools, audit, outcome, parameters, au-1]
+tags: [mcp-tools, audit, outcome, parameters, au-1, no-network]
 runs: 3
 max_turns: 30
 timeout_seconds: 900

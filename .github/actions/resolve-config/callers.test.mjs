@@ -9633,8 +9633,7 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
     const probeOf = (s) =>
       step(s, "probe")
         .run.replaceAll("no pull request case runs", "no case runs")
-        .replace("the next leg runs the eval", "the next leg runs the pass")
-        .replace(`echo "The managed policy denied the probe's Read, Grep and Glob calls."\n`, "");
+        .replace("the next leg runs the eval", "the next leg runs the pass");
     assert.equal(probeOf(steps), probeOf(first), `${file} ${id} probe`);
     const [denyIdx, isolateIdx, probeIdx] = ["Deny the eval's reads of process and runner state", "Isolate the runner", "Probe that the policy denies those reads"].map((n) => {
       const i = steps.findIndex((s) => s.name === n);
@@ -9644,18 +9643,18 @@ test("every eval leg runs the same managed-policy step and the same probe", () =
     assert.ok(denyIdx < isolateIdx, `${file} ${id}: the policy is written while sudo works`);
     assert.ok(isolateIdx < probeIdx, `${file} ${id}`);
   }
-  const probe = step(first, "probe").run;
-  assert.match(probe, /jq -e -R -s --arg t "\$1" --arg p "\$2" '\[split\("\\n"\)\[\] \| fromjson\? \| objects\] \| last\(/);
-  assert.doesNotMatch(probe, /jq -e -s /, "a slurp fails on any line that is not JSON");
-  assert.match(probe, /so no case runs \(probe: \$\(probe_facts\)\)"; exit 1; \}/);
+  // policy-probe.mjs reads the stream line by line and names the probe's closed facts.
+  assert.match(step(first, "probe").run, /PROBE="\$out" node \.base\/\.github\/scripts\/plugin-eval\/policy-probe\.mjs\) \|\| judged=\$\?\n/);
 });
 
 // The model can decline the probe's reads and end with no tool call,
 // which proves nothing about the policy: that session runs again,
-// three times at most. Any other shortfall stops the job on the first session.
+// three times at most, and then stops the job as unproven, never as a policy
+// failure. A call made and not denied stops the job on the first session.
 // Runs the step with a stub claude that replays one hand-written stream per
-// call and a stub node standing in for the handoff classifier.
-test("the policy probe reruns only a session with no tool call, at most three times", () => {
+// call, a stub node standing in for the handoff classifier, and the real
+// policy-probe.mjs.
+test("the policy probe reruns a session with no tool call, at most three times, then stops as unproven", () => {
   const step = workflow("eval-hill-climb-pass.yml").jobs.pass.steps.find((s) => s.id === "probe");
   const root = "/runner";
   const calls = [
@@ -9682,7 +9681,8 @@ test("the policy probe reruns only a session with no tool call, at most three ti
       streams.forEach((s, i) => writeFileSync(join(dir, `stream-${i + 1}`), `${s}\n`));
       const stub = (name, body) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
       stub("claude", `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"\ncat "${dir}/stream-$n"`);
-      stub("node", "printf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'");
+      const judge = fileURLToPath(new URL("../../scripts/plugin-eval/policy-probe.mjs", import.meta.url));
+      stub("node", `case "$1" in *policy-probe.mjs) exec "${process.execPath}" "${judge}" ;; esac\nprintf 'handoff=false\\nhandoff-reason=\\nlane-class=\\noutcome=success\\n'`);
       const output = join(dir, "output");
       writeFileSync(output, "");
       const result = spawnSync("bash", ["-e", "-c", step.run], {
@@ -9699,13 +9699,14 @@ test("the policy probe reruns only a session with no tool call, at most three ti
   assert.deepEqual([first.status, first.calls], [0, 1], first.stdout);
   const retried = probe([declined, allDenied]);
   assert.deepEqual([retried.status, retried.calls], [0, 2], retried.stdout);
-  assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(attempt 1 of 3\)$/m);
+  assert.match(retried.stdout, /^::notice::the probe's session made no tool call, so it proved nothing about the policy \(probe: .* tool_calls=none denials=0 .*\) \(attempt 1 of 3\)$/m);
   const never = probe([declined, declined, declined, allDenied]);
   assert.deepEqual([never.status, never.calls], [1, 3], never.stdout);
-  assert.match(never.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=none denials=0 /m);
+  assert.match(never.stdout, /^::error::the policy is unproven: in 3 attempts the probe's session never made every call it was asked for, so no case runs \(last attempt: the probe's session made no tool call, .* tool_calls=none denials=0 /m);
+  assert.doesNotMatch(never.stdout, /did not record a denied/);
   const undenied = probe([readNotDenied, allDenied]);
   assert.deepEqual([undenied.status, undenied.calls], [1, 1], undenied.stdout);
-  assert.match(undenied.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ, so no case runs \(probe: .* tool_calls=Read denials=0 /m);
+  assert.match(undenied.stdout, /^::error::the managed policy did not record a denied Read of \/proc\/self\/environ \(probe: .* tool_calls=Read denials=0 .*\), so no case runs$/m);
 });
 
 // --- mutated code never runs beside a credential (#13586) ---

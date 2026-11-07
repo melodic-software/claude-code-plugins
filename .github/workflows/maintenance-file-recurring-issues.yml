@@ -3,7 +3,9 @@ name: maintenance-file-recurring-issues
 # Daily: files one issue for each .github/recurring-schedule.json row whose
 # next_due has arrived and that no open `recurring` issue names by its
 # `<!-- recurring-schedule id=<id> -->` body line, so a due row is filed
-# without someone first running /work-items:track due. It never edits the
+# without someone first running /work-items:track due. A row whose
+# precondition sets requires_operator_confirmation is held and logged, never
+# filed: the operator who confirms it files the issue. It never edits the
 # schedule: /work-items:track recheck closes the issue and advances next_due,
 # and until then the open issue keeps a second run from filing again. The
 # script and tests are in .github/scripts/recurring-schedule/.
