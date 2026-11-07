@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: tr-split-size-lane-routes-to-decompose
+graders:
+  - name: 'split-size'
+    type: 'regex'
+    pattern: '\bsize=huge\b'
+    target: 'last_message'
+  - name: 'names-decompose'
+    type: 'regex'
+    pattern: '/work-items:decompose\b'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does for #521 in a lane. PASS only if it satisfies every point: (1) Sets size=huge through set-dimensions.sh and does not apply agent-ready; (2) Applies needs-human with a comment naming /work-items:decompose as the next step; (3) Does not run /work-items:decompose or create child items itself. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

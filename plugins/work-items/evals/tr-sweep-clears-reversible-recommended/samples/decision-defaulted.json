@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Human-gated label cleared**\n\nDecision defaulted: rename it and keep --out as a deprecated alias, veto before merge",
+      "why": "comment line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Removed needs-human from #640.",
+      "why": "no comment"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

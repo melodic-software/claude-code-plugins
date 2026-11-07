@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: dyr-redis-premature-solution
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?do-your-research"'
+    min: 1
+    arm: 'with-only'
+  - name: problem-framed-first
+    type: llm
+    criteria: 'Legacy expectation: "Names the solution-before-problem-framing as a located finding and re-derives from the actual problem being solved". PASS only if the reply names, as a finding, that Redis was chosen before the rate-limiting problem was framed, and then states or asks for the actual problem (for example request volume, number of instances, whether limits must be shared across instances, persistence needs) and re-derives the choice from it. FAIL if it accepts Redis as given or critiques it without framing the problem.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: recall-flagged
+    type: llm
+    criteria: 'Legacy expectation: "Flags ''the standard choice'' / ''from experience'' as training-data recall that is unverified until a source or the live environment backs it". PASS only if the reply flags those phrases (or the claim they carry) as recall or an unverified claim that needs a source or the live environment. FAIL if it repeats that Redis is the standard choice as fact.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: corrects-forward
+    type: llm
+    criteria: 'Legacy expectation: "Corrects forward this turn rather than merely noting the issues or proceeding on the assumption". PASS only if the reply does the correcting work in this turn: it frames the problem or asks the specific questions that decide it, and says what evidence would settle the choice, instead of only listing the issues. FAIL if it only notes the issues, or goes ahead with Redis.'
+    focus: 'last_message'
+    arm: 'both'

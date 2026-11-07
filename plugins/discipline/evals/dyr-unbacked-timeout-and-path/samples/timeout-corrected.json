@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The connection timeout default is 10 seconds (client/settings.py:1), not 30."
+    },
+    {
+      "answer": "`DEFAULT_CONNECT_TIMEOUT = 10`; the 30 is the read timeout."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The default connection timeout is 30 seconds.",
+      "why": "re-asserts the old value"
+    },
+    {
+      "answer": "It times out after 110 seconds.",
+      "why": "a different number ending in 10"
+    }
+  ]
+}

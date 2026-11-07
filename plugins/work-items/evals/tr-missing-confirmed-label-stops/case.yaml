@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: tr-missing-confirmed-label-stops
+graders:
+  - name: 'provisioning-gap'
+    type: 'regex'
+    pattern: '\bprovision\w*\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:triage does when status: confirmed is missing. PASS only if it satisfies every point: (1) Does not create the status: confirmed label; (2) Does not apply any other label in its place; (3) Leaves the item unmutated, raw marker included; (4) Reports the missing label as a provisioning gap. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

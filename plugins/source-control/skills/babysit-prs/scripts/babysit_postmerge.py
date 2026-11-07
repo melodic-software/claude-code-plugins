@@ -3846,25 +3846,19 @@ def _issue_status(owner: str, name: str) -> policy.IssueStatusConfig | None:
     return status if status is not None and not status.error else None
 
 
-def _hold_record(
-    owner: str,
-    name: str,
-    number: int,
-    status: policy.IssueStatusConfig,
-    role_label: str,
+def set_issue_status(
+    repo: str, number: int, status: policy.IssueStatusConfig, state: str
 ) -> None:
-    """Set record `number`'s Work status field to `NEEDS_HUMAN_STATE`. When
-    the write fails or GitHub keeps another option than the one `status`
-    maps, add `role_label` instead, which holds it as well, and raise
-    `PostMergeWriteError`."""
-    option = next((o for o, s in status.options if s == NEEDS_HUMAN_STATE), None)
+    """Set issue `number`'s Work status field to `state` with one POST
+    (write-status.mjs writeState). Raise `PostMergeWriteError` when `status`
+    maps no option to `state`, the write fails, or GitHub keeps another
+    option; no label stands in for a field that did not land."""
+    option = next((o for o, s in status.options if s == state), None)
     try:
         if option is None:
-            raise PostMergeWriteError(f"maps no option to {NEEDS_HUMAN_STATE}")
+            raise PostMergeWriteError(f"maps no option to {state}")
         rows = _write(
-            policy.issue_status_write(
-                f"{owner}/{name}", number, status.field_id, NEEDS_HUMAN_STATE
-            ),
+            policy.issue_status_write(repo, number, status.field_id, state),
             f"#{number} Work status",
         )
         kept = next(
@@ -3877,23 +3871,42 @@ def _hold_record(
         )
         if str(kept) != option:
             raise PostMergeWriteError(
-                f"GitHub kept option {kept} for {NEEDS_HUMAN_STATE}, not {option}"
+                f"GitHub kept option {kept} for {state}, not {option}"
             )
     except PostMergeWriteError as exc:
-        _write(
-            [
-                "api",
-                "-X",
-                "POST",
-                f"repos/{owner}/{name}/issues/{number}/labels",
-                "-f",
-                f"labels[]={role_label}",
-            ],
-            f"#{number} {role_label}",
-        )
         raise PostMergeWriteError(
-            f"#{number} Work status not set ({exc}); {role_label} added"
+            f"#{number} Work status not set to {state} ({exc})"
         ) from exc
+
+
+def _hold_record(
+    owner: str, name: str, number: int, status: policy.IssueStatusConfig
+) -> None:
+    """Set record `number`'s Work status field to `NEEDS_HUMAN_STATE`
+    (`set_issue_status`), as post-merge-demotion-alert.yml does: a failed
+    write raises and is reported, with no label added in its place."""
+    set_issue_status(f"{owner}/{name}", number, status, NEEDS_HUMAN_STATE)
+
+
+def _status_unset(
+    owner: str, name: str, number: int, status: policy.IssueStatusConfig
+) -> bool:
+    """Whether record `number` holds no Work status value, whoever set one.
+    `policy.issue_status` is not used: it also reads None for a value an
+    uncounted account set, which a hold must not overwrite. Raises
+    `PolicyReadError` when the read fails or a full page may hide the value."""
+    data = policy._graphql(
+        policy.ISSUE_STATUS_QUERY, f"#{number} Work status", o=owner, r=name, n=number
+    )
+    issue = json_object(json_object(data.get("repository")).get("issue"))
+    values = json_object(issue.get("issueFieldValues")).get("nodes")
+    if not is_json_array(values) or len(values) >= policy.FIELD_VALUE_PAGE:
+        raise policy.PolicyReadError(f"#{number} Work status: no complete value list")
+    field_id = str(status.field_id)
+    return not any(
+        json_object(json_object(v).get("field")).get("fullDatabaseId") == field_id
+        for v in values
+    )
 
 
 def remediate(
@@ -3965,7 +3978,7 @@ def remediate(
         report["errors"].append(f"dequeue: {exc}")
 
     created = 0
-    # `models.issue-status`, read when the first record is filed.
+    # `models.issue-status`, read when the first record is filed or matched open.
     status: Any = _UNREAD
     try:
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
@@ -4017,10 +4030,11 @@ def remediate(
                         f"body={body}",
                         # The lanes App's issue starts intake triage on its
                         # own; the human-gated label, or the Work status
-                        # field set to needs-human below (which admission
-                        # reads as that label, read-status.mjs statusLabels),
-                        # keeps admission off it (admit.mjs STOP_HOLDS), so
-                        # it never becomes lane work.
+                        # field set to needs-human below and retried on a
+                        # later pass while unset (which admission reads as
+                        # that label, read-status.mjs statusLabels), keeps
+                        # admission off it (admit.mjs STOP_HOLDS), so it
+                        # never becomes lane work.
                         *(() if status else ("-f", f"labels[]={role_label}")),
                     ],
                     "file the demotion issue",
@@ -4043,13 +4057,24 @@ def remediate(
                     # A failed hold is reported and fails the run; the next
                     # record is still filed.
                     try:
-                        _hold_record(owner, name, filed, status, role_label)
+                        _hold_record(owner, name, filed, status)
                     except PostMergeWriteError as exc:
                         report["errors"].append(f"demotion issue: {exc}")
                 continue
             records[failure.marker] = match
             number = match.get("number")
             if number not in notes_by_issue:
+                if match.get("state") == "open" and isinstance(number, int):
+                    if status is _UNREAD:
+                        status = _issue_status(owner, name)
+                    # A hold whose write failed on an earlier pass is retried
+                    # while the field holds no value; a value set since stands.
+                    if status:
+                        try:
+                            if _status_unset(owner, name, number, status):
+                                _hold_record(owner, name, number, status)
+                        except (policy.PolicyReadError, PostMergeWriteError) as exc:
+                            report["errors"].append(f"demotion issue: {exc}")
                 comments = _paginated(
                     f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
                     f"#{number} comments",

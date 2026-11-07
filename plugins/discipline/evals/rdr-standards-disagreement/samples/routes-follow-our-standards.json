@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Route it through /discipline:follow-our-standards."
+    },
+    {
+      "answer": "Take the disagreement to the `follow-our-standards` skill, which drafts the standards change."
+    },
+    {
+      "answer": "That is the follow-our-standards corrector's job: it routes the rule upstream."
+    },
+    {
+      "answer": "Raise it through follow-our-standards as a standards PR."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Follow the standards doc for now.",
+      "why": "not the skill"
+    },
+    {
+      "answer": "Just follow our standards for now.",
+      "why": "the plain phrase is silent compliance, not the skill"
+    },
+    {
+      "answer": "No, just follow our standards as written and use the skill later.",
+      "why": "the plain phrase with skill elsewhere in the sentence"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The edit applies provenance: signal and provenance: untrusted.",
+      "why": "both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A one-line fix: agent-ready.",
+      "why": "delegable"
+    },
+    {
+      "answer": "Applies provenance: signal only.",
+      "why": "signal only"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

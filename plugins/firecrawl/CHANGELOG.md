@@ -3,6 +3,14 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-11-07
+
+### Changed
+
+- `/firecrawl:firecrawl` matches `firecrawl-cli` 1.29.0: main-content extraction is the default and `--full-page` keeps navigation, headers and footers on `scrape`, `batch-scrape`, `search --scrape` and `parse`; `research search-github` is gone (use `developer`); `research search-papers --sort date_desc` is documented.
+- A global CLI install updates itself in the background, so the install step and `/firecrawl:update --apply` now run `firecrawl update --disable-auto`, keeping CLI upgrades behind `/firecrawl:update`'s gates; `--apply` writes nothing when that fails, and the rollback is the pinned reinstall after turning automatic updates off.
+- The sync record moves to the current upstream `SKILL.md` and CLI 1.29.0, and the pointers whose recheck trigger fired are re-stamped.
+
 ## [0.8.3] - 2026-11-06
 
 ### Fixed

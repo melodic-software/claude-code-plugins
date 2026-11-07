@@ -1,0 +1,68 @@
+{
+  "pass": [
+    {
+      "answer": "It stands on a live rationale: the downstream rate limit."
+    },
+    {
+      "answer": "Confirmed: keep the backoff as tuned."
+    },
+    {
+      "answer": "Verdict: clean. The retry policy stands on its stated purpose, so no change."
+    },
+    {
+      "answer": "The 1.5 s backoff still holds against the rate limit."
+    },
+    {
+      "answer": "**Clean.** Nothing to change: the backoff was tuned against the documented burst limit."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is no stated rationale here; nobody knows why.",
+      "why": "negated rationale"
+    },
+    {
+      "answer": "Change the backoff to jittered exponential."
+    },
+    {
+      "answer": "I can't confirm the backoff is still tuned; as it stands, switch to jittered exponential.",
+      "why": "refuses to confirm and proposes a change"
+    },
+    {
+      "answer": "That assumption no longer holds.",
+      "why": "overturns the inherited choice"
+    },
+    {
+      "answer": "I won't confirm the retry policy until I see the rate-limit numbers.",
+      "why": "refusal"
+    },
+    {
+      "answer": "The retry policy holds up, but I would change the backoff to jittered exponential.",
+      "why": "proposes a change in the confirming sentence"
+    },
+    {
+      "answer": "Keep the retry count, but replace the backoff with full jitter.",
+      "why": "proposes a change"
+    },
+    {
+      "answer": "Not clean: the retry policy ignores Retry-After.",
+      "why": "negated clean"
+    },
+    {
+      "answer": "Clean up the retry policy before the next release.",
+      "why": "clean as a verb"
+    },
+    {
+      "answer": "As it stands, the retry policy should move to jittered backoff.",
+      "why": "as it stands is not a confirmation; proposes a change"
+    },
+    {
+      "answer": "Keep the retry count, but use full jitter on the backoff.",
+      "why": "proposes a change with a verb outside the change list"
+    },
+    {
+      "answer": "The retry policy holds for now; we should add jitter.",
+      "why": "proposes a change"
+    }
+  ]
+}

@@ -9,7 +9,8 @@
 #
 # Modes:
 #   --check  (default) read-only: report CLI version delta + upstream SKILL.md drift
-#   --apply  run npm install -g firecrawl-cli@latest, then record the CLI version
+#   --apply  run npm install -g firecrawl-cli@latest and turn off the CLI's
+#            background self-update (firecrawl update --disable-auto), then record the CLI version
 #            and rollback target in upstream.md, keeping the recorded upstream SHA,
 #            WITHOUT touching SKILL.md (Claude integrates upstream changes under
 #            the skill body's Preservation rules; this script only owns the
@@ -252,6 +253,12 @@ run_apply() {
     err "firecrawl reports $current after install, expected $latest; upstream.md not written — rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
     return 2
   fi
+  # A global install updates itself in the background; turn that off so the CLI
+  # changes only through this gated path.
+  if ! firecrawl update --disable-auto; then
+    err "firecrawl update --disable-auto failed; upstream.md not written — the CLI may update itself outside /firecrawl:update"
+    return 2
+  fi
   firecrawl --status 2>&1 | head -10 || true
 
   # The upstream SHA and sync date stay as recorded: they mark what the skill has
@@ -317,8 +324,9 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
   --check  (default) Read-only drift report: CLI version delta + upstream SHA delta.
            Exit 0 if in sync, 1 if drift detected, 2 on prerequisite/network error.
 
-  --apply  Run npm install -g firecrawl-cli@latest and record the CLI version and
-           rollback target in upstream.md, keeping the recorded upstream SHA.
+  --apply  Run npm install -g firecrawl-cli@latest, turn off the CLI's background
+           self-update (firecrawl update --disable-auto), and record the CLI version
+           and rollback target in upstream.md, keeping the recorded upstream SHA.
            Exit 2 before installing, writing nothing, when something other than
            npm's global bin owns the firecrawl command. Exit 2 after installing,
            without writing upstream.md, when the command does not read npm latest.

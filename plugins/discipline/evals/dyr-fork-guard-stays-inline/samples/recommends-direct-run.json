@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Recommend a direct `/discipline:do-your-research tiered` run for the fan-out."
+    },
+    {
+      "answer": "Run /discipline:do-your-research full outside the sweep."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run /discipline:do-your-research again later.",
+      "why": "no tier"
+    },
+    {
+      "answer": "A tiered fan-out would fit here.",
+      "why": "no direct-run command"
+    }
+  ]
+}

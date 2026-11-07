@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.2.4] - 2026-11-07
+
+### Fixed
+
+- `/work-items:setup apply` run unattended with no binding and no usable `gh` now names its blocker, "tracker binding needs a provider decision", in SKILL.md, so the run reports it without first reading `reference/autonomous-apply.md` ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)).
+
 ## [12.2.3] - 2026-11-07
 
 ### Changed

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Claim | Type | Verdict |\n|---|---|---|---|\n| 1 | free tier 120 rpm | concrete specific | corrected |\n| 8 | single region | assumption | internal, needs confirm |"
+    },
+    {
+      "answer": "Inventory: 3 asserted facts, 4 concrete specifics, 1 assumption, 1 load-bearing premise."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| # | Claim | Verdict |\n|---|---|---|\n| 1 | free tier 120 rpm | corrected |",
+      "why": "untyped"
+    },
+    {
+      "answer": "Assumption: everything here is right.",
+      "why": "one type only"
+    }
+  ]
+}
