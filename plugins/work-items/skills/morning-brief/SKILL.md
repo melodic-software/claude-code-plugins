@@ -219,14 +219,29 @@ Upstream facts the script restates, each with its verification record:
   which states the result cap for a filtered search. **As of**: 2026-11-04. **Recheck trigger**:
   that section changes or removes its result cap, or one lane's day passes the cap.
 
+## Work status
+
+An item's status follows [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Reading an item's status". The brief needs no tracker binding: it reads `models.issue-status` from
+`docs/conventions/pr-pipeline.yaml` on the target repo's default branch, and with none it reads
+labels alone. With a model, one paged GraphQL read of the open issues (50 a page, 1,000 at most,
+`PARTIAL` past that) takes each issue's labels, Work status value and newest 100 label and field
+events. Queues, Stuck (issues; its searches keep the PRs) and Parked place an issue by its labels
+as the value decides them; a field-only decision is read by `gh issue view`. Owner touches count
+the field's changes as label events, dropping a bot's change before the model's
+`field-events-since`. The brief is a display reader: it reads the plain value with no setter
+check. Over REST the field is unread, so Queues and Parked print by label with a `PARTIAL` line. A
+failed model or field read, or a value the model has no option for, makes the section reading it
+`UNREADABLE`.
+
 ## What each section reports
 
 | Section | Source | Notes |
 |---|---|---|
-| Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
+| Queues | `gh issue list --label <queue>` counts, or with a Work status model the open-issue read ("Work status") | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
 | Stuck | one paged `gh api graphql` search per shown queue label (`is:open label:"<label>"`), with each result's `LABELED_EVENT` timeline items | Open issues **and** PRs (each line says `issue` or `PR`) whose newest labeled event for that label is older than `--stuck-days` (default 7), oldest first across all labels, one line each: number, title, label, days in stage. Lines are capped at `--stuck-limit` (default 20); past it the section says `PARTIAL`, and so it does for a search that reached GitHub's result cap. An item with no labeled event for the label among its last 100 timeline events is listed as `days unknown` after the dated ones, never dropped. The labels are the ones the Queues section shows. Read-only: it lists, it never moves or relabels an item |
 | Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`). One compare read per clean PR, capped at `--pr-limit`; `UNVERIFIED` marks a head behind its base, a comparison that could not be read, or a PR past the cap |
-| Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
+| Parked decisions | open issues with the decision label (default `status: needs-decision`), as the Work status decides it | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count. The header prints the window: merges since the older of `--stranded-days` ago (default 3) and the repo's bookmark. Paging stops at that cutoff |
 | Landed | the same merged-PR GraphQL pages as Stranded findings, reused when they reach back to the cutoff, else read again | PRs merged since this machine's `landed_at` (a first read covers the last day), with a count, then "Read these": `--landed-sample` of them (default 3; key `landed_sample` under `morning_brief:`), the oldest, the newest and evenly between, each with its link. `landed_at` is a stamp under the plugin data dir beside the stranded bookmark, so each machine keeps its own; it moves to this run's clock only after the section read in full. `UNREADABLE` on the REST transport, like Stranded findings |

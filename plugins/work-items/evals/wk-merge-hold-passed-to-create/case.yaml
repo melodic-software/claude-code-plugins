@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-merge-hold-passed-to-create
+graders:
+  - name: 'hold-flag'
+    type: 'regex'
+    pattern: '--hold[\s=]\W{0,2}(?:Hold: a human merges this|<[^>\n]*(?:line|hold)[^>\n]*>)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Runs merge-hold.sh for #734 before create --pushed; (2) Passes the printed Hold: line to create --pushed as --hold, not as a body edit after it returns; (3) Dispatches no second ready after create --pushed; (4) Does not merge the PR. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

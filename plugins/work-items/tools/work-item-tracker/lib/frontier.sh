@@ -25,8 +25,9 @@ wit_filter_label() {
 # An item whose `status` (its Work status, wit_attach_statuses) is a hold state
 # and that carries no hold-state label is held as well: labels reach the field
 # first, so the field may only add a hold the labels lack and never frees an
-# item they hold. That is also why no
-# setter is checked here: any value can only hold an item back.
+# item they hold. No setter is checked here: the adapter's get-statuses answers
+# only counted values when the binding configures setter trust (the GitHub
+# adapter's config.github.status_trust), and this filter takes `status` as given.
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
   local floor_json states_json hold_labels_json

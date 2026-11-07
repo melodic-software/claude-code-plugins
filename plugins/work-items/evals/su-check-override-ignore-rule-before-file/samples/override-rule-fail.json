@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal-override ignore rule | **FAIL**: no `.gitignore` rule covers `docs/conventions/work-items.local.yaml`; `/work-items:setup apply` appends it |",
+      "why": "table row"
+    },
+    {
+      "answer": "FAIL: git check-ignore --no-index finds no rule for docs/conventions/work-items.local.yaml, even though the file does not exist yet.",
+      "why": "prose"
+    },
+    {
+      "answer": "- There is no `work-items.local.yaml`, so the tracked probe is clean.\n- The ignore probe is the real finding. `.gitignore` doesn't cover the path. This would be a **FAIL**.",
+      "why": "smoke reply shape the original grader rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override | INFO: docs/conventions/work-items.local.yaml absent, skipped |",
+      "why": "near miss: skips the probe because the file is absent"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override | PASS: work-items.local.yaml covered by core.excludesFile |",
+      "why": "counts a machine-local excludes file"
+    },
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Personal override | INFO: docs/conventions/work-items.local.yaml absent, skipped |\n| jq entry gate | FAIL: jq not confirmed |",
+      "why": "FAIL on the next row belongs to another probe (review on #13960)"
+    }
+  ]
+}

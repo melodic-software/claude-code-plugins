@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: fires-evaluate
-description: "A single evaluation request (a heuristic evaluation of a flow) reaches /user-experience:evaluate"
+description: 'A single evaluation request (a heuristic evaluation of a flow) reaches /user-experience:evaluate. Also carries legacy evaluate 2: cites-nielsen and legacy-evaluate-2 (llm) quote its expectations.'
 tags: [fires]
 runs: 3
 expected_outcome: "A Skill call reaches user-experience:evaluate, and the findings carry step, heuristic and severity, labeled likely problems"
@@ -9,3 +9,13 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 20
   timeout_seconds: 600
+graders:
+  - name: 'cites-nielsen'
+    type: 'regex'
+    pattern: '\bNielsen'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'legacy-evaluate-2'
+    type: 'llm'
+    criteria: 'The run is a heuristic evaluation of a described flow, with no user-interface plugin loaded. It meets the legacy expectations: "The review cites Nielsen''s heuristics" "Findings are labeled likely problems needing confirmation by people" "Found by names a method and a role, not a person".'
+    focus: 'last_message'

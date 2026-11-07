@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: confirm-fix-symptom-and-regression
+graders:
+  - name: 'reads-fix-context'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"[^"]*context/fix\.md"'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-regression'
+    type: 'regex'
+    pattern: '\bregression|existing tests[^\n]{0,40}\bpass|full suite[^\n]{0,60}\b(?:pass|green)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'symptom-and-regression'
+    type: 'llm'
+    criteria: 'The reply confirms a bug fix to an invoice total. It meets the legacy expectations: "Confirms the original symptom is resolved AND checks for regression" "Recognizes itself as the verification target that /debugging:debug routes to, not a re-implementation of the fix loop". It fails if it edits or rewrites the fix, proposes redoing the fix itself, or never ties the passing test to the reported symptom (tax missing on discounted orders).'
+    focus: 'last_message'

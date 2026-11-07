@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty: nothing forbidden"
+    },
+    {
+      "answer": "No animation: open and close it instantly.",
+      "why": "declines"
+    },
+    {
+      "answer": "Keep `transition: none` on the palette.",
+      "why": "an explicit none"
+    },
+    {
+      "answer": "**Animation:** none, since it opens 50+ times an hour.",
+      "why": "near miss: a decline with a number in its reason"
+    },
+    {
+      "answer": ".palette { transition: opacity 0s; }",
+      "why": "the instant alternative the case asks for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.palette { transition: opacity 150ms ease-out; }\n```",
+      "why": "a transition"
+    },
+    {
+      "answer": "@keyframes palette-in { from { opacity: 0 } }",
+      "why": "keyframes"
+    },
+    {
+      "answer": ".palette { transition: opacity 0.15s; }",
+      "why": "a fractional-second transition"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research-x"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research"
+          }
+        }
+      ],
+      "why": "the skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plan-user-research"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ]
+}

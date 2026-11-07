@@ -1452,9 +1452,13 @@ jobs:
             reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)
             fail "a Bash child could reach a credential or token, or the scan could not show it works (${reach:-no hit named})"
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
-            fail "the leg's file tools were not refused /proc and the runner's temp directory"
-          fi
+          reads=0
+          node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" || reads=$?
+          case $reads in
+            0) ;;
+            3) fail "the leg made no Read call on /proc or the runner's temp directory, so its file-tool fence was not tested" ;;
+            *) fail "the leg's file tools were not refused /proc and the runner's temp directory" ;;
+          esac
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
@@ -1676,9 +1680,13 @@ jobs:
             reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)
             fail "a Bash child could reach a credential or token, or the scan could not show it works (${reach:-no hit named})"
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
-            fail "the leg's file tools were not refused /proc and the runner's temp directory"
-          fi
+          reads=0
+          node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" || reads=$?
+          case $reads in
+            0) ;;
+            3) fail "the leg made no Read call on /proc or the runner's temp directory, so its file-tool fence was not tested" ;;
+            *) fail "the leg's file tools were not refused /proc and the runner's temp directory" ;;
+          esac
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
@@ -1895,9 +1903,13 @@ jobs:
             reach=$(jq -r '[.hits[]?.name] | unique | join(", ")' "$RESULT" 2>/dev/null || true)
             fail "a Bash child could reach a credential or token, or the scan could not show it works (${reach:-no hit named})"
           fi
-          if ! node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE"; then
-            fail "the leg's file tools were not refused /proc and the runner's temp directory"
-          fi
+          reads=0
+          node .base/.github/scripts/pr-verify/capture-probe.mjs reads "$EXECUTION_FILE" /proc/self/environ "$PROMPT_FILE" || reads=$?
+          case $reads in
+            0) ;;
+            3) fail "the leg made no Read call on /proc or the runner's temp directory, so its file-tool fence was not tested" ;;
+            *) fail "the leg's file tools were not refused /proc and the runner's temp directory" ;;
+          esac
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 

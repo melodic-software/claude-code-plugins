@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: setup-check-reports-without-writing
+description: 'Legacy setup 1. check runs the prerequisites checker and detect with --team on the resolved team file, reports every key with its source, treats a missing node or claude as optional, and writes nothing (setup SKILL.md 27-63). runs-prerequisites and runs-detect-team grade the calls, key-sources the reply, no-team-file and no-write-call the workspace; legacy-setup-1 (llm) quotes the four legacy expectations. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'A PASS/FAIL/WARN/INFO table from prerequisites.mjs and detect.mjs --team: node and claude rows (a missing one INFO, not FAIL), the convention home at the docs/conventions default, the team file not found (INFO), every key with source built-in default; no file written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/user-experience:setup check'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: 'runs-prerequisites'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?prerequisites\.mjs(?:[^"\\]|\\.)*?\bcheck\b'
+  - name: 'runs-detect-team'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?detect\.mjs(?:[^"\\]|\\.)*?--team'
+  - name: 'key-sources'
+    type: 'regex'
+    pattern: 'built-?in default|default \(built-?in\)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-team-file'
+    type: 'file_exists'
+    path: 'docs/conventions/user-experience.yaml'
+    exists: false
+  - name: 'no-write-call'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-setup-1'
+    type: 'llm'
+    criteria: 'The run is /user-experience:setup check in a repository with no team file. It meets the legacy expectations: "Runs lib/prerequisites.mjs and detect.mjs rather than describing the file from memory" "Presents each team-file key with its source, team file or built-in default" "Treats a missing node or claude as optional, not as a failure" "Does not write or edit any file".'
+    focus: 'trace'

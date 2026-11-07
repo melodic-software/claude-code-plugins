@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "create-item --title 'Export fails on empty ledger' --type Bug",
+      "why": "seam flag"
+    },
+    {
+      "answer": "It sets the native Issue Type to Bug.",
+      "why": "prose"
+    },
+    {
+      "answer": "Bug (native Issue Type), passed through the seam.",
+      "why": "inverted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It adds the label type: bug.",
+      "why": "label"
+    },
+    {
+      "answer": "--type fix is passed through as is.",
+      "why": "unmapped"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

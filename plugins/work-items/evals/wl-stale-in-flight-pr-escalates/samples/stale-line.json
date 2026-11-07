@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "stale in flight: #320 (PR #451, ready, open 30d) -> escalated",
+      "why": "the line"
+    },
+    {
+      "answer": "`stale in flight: #320 (PR #451, ready, open 30d) → escalated`",
+      "why": "unicode arrow"
+    },
+    {
+      "answer": "- **Stale in flight:** `#320 (PR #451, ready, open 30d) -> escalated`. The escalation is new, with a record written before the marker.",
+      "why": "the wb1a reply line its first smoke rejected: a bold label with the value in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "in flight: #320 (PR #451, ready, open 30d)",
+      "why": "silently excluded"
+    },
+    {
+      "answer": "stale in flight: #320 (PR #451, ready, open 30d)",
+      "why": "no escalation"
+    }
+  ]
+}
