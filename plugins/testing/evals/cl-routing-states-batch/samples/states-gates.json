@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "This is /testing:cleanup: one folder per batch, a mutation gate before and after, and each deletion waits for your yes.",
+      "why": "all three"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /testing:audit to list them, then delete what it reports.",
+      "why": "routes to audit"
+    }
+  ]
+}

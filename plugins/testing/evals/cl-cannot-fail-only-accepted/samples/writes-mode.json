@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Write decisions.md: mode: cannot-fail-only\\ncannot-fail-only 1",
+      "why": "mode line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Continuing in cannot-fail-only mode.",
+      "why": "no mode line"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: cl-routing-states-batch
+description: 'Legacy cleanup routing. A natural ask to clean up flagged tests routes to /testing:cleanup, which states one folder is one batch, deletions wait for a yes per item, and a mutation gate runs before and after. The legacy entry has no expectations list, so the llm grader quotes its expected output. skill-fired reads the Skill call, states-gates the reply. Read-only tools.'
+tags: [testing, cleanup, routing, no-network]
+expected_outcome: 'Routes to /testing:cleanup rather than /testing:audit or /testing:write, and says one folder is one batch, deletions wait for a yes on each item, and a mutation gate runs before and after the edits.'
+execution:
+  prompt: 'The audit flagged a bunch of useless tests in tests/. Can you clean them up?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?cleanup"'
+  - name: states-gates
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\bmutation\b))(?=[\s\S]*(?:\b(?:yes|approv\w*|confirm\w*)\b))(?=[\s\S]*(?:\bbatch\b))'
+    flags: i
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked to clean up the useless tests the audit flagged in tests/. PASS only if the reply satisfies every legacy expectation: "Routes to /testing:cleanup shop_tests rather than /testing:audit (which only reports) or /testing:write (which authors new tests). States that one folder is one batch, that deletions wait for the user''s yes on each item, and that a mutation gate runs before and after the edits.". FAIL if any point is missing or contradicted.'

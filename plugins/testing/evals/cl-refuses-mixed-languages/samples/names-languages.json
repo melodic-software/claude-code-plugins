@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "shop_tests holds Python tests and a bash harness (total.test.sh); one test-command cannot run both. Name a folder with one language.",
+      "why": "both languages"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The mutation-testing plugin is not enabled; enable it, or use cannot-fail-only mode.",
+      "why": "no languages"
+    }
+  ]
+}
