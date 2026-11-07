@@ -9,6 +9,10 @@
     {
       "answer": "- Forks get the same tools as this session, including Edit, Write, and Bash.",
       "why": "a real smoke reply"
+    },
+    {
+      "answer": "- **I can't make them safe.** The skill forbids narrowing a fork's tools.",
+      "why": "a real smoke reply (s4n)"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Each fork gets the same read-only tools, so your tree is safe.",
       "why": "same tools narrowed to read-only"
+    },
+    {
+      "answer": "The skill forbids giving forks write tools, so they stay read-only.",
+      "why": "forbids, but not narrowing: the containment claim"
     }
   ]
 }
