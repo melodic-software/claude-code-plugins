@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "no settings read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/parse-concern-value.sh docs/conventions/work-items.yaml triage_repro_count"
+          }
+        }
+      ],
+      "why": "working-tree fallback"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr view 214"
+          }
+        }
+      ],
+      "why": "tracker read"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Lane directive authorizes writes, so I proceed: verification comment posted, outcome applied.",
+      "why": "proceeds"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shall I apply the outcome?",
+      "why": "asks"
+    },
+    {
+      "answer": "Do you want me to post the verification comment?",
+      "why": "asks"
+    }
+  ]
+}

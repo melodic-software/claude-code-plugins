@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: tr-attention-view-excludes-pinned-telemetry
+graders:
+  - name: 'lists-bug'
+    type: 'regex'
+    pattern: '#413\b'
+    target: 'last_message'
+  - name: 'telemetry-not-listed'
+    type: 'regex'
+    pattern: '^[ \t]*\|[^\n]*#412\b'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:triage attention view shows. PASS only if it satisfies every point: (1) Excludes #412 despite its non-default title, recognizing it by the pinned config identity or the sentinel comment; (2) Reads the launch config''s lanes[].telemetry.issue rather than assuming the default title is the only telemetry home; (3) Treats the sentinel status comment as enough identity on its own; (4) Does not relabel, comment on or close #412; (5) Reports the ordinary bug report normally. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
