@@ -11,6 +11,14 @@
     {
       "answer": ".card { transition: translate 200ms ease-in-out; }",
       "why": "ease-in-out is not ease-in"
+    },
+    {
+      "answer": ":root { --ease-in: cubic-bezier(0.3, 0, 1, 1); }\n.card { transition: translate 200ms var(--ease-out); }",
+      "why": "the skill's --ease-in token declared, not used as the hover curve"
+    },
+    {
+      "answer": "The lift eases out, never ease-in.",
+      "why": "prose naming ease-in is not a timing value"
     }
   ],
   "fail": [
