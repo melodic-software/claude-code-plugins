@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Motion lane, tree scope.",
+      "why": "names the lane"
+    },
+    {
+      "answer": "Judged against catalog.md and behaviors.md.",
+      "why": "names the spokes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here are the animation problems.",
+      "why": "near miss: no lane or spoke named"
+    }
+  ]
+}
