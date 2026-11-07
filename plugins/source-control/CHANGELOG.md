@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.5.3] - 2026-11-07
+
+### Fixed
+
+- The merge gate reads every page of a linked issue's comments, and of a size split's parent, up to 10 pages of 100, the same cap the pr-verify resolver reads. An issue with more than 100 comments no longer refuses every pass as unreadable. Past 1000 comments the refusal names the count and the cap; a page that does not arrive, or a failed page read, still refuses as unreadable.
+
 ## [8.5.2] - 2026-11-07
 
 ### Changed
