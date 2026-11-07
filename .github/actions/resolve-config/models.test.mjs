@@ -55,10 +55,11 @@ const assertRejected = (fn, code) =>
 
 // Facts under which every live skill activity's predicate applies.
 const LIVE_FACTS = {
-  event: "labeled",
+  // resolve-issue starts on the Work status field event.
+  event: "field_added",
   changedPaths: ["docs/guide.md"],
   changedTargets: ["docs/guide.md"],
-  // resolve-issue applies only while its issue carries agent-ready.
+  // resolve-issue applies only while its issue reads agent-ready.
   labels: ["agent-ready"],
   mergeable: "conflicting",
   draft: false,
@@ -1019,7 +1020,7 @@ const fieldEvent = (type, field, actor) => ({
   issueField: { fullDatabaseId: String(field) },
 });
 const FIELD_ROWS = [fieldRow(15462270, 27053567), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
-async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS) {
+async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS, labels = ["agent-ready"]) {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -1042,9 +1043,9 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
       return { data: { repository: { issue: { timelineItems: { nodes: events } } } } };
     }
     assert.equal(`${method} ${path}`, "GET /repos/o/r/issues/7");
-    return { labels: [{ name: "agent-ready" }] };
+    return { labels: labels.map((name) => ({ name })) };
   };
-  writeFileSync(join(env.BASE_PATH, "event.json"), JSON.stringify({ action: "labeled", issue }));
+  writeFileSync(join(env.BASE_PATH, "event.json"), JSON.stringify({ action: "field_added", issue }));
   const code = await main({ env: { ...env, SPLIT_CHILD: splitChild, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
   return { code, outputs: readOutputs(env.GITHUB_OUTPUT), calls };
 }
@@ -1072,6 +1073,24 @@ test("main on an issue set Medium, High, Known writes its turn cap, dimensions a
   assert.equal(outputs["timeout-minutes"], "9");
   const read = calls.find((call) => call.path.endsWith("/issue-field-values"));
   assert.equal(read.headers["X-GitHub-Api-Version"], "2026-03-10");
+});
+
+// The trusted Work status folds into the labels (read-status.mjs statusLabels):
+// agent-ready a listed human set admits with no label, one an unlisted account
+// set does not, and a field hold holds a labeled issue.
+test("main on an issue reads its trusted Work status as its status label", async () => {
+  const DIMS_SET = [fieldEvent("IssueFieldAddedEvent", 15462270, LISTED), fieldEvent("IssueFieldAddedEvent", 48625720, LISTED), fieldEvent("IssueFieldAddedEvent", 48625721, LISTED)];
+  const status = (value, actor) => ({ ...fieldEvent("IssueFieldAddedEvent", 48484079, actor), value });
+  const rows = (option) => [...FIELD_ROWS, fieldRow(48484079, option)];
+  const fieldOnly = await mainOnIssue([...DIMS_SET, status("agent-ready", LISTED)], "false", rows(84879220), []);
+  assert.equal(fieldOnly.code, 0);
+  assert.equal(fieldOnly.outputs.applies, "true");
+  const untrusted = await mainOnIssue([...DIMS_SET, status("agent-ready", UNLISTED)], "false", rows(84879220), []);
+  assert.equal(untrusted.outputs.applies, "false");
+  assert.equal(untrusted.outputs["skip-reason"], "not-applicable");
+  const held = await mainOnIssue([...DIMS_SET, status("needs-human", LISTED)], "false", rows(86380005), ["agent-ready"]);
+  assert.equal(held.outputs.applies, "false");
+  assert.equal(held.outputs["skip-reason"], "awaiting-human");
 });
 
 test("main reads a Size an unlisted account set last as small", async () => {

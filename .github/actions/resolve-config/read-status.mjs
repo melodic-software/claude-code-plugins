@@ -1,8 +1,7 @@
 // The Work status reader for the status-label readers (models.issue-status).
 // The field a trusted account set (issue-status.mjs issueStatus) decides an
-// issue's queue state; hold labels still hold on top of it, and agent-ready
-// stays with its label. An unset field or an untrusted setter leaves the
-// labels as they are; a failed read throws StatusReadError. Event-history readers read statusEvents: the
+// issue's queue state, agent-ready included; hold labels still hold on top of
+// it. An unset field or an untrusted setter leaves the labels as they are; a failed read throws StatusReadError. Event-history readers read statusEvents: the
 // REST label events plus the field's changes shaped as label events.
 // Imports nothing outside node at load, so a reader whose job installs no
 // resolve-config dependencies loads it, warns once, and every read throws.
@@ -20,7 +19,7 @@ import { FIELD_API } from "./write-status.mjs";
 const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 // The states that hold an issue for a person.
 export const HOLD_STATES = ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"];
-// The state that stays with its label until its readers move to the field.
+// The state whose field changes make no synthetic label event (syntheticFrom).
 const LABEL_STATE = "agent-ready";
 // A Work status read that failed or would pass the reader's limit: the
 // caller stops, since the labels alone could miss a hold set on the field.
@@ -35,9 +34,9 @@ const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 const fold = (name) => String(name).toLowerCase();
 
 // `names` as the field's trusted `state` decides them. With no state, `names`
-// unchanged. With one: every queue-state label (a state neither held nor
-// agent-ready) is dropped, hold labels and agent-ready are kept, and the
-// state's first label is added unless present or the state is agent-ready.
+// unchanged. With one: every queue-state label (a state not held, agent-ready
+// included) is dropped, hold labels are kept, and the state's first label is
+// added unless present, so a field-only agent-ready reads as the label.
 // Pure.
 export function statusLabels(state, names, config) {
   if (state === null || state === undefined || !config) {
@@ -45,12 +44,12 @@ export function statusLabels(state, names, config) {
   }
   const queue = new Set(
     Object.keys(config.labels)
-      .filter((one) => one !== LABEL_STATE && !HOLD_STATES.includes(one))
+      .filter((one) => !HOLD_STATES.includes(one))
       .flatMap((one) => config.labels[one].map(fold)),
   );
   const kept = names.filter((name) => !queue.has(fold(name)));
   const label = config.labels[state]?.[0];
-  return state === LABEL_STATE || label === undefined || kept.some((name) => fold(name) === fold(label)) ? kept : [...kept, label];
+  return label === undefined || kept.some((name) => fold(name) === fold(label)) ? kept : [...kept, label];
 }
 
 // `field`, label names as the field decides them (statusLabels), with

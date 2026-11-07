@@ -163,12 +163,12 @@ test("a needs-owner-decision field counts as the status the bare label lacks", a
   assert.deepEqual(await fieldRun(labels, { 7: { state: "needs-owner-decision" } }), { skip: "true", reason: "born-triaged" });
 });
 
-// agent-ready stays with its label: the field reading it adds no status.
-test("run lets the Work status field decide an issue's status, but not agent-ready", async () => {
+// A field-only agent-ready, with no label, is a status: the label is going away.
+test("run lets the Work status field decide an issue's status, agent-ready included", async () => {
   assert.deepEqual(await fieldRun([], { 7: { state: "ready" } }), { skip: "true", reason: "born-triaged" });
   assert.deepEqual(await fieldRun(["needs-triage"], { 7: { state: "confirmed" } }), { skip: "true", reason: "born-triaged" });
   assert.deepEqual(await fieldRun(["status: ready"], { 7: { state: "needs-triage" } }), { skip: "false", reason: "no-status" });
-  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "false", reason: "no-status" });
+  assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged" });
 });
 
 test("a hold the Work status field adds still counts as the status", async () => {

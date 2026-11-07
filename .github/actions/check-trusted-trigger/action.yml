@@ -149,6 +149,20 @@ inputs:
       event stopped.
     required: false
     default: ""
+  app-field-id:
+    description: >
+      With require-kind human on an issues event, the issue field the lanes
+      App (lanes-app-id) may set to app-field-option to start the lane
+      (field_added), with that App or a listed human as re-runner. Needs
+      app-field-option; either empty or not a positive integer keeps every
+      App field event stopped.
+    required: false
+    default: ""
+  app-field-option:
+    description: >
+      The single-select option id of app-field-id that starts the lane.
+    required: false
+    default: ""
   fault-reason:
     description: >
       `true` writes reason `read-fault` for a stop a read GitHub failed to
@@ -214,6 +228,8 @@ runs:
         CI_STATUS_RERUN_WORKFLOW: ${{ inputs.ci-status-rerun-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         APP_LABEL: ${{ inputs.app-label }}
+        APP_FIELD_ID: ${{ inputs.app-field-id }}
+        APP_FIELD_OPTION: ${{ inputs.app-field-option }}
         REQUIRE_PR: ${{ inputs.require-pr }}
         FAULT_REASON: ${{ inputs.fault-reason }}
         REPOSITORY: ${{ github.repository }}
