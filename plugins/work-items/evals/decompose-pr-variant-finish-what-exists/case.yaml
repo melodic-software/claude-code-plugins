@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-pr-variant-finish-what-exists
+graders:
+  - name: 'pr-variant'
+    type: 'regex'
+    pattern: 'finish[\s-]+what[\s-]+exists|current[\s-]+behavior[\s-]+of[\s-]+the[\s-]+diff'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Uses the agent-brief PR-variant (current-behavior-of-the-diff, finish-what-exists) rather than a greenfield Desired behavior rewrite ; (2) Does not replace the existing bug/feature agent-brief template for ordinary vertical slices ; (3) Does not drop the approval gate or born-triaged publish rules. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

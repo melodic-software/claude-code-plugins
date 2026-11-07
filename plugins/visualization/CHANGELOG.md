@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.15] - 2026-11-07
+
+### Changed
+
+- The present and visualize `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Thirteen new cases: `pres-no-slides-type-outline` (with no Slides type or Artifact tool the outline is the deliverable, no hand-written deck page and no invented figure), `viz-checkout-flow-mermaid` (a described process becomes a mermaid flowchart or sequence fence presented as source), `viz-signups-chart-craft` (a numeric trend becomes a chart, its craft routed to a chart-craft skill or replaced by a stated simple default), `viz-ambiguous-target` (three equally plausible targets get one question with the recommended one first), `viz-state-machine-degrades` (with no Artifact surface and no mermaid renderer a state diagram degrades visibly to a source fence, never a page showing source or loading a renderer from the network), `viz-file-argument-dashboard` (the file argument resolves to `view: file (argument)` and the dashboard is a self-contained local HTML file whose path is reported), `viz-team-file-medium` and `viz-personal-override-medium` (a team file or personal override setting file resolves through the shared resolver, which the skill never bypasses by reading the settings files, and the mermaid gate runs before the source fence), `viz-retry-pseudocode` (prose logic becomes one pseudocode fence), `viz-reset-button-diff` (a change to a shape already shown becomes a diff over it), `viz-session-state-file-tree` (a where-does-this-live question gets one shallow file tree), `viz-pr-diff-artifact-arg` (a pull-request diff stays a terminal fence even with the artifact argument) and `viz-dashboard-self-contained` (a dashboard that invites a CDN library and a remote logo stays self-contained, with its CSS and JS inlined). `viz-ambiguous-code` gains the two-to-four-forms count. The medium-list test now walks the eval prompts instead of the deleted files.
+
 ## [1.0.14] - 2026-11-05
 
 ### Fixed

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "On exit 7 it reports #712 skipped: claimed by another session, does not retry #712, posts no interview question, writes no answer and flips no label, then advances to the next candidate.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "**#712** `skipped: claimed by another session` (exit 7). Moving to the next [escalated] row.",
+      "why": "markdown bold and code span"
+    },
+    {
+      "answer": "Claim returned exit 7, so I skip #712: another session holds the lease.",
+      "why": "verb before the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claim on #712 returned exit 7; retrying the claim on #712 until the other session lets go, then posting the question.",
+      "why": "near miss: retries instead of skipping"
+    },
+    {
+      "answer": "Claim on #712 returned exit 7, so the pass stops here.",
+      "why": "dead-ends on the lost race"
+    }
+  ]
+}

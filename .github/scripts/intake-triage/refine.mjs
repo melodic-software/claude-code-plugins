@@ -31,16 +31,17 @@
 // human posts them as their own. Only when that text, with this refinement
 // counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
 // ask for one more triage, which runs
-// admission again: it takes the lanes App's `status: needs-decision` off, or,
-// for a `status: ready` issue admission has not taken, keeps the labels, adds
-// `needs-triage`, and sets the job's `redispatch` output. Otherwise the labels
-// stay and the comment asks a listed human to post the confirmed criteria as
+// admission again: it sets the Work status field to needs-triage, takes the
+// lanes App's `status: needs-decision` off when the issue carries it, and
+// sets the job's `redispatch` output. The issue's status is its label names
+// as the field decides them (read-status.mjs). Otherwise the status
+// stays and the comment asks a listed human to post the confirmed criteria as
 // their own `**Decision recorded.**` comment, which re-enters intake; a
 // re-triage then would only refuse again. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
-// shows the reply to copy (DECISION_REPLY) above its footer, and the issue
-// keeps or gets `status: needs-decision`, in place of any `status: confirmed`
-// so one status stands, which a person's
+// shows the reply to copy (DECISION_REPLY) above its footer, and the field
+// is set to needs-owner-decision, a `status: confirmed` or `status: ready`
+// label coming off so one status stands, which a person's
 // `**Decision recorded.**` sends back through intake-reenter.yml. An exact
 // output that names a duplicate or fixing change becomes not exact, with one
 // question whether to close the issue. It never adds `agent-ready` or
@@ -97,7 +98,8 @@ import { selectTrustedIssueComments } from "../../actions/select-trusted-text/se
 import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
-import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
+import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -107,6 +109,10 @@ const READY = "status: ready";
 const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
 const AGENT_READY = "agent-ready";
+// The holds besides needs-decision a not-exact refinement could overwrite.
+const PERSON_HOLDABLE = ["status: needs-info", "needs-spec"];
+// The id of whoever last added label `name` in `events`, or undefined.
+const newestLabeler = (events, name) => events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
 const EXTERNAL_KINDS = new Set(["none", "iac", "manual"]);
@@ -174,10 +180,10 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
 // Why the split may not lift the issue's status, or null: admission parks a
 // split at `status: confirmed` (admit.mjs admissionParked), and an issue it
 // held before at the lanes App's own `status: needs-decision` lifts as
-// decisionStays judges. Any other status stays.
-async function splitStays(github, base, labels, comments, appId) {
+// decisionStays judges over `events`. Any other status stays.
+async function splitStays(github, base, labels, comments, appId, events) {
   if (labels.includes(NEEDS_DECISION)) {
-    return decisionStays(github, base, comments, appId);
+    return decisionStays(github, base, comments, appId, events);
   }
   return admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`;
 }
@@ -473,8 +479,10 @@ function orderProblem(order, count) {
 // `splitConfig` returns {rules, webHosts}, read only for an issue that is
 // not thin.
 // A size split comes first (selectSizeSplit), with its own guard; `note`
-// records why a parked issue is not split.
-export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, note = () => {} }) {
+// records why a parked issue is not split. `statusOf` (read-status.mjs
+// statusReader), when given, decides the label names the needs-human check
+// reads, so a hold only the Work status field holds counts.
+export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const no = (reason) => ({ refine: false, reason });
@@ -484,7 +492,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!authorAdmitted(issue, humans, appId)) {
     return no("the author is neither a listed human nor the lanes App");
   }
-  if (labelNames(issue).includes(NEEDS_HUMAN)) {
+  if ((statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue)).includes(NEEDS_HUMAN)) {
     return no(`a person holds it (${NEEDS_HUMAN})`);
   }
   const comments = await paginate(github, `${base}/comments`);
@@ -743,15 +751,25 @@ export function movedTexts(body, taskList, moved) {
 // `humans` and `rules` decide whether an exact refinement asks for a
 // re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
 // posted); a failed read of the spec throws before any label write.
-export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, mirrorStatus = async () => {}, log = console.log }) {
+// `setStatus(number, state)` (write-status.mjs statusWriter's `set`) writes
+// the Work status each branch leaves; a failed write throws. `statusOf`
+// (read-status.mjs statusReader), when given, decides the issue's label
+// names and its status history; without it, its own labels and REST events.
+export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, setStatus, statusOf, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const labels = labelNames(issue);
-  // The Work status field mirrors the labels a branch leaves (write-status.mjs).
-  const mirror = (add, remove = []) => mirrorStatus(number, { had: labels, add, remove });
+  const own = labelNames(issue);
+  const labels = statusOf ? await statusOf(number, own) : own;
+  const events = statusOf ? () => statusOf.events(number) : undefined;
   const skip = (why, redispatch = false) => {
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
     return { outcome: "skipped", redispatch };
+  };
+  // needs-triage, unless a person set a hold since the read (write-status.mjs
+  // keepHold): then the skip it returns ends the refinement.
+  const retriage = async () => {
+    const moved = await setStatus(number, NEEDS_TRIAGE, { keepHold: true });
+    return moved?.outcome === "held" ? skip(`is held by a person's Work status ${moved.state}`) : null;
   };
   if (issue.pull_request || issue.state !== "open") {
     return skip("is not an open issue");
@@ -767,13 +785,15 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("is already refined");
   }
   if (output.split.length > 0) {
-    if ((await splitStays(github, base, labels, comments, appId)) !== null) {
+    if ((await splitStays(github, base, labels, comments, appId, events)) !== null) {
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
     const parkedAt = labels.includes(NEEDS_DECISION) ? NEEDS_DECISION : CONFIRMED;
-    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await removeLabel(github, base, parkedAt);
-    await mirror([NEEDS_TRIAGE], [parkedAt]);
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
     return { outcome: "split", redispatch: true };
@@ -795,18 +815,23 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
+  // The legacy status labels come off by the issue's own labels: the field's
+  // names hide a stale queue label.
   if (!output.exact) {
-    if (labels.includes(READY)) {
+    if (own.includes(READY)) {
       await removeLabel(github, base, READY);
     }
-    if (!labels.includes(NEEDS_DECISION)) {
-      await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    // A person's needs-info or needs-spec stays: the App writes needs-decision
+    // only over no hold or one it set itself.
+    const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
+    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), hold) !== appId;
+    if (!labels.includes(NEEDS_DECISION) && !personHold) {
+      await setStatus(number, "needs-owner-decision");
     }
-    // After the add, so no read sees the issue with no status: one stands.
-    if (labels.includes(CONFIRMED)) {
+    // After the write, so no read sees the issue with no status: one stands.
+    if (own.includes(CONFIRMED)) {
       await removeLabel(github, base, CONFIRMED);
     }
-    await mirror([NEEDS_DECISION], [READY, CONFIRMED]);
     await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
@@ -819,9 +844,11 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
     }
-    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await removeLabel(github, base, CONFIRMED);
-    await mirror([NEEDS_TRIAGE], [CONFIRMED]);
     await post(true);
     log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
     return { outcome: "exact", redispatch: true };
@@ -838,15 +865,17 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
     }
-    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-    await mirror([NEEDS_TRIAGE]);
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
     await post(true);
     log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
     return { outcome: "exact", redispatch: true };
   }
   // Only the lanes App's own needs-decision gives way, and not for a flag past
   // intent: a person's stays.
-  const stays = await decisionStays(github, base, comments, appId);
+  const stays = await decisionStays(github, base, comments, appId, events);
   if (stays !== null) {
     await post();
     log(`refine: #${number} is exact; ${stays}, so it stays`);
@@ -855,10 +884,12 @@ export async function applyRefinement({ github, repository, number, appId, human
   if (await untrusted()) {
     return { outcome: "exact", redispatch: false };
   }
-  // needs-triage first: a failure between the two leaves a label a sweep picks up.
-  await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+  // needs-triage first: a failure between the two leaves a status a sweep picks up.
+  const held = await retriage();
+  if (held) {
+    return held;
+  }
   await removeLabel(github, base, NEEDS_DECISION);
-  await mirror([NEEDS_TRIAGE], [NEEDS_DECISION]);
   await post(true);
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
   return { outcome: "exact", redispatch: true };
@@ -932,7 +963,8 @@ async function blockOn({ github, repository, issue, blocker, log }) {
 // leaves the split unfinished: what the issue blocks keeps its edge to the
 // issue, and the record stays unfiled so the next triage retries. The
 // record's `filed` list goes last, and is the guard that stops a later split.
-export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, log = console.log, note = () => {} }) {
+// `statusOf`, as selectRefinement's, decides the needs-human check's labels.
+export async function applySizeSplit({ github, repository, number, appId, humans, rules, webHosts, output, context, statusOf, log = console.log, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const settings = sizeSplitSettings(rules);
@@ -949,7 +981,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
   if (issue.pull_request || issue.state !== "open" || !Number.isInteger(issue.id)) {
     return skip("is not an open issue");
   }
-  if (labelNames(issue).includes(NEEDS_HUMAN)) {
+  if ((statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue)).includes(NEEDS_HUMAN)) {
     return skip(`is held by ${NEEDS_HUMAN}`);
   }
   const type = issue.type?.name;
@@ -1113,7 +1145,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const { attendedClassesFromBase, issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
         const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env), attended: attendedClassesFromBase(env) });
-        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, note: summary });
+        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf: statusReader({ env, github, repository }), note: summary });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
         }
@@ -1134,13 +1166,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.
           const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
           const webHosts = () => issueLaneWebHostsFromBase(env);
-          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, note: summary });
+          const result = await applySizeSplit({ github, repository, number, appId, humans, rules: rules(), webHosts, output: raw(), context, statusOf: statusReader({ env, github, repository }), note: summary });
           writeOutputs({ redispatch: "false", children: result.children.join(" ") });
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
           const output = validateOutput(raw(), known, context.split ?? null, context.attended ?? {});
-          const mirrorStatus = await statusMirror({ env, github, repository });
-          const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context, mirrorStatus });
+          const { set: setStatus } = await statusWriter({ env, github, repository });
+          const statusOf = statusReader({ env, github, repository });
+          const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context, setStatus, statusOf });
           writeOutputs({ redispatch: String(result.redispatch), children: "" });
         }
       } else {

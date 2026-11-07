@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: viz-pr-diff-artifact-arg
+graders:
+  - name: terminal-fence
+    type: 'regex'
+    pattern: '^(?:(?!```)[\s\S])*?(?:```[^\n]*\n(?:(?!```)[\s\S])*?```(?:(?!```)[\s\S])*?)*?```[^\n]*\n(?:(?!```)[\s\S])*?(?<=\n)[ \t]*[+-][^\n]*resumeFrom(?:(?!```)[\s\S])*?```'
+    target: 'last_message'
+  - name: reason-given
+    type: 'regex'
+    pattern: '^(?![^\n]*(?:\bsession\b|\bpermission|\btools?\b|can''t write|cannot write|unable to write|can''t publish|cannot publish|unable to publish))(?=[^\n]*?(?:(?:pull[- ]request|\bPR\b)[^\n]{0,30}?\bdiffs?\b|\bdiffs?\b[^\n]{0,30}?(?:pull[- ]request|\bPR\b)|untrusted|escape helper))(?=[^\n]*?(?:(?:\bno\b|\bnot\b|n''t\b|\bnever\b|instead of|rather than|\bwithout\b|\bskip|\bignor|\boverrid)[^\n]{0,60}?(?:HTML|\bpages?\b|\brender|\bartifact|\bpublish)|\b(?:stays?|stayed|kept|keep(?:s|ing)?)\b[^\n]{0,40}?(?:terminal|fence|inline)|(?:terminal|fence|inline)[^\n]{0,60}?\b(?:because|since)\b|escape helper))'
+    flags: 'im'
+    target: 'last_message'
+  - name: no-page
+    type: 'regex'
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

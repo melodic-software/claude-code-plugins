@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "docs/x.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/.gitignore"
+      ]
+    },
+    {
+      "answer": [
+        ".work/probe/x"
+      ]
+    }
+  ]
+}

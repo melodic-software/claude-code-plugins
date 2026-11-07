@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Stopped:** `run` is *attended only*; no human is attached to this loop cycle, so nothing was claimed.",
+      "why": "markdown emphasis between the words"
+    },
+    {
+      "answer": "STOP before any claim: run has no unattended mode.",
+      "why": "the other phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Running unattended from the loop: claiming the two ready sub-items and dispatching them.",
+      "why": "near miss: proceeds unattended"
+    },
+    {
+      "answer": "Nothing to do; the container has no ready items.",
+      "why": "wrong reason"
+    }
+  ]
+}

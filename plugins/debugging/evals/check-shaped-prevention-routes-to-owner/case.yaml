@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: check-shaped-prevention-routes-to-owner
+context:
+  scaffold_script: scaffold.sh

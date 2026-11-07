@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-decisions-no-coined-ids
+graders:
+  - name: 'q2-csv'
+    type: 'regex'
+    pattern: '\bQ2\b[^\n]{0,80}\bCSV\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) The item body has a Decisions section inlining the replica-only decision with the id D4 and the CSV-not-XLSX answer with the id Q2 ; (2) The column-order decision is inlined with no Q or D id attached to it (no coined id such as D5 or D1) ; (3) No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md or interview-checklist.md path. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

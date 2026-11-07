@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 2 (docs/conventions/verification.yaml at origin/main)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live_workers: 2"
+    },
+    {
+      "answer": "live_workers: 1 (default)"
+    }
+  ]
+}

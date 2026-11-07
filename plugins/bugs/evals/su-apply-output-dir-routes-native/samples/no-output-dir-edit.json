@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "docs/conventions/bugs.yaml",
+            "old_string": "lanes:",
+            "new_string": "lanes:"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "docs/conventions/bugs.yaml",
+            "old_string": "output_dir: x\n",
+            "new_string": ""
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/bugs.yaml",
+            "old_string": "lanes:",
+            "new_string": "output_dir: docs/bug-reports/\nlanes:"
+          }
+        }
+      ]
+    }
+  ]
+}

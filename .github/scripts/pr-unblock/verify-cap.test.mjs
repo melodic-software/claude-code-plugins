@@ -259,7 +259,7 @@ const stepEnv = (block) => {
 
 for (const [workflow, dispatchName] of [
   ["pr-feedback-dispatch.yml", "Dispatch address-feedback"],
-  ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"],
+  ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs"],
 ]) {
   test(`${workflow}: the carry is fetched on the first FAIL-cap read only and every read shares one saved listing`, async () => {
     const steps = dispatchSteps(workflow);

@@ -564,19 +564,19 @@ activities:
     # or a merge in this repository, meaning a merged PR or a commit (a pull
     # request blocker: merged here; another repository's blocker: closed there
     # by a listed human), oldest first, that carries no
-    # hold label, and whose agent-ready label was never removed or was marked
-    # `status: ready` by the lanes App or a listed human after its newest
+    # hold, and whose agent-ready label was never removed or whose Work status
+    # was set to ready by the lanes App or a listed human after its newest
     # removal. The label
     # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
-    # labels such an issue admission-deferred instead, and each hourly sweep
+    # sets such an issue's Work status to deferred instead, and each hourly sweep
     # admits the deferred ones oldest first within the room. A listed human
-    # adding admission-deferred to an issue with `status: ready` marks it
+    # adding admission-deferred to an issue at Work status ready marks it
     # decided (owner decision Q75): the sweep reads its
     # Size, Complexity and Uncertainty issue fields (each counting only when a
     # listed human or the lanes App set it) and the default branch's
     # .github/actions/resolve-config/admission-rules.json, runs intake's
     # admission rules, and admits it only on their admit verdict; a refusal
-    # moves it to `status: needs-decision` with a comment. Hourly it also
+    # moves its Work status to needs-owner-decision with a comment. Hourly it also
     # re-fires an agent-ready issue left stranded (no run, or one that ended
     # with no report, for its cause's limits.stranded-backoff-hours, and no
     # open PR of the lanes App's or a listed human's for it) once per version
@@ -588,12 +588,12 @@ activities:
     # any model turn); and
     # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
-    # triage (`status: ready` and agent-ready off, which the hourly triage
+    # triage (Work status needs-triage and agent-ready off, which the hourly triage
     # sweep dispatches intake for), lifting only the needs-human
     # report-outcome set for a Refs PR that merged or closed unmerged.
     # Hourly it also runs intake's admission rules on at most
-    # limits.readmit-per-run open `status: ready` issues in no queue (neither
-    # agent-ready nor admission-deferred, no hold, refuse label, open blocker
+    # limits.readmit-per-run open issues at Work status ready in no queue
+    # (neither agent-ready nor deferred, no hold, refuse label, open blocker
     # or open sub-issue), oldest updated first, writing as intake does, and
     # closes at most limits.parent-rescan-per-run finished split parents whose
     # number is the UTC hour modulo 24, whenever their last sub-issue closed. A
@@ -611,11 +611,12 @@ activities:
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
   sync-status:
-    # When a status label (models.issue-status) is added to or removed from an
-    # issue, and hourly for every open issue, writes the state the issue's
-    # labels collapse to into its Work status field, unless a listed human or
-    # the lanes App already set it to that state. The labels stay the source
-    # of truth. A script, no model.
+    # When a listed human adds a queue-state or agent-ready status label
+    # (models.issue-status) to an issue, writes that label's state into its
+    # Work status field, unless the field holds a hold or that state already;
+    # when a listed human takes agent-ready off, writes confirmed only while
+    # the field reads agent-ready. The field is the state: a label's absence
+    # never resets it, and a hold label writes nothing. A script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/sync-status.mjs
     # Writes the Work status issue field; nothing else.
@@ -628,22 +629,22 @@ activities:
   apply-verdict:
     # After intake triage, writes its verdict as the lanes App: the Size,
     # Complexity and Uncertainty issue fields (never a work-class label), and
-    # `status: ready` or `status: needs-decision`, read from the lane comment
+    # the Work status ready or needs-owner-decision, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
     # `Blocked by:` line or the issue body's own `Blocked by` and
     # `Depends on` lines name (at most 10 from the body); an edge GitHub answers 403, 429 or 5xx for is
     # missed, and the edges the run wrote are deleted, so work-unblock never
-    # reads a partial set: a ready verdict then lands without `status: ready`
-    # and is not admitted, so the hourly triage sweep runs intake again, and a
+    # reads a partial set: a ready verdict then lands without Work status
+    # ready and is not admitted, so the hourly triage sweep runs intake again, and a
     # 403 fails the job after every write.
     # Only needs-human, a person's hold, the triage
     # run's own escalation, an untrusted setter, a hold set after an earlier
     # flagged verdict or with no readable earlier verdict, or the verdict
     # itself holds the issue, and the reasons
-    # go on the issue in one comment it edits in place. On
-    # `status: ready` it adds agent-ready when
+    # go on the issue in one comment it edits in place. On Work status ready
+    # it adds agent-ready when
     # .github/actions/resolve-config/admission-rules.json holds and the caps
-    # have room, else admission-deferred (owner decision Q51, #9212). A
+    # have room, else sets Work status deferred (owner decision Q51, #9212). A
     # script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/apply-verdict.mjs
@@ -660,10 +661,10 @@ activities:
     # comment. Exact: the drafted criteria as a task list (admission's
     # criterion 7 counts them only once a listed human posts them as their
     # own, owner decision Q9); one more triage, lifting the lanes App's
-    # `status: needs-decision`, only when a listed human's text already holds
-    # a task list, else the labels stay and the comment asks a listed human
+    # Work status needs-owner-decision, only when a listed human's text already
+    # holds a task list, else the status stays and the comment asks a listed human
     # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
-    # answers at `status: needs-decision`. For an issue admission held at the
+    # answers at Work status needs-owner-decision. For an issue admission held at the
     # App's needs-decision for some, not all, done-when items a lane run
     # cannot perform, a split the model judges sound lists those items in the
     # refinement comment as checks a person runs, with their numbers and the
@@ -795,8 +796,8 @@ lanes:
     stage: refine
     slots:
       # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file, whoever opened it except Dependabot, the release App
-      # and the standards-sync App.
+      # Markdown file, on an event the lanes App or a listed human sent,
+      # except Dependabot, the release App and the standards-sync App.
       - activity: fix-docs
       # Runs after fix-docs, in its own job with its own token.
       - activity: apply-patch
@@ -1062,15 +1063,42 @@ models:
       knowable: run
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
-  # An issue's state, as its Work status org issue field, read by field and
-  # option id. A state's name is its option's name on GitHub. Collapsing an
-  # issue's labels takes the first state in order one of whose labels it
-  # carries; one with none takes the last, needs-triage. A value whose latest
-  # setter is neither a listed human nor the lanes App reads as none; a
-  # trusted value no option maps fails the read. Nothing reads or writes the
-  # field from here yet.
+  # An issue's state is its Work status org issue field, read by field and
+  # option id; writers set the field, and a queue-state label does not decide
+  # it, though a hold label still holds on top of it. A state's name is its
+  # option's name on GitHub. Collapsing an issue's labels takes the first
+  # state in order one of whose labels it carries; one with none takes the
+  # last, needs-triage. A value counts when its latest setter is a listed
+  # human or the lanes App, or, for every state
+  # but agent-ready, one of bot-setters: the job GITHUB_TOKEN
+  # (github-actions[bot]) and the melodic- Apps of trusted-actors.json; a
+  # melodic- entry counts only while that list holds it as a bot with the same
+  # id and login. Third-party bots (claude[bot], cursor[bot], cursoragent,
+  # dependabot[bot]) never count, and agent-ready counts only from a listed
+  # human or the lanes App. Any other value reads as none, and an issue with
+  # no counted value keeps its labels; a counted value no option maps fails
+  # the read.
   issue-status:
     field-id: 48484079
+    bot-setters:
+      - id: 41898282
+        login: "github-actions[bot]"
+      - id: 300666570
+        login: "melodic-standards-sync[bot]"
+      - id: 288071998
+        login: "melodic-ai[bot]"
+      - id: 296023097
+        login: "melodic-software-github-iac[bot]"
+      - id: 300690090
+        login: "melodic-ci-runner-host[bot]"
+      - id: 302525172
+        login: "melodic-ci-runner-observer[bot]"
+      - id: 315045210
+        login: "melodic-claude-lanes-repin[bot]"
+      - id: 337859524
+        login: "melodic-release[bot]"
+    # Bot field events before this time are label mirrors and never count as history.
+    field-events-since: "2026-11-07T09:45:00Z"
     options:
       "84879216": needs-triage
       "84879217": needs-reporter-info
@@ -1117,6 +1145,9 @@ models:
 
 loop:
   review-rounds: 3
+  # What a review lane reports on heads after the first one it reviewed
+  # whole: blocking-only (the default) or all.
+  findings-after-first-review: blocking-only
   dependency-review-rounds: 2
   # Fixes fix-ci may push to one pull request before the next run hands it to
   # a person instead. 3 matches review-rounds: past it, CI failing again after
@@ -1132,11 +1163,12 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch run starts; 0 turns CI fix-docs off.
+  # fix-docs runs one pr-unblock-dispatch refine run starts for its PR's own
+  # event; each event offers one PR, so 0 turns CI fix-docs off and any other
+  # value turns it on. A push to main or the tick starts none.
   # On for every PR not tidied in its own run (work-resolve-issue's within
   # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
   # D100 to those PRs.
-  # 2 matches fix-ci-per-run.
   fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
@@ -1322,7 +1354,8 @@ branch-cleanup:
 # fix-docs read or a changed-files read that failed, or a Refine pass that
 # failed, whose refine-failed warning is read on red runs too: pr-refine's
 # failed runs are listed and read as well, and its cap of 6 unread runs covers
-# green and red together) and intake-triage (a verdict a GitHub fault held):
+# green and red together), intake-triage (a verdict a GitHub fault held) and
+# pr-merge (a lane token rate limit past the request's retry budget):
 # each ends green with only a notice, so a fault
 # that keeps holding shows nowhere else. A lane with `threshold` held runs or
 # more in the last `window-hours` raises the signal's issue, which only
@@ -1541,7 +1574,7 @@ merge:
       max-count-tokens-requests: 50
       max-preflight-requests: 1000
       upstream-timeout-ms: 600000
-      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15, fallback-credit-2]
+      betas: [claude-code-20250219, interleaved-thinking-2025-05-14, context-management-2025-06-27, per-turn-control-2026-07-01, mid-conversation-tool-changes-2026-07-01, thinking-token-count-2026-05-13, advanced-tool-use-2025-11-20, effort-2025-11-24, thinking-display-updates-2026-08-18, redact-thinking-2026-02-12, structured-outputs-2025-12-15, fallback-credit-2026-06-01]
       body-keys: [context_management, max_tokens, messages, metadata, model, output_config, stream, system, thinking, tools]
       block-types: [text, image, document, tool_use, tool_result, thinking, redacted_thinking]
   # Dependabot pull requests answer to this switch, not report-only: tier auto

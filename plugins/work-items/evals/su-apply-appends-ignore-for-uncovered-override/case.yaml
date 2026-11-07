@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-apply-appends-ignore-for-uncovered-override
+graders:
+  - name: 'appends-to-gitignore'
+    type: 'regex'
+    pattern: '\b(?:appends?|appended|appending)\b[^\n]{0,200}\.gitignore'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Appends the .work-item-tracker.local.json line to .gitignore and announces the edit; (2) Modifies no other line of .gitignore; (3) Does not stage or commit the personal override; (4) Does not raise the tracked-personal-override stop condition when the index probe comes back empty. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

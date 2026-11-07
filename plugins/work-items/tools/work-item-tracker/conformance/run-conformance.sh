@@ -224,6 +224,11 @@ assert_eq "status-storage names field or labels" "ok" "$(jq -r 'if (.storage == 
   or (.storage == "labels" and .field == null) then "ok" else "bad" end' <<<"$WIT_OUT")"
 if ! verb_supported get-field-options; then
   assert_eq "status-storage without get-field-options → labels" "labels" "$(jq -r '.storage' <<<"$WIT_OUT")"
+else
+  wit_case "get-field-options absent field" 0 get-field-options --field "conformance-absent-field" "${repo_args[@]+"${repo_args[@]}"}"
+  assert_schema_version "get-field-options"
+  assert_eq "get-field-options absent field → null field_id, empty options" "null|[]" \
+    "$(jq -r '"\(.field_id)|\(.options | tojson)"' <<<"$WIT_OUT")"
 fi
 
 # --- create-item ---

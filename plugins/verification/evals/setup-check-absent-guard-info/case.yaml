@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: setup-check-absent-guard-info
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'ignore-row-info'
+    type: 'regex'
+    pattern: 'INFO[^\n]*(?:ignore|guard)|(?:ignore|guard)[^\n]*\bINFO\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-ignore-fail'
+    type: 'regex'
+    pattern: '(?:^|\|)[ \t*]*FAIL[ \t*]*(?:\||:)[^\n]*(?:ignore|guard)|(?:ignore|guard)[^\n]*\|[ \t*]*FAIL[ \t*]*(?:\||$)'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-memory-root'
+    type: 'file_exists'
+    path: '.work/**'
+    exists: false
+  - name: 'no-ignore-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.gitignore"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-ignore-shell-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>>?|\btee\b(?:\s+-a)?)\s*(?:\\"|'')?[^\s;|&"''\\]*\.gitignore'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'first-write-creates-guard'
+    type: 'llm'
+    criteria: 'The run checks a repository before any verification run. It meets the legacy expectations: "Explains that the first memory-slice write creates the guard".'
+    focus: 'last_message'

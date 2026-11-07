@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nfor attempt in 1..5:\n    response = send(request)\n    if response.ok or not is_5xx(response): return response\n    if attempt == 5: raise last_error\n    sleep(2 ^ (attempt - 1) seconds)   # 1, 2, 4, 8\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```mermaid\nflowchart TD\n  A --> B\n```"
+    },
+    {
+      "answer": "<html><body><pre>retry</pre></body></html>",
+      "why": "page markup"
+    }
+  ]
+}

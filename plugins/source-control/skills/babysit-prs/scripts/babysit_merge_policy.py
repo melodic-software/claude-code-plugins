@@ -45,7 +45,7 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
@@ -431,6 +431,82 @@ def floor_paths_in(text: str) -> FloorRows:
     }
     _FLOOR_ROWS[text] = rows = floor_rows(records)
     return rows
+
+
+_ISSUE_STATUS: dict[str, IssueStatusConfig | None] = {}
+
+
+def _issue_status_config(text: str) -> IssueStatusConfig | None:
+    """The `models.issue-status` block of a pipeline document, read once per
+    document from its `yaml_records`: None when it has none, and an
+    `IssueStatusConfig` whose `error` names the fault when the block or the
+    document cannot be read whole."""
+    if "issue-status" not in text:
+        return None
+    if text not in _ISSUE_STATUS:
+        try:
+            rows = {
+                key[len(ISSUE_STATUS_KEY) + 1 :]: value
+                for key, value in yaml_records(text).items()
+                if key == ISSUE_STATUS_KEY or key.startswith(f"{ISSUE_STATUS_KEY}.")
+            }
+            _ISSUE_STATUS[text] = _issue_status_rows(rows) if rows else None
+        except PolicyReadError as exc:
+            _ISSUE_STATUS[text] = IssueStatusConfig(0, (), (), (), (), str(exc))
+    return _ISSUE_STATUS[text]
+
+
+def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
+    """`_issue_status_config` of the block's records, keyed below
+    `ISSUE_STATUS_KEY`."""
+
+    def items(prefix: str) -> dict[str, str]:
+        return {k[len(prefix) :]: v for k, v in rows.items() if k.startswith(prefix)}
+
+    def listed(prefix: str, parts: tuple[str, ...] = ("",)) -> list[dict[str, str]]:
+        found = items(prefix)
+        count = len(found) // len(parts)
+        keys = [f"{i}{f and '.'}{f}" for i in range(count) for f in parts]
+        if sorted(found) != sorted(keys) or not all(found.values()):
+            raise ValueError(f"{prefix.rstrip('.')} is not a list of {parts}")
+        return [{f: found[f"{i}{f and '.'}{f}"] for f in parts} for i in range(count)]
+
+    def ident(value: str) -> bool:
+        return re.fullmatch(r"[1-9][0-9]*", value) is not None
+
+    try:
+        field_id = rows.get("field-id") or ""
+        if not ident(field_id):
+            raise ValueError(f"field-id {field_id!r} is not an id")
+        options = tuple(items("options.").items())
+        states = [state for _, state in options]
+        if not options or not all(ident(o) and s for o, s in options):
+            raise ValueError("options must map option ids to states")
+        if len(set(states)) != len(states):
+            raise ValueError("options map two option ids to one state")
+        setters = listed("bot-setters.", ("id", "login"))
+        if not all(ident(s["id"]) for s in setters):
+            raise ValueError("a bot-setters id is not an id")
+        if {k.rsplit(".", 1)[0] for k in items("labels.")} - set(states):
+            raise ValueError("labels names a state no option maps")
+        labels = tuple(
+            (state, tuple(row[""] for row in listed(f"labels.{state}.")))
+            for state in states
+        )
+        if not all(names for _, names in labels):
+            raise ValueError("labels gives a mapped state no label")
+        order = tuple(row[""] for row in listed("order."))
+        if sorted(order) != sorted(states):
+            raise ValueError("order must list every mapped state once")
+    except ValueError as exc:
+        return IssueStatusConfig(0, (), (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
+    return IssueStatusConfig(
+        int(field_id),
+        options,
+        tuple((int(s["id"]), s["login"]) for s in setters),
+        labels,
+        order,
+    )
 
 
 def yaml_records(text: str) -> dict[str, str]:
@@ -823,6 +899,42 @@ class PipelineConfig:
     # empty, the tracker's human-gated role label holds instead.
     # `stricter_config` takes both sides'.
     issue_holds: tuple[str, ...] = ()
+    # `models.issue-status`: the Work status issue field a linked issue is
+    # also held on (`issue_status`). None when the file sets none, which
+    # reads labels alone. `stricter_config` takes main's when set.
+    issue_status: IssueStatusConfig | None = None
+
+
+@dataclass(frozen=True)
+class IssueStatusConfig:
+    """`models.issue-status` (`ISSUE_STATUS_KEY`): the field id, each option
+    id with its state, the `bot-setters` (id, login) pairs, each state's
+    labels, and the collapse order. `error` names a malformed block, which
+    `issue_status` refuses to read."""
+
+    field_id: int
+    options: tuple[tuple[str, str], ...]
+    bot_setters: tuple[tuple[int, str], ...]
+    labels: tuple[tuple[str, tuple[str, ...]], ...]
+    order: tuple[str, ...]
+    error: str | None = None
+
+
+ISSUE_STATUS_KEY = "models.issue-status"
+# The Work status states that hold an issue for a person (read-status.mjs
+# HOLD_STATES).
+HOLD_STATES = (
+    "needs-human",
+    "needs-owner-decision",
+    "needs-reporter-info",
+    "needs-spec",
+)
+# The one state a `bot-setters` account's value never counts for.
+PERSON_ONLY_STATE = "agent-ready"
+# The job token's bot, a bot setter the trusted-actor list does not list.
+ACTIONS_BOT = (41898282, "github-actions[bot]")
+# The one App whose field values count for every state.
+LANES_APP_LOGIN = "melodic-automation-lanes[bot]"
 
 
 LANE_PRS_MODES = ("native", "gate")
@@ -1146,6 +1258,9 @@ def read_config_at(
     if lane_prs not in LANE_PRS_MODES:
         notes.append(f"merge.lane-prs {lane_prs!r} is not native or gate")
         lane_prs = None
+    issue_status = _issue_status_config(text)
+    if issue_status is not None and issue_status.error:
+        notes.append(f"{issue_status.error}; every linked issue is held")
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -1182,6 +1297,7 @@ def read_config_at(
         else CONFIRM_WAIT_MINUTES,
         lane_prs=lane_prs,
         issue_holds=tuple(values[ISSUE_HOLDS_KEY]),
+        issue_status=issue_status,
     )
 
 
@@ -1260,6 +1376,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         spec_from_body_apps=main.spec_from_body_apps,
         self_merging_apps=main.self_merging_apps,
         issue_holds=_union(base.issue_holds, main.issue_holds),
+        issue_status=main.issue_status or base.issue_status,
     )
 
 
@@ -1273,11 +1390,20 @@ SHARED_HEAD_CONFIGS: dict[str, str] = {}
 def _cached_config(value: Any) -> PipelineConfig | None:
     """A saved config, or None (a miss, read again) for anything a config
     read could not have produced."""
-    if not isinstance(value, dict) or "floor_paths" not in value:
+    if (
+        not isinstance(value, dict)
+        or "floor_paths" not in value
+        or "issue_status" not in value
+    ):
         return None
     try:
         c = PipelineConfig(
-            **{k: tuple(v) if isinstance(v, list) else v for k, v in value.items()}
+            **{
+                k: tuple(v) if isinstance(v, list) else v
+                for k, v in value.items()
+                if k != "issue_status"
+            },
+            issue_status=_cached_issue_status(value.get("issue_status")),
         )
         c = replace(c, floor_paths=tuple(tuple(row) for row in c.floor_paths))
 
@@ -1346,6 +1472,49 @@ def _cached_config(value: Any) -> PipelineConfig | None:
     except (TypeError, ValueError):
         return None
     return c if ok else None
+
+
+def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
+    """A saved `IssueStatusConfig`, or None for none saved; raises
+    `ValueError` for anything a config read could not have saved, so the
+    whole config is a miss."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("not a saved issue status")
+
+    def pairs(rows: Any, first: type, second: Callable[[Any], bool]) -> tuple:
+        if not isinstance(rows, list) or not all(
+            isinstance(r, list) and len(r) == 2 and type(r[0]) is first and second(r[1])
+            for r in rows
+        ):
+            raise ValueError("not a saved issue status")
+        return tuple((a, tuple(b) if isinstance(b, list) else b) for a, b in rows)
+
+    def text(v: Any) -> bool:
+        return isinstance(v, str) and bool(v)
+
+    def texts(v: Any) -> bool:
+        return isinstance(v, list) and bool(v) and all(text(x) for x in v)
+
+    order = value.get("order")
+    status = IssueStatusConfig(
+        value.get("field_id"),
+        pairs(value.get("options"), str, text),
+        pairs(value.get("bot_setters"), int, text),
+        pairs(value.get("labels"), str, texts),
+        tuple(order) if texts(order) else (),
+        value.get("error"),
+    )
+    if (
+        type(status.field_id) is not int
+        or status.field_id < 1
+        or status.error is not None
+        or not status.order
+        or set(value) != {f.name for f in fields(IssueStatusConfig)}
+    ):
+        raise ValueError("not a saved issue status")
+    return status
 
 
 CONFIG_AT_SECTION = "config-at"
@@ -2638,12 +2807,19 @@ def issue_hold_labels(
     return (human_gated,) if human_gated else ()
 
 
-def issue_hold_refusal(issue: dict[str, Any], holds: Collection[str]) -> str | None:
+def issue_hold_refusal(
+    issue: dict[str, Any],
+    holds: Collection[str],
+    status: Callable[[int], str | None] | None = None,
+) -> str | None:
     """Why a hold refuses the lane's linked `issue` (a node read with its
     `labels`), or None: no hold label resolved (`issue_hold_labels`), labels
     that cannot be read whole, or a label in `holds`, matched
-    case-insensitively and named. A person clears it by removing the label;
-    an edit to the issue is the verifier's (`verify:spec-changed`)."""
+    case-insensitively and named; then, when `status` reads the issue's Work
+    status (`issue_status_reader`), a state in `HOLD_STATES`, named, or a
+    read that raises `PolicyReadError`. A person clears it by removing the
+    label or setting the field; an edit to the issue is the verifier's
+    (`verify:spec-changed`)."""
     if not holds:
         return "closing-issue-holds-unresolved"
     labels = _label_names(issue)
@@ -2651,7 +2827,184 @@ def issue_hold_refusal(issue: dict[str, Any], holds: Collection[str]) -> str | N
         return "issue-labels-unreadable"
     names = {label.casefold() for label in labels}
     held = next((h for h in holds if h.casefold() in names), None)
-    return f"closing-issue-held:{held}" if held else None
+    if held or status is None:
+        return f"closing-issue-held:{held}" if held else None
+    try:
+        state = status(issue["number"])
+    except PolicyReadError:
+        return "closing-issue-status-unreadable"
+    return f"closing-issue-held:{state}" if state in HOLD_STATES else None
+
+
+# The field values one read takes: a full page may hold more, so it fails the
+# read rather than miss the Work status value.
+FIELD_VALUE_PAGE = 25
+ISSUE_STATUS_QUERY = (
+    "query PolicyIssueStatus($o:String!,$r:String!,$n:Int!){"
+    "repository(owner:$o,name:$r){issue(number:$n){"
+    f"issueFieldValues(first:{FIELD_VALUE_PAGE}){{nodes{{"
+    "... on IssueFieldSingleSelectValue{"
+    "name field{...field}}}} "
+    "timelineItems(last:100,itemTypes:[ISSUE_FIELD_ADDED_EVENT,"
+    "ISSUE_FIELD_CHANGED_EVENT,ISSUE_FIELD_REMOVED_EVENT]){nodes{__typename "
+    "... on IssueFieldAddedEvent{value actor{...who} issueField{...field}} "
+    "... on IssueFieldChangedEvent{newValue actor{...who} issueField{...field}} "
+    "... on IssueFieldRemovedEvent{actor{...who} issueField{...field}}}}}}} "
+    "fragment who on Actor{__typename login ... on User{databaseId} "
+    "... on Bot{databaseId}} "
+    "fragment field on IssueFields{... on IssueFieldSingleSelect{fullDatabaseId}}"
+)
+# The field events one read sees: a full window holding no Work status event
+# may have pushed the setter out.
+FIELD_EVENT_WINDOW = 100
+
+
+def issue_status(
+    repo: str, ref: str, number: int, config: IssueStatusConfig
+) -> str | None:
+    """The state the newest counted Work status event on issue `number` left
+    (`config`), or None when that event removed the value or no event counts.
+    An event counts when a listed human or the lanes App on the trusted list
+    at `ref` wrote it, or a `bot-setters` account wrote any state but
+    `PERSON_ONLY_STATE`, github-actions[bot] always and any other only while
+    the list holds it as a bot with the same id and login. Unlike
+    issue-status.mjs issueStatus, which reads the newest event's setter, an
+    uncounted later change or removal leaves a counted state standing.
+    Raises `PolicyReadError` on a malformed `config`, a failed or malformed
+    read, an unreadable trusted list, a counted state no option maps, a full
+    page of field values, or a full event window with a value and no counted
+    event."""
+    if config.error:
+        raise PolicyReadError(config.error)
+    owner, name = _split_repo(repo)
+    data = _graphql(
+        ISSUE_STATUS_QUERY, f"#{number} Work status", o=owner, r=name, n=number
+    )
+    issue = json_object(data.get("repository")).get("issue")
+    if not is_json_object(issue):
+        raise PolicyReadError(f"#{number} Work status: the answer names no issue")
+    values = json_object(issue.get("issueFieldValues")).get("nodes")
+    events = json_object(issue.get("timelineItems")).get("nodes")
+    if not is_json_array(values) or not is_json_array(events):
+        raise PolicyReadError(f"#{number} Work status: the answer holds no list")
+    if len(values) >= FIELD_VALUE_PAGE:
+        raise PolicyReadError(
+            f"#{number} Work status: {len(values)} field values fill the page"
+        )
+    field_id = str(config.field_id)
+
+    def ours(node: Any, key: str) -> bool:
+        return json_object(json_object(node).get(key)).get("fullDatabaseId") == field_id
+
+    value = next((json_object(v).get("name") for v in values if ours(v, "field")), None)
+    ours_newest_first = [
+        json_object(e) for e in reversed(events) if ours(e, "issueField")
+    ]
+    actors = trusted_listing(repo, ref) if ours_newest_first else ()
+    people = {
+        i for i, login, kind in actors if kind == "human" or login == LANES_APP_LOGIN
+    }
+    listed_bots = {
+        (i, login)
+        for i, login, kind in actors
+        if kind == "bot" and isinstance(login, str)
+    }
+    bots = {
+        entry[0]
+        for entry in config.bot_setters
+        if entry == ACTIONS_BOT or entry in listed_bots
+    }
+    # An uncounted event neither sets nor clears a counted state: the newest
+    # counted one decides, whatever came after it.
+    for event in ours_newest_first:
+        setter = json_object(event.get("actor")).get("databaseId")
+        kind = event.get("__typename")
+        state = (
+            None
+            if kind == "IssueFieldRemovedEvent"
+            else event.get("newValue" if kind == "IssueFieldChangedEvent" else "value")
+        )
+        if type(setter) is not int or not (
+            setter in people or setter in bots and state != PERSON_ONLY_STATE
+        ):
+            continue
+        if state is not None and state not in config.order:
+            raise PolicyReadError(
+                f"#{number} Work status holds {state!r}, which {ISSUE_STATUS_KEY} does not map"
+            )
+        return state
+    if value is not None and len(events) >= FIELD_EVENT_WINDOW:
+        raise PolicyReadError(
+            f"#{number} Work status: no counted setter in its newest {FIELD_EVENT_WINDOW} field events"
+        )
+    return None
+
+
+# The Work status that stays with its label until its readers move to the field.
+AGENT_READY_STATE = "agent-ready"
+
+
+def status_label_names(
+    state: str | None, names: list[str], config: IssueStatusConfig | None
+) -> list[str]:
+    """`names` (an issue's labels) as its Work status `state` decides them
+    (read-status.mjs statusLabels). With no state, `names` unchanged. With
+    one: every queue-state label (a state neither held nor agent-ready) is
+    dropped, hold labels and agent-ready are kept, and the state's first label
+    is added unless present or the state is agent-ready."""
+    if state is None or config is None:
+        return names
+    labels = dict(config.labels)
+    queue = {
+        n.casefold()
+        for s, group in labels.items()
+        if s != AGENT_READY_STATE and s not in HOLD_STATES
+        for n in group
+    }
+    kept = [n for n in names if n.casefold() not in queue]
+    label = next(iter(labels.get(state, ())), None)
+    if state == AGENT_READY_STATE or label is None:
+        return kept
+    return kept if any(n.casefold() == label.casefold() for n in kept) else [*kept, label]
+
+
+# The REST version that documents issue-field-values.
+FIELD_API_VERSION = "2026-03-10"
+
+
+def issue_status_write(repo: str, issue: int, field_id: int, state: str) -> list[str]:
+    """The gh arguments that set issue `issue`'s Work status field
+    `field_id` to `state` with one POST (write-status.mjs writeState), never
+    PUT, which replaces every field value on the issue."""
+    return [
+        "api",
+        "-X",
+        "POST",
+        f"repos/{repo}/issues/{issue}/issue-field-values",
+        "-H",
+        f"X-GitHub-Api-Version: {FIELD_API_VERSION}",
+        "-F",
+        f"issue_field_values[][field_id]={field_id}",
+        "-f",
+        f"issue_field_values[][value]={state}",
+    ]
+
+
+def issue_status_reader(
+    repo: str, status: IssueStatusConfig | None, branch: str | None = None
+) -> Callable[[int], str | None] | None:
+    """`issue_status` for `issue_hold_refusal` under `status` (a config's
+    `issue_status`), the trusted list read at the default branch head
+    (`branch` when already read); None when `status` is None, which reads no
+    field."""
+    if status is None:
+        return None
+
+    def read(number: int) -> str | None:
+        head = _default_branch_config(repo, branch).base_sha
+        return issue_status(repo, head, number, status)
+
+    return read
 
 
 def _claimed_before(
@@ -4117,24 +4470,33 @@ def trusted_actors(
     does not match its schema is empty, which adopts nothing."""
     key = (repo, ref, *sorted(exclude))
     if key not in _TRUSTED_IDS:
-        owner, name = _split_repo(repo)
         try:
-            listing = json_object(
-                json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
-            )
-        except (PolicyReadError, ValueError):
-            listing = {}
-        actors = [json_object(a) for a in json_array(listing.get("actors"))]
-        ids = tuple(a.get("id") for a in actors)
-        valid = listing.get("version") == 1 and all(
-            type(i) is int and i > 0 for i in ids
-        )
-        humans = tuple(a["id"] for a in actors if a.get("kind") == "human")
-        kept = tuple(
-            a.get("id") for a in actors if _login_key(a.get("login")) not in exclude
-        )
-        _TRUSTED_IDS[key] = (kept, humans) if valid else ((), ())
+            actors = trusted_listing(repo, ref)
+        except PolicyReadError:
+            actors = ()
+        humans = tuple(i for i, _, kind in actors if kind == "human")
+        kept = tuple(i for i, login, _ in actors if _login_key(login) not in exclude)
+        _TRUSTED_IDS[key] = (kept, humans)
     return _TRUSTED_IDS[key]
+
+
+def trusted_listing(repo: str, ref: str) -> tuple[tuple[int, Any, Any], ...]:
+    """Each actor on `TRUSTED_ACTORS_PATH` at `ref` as (id, login, kind).
+    Raises `PolicyReadError` when the list is absent, unreadable or does not
+    match its schema (version 1, every id a positive whole number)."""
+    owner, name = _split_repo(repo)
+    try:
+        listing = json_object(
+            json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
+        )
+    except ValueError as exc:
+        raise PolicyReadError(f"{TRUSTED_ACTORS_PATH} at {ref}: {exc}") from exc
+    actors = [json_object(a) for a in json_array(listing.get("actors"))]
+    if listing.get("version") != 1 or not all(
+        type(a.get("id")) is int and a["id"] > 0 for a in actors
+    ):
+        raise PolicyReadError(f"{TRUSTED_ACTORS_PATH} at {ref} is absent or invalid")
+    return tuple((a["id"], a.get("login"), a.get("kind")) for a in actors)
 
 
 # The timeline events that are their actor's own act on a pull request: a
@@ -4501,6 +4863,7 @@ def lane_eligibility(
     ejected_enqueue: Callable[[], Any] = lambda: None,
     toggled_at_head: Callable[[], bool] = lambda: False,
     issue_holds: Collection[str] = (),
+    issue_status: Callable[[int], str | None] | None = None,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
@@ -4516,7 +4879,8 @@ def lane_eligibility(
     class `LANE_CLASS`; no `work-class:` label is read, but the linked issue
     must clear the trust hold (`trust_refusal`, as `eligibility` reads it,
     a human judged with `agent_identity`, `self_logins` and `permission`)
-    and carry none of `issue_holds` (`issue_hold_refusal`; empty refuses).
+    and carry none of `issue_holds` nor a held `issue_status`
+    (`issue_hold_refusal`; empty `issue_holds` refuses).
     `pr` is the REST record, whose `changed_files` the file listing must
     reach. Holds on the pull request (a hold label, a `Hold:` line) are the
     gate's, and adoption's too."""
@@ -4587,7 +4951,7 @@ def lane_eligibility(
                     permission=permission,
                 ),
                 {},
-            ) or issue_hold_refusal(issue, issue_holds)
+            ) or issue_hold_refusal(issue, issue_holds, issue_status)
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
         # when a person or a script wrote them (`spec_from_body_ids`: the
@@ -5056,13 +5420,18 @@ def dependabot_eligibility(
 
 
 def recheck_lane_issue(
-    repo: str, number: int, *, issue: int | None, holds: Collection[str] = ()
+    repo: str,
+    number: int,
+    *,
+    issue: int | None,
+    holds: Collection[str] = (),
+    status: Callable[[int], str | None] | None = None,
 ) -> str | None:
     """The linked issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
-    since the verifier verdict binds to it, still carry none of `holds`
-    (`issue_hold_refusal`; empty refuses), and the base must still be the
-    default branch (`_base_refusal`, read fresh)."""
+    since the verifier verdict binds to it, still carry none of `holds` nor a
+    held `status` (`issue_hold_refusal`; empty `holds` refuses), and the base
+    must still be the default branch (`_base_refusal`, read fresh)."""
     owner, name = _split_repo(repo)
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -5076,7 +5445,9 @@ def recheck_lane_issue(
             return refusal
         if found["number"] != issue:
             return f"closing-issue-changed:{issue}>{found['number']}"
-        return issue_hold_refusal(found, holds) or _base_refusal(owner, name, node)
+        return issue_hold_refusal(found, holds, status) or _base_refusal(
+            owner, name, node
+        )
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -6972,6 +7343,7 @@ def assess(
         inputs["trusted_humans"] = trusted[1]
         # Read again right before the enqueue (`recheck_lane_issue`).
         inputs["issue_holds"] = issue_hold_labels(config, human_gated)
+        inputs["issue_status"] = issue_status_reader(repo, config.issue_status, default)
         eligible = lane_eligibility(
             repo,
             number,
@@ -6998,6 +7370,7 @@ def assess(
                 str(pr.get("node_id") or ""),
             ),
             issue_holds=inputs["issue_holds"],
+            issue_status=inputs["issue_status"],
             **readers,
         )
         promoted = True

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "view: terminal (retired ~/.claude/rendered-views.md)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "view: terminal (plugin default)"
+    },
+    {
+      "answer": "view: auto (plugin default)"
+    }
+  ]
+}

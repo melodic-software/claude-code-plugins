@@ -765,6 +765,14 @@ read or ended on that lag. It tells a held run from a decline by the job conclus
 job succeeded, with no next leg started. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
+The rule runs only on a pull request's own event: `pr-unblock-dispatch.yml`'s `refine` job,
+started by `pull_request_target` (`opened`, `reopened`, `ready_for_review`, `synchronize`, drafts
+skipped), reads that one pull request through `refine-event-dispatch.mjs` and dispatches as
+`fix-docs-dispatch.mjs` would, then records the dispatch as
+`pr-unblock-target-dispatched-<workflow commit>-<run id>`
+([ADR 0090](../../adr/0090-let-a-pull-request-target-dispatcher-start-pr-refine.md)). A push to
+the default branch and the half-hourly tick send no `fix-docs`; a pull request that run skipped
+waits for its next event.
 
 A third call runs each activity once more, on the central fallback subscription's token. Each
 handoff job also reads whether the org secret `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` is set and passes

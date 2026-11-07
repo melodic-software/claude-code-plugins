@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Need payslips recorded from the old code checked against the new output."
+    },
+    {
+      "answer": "Run a differential run of both versions."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tests pass, so behavior is preserved."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: setup-apply-writes-live-workers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-apply'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?live_workers=3'
+    min: 1
+  - name: 'file-live-workers'
+    type: 'regex'
+    pattern: '^live_workers: 3$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/verification.yaml }
+  - name: 'no-proof-level-key'
+    type: 'regex'
+    pattern: '^proof_level:'
+    flags: 'm'
+    match: 'not_contains'
+    target: { source: file, path: docs/conventions/verification.yaml }
+  - name: 'rereads-check'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?--check'
+    min: 1
+  - name: 'reports-tracked'
+    type: 'regex'
+    pattern: 'untracked|not (?:yet )?tracked|\btracked\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-question'
+    type: 'regex'
+    pattern: '\?[ \t]*(?:\*\*|__|\*|_)?[ \t]*$'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'read-back-and-tracked'
+    type: 'llm'
+    criteria: 'The run writes live_workers to a new settings file. It meets the legacy expectations: "Reports the live_workers value the check reads back and whether the file is tracked".'
+    focus: 'last_message'

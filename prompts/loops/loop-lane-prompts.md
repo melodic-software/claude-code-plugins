@@ -20,7 +20,7 @@ claims it, that is a gap to fix here, not a population to ignore.
 | Ordinary tracked item, meaning priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from the raw-intake row, which is the unlabeled/raw-marked state) | 1. Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one, so a role-less item is already a tier-3 candidate |
 | Open PRs (drafts and `do-not-merge` included, evaluated, never force-merged) | 2. Merge lane |
 | Parked human-gated (role label present, no escalation marker) | 3b. Parked-decision burn-down |
-| Decision-pending status label, where the repository declares one | 3b. Parked-decision burn-down, but **jointly with 1, the Worker lane, for as long as the item wears no human-gated role**: `list-frontier --autonomous` excludes the human-gated role and never reads the decision-pending label, so such an item is simultaneously an ordinary tier-3 frontier candidate (previous row). The label alone parks nothing, so 3b's first action on such a row is to propose normalizing it to the resolved human-gated role. See "Decision-pending alone does not park an item" under Known gaps |
+| Decision-pending status label, where the repository declares one, or Work status `needs-owner-decision` | 3b. Parked-decision burn-down. `list-frontier --autonomous` floors the label `status: needs-decision` and Work status `needs-owner-decision`, but no other decision-pending string, so an item held only by another string is **jointly with 1, the Worker lane, for as long as it wears no human-gated role**: an ordinary tier-3 frontier candidate (previous row). 3b's first action on such a row is to propose normalizing it to the resolved human-gated role. See "A decision-pending label other than `status: needs-decision` does not park an item" under Known gaps |
 | Deferred-with-trigger decisions | 3b. Trigger sweep (over 3b's own populations only) |
 | Wayfind HITL decision items (`wayfind: *` labels) | `/planning:wayfind work`, never 3b, never the worker lane |
 | Awaiting-reporter items (the repo's needs-info status), reporter silent | Dormant by design. Reporter activity returns them to the raw-intake row |
@@ -984,7 +984,14 @@ with the operator's signature on them.
 >
 > **Build the inventory first (read broadly). Three populations:**
 >
-> 1. Open items wearing the human-gated role label with NO **trusted**
+> Read Work status first: run the work-items plugin's
+> `tools/work-item-tracker/work-item-tracker.sh status-storage` once; `labels` means labels alone
+> decide. On `field`, run `work-item-tracker.sh get-statuses --field "Work status" <id>...` (item
+> ids as `list-items` prints them, at most 100 per call) over the open items. Any non-zero exit
+> stops the inventory: report status unread, never fall back to labels.
+>
+> 1. Open items held at needs-human: wearing the human-gated role label, or
+>    at Work status `needs-human`, with NO **trusted**
 >    machine escalation-marker comment. A marker excludes a row from this
 >    population only when both hold: its first comment line starts
 >    `<!-- work-items:escalation` (any `kind`, since the attended queue
@@ -1017,14 +1024,17 @@ with the operator's signature on them.
 >    that remapped it. Checking for the marker requires fetching each
 >    candidate's comments. Page them fully.
 > 2. Open items carrying the repository's decision-pending status label,
->    where it declares one. Resolve it live
+>    where it declares one, or at Work status `needs-owner-decision`.
+>    Resolve the label live
 >    (`gh label list --limit 200 | grep -i status`), never assume the
->    string; a repo without such a label has an empty population 2. A row
->    here wearing NO human-gated role is not parked at all from the worker
->    lane's side: `list-frontier --autonomous` excludes the human-gated role
->    and never reads the decision-pending label, so the standing worker can
->    claim and execute the item before I have decided. The parking rule below
->    the exclusions is what closes that window.
+>    string; a repo with no such label and no Work status field has an
+>    empty population 2. `list-frontier --autonomous` floors the fixed
+>    label `status: needs-decision` and Work status `needs-owner-decision`
+>    (the work-items plugin's `tools/work-item-tracker/lib/labels.sh`), but
+>    no other decision-pending string. A row held only by such another
+>    string and wearing NO human-gated role is not parked from the worker
+>    lane's side, so the standing worker can claim and execute it before I
+>    have decided. The parking rule below the exclusions closes that window.
 > 3. Trigger sweep, **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
 >    revisit trigger ("after <date> if …", "when <capability> exists").
@@ -1093,10 +1103,10 @@ with the operator's signature on them.
 > route them to `/planning:wayfind work` instead); lane telemetry issues.
 >
 > **Nothing this session opens or parks stays role-less.** An open,
-> unblocked, unassigned item wearing no human-gated role is a worker-frontier
-> candidate whatever else it carries, so the resolved human-gated role, not
-> the decision-pending label, is the only marker that actually parks
-> anything. Apply it in the same operation that exposes the item, never
+> unblocked, unassigned item wearing no human-gated role, no floor label and
+> no Work status hold is a worker-frontier candidate, so a decision-pending
+> label other than `status: needs-decision` parks nothing; the resolved
+> human-gated role is the marker this session parks with. Apply it in the same operation that exposes the item, never
 > role-less first and labeled after, and in that same edit remove the
 > resolved autonomous-eligible role if the item carries it. Closing an item
 > never cleared its labels, so a carrier closed while autonomous-eligible
@@ -1167,10 +1177,12 @@ with the operator's signature on them.
 > `*This <comment|item> was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
-> - **Flip:** ratified as delegable → ONE edit that applies the resolved
+> - **Flip:** ratified as delegable → ONE label edit that applies the resolved
 >   autonomous-eligible role, removes the resolved human-gated role if
 >   present, and clears the resolved decision-pending status label (the
->   string resolved for population 2) if present. Both removals are
+>   string resolved for population 2) if present; then set a Work status
+>   hold (`needs-human`, `needs-owner-decision`) off that state, since the
+>   field still holds an item no hold label marks. The label removals are
 >   conditional because an item that entered through population 2 may
 >   carry the decision-pending label and no role at all. Leaving that
 >   label on a flipped item leaves it in the next burn-down's inventory
@@ -1325,13 +1337,14 @@ with the operator's signature on them.
   attribute. Rotate only at session boundaries, never mid-cycle, or a
   fresh account's healthy windows can reach a lane running on an
   exhausted one.
-- **Decision-pending alone does not park an item.** `wit_filter_frontier`
-  takes the human-gated label as a parameter resolved from
-  `config.role_labels`; no equivalent binding exists for a repository's
-  decision-pending string, which is why 3b resolves that one live from
-  `gh label list`. The frontier cannot exclude a label it has no binding for,
-  so an item wearing only the decision-pending label stays selectable by the
-  worker lane. 3b's normalization step is a convention, not an enforcement:
+- **A decision-pending label other than `status: needs-decision` does not
+  park an item.** `wit_filter_frontier` floors that fixed label and Work
+  status `needs-owner-decision` (work-item-tracker `lib/labels.sh`), and takes the
+  human-gated label as a parameter resolved from `config.role_labels`; no
+  binding exists for another decision-pending string, which is why 3b
+  resolves that one live from `gh label list`. The frontier cannot exclude a
+  label it has no binding for, so an item wearing only such a label stays
+  selectable by the worker lane. 3b's normalization step is a convention, not an enforcement:
   until a decision-pending binding exists, nothing prevents a worker cycle
   from claiming a classified item between one burn-down and the next.
 - **Raw intake has two unserialized owners.** The attended queue's `[intake]`

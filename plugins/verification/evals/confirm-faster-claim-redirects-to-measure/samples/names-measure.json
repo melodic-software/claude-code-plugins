@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "This is `/verification:measure performance` territory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will verify the outcome."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

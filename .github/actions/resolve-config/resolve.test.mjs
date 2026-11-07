@@ -450,9 +450,32 @@ test("wip: the schema's defaults are the readers' defaults", () => {
   assert.deepEqual(WIP_DEFAULTS, WIP);
 });
 
-test("defaults are materialized: loop 2/3/2/3, merge off, manual and native, slot scope diff and enabled", () => {
+test("loop: the schema's defaults are the reader's defaults", () => {
+  const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
+  const defaults = Object.fromEntries(Object.entries(schema.properties.loop.properties).map(([key, value]) => [key, value.default]));
+  assert.deepEqual(run(fixture("valid.yaml"), { activity: "run-tests" }).loop, defaults);
+});
+
+test("loop: findings-after-first-review takes all, rejects any other value", () => {
+  const all = edited((doc) => {
+    doc.loop = { "findings-after-first-review": "all" };
+  });
+  assert.equal(run(all, { activity: "run-tests" }).loop["findings-after-first-review"], "all");
+  const other = edited((doc) => {
+    doc.loop = { "findings-after-first-review": "everything" };
+  });
+  assertRejected(() => run(other), "invalid-config");
+});
+
+test("defaults are materialized: loop 3/blocking-only/3/2/3, merge off, manual and native, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
-  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2, "fix-ci-rounds": 3 });
+  assert.deepEqual(resolved.loop, {
+    "review-rounds": 2,
+    "findings-after-first-review": "blocking-only",
+    "no-progress": 3,
+    "dependency-review-rounds": 2,
+    "fix-ci-rounds": 3,
+  });
   assert.equal(resolved.merge.rung, "off");
   assert.equal(resolved.merge["stack-landing"], "manual");
   assert.equal(resolved.merge["lane-prs"], "native");

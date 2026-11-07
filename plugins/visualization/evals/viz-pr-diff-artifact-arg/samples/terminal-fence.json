@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "The artifact argument was not honored: a pull-request diff stays in the terminal until this lane is wired through the escape helper.\n\n```diff\n src/transport/client.ts\n   connect(url)\n-    openStream(url)\n+    openStream(url, { resumeFrom: lastEventId })\n+    stream.onEvent(id => lastEventId = id)\n src/transport/stream.ts\n+  interface StreamOptions { resumeFrom? }\n-  openStream(url)\n+  openStream(url, opts)  // sends Last-Event-ID\n```"
+    },
+    {
+      "answer": "```\n Client.connect\n+  openStream(url, { resumeFrom })\n```",
+      "why": "plain fence, diff-shaped lines"
+    },
+    {
+      "answer": "```text\nA\n```\n\n- `resumeFrom` is now passed to openStream\n\n```diff\n Client.connect\n+  openStream(url, { resumeFrom })\n```",
+      "why": "a diff fence after a non-diff fence and a bulleted line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The change adds resumeFrom to openStream so a reconnect resumes.",
+      "why": "prose only"
+    },
+    {
+      "answer": "```diff\n-openStream(url)\n+openStream(url, opts)\n```",
+      "why": "the fence misses the option"
+    },
+    {
+      "answer": "```text\nClient.connect\n└── openStream(url, { resumeFrom })\n```",
+      "why": "a call tree naming resumeFrom, not a diff"
+    },
+    {
+      "answer": "```text\nA\n```\n\n- `resumeFrom` is now passed to openStream\n\n```text\nB\n```",
+      "why": "the resumeFrom line is prose between two fences, not inside one"
+    },
+    {
+      "answer": "+ openStream(url, { resumeFrom })\n\n```text\nB\n```",
+      "why": "a diff-shaped line before any fence"
+    }
+  ]
+}

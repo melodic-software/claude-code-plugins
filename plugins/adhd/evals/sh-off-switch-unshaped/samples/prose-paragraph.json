@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The N+1 query problem is what happens when code loads a list of rows with one query and then runs one more query per row to fetch a related record, so a page of 50 orders becomes 51 round trips to the database. ORMs make it easy to hit because lazy loading hides the extra queries behind ordinary attribute access."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `EXPLAIN ANALYZE` on the orders page query.\n\n1. Add eager loading\n2. Re-run\n\nSize: Small.\n\nNext: run step 1."
+    },
+    {
+      "answer": "- The N+1 query problem is what happens when code loads a list of rows with one query and then runs one more query per row to fetch a related record, so a page of 50 orders becomes 51 round trips to the database. ORMs make it easy to hit because lazy loading hides the extra queries behind ordinary attribute access."
+    }
+  ]
+}

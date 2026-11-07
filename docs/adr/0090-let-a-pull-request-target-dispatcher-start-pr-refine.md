@@ -48,8 +48,13 @@ token broker check such a run as they check a push dispatcher run, except:
 Every existing refusal stays, including a `pull_request` dispatcher run and a record of another
 dispatcher's form.
 
-This change is inert: no workflow gains the `pull_request_target` trigger here. The trigger, the
-dispatcher's record step and the job that holds the four invariants come in a later change.
+The trigger ships on `pr-unblock-dispatch.yml`: its `refine` job holds the four invariants,
+each pinned by a test in `workflow-gates.test.mjs`, and records each dispatch under a name built
+from `github.workflow_sha` and the run id the dispatch API returned.
+
+Amended 2026-11-07: the half-hourly tick no longer dispatches fix-docs, so this trigger is
+fix-docs's only start (issue #13717's done-when, after an event-started Refine was seen reaching
+review).
 
 ## Alternatives considered
 
@@ -63,6 +68,7 @@ dispatcher's record step and the job that holds the four invariants come in a la
   `main` after its event run still matches the entry. Retargeting needs write access to this
   repository, and the dispatched Refine runs `main`'s code either way.
 - `dispatcher-current.sh` runs before the record may exist, and leaves that run to the broker.
-- The once-per-PR rule stays in the push dispatcher (`fix-docs-dispatch.mjs`). The event
-  dispatcher runs `main`'s code, so it can apply the same rule before it dispatches; in
-  `pr-refine.yml` it would also stop a person's dispatch, which that file allows.
+- The once-per-PR rule stays in `fix-docs-dispatch.mjs`, and the event dispatcher applies it
+  before it dispatches (`refine-event-dispatch.mjs`); in `pr-refine.yml` it would also stop a
+  person's dispatch, which that file allows. The event dispatcher also skips an event whose
+  sender is not the lanes App or a listed human, since the gate would refuse that run.

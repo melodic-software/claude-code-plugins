@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Raise or lower the threshold with `--stuck-days`; **`--stuck-limit`** (default 20) caps the lines and prints PARTIAL past it.",
+      "why": "bold code span"
+    },
+    {
+      "answer": "Pass --stuck-days 1 to list more, and --stuck-limit 5 to list fewer lines.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pass --stuck-days 1 to list more; that is the only setting.",
+      "why": "near miss: threshold only, no line cap"
+    },
+    {
+      "answer": "Raise --stale-hours to show fewer stuck items.",
+      "why": "wrong setting"
+    }
+  ]
+}

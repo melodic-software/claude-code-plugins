@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Next:** `/planning:plan close-out`, plus `/review:quality-gate close-out --container #400` since the review plugin is installed.",
+      "why": "both reviews with markdown"
+    },
+    {
+      "answer": "Route to decompose's ship ritual: a quality-gate close-out review against the container body, then close with a comment.",
+      "why": "prose form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /review:quality-gate pr on the last PR, then close #400.",
+      "why": "near miss: wrong review mode, then a bare close"
+    },
+    {
+      "answer": "All sub-items are closed; closing #400 now.",
+      "why": "no close-out review"
+    }
+  ]
+}

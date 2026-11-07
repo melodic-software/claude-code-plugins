@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Claim on #40 exits 7, so advance to the next candidate, #41.",
+      "why": "advances"
+    },
+    {
+      "answer": "| claim #40 | exit 7 (lost race) → move to #41 |",
+      "why": "table row"
+    },
+    {
+      "answer": "Move on to #41 because the claim on #40 returned exit `7`.",
+      "why": "reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claim on #40 exits 7; retry the claim on #40.",
+      "why": "retries the same item"
+    },
+    {
+      "answer": "The claim failed, so stop.",
+      "why": "no exit code, no advance"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: pres-no-slides-type-outline
+graders:
+  - name: says-no-slides-type
+    type: 'regex'
+    pattern: '(?:\bno\b|\bwithout\b|n''t|\bnot\b|\black(?:s|ing)?\b|\bmissing\b)[^\n]{0,60}?(?:Slides?[ \t]+(?:Artifact[ \t]+)?type|Artifact[ \t]+tool|Artifacts?[ \t]+(?:surface|support))|(?:Slides?[ \t]+(?:Artifact[ \t]+)?type|Artifact[ \t]+tool)[^\n]{0,60}?(?:unavailable|not available|isn''t available|is not available|not offered|isn''t offered|absent|missing|not (?:present|loaded|enabled))|(?:Slides?[ \t]+)?Artifacts?(?:[ \t]+(?:surface|support))?[ \t]+(?:(?:are|is)[ \t]+(?:not[ \t]+|un)available|(?:aren''t|isn''t)[ \t]+available)'
+    flags: 'i'
+    target: 'last_message'
+  - name: outline-delivered
+    type: 'regex'
+    pattern: '^(?:[\s\S]*?^[ \t]*(?:#{2,6}[ \t]+\S|(?:\*\*)?Slide[ \t]+\d|\d+[.)][ \t]+\*\*\S)[^\n]*){2}'
+    flags: 'im'
+    target: 'last_message'
+  - name: no-deck-page
+    type: 'regex'
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-invented-budget
+    type: 'regex'
+    pattern: 'budget[^\n]{0,60}?(?:[$€£][ \t]?\d|\d[\d,.]*[ \t]?(?:[kKmM]\b|USD|EUR|GBP|dollars|euros))'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

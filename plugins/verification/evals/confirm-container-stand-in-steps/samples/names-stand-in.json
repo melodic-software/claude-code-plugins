@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The proof ran on a stand-in: a container, not a fresh VM."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The export ran."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-drain-terminal-stops
+graders:
+  - name: 'stops-no-wakeup'
+    type: 'regex'
+    pattern: 'drain[- ]terminal|\b(?:no|without|never)\s+(?:a\s+|the\s+|another\s+)?(?:next\s+)?(?:ScheduleWakeup|wake-?up)\b|\b(?:does not|doesn''t|do not|not|never)\s+(?:call|schedule|run|arm)\w*\s+(?:a\s+|the\s+|another\s+)?(?:next\s+)?(?:ScheduleWakeup|wake-?up)\b|\bScheduleWakeup\b[^\n]{0,20}\b(?:not called|never|skipped|none)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Evaluates the exit condition against the cycle-start snapshot''s retained ids only, not a fresh seam read; (2) Uses the bound adapter''s Open linked PRs close-linkage (open, non-draft PRs only) over the retained ids as the drain exit test; (3) Recognizes the drain-terminal state (every remaining open item human-gated, no PR in flight) and stops cleanly with a report rather than idling; (4) Writes a final report listing escalated, closed and PR''d items, and updates the durable state block; (5) Does not schedule another cycle. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: confirm-strict-perf-no-baseline
+graders:
+  - name: 'perf-box-line'
+    type: 'regex'
+    pattern: 'NOT VERIFIED:?\s*no baseline'
+    target: 'last_message'
+  - name: 'verdict-not-verified'
+    type: 'regex'
+    pattern: 'verdict\W{0,8}NOT VERIFIED'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-baseline-gap'
+    type: 'llm'
+    criteria: 'The reply fills strict proof boxes when the perf box has no baseline. It meets the legacy expectations: "Marks the perf box NOT VERIFIED and names the missing baseline" "Renders NOT VERIFIED rather than CONFIRMED" "Does not invent a performance number or skip the perf box silently".'
+    focus: 'last_message'

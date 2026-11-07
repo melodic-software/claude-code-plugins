@@ -458,6 +458,15 @@ export const HOLD_LANES = [
     listPages: 4,
     holdStep: "Note the hold",
   },
+  // pr-merge's two token steps (rate-limit-hold-ok) hold on a rate limit the
+  // lane-token request could not wait out. Its runs are the 2 cron ticks an
+  // hour, one per main push (whose merge and enable-auto-merge jobs skip),
+  // one wake per pr-verify pass, a share of pr-verify's runs, and one per
+  // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
+  // and 5 list pages are taken as the cover. No step runs only on a hold, so
+  // each green job's annotations are read: a jobs read and up to 2
+  // annotation reads a run.
+  { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
 // Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,
@@ -500,6 +509,10 @@ const HOLD_NOTICES = [
   // pr-review-main.yml's four `Select a lane-source pull request` steps: the
   // file list did not read after retry_call's 3 reads.
   { title: "pr-review-main", pattern: /^held: the file list did not read /, hold: () => ({ item: null, reason: "file list unread" }) },
+  // request-lane-token's rate-limit-hold-ok: the broker's last answer was a
+  // rate limit, whether the budget or the 3 requests ended the retries. One
+  // fixed reason, never the notice's reset time.
+  { title: "Lane token hold", pattern: /^lane-token-held: the broker answered 503 github-rate-limited /, hold: () => ({ item: null, reason: "lane token rate-limited" }) },
   // apply-verdict.mjs closing: a GitHub fault held the verdict. The reason is
   // a closed set, never the fault's own text, so the finding's fingerprint
   // stays put; the issue a path names may be a blocker, so no item.

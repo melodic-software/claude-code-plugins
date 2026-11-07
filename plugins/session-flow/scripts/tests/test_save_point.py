@@ -107,9 +107,9 @@ def _base_env() -> dict[str, str]:
 
 @functools.lru_cache(maxsize=1)
 def _save_point_module():
-    """Import the script as a module. The suite tests the CLI; this is for the
-    one assertion the CLI cannot express, since whether the parser reads an
-    entry as superseded is internal state rather than output."""
+    """Import the script as a module. The suite tests the CLI; this is for
+    assertions the CLI cannot express, such as whether the parser reads an
+    entry as superseded, or a size verdict on a file other checks would fail."""
     spec = importlib.util.spec_from_file_location("save_point_under_test", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -2714,6 +2714,43 @@ def test_shape3_hot_file_over_the_byte_cap_fails(tmp_path):
     over = strict(hop1)
     assert over.returncode == 1, out(over)
     assert "FAIL: size: 24601 bytes" in out(over) and "24600" in out(over), out(over)
+    for part in ("core ", "carried ", "written non-core ", "never moves"):
+        assert part in out(over), (part, out(over))
+
+
+def test_shape3_core_plus_carried_over_the_cap_is_unvalidated_not_cut(tmp_path):
+    sp = _save_point_module()
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    edit(
+        hop1,
+        "## Standing preferences\n",
+        f"| {'x' * HOT_CAP} |\n\n## Standing preferences\n",
+    )
+    level, message = sp._size_finding(sp.parse_doc(hop1), "h1.md")
+    assert level == "UNVALIDATED", message
+    assert (
+        "core plus carried content" in message
+        and "do not cut written sections" in message
+    )
+
+
+@pytest.mark.parametrize(
+    "where", ["frontmatter", "preamble"], ids=["extra-key", "before-first-heading"]
+)
+def test_shape3_writer_text_outside_sections_counts_as_written(tmp_path, where):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    pad = "x" * HOT_CAP
+    if where == "frontmatter":
+        edit(hop1, "\nrepo: ", f"\nnote: {pad}\nrepo: ")
+    else:
+        edit(hop1, "\n## Original goal\n", f"\n{pad}\n\n## Original goal\n")
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert "FAIL: size:" in out(result) and "UNVALIDATED" not in out(result), out(
+        result
+    )
 
 
 def test_shape3_core_alone_over_the_cap_is_unvalidated_and_still_emits(tmp_path):
@@ -2796,17 +2833,37 @@ def test_shape3_crlf_predecessor_goal_compares_by_line_content(tmp_path):
     assert "Original goal" not in out(result)
 
 
-def test_shape3_retired_rule_may_leave_for_the_archive_but_not_vanish(tmp_path):
+def test_shape3_a_dropped_rule_fails_until_listed_as_retired_with_a_reason(tmp_path):
     repo = make_repo(tmp_path)
     hop1, hop2 = s3_chain(repo, tmp_path, [SID_A, SID_B])
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
     edit(hop2, "- [R2] Never push to main.\n", "")
+    dropped = strict(hop2)
+    assert dropped.returncode == 1, out(dropped)
+    assert "[R2] left this file without a retirement" in out(dropped), out(dropped)
+    assert "'## Retired rules'" in out(dropped), out(dropped)
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n## Retired rules\n\n- [R2]\n")
+    no_reason = strict(hop2)
+    assert no_reason.returncode == 1 and "[R2]" in out(no_reason), out(no_reason)
+    edit(archived, "- [R2]\n", "- [R2] main is unprotected now; branch rule gone.\n")
     retired = strict(hop2)
     assert retired.returncode == 0, out(retired)
-    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
     edit(archived, "- [R2] Never push to main.\n", "")
     vanished = strict(hop2)
     assert vanished.returncode == 1, out(vanished)
     assert "[R2]" in out(vanished) and "h2-bbbbbbbb.md" in out(vanished), out(vanished)
+
+
+def test_shape3_a_retired_listing_elsewhere_in_the_hop_file_does_not_count(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1, hop2 = s3_chain(repo, tmp_path, [SID_A, SID_B])
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    edit(hop2, "- [R2] Never push to main.\n", "")
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n## Notes\n\n- [R2] retired, but under the wrong heading.\n")
+    result = strict(hop2)
+    assert result.returncode == 1 and "[R2] left this file" in out(result), out(result)
 
 
 def test_shape3_duplicate_rule_id_fails(tmp_path):
@@ -3123,6 +3180,9 @@ def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
         shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
     )
     edit(hop2, "- [R2] Never push to main.\n", "")
+    archived = hop_file(repo / ".work" / "handoffs", HOP1, 2, SID_B)
+    with archived.open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n## Retired rules\n\n- [R2] main now has a branch rule.\n")
     assert strict(hop2).returncode == 0, out(strict(hop2))
     hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
     assert strict(hop3).returncode == 0, out(strict(hop3))

@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [7.3.3] - 2026-11-07
+
+### Fixed
+
+- `save_point.py validate`'s Read-page-cap FAIL now says the resume prompt's default Read returns only the first page with a PARTIAL view notice, instead of saying one Read cannot hold the file; a Read with `allow_large` can (#13847).
+
+## [7.3.2] - 2026-11-07
+
+### Fixed
+
+- `save_point.py validate` fails a shape-3 handoff that drops a predecessor rule from its hot file unless this hop's file lists it, with a reason, under `## Retired rules` as `- [R<n>] <reason>`. Size findings name core, carried (frontmatter, Prior sessions, Resume prompt) and written non-core bytes, and a file whose core plus carried content is over the hot-file cap is UNVALIDATED instead of FAIL, so the writer is not pushed to cut written sections (#13847).
+
 ## [7.3.1] - 2026-11-06
 
 ### Changed

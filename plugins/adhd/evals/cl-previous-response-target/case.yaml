@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: cl-previous-response-target
+context:
+  history_file: history.jsonl
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:adhd:)?clarify"'
+    min: 1
+    arm: 'with-only'
+  - name: no-target-ask
+    type: regex
+    pattern: '\b(?:what|which)\b[^\n?]*\b(?:clarify|clarified|mean by|want me to|are you referring)\b[^\n?]*\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: q-ids-back-linked
+    type: regex
+    pattern: '^(?=[\s\S]*\bQ12\b)(?=[\s\S]*\bQ13\b)(?=[\s\S]*\bQ14\b)(?=[\s\S]*\bQ15\b)'
+    target: 'last_message'
+  - name: own-row-numbers-1-4
+    type: regex
+    pattern: '^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?1(?:\*\*)?\s*(?:\||[.):])[\s\S]*?^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?2(?:\*\*)?\s*(?:\||[.):])[\s\S]*?^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?3(?:\*\*)?\s*(?:\||[.):])[\s\S]*?^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?4(?:\*\*)?\s*(?:\||[.):])'
+    flags: 'mi'
+    target: 'last_message'
+  - name: verbatim-terms
+    type: regex
+    pattern: '^(?=[\s\S]*ledger-scheduler)(?=[\s\S]*02:30 UTC)(?=[\s\S]*max_attempts: 4)(?=[\s\S]*90-second)(?=[\s\S]*IR-2291 §4)(?=[\s\S]*legacy_rates)(?=[\s\S]*0057)(?=[\s\S]*3\.2\.0)'
+    target: 'last_message'
+  - name: lens-line-closes
+    type: regex
+    pattern: '(?:\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b)[^\n]*(?:\n\s*(?:[`*_>-][ \t]*)*(?:view:|notice:|[^\n]*\b(?:resolver|node)\b)[^\n]*)*\s*$'
+    flags: 'i'
+    target: 'last_message'
+  - name: altitude-held
+    type: llm
+    criteria: 'The reply restructures the previous assistant message (Round 4, items Q12 to Q15). It meets both legacy expectations: "Operative terms of each recommendation appear verbatim, not paraphrased" and "Does not simplify or lower the altitude of the content". It fails if it swaps a technical term for a plain-language substitute, adds an analogy, or drops precision such as a number, a condition or a named file.'
+    focus: 'last_message'

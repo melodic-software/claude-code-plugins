@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: aq-default-row-order
+graders:
+  - name: 'default-order'
+    type: 'regex'
+    pattern: '#1603\b(?:[^#]|#(?!\d)){0,400}#1604\b(?:[^#]|#(?!\d)){0,400}#1607\b(?:[^#]|#(?!\d)){0,400}#1606\b(?:[^#]|#(?!\d)){0,400}#1608\b(?:[^#]|#(?!\d)){0,400}#1605\b(?:[^#]|#(?!\d)){0,400}#1602\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:attend-queue session does with the stated state. PASS only if it satisfies every point: (1) Orders the rows #1603, #1604, #1607, #1606, #1608, #1605, then #1602; (2) Tags each row with its kind: [escalated], [held], [escalated], [post-merge], [intake], [human-gated], [won''t-do]; (3) Shows each row''s link; (4) Lists #1602 as report-only after the worked rows. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

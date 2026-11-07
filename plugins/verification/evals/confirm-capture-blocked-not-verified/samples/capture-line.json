@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Capture: blocked (no usable driver: playwright-cli not installed), count 0"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Capture: ran (0)"
+    },
+    {
+      "answer": "Capture blocked"
+    }
+  ]
+}

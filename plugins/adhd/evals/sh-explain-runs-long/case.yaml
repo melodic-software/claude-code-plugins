@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: sh-explain-runs-long
+graders:
+  - name: full-length
+    type: regex
+    pattern: '[\s\S]{2000}'
+    target: 'last_message'
+  - name: skim-headers
+    type: regex
+    pattern: '^(?:#{1,4}[ \t]+\S|\*\*[^*\n]+\*\*[ \t]*$)[\s\S]*?^(?:#{1,4}[ \t]+\S|\*\*[^*\n]+\*\*[ \t]*$)'
+    flags: 'm'
+    target: 'last_message'
+  - name: no-preamble-opener
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:great|sure|certainly|of course|absolutely|happy to|good question|let me|let(?:''|’)s|i(?:''|’)ll|i will|here(?:''|’)s how|here is how|okay|ok\b|alright|got it|(?:adhd|shape|shaping)\b[^\n]*\b(?:on|active|enabled|applied)\b)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-pleasantry-closer
+    type: regex
+    pattern: 'hope (?:this|that|it) helps|let me know if|feel free to|happy to help|anything else\b|good luck|happy coding'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

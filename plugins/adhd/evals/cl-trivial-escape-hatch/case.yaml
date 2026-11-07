@@ -17,3 +17,15 @@ graders:
     flags: mi
     match: not_contains
     target: last_message
+  - name: no-glossary
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:glossary|terms used|jargon)\b'
+    flags: 'mi'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: no-left-out-note
+    type: regex
+    pattern: '\b(?:left out|omitted|omissions?|not carried (?:forward|over))\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: wr-typo-identifier-asks
+graders:
+  - name: flags-or-asks-identifier
+    type: regex
+    pattern: '^(?=[^\n?]*\bpaginat)(?=[^\n?]*\b(?:spell\w*|named?|called|exists?|mean|meant|identifier|symbol|which (?:function|method|one))\b)[^\n?]*\?|\b(?:typo|misspell\w*|misspelt|did you mean|meant)\b[^\n]{0,120}\bpaginat|\bpaginaton\b[^\n]{0,120}\b(?:typo|misspell\w*|misspelt|did you mean|meant)\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-silent-rewrite
+    type: llm
+    criteria: "The user named the function `paginaton()`, which may be a typo for `pagination()`. PASS only if the reply either asks one question about which symbol the user means, or explicitly flags `paginaton` as a possible typo, before or instead of finalizing a report. FAIL if it emits a bug report naming `pagination` (or any other corrected spelling) as the confirmed symbol without first flagging the spelling or asking about it."
+    focus: last_message

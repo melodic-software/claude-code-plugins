@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "`git check-ignore --no-index -q` exits 1, so **append** `.work-item-tracker.local.json` to `.gitignore` (last matching rule wins) and announce the edit.",
+      "why": "markdown"
+    },
+    {
+      "answer": "Not ignored despite the match; appended the line to .gitignore and said so.",
+      "why": "past tense"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`git check-ignore --no-index -v` exits 0 with the `!.work-item-tracker.local.json` pattern, so the override is already covered by .gitignore; nothing to change.",
+      "why": "near miss: reads the -v exit code as coverage"
+    },
+    {
+      "answer": "Covered by the `*.json` rule in .gitignore; no action.",
+      "why": "ignores the negation"
+    }
+  ]
+}

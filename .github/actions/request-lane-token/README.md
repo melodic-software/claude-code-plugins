@@ -26,6 +26,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `effect`, `contents`, `pull-requests`, `issues`, `actions` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer. `actions` is `read` or empty; empty expects no `actions` permission |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
 | `kill-switch-ok` | `true` ends green, with a `lane-token-stopped` notice (`lane-check-stopped` in `check` mode), no token, no `allowed` and `skip-reason` `kill-switch`, on a 403 whose reason is `kill-switch` (a kill switch turned on after the run read its variables, a designed stop). Steps that use the token must gate on `token`, and jobs that need this one on `skip-reason`. Default `false` |
+| `rate-limit-hold-ok` | `true` ends green, with a `Lane token hold` notice, no token, no `allowed` and `skip-reason` `rate-limited`, when the broker's last answer is 503 `github-rate-limited`: a rate limit the 1-minute retry budget could not wait out, which the caller holds on. The same gating rules as `kill-switch-ok`. Default `false` |
 | `pr-workflow-change-ok` | `token` mode with `pr-number`: `true` ends green, with no token and `skip-reason` `workflow-modified`, on a 403 `workflow-modified` naming a workflow file the PR itself changes ([below](#a-workflow-file-the-pr-changes)). Default `false` |
 | `head-sha`, `default-branch`, `github-token` | Required with `pr-workflow-change-ok`: the gated head, the default branch, and a token that reads the repository's contents, for the compare |
 
@@ -37,7 +38,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
-| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped, `kill-switch` when `kill-switch-ok` did; empty otherwise |
+| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped, `kill-switch` when `kill-switch-ok` did, `rate-limited` when `rate-limit-hold-ok` did; empty otherwise |
 | `allowed` | `check` mode: `true` on the broker's allow; unset otherwise |
 
 ## What it does
@@ -53,7 +54,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    asks:
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the
      `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter, cut to fit
-     the budget below. When that wait does not fit, it fails red at once, naming the limit kind
+     the budget below. When that wait does not fit, it fails red at once (holds green under
+     `rate-limit-hold-ok`), naming the limit kind
      (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
      work-unblock's hourly sweep re-fires such a run once the reset has passed.
    - `github-unavailable`: another broker call to GitHub failed. The retry waits a random 0 to 20
@@ -71,7 +73,9 @@ run, and mints nothing ([Check mode](#check-mode)).
    setting no output, so steps gated on the `token` output skip. With `pr-workflow-change-ok: true`,
    such a 403 for a workflow file the PR changes ends green with `skip-reason` set
    ([below](#a-workflow-file-the-pr-changes)). With `kill-switch-ok: true`, a 403 with reason
-   `kill-switch` ends green with a notice and `skip-reason` `kill-switch`, setting no token.
+   `kill-switch` ends green with a notice and `skip-reason` `kill-switch`, setting no token. With
+   `rate-limit-hold-ok: true`, a last answer of 503 `github-rate-limited` holds green the same way,
+   with a `Lane token hold` notice and `skip-reason` `rate-limited` (the outage posture's element 2).
 5. On 200, masks the token, then compares the broker's `effect`, `permissions`, `lane`, `activity`
    and `repository_ids` with this job's values (`pull-requests` is `pull_requests` in the API). Any
    difference revokes the token and fails red with `effect-mismatch`. That happens when the PR's

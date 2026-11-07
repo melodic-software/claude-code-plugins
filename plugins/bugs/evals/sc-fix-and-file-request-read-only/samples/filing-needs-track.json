@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Filing needs the explicit `--track` argument, which this run did not get."
+    },
+    {
+      "answer": "Rerun with --track to file it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I did not file anything."
+    },
+    {
+      "answer": "Filing needs the explicit tracking argument."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-apply-copies-legacy-json-binding
+graders:
+  - name: 'runs-migrate-binding'
+    type: 'regex'
+    pattern: 'migrate-binding\.sh'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Check reports the binding as existing only in .work-item-tracker.json; (2) Adds and announces a .gitignore rule for docs/conventions/work-items.local.yaml before the personal override is copied; (3) Runs migrate-binding.sh and announces the copied binding and personal override; (4) Leaves .work-item-tracker.json and .work-item-tracker.local.json unchanged and says which readers still read them; (5) Keeps ai_disclaimer in docs/conventions/work-items.yaml. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: viz-state-machine-degrades
+graders:
+  - name: gate-ran
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|&(`]|(?<!\\\\)\\n|\b(?:bash|zsh|dash|sh)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:-\S+(?:\s|\\t|\\\\(?:\\r)?\\n)+)*?-\w*c(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:\\"|\x27)))?(?:\s|\\t|\\\\(?:\\r)?\\n)*(?:(?:if|elif|while|until|then|do|else|!|\{)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:(?:[^\s"\\;&|()]*/)?(?:sudo|npx|exec|time|env|nohup|command|xargs|timeout|nice|stdbuf)(?:\s|\\t|\\\\(?:\\r)?\\n)+(?:(?:-\S+(?:(?:\s|\\t|\\\\(?:\\r)?\\n)+[^-\s"\\;&|()]\S*)?|\d\S*)(?:\s|\\t|\\\\(?:\\r)?\\n)+)*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s"\\;&|()]*(?:\s|\\t|\\\\(?:\\r)?\\n)+)*)?(?:[^\s"\\;&|()]*/)?node(?:\.exe)?(?:\\\\(?:\\r)?\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?mermaid-gate\.mjs'
+    min: 1
+    arm: 'with-only'
+  - name: state-diagram
+    type: 'regex'
+    pattern: '```mermaid[ \t]*\n(?:[ \t]*(?:%%|---|title:|config:)[^\n]*\n)*[ \t]*stateDiagram'
+    flags: 'i'
+    target: 'last_message'
+  - name: unrendered-notice
+    type: 'regex'
+    pattern: 'unrendered|not rendered|isn''t rendered|is not rendered|won''t render|will not render|doesn''t render|does not render|cannot render|can''t render|couldn''t render|could not render|not be rendered|no (?:mermaid[- ]?)?renderer|source (?:is )?kept|kept (?:as|the) (?:mermaid )?source|mmdc is not installed|(?:mermaid[ \t]+)?source(?:[ \t]+(?:fence|code|text|only))?[^\n]{0,40}?(?:paste|render(?:s|ed)? (?:it )?(?:in|at|with|on))'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-network-renderer
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:<script\b(?:[^>"\\]|\\.)*?\bsrc\s*=\s*(?:\\"|\'')?\s*(?:https?:)?//|\bfrom\s+(?:\\"|\'')\s*(?:https?:)?//|\bimport\(\s*(?:\\"|\'')\s*(?:https?:)?//)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'
+  - name: no-plain-mermaid-page
+    type: 'regex'
+    pattern: '"name":\s*"(?:Write|Edit|MultiEdit|Bash)",\s*"input":\s*\{(?:[^"}]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:<!doctype\s+html|<html\b|<body\b)(?:[^"\\]|\\.)*?stateDiagram'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'trace'

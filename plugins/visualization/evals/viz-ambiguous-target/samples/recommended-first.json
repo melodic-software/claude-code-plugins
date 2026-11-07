@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "There are three things here and no form was named. Which one should I visualize?\n\n1. **Module dependency graph** (recommended): a mermaid flowchart of the five modules.\n2. **Rollout timeline**: a mermaid timeline of the four phases.\n3. **Error-rate numbers**: a small bar chart."
+    },
+    {
+      "answer": "Which target?\n\n- Module dependency graph (recommended)\n- Rollout timeline\n- Error-rate numbers"
+    },
+    {
+      "answer": "Which should I show: (1) the dependency graph (recommended), (2) the rollout timeline or (3) the error rates?",
+      "why": "parenthesized inline numbering, recommended first"
+    },
+    {
+      "answer": "Which one should I visualize?\n\n**1.** Module dependency graph (recommended)\n**2.** Rollout timeline\n**3.** Error-rate numbers",
+      "why": "bold numbering, recommended first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which target?\n\n1. Rollout timeline\n2. Module dependency graph (recommended)\n3. Error-rate numbers"
+    },
+    {
+      "answer": "Which target? I recommend the dependency graph.\n\n- Rollout timeline\n- Dependency graph\n- Error rates",
+      "why": "recommendation outside the first option"
+    },
+    {
+      "answer": "Which should I show: (1) the rollout timeline, (2) the dependency graph (recommended) or (3) the error rates?",
+      "why": "parenthesized inline numbering, recommended second"
+    },
+    {
+      "answer": "Which one should I visualize?\n\n**1.** Rollout timeline\n**2.** Module dependency graph (recommended)\n**3.** Error-rate numbers",
+      "why": "bold numbering, recommended second"
+    },
+    {
+      "answer": "1. Rollout timeline 2. Module dependency graph (recommended) 3. Error-rate numbers\n\nWhich one?",
+      "why": "a one-line menu at line start with the recommended target second"
+    }
+  ]
+}

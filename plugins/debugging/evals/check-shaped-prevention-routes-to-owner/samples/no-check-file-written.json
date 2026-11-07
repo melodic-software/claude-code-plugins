@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Write call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/post-mortems/export-utcnow.md",
+            "content": "# Post-mortem\n\nPrevention: /corrections:codify, proposed only.\n"
+          }
+        }
+      ],
+      "why": "the post-mortem record, not a check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/ruff.toml",
+            "content": "[lint.flake8-tidy-imports.banned-api]\n\"datetime.datetime.utcnow\".msg = \"use datetime.now(timezone.utc)\"\n"
+          }
+        }
+      ],
+      "why": "writes a lint config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".pre-commit-config.yaml",
+            "content": "repos: []\n"
+          }
+        }
+      ],
+      "why": "writes a hook config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/eval/ws/.git/hooks/pre-commit",
+            "content": "#!/bin/sh\ngit diff --cached | grep -q utcnow && exit 1\n"
+          }
+        }
+      ],
+      "why": "writes a git hook"
+    }
+  ]
+}

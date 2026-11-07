@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "output_dir is a Claude Code option: run `/plugin configure bugs@<marketplace>`; check still reports the old value until a fresh session."
+    },
+    {
+      "answer": "I have not changed output_dir."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I set output_dir to docs/bug-reports/."
+    },
+    {
+      "answer": "`output_dir` is now docs/bug-reports/."
+    },
+    {
+      "answer": "I've updated the output_dir."
+    }
+  ]
+}

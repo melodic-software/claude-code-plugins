@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, LIST_QUERY } from "./dispatch.mjs";
+import { createGitHubApi, PULL_QUERY } from "./dispatch.mjs";
 import { dispatchDocsFixes, docsRunState, heldHandoff, heldHead, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
@@ -240,7 +240,7 @@ const LANES_BOT = { __typename: "Bot", login: "melodic-automation-lanes", databa
 // each bound sits a step from its value; areas as the README's tidy entry
 // defines them.
 const CUTOFFS = { "max-files": 2, "max-lines": 10, "max-areas": 1, "shared-paths": [".github/", "AGENTS.md"] };
-// The lane run's one commit as LIST_QUERY lists it, in the shape GraphQL
+// The lane run's one commit as PULL_QUERY lists it, in the shape GraphQL
 // returned for a work-resolve-issue PR's API commit: a valid signature, the
 // App's bot user as author, and GitHub's noreply@github.com as committer.
 const laneCommitNode = (head, overrides = {}) => ({
@@ -415,7 +415,7 @@ const ended = (...jobs) => ({ status: "completed", jobs });
 // fix-docs-head found a person's hold: the call never started.
 const HELD = ended(job("fix-docs-head", "success"), job("fix-docs", "skipped"));
 
-// Outage posture element 3: the next tick is the probe. A red run names no
+// Outage posture element 3: the PR's next event is the probe. A red run names no
 // cause (a read that failed, or a broker that refused, both end red), so at most
 // limits.limit-stops-per-head (3, README's limits table) go again before it ends
 // the PR, which bounds a refusal; a red run that posted its check is ended by
@@ -693,23 +693,24 @@ test("the GitHub API reads a run's status and its latest jobs as one complete pa
   await assert.rejects(api.readRunJobs("../1"), /not a run id/);
 });
 
-test("the GitHub API sends the listing and history queries with their variables", async () => {
+test("the GitHub API sends the one-PR and history queries with their variables", async () => {
   const bodies = [];
   const fetch = async (url, init) => {
     const body = JSON.parse(init.body);
     bodies.push(body);
-    const data = body.query === LIST_QUERY
-      ? { rateLimit: { cost: 1, remaining: 1 }, repository: { pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } }
+    const data = body.query === PULL_QUERY
+      ? { rateLimit: { cost: 1, remaining: 1 }, repository: { pullRequest: { number: 9, state: "OPEN" } } }
       : { rateLimit: { cost: 1, remaining: 1 }, repository: { pullRequest: history([0]) } };
     return { ok: true, status: 200, json: async () => ({ data }) };
   };
   const api = createGitHubApi({ token: "t", repository: "octo/repo", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
-  await api.listDocsFixCandidates({ base: "main" });
+  await api.readDocsFixCandidate(9);
   const read = await api.readDocsFixHistory({ number: 9, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK });
-  assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", base: "main", after: null });
+  assert.equal(bodies[0].query, PULL_QUERY);
+  assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", number: 9 });
   assert.deepEqual(bodies[1].variables, { owner: "octo", name: "repo", number: 9, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK });
-  assert.match(LIST_QUERY, /\.\.\. on Bot \{ databaseId \}/);
-  assert.match(LIST_QUERY, /\.\.\. on User \{ databaseId \}/);
+  assert.match(PULL_QUERY, /\.\.\. on Bot \{ databaseId \}/);
+  assert.match(PULL_QUERY, /\.\.\. on User \{ databaseId \}/);
   assert.equal(bodies[1].query, HISTORY_QUERY);
   assert.match(HISTORY_QUERY, new RegExp(`commits\\(last: ${HISTORY_COMMITS}\\)`));
   assert.deepEqual(read.pullRequest, history([0]));

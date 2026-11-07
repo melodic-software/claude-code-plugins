@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nfor attempt in 1..5:\n    response = send(request)\n    if response.ok or not is_5xx(response): return response\n    if attempt == 5: raise last_error\n    sleep(2 ^ (attempt - 1) seconds)   # 1, 2, 4, 8\n```"
+    },
+    {
+      "answer": "```text\nfor attempt in 1..5:\n    ok? = send()\n```\nShipped default."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do you want pseudocode or a flowchart?"
+    },
+    {
+      "answer": "Should the 404 case retry too?\n\n```text\nfor attempt in 1..5:\n    response = send(request)\n    if response.ok or not is_5xx(response): return response\n    if attempt == 5: raise last_error\n    sleep(2 ^ (attempt - 1) seconds)   # 1, 2, 4, 8\n```",
+      "why": "asks before rendering"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Container body ends with `**Execution shape:** per-item PRs`.",
+      "why": "markdown line in a code span"
+    },
+    {
+      "answer": "Execution shape: per-item PRs, recorded in the container body.",
+      "why": "plain line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set `execution_shape: integration` in the repository config.",
+      "why": "near miss: repo-level setting with the wrong shape"
+    },
+    {
+      "answer": "**Execution shape:** integration branch to single PR",
+      "why": "wrong shape"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

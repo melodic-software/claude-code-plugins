@@ -417,15 +417,27 @@ for (const [why, status, code, text, dims] of [
   ["an order naming a state twice", { ...STATUS, order: ["needs-human", "agent-ready", "agent-ready", "needs-triage"] }, "undefined-status", "every mapped state once"],
   ["an order not ending on needs-triage", { ...STATUS, order: ["needs-human", "needs-triage", "agent-ready"] }, "undefined-status", "must end on `needs-triage`"],
   ["a field id one dimension uses", { ...STATUS, "field-id": 2 }, "undefined-status", "is a models.issue-dimensions field", LOADING_DIMS],
+  ["a third-party bot-setter", { ...STATUS, "bot-setters": [{ id: 209825114, login: "claude[bot]" }] }, "undefined-status", "claude[bot]"],
+  ["a bot-setter with no login", { ...STATUS, "bot-setters": [{ id: 41898282 }] }, "invalid-config", "bot-setters"],
   ["an empty label list", { ...STATUS, labels: { ...STATUS.labels, "needs-human": [] } }, "invalid-config", "labels"],
   ["a label given as a string", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "needs-human" } }, "invalid-config", "labels"],
   ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config", "options"],
   ["no field id", { options: STATUS.options, labels: STATUS.labels, order: STATUS.order }, "invalid-config", "field-id"],
+  ["a field-events-since with no time", { ...STATUS, "field-events-since": "2026-11-07" }, "invalid-config", "field-events-since"],
+  ["a field-events-since no calendar has", { ...STATUS, "field-events-since": "2026-13-01T00:00:00Z" }, "undefined-status", "field-events-since"],
 ]) {
   test(`issue-status: ${why} is rejected`, () => {
     assertStatusRejected(() => fixtureSlot(withModels(statusModels(status, dims))), code, text);
   });
 }
+
+// Whether the trusted-actor list holds a melodic- bot-setter is read per
+// issue, never a config error, so the config loads with any list or none.
+test("issue-status: a melodic- bot-setter the trusted-actor list does not hold still loads", () => {
+  const files = withModels(statusModels({ ...STATUS, "bot-setters": [{ id: 1234, login: "melodic-unlisted[bot]" }] }));
+  assert.equal(fixtureSlot({ ...files, trustedActors: LIVE.trustedActors }).applies, true);
+  assert.equal(fixtureSlot({ ...files, trustedActors: undefined }).applies, true);
+});
 
 test("issue-status: a field id no dimension uses loads beside issue-dimensions", () => {
   assert.equal(fixtureSlot(withModels(statusModels(STATUS, LOADING_DIMS))).applies, true);
@@ -1103,6 +1115,45 @@ test("fieldSetters fails on an issue with no event list", async () => {
     const github = async () => ({ data: { repository: { issue } } });
     await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events answer holds no event list/, JSON.stringify(issue));
   }
+});
+
+// The shapes as GraphQL answered them on 2026-11-06: option names
+// as values, a bot's login without `[bot]`, and a removal with no value.
+test("fieldEvents reads each event's field, actor, time and values, oldest first", async () => {
+  const { fieldEvents, fieldSetters } = await import("./resolve-config.mjs");
+  const bot = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const person = { __typename: "User", login: "kyle-sexton", databaseId: LISTED };
+  const nodes = [
+    { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-05T09:11:45Z", value: "ready", actor: bot, issueField: { fullDatabaseId: "48484079" } },
+    { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-05T09:11:46Z", value: "Medium", actor: bot, issueField: { fullDatabaseId: "15462270" } },
+    { __typename: "IssueFieldChangedEvent", createdAt: "2026-11-05T09:11:51Z", previousValue: "ready", newValue: "needs-human", actor: bot, issueField: { fullDatabaseId: "48484079" } },
+    { __typename: "IssueFieldRemovedEvent", createdAt: "2026-11-06T10:00:00Z", actor: person, issueField: { fullDatabaseId: "48484079" } },
+    { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-06T10:00:01Z", value: "x", actor: person, issueField: {} },
+    { __typename: "IssueFieldAddedEvent", createdAt: "2026-11-06T11:00:00Z", value: "needs-triage", actor: { __typename: "Bot", login: "ghost" }, issueField: { fullDatabaseId: "48484079" } },
+  ];
+  const github = async (method, path, body) => {
+    assert.equal(`${method} ${path}`, "POST /graphql");
+    assert.deepEqual(body.variables, { owner: "o", name: "r", number: 7 });
+    for (const selection of ["createdAt value", "previousValue newValue", "__typename login"]) assert.ok(body.query.includes(selection), selection);
+    return { data: { repository: { issue: { timelineItems: { nodes } } } } };
+  };
+  const at = (time, rest) => ({ removed: false, at: time, ...rest });
+  assert.deepEqual(await fieldEvents(github, "o/r", 7), [
+    at("2026-11-05T09:11:45Z", { field: "48484079", actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot", from: null, to: "ready" }),
+    at("2026-11-05T09:11:46Z", { field: "15462270", actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot", from: null, to: "Medium" }),
+    at("2026-11-05T09:11:51Z", { field: "48484079", actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot", from: "ready", to: "needs-human" }),
+    { field: "48484079", removed: true, actorId: LISTED, actorLogin: "kyle-sexton", actorType: "User", at: "2026-11-06T10:00:00Z", from: "needs-human", to: null },
+    at("2026-11-06T11:00:00Z", { field: "48484079", actorId: null, actorLogin: "ghost", actorType: "Bot", from: null, to: "needs-triage" }),
+  ]);
+  // fieldSetters folds the same events: the newest actor per field, null for one with no id.
+  assert.deepEqual({ ...(await fieldSetters(github, "o/r", 7)) }, { 48484079: null, 15462270: 337595936 });
+});
+
+test("fieldEvents fails as fieldSetters does on GraphQL errors and malformed answers", async () => {
+  const { fieldEvents } = await import("./resolve-config.mjs");
+  await assert.rejects(() => fieldEvents(async () => ({ errors: [{ message: "nope" }] }), "o/r", 7), /field events could not be read: nope/);
+  await assert.rejects(() => fieldEvents(async () => ({ data: { repository: { issue: null } } }), "o/r", 7), /named no issue/);
+  await assert.rejects(() => fieldEvents(async () => ({ data: { repository: { issue: {} } } }), "o/r", 7), /holds no event list/);
 });
 
 test("fieldSetters reads an empty event list as no setters", async () => {

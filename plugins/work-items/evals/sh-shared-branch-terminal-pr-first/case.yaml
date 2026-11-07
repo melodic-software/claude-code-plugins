@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-shared-branch-terminal-pr-first
+graders:
+  - name: 'integration-pr-from-branch'
+    type: 'regex'
+    pattern: '\bopen(?:s|ing)?\b[^\n]{0,60}(?:\bPR\b|pull[- ]request)[^\n]{0,120}integration/330-schema-swap\b|integration/330-schema-swap\b[^\n]{0,120}\bopen(?:s|ing)?\b[^\n]{0,60}(?:\bPR\b|pull[- ]request)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship session does with the stated state. PASS only if it satisfies every point: (1) States the terminal step first: open the single integration PR from the recorded integration branch (integration/330-schema-swap) and run the full verification gates, rather than routing straight to close-out; (2) Says closed checkpoints record durable progress, not shipment, as the reason close-out cannot run yet; (3) Places the close-out ritual at PR time and the container''s closure at PR shipment, not before; (4) Does not close the container or propose closing it while no integration PR exists. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

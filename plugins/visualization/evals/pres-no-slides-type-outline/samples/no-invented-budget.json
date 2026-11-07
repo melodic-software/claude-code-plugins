@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "No Slides type is available here (the Artifact tool is not in this session), so here is the outline, which is the deliverable.\n\n# Project kickoff recap\n\n## Slide 1: Kickoff done\n- The kickoff meeting took place.\n\n## Slide 2: Budget\n- Budget approved at [__].\n\n## Slide 3: Next review\n- In two weeks.\n\nMissing: the budget figure."
+    },
+    {
+      "answer": "## Slide 2: Budget\n- Approved at [TBD]; the figure is still to come."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Slide 2: Budget\n- Budget approved at $250,000."
+    },
+    {
+      "answer": "## Slide 2: Budget\n- The budget of 1.2M USD is approved.",
+      "why": "an invented figure in another currency form"
+    },
+    {
+      "answer": "- budget approved: 40k",
+      "why": "k suffix"
+    }
+  ]
+}

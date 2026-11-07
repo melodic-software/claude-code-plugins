@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Workers 2 and 5 lead in all three passes, so the next hypothesis is pick_worker in thumbs/dispatch.py.",
+      "why": "pick_worker"
+    },
+    {
+      "answer": "The same two workers lead every pass: the album hash sends every RAW album to them.",
+      "why": "album hash"
+    },
+    {
+      "answer": "Next suspect: the worker-selection logic, since the leaders never change between passes.",
+      "why": "worker-selection"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Workers 2 and 5 run out of memory; raise MEMORY_LIMIT_MB to 1024.",
+      "why": "no worker-picking code named"
+    },
+    {
+      "answer": "The large RAW photos are the problem; resize them before they enter the queue.",
+      "why": "names the photos, not the picking code"
+    }
+  ]
+}

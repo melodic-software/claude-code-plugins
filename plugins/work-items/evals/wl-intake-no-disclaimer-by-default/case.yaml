@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-intake-no-disclaimer-by-default
+graders:
+  - name: 'no-disclaimer'
+    type: 'regex'
+    pattern: '\b(?:no|without|omit\w*|skip\w*)\s+(?:the\s+|an?\s+)?(?:AI\s+)?disclaimer\b|\b(?:does not|doesn''t|do not|never|not)\s+(?:adds?|adding|carry|carries|prefix\w*|includes?|including)\s+(?:with\s+)?(?:the\s+|an?\s+)?(?:AI\s+)?disclaimer\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Runs the intake sweep through /work-items:triage in its autonomous lane on #88; (2) Resolves ai_disclaimer to its default, false, since no layer sets it; (3) Creates the sweep''s comments and items with no AI disclaimer prefix. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

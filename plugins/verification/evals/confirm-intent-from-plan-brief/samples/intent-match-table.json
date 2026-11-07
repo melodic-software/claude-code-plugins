@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| AC1 | lowercase and hyphenate | COMPLETE | tests/test_slug.py |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "AC1 is met; AC2 is missing."
+    },
+    {
+      "answer": "| Item | Status |"
+    }
+  ]
+}

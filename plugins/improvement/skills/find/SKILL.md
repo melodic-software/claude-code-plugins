@@ -109,12 +109,12 @@ Two hard rules follow:
 ## Evidence sources (tiered, presence-gated)
 
 - **Tier 0. Repo-native, always available.** Git churn/hotspot analysis (recipe:
-  context/hotspots.md, including its shallow-history gate), CI health via GitHub Actions run data
-  (recipe: context/ci-health.md), dependency staleness from the repo's own manifests,
+  `${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`, including its shallow-history gate), CI health via GitHub Actions run data
+  (recipe: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`), dependency staleness from the repo's own manifests,
   test-coverage presence, TODO density, and built-but-unwired capabilities: exports or imports
   nothing calls, stores written but never read, and off flags that hide built routes (recipe:
-  context/disconnected.md, run every time, before any net-new build is proposed). These ship
-  with the skill and need nothing installed.
+  `${CLAUDE_PLUGIN_ROOT}/skills/find/context/disconnected.md`, run every time, before any net-new build is proposed). These ship
+  with the skill and need nothing installed. Read each recipe with one Read of the exact path named here; never Glob or Grep the plugin directory for it.
 - **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
@@ -136,14 +136,14 @@ method:
 - `architecture:improve` (deepening lens). Depth for the code/architecture dimension.
 - `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
 - `code-tidying:audit-dead-code`. Unused exports, functions and files for the first shape of the
-  disconnected-capability scan (context/disconnected.md); without it, that recipe greps.
+  disconnected-capability scan (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/disconnected.md`); without it, that recipe greps.
 - `/code-metrics:audit-duplication`, when it is among the available skills. Copy count and clone
   trend for the code dimension: run it with `--json --keep --all` and read the document it prints
   (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
   its number of instances; code-metrics computes `trend`, including the lists of new and grown
-  classes, and this skill reads only that, never an earlier report. Copy count ranks spread (context/ranking.md). A growing class becomes a
+  classes, and this skill reads only that, never an earlier report. Copy count ranks spread (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`). A growing class becomes a
   candidate whose next step is a lint proposal, written through the findings hand-off under
-  `<memory_dir>/improvement/<branch-slug>/` (context/unattended.md "Growing clone classes"). When
+  `<memory_dir>/improvement/<branch-slug>/` (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Growing clone classes"). When
   code-metrics is not available, or no detector ran, record a `gap:` line for duplication.
 - Other installed finders that announce an improvement-shaped scan may be consulted the same way.
 
@@ -169,7 +169,7 @@ One ranked list, highest value-to-effort first. Every row carries:
 | Confidence | Derived from the evidence rung, stated plainly |
 | Value-to-effort | WSJF-style rationale: cost of delay (value, urgency, risk reduction) against job size |
 
-Scoring and dedupe mechanics: context/ranking.md. Evidence-gap lines appear after the list so the
+Scoring and dedupe mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`. Evidence-gap lines appear after the list so the
 reader knows what the ranking could not see.
 
 ## Interactive flow
@@ -199,7 +199,7 @@ declared-by-the-caller convention. In unattended mode:
   defaults below or by the invocation prompt's overrides.
 - **The report is persisted**, the full ranked list plus evidence-gap lines, under
   `${CLAUDE_PLUGIN_DATA}`, keyed per project per the plugin-data-report-keying convention (report
-  shape and keying: context/unattended.md).
+  shape and keying: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md`, one Read of that file, never a Glob or Grep of the plugin directory).
 - **Top candidates are filed** via `work-items:track` when installed (absent tracker = report
   only, noted in the report). Filing behavior:
   - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
@@ -210,7 +210,7 @@ declared-by-the-caller convention. In unattended mode:
   - *Adaptive filing cap*, a soft default bounding how many items one run files (following
     `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
 
-  Consultation order and its rationale: context/ranking.md.
+  Consultation order and its rationale: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ranking.md`.
 - **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report,
   the filed items, and, when code-metrics is enabled, the kept duplication report and the
   clone-growth findings file (with its memory-root `.gitignore`) that the verb contract below names; it never picks a candidate, never prioritizes the queue, never starts
@@ -261,14 +261,16 @@ mode:
   - for a growing clone class, this skill writes one review-findings file,
     `<memory_dir>/improvement/<branch-slug>/<UTC stamp>-clone-growth.md`, and, on its first
     memory-tier write, a `.gitignore` containing `*` in `<memory_dir>` when that file is absent
-    (context/unattended.md "Growing clone classes").
+    (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md` "Growing clone classes").
 
 No other mutation exists in any mode; there is no flag, prompt, or mode that makes this skill edit
 the target's tracked files.
 
 ## Spoke paths
 
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+Every `context/` recipe this skill uses is named above by its full path,
+`${CLAUDE_PLUGIN_ROOT}/skills/find/context/<file>.md`: open it with one Read of that path, and
+never Glob or Grep the plugin directory to find it. The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
@@ -286,12 +288,12 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 Known traps, seeded from the research this skill was grounded on:
 
 - **Shallow or truncated clones poison churn rankings.** The hotspot recipe's history-depth gate
-  (context/hotspots.md) runs first; a window the history does not cover downgrades churn to a
+  (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
 - **Never call the Actions `/timing` endpoint**. GitHub marks it as closing down; the dated record
   for that, and for the documented 1,000-result bound behind the windowing rule, is in
-  context/ci-health.md. CI health iterates `/actions/runs` by `created` date windows (never deep
+  `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
 - **Unattended is declared, never detected.** There is no supported way to observe
   non-interactivity; guessing it converts an interactive user's session into a silent filing run.

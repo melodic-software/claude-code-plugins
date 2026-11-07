@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "No Slides type is available here (the Artifact tool is not in this session), so here is the outline, which is the deliverable.\n\n# Project kickoff recap\n\n## Slide 1: Kickoff done\n- The kickoff meeting took place.\n\n## Slide 2: Budget\n- Budget approved at [__].\n\n## Slide 3: Next review\n- In two weeks.\n\nMissing: the budget figure."
+    },
+    {
+      "answer": "1. **Kickoff** done\n2. **Budget** approved at [__]\n3. **Next review** in two weeks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Kickoff done, budget approved at [__], next review in two weeks."
+    },
+    {
+      "answer": "## Slide 1: Kickoff\nKickoff is done, the budget is pending and the review is in two weeks.",
+      "why": "one slide only"
+    }
+  ]
+}

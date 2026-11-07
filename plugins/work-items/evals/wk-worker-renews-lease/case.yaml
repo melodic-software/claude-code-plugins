@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-worker-renews-lease
+graders:
+  - name: 'lease-comment-id'
+    type: 'regex'
+    pattern: 'lease_comment_id'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Records lease_comment_id from the claim and enumerates it in the dispatch brief; (2) Makes the worker the renew actor during implement-dispatch (renew-lease at phase boundaries and before the TTL deadline with a margin), not branch pushes; (3) Has the orchestrator renew only after the worker returns, before a long monitor or review wait; (4) Does not renew an already-expired lease (exit 7; recover with a fresh claim). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'
