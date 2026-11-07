@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "No Slides type is available here (the Artifact tool is not in this session), so here is the outline, which is the deliverable.\n\n# Project kickoff recap\n\n## Slide 1: Kickoff done\n- The kickoff meeting took place.\n\n## Slide 2: Budget\n- Budget approved at [__].\n\n## Slide 3: Next review\n- In two weeks.\n\nMissing: the budget figure."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<!doctype html><html><body><section>Kickoff done</section></body></html>"
+    },
+    {
+      "answer": "Slide 1:\n<div class=\"slide\">Kickoff done</div>",
+      "why": "slide markup"
+    }
+  ]
+}

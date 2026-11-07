@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [9.2.0] - 2026-11-07
+
+### Added
+
+- The pr-run-activity convention describes the `refine` job of `pr-unblock-dispatch.yml`, which
+  starts fix-docs on a pull request's own `pull_request_target` event under the push dispatcher's
+  once-per-PR rule and records the dispatch for the trusted-trigger gate.
+
 ## [9.1.4] - 2026-11-07
 
 ### Fixed

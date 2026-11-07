@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-Zx9/visualize.html\",\"content\":\"<!doctype html><html><head><style>body{font:14px system-ui}</style></head><body><header><img alt=\\\"logo\\\" src=\\\"data:image/svg+xml;base64,PHN2Zy8+\\\"></header><svg viewBox=\\\"0 0 400 200\\\"></svg><script>document.querySelectorAll('rect')</script></body></html>\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"xdg-open /opt/eval/tmp/visualize-Zx9/visualize.html\"}}]}}",
+      "why": "a URL in the prompt is not a written src"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<html><head><script src=\\\"https://cdn.jsdelivr.net/npm/chart.js\\\"></script></head></html>\"}}]}}",
+      "why": "CDN script"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<header><img src=\\\"https://example.com/assets/logo.png\\\"></header>\"}}]}}",
+      "why": "remote image"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/v/visualize.html\",\"content\":\"<style>@import url('https://fonts.googleapis.com/css2?family=Inter');</style>\"}}]}}",
+      "why": "remote stylesheet import"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /opt/eval/tmp/v/visualize.html <<'EOF'\\n<link rel=\\\"stylesheet\\\" href=\\\"//cdnjs.cloudflare.com/x.css\\\">\\nEOF\"}}]}}",
+      "why": "protocol-relative href in a heredoc"
+    }
+  ]
+}

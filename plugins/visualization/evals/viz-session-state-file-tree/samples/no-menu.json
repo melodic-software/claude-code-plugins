@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I could show a file tree (recommended) or a call tree.\n\n```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```",
+      "why": "a ranked menu"
+    },
+    {
+      "answer": "```text\nsrc/\n├── sessions/\n│   ├── store.ts      SessionStore: the in-memory map of live sessions\n│   └── events.ts     emits session-opened / session-closed\n└── transport/\n    └── client.ts     holds the session token, reconnects\n```\n\nWant the call tree too?",
+      "why": "trailing question"
+    }
+  ]
+}

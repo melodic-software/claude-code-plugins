@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/tmp/visualize-Zx9/visualize.html\",\"content\":\"<!doctype html><html><head><style>body{font:14px system-ui}</style></head><body><header><img alt=\\\"logo\\\" src=\\\"data:image/svg+xml;base64,PHN2Zy8+\\\"></header><svg viewBox=\\\"0 0 400 200\\\"></svg><script>document.querySelectorAll('rect')</script></body></html>\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Shipped default (auto) picks a page; the Artifact surface is not available here, so I wrote a local file instead: /opt/eval/tmp/visualize-Zx9/visualize.html\\n\\nThe page is self-contained: the charts are inline SVG with inline script for the tooltips, and the logo is a placeholder, so it makes no network request.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /opt/eval/tmp/visualize-Zx9/visualize.html <<'EOF'\\n<!doctype html><html><head><style>body{font:14px system-ui}</style></head><body><header><img alt=\\\"logo\\\" src=\\\"data:image/svg+xml;base64,PHN2Zy8+\\\"></header><svg viewBox=\\\"0 0 400 200\\\"></svg><script>document.querySelectorAll('rect')</script></body></html>\\nEOF\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Shipped default (auto) picks a page; the Artifact surface is not available here, so I wrote a local file instead: /opt/eval/tmp/visualize-Zx9/visualize.html\\n\\nThe page is self-contained: the charts are inline SVG with inline script for the tooltips, and the logo is a placeholder, so it makes no network request.\"}]}}",
+      "why": "heredoc"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the dashboard as a table.\"}]}}",
+      "why": "nothing written"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"/visualization:visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact: I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. Revenue in USD thousands, Q1 to Q4: North 420, 455, 470, 510; South 300, 310, 290, 335; East 380, 400, 415, 440; West 260, 275, 300, 320.\"}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"Write\",\"input\":{\"file_path\":\"/opt/eval/ws/revenue.csv\",\"content\":\"region,q1\"}}]}}",
+      "why": "not a page"
+    }
+  ]
+}

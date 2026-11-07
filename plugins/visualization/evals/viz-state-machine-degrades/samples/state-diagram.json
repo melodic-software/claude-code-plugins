@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto) picks a page for a rendered diagram, but no Artifact surface is available and the mermaid gate kept the source (mmdc is not installed), so this is the mermaid source, unrendered:\n\n```mermaid\nstateDiagram-v2\n  [*] --> Pending\n  Pending --> Paid: payment\n  Pending --> Cancelled: timeout\n  Paid --> Shipped: dispatch\n  Paid --> Refunded: refund request\n  Shipped --> Delivered: delivery\n  Delivered --> [*]\n  Cancelled --> [*]\n  Refunded --> [*]\n```\n\nPaste it into a mermaid renderer to see the picture."
+    },
+    {
+      "answer": "```mermaid\nstateDiagram\n  Pending --> Paid\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```mermaid\nflowchart LR\n  Pending --> Paid\n```",
+      "why": "a flowchart"
+    },
+    {
+      "answer": "stateDiagram-v2\n  Pending --> Paid",
+      "why": "no fence"
+    }
+  ]
+}

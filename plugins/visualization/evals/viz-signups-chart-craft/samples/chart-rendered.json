@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Monthly signups\n\nJan ▇▇▇▇ 120\nFeb ▇▇▇▇▇▇ 180\nMar ▇▇▇▇▇ 150\nApr ▇▇▇▇▇▇▇▇ 240\nMay ██████████ 300\nJun █████████ 280"
+    },
+    {
+      "answer": "Sparkline: ▁▄▂▆█▇ (Jan to Jun)",
+      "why": "sparkline"
+    },
+    {
+      "answer": "<svg viewBox=\"0 0 300 120\"><rect x=\"0\" y=\"80\" width=\"40\" height=\"40\"/></svg>",
+      "why": "inline SVG"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Month | Signups |\n|---|---|\n| Jan | 120 |\n| Feb | 180 |"
+    },
+    {
+      "answer": "Jan #### 120\nFeb ###### 180",
+      "why": "ASCII hash bars, not the Unicode bars the legacy names"
+    },
+    {
+      "answer": "Signups rose from 120 in January to 300 in May, then dipped to 280.",
+      "why": "prose"
+    }
+  ]
+}

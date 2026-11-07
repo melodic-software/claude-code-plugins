@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "No Slides type is available here (the Artifact tool is not in this session), so here is the outline, which is the deliverable.\n\n# Project kickoff recap\n\n## Slide 1: Kickoff done\n- The kickoff meeting took place.\n\n## Slide 2: Budget\n- Budget approved at [__].\n\n## Slide 3: Next review\n- In two weeks.\n\nMissing: the budget figure."
+    },
+    {
+      "answer": "The Artifact tool is unavailable in this session, so I can't build the Slides deck. The outline below is the record."
+    },
+    {
+      "answer": "This account offers no Slides type, so the outline is the deliverable.",
+      "why": "names the missing type"
+    },
+    {
+      "answer": "Slides artifacts aren't available in this session, so here is the outline.",
+      "why": "Slides artifacts phrasing"
+    },
+    {
+      "answer": "Artifacts are not available here; the outline below is the deliverable.",
+      "why": "Artifacts phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your deck outline.\n\n## Slide 1: Kickoff done"
+    },
+    {
+      "answer": "Slides artifact outline below; the budget figure is still missing.",
+      "why": "artifact and missing in one line, about the figure"
+    },
+    {
+      "answer": "I'll create the Slides artifact once you confirm the title.",
+      "why": "promises a deck, never says the type is missing"
+    },
+    {
+      "answer": "Note: no budget figure was given, so it stays [__].",
+      "why": "a 'no' on the line, about something else"
+    }
+  ]
+}

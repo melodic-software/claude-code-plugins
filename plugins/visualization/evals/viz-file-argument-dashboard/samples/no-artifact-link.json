@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "view: file (argument)\n\nWrote the dashboard as a self-contained local file and opened it: /opt/eval/tmp/visualize-Ab12Cd/visualize.html\n\nNothing was published."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Published: https://claude.ai/code/artifact/abc123"
+    }
+  ]
+}

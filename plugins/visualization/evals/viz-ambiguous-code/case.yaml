@@ -8,12 +8,23 @@ graders:
     target: last_message
   - name: recommended-first
     type: regex
-    pattern: '^(?:(?!(?:^|\n)[ \t]*(?:\d+[.)]|[-*+]|\(?[A-Da-d][.)])[ \t])[\s\S])*?(?:^|\n)[ \t]*(?:1[.)]|[-*+]|\(?[Aa][.)])[ \t][^\n]*recommend|(?:^|\n)[^\n]*?[ \t:?]1[.)][ \t]+(?:(?![ \t]2[.)])[^\n])*?recommend'
+    pattern: '^(?:(?!(?:^|\n)[ \t]*(?:(?:\*\*)?\(?\d+[.)](?:\*\*)?|[-*+]|\(?[A-Da-d][.)])[ \t])[\s\S])*?(?:^|\n)[ \t]*(?:(?:\*\*)?\(?1[.)](?:\*\*)?|[-*+]|\(?[Aa][.)])[ \t](?:(?![ \t](?:\*\*)?\(?2[.)])[^\n])*?recommend|(?:^|\n)[^\n]*?[ \t:?](?:\*\*)?\(?1[.)](?:\*\*)?[ \t]+(?:(?![ \t](?:\*\*)?\(?2[.)])[^\n])*?recommend'
     flags: i
     target: last_message
   - name: renders-nothing
     type: regex
     pattern: '^[ \t]*(?:```|~~~)|[├└│┌┬┼]|^[ \t|]*[+`\\|]--|^[ \t]+[A-Za-z_]\w*(?:\.\w+)+(?:\([^)\n]*\))?[ \t]*$|^[ \t]*(?:class|def)[ \t]+[A-Za-z_]\w*[ \t]*[(:]|^[ \t]*[\w.-]+(?:/[\w.-]+)*(?:/|\.py)[ \t]*$|^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-+:?[ \t]*\|'
     flags: m
+    match: not_contains
+    target: last_message
+  - name: names-two-forms
+    type: regex
+    pattern: '^(?:[\s\S]*?\b(?:(?:call[- ]tree)\b(?![\s\S]*?\b(?:call[- ]tree)\b)|(?:types?(?:[ \t]+and[ \t]+|[ \t]*[/&][ \t]*|[ \t]+)signatures?)\b(?![\s\S]*?\b(?:types?(?:[ \t]+and[ \t]+|[ \t]*[/&][ \t]*|[ \t]+)signatures?)\b)|(?:(?:shallow[ \t]+)?file[ \t]+tree)\b(?![\s\S]*?\b(?:(?:shallow[ \t]+)?file[ \t]+tree)\b)|(?:pseudo-?code)\b(?![\s\S]*?\b(?:pseudo-?code)\b)|(?:component[ \t]+tree)\b(?![\s\S]*?\b(?:component[ \t]+tree)\b)|(?:whole[ \t]+(?:code[ \t]+)?block)\b(?![\s\S]*?\b(?:whole[ \t]+(?:code[ \t]+)?block)\b)|(?:diff(?:-shaped)?(?:[ \t]+delta)?)\b(?![\s\S]*?\b(?:diff(?:-shaped)?(?:[ \t]+delta)?)\b))){2}'
+    flags: 'i'
+    target: last_message
+  - name: at-most-four-forms
+    type: regex
+    pattern: '^(?:[\s\S]*?\b(?:(?:call[- ]tree)\b(?![\s\S]*?\b(?:call[- ]tree)\b)|(?:types?(?:[ \t]+and[ \t]+|[ \t]*[/&][ \t]*|[ \t]+)signatures?)\b(?![\s\S]*?\b(?:types?(?:[ \t]+and[ \t]+|[ \t]*[/&][ \t]*|[ \t]+)signatures?)\b)|(?:(?:shallow[ \t]+)?file[ \t]+tree)\b(?![\s\S]*?\b(?:(?:shallow[ \t]+)?file[ \t]+tree)\b)|(?:pseudo-?code)\b(?![\s\S]*?\b(?:pseudo-?code)\b)|(?:component[ \t]+tree)\b(?![\s\S]*?\b(?:component[ \t]+tree)\b)|(?:whole[ \t]+(?:code[ \t]+)?block)\b(?![\s\S]*?\b(?:whole[ \t]+(?:code[ \t]+)?block)\b)|(?:diff(?:-shaped)?(?:[ \t]+delta)?)\b(?![\s\S]*?\b(?:diff(?:-shaped)?(?:[ \t]+delta)?)\b))){5}'
+    flags: 'i'
     match: not_contains
     target: last_message

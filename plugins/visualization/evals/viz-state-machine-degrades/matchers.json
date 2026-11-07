@@ -1,0 +1,12 @@
+{
+  "gate-ran": [
+    {
+      "use": "command_position"
+    },
+    "node(?:\\.exe)?",
+    {
+      "use": "token_argument"
+    },
+    "mermaid-gate\\.mjs"
+  ]
+}

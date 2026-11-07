@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Shipped default (auto) picks a page; the Artifact surface is not available here, so I wrote a local file instead: /opt/eval/tmp/visualize-Zx9/visualize.html\n\nThe page is self-contained: the charts are inline SVG with inline script for the tooltips, and the logo is a placeholder, so it makes no network request."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Artifact CSP allows cdn.jsdelivr.net and cdnjs.cloudflare.com, but the page loads neither."
+    },
+    {
+      "answer": "I didn't load Chart.js from unpkg.com.",
+      "why": "a host named"
+    }
+  ]
+}

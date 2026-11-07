@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n <SettingsPage>                 src/routes/settings.tsx\n ├── useSettings()              draft, saved, dirty\n+│   + resetToDefaults()\n ├── <SettingsForm>             src/routes/settings/form.tsx\n-└── <SaveButton>               packages/ui\n+├── <SaveButton>               packages/ui\n+└── <ResetButton>              packages/ui\n```"
+    },
+    {
+      "answer": "```diff\n <SettingsForm>\n+<ResetButton onClick={resetToDefaults}>\n <SaveButton>\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\n<SettingsPage>\n├── <SaveButton>\n└── <ResetButton>\n```",
+      "why": "a fresh tree, not a diff"
+    },
+    {
+      "answer": "```diff\n <SettingsForm>\n <SaveButton>\n```\nAdd a reset button.",
+      "why": "nothing added in the fence"
+    }
+  ]
+}
