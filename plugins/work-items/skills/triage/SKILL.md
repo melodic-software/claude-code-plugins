@@ -237,9 +237,9 @@ Closed: no reply in <n> days to the request for information. Reply with the deta
 
 ## Human-gated sweep (`sweep`)
 
-Re-checks items already wearing the human-gated role label (resolved from `config.role_labels`, as
-triage workflow step 5, Apply outcome, resolves it) against the label test. It runs no state
-machine and changes no label but that one.
+Re-checks items already held by the human-gated role label (resolved from `config.role_labels`, as
+triage workflow step 5, Apply outcome, resolves it) or a `needs-human` status against the label
+test. It runs no state machine and changes nothing but that label and that status.
 
 1. **List** open issues carrying the label (adapter: "List items", label filter) and, on field
    storage, open issues whose status is `needs-human` (tracker seam "Reading an item's status"),
@@ -267,11 +267,15 @@ machine and changes no label but that one.
 4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
    from those `<n>` items. On yes, for each item in turn, claim it ("Claim before the first write"),
    post the comment below, remove the label, then hand the claim back; a failed post leaves that
-   item's label in place. Items the operator excludes keep it. The
+   item's label in place. When status lives in the field and the item's status is a hold state,
+   set Work status `confirmed` before removing the label ("Lifting a hold" in the tracker seam's
+   "Reading an item's status"); a failed write leaves its labels and field as they were and is
+   reported. Items
+   the operator excludes keep it. The
    edit applies no other label, so the item ends with no role label, and the objection window of
    triage workflow step 5, which only an autonomous-eligible label edit triggers, does not apply.
-   `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can pick it
-   from there. The issue lane and the work loop do not admit it: they admit only on the
+   Once no hold remains, the field included, `list-frontier --autonomous` lists it again, and an
+   attended `/work-items:work` run can pick it from there. The issue lane and the work loop do not admit it: they admit only on the
    autonomous-eligible role label. A person who wants a lane to take it applies the
    autonomous-eligible role label to it directly: with no role label and no trusted marker,
    `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for a

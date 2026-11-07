@@ -237,10 +237,14 @@ never compress this restatement away.
   main and closing the record are the operator's. This lane takes no claim on these rows, edits no
   label on them, and never closes a record, reverts or merges.
 - **Flip to agent-ready.** When an answer removes the human blocker, apply the
-  autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
-  resolved from `config.role_labels`, never literals), an item wearing both roles is a
-  contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
-  it from this lane. No other label blocks this flip; only
+  autonomous-eligible role label and remove the human-gated role label, and any other hold-state
+  label the answer lifts, **in the same edit** (roles resolved from `config.role_labels`, never
+  literals), an item wearing both roles is a contradiction. When status lives in the field and the
+  item's status is a hold state, first set Work status `agent-ready` ("Lifting a hold" in the
+  tracker seam's "Reading an item's status"); a failed write stops the flip and is reported. Once
+  no hold remains, the field included, the item re-enters the worker loop's frontier on its next
+  cycle; do not dispatch it from this lane. A hold the answer does not lift stays, and no other
+  label blocks this flip; only
   `provenance: untrusted` (or its legacy name: any label containing `untrusted-provenance`; exact value `WIT_LEGACY_UNTRUSTED_LABEL` in [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)) or
   `provenance: signal` does, per the branch below. The flip
   and that branch are for issues only: a pull request, whatever its row kind, never takes the
