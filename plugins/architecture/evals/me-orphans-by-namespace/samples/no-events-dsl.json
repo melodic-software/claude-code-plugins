@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "docs/architecture/events.json",
+        "docs/architecture/events.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/architecture/events.json",
+        "docs/architecture/events.dsl"
+      ],
+      "why": "followed landscape_dialect structurizr"
+    }
+  ]
+}

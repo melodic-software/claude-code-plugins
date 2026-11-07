@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "ProjectReference",
+            "path": "src"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Project",
+            "path": "/opt/eval/SiblingCheckout"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.csproj"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/Shared.csproj"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "*",
+            "path": "/opt/eval/SiblingCheckout"
+          }
+        }
+      ]
+    }
+  ]
+}
