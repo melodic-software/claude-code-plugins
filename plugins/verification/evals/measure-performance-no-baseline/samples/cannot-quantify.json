@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Baseline not captured. Cannot quantify improvement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Improvement confirmed."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

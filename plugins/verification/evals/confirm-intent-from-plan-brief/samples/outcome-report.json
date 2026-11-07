@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Outcome Confirmation: Plan vs Implementation"
+    },
+    {
+      "answer": "### Plan Coverage"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Fix Confirmation"
+    },
+    {
+      "answer": "## Refactor Confirmation"
+    }
+  ]
+}

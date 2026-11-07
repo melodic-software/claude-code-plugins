@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The change is from a fork, an untrusted stage, so one worker ran."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "One worker ran."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

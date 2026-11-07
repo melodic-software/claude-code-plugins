@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: confirm-capture-blocked-not-verified
+graders:
+  - name: 'capture-line'
+    type: 'regex'
+    pattern: 'Capture:[`*_\s]*blocked[^\n]*no usable driver: playwright-cli not installed'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'loop-line'
+    type: 'regex'
+    pattern: 'Evidence loop:[`*_\s]*0/3'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'verdict-not-verified'
+    type: 'regex'
+    pattern: 'verdict\W{0,8}NOT VERIFIED'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'blocked-not-gap'
+    type: 'llm'
+    criteria: 'The reply renders a verdict when the capture was blocked. It meets the legacy expectations: "The verdict is not NEEDS WORK". It fails if it raises the evidence-loop count or calls the blocked capture a gap in the change.'
+    focus: 'last_message'

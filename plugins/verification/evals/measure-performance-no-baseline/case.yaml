@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: measure-performance-no-baseline
+graders:
+  - name: 'looks-for-baseline'
+    type: 'regex'
+    pattern: '\"(?:pattern|path|file_path|command)\\?\"\s*:\s*\\?\"[^\"]*baselines'
+    target: 'trace'
+  - name: 'cannot-quantify'
+    type: 'regex'
+    pattern: 'cannot quantify|can''t quantify|cannot be quantified|unable to quantify'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-delta-figure'
+    type: 'regex'
+    pattern: '\b\d+(?:\.\d+)?\s*%\s*(?:faster|slower|improvement|reduction)|\b\d+(?:\.\d+)?x (?:faster|speed-?up)'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Write evidence-loop.feat-cart-tax.json.tmp, then `mv` it over evidence-loop.feat-cart-tax.json."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write evidence-loop.feat-cart-tax.json directly."
+    },
+    {
+      "answer": "write a .tmp file then rename"
+    }
+  ]
+}

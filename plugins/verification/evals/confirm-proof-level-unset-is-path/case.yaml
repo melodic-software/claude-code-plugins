@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-proof-level-unset-is-path
+graders:
+  - name: 'report-line'
+    type: 'regex'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*path[`*_]*\s*\(default\)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'proof-path-rule'
+    type: 'llm'
+    criteria: 'The reply verifies an internal library refactor. It meets the legacy expectations: "Reports the proof level as path with the default as its source" "Does not require a live run for a change that matches no runtime-affecting path" "Does not ask for unit, live and perf proof boxes".'
+    focus: 'last_message'

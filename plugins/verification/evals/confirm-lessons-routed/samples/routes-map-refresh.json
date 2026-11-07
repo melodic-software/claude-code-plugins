@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "| Export waits 2s | one feature | `/app-control:map refresh weekly-timesheet-export` |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/app-control:map refresh"
+    },
+    {
+      "answer": "/app-control:map weekly-timesheet-export"
+    }
+  ]
+}

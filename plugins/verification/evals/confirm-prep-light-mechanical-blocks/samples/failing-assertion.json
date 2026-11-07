@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "AssertionError: 'hello-world' != 'hello_world'"
+    },
+    {
+      "answer": "FAIL: test_lowercases_and_hyphenates (tests.test_slug.SlugifyTest)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A unit test failed."
+    },
+    {
+      "answer": "Stage 1 failed."
+    }
+  ]
+}

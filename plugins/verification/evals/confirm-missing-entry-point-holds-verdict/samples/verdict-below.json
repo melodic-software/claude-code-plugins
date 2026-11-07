@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NOT VERIFIED**"
+    },
+    {
+      "answer": "Verdict: NEEDS WORK"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

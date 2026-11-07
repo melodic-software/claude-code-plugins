@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: live (docs/conventions/verification.yaml at origin/main, commit 9b1d2e7; userConfig says path)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path (userConfig)"
+    },
+    {
+      "answer": "proof_level: live (userConfig)"
+    }
+  ]
+}
