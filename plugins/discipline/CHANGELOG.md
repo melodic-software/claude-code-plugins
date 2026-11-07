@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.25.3] - 2026-11-07
+
+### Changed
+
+- The script-the-deterministic-work and setup skills' legacy `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)): 15 new cases and one scaffold fixture (`evals/fixtures/su-repo.sh`). Two legacy cases or parts are held on #8635: both need userConfig values a run cannot set. Both `evals.json` files are deleted.
+
+- The sweep-all, reuse-or-replace, follow-our-standards and tighten-your-output skills' legacy `evals.json` files are retired into the `evals/` case suite ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)): 15 new cases and graders added to 3 existing cases. Three sweep-all legacy cases are held on #8635: two need userConfig values a run cannot set, one needs the fork canary to fail. All four `evals.json` files are deleted.
+
 ## [0.25.2] - 2026-11-07
 
 ### Changed
