@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/generate-adapter.sh --spec adapter-spec.json"
+          }
+        }
+      ],
+      "why": "no force"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/generate-adapter.sh --spec adapter-spec.json --force"
+          }
+        }
+      ],
+      "why": "force"
+    }
+  ]
+}

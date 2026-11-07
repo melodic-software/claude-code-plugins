@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: hmh-migration-does-own-steps
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:discipline:)?hold-my-hand"'
+    min: 1
+    arm: 'with-only'
+  - name: edits-config
+    type: regex
+    pattern: '"name":"(?:Edit|Write|MultiEdit)","input":\{[^\n]*?database\.yaml'
+    target: 'trace'
+  - name: config-migrated
+    type: regex
+    pattern: '^(?=[\s\S]*\bdb-new\.internal\b)(?=[\s\S]*\b6432\b)(?=[\s\S]*\bsslmode:[ \t]*require\b)(?![\s\S]*\bdb-old\.internal\b)'
+    target: { source: file, path: config/database.yaml }
+  - name: presents-only-residue
+    type: llm
+    criteria: 'Legacy expectations: "Runs the steps it can perform itself before presenting the phase" and "Presents only steps the assistant cannot perform (elevation, other machines, consoles, credentials, approvals)". MIGRATION.md steps 1-2 are config edits the assistant can make; steps 3-4 need the cloud admin console. PASS only if the reply reports the config edits as already done and presents to the user only the console steps (and any confirmation only the user can observe). FAIL if it asks the user to make the config edits, or presents steps it could have done itself.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: performer-labeled
+    type: llm
+    criteria: 'Legacy expectation: "Labels each step with who performs it". PASS only if the reply meets that expectation for every step it presents. FAIL otherwise.'
+    focus: 'last_message'

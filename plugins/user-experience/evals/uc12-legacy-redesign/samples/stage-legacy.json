@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "**Stage:** legacy (signals: 14 years old, Struts, authors gone)."
+    },
+    {
+      "answer": "Stage: `legacy`"
+    },
+    {
+      "answer": "The stage is legacy."
+    },
+    {
+      "answer": "**Stage:** **legacy**"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "At this stage, the legacy system needs an inventory."
+    },
+    {
+      "answer": "Stage: existing"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Claimed:** 1 items (assigned)",
+      "why": "template"
+    },
+    {
+      "answer": "1 claimed, 2 unassigned",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Claimed:** 0 items",
+      "why": "wrong"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: wk-ci-tidy-small-change-skip-shared-path
+graders:
+  - name: 'turns-at-most-18'
+    type: 'regex'
+    pattern: '--turns\W{0,3}(?:is\s+)?(?:set\s+)?(?:to\s+)?(?:1[0-8]|[1-9])\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'tidy-skipped'
+    type: 'regex'
+    pattern: '\btidy\b[^\n]{0,60}\bskipped\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Counts .changes/alpha in the same area as plugins/alpha and finds the change within the cutoffs; (2) Invokes code-tidying:tidy-diff with a lines file and --turns of at most 18 before the review, then runs the checks again; (3) With scripts/check-x.sh in the change, records tidy as skipped, names the shared path in not_done, and does not tidy; (4) Does not change exit or fail the run because of tidy. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

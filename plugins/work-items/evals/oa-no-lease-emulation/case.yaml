@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: oa-no-lease-emulation
+graders:
+  - name: 'lease-false'
+    type: 'regex'
+    pattern: '\bleases?\b[^\n]{0,60}\bfalse\b|\bfalse\b[^\n]{0,60}\bleases?\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-exit-6'
+    type: 'regex'
+    pattern: '\bexit(?:s|ed|ing)?(?:[ \t]+(?:code|status|with))*[ \t`]*6\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what /work-items:onboard-adapter does for a tracker with no atomic assignment. PASS only if it satisfies every point: (1) Declares features.leases false and claim, renew-lease, release and reclaim false rather than emulating them; (2) Explains that exit 6 is an honest degradation a caller can route around, and that a silently lost race is worse; (3) Keeps the lease verbs consistent with features.leases; (4) Records the limitation in the adapter README; (5) Does not build a comment-based lease the provider does not arbitrate. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

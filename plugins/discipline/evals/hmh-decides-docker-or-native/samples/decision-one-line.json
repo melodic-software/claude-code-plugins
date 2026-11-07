@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Decision: native install rather than Docker, because the runner needs the host's Docker daemon for container jobs."
+    },
+    {
+      "answer": "Using Docker, since it keeps the runner isolated from the host."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Decision: native install.",
+      "why": "no reason"
+    },
+    {
+      "answer": "Native install.\nIt is simpler because there is less to manage.",
+      "why": "decision and reason on separate lines"
+    }
+  ]
+}

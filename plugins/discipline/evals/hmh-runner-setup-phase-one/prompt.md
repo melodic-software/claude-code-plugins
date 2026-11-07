@@ -1,6 +1,6 @@
 ---
-description: "Multi-step setup the user must perform: the reply presents only Phase 1 with a Phase 1 of N count line, performer labels, an expected result, and a copyable advancing reply, and names no later phase"
-tags: [discipline, hold-my-hand, outcome]
+description: "Legacy hold-my-hand 1. Multi-step setup the user must perform: the reply presents only Phase 1 with a Phase 1 of N count line, performer labels (performer-labeled, llm quoting SKILL.md line 79), an expected result, and a copyable advancing reply, and names no later phase (no-later-phase-titles) nor previews or summarizes one in prose (no-plan-leak, llm; SKILL.md lines 37-39)"
+tags: [discipline, hold-my-hand, outcome, no-network]
 max_turns: 15
 timeout_seconds: 400
 allowed_tools: [Skill, Read]

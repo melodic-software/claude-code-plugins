@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/work-item-tracker.sh create-item --title 'Exports: move onto the async job queue'"
+          }
+        }
+      ],
+      "why": "seam"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue create --title 'Exports: move onto the async job queue'"
+          }
+        }
+      ],
+      "why": "raw gh"
+    }
+  ]
+}

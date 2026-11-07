@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"$PWD\" grep -nE '\\b(TODO|FIXME|HACK|XXX)\\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\\r'"
+          }
+        }
+      ],
+      "why": "documented pass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git grep -nE '(TODO|FIXME|HACK|XXX)'"
+          }
+        }
+      ],
+      "why": "bare git grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn TODO src lib"
+          }
+        }
+      ],
+      "why": "plain grep, TODO only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for f in $(git ls-files); do grep -n TODO \"$f\"; done"
+          }
+        }
+      ],
+      "why": "per-file loop"
+    }
+  ]
+}

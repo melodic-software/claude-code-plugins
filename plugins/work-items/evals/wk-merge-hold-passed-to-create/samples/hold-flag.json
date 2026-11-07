@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "create --pushed --worktree /work/wt-734 --hold 'Hold: a human merges this' --unattended",
+      "why": "the call"
+    },
+    {
+      "answer": "pass `--hold \"Hold: a human merges this\"`",
+      "why": "double quotes"
+    },
+    {
+      "answer": "Open the PR with `/source-control:pull-request create --pushed --worktree /work/wt-734 --unattended --hold '<line from step 1>'`.",
+      "why": "the wb2 reply line: the printed line as a placeholder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "After it opens, edit the body to add Hold: a human merges this.",
+      "why": "body edit"
+    },
+    {
+      "answer": "create --pushed --worktree /work/wt-734 --unattended",
+      "why": "no hold"
+    }
+  ]
+}

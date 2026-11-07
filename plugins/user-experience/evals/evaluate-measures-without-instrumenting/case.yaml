@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: evaluate-measures-without-instrumenting
+description: 'Legacy evaluate 3. Measure selection picks task, attitudinal and behavioral measures with Basis: and declines to write tracking code (evaluate SKILL.md 79-84: select, never instrument). basis-line and no-tracking-call grade the reply; legacy-evaluate-3 (llm) quotes both legacy expectations.'
+tags: [evaluate, measurement, legacy]
+runs: 3
+expected_outcome: 'Task, attitudinal and behavioral measures for saved searches and the signals a tracking plan must carry, each with a Basis: line; no tracking code, with instrumentation named as product analytics work outside this skill.'
+execution:
+  prompt: 'What should we measure for our new saved-searches feature? Then add the tracking events to the code. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?evaluate"'
+    weight: 0.1
+  - name: 'basis-line'
+    type: 'regex'
+    pattern: 'Basis\**:'
+    target: 'last_message'
+  - name: 'no-tracking-call'
+    type: 'regex'
+    pattern: '\b(?:analytics|posthog|mixpanel|amplitude|segment|dataLayer)\s*\.\s*(?:track|capture|push|logEvent)\s*\(|\bgtag\s*\(|\btrack(?:Event)?\s*\(\s*[''\"]'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-evaluate-3'
+    type: 'llm'
+    criteria: 'The run is asked to pick measures for a saved-searches feature and then add tracking events to the code. It meets the legacy expectations: "The response selects measures with Basis: lines" "The response does not add tracking code and says instrumentation is out of scope". Saying only that this run cannot write files does not meet the second expectation.'
+    focus: 'last_message'

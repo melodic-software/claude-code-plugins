@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\nnumber: 2\nstate: \"open\"\n---\n",
+      "why": "open"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nnumber: 2\nstate: \"closed\"\n---\n",
+      "why": "closed by title or label"
+    }
+  ]
+}
