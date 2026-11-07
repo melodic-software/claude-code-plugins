@@ -629,11 +629,19 @@ CAPPED_CLOSE_RE = re.compile(
 # uploaded later, as no pass clears them. A pass uploaded later can clear any other refusal, and a read may
 # answer otherwise.
 STANDING = (FAIL, REPEATED_FAIL)
+# An issue's comments, a page of up to 100 with the cursor to the next.
+COMMENT_FIELDS = (
+    "totalCount pageInfo{hasNextPage endCursor} nodes{databaseId createdAt "
+    "updatedAt lastEditedAt body author{...actor} editor{...actor}}"
+)
+# The most comment pages one issue's read takes (resolve-pr.mjs
+# COMMENT_PAGES, the same value): every trusted comment is spec, so none may
+# be skipped, and past the cap the read refuses and says so.
+COMMENT_PAGES = 10
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
-    "comments(first:100){totalCount nodes{databaseId createdAt updatedAt lastEditedAt "
-    "body author{...actor} editor{...actor}}} "
+    f"comments(first:100){{{COMMENT_FIELDS}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
     "nodes{number state author{...actor} repository{nameWithOwner}}}"
 )
@@ -662,8 +670,13 @@ SPLIT_CHILD_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
     "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
-    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
-    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
+    f"editor{{...actor}} comments(first:100){{{COMMENT_FIELDS}}}}}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+# The pages after the first of an issue's comments (`_whole_comments`).
+COMMENT_PAGE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!,$after:String!){repository(owner:$o,name:$r){"
+    f"issue(number:$n){{number comments(first:100,after:$after){{{COMMENT_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
 # The pull request's body edits and its issue connect and disconnect events,
@@ -2584,7 +2597,9 @@ class Reader:
         is a size split's sub-issue whose body counts (`split_child_body`),
         read once per Reader under the Actions token (`issues: read`). A
         failed read raises `_Unreadable` (`verify:unreadable`), as
-        resolve-pr.mjs fails on it; a cut comment read counts nothing."""
+        resolve-pr.mjs fails on it, as do a parent past COMMENT_PAGES pages
+        of comments and a failed page read; a cut comment read counts
+        nothing."""
         app_id = self._lane_app_id()
         number = issue.get("number")
         if (
@@ -2598,9 +2613,23 @@ class Reader:
             with run_cache.track() as taken:
                 task_list = self._task_list()
                 run_cache.note(run_cache.now())
-                node = self._graphql(
-                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
-                ).get("issue")
+                node = json_object(
+                    self._graphql(
+                        SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+                    ).get("issue")
+                )
+                parent = json_object(node.get("parent"))
+                if (
+                    json_object(parent.get("repository")).get("nameWithOwner")
+                    == self.repo
+                ):
+                    comments = self._whole_comments(
+                        parent.get("number"),
+                        parent.get("comments"),
+                        "the split parent",
+                        env=self._env(),
+                    )
+                    node = node | {"parent": parent | {"comments": comments}}
                 body = split_child_body(
                     node, self.repo, self._trusted_humans(), app_id, task_list
                 )
@@ -2731,8 +2760,10 @@ class Reader:
         what: str,
         missing: str | None = None,
         env: dict[str, str] | None = None,
+        after: str | None = None,
     ) -> dict[str, Any]:
-        """The query's `repository`, read under `env`'s token when given. A
+        """The query's `repository`, read under `env`'s token when given,
+        with `after` as the `$after` cursor when given. A
         NOT_FOUND for `missing` alone (`merge_policy.names_nothing`), which
         gh exits nonzero on, reads as `missing` an empty object, so a null
         there without that error stays apart; any other error raises
@@ -2740,6 +2771,8 @@ class Reader:
         owner, _, name = self.repo.partition("/")
         args = ["api", "graphql", "-f", f"query={query}"]
         args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
+        if after is not None:
+            args += ["-f", f"after={after}"]
         try:
             proc = (
                 postmerge.gh_capture(args, env_overrides=env)
@@ -2762,6 +2795,48 @@ class Reader:
         if not is_json_object(repository):
             raise _Unreadable(f"#{number}: the {what} answer has no repository")
         return repository
+
+    def _whole_comments(
+        self,
+        number: Any,
+        first: Any,
+        subject: str,
+        env: dict[str, str] | None = None,
+    ) -> Any:
+        """Issue `number`'s comments from `first`, the first page a read
+        returned, with up to COMMENT_PAGES - 1 more pages appended, as
+        resolve-pr.mjs wholeComments reads them. A list that stays short (no
+        next cursor, or a page that adds nothing) comes back short for the
+        caller's own whole-list check; past the cap, or on a failed page
+        read, raises `_Unreadable`."""
+        first = json_object(first)
+        nodes, total = first.get("nodes"), first.get("totalCount")
+        if not is_json_array(nodes) or type(total) is not int:
+            return first
+        cap = COMMENT_PAGES * 100
+        if total > cap:
+            raise _Unreadable(
+                f"#{number}: {subject} has {total} comments, more than the "
+                f"{cap} ({COMMENT_PAGES} pages) this read takes"
+            )
+        nodes, page, pages = list(nodes), first, 1
+        while len(nodes) < total and pages < COMMENT_PAGES and type(number) is int:
+            info = json_object(page.get("pageInfo"))
+            cursor = info.get("endCursor")
+            if info.get("hasNextPage") is not True or not isinstance(cursor, str):
+                break
+            issue = json_object(
+                self._graphql(
+                    COMMENT_PAGE_QUERY, number, "comments", env=env, after=cursor
+                ).get("issue")
+            )
+            page = json_object(issue.get("comments"))
+            more = page.get("nodes")
+            if issue.get("number") != number or not is_json_array(more) or not more:
+                break
+            nodes += more
+            pages += 1
+        return first | {"nodes": nodes}
 
     def _closing_issues(self, number: int) -> dict[Any, Any]:
         """The PR's closing issues in this repository now, each with its
@@ -2794,6 +2869,11 @@ class Reader:
             for node in nodes
             if json_object(json_object(node).get("repository")).get("nameWithOwner")
             == self.repo
+        }
+        live = {
+            n: issue
+            | {"comments": self._whole_comments(n, issue.get("comments"), "the issue")}
+            for n, issue in live.items()
         }
         for issue in live.values():
             for part in ISSUE_LISTS:
