@@ -467,23 +467,18 @@ const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
   }
 }`;
 
-// The one open-PR listing resolve-conflicts, review-dependency and fix-ci all
-// read, and PULL_QUERY's one PR for fix-docs: PULL_FIELDS, fix-ci's body,
-// update time and head rollup with the base tip's commit time, and fix-docs's
-// files and line counts, 50 a page, with its rateLimit.cost. commits(last: 1)
-// also carries PULL_FIELDS's totalCount.
-const LIST_NODE_FIELDS = `number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName state title body updatedAt changedFiles additions deletions
-        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
+// The one open-PR listing resolve-conflicts, review-dependency, fix-ci and
+// sync-shared-copies all read: the Dependabot classifier's fields, fix-ci's
+// body, update time and head rollup with the base tip's commit time, 50 a
+// page, with its rateLimit.cost.
+const LIST_NODE_FIELDS = `number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName title body updatedAt changedFiles
+        author { __typename ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
-        files(first: 100) { nodes { path } pageInfo { hasNextPage } }
         commits(last: 1) {
           totalCount
           nodes {
             commit {
               oid committedDate
-              signature { isValid }
-              author { user { login } }
-              committer { email }
               statusCheckRollup {
                 contexts(first: 100) {
                   nodes {
@@ -511,12 +506,18 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
   }
 }`;
 
-// One pull request with the listing's fields, for refine-event-dispatch.mjs.
+// One pull request for fix-docs (refine-event-dispatch.mjs): the listing's
+// fields plus its open state, files, line counts and head commit's signer,
+// which GraphQL merges into the listing's author and commits(last: 1).
 export const PULL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       ${LIST_NODE_FIELDS}
+      state additions deletions
+      author { login }
+      files(first: 100) { nodes { path } pageInfo { hasNextPage } }
+      commits(last: 1) { nodes { commit { signature { isValid } author { user { login } } committer { email } } } }
     }
   }
 }`;
