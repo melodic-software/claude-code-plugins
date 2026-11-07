@@ -132,7 +132,7 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
-import { writeAdmissionRecord } from "../lib/admission-record.mjs";
+import { matchesRecord, readAdmissionRecord, writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 
@@ -2751,6 +2751,17 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
+  // The admission record names the title and body decide() read in this one
+  // read; the issue lane freezes its run there (write-issue.mjs). It goes up
+  // before any deferral for room too, since work-unblock's sweep later admits
+  // a deferred issue by the field alone. A record already naming this text is
+  // not posted again. A failed post throws, so nothing is admitted without it.
+  const record = async () => {
+    const newest = readAdmissionRecord(comments, appId);
+    if (!newest || !matchesRecord(newest.record, { title: issue.title, body: issue.body ?? "" })) {
+      await writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
+    }
+  };
   const checkedAt = Date.now();
   const s = await status();
   // A queued count check-wip-cap could not read (fail-open) admits nothing,
@@ -2765,6 +2776,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
         : unread
           ? "the issue lane's queued count could not be read (admission_basis fail-open)"
           : `admissions are closed (${s.admission_reason})`;
+    await record();
     const stop = held(await write("deferred", DEFERRED));
     if (stop) {
       return stop;
@@ -2777,6 +2789,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // claimant reads ahead of its own, and keeps the claim unless fewer than the
   // room count are ahead of it (admissionsAhead). A field that already reads
   // deferred is set to ready first, so the claim is a new change.
+  await record();
   const capped = Number.isFinite(s.admission_room);
   if (capped) {
     const stop = held(lower.includes(DEFERRED) ? await move("ready") : undefined) ?? held(await move("deferred"));
@@ -2797,11 +2810,8 @@ export async function admit({ github, repository, number, verdict, rules, humans
       return { outcome: "deferred", reasons: [why] };
     }
   }
-  // The admission record names the title and body decide() read in this one
-  // read; the issue lane freezes its run there (write-issue.mjs). A failed
-  // post throws, so nothing is admitted without it. The agent-ready field
-  // write starts the run; a person's hold set since the claim stops it.
-  await writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
+  // The record was posted before the claim; the agent-ready field write starts
+  // the run, and a person's hold set since the claim stops it.
   const stop = held(await move(AGENT_READY));
   if (stop) {
     return stop;
