@@ -7,6 +7,14 @@
     {
       "answer": "Both due rows have their open scheduled-upkeep item (#1, #2).",
       "why": "prose"
+    },
+    {
+      "answer": "Neither dependency-review nor ci-pins is orphaned.",
+      "why": "negated, from review"
+    },
+    {
+      "answer": "No orphaned entries: dependency-review → #1, ci-pins → #2.",
+      "why": "mapped, from review"
     }
   ],
   "fail": [
