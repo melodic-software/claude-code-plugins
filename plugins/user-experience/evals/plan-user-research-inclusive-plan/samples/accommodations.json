@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Session accommodations: captions, extra time, breaks."
+    },
+    {
+      "answer": "We accommodate each participant's setup."
+    },
+    {
+      "answer": "Ask each person about their access needs before the session."
+    },
+    {
+      "answer": "Adjustments: captions, longer sessions, breaks."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We will include screen-reader users and people with low vision."
+    },
+    {
+      "answer": "Recruit people with disabilities."
+    },
+    {
+      "answer": "Make the study accessible."
+    }
+  ]
+}

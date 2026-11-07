@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: plan-user-research-inclusive-plan
+description: 'Legacy plan-user-research 5. An inclusive-research plan states participant criteria by need or assistive technology, never names, with session accommodations, and recruits no one (plan-user-research SKILL.md 13-15 and 64). accommodations and no-contact-claim grade the reply; legacy-plan-user-research-5 (llm) quotes the three legacy expectations.'
+tags: [plan-user-research, inclusive, legacy]
+runs: 3
+expected_outcome: 'A plan with criteria by need and assistive technology (no names), accommodations and how sessions adapt, opening with an Evidence: line and ending with Assumptions to test; it does not recruit or contact anyone.'
+execution:
+  prompt: 'We want to include people with disabilities in our next round of user research. Plan it. This run cannot write files, so put everything in your reply.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:user-experience:)?plan-user-research"'
+    weight: 0.1
+  - name: 'accommodations'
+    type: 'regex'
+    pattern: 'accommodat\w*|adjustments?\b|access needs|adapt(?:s|ed|ing)? (?:the |each )?sessions?'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-contact-claim'
+    type: 'regex'
+    pattern: '\b(?:I|we)(?:[''’]ve| have)?\s+(?:just\s+|now\s+|already\s+)?(?:sent|emailed|e-mailed|forwarded|booked|scheduled|contacted|recruited|reached out)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'legacy-plan-user-research-5'
+    type: 'llm'
+    criteria: 'The run plans an inclusive round of user research with people with disabilities. It meets the legacy expectations: "The plan states participant criteria by need or assistive technology, with no names" "The plan names accommodations for sessions" "The response does not claim to recruit or contact participants".'
+    focus: 'last_message'
