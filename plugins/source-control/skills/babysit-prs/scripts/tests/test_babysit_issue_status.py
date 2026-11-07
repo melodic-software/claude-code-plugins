@@ -716,8 +716,10 @@ class TheCappedClose(unittest.TestCase):
             [
                 f"POST repos/{CAPPED_REPO}/issues/{CAPPED_PR}/comments",
                 f"POST {base}/comments",
+                f"DELETE {base}/labels/agent-ready",
                 f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}",
             ],
+            "no park or field write over the hold, and agent-ready comes off at the cap",
         )
         # Both records say the hold, neither says parked, and the issue's
         # marker names no attempt, so a rerun restarts nothing.

@@ -4900,8 +4900,9 @@ def capped_close_bodies(
         next_step = "It links no issue, so no fresh attempt starts."
     elif held is not None:
         next_step = (
-            f"Issue #{issue} is held at Work status `{held}`, so no fresh attempt "
-            "starts and it is not parked: whoever set the hold decides what comes next."
+            f"Issue #{issue} is held at Work status `{held}`, so it is not parked; it has "
+            f"used its fresh attempts, so `{AGENT_READY}` comes off and no new attempt "
+            "starts: whoever set the hold decides what comes next."
         )
     elif attempt is None:
         next_step = (
@@ -5247,7 +5248,8 @@ def capped_close(
             labels = "park" if parked else ("toggle" if carried else "none")
         plan.append((issue, comments, attempt, parked, labels))
     # Read again before any record or park write: a hold set since the hold
-    # read stays, and the issue is recorded with no attempt, not parked.
+    # read stays, and the issue is recorded with no attempt, not parked, and
+    # loses agent-ready, since its attempts are spent.
     held: dict[int, str] = {}
     for i, (issue, comments, _, _, labels) in enumerate(plan):
         if labels == "park" and read_status:
@@ -5325,6 +5327,13 @@ def capped_close(
                     ),
                     f"#{issue} Work status {STATUS_FIELD_CONFIRMED}",
                 )
+        if issue in held:
+            # At the cap: no attempt restarts when the hold clears.
+            _gh_write(
+                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
+                f"#{issue} {AGENT_READY}",
+                missing_ok=True,
+            )
         if labels == "none":
             continue
         if labels != "add":
