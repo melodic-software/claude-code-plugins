@@ -13,7 +13,7 @@ graders:
   - name: 'methods-note'
     type: 'regex'
     pattern: 'methods?[- ]note|^#{1,6}\s*Methods?\b'
-    flags: 'i'
+    flags: 'im'
     target: 'last_message'
   - name: 'assumptions-to-test'
     type: 'regex'
