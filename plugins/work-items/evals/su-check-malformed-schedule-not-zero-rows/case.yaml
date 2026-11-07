@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-check-malformed-schedule-not-zero-rows
+graders:
+  - name: 'role-label-info-names-validity'
+    type: 'regex'
+    pattern: '(?:role[- ]label|recurring-maintenance)[^\n.;|]{0,40}(?:\|[\s*_`]{0,6})?\bINFO\b(?![^\n.;]{0,40}zero rows)[^\n]{0,200}(?:validity|probe 4|unpars\w*|unreadable|malformed|not parse|does not parse|cannot be read)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Reports the schedule-validity probe as FAIL for a root that is not {"items": [ ... ]}; (2) Does not treat an unparsable schedule as a zero-row schedule; (3) Reports no hard FAIL on the missing recurring-maintenance label in this state; (4) Reports the role-label probe as INFO naming the validity FAIL as the reason, leaving that FAIL standing as the gate rather than laundering it into an INFO of its own; (5) Writes no file and creates no label. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

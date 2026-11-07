@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Frame `a` is minified; only the bundle's source map can turn it into a file and line.",
+      "why": "source map"
+    },
+    {
+      "answer": "I need main.3f9a.js's sourcemap to resolve that frame.",
+      "why": "sourcemap, one word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Frame `a` is in main.3f9a.js at line 1, so line 1 is the source line.",
+      "why": "no source map named"
+    }
+  ]
+}

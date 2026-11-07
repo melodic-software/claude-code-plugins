@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: wl-no-progress-stall-escalates
+graders:
+  - name: 'stall-title'
+    type: 'regex'
+    pattern: 'Lane stall:\s*work-loop'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'streak-reaches-3'
+    type: 'regex'
+    pattern: 'no[_ -]progress[_ -]streak\b[^\n]{0,30}?(?<!threshold)(?<!threshold )(?:→|->|=|:|\bto\b)[\s*_`]{0,3}3\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Increments the no-progress streak because the snapshot held candidates and a dirty execution with no tracker change is not progress; (2) Applies the manifest default threshold of 3 because work_loop_no_progress_threshold is unset; (3) Raises a ''Lane stall: work-loop'' item through the seam create-item verb with the human-gated role label resolved from config.role_labels and a lane=work-loop kind=escalated marker comment; (4) Checks first for an open stall item matched on the exact title and the seam''s write identity as author; (5) Does not count the stall escalation as progress or reset the counter by escalating; (6) Keeps looping after escalating and persists no_progress_streak 3 in the state block. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

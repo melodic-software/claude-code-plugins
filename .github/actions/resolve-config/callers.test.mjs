@@ -141,11 +141,12 @@ for (const [file, job, route, laneSwitch] of [
 
   test(`${file}: the review runs after a failed resolve-model, on the reusable's defaults`, () => {
     const review = jobs[job];
-    assert.deepEqual(review.needs, ["resolve-model", "kill-switch"]);
+    assert.deepEqual(review.needs, ["resolve-model", "kill-switch", "wait-refine"]);
     for (const result of ["success", "failure", "skipped"]) {
       const context = {
         "github.event.pull_request.draft": false,
         "needs.kill-switch.outputs.proceed": "true",
+        "needs.wait-refine.outputs.proceed": "true",
         "needs.resolve-model.result": result,
         "needs.resolve-model.outputs.claude-args": result === "success" ? ARGS : "",
       };
@@ -182,6 +183,7 @@ for (const [file, job, route, laneSwitch] of [
       const context = {
         "github.event.pull_request.draft": false,
         "needs.kill-switch.outputs.proceed": proceed,
+        "needs.wait-refine.outputs.proceed": "true",
       };
       assert.equal(evaluate(review.if, context), proceed === "true", `proceed=${JSON.stringify(proceed)}`);
     }
@@ -203,6 +205,72 @@ for (const [file, job, route, laneSwitch] of [
     assert.equal(proceeds("false", "false"), "false");
     assert.equal(proceeds("", "false"), "false", "an unreadable lanes switch stops the review");
   });
+
+  // wait-refine.mjs's proceed=false means the head moved; an empty output
+  // (the job failed or timed out) must still review, never strand the head.
+  test(`${file}: the review waits for this head's Refine and skips only a head that moved`, () => {
+    const review = jobs[job];
+    const wait = jobs["wait-refine"];
+    assert.match(review.if, / && needs\.wait-refine\.outputs\.proceed != 'false' \}\}$/);
+    for (const [proceed, reviewed] of [["true", true], ["", true], ["false", false]]) {
+      const context = {
+        "github.event.pull_request.draft": false,
+        "needs.kill-switch.outputs.proceed": "true",
+        "needs.wait-refine.outputs.proceed": proceed,
+      };
+      assert.equal(evaluate(review.if, context), reviewed, `wait-refine proceed=${JSON.stringify(proceed)}`);
+    }
+    // It waits only for a ready PR the kill switch lets through; when it is
+    // skipped for the kill switch, the review is skipped by its own clause.
+    assert.deepEqual(wait.needs, ["kill-switch"]);
+    for (const [draft, kill, waits] of [[false, "true", true], [false, "false", false], [false, "", false], [true, "true", false]]) {
+      const context = { "github.event.pull_request.draft": draft, "needs.kill-switch.outputs.proceed": kill };
+      assert.equal(evaluate(wait.if, context), waits, `draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
+      assert.equal(evaluate(review.if, { ...context, "needs.wait-refine.outputs.proceed": "" }), waits, `review, wait-refine skipped: draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
+    }
+    assert.deepEqual(wait.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
+    assert.deepEqual(stepSecrets(wait), [], "the wait job reads no secret");
+    assert.equal(wait.outputs.proceed, "${{ steps.wait.outputs.proceed }}");
+    const step = wait.steps.find((s) => s.id === "wait");
+    assert.equal(step.run, "node .base/.github/scripts/pr-review/wait-refine.mjs", "no expression reaches the shell");
+    // A failed or timed-out wait leaves proceed empty and the run green.
+    assert.equal(step["continue-on-error"], true);
+    assert.equal(step["timeout-minutes"], 45);
+    assert.equal(wait["timeout-minutes"], 50, "the step times out before the job");
+    assert.deepEqual(step.env, {
+      GITHUB_TOKEN: "${{ github.token }}",
+      PR_NUMBER: "${{ github.event.pull_request.number }}",
+      HEAD_SHA: "${{ github.event.pull_request.head.sha }}",
+      API_BUDGET_HOLD: "1",
+    });
+    const checkout = wait.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+    assertMainTip(wait.steps, checkout);
+    assert.equal(checkout.with.path, ".base");
+    assert.equal(checkout.with["persist-credentials"], false);
+    const sparse = checkout.with["sparse-checkout"].trim().split("\n");
+    for (const path of importClosure(".github/scripts/pr-review/wait-refine.mjs")) {
+      assert.ok(
+        sparse.some((entry) => (entry.endsWith("/") ? `/${path}`.startsWith(entry) : `/${path}` === entry)),
+        `the sparse checkout lacks ${path}`,
+      );
+    }
+  });
+}
+
+// A module and every relative module it imports, transitively, as
+// repository paths; a bare specifier other than node:* fails, since a sparse
+// checkout installs no package.
+function importClosure(entry) {
+  const root = new URL("../../../", import.meta.url);
+  const files = new Set([entry]);
+  for (const file of files) {
+    for (const [, spec] of readFileSync(new URL(file, root), "utf8").matchAll(/^import [^;]*? from "([^"]+)";$/gm)) {
+      if (spec.startsWith("node:")) continue;
+      assert.match(spec, /^\.{1,2}\//, `${file} imports the package ${spec}`);
+      files.add(new URL(spec, new URL(file, root)).pathname.slice(root.pathname.length));
+    }
+  }
+  return [...files];
 }
 
 // The kill-switch job reads the action from the default branch with a
@@ -3282,7 +3350,9 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-refine.yml fix-docs-head: Check the human-gated hold",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-refine.yml plan: List the PR's changed files",
-    "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs",
+    "pr-review-hosted.yml wait-refine: Wait for this head's Refine",
+    "pr-review-security-hosted.yml wait-refine: Wait for this head's Refine",
+    "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
     "pr-verify-capture.yml capture-subscription: Resolve the pull request",
@@ -9066,11 +9136,12 @@ test("work-unblock.yml: a finished work-resolve-issue run in this repository swe
   assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
 });
 
-// sync-status mirrors status labels into the Work status field with the lanes
-// App token: a person's label event on an issue, and the hourly sweep. A
-// close, a bot's label change, a pull request and a finished issue lane run
-// start no job, and only a listed human's label event reaches the broker.
-test("work-unblock.yml: sync-status runs on a person's label event and the hourly sweep, and mints only for a listed human", () => {
+// sync-status writes a person's status-label edit into the Work status field
+// with the lanes App token, on a person's label event on an issue only. A
+// close, a bot's label change, a pull request, the schedule and a finished
+// issue lane run start no job, and only a listed human's label event reaches
+// the broker.
+test("work-unblock.yml: sync-status runs on a person's label event only, and mints only for a listed human", () => {
   const doc = workflow("work-unblock.yml");
   assert.deepEqual(doc.on.issues, { types: ["closed", "labeled", "unlabeled"] });
   const job = doc.jobs["sync-status"];
@@ -9088,8 +9159,7 @@ test("work-unblock.yml: sync-status runs on a person's label event and the hourl
   assert.equal(runs({ action: "closed" }), false, "a close is label-unblocked's");
   assert.equal(runs({ sender: "Bot" }), false, "the lanes App's scripts mirror their own writes");
   assert.equal(runs({ pr: { url: "x" } }), false);
-  assert.equal(runs({ event: "schedule", action: undefined }), true);
-  assert.equal(runs({ event: "schedule", action: undefined, ref: "refs/heads/feature" }), false);
+  assert.equal(runs({ event: "schedule", action: undefined }), false, "no sweep writes the field from labels");
   assert.equal(runs({ event: "workflow_run", action: undefined }), false);
   const step = (id) => job.steps.find((s) => s.id === id);
   assert.equal(step("config").with.activity, "sync-status");

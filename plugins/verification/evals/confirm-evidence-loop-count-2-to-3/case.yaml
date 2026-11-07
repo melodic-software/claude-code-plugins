@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-evidence-loop-count-2-to-3
+graders:
+  - name: 'loop-line'
+    type: 'regex'
+    pattern: 'Evidence loop:[`*_\s]*3/3(?![^\n]*cap reached)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'atomic-write'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*evidence-loop\.feat-cart-tax\.json\.tmp)(?=[\s\S]*(?:\bmv\b|renam))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'loop-back'
+    type: 'llm'
+    criteria: 'The reply records a NEEDS WORK verdict in the evidence loop. It meets the legacy expectations: "Raises count from 2 to 3 and adds a c3 entry with verdict NEEDS WORK" "Sends the AC2 gap back to implementation, with Next naming the fix and a rerun of /verification:confirm".'
+    focus: 'last_message'

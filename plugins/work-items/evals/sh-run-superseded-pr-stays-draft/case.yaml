@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-run-superseded-pr-stays-draft
+graders:
+  - name: 'pr-906-stays-draft'
+    type: 'regex'
+    pattern: '\b906\b[^\n]{0,80}\b(?:stays|remains|is left|left|leave|leaves|kept|keep|keeps)\b(?:\s+(?:as|in|a))*\s+draft\b|\b(?:leave|leaves|keep|keeps)\s+(?:PR\s+)?#?906\s+(?:(?:as|in)\s+)?(?:a\s+)?draft\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship run session does with the stated state. PASS only if it satisfies every point: (1) PR 906 is left in draft; (2) The report names the already-closed item #362 (superseded) as the reason ready refused; (3) The item is not reopened and the PR is not flipped by any other route; (4) The PR is not merged. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: setup-apply-strict-shows-diff
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'runs-apply'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?proof_level=strict'
+    min: 1
+  - name: 'no-yes'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?setup-apply\.mjs(?:[^"\\]|\\.)*?--yes'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'file-unchanged'
+    type: 'regex'
+    pattern: '^proof_level: path$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/verification.yaml }
+  - name: 'shows-diff'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*^[ \t]*-[ \t]?proof_level: path)(?=[\s\S]*^[ \t]*\+[ \t]?proof_level: strict)'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'waits-for-yes'
+    type: 'llm'
+    criteria: 'The run applies a stricter proof level over an existing file. It meets the legacy expectations: "Shows the diff and waits for an explicit yes before passing --yes". It fails if the run passes --yes or writes the file without an answer from the operator.'
+    focus: 'last_message'

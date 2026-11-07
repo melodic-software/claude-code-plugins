@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#1201, #1202 and #1204 list as [held] rows, found through the pull-request listing, each naming the label that holds it. #1203 lists once, as [escalated], because its trusted marker and human-gated label make it an [escalated] row.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "| Kind | PR | Holds it |\n|---|---|---|\n| **[escalated]** | #1203 | marker by example-lanes[bot] |\n| **[held]** | #1201 | `do-not-merge` |\n| **[held]** | #1202 | `needs-human` |\n| **[held]** | #1204 | `do-not-merge` |",
+      "why": "markdown table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#1201, #1202, #1203 and #1204 all list as [held] pull requests.",
+      "why": "near miss: #1203 listed as held, not escalated"
+    },
+    {
+      "answer": "#1203 is [escalated]; #1201, #1202 and #1204 are not listed.",
+      "why": "no held rows"
+    }
+  ]
+}

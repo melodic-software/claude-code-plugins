@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The rows, each with its link, come in the default order: #1603 [escalated] pull request, #1604 [held], #1607 [escalated] issue, #1606 [post-merge], #1608 [intake], #1605 [human-gated], and last #1602 [won't-do], report-only.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "| # | Kind | Item |\n|---|---|---|\n| 1 | **[escalated]** PR | [#1603](https://github.com/example/repo/pull/1603) |\n| 2 | **[held]** | [#1604](https://github.com/example/repo/pull/1604) `do-not-merge` |\n| 3 | **[escalated]** | [#1607](https://github.com/example/repo/issues/1607) |\n| 4 | **[post-merge]** | [#1606](https://github.com/example/repo/issues/1606) |\n| 5 | **[intake]** | [#1608](https://github.com/example/repo/issues/1608) |\n| 6 | **[human-gated]** | [#1605](https://github.com/example/repo/issues/1605) |\n| 7 | [won't-do], report-only | [#1602](https://github.com/example/repo/issues/1602) |\n\nAge orders only within a kind, so #1608 follows #1606.",
+      "why": "markdown table with links"
+    },
+    {
+      "answer": "### Pull requests on the owner\n- [escalated] #1603\n- [held] #1604 (do-not-merge)\n\n### Stopped work\n- [escalated] #1607\n\n### Post-merge\n- [post-merge] #1606\n\n### Intake\n- [intake] #1608\n\n### Parked\n- [human-gated] #1605\n\n### Report-only\n- [won't-do] #1602",
+      "why": "grouped under markdown headings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Oldest first: #1608, #1607, #1606, #1605, #1604, #1603, #1602.",
+      "why": "near miss: age order"
+    },
+    {
+      "answer": "Input, oldest first: #1608, #1607, #1606, #1605, #1604, #1603, #1602. View: #1604 [held], #1603 [escalated], #1607 [escalated], #1606 [post-merge], #1608 [intake], #1605 [human-gated], #1602 [won't-do].",
+      "why": "near miss: echoes the age order, then puts the older #1604 first"
+    },
+    {
+      "answer": "#1603 [escalated], #1604 [held], #1607 [escalated], #1606 [post-merge], #1605 [human-gated], #1608 [intake], #1602 [won't-do].",
+      "why": "near miss: human-gated before intake"
+    }
+  ]
+}

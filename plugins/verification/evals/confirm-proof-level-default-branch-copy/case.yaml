@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-proof-level-default-branch-copy
+graders:
+  - name: 'level-strict'
+    type: 'regex'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*strict\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'names-both-copies'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\bstrict\b)(?=[\s\S]*\bpath\b)(?=[\s\S]*(?:working[- ]tree|branch(?:''s)? (?:own )?copy|this branch))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'default-branch-copy'
+    type: 'llm'
+    criteria: 'The reply resolves the proof level when the branch edits its own settings file. It meets the legacy expectations: "Verifies at strict, the default branch''s level, not the branch''s path" "Names both the default-branch value and the branch''s own value in the report" "Reads the repository value from origin''s default branch, not the working tree".'
+    focus: 'last_message'

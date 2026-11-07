@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "account-switch: resumed",
+      "why": "the line"
+    },
+    {
+      "answer": "**account-switch: resumed**",
+      "why": "bold"
+    },
+    {
+      "answer": "- **account-switch:** `resumed`",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "account-switch: unknown",
+      "why": "fell to unknown"
+    },
+    {
+      "answer": "Resumed after the account switch.",
+      "why": "no report line"
+    }
+  ]
+}

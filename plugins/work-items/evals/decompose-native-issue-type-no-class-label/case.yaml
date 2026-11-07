@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-native-issue-type-no-class-label
+graders:
+  - name: 'native-type'
+    type: 'regex'
+    pattern: '--type\W{0,3}(bug|feature|task)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Every created item is passed a native Issue Type (Bug, Feature or Task) through the seam''s --type ; (2) No created item carries a type: label on this organization repository ; (3) No created item carries a class label ; (4) Writes no status field on any created item. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

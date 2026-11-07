@@ -1,5 +1,7 @@
 ---
-type: regex
-pattern: '(want me to|would you like|shall i|should i|do you want|say (yes|the word))[^\n]{0,160}\b(view|page)\b|\b(view|page)\b[^\n]{0,160}\?|\bi (can|could)( also)? (build|generate|render|create|make|produce|turn (this|it) into)( you)?( (a|an|the))?( (optional|interactive|clickable|static|html|post-mortem|hypothesis|hypotheses))* (view|page)\b'
-flags: i
+type: llm
 ---
+
+PASS only if the reply meets this: 'Output offers the view in one sentence and builds only after the reader accepts'. The offer is for the interactive view of the post-mortem and leaves the choice to the reader, as a question or as a statement inviting a yes.
+
+FAIL if the reply makes no offer of the view, only describes what the skill could do, says it cannot build the view without offering it, offers something other than the view, or builds the view before the reader accepts.

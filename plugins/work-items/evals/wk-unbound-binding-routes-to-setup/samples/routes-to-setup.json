@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/work-items:setup` to bind the provider.",
+      "why": "slash form"
+    },
+    {
+      "answer": "Remediation: work-items:setup.",
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /work-items:track to bind it.",
+      "why": "wrong skill"
+    },
+    {
+      "answer": "The seam exited 3.",
+      "why": "raw exit"
+    }
+  ]
+}

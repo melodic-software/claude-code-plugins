@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Lists the three items as [human-gated] rows and states the count, 3. Then offers only #1201, the oldest.",
+      "why": "the case's expected outcome"
+    },
+    {
+      "answer": "**3** `[human-gated]` rows. First, #1201 alone: Rotate the deploy key for the docs site.",
+      "why": "markdown bold count and code span"
+    },
+    {
+      "answer": "There are three [human-gated] rows; I'll take them one at a time, oldest first.",
+      "why": "count in words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[human-gated] rows: #1201, #1202, #1203. Which do you want first?",
+      "why": "near miss: lists the rows, states no count"
+    },
+    {
+      "answer": "2 [human-gated] rows left after #1201.",
+      "why": "near miss: wrong count"
+    },
+    {
+      "answer": "1. [human-gated] #1201 Rotate the deploy key\n2. [human-gated] #1202 Pick the retention period\n3. [human-gated] #1203 Drop the legacy export endpoint",
+      "why": "near miss: numbered list, the third row's ordinal is not a count"
+    }
+  ]
+}

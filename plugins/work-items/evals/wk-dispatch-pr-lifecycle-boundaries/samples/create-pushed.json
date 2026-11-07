@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Open it with `/source-control:pull-request create --pushed --worktree <path>`.",
+      "why": "the entry"
+    },
+    {
+      "answer": "the orchestrator runs create --pushed",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The worker runs /source-control:pull-request create.",
+      "why": "plain create"
+    },
+    {
+      "answer": "gh pr create --draft",
+      "why": "bare forge command"
+    }
+  ]
+}

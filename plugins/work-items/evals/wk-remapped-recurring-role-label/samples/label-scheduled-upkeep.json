@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "`--label scheduled-upkeep`",
+      "why": "code span"
+    },
+    {
+      "answer": "list open items with --label \"scheduled-upkeep\"",
+      "why": "quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "--label recurring",
+      "why": "the default literal"
+    },
+    {
+      "answer": "filter by scheduled-upkeep",
+      "why": "no flag"
+    }
+  ]
+}

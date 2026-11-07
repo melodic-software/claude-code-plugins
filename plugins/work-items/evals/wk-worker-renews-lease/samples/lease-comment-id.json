@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Put `lease_comment_id` in the dispatch brief.",
+      "why": "code span"
+    },
+    {
+      "answer": "the brief carries lease_comment_id next to the PR contract",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The brief carries the lease id.",
+      "why": "not the field"
+    },
+    {
+      "answer": "lease-comment id",
+      "why": "wrong spelling"
+    }
+  ]
+}

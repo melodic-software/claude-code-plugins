@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-apply-negated-override-is-uncovered
+graders:
+  - name: 'appends-to-gitignore'
+    type: 'regex'
+    pattern: '\b(?:appends?|appended|appending)\b[^\n]{0,200}\.gitignore'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Derives the ignored/not-ignored verdict from git check-ignore --no-index WITHOUT -v; (2) Does not report the personal override as already covered merely because a negation pattern matched; (3) Appends the ignore line and announces the edit, relying on last-matching-rule-wins; (4) Uses -v output only for the human-readable report. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

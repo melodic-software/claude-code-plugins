@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-unattended-rerun-keeps-binding
+graders:
+  - name: 'keeps-local-markdown'
+    type: 'regex'
+    pattern: 'local-markdown[^\n]{0,160}\b(?:keep\w*|kept|(?:preserve[sd]?|preserving)|unchanged|stays|retain\w*|untouched|as-is|as is)|\b(?:keep\w*|kept|(?:preserve[sd]?|preserving)|retain\w*)\b[^\n]{0,160}local-markdown'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Preserves the existing local-markdown provider and its config rather than re-binding; (2) Does not bind github merely because gh is installed and authenticated, when a valid binding already exists; (3) Scopes the unattended github default to the case where no binding is present; (4) Still completes the remaining passes silently: role labels kept at their defaults, seeding skipped, empty {"items": []} skeleton written. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

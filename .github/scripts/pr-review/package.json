@@ -1,0 +1,7 @@
+{
+  "name": "pr-review",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

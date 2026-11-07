@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Check out the merge base in a second worktree."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Compare against main."
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "If you want a comparison, I can measure the parent commit and the head with the same command and workload."
+    }
+  ]
+}

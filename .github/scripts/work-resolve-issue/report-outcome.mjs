@@ -181,7 +181,7 @@
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
 //                       (the attempt whose scan-refusal markers are read)
 import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
-import { join, posix } from "node:path";
+import { join, posix, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -679,15 +679,16 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   lines.push(
     "",
     pushback
-      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then remove \`${humanLabel}\` and add \`agent-ready\` again.`
-      : `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`,
+      ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`
+      : `To retry, set Work status to needs-triage (clearing the \`${humanLabel}\` hold) and add \`agent-ready\` again.`,
   );
   return {
     action: "hand-back",
     exit: outcome.exit,
     issueNumber,
     comment: lines.join("\n"),
-    addLabels: [humanLabel],
+    addLabels: [],
+    status: humanLabel,
     removeLabels: ["agent-ready"],
   };
 }
@@ -699,7 +700,9 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // and adds status: confirmed (finishStop writes admission's comment first),
 // close and fail add none; all but retry and wait remove agent-ready.
 const ROUTE_OUTCOME = { retry: "retry", wait: "wait", intake: "intake", park: "parked", close: "closed", "host-run": "host-run", attended: "attended", fail: "failed" };
-const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL, park: "status: confirmed" };
+const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
+// The label whose Work status state a park writes.
+const PARK_STATUS = "status: confirmed";
 const KEPT = new Set(["retry", "wait"]);
 // The routes whose stops are counted against a cap: past it, retry-spent's.
 const COUNTED = new Set([...KEPT, "intake"]);
@@ -751,7 +754,7 @@ const ROUTE_TEXT = {
   intake:
     "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage, and it waits on no decision from a person.",
   "intake-security": "It removed `agent-ready` and `status: ready`, so the hourly triage sweep sends it back through intake triage.",
-  park: `It removed \`agent-ready\` and \`status: ready\` and added \`status: confirmed\`, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
+  park: `It removed \`agent-ready\` and \`status: ready\` and set Work status to confirmed, as admission parks a refusal no person answers, and it waits on no decision from a person. Once that step is done, a listed human's comment whose first line is \`${DECISION_LINE}\` sends it back through intake triage.`,
   close: "It closes the issue as completed.",
   fail: "It removed `agent-ready` and added no label.",
 };
@@ -813,6 +816,7 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
     runId,
     comment: lines.join("\n"),
     addLabels: Object.hasOwn(ROUTE_LABEL, route) ? [ROUTE_LABEL[route]] : [],
+    ...(route === "park" && { status: PARK_STATUS }),
     removeLabels: KEPT.has(route) ? [] : (ROUTE_REMOVES[route] ?? ["agent-ready"]),
     ...(pr && { pr }),
     ...(after && { after }),
@@ -882,6 +886,8 @@ const RETIRED_SKIPS = new Set(["not-assessed"]);
 // The admit job's stop on an issue neither a listed human nor the lanes App
 // wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
 export const OUTSIDE_AUTHOR = "outside-author";
+// The stops that leave the queue for triage with no state of their own.
+const TRIAGE_AGAIN = new Set(["intake", "failed", OUTSIDE_AUTHOR]);
 
 // A run the admit job stopped on the issue's author: agent-ready comes off and
 // one comment says a listed human re-files the work. No label: re-adding
@@ -931,8 +937,9 @@ const BLOB = /^[0-9a-f]{40}$/;
 // added agent-ready or a run last reported. Past that bound the hourly sweep
 // still re-fires a stale stop once per new version of the two lane workflow
 // files on main, so the re-fires are bounded by how often main changes them.
-// Returns what it did. `mirror` is main's Work status mirror (baseMirror).
-export async function refireStale(github, repo, issueNumber, { workflowSha, bot, humans, limits, mirror = async () => {} }) {
+// Returns what it did. `statusOf(number, names)` gives the label names as the
+// Work status field decides them (baseStatus); a failed read re-fires nothing.
+export async function refireStale(github, repo, issueNumber, { workflowSha, bot, humans, limits, statusOf = async (number, names) => names }) {
   if (!BLOB.test(workflowSha ?? "")) {
     return "skipped: the run names no workflow commit";
   }
@@ -957,9 +964,9 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   if (issue?.state !== "open" || !labels.includes("agent-ready")) {
     return "skipped: the issue is closed or agent-ready is off";
   }
-  const hold = labels.find((label) => LANE_HOLDS.has(label));
-  if (hold) {
-    return `skipped: held by ${hold}`;
+  const held = await laneHold(statusOf, issueNumber, labels);
+  if (held) {
+    return `skipped: ${held}`;
   }
   const events = (await paginate(github, `${base}/events`)).filter(
     (event) => (event?.event === "labeled" || event?.event === "unlabeled") && String(event.label?.name).toLowerCase() === "agent-ready",
@@ -1008,8 +1015,22 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   // lane, so it is tried twice and then fails the job.
   const add = () => github("POST", `${base}/labels`, { labels: ["agent-ready"] });
   await add().catch(add);
-  await mirror(issueNumber, { had: issue.labels ?? [], add: ["agent-ready"] });
   return `re-fired on workflow files ${key}`;
+}
+
+// What holds the issue from the lane, from its lowercased label names as the
+// Work status field decides them: `held by <label>`, `the Work status could
+// not be read` (with one warning), or "" when nothing does.
+async function laneHold(statusOf, issueNumber, labels) {
+  let names;
+  try {
+    names = (await statusOf(issueNumber, labels)).map((name) => String(name).toLowerCase());
+  } catch (error) {
+    console.log(`::warning title=work-status::issue #${issueNumber} is left as it is: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    return "the Work status could not be read";
+  }
+  const hold = names.find((label) => LANE_HOLDS.has(label));
+  return hold ? `held by ${hold}` : "";
 }
 
 // intake's refinement record (admit.mjs REFINE_MARKER), restated as
@@ -1078,14 +1099,15 @@ export function lateRecord({ comments, events, bot, humans }) {
 // makes the re-add a fresh admission (write-issue.mjs readAdmittedAt), so the
 // new run freezes after the answer. Nothing moves when the issue is closed, a
 // hold is on, or agent-ready is off unless the App's own move took it off
-// (`late.moving`), which a re-run finishes. `late` is lateRecord's answer.
+// (`late.moving`), which a re-run finishes. `late` is lateRecord's answer; a
+// hold is read through `statusOf` (refireStale's), and a failed read holds.
 // Returns whether it re-dispatched.
-async function redispatch(github, repo, plan, late, runId, mirror) {
+async function redispatch(github, repo, plan, late, runId, statusOf) {
   const base = `${repo}/issues/${plan.issueNumber}`;
   const issue = await github("GET", base);
   const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
   const ready = labels.includes("agent-ready");
-  if (issue?.state !== "open" || !(ready || late.moving) || labels.some((label) => LANE_HOLDS.has(label))) {
+  if (issue?.state !== "open" || !(ready || late.moving) || (await laneHold(statusOf, plan.issueNumber, labels))) {
     return false;
   }
   if (!late.posted) {
@@ -1110,7 +1132,6 @@ async function redispatch(github, repo, plan, late, runId, mirror) {
     const add = () => github("POST", `${base}/labels`, { labels: [name] });
     await add().catch(add);
   }
-  await mirror(plan.issueNumber, { had: issue.labels ?? [], add: ["status: ready", "agent-ready"] });
   return true;
 }
 
@@ -2203,14 +2224,30 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // label the issue has, or removing one it lacks (a 404 the catch logs), leaves
 // the same labels, so both are resent; the comment is not.
 // An empty plan.comment posts none: the comment is already on the issue.
-// `had`, the issue's labels before the edits (null when unread), and
-// `mirror`, main's Work status mirror, mirror the label edits that landed.
-async function applyHandBack(github, repo, plan, { had = null, mirror = async () => {} } = {}) {
+// A plan's `status`, a hand-back's human label or a park's status: confirmed,
+// names a Work status state by one of its labels (`stateOf`, over
+// models.issue-status labels), which `setStatus(number, state)` (baseStatus)
+// writes in the label's place; a failed write throws before any label comes
+// off. An intake, fail or outside-author stop moves a Work status still at
+// agent-ready to needs-triage (`leaveAgentReady`) after its comment, before
+// agent-ready comes off.
+async function applyHandBack(github, repo, plan, { setStatus = async () => {}, leaveAgentReady = async () => {}, stateOf } = {}) {
   const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
-  if (plan.addLabels.length) {
+  if (plan.status) {
+    // A park leaves a hold a person set during the run (write-status.mjs
+    // keepHold): the issue stays as that person left it.
+    const moved = await setStatus(plan.issueNumber, await stateOf(plan.status), plan.status === PARK_STATUS ? { keepHold: true } : undefined);
+    if (moved?.outcome === "held") {
+      console.log(`report-outcome: issue #${plan.issueNumber} left as is: a person's Work status ${moved.state} holds it`);
+      return;
+    }
+  } else if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
     await comment();
+  }
+  if (TRIAGE_AGAIN.has(plan.exit)) {
+    await leaveAgentReady(plan.issueNumber, "needs-triage");
   }
   const kept = [];
   for (const name of plan.removeLabels) {
@@ -2220,10 +2257,7 @@ async function applyHandBack(github, repo, plan, { had = null, mirror = async ()
       console.log(`report-outcome: could not remove ${name}: ${error.message}`);
     });
   }
-  if (had) {
-    await mirror(plan.issueNumber, { had, add: plan.addLabels, remove: plan.removeLabels.filter((name) => !kept.includes(name)) });
-  }
-  if (plan.addLabels.length) {
+  if (plan.status || plan.addLabels.length) {
     await comment();
   }
   console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
@@ -2258,9 +2292,9 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // carry over: intake triage re-judged it before admitting the issue again. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
-// removes the queue labels, then closes the issue as completed. `issueLabels`
-// and `mirror` are applyHandBack's `had` and `mirror`; the close mirrors from its own read.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", issueLabels = null, mirror = async () => {} }) {
+// removes the queue labels, then closes the issue as completed. `setStatus`
+// is applyHandBack's and `statusOf` redispatch's.
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {}, verifyClose = "", setStatus, leaveAgentReady, statusOf, stateOf }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -2307,7 +2341,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   // failed read takes the hold, as before.
   if (plan.action === "hand-back" && ANSWERED_STOPS.has(plan.stop)) {
     const late = await read().then(lateRecord, () => null);
-    if (late && (await redispatch(github, repo, plan, late, runId, mirror))) {
+    if (late && (await redispatch(github, repo, plan, late, runId, statusOf))) {
       console.log(`report-outcome: issue #${plan.issueNumber} got a record after its admission (${late.comment.html_url}); a fresh run reads it`);
       return;
     }
@@ -2335,7 +2369,7 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
   }
   // A close leaves its labels to stripQueueLabels below, which throws on a
   // failed removal where applyHandBack only logs it.
-  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { had: issueLabels, mirror });
+  await applyHandBack(github, repo, plan.action === "close" ? { ...plan, removeLabels: [] } : plan, { setStatus, leaveAgentReady, stateOf });
   if (plan.action === "close") {
     const base = `${repo}/issues/${plan.issueNumber}`;
     // The App's close starts no work-unblock close run, so the queue labels
@@ -2347,32 +2381,51 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane
     const removed = await stripQueueLabels(resend, base, had);
     await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
     const states = await stripStateLabels(resend, base, had);
-    await mirror(plan.issueNumber, { had, remove: [...removed, ...states] });
     console.log(`report-outcome: closed issue #${plan.issueNumber} (${plan.stop}); removed ${removed.length} queue label(s) and ${states.length} state label(s)`);
   }
 }
 
-// The Work status mirror (write-status.mjs statusMirror), loaded from the base
-// checkout: this script runs from a copy of its own directory
-// (collect-base-activity), where write-status.mjs is not beside it, and the
-// field write needs createGitHub's headers, which api() does not send. A
-// mirror that cannot load warns and writes nothing; the labels stand.
-async function baseMirror(env) {
+// The Work status writer and reader (write-status.mjs statusWriter's set,
+// read-status.mjs statusReader), loaded from the base checkout: this script
+// runs from a copy of its own directory (collect-base-activity), where they
+// are not beside it, and the field calls need createGitHub's headers, which
+// api() does not send. When they cannot load, each call throws.
+async function baseStatus(env) {
   try {
-    const actions = join(process.cwd(), env.BASE_PATH || ".base", ".github", "actions");
-    const { statusMirror } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
+    const actions = resolve(env.BASE_PATH || ".base", ".github", "actions");
+    const { statusWriter } = await import(pathToFileURL(join(actions, "resolve-config", "write-status.mjs")).href);
+    const { statusReader } = await import(pathToFileURL(join(actions, "resolve-config", "read-status.mjs")).href);
     const { createGitHub } = await import(pathToFileURL(join(actions, "check-trusted-trigger", "check-trusted-trigger.mjs")).href);
     const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    return await statusMirror({ env, github, repository: env.GITHUB_REPOSITORY });
+    const { set, leaveAgentReady } = await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY });
+    return { setStatus: set, leaveAgentReady, statusOf: statusReader({ env, github, repository: env.GITHUB_REPOSITORY }) };
   } catch (error) {
-    console.log(`::warning title=work-status::the Work status mirror did not load, so no Work status field is written: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
-    return async () => {};
+    const fail = async () => {
+      throw new Error(`the Work status writer and reader did not load: ${error?.message ?? error}`);
+    };
+    return { setStatus: fail, leaveAgentReady: fail, statusOf: fail };
   }
 }
 
-// `mirrorStatus` (baseMirror at the command line) mirrors each issue label
-// change into the Work status field.
-export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, mirrorStatus = async () => {} } = {}) {
+// The Work status state one of whose models.issue-status labels is `label`,
+// read from the base checkout's config as baseStatus loads its modules; a
+// label no state lists throws.
+async function labelState(env, label) {
+  const actions = resolve(env.BASE_PATH || ".base", ".github", "actions");
+  const { issueStatusFromBase } = await import(pathToFileURL(join(actions, "resolve-config", "resolve-config.mjs")).href);
+  const labels = issueStatusFromBase(env)?.labels ?? {};
+  const state = Object.keys(labels).find((one) => labels[one].some((name) => name.toLowerCase() === label.toLowerCase()));
+  if (state === undefined) {
+    throw new Error(`models.issue-status gives no Work status state the label \`${label}\``);
+  }
+  return state;
+}
+
+// `setStatus(number, state)` writes the issue's Work status field and
+// `statusOf(number, names)` reads its label names as the field decides them
+// (baseStatus at the command line).
+export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names } = {}) {
+  const stateOf = (label) => labelState(env, label);
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -2399,9 +2452,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
-    // The labels the mirror starts from on a stop that reads no issue; a
-    // failed read mirrors nothing.
-    const readLabels = () => github("GET", `${repo}/issues/${issueNumber}`).then((issue) => issue?.labels ?? [], () => null);
     // A dimension skip, an outside-author stop or a stale stop left no outcome to read: no model ran.
     if (dimensionSkip === WORKFLOW_STALE) {
       const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
@@ -2410,7 +2460,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
         limits: readLimits(resolved),
-        mirror: mirrorStatus,
+        statusOf,
       });
       console.log(`report-outcome: issue #${issueNumber} stopped on stale workflow files; ${done}`);
       return 0;
@@ -2422,7 +2472,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
-      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { had: await readLabels(), mirror: mirrorStatus });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady, stateOf });
       return 0;
     }
     if (dimensionSkip) {
@@ -2434,8 +2484,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         humans: readHumansOrNone(env.TRUSTED_ACTORS),
         runId,
         limits: readLimits(resolved),
-        issueLabels: await readLabels(),
-        mirror: mirrorStatus,
+        setStatus,
+        leaveAgentReady,
+        statusOf,
+        stateOf,
       });
       return 0;
     }
@@ -2744,7 +2796,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", issueLabels: issue.labels ?? [], mirror: mirrorStatus });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane, verifyClose: env.VERIFY_CLOSE ?? "", setStatus, leaveAgentReady, statusOf, stateOf });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
@@ -2753,5 +2805,5 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  process.exitCode = process.argv[2] === "--find-prior" ? await findPriorMain() : await main({ mirrorStatus: await baseMirror(process.env) });
+  process.exitCode = process.argv[2] === "--find-prior" ? await findPriorMain() : await main(await baseStatus(process.env));
 }

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: confirm-refactor-large-reshape-equivalence
+graders:
+  - name: 'reads-refactor-context'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '"file_path":"[^"]*context/refactor\.md"'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-restructure'
+    type: 'regex'
+    pattern: '\bRestructure\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'asks-equivalence'
+    type: 'regex'
+    pattern: 'recorded[^\n]{0,60}(?:payslip|output)|differential|same inputs?[^\n]{0,60}both versions|both versions[^\n]{0,60}same inputs?'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'verdict-not-confirmed'
+    type: 'regex'
+    pattern: 'verdict\W{0,8}(?:LIKELY PRESERVED|NOT CONFIRMED|NOT VERIFIED|NEEDS WORK|BEHAVIORAL CHANGE)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'equivalence-evidence'
+    type: 'llm'
+    criteria: 'The reply verifies a large payroll refactor. It meets the legacy expectations: "It rates the change high risk and names its type as Restructure" "Beside the test results, it asks for either payslips recorded from the old code and checked against the new code''s output, or a run of both versions on the same inputs with their payslips compared" "While passing tests are the only evidence and no equivalence evidence has been supplied, it withholds CONFIRMED".'
+    focus: 'last_message'

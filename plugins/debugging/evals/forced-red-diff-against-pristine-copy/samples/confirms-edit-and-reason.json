@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Not yet trusted, now checked. `git diff -- tests/fixtures/order.json` shows the only change is `\"discount\": 5` to `\"discount\": -5`, so your edit landed. The failure is `AssertionError: total 105.0 exceeds subtotal 100.0`: the negative discount raised the total, which is the reason you meant to force. So yes, this red is good enough to start the fix.",
+      "why": "diff confirms the edit, message checked against the reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, a red test is a red test. Start the fix: reject negative discounts in order_total.",
+      "why": "trusts the red with no diff or message check"
+    },
+    {
+      "answer": "The diff shows discount -5, so the edit landed. Go ahead and fix order_total.",
+      "why": "never checks the failure message against the reason"
+    }
+  ]
+}

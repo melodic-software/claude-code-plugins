@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`work-item-tracker.sh create-item --title \"Count partial refunds once\" --type \"Bug\" --labels \"area: refunds,agent-ready\"`",
+      "why": "code span command"
+    },
+    {
+      "answer": "--type Feature for the CSV export",
+      "why": "bare flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "create-item --title \"Monthly CSV export\" --labels \"type: feature,area: refunds,agent-ready\"",
+      "why": "near miss: type label instead of --type"
+    },
+    {
+      "answer": "Both items are features; label them accordingly.",
+      "why": "no flag"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

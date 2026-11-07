@@ -433,6 +433,12 @@ Three labels take work off the unattended path, and each means one thing (owner 
 | `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | Work an agent run or builder session on a host takes, which the issue lane cannot make: an unattended host run, or a change to a path the lane cannot push. Builder items are worked one at a time: interview, plan, implement (owner decision Q-host-run, 2026-11-04) | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
+On an issue, the holds live on its Work status field: `needs-human`, `needs-owner-decision`,
+`needs-reporter-info` and `needs-spec` are field states (`models.issue-status` in
+[`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml)). A hold label such as `needs-human` or
+`status: needs-decision` still holds on top of the field, so a listed human lifts a hold by
+changing the field and removing any hold label.
+
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
 not fix, an unfinished dependency review, a review thread the lane left open with no verdict to
@@ -441,7 +447,7 @@ goes to an agent session, which removes the label once it has made the change; p
 `clear-escalations` sweep removes it when a same-head retry cleared the stop
 ([routing table](../../conventions/pr-pipeline/README.md#activities)).
 
-Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
+Intake admission refuses `attended` and `host-run` alike, parked at Work status confirmed, and adds
 `host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
 paid eval, and nothing else refuses, waits or holds the issue. It adds `host-run` the same way to a
 refusal that says a builder session takes it: a protected path the issue lane cannot push, or a
@@ -573,8 +579,8 @@ form and is carried to every clone. The preflight then finds the path already ig
 Three rules make the signal deterministic:
 
 - **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` event
-  the seam below keys on; a shell redirect writes the same bytes but emits only a `Bash` tool
-  event, which the seam's `Write` matcher never sees.
+  the hook below keys on; a shell redirect writes the same bytes but emits only a `Bash` tool
+  event, which the hook's `Write` matcher never sees.
 - **One record per newly filed escalation.** What suppresses a duplicate is the read the lane
   already performs before escalating: an item that already carries its marker for this kind, such as
   an idempotent label re-convergence, is not a new escalation, so
@@ -588,7 +594,7 @@ Three rules make the signal deterministic:
   order fails the other way and cannot be recovered: a stop after the marker post leaves the marker
   standing with no record ever written, and that standing marker suppresses the record on every
   later cycle, so the out-of-band notification for that escalation is lost permanently. Ordering is
-  what makes the seam fail loud rather than silent; no reconciliation pass is needed, and none
+  what makes the notification fail loud rather than silent; no reconciliation pass is needed, and none
   would be reliable, since a compensating write can stop in exactly the same window.
 
 **Background-job launch mode.** The tracker marker comment is the escalation of record whether or
@@ -602,7 +608,7 @@ work-loop skill's "Background-job launch mode" paragraph in
 owns that text and its verification record.
 
 The `summary` restates the marker comment's one-line question, text the lane already published on
-the tracker, so the record itself adds no new secret surface. The hook payload the seam sends is
+the tracker, so the record itself adds no new secret surface. The payload the hook sends is
 larger than the record; see the egress note below.
 
 ### Out-of-band notification seam
@@ -637,7 +643,7 @@ record directory, with a `type: "http"` handler that POSTs the hook event's JSON
 }
 ```
 
-Every element is a first-party mechanism. The bullets state what the seam relies on; each specific
+Every element is a first-party mechanism. The bullets state what the hook relies on; each specific
 is read live at the pointer.
 
 - **Pointer**: for the handler type, its fields and header interpolation, see
@@ -650,7 +656,7 @@ is read live at the pointer.
 - **Recheck trigger**: a Claude Code release note or docs change touching HTTP hook handlers, the
   `if` field, header interpolation, or how edit rules anchor their paths.
 
-- The seam is an `http` handler on `PostToolUse` in the consuming repo's project
+- The hook is an `http` handler on `PostToolUse` in the consuming repo's project
   `.claude/settings.json`: per-consuming-repo configuration that no plugin ships. We rely on it as
   deterministic (it fires on the matched lifecycle event, no model judgment) and as carrying no
   claude.ai subscription or Remote Control dependency.
@@ -692,18 +698,18 @@ Only the http hook is the deterministic leg.
 - **Recheck trigger**: a Claude Code release note changes `PushNotification` or the Remote Control
   requirements.
 
-**The seam binds to the session's project, never to the repository a lane targets.** The record
+**The hook binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's
 loaded project settings. So a lane whose scope argument names a repository other than its own
 checkout, a supported merge-lane mode, POSTs to the *launching* project's endpoint, and the
-target repository's tracked hook is never consulted. That is the seam as specified rather than a
+target repository's tracked hook is never consulted. That is the hook as specified rather than a
 misconfiguration: "the consuming repo" is whichever project the lane session runs in, which is also
 the project whose settings the harness loaded. **Running the lane from the target repository's own
 checkout is therefore a requirement, not a preference, whenever that repository's endpoint is the
 one that must hear**. A lane launched from a neutral directory or another repository's checkout
 notifies that project's endpoint or nobody, and no configuration in the target repository changes
 it. Writing the record into the target repository's tree instead would be strictly worse, not a
-fix: the seam's `if` rule anchors at its own settings source, so a record written outside the
+fix: the hook's `if` rule anchors at its own settings source, so a record written outside the
 session's project matches no loaded rule and fires no hook at all, trading a
 notification-to-the-wrong-endpoint for silence. Note the asymmetry with
 policy resolution, which deliberately reaches the target repository's tracked file over `gh api`:
@@ -1415,7 +1421,7 @@ tracking surface.
 Lanes run on separate machines under separate Claude accounts, and the peer tools (`SendMessage`,
 `ListAgents`) reach only same-account sessions, so no session can message a lane on another
 machine. The attended operator, a human or an `attend-queue` session, steers a lane only through
-GitHub state the lane already reads: labels, claims, and the PR hold. No agent relays another
+GitHub state the lane already reads: labels, the Work status field, claims, and the PR hold. No agent relays another
 agent's summary; each lane's own telemetry comment is its report of record. The commands below take
 `R=<owner>/<repo>`.
 
@@ -1450,17 +1456,20 @@ behalf, it opens with the
 [AI disclaimer](../../../plugins/work-items/reference/ai-disclaimer.md) when that file's setting
 resolves `true`; the operator's own words need none.
 
-`list-frontier --autonomous` excludes that label, so `work-loop` stops selecting the item from its
-next cycle-start snapshot. The comment carries no machine marker, which is what marks the item
-operator-parked rather than lane-escalated (§2). Remove the label to return the item. Any assignee
-also keeps an item off the frontier, and an assignee with no lease comment is never reclaimed, but
-session-start reclaim unassigns the holder of an expired lane lease, which is you when the lanes
-share your GitHub login. Prefer the label, and never write a lease marker by hand: the tracker
+`list-frontier --autonomous` excludes that label whatever the item's Work status, so `work-loop`
+stops selecting the item from its next cycle-start snapshot. The comment carries no machine marker,
+which is what marks the item operator-parked rather than lane-escalated (§2). To return the item,
+remove the label, and when its Work status is a hold state (`needs-human`, `needs-owner-decision`,
+`needs-reporter-info`, `needs-spec`) set the field off it too: with no hold label left, that state
+still keeps the item off the frontier. Any assignee also keeps an item off the frontier, and an
+assignee with no lease comment is never reclaimed, but session-start reclaim unassigns the holder
+of an expired lane lease, which is you when the lanes share your GitHub login. Prefer the label,
+and never write a lease marker by hand: the tracker
 [CONTRACT](../../../plugins/work-items/tools/work-item-tracker/CONTRACT.md#lease-protocol) owns
 claims.
 
-Neither step recalls a worker already dispatched on the item: `/work-items:work` checks labels at
-selection, not after its claim. To keep that work from merging, hold its PR.
+Neither step recalls a worker already dispatched on the item: `/work-items:work` checks the
+frontier at selection, not after its claim. To keep that work from merging, hold its PR.
 
 **Hold a PR (merge lane).** `do-not-merge` is the only cross-lane hold, and
 [Cross-lane PR hold](#cross-lane-pr-hold) owns its rules. The commands, in the order that section

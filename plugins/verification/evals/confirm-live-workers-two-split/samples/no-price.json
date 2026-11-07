@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "worker 1: 41k tokens, 3m 10s"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "worker 1: 41k tokens, about $0.40"
+    },
+    {
+      "answer": "cost 0.4 USD"
+    }
+  ]
+}

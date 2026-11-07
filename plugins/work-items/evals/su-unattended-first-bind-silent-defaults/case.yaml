@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-unattended-first-bind-silent-defaults
+graders:
+  - name: 'github-lease-24'
+    type: 'regex'
+    pattern: 'github[\s\S]{0,160}lease_ttl_hours[\s*_`:="]{0,6}24\b|lease_ttl_hours[\s*_`:="]{0,6}24\b[\s\S]{0,160}github'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Presents none of apply''s questions and blocks on none of them when no interactive user is available, the bind and role-label passes included, not only the seeding offer; (2) Resolves each decision to its RECOMMENDED answer silently: github + lease_ttl_hours 24, role labels kept at their defaults (no config.role_labels written), seeding skipped; (3) Runs no candidate inference and no per-item interview, and invents no answers in place of the skipped interview; (4) Names the defaults it took, and points at apply --seed-schedule (or a bare apply and accepting the offer) for opting in to seeding later, with a user present. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

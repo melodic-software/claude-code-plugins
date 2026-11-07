@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-evidence-loop-cap-reached
+graders:
+  - name: 'cap-line'
+    type: 'regex'
+    pattern: 'Evidence loop:[`*_\s]*3/3 cap reached, last NEEDS WORK'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'routes-pr'
+    type: 'regex'
+    pattern: '/?source-control:pull-request|open (?:the|a) pull request|park-and-retry'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-loop-back'
+    type: 'llm'
+    criteria: 'The reply records a fourth NEEDS WORK when the evidence loop is at its cap. It meets the legacy expectations: "Does not send the work back to implementation for another round" "Keeps count at 3 and records d4 with verdict NEEDS WORK" "Next routes to opening the pull request and the pipeline''s park-and-retry path".'
+    focus: 'last_message'

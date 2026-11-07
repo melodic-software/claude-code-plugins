@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-check-tracked-uncovered-override-fails
+graders:
+  - name: 'fail-names-tracked'
+    type: 'regex'
+    pattern: '\bFAIL\b[^\n]{0,200}\btracked\b|\btracked\b[^\n]{0,200}\bFAIL\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Reports FAIL rather than PASS when the personal override is tracked; (2) Names the tracked condition as the finding when both the rule is missing and the file is tracked; (3) Gives git rm --cached as the remediation, not just adding an ignore line; (4) Writes nothing, since check is read-only. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

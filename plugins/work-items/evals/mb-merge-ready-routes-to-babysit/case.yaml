@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: mb-merge-ready-routes-to-babysit
+graders:
+  - name: 'routes-to-babysit-prs'
+    type: 'regex'
+    pattern: 'babysit-prs\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:morning-brief session does with the stated state. PASS only if it satisfies every point: (1) The response says the brief''s merge-ready list is a glance signal, not an authoritative merge verdict; (2) The response routes the authoritative classification to `/source-control:babysit-prs`; (3) The response does not itself classify the PR as safe to merge or perform the merge. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK**"
+    },
+    {
+      "answer": "### Verdict\n\nNOT VERIFIED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Build and tests pass."
+    },
+    {
+      "answer": "Verdict pending"
+    }
+  ]
+}

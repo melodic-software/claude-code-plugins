@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- **Execution shape:** `per-item PRs` (defaulted-loudly): no execution-shape line found in the body; per-item PRs assumed.",
+      "why": "macro map row with markdown"
+    },
+    {
+      "answer": "The container body has no `**Execution shape:**` line, so I apply the per-item PRs default and offer to record it.",
+      "why": "absence named before the default"
+    },
+    {
+      "answer": "Shape: per-item PRs assumed, since the line is missing.",
+      "why": "default named first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Execution shape:** `per-item PRs` (recorded)",
+      "why": "near miss: reports the default as if the line were recorded"
+    },
+    {
+      "answer": "No execution-shape line, so this is not a spec container; nothing to route.",
+      "why": "near miss: treats absence as an error"
+    }
+  ]
+}

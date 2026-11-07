@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-reroute-disposable-tickets
+graders:
+  - name: 'not-planned'
+    type: 'regex'
+    pattern: 'not[\s_-]planned'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Closes only the obsoleted unimplemented items, as not-planned via the bound adapter, each with a one-line comment linking the superseding direction ; (2) Does not close the actively claimed item out from under its holder: coordinates with the claim holder or routes a stale lease to /work-items:track audit first ; (3) Leaves already-implemented (merged) children untouched: no reopen, relabel, or edit ; (4) Edits the spec (container body via approved adapter edit, or topic Brief) before regenerating items, never regenerating against the unedited spec ; (5) Holds the mandatory approval gate on regenerated items and publishes them via create-item with --parent and native --blocked-by edges ; (6) Would treat post-ship wrongness as a new spec (new container or topic), never a patch to a closed container. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

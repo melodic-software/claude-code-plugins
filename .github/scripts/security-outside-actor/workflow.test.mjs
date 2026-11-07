@@ -165,6 +165,13 @@ test("no event text reaches a shell: run lines carry no expression, the script r
   );
 });
 
+test("a failed resolve-config install does not skip the flag step", () => {
+  const install = steps.find((step) => step.startsWith("Install resolve-config's packages\n"));
+  assert.match(install, /\n {8}continue-on-error: true\n/);
+  const flag = steps.find((step) => step.startsWith("Flag an outside actor\n"));
+  assert.doesNotMatch(flag, /\n {8}if: /, "the flag step runs on the default success() condition, which a continue-on-error failure keeps");
+});
+
 test("runs on one item queue rather than cancel, and the kill switch does not stop the check", () => {
   assert.match(text, /\n {6}group: security-outside-actor-\$\{\{ github\.event\.issue\.number \|\| github\.event\.pull_request\.number \}\}\n {6}queue: max\n/);
   assert.doesNotMatch(text, /check-kill-switch/);

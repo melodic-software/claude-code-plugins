@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: su-check-empty-role-label-outranks-row-count
+graders:
+  - name: 'role-label-fail'
+    type: 'regex'
+    pattern: '(?:role[- ]label|recurring-maintenance|role_labels)(?:(?!\b(?:INFO|FAIL|PASS|WARN)\b)[^\n.;|]){0,40}(?:\|[\s*_`]{0,6})?\bFAIL\b|\bFAIL\b(?:(?!\b(?:INFO|FAIL|PASS|WARN)\b)[^\n.;|]){0,40}(?:role[- ]label|recurring-maintenance|role_labels)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:setup session does with the stated state. PASS only if it satisfies every point: (1) Reports the role-label probe as FAIL for a malformed, empty, or non-string configured role_labels["recurring-maintenance"] value; (2) Does not fall back to the default recurring label when the configured value is present but empty; (3) Does not report the role-label probe as INFO on the grounds that the schedule''s row count is unreadable; (4) Reports the schedule-validity probe''s FAIL as a separate finding rather than merging the two defects into one verdict; (5) Writes no file and creates no label. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

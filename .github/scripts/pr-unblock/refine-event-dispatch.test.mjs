@@ -4,7 +4,7 @@
 // alone, under fix-docs-dispatch.mjs's once-per-PR rule (check name
 // `pr-refine / fix-docs`, limits.fix-docs-per-run 0 turning it off).
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -162,4 +162,28 @@ test("readDocsFixCandidate reads the one PR with the listing's fields and lists 
   }
   const closed = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch: answer("CLOSED") });
   assert.deepEqual((await closed.readDocsFixCandidate(77)).pullRequests.nodes, []);
+});
+
+test("by default the sender check reads the humans of the base's trusted-actor list: a listed human dispatches, a listed bot or an unlisted id does not", async () => {
+  const base = mkdtempSync(join(tmpdir(), "refine-event-base-"));
+  try {
+    mkdirSync(join(base, ".github/standards/trusted-actors"), { recursive: true });
+    writeFileSync(
+      join(base, ".github/standards/trusted-actors/trusted-actors.json"),
+      JSON.stringify({ version: 1, actors: [{ id: 4242, login: "someone", kind: "human" }, { id: 31337, login: "helper[bot]", kind: "bot" }] }),
+    );
+    for (const [sender, dispatched] of [["4242", 1], ["31337", 0], ["999", 0]]) {
+      const dir = mkdtempSync(join(tmpdir(), "refine-event-"));
+      try {
+        const api = fakeApi();
+        const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base };
+        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, readGateLabel: () => null }), 0);
+        assert.equal(api.calls.dispatch.length, dispatched, `sender ${sender}`);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
 });
