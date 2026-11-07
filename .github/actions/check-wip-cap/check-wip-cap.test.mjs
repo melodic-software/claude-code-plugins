@@ -19,9 +19,9 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { WIP_DEFAULTS } from "../../scripts/work-resolve-issue/limits.mjs";
-import { BLOCKER_READS, isHeld, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
+import { BLOCKER_READS, isHeld, listedStatusOf, main, readLaneWip, wipStatus } from "./check-wip-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
+import { HUMAN_ID, mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../resolve-config/read-status.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -187,7 +187,9 @@ test("a field that mirrors the labels changes no queued answer", async () => {
     { number: 9, labels: [{ name: "agent-ready" }, { name: "needs-spec" }] },
   ];
   const reads = await read({ merged: 24, queued }, { statusOf: mirroredStatusOf });
-  assert.deepEqual(reads.queued, [1, 7, 8, 9]);
+  // #9's labels collapse to needs-spec, a hold state, and a field at a state
+  // other than agent-ready drops the agent-ready label.
+  assert.deepEqual(reads.queued, [1, 7, 8]);
 });
 
 test("a hold in the Work status field the labels lack keeps an issue out of the queue", async () => {
@@ -220,6 +222,51 @@ test("a queued issue whose Work status field read fails counts as queued", async
   const reads = await fieldRead({ 2: new Error("HTTP 502"), 3: { state: "needs-human" } }, queued);
   assert.deepEqual(reads.queued, [1, 2]);
   assert.equal(reads.queuedUnlisted, 0);
+});
+
+// The Work status listing (resolve-config.mjs issuesByStatus) as listedStatusOf
+// reads it: `issues` as {number, createdAt, labels, field?: {state, setter?}},
+// the setter defaulting to the listed human. The label listing must not be read.
+const fieldListing = (issues, { fail = false } = {}) => {
+  const { github, paths } = searchApi({ merged: 24, queued: new Error("the label listing was read") });
+  const field = { fullDatabaseId: String(STATUS_CONFIG["field-id"]) };
+  const listed = async (method, path, body) => {
+    if (method === "POST" && path === "/graphql" && /issues\(states: OPEN/.test(body?.query ?? "")) {
+      if (fail) throw new Error("GraphQL answered 502");
+      const nodes = issues.map((i) => ({
+        number: i.number,
+        createdAt: i.createdAt,
+        labels: { nodes: (i.labels ?? []).map((name) => ({ name })) },
+        issueFieldValues: { nodes: i.field ? [{ name: i.field.state, field }] : [] },
+        timelineItems: { nodes: i.field ? [{ __typename: "IssueFieldChangedEvent", newValue: i.field.state, actor: { databaseId: i.field.setter ?? HUMAN_ID }, issueField: field }] : [] },
+      }));
+      return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
+    }
+    return github(method, path, body);
+  };
+  const statusOf = listedStatusOf({ github: listed, repository: REPO, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS });
+  return { paths, reads: () => readLaneWip(listed, { repo: REPO, now: NOW, windowHours: 24, statusOf }) };
+};
+
+test("with a Work status listing, the field decides which issues are queued, oldest first, holds left out", async () => {
+  const { reads, paths } = fieldListing([
+    { number: 5, createdAt: "2026-10-03T00:00:00Z", field: { state: "agent-ready" } },
+    { number: 1, createdAt: "2026-10-01T00:00:00Z", field: { state: "agent-ready" } },
+    { number: 2, createdAt: "2026-10-02T00:00:00Z", labels: ["agent-ready"], field: { state: "confirmed" } },
+    { number: 3, createdAt: "2026-10-02T00:00:00Z", labels: ["agent-ready"] },
+    { number: 4, createdAt: "2026-10-04T00:00:00Z", labels: ["needs-human"], field: { state: "agent-ready" } },
+    { number: 6, createdAt: "2026-10-05T00:00:00Z", labels: ["agent-ready"], field: { state: "needs-spec" } },
+    { number: 7, createdAt: "2026-10-06T00:00:00Z", field: { state: "agent-ready", setter: STRANGER_ID } },
+  ]);
+  const result = await reads();
+  assert.deepEqual(result.queued, [1, 3, 5]);
+  assert.equal(result.queuedUnlisted, 0);
+  assert.equal(paths.filter((path) => path.startsWith(`GET /repos/${REPO}/issues?`)).length, 0);
+});
+
+test("a Work status listing that fails leaves the queued count unread", async () => {
+  const { reads } = fieldListing([{ number: 1, createdAt: "2026-10-01T00:00:00Z", field: { state: "agent-ready" } }], { fail: true });
+  assert.equal((await reads()).queued, null);
 });
 
 test("the queued listing pages until a short page, counting pull requests toward the page size", async () => {
@@ -639,12 +686,21 @@ async function runMain(answers, extraEnv = {}, config) {
   writeFileSync(summary, "");
   const logs = [];
   const { github, paths } = searchApi(answers);
-  // The one open-issues listing the Work status states come from answers
-  // `answers.listed` (issue nodes, none by default) and stays out of `paths`.
-  const listed = async (method, path, body, ...rest) =>
-    method === "POST" && path === "/graphql" && String(body?.query).includes("issues(states: OPEN")
-      ? { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: answers.listed ?? [] } } } }
-      : github(method, path, body, ...rest);
+  // The one open-issues listing the Work status states and the queued issues
+  // come from answers `answers.listed` (issue nodes), by default the issues of
+  // `answers.queued` with the agent-ready label and no field value (an Error
+  // fails it), and stays out of `paths`.
+  const fromQueued = () =>
+    (Array.isArray(answers.queued) ? answers.queued : [])
+      .filter((item) => !item.pull_request)
+      .map((item) => ({ number: item.number, createdAt: "2026-10-01T00:00:00Z", labels: { nodes: [...(item.labels ?? []), { name: "agent-ready" }] }, issueFieldValues: { nodes: [] }, timelineItems: { nodes: [] } }));
+  const listed = async (method, path, body, ...rest) => {
+    if (method === "POST" && path === "/graphql" && String(body?.query).includes("issues(states: OPEN")) {
+      if (answers.queued instanceof Error) throw answers.queued;
+      return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: answers.listed ?? fromQueued() } } } };
+    }
+    return github(method, path, body, ...rest);
+  };
   await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: listed, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
@@ -917,10 +973,10 @@ test("pause reads make exactly two searches however many issues are queued", asy
       paused.paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com").searchParams.get("q")),
       [`repo:${REPO} is:pr is:open ${AUTHOR}`, `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`],
     );
-    // Full reads: three searches, one issues listing page, one pull request read when issues are queued,
-    // and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
+    // Full reads: three searches (the Work status listing stays out of `paths`), one pull request
+    // read when issues are queued, and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
     const named = n === 0 ? 0 : 2;
-    assert.equal(full.paths.length, 4 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
+    assert.equal(full.paths.length, 3 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
   }
 });
 

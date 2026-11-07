@@ -475,6 +475,7 @@ jobs:
         .github/scripts/work-resolve-issue/known-names.json
         .github/scripts/lib/stop-reason.mjs
         .github/scripts/lib/admission-comment.mjs
+        .github/scripts/lib/admission-record.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
         docs/conventions/instruction-exception-register/**

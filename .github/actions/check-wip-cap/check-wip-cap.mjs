@@ -2,11 +2,12 @@
 // check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from three
 // serial searches for the lanes App's pull requests in this repository (the
 // open ones, the ones merged in the rolling window, and the ones opened in it),
-// then the repository issues listing of open agent-ready issues, oldest first,
-// with pull requests and hold labels left out (the Work status field's state
-// adding a hold the labels lack, from one listing, listedStatusOf); and one
-// pull request read per
-// open lane PR whose first body line names no issue.
+// then the open agent-ready issues, oldest first, with hold labels left out:
+// from one Work status listing (listedStatusOf), where the field decides
+// agent-ready and adds a hold the labels lack, or, with models.issue-status
+// unset, the repository issues listing by the agent-ready label, pull requests
+// left out; and one pull request read per open lane PR whose first body line
+// names no issue.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
 // rounded up and at least wip.min-cap (limits.wip-cap when the merged count
@@ -89,19 +90,25 @@ export const BLOCKER_READS = 30;
 // resolve-config.mjs issuesByStatus listing over every state (config.order),
 // read on first use, gives each issue's state to statusLabels, so no issue
 // past a limit is skipped. An unset models.issue-status leaves the names; a
-// failed listing makes every call throw StatusReadError.
-export function listedStatusOf({ env = {}, github, repository }) {
+// failed listing makes every call throw StatusReadError. `config` and
+// `trustedActors` default to the base config's and the trusted-actor list.
+//
+// Its `queued()` is the same listing's agent-ready issues, oldest first, each
+// {number, names}: the names as statusLabels folds the field in, so a
+// field-only agent-ready counts and a stale agent-ready label under another
+// state does not. null with models.issue-status unset; a failed listing throws.
+export function listedStatusOf({ env = {}, github, repository, config, trustedActors }) {
   let listing;
   const load = async () => {
     const { issueStatusFromBase, issuesByStatus } = await import(new URL("../resolve-config/resolve-config.mjs", import.meta.url).href);
-    const config = issueStatusFromBase(env);
-    if (!config) {
+    const leaf = config === undefined ? issueStatusFromBase(env) : config;
+    if (!leaf) {
       return null;
     }
-    const found = await issuesByStatus(github, repository, config.order, { config, trustedActors: loadTrustedActors(env) });
-    return { config, states: new Map(found.map((issue) => [issue.number, issue.state])) };
+    const found = await issuesByStatus(github, repository, leaf.order, { config: leaf, trustedActors: trustedActors ?? loadTrustedActors(env) });
+    return { config: leaf, found, states: new Map(found.map((issue) => [issue.number, issue.state])) };
   };
-  return async (number, names) => {
+  const statusOf = async (number, names) => {
     listing ??= load();
     let read;
     try {
@@ -111,6 +118,19 @@ export function listedStatusOf({ env = {}, github, repository }) {
     }
     return read ? statusLabels(read.states.get(Number(number)) ?? null, names, read.config) : names;
   };
+  statusOf.queued = async () => {
+    listing ??= load();
+    const read = await listing;
+    if (!read) {
+      return null;
+    }
+    return read.found
+      .map((issue) => ({ number: issue.number, createdAt: String(issue.created_at ?? ""), names: statusLabels(issue.state, issue.labels, read.config) }))
+      .filter((issue) => lowered(issue.names).includes("agent-ready"))
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.number - b.number))
+      .map(({ number, names }) => ({ number, names }));
+  };
+  return statusOf;
 }
 
 // A hold label matches in any case, as pr-merge's holdReason matches it; the
@@ -206,9 +226,17 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   // takes no label exclusion, so both are left out here; a full last page
   // leaves at least one unlisted. A failed page or one that is not a list
   // leaves the count unread.
+  // With a Work status listing (listedStatusOf's `queued`), the field decides
+  // which issues are agent-ready and the label listing is not read; a failed
+  // listing leaves the count unread.
   const listQueued = async () => {
     const numbers = [];
     try {
+      checkBudget();
+      const listed = await statusOf.queued?.();
+      if (listed) {
+        return { items: listed.filter((issue) => isQueued(issue.names)).map((issue) => issue.number), unlisted: 0 };
+      }
       for (let page = 1; page <= MAX_PAGES; page += 1) {
         checkBudget();
         const items = await github("GET", `/repos/${repo}/issues?labels=agent-ready&state=open&sort=created&direction=asc&per_page=${PAGE}&page=${page}`);

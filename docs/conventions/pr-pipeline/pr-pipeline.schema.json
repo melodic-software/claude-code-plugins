@@ -581,6 +581,7 @@
               "synchronize",
               "labeled",
               "unlabeled",
+              "field_added",
               "push",
               "schedule",
               "dispatch",
