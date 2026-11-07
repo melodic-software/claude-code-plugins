@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue list --label needs-triage --json number",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh label list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a label read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh -R acme/widgets issue close 12",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "near miss: flag before the issue subcommand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr comment 7 --body x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "comments on a PR"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X PATCH repos/acme/widgets/issues/12 -f state=closed",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "api write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/acme/widgets/issues/7/comments -f body=x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "api write through a field, no -X"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "objection: #308 -> escalated",
+      "why": "the report line as written"
+    },
+    {
+      "answer": "- `objection: #308 -> escalated`",
+      "why": "in a code span"
+    },
+    {
+      "answer": "**objection: #308 → escalated**",
+      "why": "unicode arrow, bold"
+    },
+    {
+      "answer": "- **objection:** `#308 -> escalated`",
+      "why": "bold label, value in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "objection window open: #308 until 2026-10-06T09:00:00Z",
+      "why": "the window line, not the objection line"
+    },
+    {
+      "answer": "#308 escalated after the objection.",
+      "why": "no report line"
+    }
+  ]
+}

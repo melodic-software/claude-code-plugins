@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Next:** open the single integration PR from `integration/330-schema-swap` with `/source-control:pull-request`, then run the full gates.",
+      "why": "PR before branch, markdown"
+    },
+    {
+      "answer": "Push integration/330-schema-swap and open one pull request from it to main.",
+      "why": "branch before pull request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open the single integration PR from `integration/303-schema-swap`.",
+      "why": "near miss: wrong branch"
+    },
+    {
+      "answer": "Every checkpoint on integration/330-schema-swap is closed, so close #330 now.",
+      "why": "near miss: closes without any PR"
+    },
+    {
+      "answer": "No PR exists from `integration/330-schema-swap`; closing #330 now.",
+      "why": "near miss: names PR and branch, then closes"
+    }
+  ]
+}

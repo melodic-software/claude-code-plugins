@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wl-in-flight-draft-pr-excluded
+graders:
+  - name: 'in-flight-line'
+    type: 'regex'
+    pattern: 'in flight:\W{0,3}#?310\b[^\n]{0,40}PR\W{0,3}#?412\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the work-loop session does with the stated state. PASS only if it satisfies every point: (1) Runs the in-flight check before the labeler precondition, any escalation or any dispatch; (2) Counts the open draft closing PR as in flight and excludes #310; (3) Posts no escalation on #310 and leaves its labels unchanged; (4) Reports #310 as in flight with PR #412, its draft state and age; (5) Admits and dispatches #311 after it passes the labeler precondition and the hard gates. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

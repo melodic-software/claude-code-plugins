@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "strict from origin/main applied; the branch's own copy says path and is not applied."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: strict"
+    },
+    {
+      "answer": "path from the working tree"
+    }
+  ]
+}

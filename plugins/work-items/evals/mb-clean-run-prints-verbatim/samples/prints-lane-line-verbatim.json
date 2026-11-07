@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```\n== Lane telemetry freshness (last-cycle age + flags) ==\n  work-loop  last-cycle=2026-07-20T07:15Z UTC  age=45m\n```",
+      "why": "the script's line in a code block"
+    },
+    {
+      "answer": "**Brief** (printed as the script wrote it):\n\n    work-loop  last-cycle=2026-07-20T07:15Z UTC  age=45m",
+      "why": "bold label, indented verbatim line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Lane | Last cycle | Age |\n|---|---|---|\n| work-loop | 2026-07-20T07:15Z UTC | 45m |",
+      "why": "near miss: reformatted into a table"
+    },
+    {
+      "answer": "The work-loop lane last cycled at 07:15 UTC, 45 minutes ago.",
+      "why": "paraphrase"
+    }
+  ]
+}

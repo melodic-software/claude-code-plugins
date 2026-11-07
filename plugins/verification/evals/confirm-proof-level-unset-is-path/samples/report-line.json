@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "proof_level: path (default)"
+    },
+    {
+      "answer": "`proof_level: path (default)`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "proof_level: path"
+    },
+    {
+      "answer": "proof_level: live (default)"
+    }
+  ]
+}

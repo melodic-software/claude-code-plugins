@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Caller path: handleCheckout (src/checkout/handler.js:12) -> renderLineItems (src/checkout/render.js:4) -> formatPrice.",
+      "why": "both callers, top down"
+    },
+    {
+      "answer": "formatPrice is called from renderLineItems, which handleCheckout calls once per request.",
+      "why": "both callers, bottom up"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "formatPrice is reached through renderLineItems.",
+      "why": "handleCheckout missing"
+    },
+    {
+      "answer": "The checkout handler pays for formatPrice.",
+      "why": "neither function named"
+    }
+  ]
+}

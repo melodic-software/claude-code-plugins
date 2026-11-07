@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "/source-control:pull-request create --pushed --worktree /work/wt-731 --unattended",
+      "why": "the call with the flag"
+    },
+    {
+      "answer": "`create --pushed --unattended --worktree=/work/wt-731`",
+      "why": "flag order and equals"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/source-control:pull-request create --pushed --worktree /work/wt-731",
+      "why": "no --unattended: the near miss"
+    },
+    {
+      "answer": "`create --pushed --worktree /work/wt-731`, then `/source-control:babysit-prs --unattended`",
+      "why": "the flag on another call"
+    },
+    {
+      "answer": "/source-control:pull-request create --worktree /work/wt-731 --unattended",
+      "why": "no --pushed"
+    },
+    {
+      "answer": "create --pushed from the orchestrator's checkout",
+      "why": "no worktree"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: measure-metrics-no-baseline
+graders:
+  - name: 'looks-for-baseline'
+    type: 'regex'
+    pattern: '\"(?:pattern|path|file_path|command)\\?\"\s*:\s*\\?\"[^\"]*baselines'
+    target: 'trace'
+  - name: 'cannot-quantify'
+    type: 'regex'
+    pattern: 'cannot quantify|can''t quantify|cannot be quantified|unable to quantify'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'delta-not-review'
+    type: 'llm'
+    criteria: 'The reply answers a code-metrics measurement request in a workspace with no baseline. It meets the legacy expectations: "Measures a metric delta (before→after) rather than reviewing for ship-readiness" "Distinguishes itself from a review gate (measure-delta vs review-for-ship); does not route metric measurement into a review skill" "Compares against the planning-time baseline". With no baseline present, saying the delta cannot be quantified against one meets the third expectation; reviewing code quality instead fails.'
+    focus: 'last_message'

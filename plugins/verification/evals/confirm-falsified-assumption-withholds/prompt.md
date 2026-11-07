@@ -1,0 +1,10 @@
+---
+description: 'Legacy assumption-falsified-01. A falsified load-bearing assumption (the regional carrier''s labels have no barcode) against the stated intent (''nobody types a tracking number again'') withholds CONFIRMED and asks whether to replan (context/outcome.md Assessment, Assumptions line). Framed like the existing narration cases. verdict-needs-work, barcode-falsified grade the reply; assumption-falsified (llm) legacy expectations 1 to 4 verbatim.'
+tags: [verification, confirm, narration, no-network, outcome, assumptions, hard]
+max_turns: 15
+timeout_seconds: 600
+allowed_tools: [Read, Glob, Grep, Skill, Agent]
+expected_outcome: 'Intent source is the PLAN.md Brief; the barcode assumption is falsified citing the regional carrier, the order-before-label one holds; the conflict with ''nobody types a tracking number again'' is named; the verdict is NEEDS WORK and it asks whether to replan.'
+---
+
+/verification:confirm. Do not read the repository, launch, install or run anything; treat these as facts. The approved PLAN.md Brief for this branch states the Problem: warehouse staff re-key carrier tracking numbers by hand, so customers get the wrong link. Goal: the label printer's scan fills the tracking number. Intent (why, in the user's words): "nobody types a tracking number again". Acceptance criterion AC1: a scanned label stores its tracking number on the order. Its `### Load-bearing assumptions` table has two rows: `Every carrier label carries a scannable barcode | carrier spec sheets | scan one label per carrier | keep manual entry for that carrier` and `Orders are created before labels print | order flow doc | print a label for a fresh order | queue the scan until the order exists`. The change adds the scan handler; its integration test for the regional carrier shows that carrier's labels print with no barcode, so the handler falls back to a text field the user types into. The test for a fresh order passes. Build, tests and lint pass. Write the report and verdict, then stop.

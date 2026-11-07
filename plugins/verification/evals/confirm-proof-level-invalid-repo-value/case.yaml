@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: confirm-proof-level-invalid-repo-value
+graders:
+  - name: 'names-invalid-value'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*verification\.yaml)(?=[\s\S]*proof_level)(?=[\s\S]*\bthorough\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'level-live'
+    type: 'regex'
+    pattern: 'proof_level[`*_]*\s*:\s*[`*_]*live\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-question'
+    type: 'regex'
+    pattern: '\?[ \t]*(?:\*\*|__|\*|_)?[ \t]*$'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'invalid-dropped'
+    type: 'llm'
+    criteria: 'The reply resolves the proof level when the repository value is invalid. It meets the legacy expectations: "Names the file, the key proof_level and the value thorough" "Continues the run without stopping or prompting" "Resolves the user''s live, not the default path".'
+    focus: 'last_message'

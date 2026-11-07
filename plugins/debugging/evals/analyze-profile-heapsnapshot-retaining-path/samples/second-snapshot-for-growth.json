@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "One snapshot cannot show growth; take a second snapshot some minutes later under the same load and compare.",
+      "why": "second snapshot"
+    },
+    {
+      "answer": "To show the climb, compare two heap snapshots taken an hour apart.",
+      "why": "two heap snapshots"
+    },
+    {
+      "answer": "Capture another snapshot later and run query_profile.py compare on both.",
+      "why": "another snapshot"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "This snapshot shows the string is the leak.",
+      "why": "treats one snapshot as showing growth"
+    },
+    {
+      "answer": "Take a CPU profile next to see where time goes.",
+      "why": "names a different capture"
+    }
+  ]
+}

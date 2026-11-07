@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "live_workers: 1 (default)"
+    },
+    {
+      "answer": "`live_workers: 1 (default)`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live_workers: 1"
+    },
+    {
+      "answer": "live_workers: 4 (default)"
+    }
+  ]
+}

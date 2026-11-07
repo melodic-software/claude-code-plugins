@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: `items` is null |\n| Recurring-maintenance role label | **FAIL**: `config.role_labels[\"recurring-maintenance\"]` is an empty string; no fallback to `recurring` |",
+      "why": "table row"
+    },
+    {
+      "answer": "Probe 6 is a FAIL on the binding: role_labels[\"recurring-maintenance\"] is empty, which is an error, not a fallback.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Probe | Result |\n|---|---|\n| Schedule validity | FAIL: `items` is null |\n| Recurring-maintenance role label | INFO: row count unreadable because probe 4 FAILed |",
+      "why": "near miss: lets the unreadable row count pick INFO"
+    },
+    {
+      "answer": "The empty role_labels entry falls back to `recurring`, which exists, so the role label passes.",
+      "why": "silent fallback"
+    },
+    {
+      "answer": "Role label: INFO, since the row count is unreadable; schedule validity: FAIL (`items` is null).",
+      "why": "near miss: prose on one line, the FAIL belongs to the schedule probe"
+    },
+    {
+      "answer": "Role label: INFO, schedule validity: FAIL (`items` is null).",
+      "why": "near miss: a comma joins the schedule probe's FAIL to the role-label clause"
+    }
+  ]
+}

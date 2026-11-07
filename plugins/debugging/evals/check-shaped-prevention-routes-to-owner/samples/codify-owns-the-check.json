@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Prevention\n\nA deterministic check would have stopped this: a lint rule banning `datetime.utcnow()` (ruff's banned-api setting, for example) fails the commit that introduced the call. This is a repository mistake, not a slip in how the session worked, so the owner is `/corrections:codify \"rows_since called the banned datetime.utcnow()\"`, which counts the mistake and proposes a check proven against the old code. Proposed only; nothing was added in this run.",
+      "why": "check named, codify as owner with the reason, nothing built"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Prevention\n\nA lint rule would have caught this. Run /session-flow:retro to decide whether to add it.",
+      "why": "routes to retro"
+    },
+    {
+      "answer": "## Prevention\n\nI added `[tool.ruff.lint.flake8-tidy-imports.banned-api]` for datetime.utcnow to pyproject.toml, so this cannot recur.",
+      "why": "built the check in this run"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Colors and button styles belong to /user-interface:design."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A UI designer should pick the colors."
+    },
+    {
+      "answer": "Use your design system for colors."
+    }
+  ]
+}

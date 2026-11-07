@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The lanes are motion, forms, color, typography and more. Which one?",
+      "why": "lists motion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No interface code here. Which lane should I run?",
+      "why": "near miss: lists no lane"
+    }
+  ]
+}

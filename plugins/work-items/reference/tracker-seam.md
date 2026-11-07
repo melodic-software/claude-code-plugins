@@ -174,6 +174,40 @@ use them in every adapter query and core-side label comparison. Never put a defa
 JSON, a non-string role value, or an empty role value is a configuration error: stop and report it
 rather than silently querying the default.
 
+## Reading an item's status
+
+Skills that place an item in a queue, or hold it for a person, by its status cite this rule and
+never restate it. Verb forms are in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`
+"Verbs".
+
+1. **Where status lives.** Run `"$TRACKER" status-storage` once per pass. `labels` means the
+   labels decide and the field steps below are skipped, as they are in a session with no tracker
+   binding, which reads labels alone. Otherwise a non-zero exit stops the pass, which
+   reports that status was unread; it never presents a label-only view as complete.
+2. **The field read.** On `field`, run `"$TRACKER" get-statuses --field "Work status" <id>...`
+   over the open items the pass listed, at most 100 ids per call. A non-zero exit stops the pass
+   the same way.
+3. **An item's status** is its Work status value when set, else its labels. A queue-state label
+   that disagrees with a set value no longer places the item: a `needs-triage` label on an item
+   whose value is `confirmed` lists as `confirmed`. Holds are decided by step 4 alone.
+4. **Held for a person.** An item is held when it carries the human-gated role label (resolved as
+   in "Role-label resolution is an action-entry invariant" above), carries a
+   `WIT_HOLD_STATE_LABELS` label, or its status is in `WIT_HUMAN_FLOOR_STATUS_STATES` (both in
+   [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/lib/labels.sh)).
+   Either source holds it, whatever the other says. Those states are Work status option names and
+   take no `config.role_labels` remap.
+5. **Who set the value.** Decision readers (the autonomous frontier, the work-loop's drain-terminal
+   test) take setter trust from `get-statuses`, which counts only trusted setters when the binding
+   configures it (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`
+   "Work status trust"). Display readers such as
+   `/work-items:morning-brief` may read the plain field; they decide nothing.
+6. **Lifting a hold.** When storage is `field` and the item's status is a hold state, the pass
+   that removes the hold label also writes the field, while it holds the item's claim. Run
+   `"$TRACKER" get-field-options --field "Work status"` for `field_id` and the id of the option the
+   skill names, then `"$TRACKER" set-fields <id> --field <field_id>=<option_id>`, before the label
+   edit. A `null` `field_id`, a missing option, or a failed write leaves the item as it was, labels
+   included, and is reported.
+
 ## Recurring schedule
 
 Recurring items are defined in `.github/recurring-schedule.json` and created as items by the

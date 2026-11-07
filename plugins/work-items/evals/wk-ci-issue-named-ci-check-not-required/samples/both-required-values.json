@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"lint-skills: left to the PR's CI\", \"required\": false}, {\"what\": \"changelog-fragment check could not run\", \"required\": true}]",
+      "why": "both entries"
+    },
+    {
+      "answer": "lint-skills → required: false; changelog-fragment check → required: true",
+      "why": "prose fields"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"not_done\": [{\"what\": \"lint-skills\", \"required\": false}, {\"what\": \"changelog-fragment check\", \"required\": false}]",
+      "why": "downgrades the runner-named check"
+    },
+    {
+      "answer": "\"not_done\": [{\"what\": \"both checks\", \"required\": true}]",
+      "why": "upgrades the CI check"
+    }
+  ]
+}

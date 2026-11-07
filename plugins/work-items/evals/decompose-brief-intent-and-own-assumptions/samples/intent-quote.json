@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- **Intent** (why, in the user's words): \"the printed roster should be right without anyone phoning around\"",
+      "why": "bold label"
+    },
+    {
+      "answer": "Intent: the printed roster should be right without anyone phoning around",
+      "why": "plain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Intent: a correct printed roster, no phone calls needed",
+      "why": "near miss: paraphrase"
+    },
+    {
+      "answer": "Goal: swaps happen inside the scheduling app.",
+      "why": "no Intent"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

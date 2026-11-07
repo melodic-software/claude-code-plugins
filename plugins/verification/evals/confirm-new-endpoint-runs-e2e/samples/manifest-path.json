@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Persisted to `.work/order-receipts/verification/manifest.md`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Persisted to `.work/order-receipts/scratch/manifest.md`"
+    },
+    {
+      "answer": "docs/verification/manifest.md"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "written_against: verification@0.20.2\nlive_workers: 3\nprovenance:\n  live_workers: chosen (default 1)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "live_workers: 2\n"
+    },
+    {
+      "answer": "proof_level: path\n"
+    }
+  ]
+}

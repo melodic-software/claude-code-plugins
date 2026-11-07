@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- Dependency bump (checksum recomputation): **human-gated** by the path/topic hard gate.",
+      "why": "same line"
+    },
+    {
+      "answer": "| bump recomputing a pinned checksum | needs-human (path/topic hard gate) |",
+      "why": "table row"
+    },
+    {
+      "answer": "Human-gated: the C2-looking bump, because it recomputes a pinned checksum.",
+      "why": "label first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Human-gated: none.\n\nThe dependency bump that recomputes a checksum is admitted as C2.",
+      "why": "admitted; the words sit on different lines"
+    },
+    {
+      "answer": "The checksum bump is admitted.",
+      "why": "admitted"
+    }
+  ]
+}

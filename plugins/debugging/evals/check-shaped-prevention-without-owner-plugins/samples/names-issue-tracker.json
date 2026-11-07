@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "File it with the issue tracker as its own prevention finding.",
+      "why": "issue tracker"
+    },
+    {
+      "answer": "Open an issue: \"Add a lint rule banning float arithmetic on money\".",
+      "why": "open an issue"
+    },
+    {
+      "answer": "Draft for `gh issue create`: title \"Ban float money math with a ruff rule\".",
+      "why": "gh issue create draft"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Prevention: a lint rule would have caught this.",
+      "why": "no destination"
+    },
+    {
+      "answer": "Send it to /corrections:codify.",
+      "why": "routes to the owner plugin, not the tracker"
+    }
+  ]
+}

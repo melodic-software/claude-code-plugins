@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Close #504, #505, #506 as **not planned**, each with a comment linking #500.",
+      "why": "bold reason"
+    },
+    {
+      "answer": "state reason `not_planned`",
+      "why": "API spelling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Close #503 through #506 as completed and reopen #501 for streaming.",
+      "why": "near miss: wrong reason, touches claimed and merged items"
+    },
+    {
+      "answer": "Edit #504 to describe streaming instead.",
+      "why": "hand-patch, no close"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

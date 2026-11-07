@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#52: human-gated by the provenance hold (provenance: signal) -> escalated",
+      "why": "item first"
+    },
+    {
+      "answer": "provenance: signal holds #52 for a person.",
+      "why": "label first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#52 is admitted on its agent-ready label.",
+      "why": "admitted"
+    },
+    {
+      "answer": "#52 escalated.\n\nprovenance: signal items are held.",
+      "why": "never ties the label to #52 on one line"
+    },
+    {
+      "answer": "#52 (agent-ready, provenance: signal): admitted and dispatched",
+      "why": "review example: no hold on the line"
+    }
+  ]
+}

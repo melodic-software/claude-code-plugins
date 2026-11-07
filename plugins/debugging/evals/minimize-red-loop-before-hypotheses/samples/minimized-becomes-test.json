@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "The minimized request is what the Phase 5 regression test sends.",
+      "why": "minimized request reused as the regression test"
+    },
+    {
+      "answer": "Keep the smallest request that still returns the 500; it becomes the regression test.",
+      "why": "smallest request becomes the test"
+    },
+    {
+      "answer": "Later the regression test replays this reduced case instead of all 40 fields.",
+      "why": "regression test before reduced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Write a regression test that replays the full saved request with all 40 fields.",
+      "why": "regression test on the full request"
+    },
+    {
+      "answer": "Shrink the request until every remaining field is needed.\n\nAfter the fix, add a regression test.",
+      "why": "minimizing and the test in separate sentences, never tied together"
+    }
+  ]
+}

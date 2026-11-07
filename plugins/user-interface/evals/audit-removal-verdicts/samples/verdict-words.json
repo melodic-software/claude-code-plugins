@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Delete | .palette entrance | ... |\n| Keep | .toast entrance | feedback |",
+      "why": "both verdicts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Delete | .palette entrance |\n| Delete | .card hover |",
+      "why": "near miss: no Keep list"
+    }
+  ]
+}

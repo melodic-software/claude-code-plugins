@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: wk-ci-keep-refs-decision-names-remaining
+graders:
+  - name: 'remaining-names-part-b'
+    type: 'regex'
+    pattern: '"?remaining"?[\s*_`]*[:=][\s*_`]*\[\s*"[^"\n]*(?:part b|migrat\w*|caller)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:work session does with the stated state. PASS only if it satisfies every point: (1) Lists part B in remaining; (2) Leaves part A, the delivered work, out of remaining; (3) Does not record part B in not_done in place of remaining. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

@@ -211,6 +211,17 @@ test("a queued issue whose Work status field is unset, or set by another account
   assert.deepEqual(reads.queued, [1, 2]);
 });
 
+test("a queued issue whose Work status field read fails counts as queued", async () => {
+  const queued = [
+    { number: 1, labels: [{ name: "agent-ready" }] },
+    { number: 2, labels: [{ name: "agent-ready" }] },
+    { number: 3, labels: [{ name: "agent-ready" }] },
+  ];
+  const reads = await fieldRead({ 2: new Error("HTTP 502"), 3: { state: "needs-human" } }, queued);
+  assert.deepEqual(reads.queued, [1, 2]);
+  assert.equal(reads.queuedUnlisted, 0);
+});
+
 test("the queued listing pages until a short page, counting pull requests toward the page size", async () => {
   const queued = Array.from({ length: 150 }, (_, i) => (i % 10 === 0 ? { number: i + 1, pull_request: {} } : { number: i + 1 }));
   const { github, paths } = searchApi({ merged: 24, queued });
@@ -609,6 +620,7 @@ const BASE_FILES = [
   "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
   ".github/standards/github-actions-conventions/vocabulary.json",
   ".github/CODEOWNERS",
+  ".github/standards/trusted-actors/trusted-actors.json",
 ];
 async function runMain(answers, extraEnv = {}, config) {
   const dir = tempDir("check-wip-cap-");
@@ -627,7 +639,13 @@ async function runMain(answers, extraEnv = {}, config) {
   writeFileSync(summary, "");
   const logs = [];
   const { github, paths } = searchApi(answers);
-  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github, now: NOW, log: (line) => logs.push(line) });
+  // The one open-issues listing the Work status states come from answers
+  // `answers.listed` (issue nodes, none by default) and stays out of `paths`.
+  const listed = async (method, path, body, ...rest) =>
+    method === "POST" && path === "/graphql" && String(body?.query).includes("issues(states: OPEN")
+      ? { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: answers.listed ?? [] } } } }
+      : github(method, path, body, ...rest);
+  await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github: listed, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
   return { capped: value("capped"), held: value("held"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), output: text, summary: readFileSync(summary, "utf8"), logs, paths };
@@ -904,6 +922,26 @@ test("pause reads make exactly two searches however many issues are queued", asy
     const named = n === 0 ? 0 : 2;
     assert.equal(full.paths.length, 4 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));
   }
+});
+
+// A listing node whose Work status a listed human (trusted-actors.json) set.
+const listedNode = (number, state) => ({
+  number,
+  createdAt: "2026-10-01T00:00:00Z",
+  labels: { nodes: [{ name: "agent-ready" }] },
+  issueFieldValues: { nodes: [{ name: state, field: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } }] },
+  timelineItems: {
+    nodes: [{ __typename: "IssueFieldAddedEvent", createdAt: "2026-10-01T00:00:00Z", value: state, actor: { __typename: "User", login: "kyle-sexton", databaseId: 153232337 }, issueField: { fullDatabaseId: String(STATUS_CONFIG["field-id"]) } }],
+  },
+});
+
+// One listing gives every queued issue its Work status, so a queue longer
+// than any per-issue read limit has no tail read as unheld or as queued.
+test("a field-only hold keeps each of 60 queued issues out of the count, the last as the first", async () => {
+  const queued = queuedIssues(60);
+  const listed = queued.map(({ number }) => listedNode(number, number % 2 === 0 ? "needs-human" : "agent-ready"));
+  const result = await runMain({ open: [], merged: 24, admitted: 0, queued, listed }, {}, pastConfig());
+  assert.equal(result.wip.queued_issues, 30, "every odd-numbered issue queued, every even one held, past issue 530 too");
 });
 
 test("pause reads decide capped, the pause reason and its basis as full reads do", async () => {

@@ -23,3 +23,4 @@ exclude plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.s
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh 4 two query{ prefixes are a [[ ]] pattern, not operations; two queries gain one alias per branch in a shell loop
 plugins/source-control/skills/babysit-loop/scripts/lane-snapshot.mjs 1 the connection name is interpolated
 plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py 1 _lift_query() joins PolicyRecordLift with + around a conditional variable and local strings
+plugins/work-items/skills/morning-brief/scripts/morning-brief.sh 2 STATUS_QUERY and TOUCH_QUERY splice the shared field-event selection and status fragment in from shell variables

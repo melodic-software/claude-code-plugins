@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-inline-redacted-decisions
+graders:
+  - name: 'q2-d4-ids'
+    type: 'regex'
+    pattern: '\bQ2\b[\s\S]{0,200}?\bD4\b|\bD4\b[\s\S]{0,200}?\bQ2\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) Both published item bodies have a Decisions section inlining D4''s content with its Q/D ids (Q2 and D4) ; (2) The Phase 2 body also inlines D5, redacted: the machine-specific path /srv/build-07/exports/refunds.csv appears in no body, generalized to what it names or dropped ; (3) No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path ; (4) No item body points at a PLAN.md file path or link, or at the thread, in place of stating the decision (the ''PLAN Phase N, topic <slug>'' label in Parent is allowed). A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

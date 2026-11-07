@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-no-lane-asks-which
+description: "Hard: asked to audit, the pull is to review anything; with no matching concern-table row the skill must stop and ask. The scaffold holds only SQL migrations."
+tags: [audit, lane, read-only, hard, scaffold]
+runs: 3
+expected_outcome: "user-interface:audit says no lane matched the SQL migrations, lists the concern table's lanes (motion among them), asks which to run, reports no findings and makes no Edit or Write call"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Audit the database migration scripts under db/migrations."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600

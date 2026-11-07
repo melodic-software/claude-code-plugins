@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "6. **Integrate-and-verify** (blocked by #3, #4, #5): CI must pass here.",
+      "why": "bold item title"
+    },
+    {
+      "answer": "A final integrate and verify item waits on every batch.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Each migrate batch merges green on its own, so no final integration item is needed.",
+      "why": "near miss: no fallback item"
+    },
+    {
+      "answer": "Then integrate the branch, and verify later.",
+      "why": "words apart, no item"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: setup-apply-twice-idempotent
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'already-configured'
+    type: 'regex'
+    pattern: 'already configured'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'file-unchanged'
+    type: 'regex'
+    pattern: '^version: 1\njtbd_school: unset\n$'
+    target: { source: file, path: docs/conventions/user-experience.yaml }
+  - name: 'no-write-team-file'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: 'user-experience\.yaml'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit-team-file'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: 'user-experience\.yaml'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-setup-4'
+    type: 'llm'
+    criteria: 'The run is /user-experience:setup apply jtbd_school=unset on a team file that already sets it. It meets the legacy expectations: "Reports already configured" "Does not rewrite the team file".'
+    focus: 'trace'

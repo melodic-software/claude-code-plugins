@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: sh-run-integration-branch-single-writer
+graders:
+  - name: 'dispatch-base-integration'
+    type: 'regex'
+    pattern: '--base[\s*_`=]{1,6}(?:<?[\w.-]+>?/)?integration/340-search-rewrite\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:ship run session does with the stated state. PASS only if it satisfies every point: (1) Shows the drafted item list and waits for the user''s approval before any claim; (2) Hands the ready items to /implementation:implement-dispatch''s item-list mode with the integration branch as --base instead of building them itself; (3) Lands accepted branches onto the integration branch one at a time, each merged, gated, pushed and closed as a checkpoint before the next; (4) Opens no per-item PR; (5) Re-reads the frontier after closing items and adds the newly unblocked item only through the approval step; (6) Opens the single integration PR as a draft at the end and does not merge it. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

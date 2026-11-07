@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 replay.py; echo exit=$?",
+            "description": "Run the replay loop"
+          }
+        }
+      ],
+      "why": "the replay loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for i in 1 2 3; do python3 replay.py | python3 tally.py; done",
+            "description": "Tally three passes"
+          }
+        }
+      ],
+      "why": "the replay inside a tally loop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat thumbs/dispatch.py",
+            "description": "Read the dispatcher"
+          }
+        }
+      ],
+      "why": "reads code, never replays"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat replay.py && sed -n '1,40p' thumbs/cluster.py",
+            "description": "Read the replay script before python3 replay.py"
+          }
+        }
+      ],
+      "why": "reads replay.py; the run appears only in the description"
+    }
+  ]
+}
