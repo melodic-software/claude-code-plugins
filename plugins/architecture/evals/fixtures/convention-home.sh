@@ -36,6 +36,7 @@ mkdir -p docs/conventions/architecture
 
 if [[ -n "${dialect}" ]]; then
   mkdir -p docs/conventions/authoring-formats
+  # shellcheck disable=SC2016 # the backticks are a literal markdown fence
   printf '# authoring formats\n\n```yaml\ndiagram_dialect:\n  system: %s\n```\n' "${dialect}" \
     >docs/conventions/authoring-formats/README.md
 fi
