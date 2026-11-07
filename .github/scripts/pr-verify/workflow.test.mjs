@@ -2585,6 +2585,19 @@ test("the screenshot font check passes on any font fc-list reports for U+23F8 an
   assert.match(none.stdout, /no installed font has U\+23F8/);
 });
 
+test("the screenshot font step fails when both install attempts fail, even with an emoji font present", () => {
+  // An emoji font also has U+23F8, so the final check alone would pass without Noto Sans Symbols 2.
+  const script = scriptOf(capStep("Install the screenshot font"));
+  const dir = tempDir("font-fail-");
+  const stub = (name, body) => writeFileSync(path.join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  stub("fc-list", "printf '%s\\n' '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf: Noto Color Emoji'");
+  stub("timeout", "exit 124");
+  stub("sleep", "exit 0");
+  const run = spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { PATH: `${dir}:/usr/bin:/bin` }, encoding: "utf8" });
+  assert.equal(run.status, 1, run.stdout + run.stderr);
+  assert.match(run.stdout, /fonts-noto-core did not install after 2 attempts/);
+});
+
 test("stopping the key proxy matches the proxy's node command line, not its sh watcher", () => {
   // Node's comm is MainThread (runner probe run 42223922880), so `pgrep -x node` never matched.
   const stop = scriptOf(capStep("Stop the key proxy"));

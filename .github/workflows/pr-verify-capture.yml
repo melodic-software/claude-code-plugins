@@ -426,7 +426,7 @@ jobs:
               timeout 45 sudo "${quiet[@]}" apt-get "${apt[@]}" update -qq &&
                 timeout 75 sudo "${quiet[@]}" apt-get "${apt[@]}" install -y -qq --no-install-recommends fonts-noto-core && break
               echo "apt-get attempt $i failed or timed out"
-              [ "$i" = 2 ] && break
+              [ "$i" = 2 ] && { echo "::error::fonts-noto-core did not install after 2 attempts"; exit 1; }
               sleep 5
               # A killed install can leave dpkg half-configured, which fails the retry at once.
               timeout 40 sudo "${quiet[@]}" dpkg --configure -a || true
