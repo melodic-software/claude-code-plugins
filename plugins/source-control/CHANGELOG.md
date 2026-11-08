@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.7.0] - 2026-11-08
+
+### Added
+
+- `landed-work.sh --merged-pr-limit <n>` sets how many merged pull requests `--merged-pr-proof` reads, newest first (default: 1000). A branch whose pull request falls outside that window stays unproven, and its reason ends in `in-newest-<n>`.
+
+### Changed
+
+- `landed-work.sh --merged-pr-proof` lists merged pull requests once per repository and base with one `gh pr list --state merged --base <base>`, then matches each worktree's branch against that list. It used to run one `gh pr list --head <branch>` per worktree. A failed listing is not retried for each worktree, and the run prints how many `gh` calls it made on stderr.
+
 ## [8.6.0] - 2026-11-08
 
 ### Added
