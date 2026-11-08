@@ -8,7 +8,7 @@
 # opt-in HOOK_TELEMETRY_SINK envelope contract.
 #
 # Self-contained: builds a throwaway git repo (deterministic git-branch probe)
-# and defines its own assertion helpers — installed plugins are cache-isolated
+# and defines its own assertion helpers: installed plugins are cache-isolated
 # with no shared test lib. The OS_TOAST channel's actual toast emission is out of
 # scope (osascript / notify-send are platform-specific, self-backgrounded, and
 # stdout-redirected); os_toast is disabled by default here so terminal-channel
@@ -219,20 +219,20 @@ rm -f "$TEL"
 # --- Case 13: slow sink (C1 fd1-leak detector) → hook does not wait on it -----
 # Invariant: the backgrounded telemetry sink must not keep fd1 open, so the
 # hook's command substitution returns as soon as the hook exits, NOT after the
-# sink finishes. A leak would make $() block until the sink closes fd1 — i.e.
+# sink finishes. A leak would make $() block until the sink closes fd1, i.e.
 # for the sink's whole sleep.
 #
 # We measure that differentially rather than against a fixed wall-clock bound.
 # Spawn overhead is machine- and load-dependent (on Windows Git Bash a single
 # hook is already ~1.6s, and parallel test suites push it to 4-10s), so any
 # fixed threshold either false-fails under load or has to be set so high the
-# sink must sleep >10s — which then lingers past the suite's EXIT cleanup and
+# sink must sleep >10s, which then lingers past the suite's EXIT cleanup and
 # locks its stub file on Windows. A baseline run (fast sink, no sleep) captures
 # the SAME ambient overhead as the slow run under the SAME capture; subtracting
 # it cancels the overhead and isolates the leak signal. Under a leak the delta
 # is ~SINK_SLEEP; with no leak it is ~0 (± scheduling jitter).
 #
-# THRESHOLD_MS asserts the actual invariant — "did not wait for the sink" —
+# THRESHOLD_MS asserts the actual invariant ("did not wait for the sink")
 # as sleep-minus-a-safety-margin, NOT half the sleep. Halving discarded margin
 # for no gain and was proven too tight empirically (#448 reopen): a clean-main
 # false-fail measured delta=3697ms against the old 3000ms/half-sleep threshold,
@@ -253,17 +253,17 @@ rm -f "$TEL"
 # and SINK_SLEEP passes silently. SINK_SLEEP=8s with SAFETY_MARGIN_MS=3000 puts
 # the threshold at 5000ms, roughly midway between the signal and the noise:
 # 2850ms of noise-side margin and 3000ms of leak-side margin, both above the
-# 2150ms worst case measured. Recorded measurements bracket it — a deliberately
+# 2150ms worst case measured. Recorded measurements bracket it: a deliberately
 # reintroduced leak measured delta=8065ms (detected), while 40 runs under 30x
 # concurrent load peaked at ~1590ms with no leak (passed).
 #
 # The baseline is the MINIMUM of several fast runs, not a single sample. A lone
 # baseline that happened to be descheduled longer than the slow run would shrink
-# DELTA_MS below the threshold and let a real fd1 leak PASS — a false-NEGATIVE,
+# DELTA_MS below the threshold and let a real fd1 leak PASS: a false-NEGATIVE,
 # the detector reporting "no leak" while one exists (fail-open). Only an
 # *inflated* baseline can mask a leak, so the minimum reflects true-minimal
 # overhead and keeps the leak signal (~SINK_SLEEP) in the delta regardless of one
-# unlucky sample. The opposite error — an inflated slow sample with no leak —
+# unlucky sample. The opposite error, an inflated slow sample with no leak,
 # only re-fails a green run (fail-safe, re-runnable), so just the baseline needs
 # min-of-N; the slow run stays single (each slow sample costs SINK_SLEEP).
 SINK_SLEEP=8
@@ -283,7 +283,7 @@ for ((_i = 0; _i < BASE_SAMPLES; _i++)); do
 done
 
 _TS0=$EPOCHREALTIME
-# shellcheck disable=SC2034  # captured so $() blocks until fd1 closes — proves no fd1 leak
+# shellcheck disable=SC2034  # captured so $() blocks until fd1 closes, proving no fd1 leak
 _OUT_SLOW="$(run "$(build_input permission_prompt)" HOOK_TELEMETRY_SINK="$SLOW_SINK")"
 RC_SLOW=$?
 _TS1=$EPOCHREALTIME
