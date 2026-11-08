@@ -205,7 +205,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      cannot grow a profile without a file→folder reorg. Distinct from the concern-named folder above: that
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
      (profile axis), and the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
-     [`ai-briefing`](ai-briefing-design.md).
+     [`ai-briefing`](adr/0094-split-ai-briefing-into-an-engine-plugin-and-named-profiles.md).
    - **Resolution + override semantics, personal override naming, and the recommended consumer `.gitignore`
      line** are owned by [`docs/contracts/config-cascade/`](contracts/config-cascade/README.md).
      The layering axis is cross-cutting, so it is contracted once there rather than restated per

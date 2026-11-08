@@ -1,4 +1,13 @@
-# ai-briefing: engine / profile / personal split (design record)
+# Split ai-briefing into an engine plugin and named profiles
+
+- Status: accepted
+- Date: 2026-07-12
+- Related: `melodic-software/medley#1392` (the design gate), wave-2 map `melodic-software/medley#1369`;
+  the profiled-folder convention in
+  [Extensibility contract v2.1: the four seams](../migration-playbook.md#extensibility-contract-v21-the-four-seams)
+  (seam 2)
+
+## Context
 
 The design produced by the `design(ai-briefing)` gate (`melodic-software/medley#1392`, under wave-2
 map `melodic-software/medley#1369`): how the in-repo `.claude/skills/ai-briefing/` skill splits into a
@@ -9,14 +18,14 @@ the pre-baked decisions and stand alone (do not depend on this note being merged
 Decided 2026-07-12 with the owner (one decision at a time, interview mode). Empirical claims decay.
 Re-verify the medley-side surfaces named here before executing the cutover.
 
-## The problem
-
 The skill mixes three separable concerns: a generic AI-news aggregation **engine**, an **employer**
 (SETWorks) tailoring layer, and the owner's **personal** collection state. Shipped as one unit, the
 engine cannot be reused and the employer specifics cannot be relocated. The wave-2 content-separation
 decision (map #1369) routes the employer content out via this design gate.
 
-## Three tiers, three homes
+## Decision
+
+### Three tiers, three homes
 
 | Tier | Content | Home |
 |---|---|---|
@@ -24,7 +33,7 @@ decision (map #1369) routes the employer content out via this design gate.
 | **Employer profile** (SETWorks team) | audience framing (disability-services engineering team), the `setworks_impact` tech-stack lens (.NET/Aspire/Blazor, MSSQL, Duende IdentityServer, Azure + Cloudflare, MCP), SETWorks branding (logos, `brand.js` tokens, slide brand spec), the curated follow-list | a **named profile** `.claude/ai-briefing/setworks/` in a consuming project (interim: medley, see below) |
 | **Personal** (owner) | accumulated collection state: `seen-items.json` dedup registry, per-run checklists, generated decks | `${CLAUDE_PLUGIN_DATA}`, keyed per profile |
 
-## Profile mechanism
+### Profile mechanism
 
 The plugin resolves a **named profile** via the profiled-folder convention (see the migration
 playbook, "Extensibility contract v2.1: the four seams", seam 2). Root files at
@@ -38,7 +47,7 @@ interviews the consumer and scaffolds a profile (the contract requires it for an
 moment a second audience appears; the named form is identical effort and open-ended (drop a sibling
 subfolder, no republish). This is the reference adoption of the profiled-folder convention.
 
-## Ranking-policy defaults
+### Ranking-policy defaults
 
 The pragmatic-use ranking lens ("an engineer can use it next week → HIGH") and the apolitical filter
 (drop partisan-only, keep industry-wide controversy) ship as the engine's **documented, overridable
@@ -47,7 +56,7 @@ the ladder. Only the SETWorks-specific `setworks_impact` stack lens is profile-o
 policies as *documented* defaults (not silent behavior) keeps the editorial stance transparent and
 flippable, per the "configurable-by-default, safe documented defaults" standard.
 
-## Branding scrub
+### Branding scrub
 
 The generic plugin carries **no** employer branding. Neutral default brand tokens ship in the engine
 so `--format slides|html` works out of the box; the SETWorks logos, `brand.js` tokens, and slide brand
@@ -55,7 +64,7 @@ spec move into the `setworks/` profile and overlay the default. Provider logos (
 Google, …) stay in the engine as generic domain assets used nominatively, not employer branding.
 Generated decks are machine output (`${CLAUDE_PLUGIN_DATA}`), never shipped in the plugin.
 
-## Interim profile home: medley (cutover, not shed)
+### Interim profile home: medley (cutover, not shed)
 
 The SETWorks profile's **interim** home is medley: the cutover moves the employer content into
 `.claude/ai-briefing/setworks/` (tracked, backed up, the convention's primary `${CLAUDE_PROJECT_DIR}`
@@ -64,7 +73,7 @@ local user-scope overlay because tracked-and-backed-up beats machine-local, it i
 convention path, the extraction is a reproducible in-repo `git mv` (not a manual copy into `~/.claude`),
 and the content already lives in medley (a private repo), making this a reorg, not a new exposure.
 
-## Deferred: dedicated SETWorks repo (revisit trigger)
+### Deferred: dedicated SETWorks repo (revisit trigger)
 
 A dedicated private SETWorks-org repository consuming the plugin is the **long-term** profile home
 (version-controlled and shareable across the SETWorks team, off the melodic-software org). Deferred by
@@ -76,7 +85,9 @@ audience/profile is wanted; or the SETWorks content grows beyond what belongs in
 repo. Trigger action: file a `repo(setworks-briefing)` issue and move `.claude/ai-briefing/setworks/`
 into it.
 
-## Emitted issues
+## Consequences
+
+Emitted issues:
 
 Sub-issue-linked under wave-2 map `melodic-software/medley#1369`:
 
