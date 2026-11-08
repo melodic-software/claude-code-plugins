@@ -700,4 +700,83 @@ OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"
 
+# --------------------------------------------------------------------------
+# Base-side window: several worktrees at different merge-bases share one
+# rendering of the base commits
+# --------------------------------------------------------------------------
+
+# wt-window-a branches at the seed and lands as a squash (range-patchid);
+# wt-window-b branches after that squash and lands as two twin commits
+# (per-commit-patchid); wt-window-c branches later still and never lands (no).
+W="$(mkfixture)"
+WT_WA="$TEST_TMPDIR/wt-window-a"
+WT_WB="$TEST_TMPDIR/wt-window-b"
+WT_WC="$TEST_TMPDIR/wt-window-c"
+SEED="$(git -C "$W" rev-parse HEAD)"
+git -C "$W" worktree add -q -b feat-window-a "$WT_WA" main >/dev/null 2>&1
+commit_in "$WT_WA" wa1.txt "window a one" "wa1"
+commit_in "$WT_WA" wa2.txt "window a two" "wa2"
+git -C "$W" merge --squash feat-window-a >/dev/null 2>&1
+git -C "$W" commit -qm "squash feat-window-a" >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+git -C "$W" worktree add -q -b feat-window-b "$WT_WB" main >/dev/null 2>&1
+commit_in "$WT_WB" wb1.txt "window b one" "wb1"
+commit_in "$WT_WB" wb2.txt "window b two" "wb2"
+commit_in "$W" wb1.txt "window b one" "wb1 on main"
+commit_in "$W" wb2.txt "window b two" "wb2 on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+git -C "$W" worktree add -q -b feat-window-c "$WT_WC" main >/dev/null 2>&1
+commit_in "$WT_WC" wc1.txt "window c one" "wc1"
+commit_in "$W" wmain.txt "main moves on" "main advances"
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+# The shim logs the commit list each base-window render reads on stdin, so the
+# test counts how often each base commit was hashed.
+REAL_GIT="$(command -v git)"
+SHIM_BIN="$TEST_TMPDIR/git-shim"
+WINDOW_LOG="$TEST_TMPDIR/window-renders"
+mkdir -p "$SHIM_BIN"
+cat >"$SHIM_BIN/git" <<'SHIM'
+#!/usr/bin/env bash
+case " $* " in
+*" --no-walk "*) tee -a "$GIT_SHIM_LOG" | "$REAL_GIT" "$@" ;;
+*) exec "$REAL_GIT" "$@" ;;
+esac
+SHIM
+chmod +x "$SHIM_BIN/git"
+
+BASE_TOTAL="$(git -C "$W" rev-list --count --no-merges "$SEED..origin/main")"
+
+# Newest merge-base first grows the window one range at a time; oldest first
+# hashes every base commit in the first worktree's turn, so the later verdicts
+# rest only on ids another worktree hashed.
+for ORDER in newest-first oldest-first; do
+  : >"$WINDOW_LOG"
+  if [[ "$ORDER" == "newest-first" ]]; then
+    TARGETS=(--worktree "$WT_WC" --worktree "$WT_WB" --worktree "$WT_WA")
+  else
+    TARGETS=(--worktree "$WT_WA" --worktree "$WT_WB" --worktree "$WT_WC")
+  fi
+  OUT="$(PATH="$SHIM_BIN:$PATH" REAL_GIT="$REAL_GIT" GIT_SHIM_LOG="$WINDOW_LOG" \
+    bash "$ENGINE" "${TARGETS[@]}" --no-peers)"
+  assert_eq "window ($ORDER): the squash worktree is landed by range patch-id" \
+    "range-patchid" "$(col "$(row "$OUT" "wt-window-a")" $C_METHOD)"
+  assert_eq "window ($ORDER): the twin-commit worktree is landed per commit" \
+    "per-commit-patchid" "$(col "$(row "$OUT" "wt-window-b")" $C_METHOD)"
+  assert_eq "window ($ORDER): the unlanded worktree is not landed" \
+    "no" "$(col "$(row "$OUT" "wt-window-c")" $C_LANDED)"
+  assert_eq "window ($ORDER): every base commit back to the oldest merge-base is hashed" \
+    "$BASE_TOTAL" "$(sort -u "$WINDOW_LOG" | grep -c .)"
+  assert_eq "window ($ORDER): no base commit is hashed twice across the worktrees" \
+    "$BASE_TOTAL" "$(grep -c . "$WINDOW_LOG")"
+
+  # A run over one worktree renders only that worktree's own range, which is
+  # what every worktree got before the window, so each row must match it.
+  for WT in "$WT_WA" "$WT_WB" "$WT_WC"; do
+    ALONE="$(bash "$ENGINE" --worktree "$WT" --no-peers | sed -n 2p)"
+    assert_eq "window ($ORDER): ${WT##*/} classifies the same alone as beside the others" \
+      "$ALONE" "$(row "$OUT" "${WT##*/}")"
+  done
+done
+
 [[ $FAILED -eq 0 ]] || exit 1
