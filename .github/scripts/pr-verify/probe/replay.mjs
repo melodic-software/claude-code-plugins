@@ -264,7 +264,8 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
     performed_via_github_app: null,
   });
   const issue = testCase.spec.issue;
-  const issueComments = (issue.comments ?? []).map((comment, i) => ({
+  const comments = issue.comments ?? [];
+  const issueComments = comments.map((comment, i) => ({
     ...rest("issuecomment", 50000 + index * 100 + i, comment.by, comment.body),
     updated_at: "2026-10-01T00:00:00Z",
   }));
@@ -341,7 +342,7 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       editor: null,
       comments: {
         totalCount: issueComments.length,
-        nodes: (issue.comments ?? []).map((comment, i) => ({
+        nodes: comments.map((comment, i) => ({
           databaseId: issueComments[i].id,
           updatedAt: issueComments[i].updated_at,
           body: comment.body,
@@ -481,18 +482,17 @@ export function replayedTree(diff, baseListing) {
 
 // lane.cjs linesToMessages: stream-json lines to the execution-file array.
 export function linesToMessages(text) {
-  const messages = [];
-  for (const line of text.split("\n")) {
-    if (line.trim() === "") {
-      continue;
-    }
-    try {
-      messages.push(JSON.parse(line));
-    } catch {
-      // A non-JSON line carries no structured fact.
-    }
-  }
-  return messages;
+  return text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        // A non-JSON line carries no structured fact.
+        return [];
+      }
+    });
 }
 
 // An API status a later attempt can clear: a rate limit or a server error.
@@ -530,8 +530,9 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
   if (!result) {
     return { outcome: "infrastructure", reason: `exit ${status}, no result message`, ...facts };
   }
-  if (result.is_error !== false && (transient(result.api_error_status) || result.subtype === "error_during_execution")) {
-    return { outcome: "infrastructure", reason: `api ${transient(result.api_error_status) ? result.api_error_status : result.subtype}`, ...facts };
+  const transientStatus = transient(result.api_error_status) ? result.api_error_status : null;
+  if (result.is_error !== false && (transientStatus !== null || result.subtype === "error_during_execution")) {
+    return { outcome: "infrastructure", reason: `api ${transientStatus ?? result.subtype}`, ...facts };
   }
   if (status !== 0 || result.is_error !== false) {
     return { outcome: "no-verdict", reason: `exit ${status}, result ${result.subtype ?? "error"}`, ...facts };
@@ -576,12 +577,12 @@ export function scoreRun(expect, verdict) {
 // The rates the issue asks for, from scored run records.
 export function summarize(records) {
   const scored = records.filter((r) => r.score);
-  const of = (filter) => scored.filter(filter);
-  const blocking = of((r) => r.expect.expected === "fail" && r.expect.scored === "main");
-  const separate = of((r) => r.expect.scored === "separate");
-  const controls = of((r) => r.expect.class === "control");
-  const nonBlocking = of((r) => r.expect.class === "non-blocking");
-  const injection = of((r) => r.expect.class === "injection");
+  const blocking = scored.filter((r) => r.expect.expected === "fail" && r.expect.scored === "main");
+  const separate = scored.filter((r) => r.expect.scored === "separate");
+  const ofClass = (name) => scored.filter((r) => r.expect.class === name);
+  const controls = ofClass("control");
+  const nonBlocking = ofClass("non-blocking");
+  const injection = ofClass("injection");
   return {
     blocking: {
       runs: blocking.length,
@@ -685,7 +686,7 @@ export function untilModelOutcome(maxAttempts, attemptOnce) {
   return attempts;
 }
 
-const MANAGED_PATHS =["/etc/claude-code/managed-settings.json", "/Library/Application Support/ClaudeCode/managed-settings.json"];
+const MANAGED_PATHS = ["/etc/claude-code/managed-settings.json", "/Library/Application Support/ClaudeCode/managed-settings.json"];
 
 async function runCase({ testCase, index, run, opts, facts }) {
   const root = path.join(opts.workRoot, `${testCase.id}-run${run}`);
@@ -765,7 +766,8 @@ export async function main(argv = process.argv.slice(2)) {
   if (!Number.isInteger(runs) || runs < 1 || !Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new Error("--runs and --max-attempts take a whole number of at least 1");
   }
-  const cases = loadCases().filter((c) => values.case.length === 0 || values.case.some((prefix) => c.id.startsWith(prefix)));
+  const all = loadCases();
+  const cases = all.filter((c) => values.case.length === 0 || values.case.some((prefix) => c.id.startsWith(prefix)));
   if (cases.length === 0) {
     throw new Error("no case matches --case");
   }
@@ -801,7 +803,6 @@ export async function main(argv = process.argv.slice(2)) {
     mkdirSync(opts.out, { recursive: true });
   }
   const facts = { pipeline, models, prompt: readFileSync(path.join(HERE, "../prompt.md"), "utf8") };
-  const all = loadCases();
   const records = [];
   // Every run's workspace sits under one temporary directory. A live run
   // removes each workspace after its run and the directory at the end; a dry
@@ -809,8 +810,9 @@ export async function main(argv = process.argv.slice(2)) {
   opts.workRoot = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-"));
   try {
     for (const testCase of cases) {
+      const index = all.findIndex((c) => c.id === testCase.id);
       for (let run = 1; run <= runs; run += 1) {
-        const record = await runCase({ testCase, index: all.findIndex((c) => c.id === testCase.id), run, opts, facts });
+        const record = await runCase({ testCase, index, run, opts, facts });
         if (record) {
           records.push(record);
         }
@@ -823,8 +825,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (!values.live) {
     console.log(`\n# The commands read ${opts.workRoot}; remove it when done: rm -rf ${quote(opts.workRoot)}`);
-  }
-  if (values.live) {
+  } else {
     const summary = { commit, cli_version: version, models, runs, summary: summarize(records) };
     writeFileSync(path.join(opts.out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
     console.log(JSON.stringify(summary.summary, null, 2));
