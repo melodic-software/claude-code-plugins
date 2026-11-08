@@ -1,197 +1,53 @@
-# Official docs index
+# Official docs
 
-This is a link index into Claude Code's official documentation, scoped to pages relevant to
-authoring, distributing, or consuming plugins in this marketplace. It exists so an agent or
-contributor can jump straight to the current canonical page instead of guessing a URL or trusting
-training-data recall.
+Find a current Claude Code docs page in
+[`https://code.claude.com/docs/llms.txt`](https://code.claude.com/docs/llms.txt), the platform's
+self-updating page list, and read it through `/discovery:read-docs`. Model-behavior pages (prompting,
+thinking, evaluation) are on `platform.claude.com`, listed in
+[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt). Never act on
+remembered page content: re-fetch the page. The
+[upstream-drift convention](contracts/upstream-drift/README.md) owns how a fetched page backs a
+record, and its [fetch route](contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route)
+owns how to read one: a summarizing fetch of a long page truncates it and then reports what it never
+reached as absent, so read the `.md` channel verbatim and record no verdict from a truncated read.
 
-> [!WARNING]
-> **This file goes stale. The platform changes constantly.** Always re-fetch the linked page before
-> acting on it. Never trust this file's descriptions, and never trust remembered content from a
-> prior fetch. The authoritative, self-updating master list is
-> [`https://code.claude.com/docs/llms.txt`](https://code.claude.com/docs/llms.txt); if a page listed
-> here is missing from it, or a page you need isn't listed here, treat `llms.txt` as the source of
-> truth and update this file. Each row's **As of** date is when the page was last read live, and
-> that date is the ceiling on how current the row still is, not a guarantee. A fetch that no longer
-> matches a row is that row's recheck trigger: update the row, refreshing its date with the
-> outcome. The [upstream-drift convention](contracts/upstream-drift/README.md) owns this
-> record shape and trigger discipline, and its
-> [fetch route](contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route) owns how to
-> read the page you re-fetch: several of these pages are long enough that a summarizing fetch
-> truncates them and then reports what it never reached as absent. Read the `.md` channel verbatim
-> before recording any verdict, and record none at all from a truncated read.
+## Rules for citing these pages
 
-## Plugin components → doc page
-
-One row per plugin component type, per the current [Add components to a plugin](https://code.claude.com/docs/en/plugins/components) page.
-We cite the [Skills](https://code.claude.com/docs/en/skills) page for both skills and legacy
-`commands/`. Statusline gets no row because we treat it as a settings key a plugin's `settings.json` may
-set, not a component. Channels get a row for the `channels` manifest field, not a file location.
-For workflows we cite the [Workflows](https://code.claude.com/docs/en/workflows) page. The manifest
-(`.claude-plugin/plugin.json`) is the container these components are declared in, not a component,
-so it has no row. For which slots and settings keys a plugin carries, see
-[Standard layout](https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout).
-
-| Component | Official doc page | As of |
-|---|---|---|
-| Skills (`skills/`) | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
-| Commands: legacy flat-file skills (`commands/`) | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
-| Agents / subagents (`agents/`) | <https://code.claude.com/docs/en/sub-agents> | 2026-08-06 |
-| Workflows (`workflows/`) | <https://code.claude.com/docs/en/workflows> | 2026-08-06 |
-| Hooks (`hooks/hooks.json`) | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
-| MCP servers (`.mcp.json`) | <https://code.claude.com/docs/en/mcp> | 2026-08-06 |
-| LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins/components#lsp-servers> | 2026-10-01 |
-| Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
-| Themes (`themes/`) | <https://code.claude.com/docs/en/plugins/components#themes-and-output-styles> | 2026-10-01 |
-| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins/components#monitors> | 2026-10-07 |
-| Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
-| Executables (`bin/`) | <https://code.claude.com/docs/en/plugins/components#executables> | 2026-10-01 |
-| Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/plugins/components#default-settings> | 2026-11-04 |
-| Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugins/dependencies> | 2026-10-07 |
-
-## Authoring
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Plugins overview | <https://code.claude.com/docs/en/plugins/overview> | 2026-10-07 |
-| Create plugins | <https://code.claude.com/docs/en/plugins/create> | 2026-10-07 |
-| Plugin manifest reference (schemas, variables) | <https://code.claude.com/docs/en/plugins/manifest-reference> | 2026-10-07 |
-| Plugin commands reference (CLI) | <https://code.claude.com/docs/en/plugins/cli-reference> | 2026-10-07 |
-| Skills | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
-| Skill authoring best practices (platform, cross-product) | <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices> | 2026-09-10 |
-| Claude Code best practices (CLAUDE.md and workflow) | <https://code.claude.com/docs/en/best-practices> | 2026-09-10 |
-| Slash commands | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
-| Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
-| Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-08-06 |
-| Subagents | <https://code.claude.com/docs/en/sub-agents> | 2026-08-06 |
-| Dynamic workflows: script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-08-06 |
-| MCP | <https://code.claude.com/docs/en/mcp> | 2026-08-06 |
-| Connect to MCP servers (quickstart) | <https://code.claude.com/docs/en/mcp-quickstart> | 2026-08-06 |
-| Output styles | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
-| Statusline | <https://code.claude.com/docs/en/statusline> | 2026-08-06 |
-| Push events into a session with channels | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
-| Channels reference | <https://code.claude.com/docs/en/channels-reference> | 2026-08-06 |
-| Sandboxing the Bash tool | <https://code.claude.com/docs/en/sandboxing> | 2026-08-06 |
-| Sandbox environments | <https://code.claude.com/docs/en/sandbox-environments> | 2026-08-06 |
-| Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-08-06 |
-| Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
-| Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows, projects | <https://code.claude.com/docs/en/agents> | 2026-11-01 |
-| Orchestrate agent teams: status and the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` switch | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
-| Cross-session messaging: `ListAgents`/`SendMessage`, `crossSessionInbound`, and the version floors | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
-| Manage sessions: resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |
-| Checkpointing: what `/rewind` does and does not restore | <https://code.claude.com/docs/en/checkpointing> | 2026-08-10 |
-| Feature availability: per-feature matrix by model provider and subscription plan (not by host surface, see Platforms) | <https://code.claude.com/docs/en/feature-availability> | 2026-08-10 |
-| Platforms and integrations: the host-surface index (CLI, Desktop, IDEs, web, mobile) | <https://code.claude.com/docs/en/platforms> | 2026-08-10 |
-| Ultrareview: the cloud review, how it is started and billed | <https://code.claude.com/docs/en/ultrareview> | 2026-08-10 |
-| Chrome: the browser integration and how it is delivered | <https://code.claude.com/docs/en/chrome> | 2026-08-10 |
-
-The two `best-practices` rows share only their slug: the platform page is the cross-product Agent
-Skills guide for skill bodies, the Claude Code page is the harness guide for CLAUDE.md, permissions,
-and sessions, and they are distinct documents, so cite the one you mean by its full URL.
-
-## Distribution / marketplace
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Create a marketplace | <https://code.claude.com/docs/en/plugins/create-marketplace> | 2026-10-07 |
-| Host and maintain a marketplace | <https://code.claude.com/docs/en/plugins/host-marketplace> | 2026-10-07 |
-| Marketplace reference (`marketplace.json`, plugin and marketplace sources) | <https://code.claude.com/docs/en/plugins/marketplace-reference> | 2026-10-07 |
-| Manage plugins for your organization (managed settings, seeding) | <https://code.claude.com/docs/en/plugins/org> | 2026-10-07 |
-| GitHub Enterprise Server: marketplaces on a self-hosted instance, and how `owner/repo` resolves | <https://code.claude.com/docs/en/github-enterprise-server> | 2026-08-10 |
-| Install and manage plugins | <https://code.claude.com/docs/en/plugins/install> | 2026-10-07 |
-| Plugin dependencies (version constraints) | <https://code.claude.com/docs/en/plugins/dependencies> | 2026-10-07 |
-| Recommend plugins for your org (plugin relevance) | <https://code.claude.com/docs/en/plugins/relevance> | 2026-10-07 |
-| Recommend your plugin from your CLI (plugin hints) | <https://code.claude.com/docs/en/plugins/cli-hints> | 2026-10-07 |
-| Plugins in the Agent SDK | <https://code.claude.com/docs/en/agent-sdk/plugins> | 2026-08-06 |
-
-The Agent SDK's own skills/hooks/subagents/MCP pages (`agent-sdk/skills`, `agent-sdk/hooks`,
-`agent-sdk/subagents`, `agent-sdk/mcp`) describe those concepts for custom SDK-built agent hosts, not
-for authoring or distributing a Claude Code CLI plugin, and are deliberately out of scope here. Only
-`agent-sdk/plugins` is in scope, because it covers how this repo's plugins behave when loaded by an
-SDK-based host.
-
-## Configuration / settings
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Settings | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
-| Server-managed settings | <https://code.claude.com/docs/en/server-managed-settings> | 2026-08-06 |
-| Control MCP server access for your organization | <https://code.claude.com/docs/en/managed-mcp> | 2026-08-06 |
-| Memory: CLAUDE.md, `.claude/rules/`, auto memory | <https://code.claude.com/docs/en/memory> | 2026-08-06 |
-| The `.claude` directory | <https://code.claude.com/docs/en/claude-directory> | 2026-08-06 |
-| Permissions | <https://code.claude.com/docs/en/permissions> | 2026-08-12 |
-| Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-12 |
-| Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-12 |
-| Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-10 |
-
-## Cloud sessions
-
-This repository's own cloud setup is in [cloud-sessions.md](cloud-sessions.md) and
-[cloud-fleet-setup.md](cloud-fleet-setup.md); these are the pages they point at.
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Use Claude Code in the cloud: `--cloud`, `--teleport`, auto-fix, limitations | <https://code.claude.com/docs/en/claude-code-on-the-web> | 2026-10-11 |
-| Get started with Claude Code in the cloud: connect GitHub, `/web-setup`, setup troubleshooting | <https://code.claude.com/docs/en/web-quickstart> | 2026-10-11 |
-| Configure cloud environments: network access, setup scripts, caching, installed tools, GitHub proxy | <https://code.claude.com/docs/en/cloud-environments> | 2026-10-11 |
-| Routines: scheduled, API, and GitHub-triggered cloud runs | <https://code.claude.com/docs/en/routines> | 2026-10-11 |
-| Remote Control vs cloud sessions | <https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions> | 2026-10-11 |
-
-## Prompting doctrine (platform docs)
-
-The instruction text a plugin ships, covering skill bodies, agent definitions, hook-injected prose,
-and embedded sample prompts, is authored against these pages. They live on `platform.claude.com`
-(model behavior), not `code.claude.com` (harness behavior); the platform docs' own self-updating
-master list is
-[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Prompting best practices (all current models) | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices> | 2026-08-08 |
-| Prompting Claude Fable 5.1 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1> | 2026-10-01 |
-| Prompting Claude Fable 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> | 2026-08-08 |
-| Prompting Claude Opus 5.5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5> | 2026-09-23 |
-| Prompting Claude Sonnet 5.5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5> | 2026-10-01 |
-| Prompting Claude Sonnet 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5> | 2026-08-08 |
-| Prompting Claude Opus 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5> | 2026-08-08 |
-| Prompting Claude Opus 4.8 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8> | 2026-08-08 |
-| Thinking (adaptive thinking, `display`, disable-rejection set, sampling-param 400 set) | <https://platform.claude.com/docs/en/build-with-claude/thinking> | 2026-08-08 |
+- **Prompting doctrine.** The instruction text a plugin ships (skill bodies, agent definitions,
+  hook-injected prose, embedded sample prompts) is authored against the platform prompting pages,
+  not the harness pages.
+- **Two `best-practices` pages.** The platform page
+  (<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>) is the
+  cross-product Agent Skills guide for skill bodies; the Claude Code page
+  (<https://code.claude.com/docs/en/best-practices>) is the harness guide for CLAUDE.md,
+  permissions, and sessions. They share only their slug, so cite the one you mean by its full URL.
+- **The changelog.** The prose pages can lag
+  [the changelog](https://code.claude.com/docs/en/changelog): a behavior can change in a release
+  and reach the topic page a release or more later, and when the two disagree the changelog is the
+  one that matches the running harness. The rendered page summarizes; fetch the raw markdown
+  (`…/changelog.md`, or the upstream `CHANGELOG.md`) when you need a byte-exact version-pinned
+  quote, because a summarizing fetch of this page has produced inconsistent readings of the same
+  entries. A changelog citation records what changed **in a version**, so always pin the version,
+  and pair it with the topic page rather than replacing it, since the topic page stays
+  authoritative for mechanism and semantics.
+- **JSON Schemas.** CI validates against these by URL and never treats them as a load-time
+  contract: `marketplace.json` →
+  [`https://json.schemastore.org/claude-code-marketplace.json`](https://json.schemastore.org/claude-code-marketplace.json),
+  `plugin.json` →
+  [`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)
+  (published on SchemaStore, sourced from the same plugin system the docs describe). `plugin.json`
+  files carry no `$schema` key: claude.ai's marketplace sync strips it with a warning, and Claude
+  Code ignores it at load time.
 
 ## Evaluation guidance (platform docs)
 
 This marketplace authors model-graded eval fixtures for its skills (see the migration playbook's
-eval warrant policy) and ships the `evals` plugin distilling this guidance, so the platform-side
-evaluation pages are plugin-relevant here alongside the prompting-doctrine rows above.
+eval warrant policy) and ships the `evals` plugin distilling this guidance.
 
 | Page | Official doc page | As of |
 |---|---|---|
 | Define success criteria and build evaluations | <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests> | 2026-08-08 |
 | Evals cookbook (source: `anthropics/claude-cookbooks` `misc/building_evals.ipynb`) | <https://platform.claude.com/cookbook/misc-building-evals> | 2026-08-08 |
 
-## Reference / schemas
-
-| Page | Official doc page | As of |
-|---|---|---|
-| Docs index (discover any other page) | <https://code.claude.com/docs/llms.txt> | 2026-08-06 |
-| CLI reference | <https://code.claude.com/docs/en/cli-reference> | 2026-08-06 |
-| Error reference | <https://code.claude.com/docs/en/errors> | 2026-08-06 |
-| Glossary | <https://code.claude.com/docs/en/glossary> | 2026-08-06 |
-| Release changelog: per-version behavior changes | <https://code.claude.com/docs/en/changelog> | 2026-08-06 |
-
-**On citing the changelog.** It is indexed here because the prose pages can lag it: a behavior can
-change in a release and reach the topic page a release or more later, and when the two disagree the
-changelog is the one that matches the running harness. Two handling rules follow. First, the
-rendered page summarizes; fetch the raw markdown (`…/changelog.md`, or the upstream
-`CHANGELOG.md`) when you need a byte-exact version-pinned quote, because a summarizing fetch of this
-page has produced inconsistent readings of the same entries. Second, a changelog citation records
-what changed **in a version**, so always pin the version, and pair it with the topic page rather than
-replacing it, since the topic page stays authoritative for mechanism and semantics.
-
-Machine-readable JSON Schemas, which CI validates against by URL and never treats as a load-time
-contract: `marketplace.json` →
-[`https://json.schemastore.org/claude-code-marketplace.json`](https://json.schemastore.org/claude-code-marketplace.json),
-`plugin.json` →
-[`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)
-(published on SchemaStore, sourced from the same plugin system these pages document).
-`plugin.json` files carry no `$schema` key. claude.ai's marketplace sync strips it with a warning,
-and Claude Code ignores it at load time.
+Each row's **As of** date is when the page was last read live; a fetch that no longer matches a row
+is that row's recheck trigger.

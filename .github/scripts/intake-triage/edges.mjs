@@ -74,10 +74,10 @@ export function textBlockers(body, repository) {
   };
   const lines = String(body ?? "").replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
   const defs = new Map();
-  for (const def of lines) {
-    const found = /^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]*)/.exec(def);
-    if (found && !defs.has(found[1].toLowerCase())) {
-      defs.set(found[1].toLowerCase(), found[2]);
+  for (const line of lines) {
+    const def = /^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]*)/.exec(line);
+    if (def && !defs.has(def[1].toLowerCase())) {
+      defs.set(def[1].toLowerCase(), def[2]);
     }
   }
   const linked = (target) => (target !== undefined && local.test(target) ? ` ${target} ` : " ");
@@ -171,6 +171,10 @@ async function addEdges({ github, repository, number, blockers, log }) {
   const ids = [];
   const result = { written: [], skipped: [], missed: [], unwritten: [], undeleted: [] };
   const skip = (blocker, why) => result.skipped.push({ number: blocker, why });
+  const wrote = (blocker, id) => {
+    result.written.push(blocker);
+    ids.push({ blocker, id });
+  };
   const miss = (blocker, error) => {
     if (!unwritable(error)) {
       throw error;
@@ -184,24 +188,19 @@ async function addEdges({ github, repository, number, blockers, log }) {
   if (wanted.length === 0) {
     return { result, ids };
   }
+  // The blockers past the cap are skipped after the rest, in their order.
+  const done = () => {
+    wanted.slice(MAX_EDGES).forEach((blocker) => skip(blocker, `past the first ${MAX_EDGES}`));
+    return { result, ids };
+  };
   let existing;
   try {
     existing = new Set((await paginate(github, `${base}/dependencies/blocked_by`)).map((issue) => issue?.number));
   } catch (error) {
-    for (const [index, blocker] of wanted.entries()) {
-      if (index < MAX_EDGES) {
-        miss(blocker, error);
-      } else {
-        skip(blocker, `past the first ${MAX_EDGES}`);
-      }
-    }
-    return { result, ids };
+    wanted.slice(0, MAX_EDGES).forEach((blocker) => miss(blocker, error));
+    return done();
   }
-  for (const [index, blocker] of wanted.entries()) {
-    if (index >= MAX_EDGES) {
-      skip(blocker, `past the first ${MAX_EDGES}`);
-      continue;
-    }
+  for (const blocker of wanted.slice(0, MAX_EDGES)) {
     if (existing.has(blocker)) {
       skip(blocker, "the edge is already there");
       continue;
@@ -231,8 +230,7 @@ async function addEdges({ github, repository, number, blockers, log }) {
         // copy after a 5xx that GitHub did apply is refused, which the 422
         // branch reads back as the run's own edge.
         await github("POST", `${base}/dependencies/blocked_by`, { issue_id: issue.id }, {}, { resendOnce: true });
-        result.written.push(blocker);
-        ids.push({ blocker, id: issue.id });
+        wrote(blocker, issue.id);
       } catch (error) {
         if (error instanceof GitHubError && error.status === 422 && CYCLE.test(`${error.message} ${error.detail ?? ""}`)) {
           // The reverse edge exists, as when a person reversed an order a
@@ -250,8 +248,7 @@ async function addEdges({ github, repository, number, blockers, log }) {
             continue;
           }
           if (landed) {
-            result.written.push(blocker);
-            ids.push({ blocker, id: issue.id });
+            wrote(blocker, issue.id);
           } else {
             skip(blocker, "GitHub refused the edge");
           }
@@ -261,5 +258,5 @@ async function addEdges({ github, repository, number, blockers, log }) {
       }
     }
   }
-  return { result, ids };
+  return done();
 }

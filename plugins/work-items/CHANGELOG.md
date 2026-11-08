@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.5.0] - 2026-11-08
+
+### Changed
+
+- `/work-items:work` and the work-loop lane read each candidate's priority from the org `Priority` issue field, falling back to its `priority:` label so items without a field value keep their rank. `work_priority_order` no longer needs the `priority:` form: an entry may name a field option such as `high`, compared case-insensitively.
+
+- The default hold labels floor `needs-owner-decision` and `needs-reporter-info` beside `status: needs-decision` and `status: needs-info`, and the morning brief reads the decision queue under the new name once the repository has renamed it. A bare `needs-owner-decision` label now holds an item, which it did not before.
+
+### Fixed
+
+- The `get-statuses` verb honors `--field` for every field but `Work status` under `config.github.status_trust`; it used to return the Work status regardless of the field asked for.
+
+## [12.4.1] - 2026-11-08
+
+### Changed
+
+- `/work-items:morning-brief` takes a lane run's failure class, turns, turn cap and models from its lane-outcome records (the JSON after the `lane-outcome` marker in a job annotation) and no longer reads the legacy `class=`, `turns=`, `max-turns=`, `models=` and `profile=` tokens. A run whose annotations carry no record counts as `other` when it failed and is left out of the model-usage table. The free-text turn-cap fallbacks are unchanged. The record names no models profile, so the model-usage table's profile is `unknown`.
+- The Lanes rows count `review-unposted` failures as their own class and add `shell-failed=N` for runs with no working shell (a record with `shellFailed: true`, or of class `shell-failed`).
+
 ## [12.4.0] - 2026-11-08
 
 ### Changed

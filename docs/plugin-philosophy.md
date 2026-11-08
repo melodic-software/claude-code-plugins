@@ -159,6 +159,24 @@ name on 2026-09-10).
 - **Recheck trigger**: the guidance's list of names to avoid changes, the specification's example
   names change, or `claude plugin validate` starts rejecting a form.
 
+Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
+
+1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
+   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
+2. **Official docs and ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's
+   own `name` (not the marketplace name); mirror established Claude Code patterns.
+3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` /
+   `-helper`); no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit
+   from a sibling that would otherwise share its name; names track their semantic scope.
+
+The namespace (plugin `name`) is a noun, never a bare verb: a gerund for an activity domain
+(`planning`, `debugging`, `testing`), a plain noun for a subject domain (`source-control`,
+`architecture`, `work-items`). The noun must be true of every skill under it. A branded name
+signals a tool-scoped plugin and a plain domain noun a tool-agnostic one; no marketplace separates
+plugins by tool scope, so tool scope is never a structural split. Generic skill leaves (`help`,
+`list`, `update`) are safe under namespacing: the overloaded-term caution governs plugin identity,
+not a namespaced leaf.
+
 Verb meanings are fixed:
 
 | Verb | Contract |
@@ -180,6 +198,20 @@ describes the person's workflow around the skill rather than what the skill does
 names no second step keeps the name: `in` before a place (`continue-in-background`), or `or`
 between alternatives the skill itself weighs (`reuse-or-replace`).
 
+`/name:name` doubling is a naming defect, not an idiom: one of the two names is failing at its job,
+the namespace not naming the domain or the skill not naming its action. Fix it by, in preference
+order: rename the skill to its real action verb; rename the plugin to its domain noun; decompose,
+when the single skill hides distinct discovery intents (the split rule in the migration playbook's
+[Organization](migration-playbook.md#organization-one-plugin-per-cohesive-concern) section). Two
+echoes are honest naming, not doubling, and are accepted: **root-echo**, where the domain's core
+action shares the domain's root word (`implementation:implement`, `code-tidying:tidy`,
+`work-items:work`), and **wrapper-echo**, the single-skill vendor-CLI wrapper exception below
+(`firecrawl:firecrawl`, `playwright:playwright`). A vendor-CLI plugin that decomposes into several
+skills names them after the vendor's own CLI verbs, which the consumer already knows:
+a playwright decomposition would name a `test` skill after `npx playwright test`, and a firecrawl decomposition would use
+`scrape` / `crawl` / `map` per `firecrawl-cli`. While it remains a single-skill router,
+wrapper-echo applies instead.
+
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a knowledge router named by
@@ -199,9 +231,20 @@ and orphans users arriving from the upstream repo). The recorded `bro` decline s
 for a second entry carrying nothing but `wait-what`'s argument, for a capability this marketplace
 already shipped three times over, which is the blanket sanction the closing rule forbids.
 Every exception is an entry on this list, decided per name. A name class is never
-blanket-sanctioned. A heavier execution tier of a skill is not a `-deep` sibling name either: it is
-a `deep` argument or a runtime choice of the base skill, per the skill-family rule in the
-[migration playbook](migration-playbook.md).
+blanket-sanctioned.
+
+Sibling skills sharing a base concept put the base first (`design`, `design-handoff`, `implement`,
+`implement-dispatch`), so prefix typeahead, which groups by leaf name, and sorted listings group the
+family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`). A
+structural variant earns a new sibling name; a depth or intensity variant takes an argument, never
+a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
+runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
+(the `Workflow` tool): the base skill's main-context half chooses the tier before it dispatches,
+and a dispatched run of the base skill never selects it. So the tier is a `deep` argument or an
+automatic choice inside the base skill, never a `-deep` sibling. That is why `discovery` folded
+`explore-deep` into `explore` and `research-deep` into `research`, and why `discipline` folded
+`do-your-research-deep` and `recheck-against-upstream-deep` into their base skills. Only a tier no
+entry point of the base skill can reach earns a sibling, and none does today.
 
 A plugin skill declares no frontmatter `name`. We rely on the directory supplying the name, and
 the directory here is already the name the skill is documented and invoked by, so declaring it
@@ -220,7 +263,17 @@ collision registry from the commands that actually resolve. That is why `skill-q
 fails a divergent `name` and only warns on a redundant one.
 Never degrade a name to dodge a built-in command: plugin skills are namespaced and cannot collide
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
-namespaced form is the plugin skill's only command.
+namespaced form is the plugin skill's only command. The catalog's historical dodge names
+(`quality-gate`, `fanout`, `batch-simplify`) stand or evolve on their own merits, not out of
+collision fear. The one residual caution is model-side: avoid a skill leaf name *identical* to a
+bundled skill's (auto-invocation ambiguity when the model matches descriptions); similarity alone
+is fine.
+
+- **Pointer**: for why a plugin skill never collides, see
+  <https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name>.
+- **As of**: 2026-11-08
+- **Recheck trigger**: that table's plugin-skill row stops resolving a shared name by the plugin
+  namespace.
 
 Resolution settled, **display** follows from it. We rely on a plugin skill keeping its plugin
 prefix in autocomplete whether or not it declares `name`. A version-dependent display quirk for a
@@ -415,6 +468,24 @@ from user settings, `--settings`, and managed settings
 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys, or the
 `pluginConfigs` scope changes). It ignores project and local settings for this key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
+
+Non-sensitive values sit readable in the user `settings.json` under `pluginConfigs[<id>].options`,
+so no secret goes there; a `sensitive` value goes to the platform's secure credential store instead
+(the `sensitive` bullet below covers platforms without a supported keychain). `${user_config.KEY}`
+substitutes in MCP and LSP server config, exec-form hook `args`, and skill and agent content (only
+non-sensitive values there). Shell-form hook commands, monitor commands, and MCP `headersHelper`
+reject it, so a shell-form hook reads `CLAUDE_PLUGIN_OPTION_<KEY>` from its environment. Our plugin
+hooks use no `${user_config.*}` token in any form (the Hooks row under
+[Component stances](#component-stances)).
+
+- **Pointer**: see
+  [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored),
+  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+  and
+  [Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell).
+- **As of**: 2026-11-08
+- **Recheck trigger**: a Claude Code release note or a fetch of those sections changes where values
+  are stored or which fields substitute or reject `${user_config.*}`.
 
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
 through a custom channel, whether an environment-variable toggle, a gitignored personal file, or a
@@ -746,16 +817,19 @@ the fleet does not converge onto one spelling (#3574).
 Four sanctioned shapes, picked by what the write installs and where it lands. The name follows the
 write and stays locally informative; the shape does not follow the name.
 
-| Shape | When | Live subactions: command and scope |
-|---|---|---|
-| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
-| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
-| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide), `install-model` (speech: `assets.py fetch` downloads the Kokoro model, tokenizer and English voices pinned in `kokoro-assets.json` into `${CLAUDE_PLUGIN_DATA}/models/`, each kept only when its sha256 matches) |
-| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer | `install-git-hooks` (typos-format, guardrails: `lib/git-hooks/install.mjs` copies each `git-hooks/entries.json` entry, its check lib and assets) |
+| Shape | When |
+|---|---|
+| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it |
+| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix |
+| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction |
+| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer |
 
 A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
 install one named tool, while `install-deps` and `install-build-deps` name a class.
+
+A write that installs nothing, such as a config file or a settings rule, is not an install
+subaction and carries no `install-` prefix: guardrails `identity-domains` and `read-deny`.
 
 **Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
 install path recorded in the consumer's repo, declines to install. It uses this shape, not a
@@ -780,17 +854,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 - **Decision:** install subactions fall into four shapes by what they install (consumer-repo
   dependency, machine-global CLI, plugin-owned dependencies, hook file); names are not converged;
   a refusal names the reasons that apply from the list and never excludes a sanctioned subaction.
-- **Pointer:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
-  (`install-ruff`), `plugins/biome-format/skills/setup/SKILL.md` (`install-biome`),
-  `plugins/markdown-format/skills/setup/SKILL.md` (`install-lint`),
-  `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
-  (`install-cli`, the two `npm install -g` commands above),
-  `plugins/knowledge/skills/setup/SKILL.md` (`install-deps`),
-  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
-  branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
-  `plugins/speech/skills/setup/SKILL.md` (`install-model`),
-  `plugins/typos-format/skills/setup/SKILL.md` and `plugins/guardrails/skills/setup/SKILL.md`
-  (`install-git-hooks`, hook files). The
+- **Pointer:** #3574. What each live subaction installs, and where, is stated in the setup skill
+  that declares it: each `plugins/*/skills/setup/SKILL.md` naming an `install-*` subaction. The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
@@ -847,7 +912,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/contracts/setup-lifecycle/`](contracts/setup-lifecycle/README.md) |
 | Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
 | Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/contracts/plugin-reconfiguration/`](contracts/plugin-reconfiguration/README.md) |
-| Commit-convention enforcement seam | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
+| Commit-convention enforcement boundary | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
@@ -982,8 +1047,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions encode an earlier model's weaknesses as a cap on
-  what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
+  which limits what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1274,10 +1339,10 @@ An implementation phase the plan routes `sonnet` as well-scoped drops one tier, 
 `implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
 or complex phases stay on `implementation:implementer` at the strong tier.
 
-Every agent definition in this repository pins `model`, so the heavy default is explicit. An agent that omits it
-falls through the harness's resolution order and, on a machine with no consumer default, runs on
-the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
-set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
+Every agent definition in this repository pins `model`, so the heavy default is explicit. Where an
+agent that omits it lands is in [multi-agent's keys](../plugins/multi-agent/reference/config.md#keys).
+Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`, set through the settings
+`env` map. We rely on it ranking below both the per-invocation `model`
 parameter and frontmatter, so it decides only for a subagent neither binds: a structural
 frontmatter binding holds against it, and the knob is a default for unbound subagents rather than
 an override.
@@ -1322,9 +1387,8 @@ For generic agents in a multi-agent run, the per-role defaults built on these ro
 | Mechanical work an objective failure signal backs | `sonnet` |
 | Bulk mechanical sweeps | `sonnet` |
 
-No row names `haiku`, and no role routes to it until it passes this repository's routing eval, and the
-[routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns that rule and the effort
-a Haiku role runs at. The release evidence behind it is recorded in
+No row names `haiku`: the [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns
+when a role may route to it and the effort it then runs at. The release evidence behind it is recorded in
 [docs/upstream/haiku-5-5-launch.md](upstream/haiku-5-5-launch.md).
 
 - **Pointer:** for what each alias resolves to on each provider, see
@@ -1463,9 +1527,8 @@ same depth on two models):
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
   change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Never on the
-  `haiku` alias: no lane routes there until it passes the eval the
-  [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) names, and a Haiku role then
-  runs at `high`. The two ladders also do not compose on that alias. Haiku 5.5 takes an effort
+  `haiku` alias: the [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns
+  whether a lane may route there and at what level. The two ladders also do not compose on that alias. Haiku 5.5 takes an effort
   level on the Anthropic API, while `haiku` still resolves to Haiku 4.5, which takes none, on
   Amazon Bedrock, Google Cloud's Agent Platform (Vertex AI), Microsoft Foundry and Claude Platform
   on AWS, so one pin does not mean one level across our operators (Pointer: when a lane weighs a
@@ -1536,28 +1599,20 @@ same depth on two models):
     models, providers or versions keep the cache across one.
 
 **Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
-a session tuned down for cost does not silently cheapen a worker. The twelve `model: inherit` agents
-pin neither: `discovery` `docs-fetcher` and `sweep-worker`; `docs-hygiene` `compare-labeler`;
-`multi-agent` `docs-fetcher`, `drift-checker` and `drift-reader`; `review` `lane-verifier` and
-`stage-normalizer`; `testing` `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each
-leaves the model to its dispatcher (a workflow's role map, a CI lane, or a per-call value), and so
-leaves the level to that dispatch or the session. Each other agent pins the level that model config's task rows give its
-kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
-`discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
-`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
-`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Eight pin
-`effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
-`planning` `upload-reader`, because it reads and summarizes one file it is handed;
-`implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
-at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
-it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
-`ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
-work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
-scope, and checking named areas of the development process. No pin goes below `medium`, because in this repository's judgment a low-effort executor stops
-detecting that it is stuck (the upstream pointers are under the [effort floor](#effort-floor)). A frontmatter pin is what holds a named agent's lane for any dispatch that
-passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
-writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
+a session tuned down for cost does not silently cheapen a worker. The `model: inherit` agents pin
+neither: `app-control` `source-reader`; `discovery` `docs-fetcher` and `sweep-worker`;
+`docs-hygiene` `compare-labeler`; `knowledge` `digest-worker`; `multi-agent` `docs-fetcher`,
+`drift-checker` and `drift-reader`; `review` `lane-verifier` and `stage-normalizer`; `testing`
+`green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each leaves the model to its
+dispatcher (a workflow's role map, a CI lane, or a per-call value), and so leaves the level to that
+dispatch or the session. Every other agent pins the level its lane rule above gives it. In
+`plugins/implementation`, `phase-verifier` pins `high`; `implementer` pins `medium`, because a phase
+brief is scoped feature work and its verifier runs at `high`; and `scoped-implementer` pins
+`medium`, because a plan routes only well-scoped work to it. The per-pin rows below give every other
+pin and its reason. No pin goes below `medium`, because in this repository's judgment a low-effort
+executor stops detecting that it is stuck (the upstream pointers are under the
+[effort floor](#effort-floor)). A pin holds for every dispatch that passes no `effort` of its own
+(see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`, and `git grep -L` for the agents with no
@@ -1589,6 +1644,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 
 | Agent | Model | Pin | Row | Why that row |
 |---|---|---|---|---|
+| `code-tidying` `comment-reviewer` | `sonnet` | `medium` | `medium` | Makes comment-only edits in one scope it is handed, each proven to leave code unchanged |
 | `discovery` `explorer` | `sonnet` | `medium` | `medium` | Reads and indexes a scope it is handed |
 | `discovery` `intent-tracer` | `opus` | `high` | `high` | Reconstructed rationale feeds decisions |
 | `discovery` `research-verifier` | `opus` | `high` | `high` | Verdict on a research artifact |
@@ -1622,7 +1678,8 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 `effort` included. A Workflow script's `agent()` call passes `opts.effort`, and `opts.model`, for
 that call alone, and an Agent-tool call that spawns a non-fork subagent passes its own `effort` for
 that dispatch alone, replacing the pin. A `maxEffortLevel` setting or an organization effort cap
-also limits every pin.
+also limits every pin; how the caps combine is in
+[multi-agent: hard cap](../plugins/multi-agent/reference/config.md#hard-cap).
 
 - **Pointer:** for the variable, see
   [environment variables](https://code.claude.com/docs/en/env-vars#variables); for how a pin ranks
@@ -1768,23 +1825,20 @@ and the release.
 A Workflow script this repository ships follows these rules;
 `plugins/review/workflows/fanout-sweep.js` is the reference.
 
-- **Aliases only.** A script names a model by alias, never by model id, for the reason the
-  [tier table](#model-tiers) gives.
-- **Roles arrive through `args.roles`.** The launching skill runs
-  `/multi-agent:route all session=<alias>` and passes the printed `roles` object unchanged. A stage
-  that runs one agent reads a role's `single` variant; a stage that runs several reads its `fanout`
-  variant. The keys are in `plugins/multi-agent/reference/config.md`.
-- **Built-in fallbacks.** A script runs without `args.roles`: it carries a fallback for each role it
-  reads and logs that the fallbacks applied, so the multi-agent plugin stays optional.
-- **`inherit` means omit `opts.model`.** Effort is always explicit on a generic `agent()` call, as
-  [Effort tiers](#effort-tiers) sets out.
+- **Routing through the multi-agent plugin.** Aliases only, roles through `args.roles` with a
+  `single` variant for a one-agent stage and a `fanout` variant otherwise, built-in fallbacks when
+  `args.roles` is absent, `inherit` meaning omit `opts.model`, and an explicit `effort` on every
+  generic `agent()` call are owned by
+  [multi-agent: how a workflow uses it](../plugins/multi-agent/README.md#how-a-workflow-uses-it) and
+  the [keys](../plugins/multi-agent/reference/config.md#keys); read them before writing a script's
+  routing. A script that runs on its fallbacks logs that they applied.
 - **Named agents keep their pins.** A call by `agentType` passes neither `model` nor `effort`, and
   the role map does not govern it. The exception is a named agent whose definition inherits the
   model and pins no effort, used only to narrow a stage's tools: the call passes the role's variant
   as a generic call would.
-- **Fan-out frontier guard.** A stage that runs more than one agent never runs them on a frontier
-  model, so a Fable root never fans out into Fable agents. When the session model is unknown, the
-  fan-out names `opus`. A single synthesis or judge agent may inherit.
+- **Fan-out frontier guard.** A stage that runs more than one agent never runs on a frontier model;
+  the rule, its default and its opt-out are owned by
+  [multi-agent: the fan-out guard](../plugins/multi-agent/reference/config.md#the-fan-out-guard).
 - **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
   default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
 - **Unattended runs stay small,** because upstream decides which runs pause at a usage limit
@@ -1816,9 +1870,9 @@ cannot assume a plugin layout.
 
 ## Authoritative references
 
-The complete categorized index of plugin-relevant official pages is
-[`docs/official-docs.md`](official-docs.md); `https://code.claude.com/docs/llms.txt` is the
-authoritative self-updating master list. Each list below names the pages this document rests on
+`https://code.claude.com/docs/llms.txt` is the authoritative self-updating list of official
+pages, and [`docs/official-docs.md`](official-docs.md) holds this repository's rules for citing
+them. Each list below names the pages this document rests on
 and the topics we read each one for. Recheck trigger for both lists: a page moves, or stops
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):

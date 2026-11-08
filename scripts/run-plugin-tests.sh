@@ -144,6 +144,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 runner="$script_dir/${BASH_SOURCE[0]##*/}"
 # shellcheck source=lib/test-git-env.sh
 . "$script_dir/lib/test-git-env.sh"
+# shellcheck source=lib/read-list.sh
+. "$script_dir/lib/read-list.sh"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
@@ -366,21 +368,18 @@ done
 # before anything runs so a stale entry fails the run up front rather than
 # after minutes of suites.
 read_suite_list() {
-  local file="$1" line
+  local file="$1" line entries=()
   local -n into="$2"
   [[ -f "$file" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -n "$line" ]] || continue
+  read_list::into entries "$file" --comments inline || exit 2
+  for line in ${entries[@]+"${entries[@]}"}; do
     if [[ -z "${discovered[$line]+x}" ]]; then
       echo "error: $file names '$line', which matches no discovered suite; remove the stale entry" >&2
       exit 2
     fi
     # shellcheck disable=SC2034 # a nameref; the caller's array is what it writes.
     into["$line"]=1
-  done <"$file"
+  done
 }
 declare -A is_serial=() is_advisory=()
 read_suite_list "$SERIAL_LIST" is_serial

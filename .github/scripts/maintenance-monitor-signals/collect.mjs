@@ -125,6 +125,7 @@ export const JOBS_FILE = "jobs.json";
 export const JOBS_VERSION = 1;
 const jobsKey = (id, attempt) => `${id}:${attempt}`;
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const isTimeOrNull = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
 // A job with only the fields the sources read.
 const slimJob = (job) => ({
   id: job.id,
@@ -156,9 +157,8 @@ export const jobsCarryFile = (repo, runs, held = NO_HELD, episodes = NO_EPISODES
 export function parseEpisodeCarry(text, repo, now) {
   const data = JSON.parse(text);
   const episodes = data?.episodes ?? NO_EPISODES;
-  const time = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
-  const entry = (e) => isObject(e) && time(e.onSince ?? null) && time(e.clearSince ?? null);
-  if (data?.repository !== repo || !isObject(episodes.signals) || !time(episodes.at) || !Object.values(episodes.signals).every(entry)) {
+  const entry = (e) => isObject(e) && isTimeOrNull(e.onSince ?? null) && isTimeOrNull(e.clearSince ?? null);
+  if (data?.repository !== repo || !isObject(episodes.signals) || !isTimeOrNull(episodes.at) || !Object.values(episodes.signals).every(entry)) {
     throw new Error("the carried signal timers have an unexpected shape");
   }
   if (episodes.at === null || now.getTime() - Date.parse(episodes.at) > RUN_LOOKBACK_HOURS * 3600_000) return {};
@@ -172,15 +172,14 @@ export function parseEpisodeCarry(text, repo, now) {
 export function parseHeldCarry(text, repo) {
   const data = JSON.parse(text);
   const held = data?.held ?? NO_HELD;
-  const time = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
   const entry = (h) =>
     HOLD_LANES.some((l) => l.lane === h?.lane) &&
     Number.isSafeInteger(h.runId) && h.runId > 0 &&
     typeof h.url === "string" &&
     (h.item === null || typeof h.item === "string") &&
     typeof h.reason === "string" &&
-    typeof h.at === "string" && time(h.at);
-  if (data?.repository !== repo || !Array.isArray(held?.runs) || !held.runs.every(entry) || !time(held.from) || !time(held.through)) {
+    typeof h.at === "string" && isTimeOrNull(h.at);
+  if (data?.repository !== repo || !Array.isArray(held?.runs) || !held.runs.every(entry) || !isTimeOrNull(held.from) || !isTimeOrNull(held.through)) {
     throw new Error("the carried held runs have an unexpected shape");
   }
   return { runs: held.runs, from: held.from, through: held.through };
@@ -233,6 +232,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   const ownHead = (run) => run.head_repository?.full_name === repo;
   const trustedPrMerge = (run) => TRUSTED_EVENTS.has(run.event) && run.head_branch === "main" && ownHead(run);
   const failedJobs = (jobs) => jobs.filter((j) => ["failure", "timed_out"].includes(j.conclusion));
+  const levelAndMessage = (a) => ({ level: a.annotation_level, message: a.message });
+  const budgetReading = (a) => (a.title === "api-budget" ? parseBudget(a.message) : null);
   const created = `${iso(new Date(windowStart.getTime() - RUN_LOOKBACK_HOURS * 3600_000))}..${iso(now)}`;
   const completedInWindow = (run) => {
     const at = Date.parse(run.updated_at);
@@ -263,7 +264,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const merge = (await jobsOf(run)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
-        const reading = a.title === "api-budget" ? parseBudget(a.message) : null;
+        const reading = budgetReading(a);
         if (reading) data.budgetReadings.push({ ...reading, runId: run.id, url: run.html_url });
       }
     }
@@ -292,7 +293,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (read >= LIMITS.laneMintJobs) return;
         read += 1;
         for (const a of await annotationsOf(job.id)) {
-          const reading = a.title === "api-budget" ? parseBudget(a.message) : null;
+          const reading = budgetReading(a);
           if (reading?.phase === "mint" && reading.name === "lanes-app") data.budgetReadings.push({ ...reading, runId: run.id, url: run.html_url });
         }
       }
@@ -333,7 +334,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     for (const run of [...kept.values()].slice(0, LIMITS.failedRuns)) {
       const annotations = [];
       for (const job of failedJobs(await jobsOf(run)).slice(0, LIMITS.failedJobsPerRun)) {
-        for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });
+        for (const a of await annotationsOf(job.id)) annotations.push(levelAndMessage(a));
       }
       data.failedRuns.push({ id: run.id, url: run.html_url, name: run.name, event: run.event, annotations });
     }
@@ -354,8 +355,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const jobs = [];
     if (["failure", "timed_out"].includes(run.conclusion)) {
       for (const job of failedJobs(await jobsOf(run)).slice(0, LIMITS.mainFailedJobs)) {
-        const annotations = (await annotationsOf(job.id)).map((a) => ({ level: a.annotation_level, message: a.message }));
-        jobs.push({ name: job.name, conclusion: job.conclusion, annotations });
+        jobs.push({ name: job.name, conclusion: job.conclusion, annotations: (await annotationsOf(job.id)).map(levelAndMessage) });
       }
     }
     data.mainRun = {
@@ -643,9 +643,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (total > LIMITS.stalledPulls) {
       gaps.push(`stalled stops: ${total} open pull requests, only the ${LIMITS.stalledPulls} most recently updated read`);
     }
-    const pulls = (listed.pullRequests?.nodes ?? []).map((node) => ({
+    const pulls = (listed.pullRequests.nodes ?? []).map((node) => ({
       number: node.number,
-      head: { sha: node.headRefOid },
+      head: node.headRefOid,
       comments: (node.comments?.nodes ?? []).map(restComment),
       older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
     }));
@@ -657,7 +657,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         if (c.user?.login !== agentIdentity) return false;
         const body = String(c.body ?? "").replaceAll("\r\n", "\n");
         const first = body.split("\n")[0];
-        return (LANE_STOPPED.test(first) && STOP_FIELD("Head").exec(body)?.[1] === pull.head.sha) || CLEARED.exec(first)?.[2] === pull.head.sha;
+        return (LANE_STOPPED.test(first) && STOP_FIELD("Head").exec(body)?.[1] === pull.head) || CLEARED.exec(first)?.[2] === pull.head;
       });
     for (let round = 0; round < LIMITS.stalledCommentRounds; round += 1) {
       const deeper = pulls.filter((pull) => pull.older !== null && !marks(pull));
@@ -674,8 +674,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       }
     }
     for (const pull of pulls) {
-      const head = pull.head?.sha;
-      const comments = pull.comments;
+      const { head, comments } = pull;
       // Each stop on this head: the newest lane-stopped comment per activity,
       // or a cleared label whose reason is now routed to a failing status.
       const stops = new Map();

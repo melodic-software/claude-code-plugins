@@ -37,11 +37,11 @@ All schema and behavior claims below were verified against the official docs on 
 "Reintegration" section's marketplace-settings claims, `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json`, on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
-Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
-2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate". Recheck a section when a
-Claude Code release note changes the plugin schema, skill-listing, or marketplace-settings behavior
-it states.
+Code 2.1.207; the Organization section's skill-listing claims on 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
+Re-verify fresh before acting, per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority). Recheck a
+section when a Claude Code release note changes the plugin schema, skill-listing, or
+marketplace-settings behavior it states.
 
 ## Organization: one plugin per cohesive concern
 
@@ -123,78 +123,9 @@ that way ("current state is evidence, never justification", `melodic-software/st
 
 ## Naming
 
-Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
-
-1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
-   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
-2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
-   `name` (not the marketplace name); mirror established Claude Code patterns.
-3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
-   no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit from a sibling
-   that would otherwise share its name; names track their semantic scope.
-
-Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`:
-
-- **The namespace (plugin `name`) is a noun, kebab-case, never a bare verb.** A **gerund** for an
-  activity domain (`planning`, `debugging`, `testing`); a **plain noun** for a subject domain
-  (`source-control`, `architecture`, `work-items`). Semantic accuracy binds the whole namespace:
-  the noun must be true of *every* skill under it.
-- **Skill name follows its KIND.** An action / user-invoked skill is an **action verb**
-  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill may be a **noun-phrase**
-  (`principles`, `methodology`). The verb heuristic scopes to action skills only. A `noun:noun`
-  invocation is correct for a knowledge skill.
-- **`/name:name` doubling is a naming defect, not idiomatic.** A stutter means one of the two names
-  is failing at its job: the namespace is not naming the domain, or the skill is not naming its
-  action. Fix it by, in preference order: rename the skill to its real action verb; rename the
-  plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
-  intents (per the Organization section's split rule above). Two exemptions:
-  **root-echo**, where the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`), and
-  **wrapper-echo**, a single-skill vendor-CLI wrapper whose one router skill repeats the tool
-  name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
-  Both are honest naming, not true doubling, and are accepted.
-- **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
-  first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
-  sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
-  A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
-  runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
-  (the `Workflow` tool): the base skill's main-context half chooses the tier
-  before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
-  `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
-  why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why
-  `discipline` folded `do-your-research-deep` and `recheck-against-upstream-deep` into their base
-  skills. Only a tier no entry point of the base skill can reach earns a sibling, and none does
-  today.
-- **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
-  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary:
-  `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
-  `scrape` / `crawl` / `map` per `firecrawl-cli`. The consumer already knows the vendor's verbs.
-  While it remains a single-skill router, the wrapper-echo exemption above applies instead.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `update`). The overloaded-term
-  caution governs plugin *identity*, not a namespaced skill leaf.
-- **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
-  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope,
-  so do not formalize such a split.
-
-**Built-in collisions never force a plugin skill's name.** "Plugin skills use a
-`plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
-changes the plugin-namespace sentence). A shadow-dodge name is never
-*required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
-`batch-simplify`) stand or evolve on their own merits, not out of collision fear.
-The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
-(auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
-
-**That namespace guarantee covers invocation, and the listing now carries it too.** The picker
-labels a row with the namespaced command it resolves, so a leaf name shared across plugins is told
-apart by its prefix rather than read identically; the plugin name reaches the reader a second time
-through the description, which renders as `(<plugin-name>) <description>`. See the philosophy's
-Naming section for the full display contract. Two consequences
-for this playbook: prefix typeahead groups a family by its **leaf** name, which is what the
-base-concept-first rule above is buying; and a deliberately shared leaf name (`setup` across every
-plugin that ships one) still asks the reader to scan prefixes, so each description's first clause
-has to name its object.
+Naming policy, from plugin and namespace names through skill families and built-in collisions, is
+[plugin philosophy § Naming](plugin-philosophy.md#naming). Apply it when choosing a migrated
+plugin's name and skill directories.
 
 ## Extensibility model: what works today
 
@@ -205,7 +136,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies: the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}`; hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`, and a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Which fields substitute or reject it, where values are stored, and which settings files are read: [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope) | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
@@ -232,9 +163,9 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array, since there is no
    `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
    storage, never `settings.json`.
-   Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
-   user settings, `--settings`, or managed settings only; project and local entries are ignored since
-   Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
+   Storage and the settings files read are in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
+   Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
    `file` type is a UI hint, not a validator: a `--config` value is stored verbatim with no existence
    check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
@@ -274,7 +205,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      cannot grow a profile without a file→folder reorg. Distinct from the concern-named folder above: that
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
      (profile axis), and the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
-     [`ai-briefing`](ai-briefing-design.md).
+     [`ai-briefing`](adr/0094-split-ai-briefing-into-an-engine-plugin-and-named-profiles.md).
    - **Resolution + override semantics, personal override naming, and the recommended consumer `.gitignore`
      line** are owned by [`docs/contracts/config-cascade/`](contracts/config-cascade/README.md).
      The layering axis is cross-cutting, so it is contracted once there rather than restated per
@@ -507,7 +438,8 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 - **A new `version` in `plugin.json` is the only delivery vehicle for copied installs.** A consumer
   who installed from a Git-hosted marketplace receives a change only after the plugin's semver
   `version` increases. The version is the update cache key, so an unreleased change never delivers,
-  even when its files changed (see "Shared code across plugins" below).
+  even when its files changed (see
+  [ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)).
 - **A pull request records the release in a changelog fragment, not in the version.** For a plugin
   listed in `scripts/fragment-plugins.txt`, a pull request adds
   `.changes/<plugin>/<branch-slug>-<8 hex>.md` with `scripts/new-changelog-fragment.sh <plugin>
@@ -638,7 +570,8 @@ costs a **local process spawn on every session that enables the plugin**, used o
 server spawns no local process but still auto-connects (its trust prompt + tool-schema context cost).
 Tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
 stdio spawn or the connect. That auto-start cost is why the default is **not** to ship MCP: exactly
-one marketplace plugin ships one (`miro`, the dedicated Miro board capability, below), and the
+one marketplace plugin ships one (`miro`, the dedicated Miro board capability, per
+[ADR 0092](adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md)), and the
 discriminator below keeps it rare, reserved for a plugin genuinely useless without its server. A
 credentialed SHIP additionally ships `defaultEnabled: false`, so its server does not auto-start for
 consumers who never opt in.
@@ -659,7 +592,7 @@ consumers who never opt in.
    server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn: an `npx`
    command needs a `cmd /c` wrapper on Windows (#58510 below), so prefer invoking a bundled
    `node <server>`, which sidesteps #58510 entirely. Two bundling mechanisms, ratified by the `miro`
-   SHIP (the first instance, below):
+   SHIP (the first instance):
    - **Single self-contained bundle (preferred).** An [esbuild](https://esbuild.github.io/) bundle
      of the TypeScript source and every runtime dependency into one `dist/index.min.js`, with no shipped
      `node_modules`, so no `NODE_PATH`. The source is the source of truth; the `.min.js` is committed
@@ -684,18 +617,15 @@ consumers who never opt in.
    repo-level.** Not a plugin concern.
 
 **Secrets go through `userConfig` `sensitive`.** A SHIP declares each secret as a `userConfig` entry with
-`sensitive: true` (masked input; macOS Keychain storage, or `~/.claude/.credentials.json` where no
-supported keychain exists) and substitutes it as `${user_config.KEY}`.
+`sensitive: true` (masked input, stored as
+[Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope) states)
+and substitutes it as `${user_config.KEY}`.
 But **where** it goes depends on transport: a **stdio** server takes it in `.mcp.json` `env`, while
 a **remote HTTP/SSE/WS** server takes it in `headers` / `headersHelper` (`env` only reaches a spawned
 stdio process, so an HTTP key placed in `env` never authenticates). medley's own config shows the
 split: `context7`/`ref` are HTTP and pass their key via `headers` (`x-api-key` / `x-ref-api-key`),
 whereas a stdio server like `perplexity` uses `env`. Keychain storage is shared with OAuth tokens
-(~2 KB total), so keep values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` →
-`miro_api_token` (stdio, `env`), `PERPLEXITY_API_KEY` → `perplexity_api_key` (stdio, `env`),
-`REF_API_KEY` → `ref_api_key` (HTTP, `headers`), `CONTEXT7_API_KEY` → `context7_api_key` (HTTP,
-`headers`). Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`) do not
-map, so those servers stay repo-level.
+(~2 KB total), so keep values small.
 
 **The medley launcher stack: only its Node-pinning layer is medley-local.** medley's
 `fnm exec + tools/mcp-launcher/launcher.js` stack solves two problems that generalize differently:
@@ -712,57 +642,9 @@ map, so those servers stay repo-level.
 So the `.nvmrc`/fnm layer stays medley-bound, but the Windows-`npx` concern travels with any
 `npx`-spawning SHIP.
 
-**Decision table for medley `.mcp.json` (14 servers, audited 2026-07-12).** Verdict is *plugin-carry*,
-not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json`
-`enabledMcpjsonServers`/`disabledMcpjsonServers` at audit time.
-
-| Server | Transport | Secret | Verdict | Basis |
-|---|---|---|---|---|
-| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro/server` (single source of truth, no copy left behind; one level below the plugin root since 2026-09-11 so no plugin-root lockfile triggers the automatic `npm ci` in a consumer's plugin cache), bundled to one `server/dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/server/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, Claude secure credential storage); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
-| aspire | stdio (`aspire` native) | none | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
-| azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
-| azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
-| ccusage | stdio | none | STAY | Live consumer `/harness-ops:observability`; CLI covers the need (rule 1) and harness-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
-| chrome-devtools | stdio | none | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
-| context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
-| github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR`, so not repo-agnostic |
-| microsoft-learn | http | none | STAY | `/discovery:research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
-| nuget | stdio (`dotnet dnx`) | none | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
-| openai-developer-docs | http | none | STAY | codex/OpenAI research; degraded-but-functional |
-| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/discovery:research` + ai-briefing; multi-consumer, degrades gracefully, and shipping would auto-spawn for all discovery sessions |
-| playwright | stdio | none | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
-| ref | http | `REF_API_KEY` | STAY | `/discovery:research` doc search; degraded-but-functional |
-
-**SHIP: 1. STAY: 13. DROP: 0.** Only `miro` clears the SHIP bar, and only once reframed as its own
-dedicated plugin (rule 2). The other 13 are CLI-first, degraded-but-functional (their consumer plugin
-already runs without them), or infra-bound. Every STAY server has a live consumer; the three disabled
-entries are deliberate documented opt-ins, not dead servers. firecrawl already migrated to
-`firecrawl-cli` (absent from `.mcp.json`), so it confirms rule 1 rather than being a 15th row.
-
-miro was the closest call and initially landed STAY when weighed as event-storming's optional
-dependency. The owner's 2026-07-12 direction reframed it: the Miro board capability becomes a
-**dedicated** `miro` plugin, and a dedicated server-wrapper plugin is useless without its server
-(rule 2 → SHIP). The original STAY objection, that bundling would auto-start a credentialed MCP for
-every event-storming session, is dissolved by `defaultEnabled: false` (the plugin installs disabled;
-event-storming keeps its structured-markdown default and consumes miro only when a consumer opts in).
-The mechanism is **cutover + bundle**: relocate the server's source into the plugin (the playbook's
-reintegration end-state, where the repo drops its in-repo copy), single-file esbuild bundle, `node <server>`
-over stdio, with no npm/registry publish, no consumer token wall, and no `npx` (#58510).
-
-**§2 first-party trust accept (miro SHIP).** Recorded here as the single SSOT per the security review:
-
-- **Vendor / provenance.** First-party: a thin wrapper (authored in-house) over Miro's official REST
-  API client (`@mirohq/miro-api`); `plugin.json` `author` = Melodic Software. Not a third-party remote
-  MCP (Miro's own `mcp.miro.com` was rejected for having no board-delete tool, and for being a
-  third-party remote-egress acceptance the playbook denies by default).
-- **Transport.** Local `stdio`, a per-session `node dist/index.min.js` process; no listening port, no
-  auto-connect to any remote MCP host.
-- **Data egress.** Only the Miro REST calls the consumer's own tool invocations make, to
-  `api.miro.com`, authenticated by the consumer's own token. No telemetry, no other outbound network.
-- **Token scope.** `MIRO_API_TOKEN` → `userConfig` `miro_api_token`, `sensitive` (macOS Keychain, or
-  `~/.claude/.credentials.json` where no supported keychain exists;
-  never `settings.json`); the consumer supplies and scopes it. The server exits at startup if unset.
-- **Opt-in.** `defaultEnabled: false`, so it installs disabled; the consumer enables it deliberately.
+The verdicts for medley's 14 servers, audited 2026-07-12 against this discriminator, and the
+miro SHIP reasoning are
+[ADR 0092](adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md).
 
 **Consuming a sibling plugin's MCP tools (first instance: `event-storming` → `miro`).** When plugin A's
 skill drives plugin B's bundled MCP server, three rules hold:
@@ -817,7 +699,8 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 
 For each skill/hook/agent being migrated:
 
-1. **Research fresh.** WebFetch the official docs for every component involved (see `CLAUDE.md`).
+1. **Research fresh.** Read the official docs for every component involved, by the
+   [fetch route](contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 2. **Scope one capability.** One cohesive plugin; no grab-bags. If the source is oversized, run
    "Decompose an oversized skill before packaging it" and retain its trigger-migration evidence.
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
@@ -849,10 +732,11 @@ For each skill/hook/agent being migrated:
 
 ## Migration order, PRs & parallelization
 
-**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
-conventions in this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and
+**Foundations first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
+conventions in this playbook, the shared `lib/` source of truth
+([ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)), and
 the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
-downstream builds on those seams.
+downstream builds on those conventions.
 
 **Per-unit atomic PRs, authored in parallel.** One PR per cohesive migratable unit: small changesets
 review faster and more thoroughly, and the per-unit acceptance gate makes each one atomic and
@@ -877,7 +761,7 @@ one effort, each unit is a **swim lane**: a dedicated worktree (created under th
 identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies,
 never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
 that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
-cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
+cleanup (delete the branch, remove the worktree). A **foundations-first** unit whose contract binds
 downstream lanes lands and merges **before** the dependent lanes open, so they build on the merged
 contract rather than rediscovering it. Independent lanes run concurrently; lanes sharing a
 contract-blocking dependency wait on its merge. The shared-file conflicts above are still resolved by
@@ -889,14 +773,15 @@ A plugin runs code on the consumer's machine and can wire Claude to external sys
 here, whether new or a version bump that adds a trust surface, passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
-plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
+plugins-reference, and hooks pages 2026-07-17; re-verify per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority).
 Recheck when a Claude Code release note changes hook command substitution, `userConfig`
 interpolation, or what a plugin may bundle.
 
 1. **Code execution: hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
-   interpolated in. An exec-form hook may also use `${user_config.*}` in its arguments. A shell-form hook
-   rejects that substitution and must read `CLAUDE_PLUGIN_OPTION_*` from the hook process environment.
+   interpolated in. Which hook forms take `${user_config.*}`, and why ours use none, is in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
    Check: which binaries it spawns; whether it mutates files in place and is
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
@@ -915,7 +800,8 @@ interpolation, or what a plugin may bundle.
      `harness-config:audit-permission-grants` check P1 detects exactly these shapes and is the
      mechanical half of this criterion.
 2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
-   **local** `stdio`, bundled server (see its §2 trust accept above); no plugin ships a **remote**
+   **local** `stdio`, bundled server (its record in
+   [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md)); no plugin ships a **remote**
    server, which remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine**, since a remote
@@ -925,11 +811,10 @@ interpolation, or what a plugin may bundle.
    capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
    explicit recorded trust decision naming the vendor, the data egress, and the token scope.
 3. **Consumer config: `userConfig`.** Any credential/token option MUST set `"sensitive": true`, which masks
-   input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
-   `~/.claude/.credentials.json`, and **not** `settings.json`.
-   Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable, so
-   never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
-   not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
+   input and keeps the value out of `settings.json`. Non-sensitive values are readable, so never put a
+   secret there; storage and read scope are in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
+   Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation: no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
@@ -977,506 +862,8 @@ interpolation, or what a plugin may bundle.
    `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
-that introduces a new surface re-triggers this review.
-
-### Review record: `github` (ACCEPT, 2026-07-21)
-
-Recorded here as the single SSOT (miro §2 precedent). Reviewed at `0.1.0`; a version bump adding a
-new trust surface re-triggers this review.
-
-- **Code execution (1).** No hooks, no scripts wired to any event. The plugin ships prompt
-  artifacts only (skills + reference markdown) plus `github.test.sh`, a repo-CI contract test
-  referenced by nothing in the manifest, so it is inert in a consumer install.
-- **MCP servers (2).** None.
-- **Consumer config (3).** One `userConfig` boolean (`offer_browser_automation`, non-sensitive,
-  documented, default `true`). No credential options: authentication stays entirely in the
-  consumer's own `gh` CLI login, and the plugin never prompts for, stores, or transports a token.
-  Consumer-side routing/conventions files live at the documented `.claude/github/` project layers
-  and `~/.claude/github/` user-global layer (sanctioned read per criterion 4's operator-home
-  carve-out).
-- **Cache isolation (4).** All intra-plugin references anchor at `${CLAUDE_PLUGIN_ROOT}` (skills)
-  or resolve inside the plugin directory (reference cross-links). No `../` reach-outs beyond the
-  plugin root, no constructed absolute paths.
-- **Data egress (5).** Three channels, all consumer-initiated, no telemetry:
-  - `api.github.com` via the consumer's **own** `gh` auth. Bare invocations are read-only by
-    written contract (write-capability guard: no field/input flags, no non-GET method, no GraphQL
-    `mutation`); writes exist only behind `--apply` → consumer-declared routing → per-step user
-    confirm naming the exact command and its doc provenance.
-  - Official GitHub docs (`docs.github.com` et al.) runtime fetches for grounding, the D4
-    zero-vendored-knowledge posture; read-only, with a fetch-integrity rung and a
-    refuse-recall-as-grounded branch.
-  - **Browser automation over the consumer's authenticated GitHub session**, the heavy surface,
-    accepted with layered gates: presence-gated (claude-in-chrome tool probe / playwright
-    plugin-installed check), **never auto-fires**, each action individually offered and confirmed
-    with the resolved settings URL, intended action, and mechanics provenance; post-write
-    read-back verification where an API read exists; guided-manual + deep-link fallback always
-    available. `offer_browser_automation: false` suppresses the offer, recorded honestly as an
-    **advisory, model-honored gate layered under the per-action confirm, not a runtime-enforced
-    kill switch**; the hard gate is the per-action user confirm. Accept rationale: some org-admin
-    surfaces are UI-only, the session and credentials remain the user's own, and every action is
-    user-in-loop; denying the surface would only push users to unassisted manual clicking with no
-    provenance trail.
-- **Prompt injection via ingested GitHub content (explicit item).** Everything fetched from GitHub
-  (repo names, descriptions, issue/PR bodies, webhook URLs, custom property values) is declared
-  **untrusted data, never instructions** as a standing instruction in both ingesting skills
-  (`audit`, `advise`); an injected instruction must not trigger a write, browser action, or
-  routing change. Evidence: anti-pattern eval cases (audit id 5, advise id 9). Defense in depth:
-  every write path is already user-in-loop, so a successful steer still lands on a human confirm.
-- **Provenance & third-party trust (6).** First-party authored (`author` = Melodic Software),
-  MIT. No third-party SaaS delegation: the only vendor wired is GitHub itself, reached through the
-  consumer's pre-existing `gh` relationship.
-- **Main-thread / PATH (7).** No `settings.json` `agent`, no `bin/`.
-
-**Verdict: ACCEPT.** Surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
-with the layered gates above; 6 first-party.
-
-### Review record: `dometrain` (ACCEPT, 2026-07-22)
-
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Since 0.5.0 the
-plugin ships no server and no `userConfig`; the sync script stays in `dometrain`.
-
-**This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
-Eleven releases landed between the reviewed version and the shipping one, and no record says
-whether any of them added a trust surface, which is the condition the re-trigger above turns on.
-Answering it takes a review, so it cannot be settled either way by reading this page. Until that
-review runs, the ACCEPT below describes `0.1.0` and states nothing about what a consumer installs
-today. The re-review was not performed when this note was written; it is logged as owed.
-
-- **Code execution (1).** None. No hooks; `sync/scripts/update.sh` is not wired to any event
-  and is not model-reachable: `sync/SKILL.md` carries `disable-model-invocation: true`, so it
-  runs only on a maintainer's explicit `/dometrain:sync` invocation.
-- **MCP servers (2).** The remote server itself: third-party (Dometrain-hosted), `http`
-  transport, Bearer auth via `userConfig.dometrain_api_key` (never hardcoded), `defaultEnabled:
-  false`. **Data egress / prompt-injection:** search queries and lesson IDs are sent to
-  `mcp.dometrain.com`; responses are curated lesson text, which IS a genuine
-  indirect-prompt-injection surface. The risk is that returned text could steer Claude's use of
-  *other* tools already in the session (Bash, Write, other MCP servers), not whether Dometrain's
-  own tools are mutating (they are all read-only). Mitigated the same way this repo's `github`
-  plugin already accepts this class of risk (§740–745): `grounding/SKILL.md` carries a standing
-  instruction treating all `search_dometrain`/`search_code`/`get_lesson` results as untrusted
-  reference data, never instructions, backed by an anti-pattern eval case. That is an advisory,
-  model-honored defense, not a runtime-enforced one, stated honestly as such rather than implied
-  to be stronger than it is. Explicit trust decision: **ACCEPT**, third-party, rationale =
-  read-only course-content grounding, no destructive tool surface, user's own
-  paid-subscription-scoped token, `defaultEnabled: false`, standing untrusted-data instruction.
-- **Consumer config (3).** One sensitive required `userConfig` string
-  (`dometrain_api_key`), documented.
-- **Cache isolation (4).** All skill/script paths resolve via `${CLAUDE_PLUGIN_ROOT}`-relative
-  or script-own-location-relative paths (matching `context7`'s pattern); the `update.sh` upstream
-  fetch reaches `raw.githubusercontent.com`, a documented, justified outbound call (criterion 5),
-  not a `../` reach-out.
-- **Data egress (5).** Two channels: (a) the MCP server itself, covered under (2); (b)
-  `sync/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content, read-only
-  and never model-reachable: `sync/SKILL.md`'s `disable-model-invocation: true` means only a
-  human explicitly running `/dometrain:sync` fires it, never the model on its own initiative and
-  never from the installed plugin cache absent that explicit human action. No data leaves beyond
-  the anonymous GET itself. No telemetry.
-- **Provenance & third-party trust (6).** First-party plugin manifest/config (Melodic Software
-  authored), but it wires TWO third-party trust surfaces: Dometrain's MCP server (the primary
-  trust delegation, covered under (2)) and Dometrain's own public skill content as a
-  vendored/reviewed text dependency (covered under (4)/(5)). Every sync is human-reviewed
-  before a baseline refresh, never auto-applied, so the trust surface is bounded by that review
-  gate, not blind ingestion. Note: this plugin's `grounding`/`sync` skill split is a stronger
-  enforcement of that boundary than this repo's existing `context7:lookup` precedent, which
-  bundles an equivalent `update` action into a model-invocable skill, a pre-existing gap flagged
-  during this review, not remediated here, tracked separately.
-- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
-
-**Verdict: ACCEPT.** Surfaces 1/7 absent; 2 accepted with the stated third-party rationale; 3/4
-conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
-gated (credential scope + human-reviewed sync).
-
-### Review record: `context-guard` (ACCEPT, 2026-07-24)
-
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
-
-- **Code execution (1).** No hooks. Two bash scripts, neither wired to any event:
-  `statusline-tee.sh` runs only when the OPERATOR wires it into their own `settings.json`
-  statusline (the setup skill prints the edit, never applies it), and `context-zone.sh` runs only
-  on explicit invocation. Both reviewed: no `eval`, no `curl | sh`, no outbound network; the one
-  untrusted input that reaches the filesystem (`session_id` from statusline stdin) is sanitized to
-  `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
-  being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
-  executor. Every failure path is transparent (wrapped statusline output
-  and exit code unchanged). No kill-switch `userConfig` needed: nothing runs unless the operator
-  wires it, and unwiring is the same one-line edit.
-- **MCP servers (2).** None.
-- **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
-  (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
-- **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
-  reach-outs. Writes go only to `~/.claude/context-guard/`, the operator-home carve-out,
-  deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
-  artifact location (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
-  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide that location. Same accepted
-  pattern as `rate-limit-guard`.
-- **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
-  counts + session id) never leaves the machine. Residual local-integrity limitation, stated
-  honestly: the contract dir's `chmod 700` is best-effort, a no-op on filesystems without POSIX
-  modes (Windows ACL volumes under Git Bash), where another local user could read or forge
-  snapshots. The reader contract therefore forbids consumers from attaching security decisions to
-  zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
-  embedded session id to match, so forgery cannot ride a lenient parser.
-- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
-  third-party delegation.
-- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
-
-**Verdict: ACCEPT.** Surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
-with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home
-carve-out.
-
-### Delta review: statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
-
-Triggered by the review record's own rule: both plugins' `setup apply` now writes an EXECUTABLE
-(`bin/statusline-shim.sh`) into the plugin's operator-home directory, where `apply` previously
-wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base records stand.
-
-- **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script,
-  with no generation, no templating, and no operator-supplied content, so nothing enters it that was not
-  already in the plugin. **The copy is inert until the operator wires it**: it is not
-  on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
-  justification for having no kill switch, "nothing runs unless the operator wires it, and
-  unwiring is the same one-line edit", survives verbatim. The shim itself has no untrusted input
-  (its only inputs are its own argv and the cache directory listing), performs no filesystem
-  writes, and `exec`s either the resolved tee or the wrapped command. The resolution glob skips
-  transient `temp_*` marketplace directories; the residual case, two distinct marketplaces both
-  shipping a plugin of the same name, resolves to the most recently installed one and is
-  documented in the script.
-- **Consumer config (3).** Unchanged. The shim is not configurable and reads no config.
-- **Cache isolation (4).** The write stays inside the same operator-home carve-out already accepted
-  for these plugins (`~/.claude/context-guard/`, `~/.claude/rate-limit-guard/`); each plugin's
-  `apply` is explicitly forbidden from writing into the sibling's directory. `${CLAUDE_PLUGIN_DATA}`
-  was considered and rejected as the shim's home: it is deleted on uninstall, which would leave a
-  wired statusline pointing at a missing file, the exact 127-exit failure this change removes,
-  and its per-plugin-identity path would hardcode the marketplace name into the operator's
-  settings.
-- **Main-thread / PATH (7).** Still none. `bin/` here is a plugin-owned operator-home subdirectory,
-  NOT the plugin `bin/` component that joins the Bash tool's `PATH` (which stays rejected
-  marketplace-wide); the shim is invoked only by absolute path from the operator's `statusLine`.
-- **Surfaces 2, 5, 6.** Unchanged: no MCP servers, no network or telemetry of any kind, first-party
-  MIT code.
-
-**Verdict: ACCEPT.** The new surface is one inert, byte-identical copy of already-reviewed code
-into an already-accepted directory, on explicit operator request, with the no-kill-switch
-justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
-operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
-
-### Delta review: mods replace the status-line tees (`context-guard` 0.11.0, `rate-limit-guard` 0.12.0, ACCEPT, 2026-10-03)
-
-Triggered by the review record's own rule: the writer of both guards' contract files changes from
-an operator-wired status-line tee to a mod, a hooks module (`hooks/register.tsx`) Claude Code runs
-in its own process on every tool call and prompt, under
-[ADR 0052](adr/0052-adopt-claude-code-mods.md). The files, their paths and their readers' trust
-class are unchanged. Reviewed as a delta; the base records and the shim delta stand as history.
-
-- **Code execution (1).** New: in-process code on `tool.call`, `prompt.submit`, `session.*`,
-  `turn.*`, `command.run` and `ui.render`, running whenever the plugin is enabled, where the tee ran
-  only once the operator wired it. Neither mod uses `tool.check`, so neither can approve a call a
-  rule or hook refused. context-guard's `tool.call` hook denies a call only in blocking mode, the
-  capability its retired `PreToolUse` gate already had. Each mod starts one program, the bundled
-  snapshot helper (`node lib/write-snapshot.mjs`, argv built by the mod, body on stdin), once per
-  write; context-guard also starts the consumer's own `HOOK_TELEMETRY_SINK` when one is set. The
-  untrusted input that reaches a path is still only the session id, accepted as `[A-Za-z0-9_-]+`;
-  the helper validates `captured_at` and caps the body at 1 MiB. The kill switch, once unneeded
-  because nothing ran unwired, is now the plugin's `/plugin` switch, plus each plugin's enable
-  option (`context_guard_hooks_enabled`, `rate_limit_guard_enabled`).
-- **MCP servers (2).** None. Each mod registers a read-only `status` tool with `$.tool.register`;
-  it is a local tool, not an MCP server, that takes no input and returns the session's figures and
-  the guard's verdict as JSON.
-- **Consumer config (3).** New: `userConfig` options (eight on context-guard, seven on
-  rate-limit-guard), read from settings; none names a path or a program.
-- **Cache isolation (4).** Unchanged directories: writes stay in the accepted operator-home
-  carve-out (`~/.claude/context-guard/context/<session_id>.json`,
-  `~/.claude/rate-limit-guard/rate-limits.json`), created owner-only (directory 0700, file 0600,
-  best-effort where the filesystem has no POSIX modes). Setup no longer writes
-  `bin/statusline-shim.sh`; its check detects a tee or shim left from an earlier version and
-  prints the steps to unwire it, and never edits settings.
-- **Data egress (5).** Unchanged: no network call. Telemetry goes only to a sink the consumer sets,
-  on the same envelope as before.
-- **Provenance & third-party trust (6).** Unchanged: first-party MIT code.
-- **Main-thread / PATH (7).** Unchanged; the operator-home `bin/` the shim used is no longer
-  written.
-
-**Verdict: ACCEPT.** The new surface is in-process code with the user's permissions, which
-ADR 0052 adopts for every mod. Its reach here is bounded: no `tool.check`, one bundled helper per
-write, the same files in the same directories. Readers keep the base record's rules: the contract
-files are untrusted data, the writer is not authenticated, and no zone or rate-limit verdict
-drives a security decision.
-
-### Review record: `plugin-quality` (ACCEPT, 2026-07-24)
-
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
-surfaces named exhaustively, because this plugin READS more than most, and that is its job.
-
-- **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
-  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only. Bash is
-  justified for `claude plugin validate` and config-resolution probes plus safe fixture
-  reproductions; Write is scoped by standing instruction to the evidence-packet directory only
-  (the dumb-zone contract needs the agent to persist its own `audit-notes.md` so the main thread
-  can stay summary-only, surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
-  of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
-  Untrusted-content posture (audited source is data, never instructions) is a standing
-  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval.
-  That is an advisory, model-honored defense, stated honestly as such.
-- **MCP servers (2).** None.
-- **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
-  (+ user-global `~/.claude/plugin-quality.md` and `.local` personal override, a sanctioned operator-home
-  read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
-- **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
-  audited plugin's installed source under the plugin cache and its marketplace registration, which
-  IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
-  `~/.claude/context-guard/zones.json`, the context-guard reader contract's documented
-  cross-plugin interface, consumed read-only per its inline-floor rule; (c) the documented config
-  layers above. Writes: the evidence packet (session-derived data such as hook failures, transcript
-  path, tool errors, and contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
-  30-day retention, and, only on the markdown sinks, the emitted item file at the
-  operator-chosen directory. No `../` reach-outs.
-- **Data egress (5).** Exactly one network egress: `gh issue create`, gated by an unconditional
-  full-draft + target-repo + ACTING-account confirm (no auto-file mode exists; the acting-account
-  line exists because one machine can hold multiple GitHub identity domains). WebFetch in the
-  auditor agent reaches official docs pages for claim grounding, all read-only GETs. No telemetry.
-- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
-  third-party delegation. The producer/consumer split (audit session never implements fixes in
-  the audited repo) bounds the blast radius of a hostile audited plugin to the findings text
-  itself, which the draft+confirm gate puts in front of the user before it leaves the machine.
-- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
-
-**Verdict: ACCEPT.** Surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
-standing instructions; 3/4 conform with every cross-boundary read justified where it crosses; 5 is a
-single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
-
-### Review record: `x` (ACCEPT, 2026-07-24)
-
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. This is a
-**third-party trust delegation**, since the plugin's entire function is routing a URL through converters
-operated by others, so surfaces 5 and 6 carry the weight here.
-
-- **Code execution (1). Present, remediated, and the remediation is instruction-level.** No hooks,
-  no scripts, no `bin/`; no `eval`, no `curl … | sh`. But the skill does interpolate untrusted input
-  into a shell command line: the X URL becomes part of a `curl` request body. A first review draft
-  claimed this was not shell interpolation of untrusted input; that claim was **false** and is
-  retracted here. An adversarial pass demonstrated the breakout against a real `argv` dump: a URL
-  containing an apostrophe terminates the body's quoting and contributes new `argv` words,
-  yielding a second unconstrained URL and an `-o` arbitrary-write flag in the receiving process.
-  Because `disable-model-invocation` is `false` and the description carries a research trigger, the
-  URL can arrive from attacker-authored web content, closing an indirect-injection chain into a
-  shell argument.
-
-  Remediation: a mandatory gate ahead of step 1 anchors the input against post/article patterns,
-  **refuses** on no match, and on match discards the input entirely and rebuilds the URL from
-  captures restricted to `[A-Za-z0-9_]` and `[0-9]`, classes that cannot express a quote, space, or
-  metacharacter. Only handle and id are captured: scheme, host, and query string are all discarded
-  and re-emitted canonically, so the accepted input set (`http`/`https`, either case, `x.com` or
-  `twitter.com`, optionally `www.` or `mobile.`) is wider than the emitted set, which is always one
-  `https://x.com/…` URL. Widening what is *accepted* therefore does not widen what is *sent*. Rebuild-from-captures, not escaping, so the emitted command is quote-safe by
-  construction. Every URL re-enters the gate, including ones offered at step 3 or surfaced by
-  fetched content. Stated honestly: **the gate is model-honored, not runtime-enforced.** It is the
-  primary defense, not a guarantee.
-
-  No kill-switch `userConfig` needed: nothing runs unless the skill is invoked, and scope-level
-  `enabledPlugins` is the off switch.
-
-- **Tool pre-approval: no shell grant, and the prompt must stay legible.** An earlier draft
-  pre-approved `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix
-  rule cannot express "and no further flags": the trailing wildcard admits every appended argument,
-  so the grant would have suppressed the prompt on exactly the injected command above. The
-  permissions documentation warns against argument-constraining Bash patterns for this reason. The
-  network call now prompts, showing the operator the exact command, the only runtime-enforced layer
-  available without shipping a hook.
-
-  Review then found that this backstop is only as good as what the prompt *displays*, and that an
-  intermediate Windows design had quietly destroyed it. To dodge a PowerShell quoting-portability
-  problem, the request had been moved into a curl config file; the prompt then showed
-  `curl.exe -q -K <file>`, hiding the destination URL, the `data` reference, any `output` directive,
-  and redirect behavior inside a model-authored file no operator approves. Should attacker-authored
-  content push the model off the gate, the operator would see nothing dangerous, the control failing
-  exactly when it is needed.
-
-  Resolved by **declaring a narrower platform boundary rather than keeping an uninspectable path**:
-  the skill ships one bash invocation, requiring Git Bash on Windows, with no PowerShell variant. Every
-  PowerShell-portable form either breaks across `$PSNativeCommandArgumentPassing` modes or moves
-  request detail out of the prompt. A stated prerequisite is the honest cost; an approval the operator
-  cannot read is not. This is the cross-platform contract's declared-narrower-scope allowance, taken
-  deliberately and recorded at the coupling site.
-
-  `allowed-tools` retains only `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A
-  validating `PreToolUse` hook is the stronger control and is **deferred**, with re-introducing a
-  shell grant as its trigger.
-- **MCP servers (2).** None. The user's stated growth path includes a future MCP surface; that would
-  be a new trust surface and re-triggers this review at that version.
-- **Consumer config (3).** No `userConfig`. No credential exists to store, since both providers are
-  unauthenticated.
-- **Cache isolation (4). One bounded write per invocation.** A first draft claimed "no file reads or
-  writes at all"; that was **wrong**, because the skill instructs redirecting the response to a file and
-  reading the slice needed, which is a write plus a read carrying third-party content. Retracted and
-  corrected: the redirect target is constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
-  agent-chosen absolute path and never a path derived from fetched content. Review then found the
-  redirect had been written as conditional on the response being a long article, which is unevaluable, since
-  an X Article is routinely shared as an ordinary `/status/` link, which would have left the concrete
-  documented command streaming an unbounded body to stdout. The redirect is now unconditional, so
-  the write happens on every invocation rather than on an unknowable subset, and the file is deleted
-  on every exit path. A later round found the spool path was double-quoted, which does not contain
-  it: bash expands `$name`, runs a backtick or `$(…)` substitution, and consumes a backslash inside
-  double quotes. Verified against a directory named ``lit$name-`whoami`.txt``: the variable expanded
-  and the substitution executed. The path is now single-quoted at every shell site. Note the
-  asymmetry with
-  criterion 1: the *URL* is safe by construction because it is rebuilt from quote-free capture
-  classes, but the *plugin-data path* comes from the environment, so it carries whatever the
-  consumer's home directory contains and must be escaped rather than trusted. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
-  consumer-repository reads, no `../` reach-outs.
-- **Data egress (5). Present and accepted, conditional on the criterion-1 gate.** Per invocation
-  the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to
-  `xtomd.com` (step 1) and, only on a chain fragment, `threadreaderapp.com` (step 2). No
-  credentials, since neither endpoint takes auth. No repository content, no conversation text, no
-  telemetry.
-
-  A first draft asserted this unconditionally; that was **false as built**, because the pre-gate
-  request body was attacker-steerable (criterion 1) and could carry `@file` contents or reach an
-  attacker-chosen host. The claim is sound only downstream of the gate, and is recorded that way.
-
-  Two residuals stated rather than glossed: rebuilding drops the query string, so `?s=`/`?t=` share
-  tracking tokens are **not** transmitted. But the URL itself still identifies both the post and
-  the reader's interest in it, and neither vendor publishes a retention policy, so assume every
-  submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
-  the transport; no `-L`, so no redirect-driven egress. The byte cap is best-effort rather than
-  absolute: before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
-  chunked reply can exceed it and `--max-time` is the bound that always holds. When either bound does
-  fire it aborts rather than truncating cleanly, and review found the skill would have read the
-  partial output: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
-  `63`, leaving a partial spool whose Markdown prefix passes every content check. The exit status is
-  now the first gate, ahead of the HTTP code and the body, and a nonzero exit deletes the spool
-  unread. Two further rounds closed the remaining paths by which third-party bytes reach the session:
-  success requires exactly `200`, since a non-followed `3xx` completes with exit `0` and a plaintext
-  body that no Markdown check can reject; and the spool is read to a **fixed 256 KB cumulative
-  ceiling** rather than unconditionally to EOF, because bounded slices cap each tool result but never
-  their sum, so a response near the 5 MB cap could exhaust the session before the result was
-  reported. The ceiling is a constant rather than a per-invocation budget, since an instruction to
-  "set a budget" is satisfied by choosing the response's own size. Both were reachable by a hostile
-  or malfunctioning converter, which is the threat this criterion assumes.
-
-  A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
-  been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
-  Quotes there become part of the filename, so every successful fetch would have failed to open its
-  own spool. Escaped at the shell sites, raw at `Read`: one path, two renderings.
-
-  Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
-  reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
-  used as the first parameter on the command line" (curl's own manual, verified against the local
-  binary). A consumer's ambient `.curlrc` setting `location` would otherwise re-enable redirect
-  following and silently defeat the no-redirect egress claim, an environment-supplied bypass of a
-  control this record asserts. The finding predates the removal of the Windows config-file path and
-  applied there too.
-- **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
-  - `xtomd.com` publishes a `POST /api/markdown` endpoint under a documented public contract
-    (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),
-    unauthenticated and free. **The operating entity is not identified** on the site, and no terms,
-    jurisdiction, or retention policy is published, which is material for a trust delegation, and recorded
-    as an unknown rather than passed over. Its docs instruct installing an `@xtomd/mcp-server` npm
-    package that **does not exist** (registry `404`). That is not merely a documentation-quality
-    caveat: the name is unregistered and claimable by anyone, so the vendor's own docs steer users
-    into a standing dependency-confusion hazard. The plugin does not wire, install, or reference it,
-    and the skill body instructs against hunting for it.
-  - `threadreaderapp.com` is a long-running public thread-unroll service, fetched read-only over
-    `WebFetch` with no key. Operator likewise not identified on the fetched surfaces; retention
-    unstated.
-
-  Both return **attacker-authored content**: X post bodies written by arbitrary third parties. This
-  is the prompt-injection vector criterion 2 names, arriving through a different door. Containment
-  lives in the skill body: returned bytes are data to report, never instructions, and fetched text
-  may never introduce a URL, host, or file path, with dedicated eval coverage including a URL
-  harvested from page content. Consistent with the `github`, `dometrain`, and `plugin-quality`
-  records, this is **an advisory, model-honored defense, not a runtime-enforced one**; an earlier
-  draft called it "mandatory" without that qualifier and is corrected here.
-
-  Two residual risks stated rather than assumed away: a converter could return content that differs
-  from the source post, and the plugin cannot detect that. Consumers get attribution and the gate's
-  **rebuilt** URL, never the converter-echoed one, so a claim can be checked against the original
-  without trusting a value the converter chose. And step 2's escalation is a decision
-  made on the shape of step-1 output, which is third-party text; it is constrained to reusing the
-  gate-captured id and can therefore change *whether* a second fetch happens, never *where* it goes.
-- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
-
-**Review history.** A first draft of this record reached ACCEPT on claims that an adversarial
-fresh-context pass then falsified: criterion 1's "no shell interpolation of untrusted input",
-criterion 4's "no file reads or writes at all", and criterion 5's unconditional no-credential-egress
-assertion. The argument-injection breakout was demonstrated at `argv` level in both bash and
-PowerShell and independently reproduced before remediation. Each retraction is recorded inline above
-rather than silently rewritten, because a review record whose failures are edited out of history
-teaches nothing to the next reviewer.
-
-**Verdict: ACCEPT at the remediated state.** Surfaces 2/7 absent; 3 empty. Criterion 1 carries a
-real shell-interpolation surface, remediated by a validate-and-rebuild gate whose model-honored
-nature is stated rather than glossed, and backed by the deliberate absence of any Bash/PowerShell
-pre-approval so the call prompts. Criterion 4 is one write bounded to `${CLAUDE_PLUGIN_DATA}`.
-Criteria 5 and 6 are the substance: egress is a single rebuilt, query-stripped, already-public URL
-with no credential, and the trust delegation buys a capability with no unauthenticated first-party
-alternative. Both vendors are unidentified operators with unstated retention, recorded as a known
-unknown rather than waved through, and the untrusted-content risk is contained by advisory instruction
-that is labeled advisory.
-
-**Recheck trigger:** a named trigger on an in-repo decision
-([upstream-drift](contracts/upstream-drift/README.md)). Re-introducing a Bash or PowerShell
-pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
-re-opens this review.
-
-### Review record: `wizard` (ACCEPT, 2026-08-09)
-
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Ported
-from mattpocock/skills v1.2.3 (`main@84fdeff`, MIT), hardened; provenance SSOT
-`docs/upstream/mattpocock-skills.md`. The weight here is a surface no prior record carries: the
-plugin's **product is a model-generated executable**. The statusline-shim delta review (above)
-accepted an executable write precisely because it was "a byte-identical copy of a reviewed,
-tested, bundled script, with no generation, no templating". This plugin deliberately breaks that
-precedent: the skill's whole capability is authoring per-procedure stages onto a bundled
-library. That is accepted here as an explicit, recorded exception with the mitigations below,
-not a quiet widening of the shim rationale.
-
-- **Code execution (1). The generated-executable surface, accepted with layered conditions.**
-  No hooks, no `bin/`, nothing event-wired; the plugin ships prompt artifacts plus one bundled
-  bash template. The trust argument for generation, layered:
-  - **The agent authors; it never executes.** The skill forbids running the wizard end-to-end
-    (verification is `bash -n`/`shellcheck` plus a fresh-context static trace); the human runs
-    the script in their own terminal. The template enforces the same doctrine mechanically:
-    it aborts without a controlling TTY (`exec 3</dev/tty`, fail-closed), so neither an agent
-    nor piped/pasted input can drive its gates.
-  - **A human reads before anything is runnable.** The skill's verify step is stop-the-line:
-    the full `STAGES` block is printed to the user and explicitly approved BEFORE `chmod +x`
-    and before any run instruction. The generated content a human is asked to trust is exactly
-    the content they are made to read.
-  - **The generated region is bounded.** Model-authored content goes only below the `STAGES`
-    marker; the library above it is fixed, reviewed here, and never hand-edited. Stage authoring
-    composes reviewed helpers whose dangerous edges are hardened in the library itself:
-    https-only `open_url` with the URL printed before dispatch (also closing a Windows UNC/NTLM
-    leak via the `explorer.exe` branch); fail-closed `pause`/`confirm` (fatal on read failure,
-    never `|| true`); key-name validation in every helper; single-quoted escaped `.env` values,
-    `chmod 600` after every write, a gitignore assert, trap-cleaned same-filesystem mktemp;
-    gh writes that resolve/echo/confirm the target repo before the first write, pass explicit
-    `--repo`, pipe values via stdin (`set_secret` pipe, `set_var --body-file -`), refuse empty
-    values, and surface stderr into the closing summary.
-- **MCP servers (2).** None.
-- **Consumer config (3).** No `userConfig`, no tracked config surface; setup-skill exemption
-  recorded in the plugin README ((a)/(b)/(c) all absent for generation itself).
-- **Cache isolation (4).** The skill references only its own bundled `template.sh` relatively;
-  generated wizards are written into the consumer's project or scratch space at the user's
-  direction, which is the deliverable, not a reach-out. No `../`, no constructed absolute paths.
-- **Data egress (5).** None by the plugin. The generated script's egress is operator-visible and
-  operator-driven: browser opens of https URLs printed before dispatch, and `gh` writes to a
-  repo the human explicitly confirmed. Captured values flow terminal → `.env`/`gh` only; the
-  closing summary prints names, never values. The skill's scoping step reads key NAMES only from
-  a live `.env`, and states honestly that a value pasted into chat is in context.
-- **Provenance & third-party trust (6).** Derived from mattpocock/skills (MIT) with the
-  hardening deltas recorded in the plugin CHANGELOG; authored/maintained first-party (Melodic
-  Software), MIT. No third-party service is wired: `gh` is the consumer's own authenticated CLI,
-  optional, degrading to warn + summary when absent.
-- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no plugin `bin/`.
-
-**Verdict: ACCEPT.** Surfaces 2/3/7 absent; 1 is the recorded model-generated-executable
-exception, bounded to the below-the-marker region and gated by the mandatory human
-read-and-approve before `chmod +x`, with the library's fail-closed hardening as defense in
-depth; 4 conforms; 5 is operator-driven with names-only output; 6 first-party over an MIT
-upstream. **Conditions shipped, and this ACCEPT depends on all of them:** the human STAGES approval gate,
-the agent-never-executes instruction, the TTY-only fail-closed library, https-only `open_url`,
-and the hardened `.env`/gh write path. Removing or weakening any of them re-opens this review,
-as does any move to have the agent execute a generated wizard.
+that introduces a new surface re-triggers this review. Each record is a dated section amending
+[ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md).
 
 ## Marketplace schema positions
 
@@ -1570,10 +957,8 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
 3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
-   Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope. That is documented behavior, not an observation: seam 1 above records that non-sensitive values
-   **store** in user settings, and that a sensitive value routes to secure credential storage
-   instead.
+   Where the values are stored, whatever the enable scope, is in
+   [Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
    install rather than an uninstall/reinstall. The verified-version record, which covers a
@@ -1581,7 +966,7 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back rather than assuming the write
    landed. For a non-sensitive option, read it
-   from the **user** `settings.json` `pluginConfigs` per the storage rule above, not from the project
+   from where that storage rule puts it, not from the project
    settings this command names; a `sensitive` value is absent from settings entirely (smoke-test A)
    and cannot be verified this way. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
@@ -1638,9 +1023,9 @@ surface to a published plugin for a single consumer's low-value nicety.
    scope this step uses), lives in the
    [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back before reporting a
-   project-scope reconfiguration as applied. For a non-sensitive option, read it from the **user**
-   `settings.json` `pluginConfigs`, where such options land regardless of enable scope (seam 1 above
-   records that they **store** there), not from the project settings this command names; a
+   project-scope reconfiguration as applied. For a non-sensitive option, read it from where
+   [Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope) puts it whatever the enable
+   scope, not from the project settings this command names; a
    `sensitive` value is absent from settings entirely (smoke-test A) and cannot be verified this way.
    **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
    against the repo checkout (cloud sessions included). See
@@ -1718,3 +1103,7 @@ playbook:
   retrofit scope (2026-07-13).
 - [ADR 0024](adr/0024-decline-forgery-prone-human-ratification-gates.md), convention
   ratification and the shared-identity limitation (2026-07-23).
+- [ADR 0092](adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md), the MCP carry verdicts for
+  medley's servers (2026-07-12).
+- [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), the plugin-acceptance
+  security review records (2026-07-12 onward).

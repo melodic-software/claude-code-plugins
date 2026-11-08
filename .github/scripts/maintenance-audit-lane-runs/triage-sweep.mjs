@@ -50,6 +50,7 @@ import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 // Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
 // is read at call time, so a test's stub is guarded too.
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
+const outOfBudget = (error) => /call budget/.test(error.message);
 
 export const MAX_DISPATCHES = 5;
 const MAX_HANDED = 5;
@@ -87,9 +88,9 @@ const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- wor
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
 // Labels a verdict or a person leaves: an issue with one is triaged.
-const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|agent-ready|admission-deferred)$|^status: /;
+const TRIAGED = /^(needs-human|needs-spec|needs-owner-decision|needs-reporter-info|agent-ready|admission-deferred)$|^status: /;
 // What keeps a born-triaged `status: ready` issue out of admission on purpose.
-const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", ...UNTRUSTED_LABELS]);
+const ADMISSION_HOLDS = new Set(["agent-ready", "admission-deferred", "needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-reporter-info", ...UNTRUSTED_LABELS]);
 
 // An issue's lowercased label names; `labels`, when given, stands in for its
 // own (as its Work status field decides them, statusListing).
@@ -98,22 +99,20 @@ const bornReady = (i, labels) =>
   String(i.body ?? "")
     .trimEnd()
     .endsWith(BORN_TRIAGED_MARKER) &&
-  names(i, labels).includes("status: ready") &&
-  !names(i, labels).some((n) => ADMISSION_HOLDS.has(n)) &&
+  labels.includes("status: ready") &&
+  !labels.some((n) => ADMISSION_HOLDS.has(n)) &&
   !(i.issue_dependencies_summary?.blocked_by > 0);
 
 // `statusLabels` (statusListing) maps an issue number to its label names as
 // its Work status field decides them; an issue it leaves out is judged by its
 // own labels.
 export function selectCandidates({ issues, now, authorIds, statusLabels = new Map() }) {
+  const untriagedOrReady = (i) => {
+    const labels = names(i, statusLabels.get(i.number));
+    return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
+  };
   return issues
-    .filter(
-      (i) =>
-        !i.pull_request &&
-        authorIds.has(String(i.user?.id)) &&
-        (!names(i, statusLabels.get(i.number)).some((n) => TRIAGED.test(n)) || bornReady(i, statusLabels.get(i.number))) &&
-        now - new Date(i.created_at) >= MIN_AGE_MS,
-    )
+    .filter((i) => !i.pull_request && authorIds.has(String(i.user?.id)) && untriagedOrReady(i) && now - new Date(i.created_at) >= MIN_AGE_MS)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.number - b.number);
 }
 
@@ -270,7 +269,7 @@ async function search(call, query, pick) {
       if ((found.items ?? []).length < 100) break;
     }
   } catch (error) {
-    if (/call budget/.test(error.message)) throw error;
+    if (outOfBudget(error)) throw error;
     return new Set();
   }
   return numbers;
@@ -321,7 +320,7 @@ async function handedInSweepComments(call, repo, appId) {
       after = found.pageInfo.endCursor;
     }
   } catch (error) {
-    if (/call budget/.test(error.message)) throw error;
+    if (outOfBudget(error)) throw error;
     return new Set();
   }
   return numbers;
@@ -390,7 +389,8 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       // Handed to a maintainer already: it is at needs-triage.
       if (state.filed) continue;
       checked += 1;
-      const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
+      const last = state.runs.at(-1);
+      const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${last}`) : null;
       // A run the API no longer has counts as finished.
       const finished = state.runs.length > 0 && latest === null ? { status: "completed" } : latest;
       // Once the runs could hand the issue off, read each run the state has
@@ -408,7 +408,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
             known.set(id, answer === null ? "+" : await classifyRun(answer.jobs ?? [], (path) => call("GET", `/repos/${repo}${path}`)));
             reached.set(id, known.get(id));
           } catch (error) {
-            if (/call budget/.test(error.message)) throw error;
+            if (outOfBudget(error)) throw error;
             reached.set(id, "+");
           }
         }
@@ -426,17 +426,17 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           await writeState(call, repo, number, state, {
             runs: state.runs,
             filed: null,
-            runUrl: `${repoUrl}/actions/runs/${state.runs.at(-1)}`,
+            runUrl: `${repoUrl}/actions/runs/${last}`,
             reached: known,
           });
         } catch (error) {
-          if (/call budget/.test(error.message)) throw error;
+          if (outOfBudget(error)) throw error;
         }
         continue;
       }
       // Never start a run the budget left cannot record, or a hand-off it cannot finish.
       // A hand-off reads each run's conclusion but a transient one's.
-      const reads = state.runs.filter((id) => id !== state.runs.at(-1) && reached.get(id) !== "~").length;
+      const reads = state.runs.filter((id) => id !== last && reached.get(id) !== "~").length;
       if ((action === "dispatch" && remaining() < 2) || (action === "hand" && remaining() < reads + 2)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
         break;
@@ -463,7 +463,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (action === "hand") {
         const runs = [];
         for (const id of state.runs) {
-          const run = id === state.runs.at(-1) ? latest : reached.get(id) === "~" ? null : await call("GET", `/repos/${repo}/actions/runs/${id}`);
+          const run = id === last ? latest : reached.get(id) === "~" ? null : await call("GET", `/repos/${repo}/actions/runs/${id}`);
           runs.push({ id, conclusion: run?.conclusion ?? null, reached: reached.get(id) });
         }
         // The state first, then the record that stops later passes: a failed
@@ -473,7 +473,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         result.handed.push(number);
       }
     } catch (error) {
-      if (/call budget/.test(error.message)) {
+      if (outOfBudget(error)) {
         result.truncated = `stopped at #${number}: ${error.message}`;
         break;
       }
@@ -520,7 +520,8 @@ async function main() {
   };
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const authorIds = new Set(humanIds(list).split(",").filter(Boolean));
-  if (/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) authorIds.add(env.LANES_APP_ID);
+  const appId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null;
+  if (appId) authorIds.add(appId);
   // The field read and write send their own API version, which `call` cannot,
   // so they go through their own client, outside the call budget. A listing
   // that fails stops the pass: without it a field-only hold would not hold.
@@ -535,7 +536,7 @@ async function main() {
     serverUrl: env.GITHUB_SERVER_URL,
     now: new Date(),
     authorIds,
-    appId: /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null,
+    appId,
     setStatus: set,
     statusLabels,
   });

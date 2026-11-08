@@ -94,10 +94,10 @@ export function admittedAt({ comments, appId, fieldEvents, fieldId, state = "age
     fieldId == null
       ? []
       : personAdmissions(fieldEvents, { fieldId, state, humans })
-          .filter((one) => sender == null || sender === appId || one.actorId === sender)
+          .filter((one) => !personSender || one.actorId === sender)
           .map(({ at }) => ({ at, kind: "person", record: null }));
   // A record and a person's set in one second: the person's is later.
-  const all = [...records, ...people].sort((a, b) => a.at - b.at || (a.kind === b.kind ? 0 : a.kind === "record" ? -1 : 1));
+  const all = [...records, ...people].sort((a, b) => a.at - b.at || (a.kind === "person") - (b.kind === "person"));
   const bounded = Number.isFinite(triggerAt) ? (all.filter((one) => one.at <= triggerAt).at(-1) ?? all.find((one) => one.at > triggerAt)) : all.at(-1);
   if (!bounded) {
     throw new Error("no admission record or listed human's agent-ready set admitted the issue");

@@ -1,5 +1,26 @@
 # Changelog for the PR pipeline convention
 
+## [9.11.2] - 2026-11-08
+
+### Changed
+
+- Issue-status and hold readers accept `needs-owner-decision` and `status: needs-decision`, and `needs-reporter-info` and `status: needs-info`, as the same hold, so those labels can be renamed without breaking admission, re-entry, refinement or the sweeps. A reader that takes a hold off an issue removes whichever name the issue carries.
+
+### Removed
+
+- The `wontfix` refuse label and the `source: lane-sweep` and `source: factory-monitor` labels, which nothing reads, and the `cadence:` labels the recurring filer applied.
+
+## [9.11.1] - 2026-11-08
+
+### Changed
+
+- A pipeline check run carries the lane-outcome record alone: `report-check-run` no longer writes the `lane=<lane> activity=<activity> class=...` first line of `output.summary` or its JSON block in `output.text`, and its `lane-class`, `lane-resets`, `lane-turns`, `lane-max-turns`, `lane-models` and `lane-profile` inputs are removed. The pr-unblock dispatchers read a limit stop only from the record. A read leg that fails before the launcher names its credential (a CLI install) records the secret its call was given, so its record is still written.
+- The lane-outcome reader knows the `review-unposted` and `shell-failed` classes and the `shellFailed` field, and keeps a class it does not know (an enum-shaped token) as written instead of dropping the record; such a class is no limit or fault stop, and neither are the two new ones.
+
+### Fixed
+
+- Every writer of the Size, Complexity and Uncertainty issue fields now sends the option's lowercase name and falls back to Title case when GitHub refuses it, so the org can rename those options to lowercase without breaking the intake digest or post-merge record writes. Intake triage and the digest write one field at a time while part of the rename has landed; the post-merge record write only warns until the rename is done.
+
 ## [9.11.0] - 2026-11-08
 
 ### Changed
