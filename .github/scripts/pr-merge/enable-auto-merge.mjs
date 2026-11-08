@@ -1350,6 +1350,10 @@ export function pythonRoom(env, spawn = spawnSync) {
   };
 }
 
+// The last line of a child's output: its JSON answer on stdout, its error on
+// stderr.
+const lastLine = (text) => String(text).trim().split("\n").at(-1);
+
 // The verification evidence comment for a head about to arm
 // (babysit_evidence_comment.py `post`): it links the head's pr-capture
 // artifact when the capture workflow left one, and posts nothing otherwise.
@@ -1361,9 +1365,9 @@ export function pythonEvidence(env, spawn = spawnSync) {
     const args = [env.EVIDENCE_COMMENT_SCRIPT || EVIDENCE_SCRIPT, "post", "--repo", env.GITHUB_REPOSITORY, "--pr", String(number), "--head", head, "--identity", login];
     const done = spawn("python3", args, { encoding: "utf8", env, timeout: EVIDENCE_TIMEOUT_MS });
     if (done.status !== 0) {
-      throw new Error(`babysit_evidence_comment.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+      throw new Error(`babysit_evidence_comment.py exited ${done.status ?? done.signal}: ${lastLine(done.stderr ?? "")}`);
     }
-    return JSON.parse(String(done.stdout).trim().split("\n").at(-1)).outcome;
+    return JSON.parse(lastLine(done.stdout)).outcome;
   };
 }
 
@@ -1381,19 +1385,17 @@ export function pythonClose(env, spawn = spawnSync) {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base, "--reason", reason];
-    for (const label of holds) {
-      args.push("--hold-label", label);
-    }
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
-    let answer = null;
+    const holdArgs = holds.flatMap((label) => ["--hold-label", label]);
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base, "--reason", reason, ...holdArgs, String(number), head];
+    const done = spawn("python3", args, { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
+    let answer;
     try {
-      answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+      answer = JSON.parse(lastLine(done.stdout));
     } catch {
       answer = null;
     }
     if (done.status !== 0) {
-      throw new Error(`capped-close exited ${done.status ?? done.signal}: ${answer?.error ?? String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+      throw new Error(`capped-close exited ${done.status ?? done.signal}: ${answer?.error ?? lastLine(done.stderr ?? "")}`);
     }
     return answer;
   };
@@ -1413,13 +1415,11 @@ export function pythonWholeReview(env, spawn = spawnSync) {
     if (done.status === READER_RATE_LIMIT_EXIT) {
       throw new ReaderRateLimited(`babysit_whole_review.py ${args[0]}`, done.stderr);
     }
-    let answer;
     try {
-      answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+      return JSON.parse(lastLine(done.stdout));
     } catch {
-      throw new Error(`babysit_whole_review.py ${args[0]} exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+      throw new Error(`babysit_whole_review.py ${args[0]} exited ${done.status ?? done.signal}: ${lastLine(done.stderr ?? "")}`);
     }
-    return answer;
   };
   const repo = ["--repo", env.GITHUB_REPOSITORY, "--identity", env.LANES_BOT_LOGIN];
   return {
@@ -1469,6 +1469,9 @@ export const VERIFY_BUDGET_MS = 5 * 60_000;
 // well before the last full read's VERIFY_TIMEOUT_MS would.
 export const CACHE_ONLY_WINDOW_MS = 60_000;
 export const CACHE_ONLY_TIMEOUT_MS = 30_000;
+// The reasons a pull request whose verdict this run does not read is left.
+const NO_TIME_LEFT = "no time left in this run to read its verifier verdict";
+const READER_RUNS_ARM = "only a scheduled or hand-started run arms it, on the gate's verifier verdict";
 
 // `pulls` started at an offset that moves with the run number, so a run
 // that reaches VERIFY_BUDGET_MS leaves different pull requests for the next
@@ -1884,6 +1887,16 @@ export async function main({ env = process.env, github, actions, verify, room, c
     const riskTokens = [];
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const serve = cacheMode(env) === "serve";
+    const appendSummary = (text) => {
+      if (!env.GITHUB_STEP_SUMMARY) {
+        return;
+      }
+      try {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, text);
+      } catch (error) {
+        console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
+      }
+    };
     // A pull_request_target run handles only the pull request its event
     // names, as the listing holds it; a scheduled or hand-started run, every one.
     let listed;
@@ -1895,13 +1908,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       const hold = `${error.message}, so the listing is not whole: nothing is armed, disarmed or noted this run, and the next run reads it again`;
       console.log(`::notice title=enable-auto-merge hold::${hold}`);
-      if (env.GITHUB_STEP_SUMMARY) {
-        try {
-          appendFileSync(env.GITHUB_STEP_SUMMARY, `enable-auto-merge: hold: ${hold}\n`);
-        } catch (summaryError) {
-          console.log(`enable-auto-merge: the step summary was not written: ${describe(summaryError)}`);
-        }
-      }
+      appendSummary(`enable-auto-merge: hold: ${hold}\n`);
       return 0;
     }
     // A PR-scoped dispatch (pr-merge.yml inputs.pr, which pr-verify starts on
@@ -1953,9 +1960,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
-    // A whole-review child stopped on a rate limit holds every lanes App pull
-    // request after it, as a verifier read's stop does.
-    const wholeStopped = (error) => {
+    // A whole-review or verifier child stopped on a rate limit holds every
+    // lanes App pull request after it.
+    const readerStopped = (error) => {
       if (!(error instanceof ReaderRateLimited)) {
         return false;
       }
@@ -1975,7 +1982,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           console.log(`enable-auto-merge: #${item.pr} ${item.ready === true ? "marked ready again: a whole-review toggle left it a draft" : `left a draft by a whole-review toggle, not marked ready: ${escapeCommand(item.error ?? "mark-ready failed")}`}`);
         }
       } catch (error) {
-        if (!wholeStopped(error)) {
+        if (!readerStopped(error)) {
           console.log(`::warning title=enable-auto-merge::the whole-review drafts did not recover: ${describe(error)}`);
         }
       }
@@ -2017,6 +2024,8 @@ export async function main({ env = process.env, github, actions, verify, room, c
         },
         dequeuePull: (id) => github("POST", "/graphql", { query: DEQUEUE_MUTATION, variables: { id } }),
       });
+    const unlabeledTimeline = async (number) =>
+      (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables: { owner: repo[1], name: repo[2], number } }))?.data?.repository?.pullRequest?.timelineItems;
     const note = async (pull, detail, refusal) => {
       if (!reads || stopped !== null || refusal.clears === undefined) {
         return;
@@ -2040,7 +2049,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             console.log(`enable-auto-merge: #${pull.number} whole review not requested: ${escapeCommand(JSON.stringify(answer))}`);
           }
         } catch (error) {
-          if (wholeStopped(error)) {
+          if (readerStopped(error)) {
             return;
           }
           console.log(`::warning title=enable-auto-merge::#${pull.number} whole-review request: ${describe(error)}`);
@@ -2068,9 +2077,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       sent += 1;
       try {
         if (writes.body === null) {
-          const variables = { owner: repo[1], name: repo[2], number: pull.number };
-          const timeline = (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables }))?.data?.repository?.pullRequest?.timelineItems;
-          if (liftedByPerson(timeline, writes.label, writes.liftedSince)) {
+          if (liftedByPerson(await unlabeledTimeline(pull.number), writes.label, writes.liftedSince)) {
             console.log(`enable-auto-merge: #${pull.number} left unlabeled: a person removed ${escapeCommand(writes.label)} after its refusal comment, or the timeline did not read whole`);
             return;
           }
@@ -2101,7 +2108,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
               : `::warning title=enable-auto-merge::#${pull.number} whole-review toggle: ${escapeCommand(toggled?.error ?? JSON.stringify(toggled))}`,
           );
         } catch (error) {
-          if (!wholeStopped(error)) {
+          if (!readerStopped(error)) {
             console.log(`::warning title=enable-auto-merge::#${pull.number} whole-review toggle: ${describe(error)}`);
           }
         }
@@ -2132,9 +2139,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
       let labeled = false;
       try {
         if (read.vetoes.length > 0 && !carries(pull, VETO_LABEL)) {
-          const variables = { owner: repo[1], name: repo[2], number: pull.number };
-          const timeline = (await github("POST", "/graphql", { query: UNLABELED_QUERY, variables }))?.data?.repository?.pullRequest?.timelineItems;
-          if (liftedByPerson(timeline, VETO_LABEL, read.at)) {
+          if (liftedByPerson(await unlabeledTimeline(pull.number), VETO_LABEL, read.at)) {
             console.log(`enable-auto-merge: #${pull.number} left without ${VETO_LABEL}: a person removed it after the newest veto, or the timeline did not read whole`);
             return false;
           }
@@ -2216,6 +2221,8 @@ export async function main({ env = process.env, github, actions, verify, room, c
         }
       }
     }
+    const humans = trustedHumans(env);
+    const judging = { bot: slug, humanGated, holdPaths, pathHolds };
     for (let pull of rotated(pulls, Number(env.GITHUB_RUN_NUMBER))) {
       if (stopped === null && lanes(pull) && !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
         try {
@@ -2233,7 +2240,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           console.log(`enable-auto-merge: #${pull.number} discussion did not read for its ${VETO_LABEL} label: ${describe(error)}`);
         }
       }
-      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths, pathHolds });
+      let { action, reason } = decide(pull, judging);
       let clears;
       let comment;
       let withdraw;
@@ -2256,7 +2263,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
         ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
       }
       if (action === "read" && !reads && pull.autoMergeRequest == null) {
-        ({ action, reason } = { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
+        ({ action, reason } = { action: "none", reason: READER_RUNS_ARM });
       }
       // Held by the label alone, its refusal at the head written without the
       // verifier's answer (isPartial): a reader run with time left reads it
@@ -2289,13 +2296,12 @@ export async function main({ env = process.env, github, actions, verify, room, c
             const standing = priorRefusal(detail?.comments?.nodes, slug)?.body;
             // A hold-path refusal with a trusted person's approval in the
             // discussion reads on, for approvalLift below.
-            const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && trustedHumans(env).has(item.userId) && item.state === "APPROVED");
+            const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && humans.has(item.userId) && item.state === "APPROVED");
             unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
             const graphed = listedFiles(detail.files);
             const { paths: files, capped } = graphed !== null ? { paths: graphed, capped: false } : await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const humans = trustedHumans(env);
             const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
             let lifters = headLifters(detail, humans, pull.headRefOid);
             // An approval of an earlier head carried over base merges
@@ -2362,7 +2368,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
         ({ action, reason, clears, comment, withdraw, partial, fold = null } =
           widen && (detail === null || unmarked)
             ? { action: "none", reason: labelHold, clears: undefined, comment: undefined, withdraw: undefined, partial: undefined, fold: null }
-            : decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, detail));
+            : decide(judged, judging, detail));
         if (detail && reason === unblockHold(detail.unblockStops)) {
           unblockSkips.push(`#${pull.number} ${action === "disarm" ? "disarmed" : "not queued"}: ${escapeCommand(reason)}`);
         }
@@ -2377,9 +2383,9 @@ export async function main({ env = process.env, github, actions, verify, room, c
         ({ action, reason } =
           pull.autoMergeRequest != null
             ? { action: "none", reason: "already armed; the next scheduled run checks its verifier verdict" }
-            : { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
+            : { action: "none", reason: READER_RUNS_ARM });
       } else if (action === "verify" && late && !cacheOnly) {
-        ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+        ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
       } else if (action === "verify") {
         const read = async (options) => {
           try {
@@ -2387,10 +2393,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           } catch (error) {
             // No decide and no note, whose writes would follow the stop: this
             // and every later lanes App pull request is held as an unread room.
-            if (error instanceof ReaderRateLimited) {
-              stopped = error;
-              latch.reload?.();
-              laneHeld = `the lane's room could not be read (${error.message})`;
+            if (readerStopped(error)) {
               const armed = pull.autoMergeRequest != null;
               roomHeld.set(pull.number, armed ? "armed" : "unarmed");
               ({ action, reason, clears, comment } = { action: armed ? "disarm" : "none", reason: laneHeld, clears: undefined, comment: undefined });
@@ -2403,7 +2406,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
         };
         let evidence = await read(cacheOnly ? { cacheOnly: true } : undefined);
         if (cacheOnly && !decided && evidence?.cached !== true) {
-          ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+          ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
           decided = true;
         }
         // A read failing on every run holds every clean lane pull request: say why.
@@ -2412,16 +2415,16 @@ export async function main({ env = process.env, github, actions, verify, room, c
         }
         answered = evidence !== null && !decided;
         if (!decided) {
-          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
+          ({ action, reason, clears, comment, withdraw, partial, wholeReview } = decide(judged, judging, { ...detail, verify: evidence }));
         }
         // A kept answer that holds nothing: read in full once, never armed on.
         if (!decided && action === "verify") {
           if (now() > deadline) {
-            ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+            ({ action, reason } = { action: "none", reason: NO_TIME_LEFT });
           } else {
             evidence = await read({ fresh: true });
             if (!decided) {
-              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, { bot: slug, humanGated, holdPaths, pathHolds }, { ...detail, verify: evidence }));
+              ({ action, reason, clears, comment, withdraw, wholeReview } = decide(judged, judging, { ...detail, verify: evidence }));
             }
           }
         }
@@ -2689,12 +2692,8 @@ export async function main({ env = process.env, github, actions, verify, room, c
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
     const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine), ...riskTokens];
-    if (summary.length > 0 && env.GITHUB_STEP_SUMMARY) {
-      try {
-        appendFileSync(env.GITHUB_STEP_SUMMARY, summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));
-      } catch (error) {
-        console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
-      }
+    if (summary.length > 0) {
+      appendSummary(summary.map((text) => `enable-auto-merge: ${text}\n`).join(""));
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {
