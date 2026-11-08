@@ -416,6 +416,24 @@ from user settings, `--settings`, and managed settings
 `pluginConfigs` scope changes). It ignores project and local settings for this key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
 
+Non-sensitive values sit readable in the user `settings.json` under `pluginConfigs[<id>].options`,
+so no secret goes there; a `sensitive` value goes to the platform's secure credential store instead
+(the `sensitive` bullet below covers platforms without a supported keychain). `${user_config.KEY}`
+substitutes in MCP and LSP server config, exec-form hook `args`, and skill and agent content (only
+non-sensitive values there). Shell-form hook commands, monitor commands, and MCP `headersHelper`
+reject it, so a shell-form hook reads `CLAUDE_PLUGIN_OPTION_<KEY>` from its environment. Our plugin
+hooks use no `${user_config.*}` token in any form (the Hooks row under
+[Component stances](#component-stances)).
+
+- **Pointer**: see
+  [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored),
+  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+  and
+  [Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell).
+- **As of**: 2026-11-08
+- **Recheck trigger**: a Claude Code release note or a fetch of those sections changes where values
+  are stored or which fields substitute or reject `${user_config.*}`.
+
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
 through a custom channel, whether an environment-variable toggle, a gitignored personal file, or a
 documented hand-edit, migrates to `userConfig` with the schema used honestly:
