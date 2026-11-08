@@ -6,9 +6,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { collapseStatus } from "./issue-status.mjs";
+import { collapseStatus, StatusDisagreement } from "./issue-status.mjs";
 import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
-import { readyWhileDeferred, StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
+import { DISAGREEMENT_WAIT_MS, fieldStatusSetter, readyWhileDeferred, StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
 
 const unexpected = async (method, path) => {
   throw new Error(`unexpected ${method} ${path}`);
@@ -350,4 +350,66 @@ test("reader events whose field history cannot be read throw StatusReadError", a
   };
   const labels = statusReader({ github: failing, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} });
   await assert.rejects(() => labels.events(7), (error) => unreadable(error) && error.message.endsWith("GraphQL answered 502"));
+});
+
+// fieldStatusSetter over fakes: `answers` is what each status call does in turn.
+function disagreeing(answers) {
+  const calls = [];
+  let turn = 0;
+  const read = {
+    github: async (method, path) => {
+      calls.push(`${method} ${path}`);
+      return [];
+    },
+    repository: "o/r",
+    number: 5,
+    config: STATUS_CONFIG,
+    trustedActors: TRUSTED_ACTORS,
+    fieldEvents: async (_github, _repository, _number, options) => {
+      calls.push(`events ${options?.again ? "again" : "first"}`);
+      return [];
+    },
+    issueStatusSetter: () => {
+      const answer = answers[turn++];
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    },
+    sleep: async (ms) => calls.push(`sleep ${ms}`),
+  };
+  return { read, calls };
+}
+
+test("fieldStatusSetter reads both again once when the two reads disagree", async () => {
+  const { read, calls } = disagreeing([new StatusDisagreement("raced"), { state: "ready", setter: HUMAN_ID }]);
+  assert.deepEqual(await fieldStatusSetter(read), { state: "ready", setter: HUMAN_ID });
+  const values = "GET /repos/o/r/issues/5/issue-field-values";
+  assert.deepEqual(calls, [values, "events first", `sleep ${DISAGREEMENT_WAIT_MS}`, values, "events again"]);
+});
+
+test("fieldStatusSetter throws a second disagreement", async () => {
+  const { read } = disagreeing([new StatusDisagreement("raced"), new StatusDisagreement("still")]);
+  await assert.rejects(fieldStatusSetter(read), /still/);
+});
+
+test("fieldStatusSetter does not read again for any other failure", async () => {
+  const { read, calls } = disagreeing([new Error("unmapped")]);
+  await assert.rejects(fieldStatusSetter(read), /unmapped/);
+  assert.equal(calls.filter((call) => call.startsWith("sleep")).length, 0);
+});
+
+test("a reader's re-read of a disagreeing field is not counted against its limit", async () => {
+  const fields = { 7: { state: "ready", named: "needs-triage" }, 8: { state: "ready" } };
+  const fielded = withFields(unexpected, fields);
+  const github = async (method, path, body, headers) => {
+    const answer = await fielded(method, path, body, headers);
+    if (method === "POST" && body?.variables?.number === 7) {
+      fields[7] = { state: "ready" };
+    }
+    return answer;
+  };
+  const labels = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {}, limit: 2, sleep: async () => {} });
+  assert.deepEqual(await labels(7, []), ["status: ready"]);
+  assert.deepEqual(await labels(8, []), ["status: ready"]);
 });

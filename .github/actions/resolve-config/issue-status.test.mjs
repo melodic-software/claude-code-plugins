@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { checkStatus, collapseStatus, issueStatus as readStatus, statusOption } from "./issue-status.mjs";
+import { checkStatus, collapseStatus, issueStatus as readStatus, StatusDisagreement, statusOption } from "./issue-status.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
@@ -259,4 +259,9 @@ test("events: a full window with no counted setter throws; one with a counted se
     readStatus({ fieldValues: [{ field: FIELD, option: OPTIONS[now] }], fieldSetters: {}, fieldEvents, fieldEventsFull: true }, CONFIG, TRUSTED);
   assert.throws(() => full([set(UNLISTED, "ready")], "ready"), /no counted setter among its newest field events/);
   assert.equal(full([set(LISTED, "needs-human"), set(UNLISTED, "ready")], "ready"), "needs-human");
+});
+
+test("read: the two reads disagreeing throws StatusDisagreement, so a reader may read again", () => {
+  assert.throws(() => fromEvents([set(LISTED, "needs-human")]), StatusDisagreement);
+  assert.throws(() => fromEvents([set(LISTED, "ready")], "needs-human"), StatusDisagreement);
 });

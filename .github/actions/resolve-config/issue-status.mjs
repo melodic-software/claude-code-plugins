@@ -8,6 +8,15 @@ import { Rejection } from "./resolve.mjs";
 // order.
 const FLOOR = "needs-triage";
 
+// The field's two reads (REST values, field events) saw different writes:
+// usually a read racing a write, so a reader may read both again.
+export class StatusDisagreement extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StatusDisagreement";
+  }
+}
+
 // GitHub label names compare without case.
 const fold = (name) => String(name).toLowerCase();
 
@@ -79,7 +88,7 @@ export function issueStatusSetter(facts, config, trustedActors) {
   const row = facts.fieldValues.find((value) => value.field === fieldId);
   const disagree = (named) => {
     if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
-      throw new Error(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
+      throw new StatusDisagreement(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
     }
   };
   if (Array.isArray(facts.fieldEvents)) {
@@ -89,7 +98,7 @@ export function issueStatusSetter(facts, config, trustedActors) {
     const rest = row === undefined ? null : config.options[String(row.option)];
     if (events.length > 0 && rest !== undefined && (events.at(-1).to ?? null) !== rest) {
       const left = events.at(-1).to === null ? "removed it" : `set \`${events.at(-1).to}\``;
-      throw new Error(`issue field ${fieldId} (Work status) holds ${row === undefined ? "no value" : `option ${row.option}`}, but its newest field event ${left}`);
+      throw new StatusDisagreement(`issue field ${fieldId} (Work status) holds ${row === undefined ? "no value" : `option ${row.option}`}, but its newest field event ${left}`);
     }
     for (let i = events.length - 1; i >= 0; i -= 1) {
       const { actorId, removed, to } = events[i];
