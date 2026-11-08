@@ -232,6 +232,18 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter args must be a sequence too ---------------------------------
+new_fixture f
+mkdir -p "$f/plugins/alpha/skills/demo"
+printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
+  '          command: node' '          args: x.mjs' '---' >"$f/plugins/alpha/skills/demo/SKILL.md"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a frontmatter scalar args value should fail, got: $out"
+else
+  assert_fail "frontmatter non-sequence args fails" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/skills/demo/SKILL.md:7: .* not an array'
+fi
+rm -rf "$f"
+
 # --- unreadable hooks.json is a finding, not a pass -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{not json'

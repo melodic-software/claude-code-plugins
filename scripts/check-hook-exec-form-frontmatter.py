@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Report exec-form hook objects declared in skill/agent YAML frontmatter.
 
-Helper for `scripts/check-hook-exec-form.sh`, which owns the RULE (what makes a
-`command` unacceptable) and applies it to both declaration surfaces. This script
+Helper for `scripts/lib/hook-configs.sh`, which runs it as the frontmatter half
+of the hook-config corpus; each gate on that library owns its RULE. This script
 owns only the READING of the frontmatter surface, and emits what it finds as
 tab-separated records on stdout:
 
-    V<TAB><file><TAB><line><TAB><command>   an exec-form hook object
+    V<TAB><file><TAB><line><TAB><command>   an exec-form hook object, `args` a sequence
+    N<TAB><file><TAB><line><TAB><command>   an exec-form hook object, `args` not a sequence
     S<TAB><file><TAB><line><TAB><command>   a shell-form hook object (no `args`)
     X<TAB><file><TAB><line><TAB><reason>    frontmatter that could not be read
-
-`scripts/check-hook-slow-shapes.sh` reads the S records; the exec-form gate
-ignores them.
 
 Why a real YAML parser, and why Python
 --------------------------------------
@@ -191,7 +189,9 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
             command_node, command_key_node = entries["command"]
             line = command_key_node.start_mark.line + offset
             if isinstance(command_node, yaml.ScalarNode):
-                emit("V", path, line, command_node.value)
+                args_node, _ = entries["args"]
+                kind = "V" if isinstance(args_node, yaml.SequenceNode) else "N"
+                emit(kind, path, line, command_node.value)
             else:
                 emit(
                     "X", path, line, "an exec-form hook whose `command` is not a scalar"

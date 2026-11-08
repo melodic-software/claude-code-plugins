@@ -258,6 +258,12 @@ row_json "bash" '{"args":"x.sh"}' >"$f/plugins/demo/hooks/hooks.json"
 expect "an args value that is not an array is a finding, named at its row" "$f" 1 "UNREADABLE HOOK CONFIG: plugins/demo/hooks/hooks.json:.hooks.Stop[0].hooks[0]: args is not an array"
 
 new_fixture f
+mkdir -p "$f/plugins/demo/skills/s"
+printf '%s\n' '---' 'name: s' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
+  '          command: node' '          args: x.mjs' '---' >"$f/plugins/demo/skills/s/SKILL.md"
+expect "a frontmatter args value that is not a sequence is a finding" "$f" 1 "UNREADABLE HOOK CONFIG: plugins/demo/skills/s/SKILL.md:7: args is not an array"
+
+new_fixture f
 mkdir -p "$f/plugins/demo/hooks"
 jq -n '{hooks:{}}' >"$f/plugins/demo/hooks/hooks.json"
 expect "a corpus with no command hooks refuses to report clean" "$f" 1 "refusing to report clean"

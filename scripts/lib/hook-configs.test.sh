@@ -127,7 +127,7 @@ expect "sources skips an unparsable manifest" "$(rows "$f" sources 2>&1)" \
 S|plugins/b/hooks/hooks.json	.hooks"
 rm -rf "$f"
 
-# --- frontmatter: exec, shell, unreadable --------------------------------------
+# --- frontmatter: exec with a sequence, exec without one, shell, unreadable ----
 new_fixture f
 put "$f" plugins/a/skills/s/SKILL.md '---
 name: s
@@ -138,16 +138,20 @@ hooks:
           command: node
           args: [x.mjs]
         - type: command
+          command: bash
+          args: x.sh
+        - type: command
           command: bash x.sh
 ---
 body'
 put "$f" plugins/a/agents/bad.md '---
 hooks: [unclosed
 ---'
-expect "frontmatter V, S and X records map to the same callbacks" "$(rows "$f" 2>&1)" \
+expect "frontmatter V, N, S and X records map to the same callbacks" "$(rows "$f" 2>&1)" \
   "X|frontmatter|plugins/a/agents/bad.md|2|the YAML frontmatter does not parse, so this gate cannot clear it
 H|plugins/a/skills/s/SKILL.md|7|exec|array|node|node
-H|plugins/a/skills/s/SKILL.md|10|shell|none|bash x.sh|bash x.sh"
+H|plugins/a/skills/s/SKILL.md|10|exec|other|bash|bash
+H|plugins/a/skills/s/SKILL.md|13|shell|none|bash x.sh|bash x.sh"
 rm -rf "$f"
 
 # --- a frontmatter reader that does not complete stops the walk ----------------

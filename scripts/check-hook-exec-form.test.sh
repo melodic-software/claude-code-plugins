@@ -1022,6 +1022,20 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter: a scalar args value is still exec form ---------------------
+new_fixture f
+mkdir -p "$f/plugins/alpha/skills/demo"
+printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
+  '          command: bash' '          args: x.sh' '---' >"$f/plugins/alpha/skills/demo/SKILL.md"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a frontmatter bare bash with scalar args should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/skills/demo/SKILL.md:7: .*"bash"' <<<"$out"; then
+  ok "a frontmatter scalar args value is still exec form"
+else
+  fail "expected the frontmatter row flagged at line 7, got: $out"
+fi
+rm -rf "$f"
+
 # --- a fully clean tree passes with a positive statement --------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
