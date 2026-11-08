@@ -27,54 +27,21 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { excluded, laneIssue, lastPull, linkedIssues, resolveBranchCleanup } from "./rules.mjs";
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
-const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
-
-export class BudgetSpent extends Error {}
+import { BudgetSpent, budgetedClient, pages } from "../lib/github-rest.mjs";
 
 export function client(env, { pace = () => delay(200), dryRun = true, budget = Number(env.CALL_BUDGET ?? 600) } = {}) {
-  let used = 0;
+  const rest = budgetedClient(env, { budget, pace });
   const call = async (method, path, body) => {
     if (dryRun && method !== "GET") throw new Error(`dry-run refuses ${method} ${path}`);
-    if (used >= budget) throw new BudgetSpent(`call budget of ${budget} spent`);
-    used += 1;
-    await pace();
-    const headers = {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      "x-github-api-version": "2022-11-28",
-    };
-    if (body !== undefined) headers["content-type"] = "application/json";
-    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
-      method,
-      headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`);
-    if (response.status === 204) return null;
-    const json = await response.json();
+    const json = await rest(method, path, body);
     // GraphQL answers a refused mutation with HTTP 200 and an errors list.
     if (path === "/graphql" && (json?.errors?.length || !json?.data)) {
       throw new Error(`POST /graphql: ${json?.errors?.map((e) => e.message).join("; ") || "no data"}`);
     }
     return json;
   };
-  call.remaining = () => budget - used;
+  call.remaining = rest.remaining;
   return call;
-}
-
-async function pages(call, path, max = 20) {
-  const items = [];
-  for (let page = 1; page <= max; page += 1) {
-    const batch = (await call("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`)) ?? [];
-    items.push(...batch);
-    if (batch.length < 100) return items;
-  }
-  throw new Error(`${path.split("?")[0]}: more than ${max} pages`);
 }
 
 const refPath = (name) => name.split("/").map(encodeURIComponent).join("/");
