@@ -127,8 +127,10 @@ disagree on whether to rebase at all.
 ## Carrying out the method
 
 `push-branch.sh`'s `sync_stale_base` step still merges under a forced rebase: it carries out a merge
-already chosen and never reads this decision. Callers pass `--no-sync-stale-base` when the decision
-is `hold` or `delegate`, so that step cannot update a branch the decision left alone. `none` needs no
+already chosen and never reads this decision.
+[The update sequence](../skills/pull-request/reference/ready-for-review.md#decide-and-carry-out-the-update)
+says when a push passes `--no-sync-stale-base`, so that step cannot update a branch the decision
+left alone. `none` needs no
 flag, because `branch-update-signals.sh` reports no base change needed only when the overlap check
 finds none, and that step merges only on an overlap. A head already holding the base tip has nothing
 to merge.

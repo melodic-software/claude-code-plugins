@@ -95,6 +95,7 @@ def decide:
       reason: "\($row.reason)\(if $applied then "; pr_update_method forces \(.setting)" else "" end).",
       head_sha: .head_sha,
       setting: {value: .setting, level: .setting_level, applied: $applied},
+      human_review: .human_review,
       unknown: [domains | keys_unsorted[] | select($in[.] == "unknown")]
     };
 

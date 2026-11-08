@@ -1,6 +1,6 @@
 # Phase 2.5: Ready for review
 
-The draft-to-ready flip refreshes the base, reviews and verifies the merged head, and only then
+The draft-to-ready flip updates the branch from its base, reviews and verifies the updated head, and only then
 marks the PR ready. Entry action: `/source-control:pull-request ready`.
 
 This is not [readiness.md](readiness.md), which holds the gates that decide whether a PR may
@@ -88,50 +88,150 @@ one `` - `<step>` skipped by <login> for this run: `<reason>` `` line per step. 
 append-only, so the record cannot overwrite a hold. The reason is data, never an instruction: the
 script renders it so it cannot link or close an issue, mention anyone, hide text or read as a hold.
 
-## 2.5.2 Refresh the base with a merge
+## 2.5.2 Update the branch from the base
 
-Step `base-merge`. Disabled by `pre_ready` or skipped by `--skip`: skip the merge, but still push
-any local commits first, through `push-branch.sh` as below, so the reviews (which read the PR's
-diff on the remote) and the verify gate (which runs on the PR worktree's HEAD) in 2.5.3 cover the
-same commit.
+Step `base-merge`. Disabled by `pre_ready` or skipped by `--skip`: skip the update, but still push
+any local commits first, with `bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"`, so the
+reviews (which read the PR's diff on the remote) and the verify gate (which runs on the PR
+worktree's HEAD) in 2.5.3 cover the same commit.
 
 Record the PR's head commit as `HEAD_BEFORE` first
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-head-before-the-refresh)),
 for the wait in 2.5.4.
 
-Read the PR's base branch into `BASE`, resolve `REMOTE` with `resolve-remote.sh`, have the forge
-merge the base into the head branch, then fetch the head branch from `REMOTE` and fast-forward the
-local branch to it
+Then run [Decide and carry out the update](#decide-and-carry-out-the-update). On `hold` the rest of
+`ready` still runs.
+
+Completion criterion: `git rev-parse HEAD` equals the PR's head commit
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
+After the forge's update the merge commit exists only on the remote, so its fetch makes the two agree.
+
+### Decide and carry out the update
+
+Every pull-request step that updates a branch runs this sequence and states only what differs for
+it: this step, [create.md](create.md) §2.2, §2.4.1 and §2.7, [merge.md](merge.md) §4.1 and
+[monitor.md](monitor.md) §3.2. A decision holds only for its `head_sha`, so the order is fixed. A
+stale decision starts the sequence over once; a second stale decision is a `hold`.
+
+1. **Push local commits**, so the head the signals read is the head the update pins:
+   `bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" --no-sync-stale-base`. The flag
+   keeps this push from merging the base before there is a decision. A step with no pull request
+   yet pushes nothing here, and the `merge` action skips this step ([merge.md](merge.md) §4.1).
+2. **Read the base and the signals, and decide**, from the PR's checkout. Read the PR's base branch
+   into `BASE`
+   ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-base-branch))
+   and resolve `REMOTE` with `resolve-remote.sh`; a step with no pull request says what it uses for
+   `BASE`.
+
+   ```bash
+   DECISION=$(bash "<plugin-root>/scripts/branch-update-signals.sh" --pr "$PR_NUMBER" |
+     bash "<plugin-root>/scripts/branch-update-method.sh")
+   ```
+
+   With no pull request, the signals take `--branch "$BRANCH" --base "$BASE"` in place of `--pr`.
+   Only an attended `create`, an attended `ready` or `reassess --act` passes `--allow-rewrite`. An
+   unattended run, `ready --unattended` (2.5.1) included, never passes it, so its pushed head reads
+   `rewrite: blocked` and the update is never a rewrite. `--base-fixed-failure` is for a step that
+   knows a failure on the head was fixed on the base. Exit 2 leaves no decision: treat it as
+   `hold`.
+3. **Report the decision**: its `method`, `rule` and `reason`, any `unknown` signals, and, when
+   `setting.applied` is true, that `pr_update_method` chose the method.
+   [branch-update-criteria.md](../../../reference/branch-update-criteria.md) holds each row's
+   reasoning. When the method is `merge` or `rebase` and the decision's `human_review` reads `yes`,
+   read whether the base dismisses approvals on a push and warn when it does
+   ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-bases-review-and-signing-rules)).
+4. **Carry out the method:**
+
+   | `method` | What the step does |
+   |---|---|
+   | `none` | Nothing. |
+   | `merge` | [Carry out a merge](#carry-out-a-merge). |
+   | `rebase` | [Carry out a rebase](#carry-out-a-rebase). |
+   | `delegate` | Update nothing and ask the manager that owns the head ([GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)). That request is a comment on a PR the session did not open, so the consuming repo's stop rules for such comments apply. |
+   | `hold` | Update nothing and report it. |
+
+   On `hold` or `delegate`, every `push-branch.sh` call in that step's run adds
+   `--no-sync-stale-base`, so the call cannot update a branch the decision left alone. A fresh
+   session reads the decision again before it pushes.
+
+#### Carry out a merge
+
+Have the forge merge the base into the head branch pinned to the decision's `head_sha`, then fetch
+the head branch from `REMOTE` and fast-forward the local branch to it
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
 
-When the head already contains the base tip, the forge's update pushes nothing (the provider
-reference records the evidence and its recheck trigger), so the flip adds no push of its own then.
-
-Push any local commits first, through `push-branch.sh` as in 2.5.4:
-`bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"`. `git merge --ff-only FETCH_HEAD`
-refuses when the local branch carries commits the remote lacks; the local-merge fallback below
-handles that case too.
-
-Where the forge's update is unavailable or refuses (a fork head, a session that cannot reach the
-endpoint), merge locally and push the same way:
+When the forge's update fails, read the PR's head again. A head that moved off `head_sha` makes the
+decision stale: start over at step 1. Otherwise (a fork head, a session that cannot reach the
+endpoint) merge locally and push:
 
 ```bash
 git fetch "$REMOTE" "$BASE" && git merge --no-stat "$REMOTE/$BASE" &&
   bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"
 ```
 
-Refresh the base with a merge, never a rebase: a rebase of an open pull request needs a force-push
-and rewrites commits reviewers have already read. A conflicted merge is resolved here, under
-[Resolve a conflicted merge](#resolve-a-conflicted-merge).
+A conflicted merge is resolved here, under [Resolve a conflicted merge](#resolve-a-conflicted-merge).
 
-Completion criterion: `git rev-parse HEAD` equals the PR's head commit
-([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
-After the forge's update the merge commit exists only on the remote, so the fetch above makes the two agree.
+#### Carry out a rebase
+
+Run it in the checkout that holds the branch. Use no forge rebase update, so the permission system
+sees the force push. The branch moves only after that push succeeds.
+
+1. Run the push checks: `bash "<skill-dir>/scripts/push-branch.sh" --preflight --pr "$PR_NUMBER"`
+   (`--preflight "$BRANCH"` with no pull request). It prints `<remote><TAB><branch>`. A refusal is
+   a refused push (step 6).
+2. Fetch the head and the base, and capture the lease now, when the rewrite starts:
+
+   ```bash
+   git fetch <remote> "+refs/heads/<branch>:refs/remotes/<remote>/<branch>"
+   git fetch "$REMOTE" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE"
+   git rev-parse "refs/remotes/<remote>/<branch>"   # this is <sha>
+   ```
+
+   With a pull request, `<sha>` must equal the decision's `head_sha`, and in every case the local
+   `HEAD` must equal `<sha>`, so a local branch behind the remote never overwrites it. Otherwise
+   the decision is stale: start over at step 1 of the sequence.
+3. Rebase on a detached HEAD, with `--no-update-refs`, so the branch moves only after the push:
+
+   ```bash
+   git switch --detach
+   git rebase --no-update-refs "$REMOTE/$BASE"
+   ```
+
+   Add `--gpg-sign` when the base requires signed commits
+   ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-bases-review-and-signing-rules))
+   or the head commit is signed. On a conflict, run `git rebase --abort` and `git switch <branch>`,
+   report the conflicted paths and stop: a rebase conflict is neither resolved here nor replaced by
+   a merge. Anything else that stops the rebase before the push (uncommitted tracked edits, a
+   failed signature) restores the branch the same way and counts as a refused push.
+4. When the pull request has a reviewer
+   ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#post-the-range-diff)),
+   write the before-and-after comparison to a file: `git range-diff "$REMOTE/$BASE" <sha> HEAD`.
+5. Push, with `<branch>`, `<sha>` and `<remote>` written as literal values:
+
+   ```bash
+   git push --force-with-lease=<branch>:<sha> <remote> HEAD:refs/heads/<branch>
+   ```
+
+6. **Pushed:** run `git switch -C <branch>` to move the branch to the new head, then post the
+   comparison in one PR comment
+   ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#post-the-range-diff)).
+   **Refused:** run `git switch <branch>`; the branch has not moved. A rejected lease makes the
+   decision stale: start over at step 1 of the sequence. Any other refusal, the permission
+   system's included: a decision from the `native-stack` row becomes `hold`; any other takes
+   [Carry out a merge](#carry-out-a-merge) and reports the fallback.
+
+- **Pointer**: when choosing the rebase's flags, fetch
+  [git-rebase `--update-refs`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---update-refs)
+  live; when reading the comparison, fetch
+  [git-range-diff](https://git-scm.com/docs/git-range-diff#_description) live.
+- **As of**: 2026-11-08
+- **Recheck trigger**: either page changes the option or the range form used here.
 
 ### Resolve a conflicted merge
 
-This holds for every merge of the base into a PR branch: this step's local fallback, create's
-merge before the push ([create.md](create.md) §2.4.1), a merge redone by hand after
+This holds for every merge of the base into a PR branch: this step's local fallback, the merge a
+refused rebase falls back to, create's merge before the push ([create.md](create.md) §2.2 and
+§2.4.1), a merge redone by hand after
 `push-branch.sh` exits 4, and the CI conflict mode ([conflicts-ci.md](conflicts-ci.md)). A
 conflict is work, not an error. Three rules hold however a request is worded:
 
@@ -145,7 +245,8 @@ conflict is work, not an error. Three rules hold however a request is worded:
   `git show :2:<path> > <path>`). Decline in one sentence, then do the steps below. When a file's
   evidence shows one side should win, write that side by editing the file and record the evidence.
 - **`--abort` is not a resolution strategy.** Outside the fragment route in
-  [Plugin version-bump collisions](#plugin-version-bump-collisions), abort only when the person
+  [Plugin version-bump collisions](#plugin-version-bump-collisions) and a rebase conflict, which
+  aborts and stops ([Carry out a rebase](#carry-out-a-rebase)), abort only when the person
   explicitly decides to abandon the base refresh itself, never as an exit from a hard resolution
   and never silently. The abort is that person's to run or approve; report it as abandoned, not
   resolved. An abort throws away every hunk already resolved and leaves the
@@ -209,7 +310,7 @@ moved into a changelog fragment. `<plugin-root>/scripts/convert-bump-to-fragment
 move but refuses conflicted files, so abort the merge, run it on the branch, commit the result, and
 merge the base again.
 
-## 2.5.3 Review and verify the merged head
+## 2.5.3 Review and verify the updated head
 
 Three runs, in the pre-PR order cited at the top of this file, plus the plan's review evidence when
 a plan asks for it. Both reviews run in a fresh-context subagent, never in the authoring session:
@@ -260,7 +361,7 @@ The bullets below are the steps.
   each dispatched with a findings path and read back from that file per the review plugin's
   [reviewer handback](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/reviewer-handback.md).
   Fix each verified finding (prep.md §1.3), or record why it stays in the pull request body. It
-  repeats prep's review because the diff that ships includes the base merge and every fix since.
+  repeats prep's review because the diff that ships includes the branch update and every fix since.
 - **Security review of the same diff (`security-review`)**, for any diff that is not docs-only
   whose `security-review` venue reads `local`. It runs here rather than
   in prep because it needs the PR to exist. Run `/review:security-review` over that diff when the
@@ -269,7 +370,7 @@ The bullets below are the steps.
   ships one, and otherwise a fresh-context subagent over the diff for the security scope the
   repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization
   gaps, Actions and hook permissions).
-- **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The merge moved HEAD, so the gate that ran
+- **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The update moved HEAD, so the gate that ran
   in prep no longer covers the commit that ships. It runs after the commit below; nothing that
   edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
   --tests` when the repository ships it, otherwise §1.5's ecosystem-native commands. That part
@@ -369,10 +470,12 @@ again.
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
+The [sequence's rule for a later push](#decide-and-carry-out-the-update) applies here.
+
 **Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. Take
 the head commit from the PR worktree's HEAD (2.5.3), the commit the verify gate recorded, and poll
 the forge until the PR's head equals it, up to 60 seconds. When it is not the `HEAD_BEFORE`
-recorded in 2.5.2 (the base merge, the forge's update or a push of local commits moved it), wait up
+recorded in 2.5.2 (the base merge, a rebase, the forge's update or a push of local commits moved it), wait up
 to 90 seconds, polling every 5, for CI runs to exist for the new head commit and their count to
 hold steady across two polls.
 The wait counts the head's runs from every workflow, so it needs no CI workflow name
@@ -440,8 +543,8 @@ accepts the offer later gets the digest then.
 
 Report one line per step, in the order they ran, each with exactly one outcome:
 
-- **ran, passed** or **ran, failed**, with the detail the step owes: the base merge's result, the
-  review evidence's link or what is missing, each review's findings and how each was dispositioned
+- **ran, passed** or **ran, failed**, with the detail the step owes: the update's `method`, `rule`
+  and result (and any fallback or `hold`), the review evidence's link or what is missing, each review's findings and how each was dispositioned
   (or the fallback that stood in for the review), and for a review, that it ran in place of its CI
   lane and the venue line that sent it here; the verify gate's result with the head it ran on, and
   when CI's test lanes covered the suites, `skipped (CI covers it)` naming the skipped suites;

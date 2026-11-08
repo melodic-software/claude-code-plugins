@@ -27,15 +27,14 @@ Re-check all check runs for any state changes, then re-check for new comments si
    ([GitHub](../../../reference/providers/github/pull-request/merge.md#stale-base-guard)). Capture
    that `headRefOid` as `HEAD_SHA` here: it is the head every later step in this phase pins to, so
    a push after this point holds the merge instead of riding along. If
-   `behind_by > 0`, update the branch (merge-forward, or the forge's update-branch) and re-run
-   readiness; do **not** squash-merge a behind head. Two exceptions
-   ([GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)):
-   when the base uses a merge queue, skip the update and enqueue; and when a dependency manager (Dependabot, Renovate) authored the PR,
-   never push or merge into its branch: ask the manager to rebase it (for Dependabot, the comment
-   [GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)
-   names), then re-run readiness on the
-   head it pushes. That request is a comment on a PR the session did not open, so the
-   consuming repo's stop rules for such comments apply. Under a non-strict ruleset, GitHub can
+   `behind_by > 0`, run [Decide and carry out the update](ready-for-review.md#decide-and-carry-out-the-update)
+   without its step 1: a local commit the PR lacks is a `hold` at this gate, not a push. On `none`
+   go on with `HEAD_SHA` as pinned when the decision's `head_sha` equals it; when they differ the
+   head moved, so re-run readiness. After an update or a request to the manager, re-run readiness
+   on the new head. On `hold`, do **not** squash-merge a behind head.
+   When the base uses a merge queue
+   ([GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)),
+   skip the decision and enqueue. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
    recently-landed fixes (the tests travel with the reverted code, so CI stays green). `CLEAN` also
    says nothing about which base CI tested: GitHub regenerates the test merge commit only on a

@@ -76,7 +76,7 @@ class NoUsableAnswer(unittest.TestCase):
     def test_exit_2_holds(self) -> None:
         self.assert_holds("exit 2: bad signal", self.answered(2, stderr="bad signal\n"))
 
-    def test_unparseable_output_holds(self) -> None:
+    def test_unparsable_output_holds(self) -> None:
         self.assert_holds("no branch update decision", self.answered(0, "not json"))
 
     def test_a_method_no_caller_acts_on_holds(self) -> None:

@@ -172,7 +172,7 @@ reads the file itself, through a script where the key names one below.
 
 - `pr_open_state`: the state `/source-control:pull-request create` leaves a pull request in,
   `ready` or `draft`. Create always opens a draft; with `ready` it then runs
-  `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
+  `/source-control:pull-request ready`, which updates the branch from its base, runs the reviews and the verify
   gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
   [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
   1. the default, `ready` (a consumer opts into `draft`);

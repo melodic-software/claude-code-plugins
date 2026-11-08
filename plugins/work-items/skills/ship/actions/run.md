@@ -95,15 +95,15 @@ is not installed, STOP before any claim and tell the user to install it; `run` h
      `--draft 'merge hold unread'`. Pass `--draft 'ready flip reserved for a person'` when the
      consuming project's instructions reserve the ready flip for a person. When the open state
      resolves `ready`, `create --pushed` runs
-     `ready --unattended` itself (it merges the base, runs the code and security reviews,
-     verifies the merged head, then flips), so the run dispatches no `ready` of its own; run
+     `ready --unattended` itself (it updates the branch from its base, runs the code and security reviews,
+     verifies the updated head, then flips), so the run dispatches no `ready` of its own; run
      `create --pushed` at the strong tier's current alias, dispatching it at that tier when this
      session runs below it. When
      `create --pushed` reports the PR left a draft (a `draft` open state, a requested draft, or a
      `ready` refusal: a hold, a superseded item, a failed gate), carry the reason it reported
      into the report, and never lift the hold or flip the PR another way. When the user says
      to land it, take it through `ready` again (on a PR already out of draft it refreshes the base
-     and re-runs the reviews and the verify gate on the merged head, without flipping again) and then
+     and re-runs the reviews and the verify gate on the updated head, without flipping again) and then
      `merge`; both keep their own gates and holds. The PR's closing keyword closes the item. Only
      then start the next PR, which landing the previous one may have made stale.
 

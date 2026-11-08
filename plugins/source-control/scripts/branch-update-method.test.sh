@@ -161,6 +161,17 @@ assert_contains "reason names the forced value when applied" "$(field .reason)" 
 decide landing=squash
 assert_not_contains "reason names no forced value under auto" "$(field .reason)" "pr_update_method"
 
+decide human_review=yes
+assert_eq "human_review yes is carried on a merge" "merge yes" "$(field '"\(.method) \(.human_review)"')"
+decide
+assert_eq "human_review no is carried on a rebase" "rebase no" "$(field '"\(.method) \(.human_review)"')"
+decide human_review=yes setting=rebase
+assert_eq "human_review yes is carried on a forced rebase" "rebase yes" "$(field '"\(.method) \(.human_review)"')"
+decide human_review=yes behind=no
+assert_eq "human_review is carried when no update is needed" "none yes" "$(field '"\(.method) \(.human_review)"')"
+decide human_review=unknown landing=squash
+assert_eq "human_review unknown is carried" "unknown" "$(field .human_review)"
+
 for signal in $TRI_STATE landing; do
   decide "$signal=unknown"
   assert_eq "unknown lists $signal" "$signal" "$(field '.unknown | join(",")')"

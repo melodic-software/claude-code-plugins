@@ -272,7 +272,7 @@
               "security-review",
               "verify"
             ],
-            "description": "base-merge: merge the base into the head. plan-evidence: gather the review evidence a plan's Review: value asks for. code-review and security-review: the fresh-context reviews of the pull request's diff. verify: the verify gate on the merged head."
+            "description": "base-merge: update the branch from its base, by the method the shared branch update decision chooses. plan-evidence: gather the review evidence a plan's Review: value asks for. code-review and security-review: the fresh-context reviews of the pull request's diff. verify: the verify gate on the updated head."
           },
           "enabled": {
             "type": "boolean",
