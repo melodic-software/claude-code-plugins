@@ -1,6 +1,7 @@
 // Runs the action's `run:` script with a curl stand-in that answers the OIDC
 // request and the broker, and records the broker request body. The expected
-// body is the broker contract: `{lane, activity, pr_number?, issue_number?, dispatcher_run_id?}`,
+// body is the broker contract: `{lane, activity, pr_number?, issue_number?, release?,
+// dispatcher_run_id?, expected_upstream_head?, pushed_commit?}`,
 // numbers as JSON integers (pr-run-activity.md, run job step 6; the broker's
 // parseBody).
 import assert from "node:assert/strict";
@@ -693,9 +694,9 @@ test("a dispatcher run id is sent as dispatcher_run_id, an integer", () => {
   assert.match(run.output, /^mint-id=5550001-1$/m);
 });
 
-test("an expected upstream head rides with the dispatcher run id as expected_upstream_head", () => {
+test("an expected upstream head rides with the dispatcher run id as expected_upstream_head, with no pushed_commit when nothing was pushed", () => {
   const head = "9".repeat(40);
-  const run = request({ DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: head });
+  const run = request({ DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: head, PUSHED_COMMIT: "" });
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(JSON.parse(run.body), {
     lane: "pr-unblock",
@@ -713,6 +714,43 @@ test("an expected upstream head without a dispatcher run id, or not a SHA, fails
     assert.match(run.stdout, /::error::the expected upstream head must be a commit SHA and ride with a dispatcher run id/);
     assert.equal(run.body, null);
   }
+});
+
+test("a reply-job mint after a push sends the pushed commit as pushed_commit beside expected_upstream_head", () => {
+  const head = "9".repeat(40);
+  const pushed = "0123456789abcdef0123456789abcdef01234567";
+  const run = request({ ACTIVITY: "address-feedback", DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: head, PUSHED_COMMIT: pushed });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), {
+    lane: "pr-unblock",
+    activity: "address-feedback",
+    pr_number: 42,
+    dispatcher_run_id: 38155572048,
+    expected_upstream_head: head,
+    pushed_commit: pushed,
+  });
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+for (const [name, env] of [
+  ["without an expected upstream head", { DISPATCHER_RUN_ID: "38155572048", PUSHED_COMMIT: "a".repeat(40) }],
+  ["in upper case", { DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: "9".repeat(40), PUSHED_COMMIT: "A".repeat(40) }],
+  ["one character short", { DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: "9".repeat(40), PUSHED_COMMIT: "a".repeat(39) }],
+  ["a branch name", { DISPATCHER_RUN_ID: "38155572048", EXPECTED_UPSTREAM_HEAD: "9".repeat(40), PUSHED_COMMIT: "main" }],
+]) {
+  test(`a pushed commit ${name} fails before the broker request`, () => {
+    const run = request(env);
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::the pushed commit must be a commit SHA and ride with an expected upstream head/);
+    assert.equal(run.body, null);
+  });
+}
+
+test("check mode refuses a pushed commit before the broker request", () => {
+  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", PUSHED_COMMIT: "a".repeat(40) });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.equal(run.body, null);
 });
 
 // The run job maps this output, and report-check-run appends it to a failed

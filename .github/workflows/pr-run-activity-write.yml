@@ -184,8 +184,8 @@ on:
         description: >-
           With expected-upstream-head, the pushed-commit output of the
           caller's apply-feedback-patch job: the one commit the gate accepts
-          after that head. Empty when it pushed nothing, and on every other
-          job.
+          after that head. The broker gets it too. Empty when it pushed
+          nothing, and on every other job.
         required: false
         type: string
         default: ""
@@ -1181,6 +1181,7 @@ jobs:
           issue-number: ${{ inputs.issue-number }}
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
+          pushed-commit: ${{ inputs.pushed-commit }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
