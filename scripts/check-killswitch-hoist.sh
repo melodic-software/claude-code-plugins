@@ -59,7 +59,7 @@
 # node handler, and harness-ops' inline shell-form node-notice row.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in README.md, "The check-script
+# the whole family's contract, stated once in scripts/README.md, "The check-script
 # contract", and held by scripts/check-script-contract.test.sh. Two fail-closed
 # stops stay at 1 because they are statements about the TREE rather than about
 # this host: a hook corpus that scans to empty, and an inlined predicate that no

@@ -27,19 +27,29 @@ function pr_unblockTitle(activity, number) {
     .replaceAll("${{ inputs.pr-number }}", String(number));
 }
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
-// A failed run whose summary opens with the lane record report-check-run
-// writes; `tokens` follow class=rate-limit, and null leaves no record.
-const failedRun = (completed, tokens = "") => ({
+// The lane-outcome record report-check-run writes into a posted check run's
+// output.text (ci-workflows docs/lane-outcome.md), for `activity`.
+const recordText = (activity, fields) =>
+  `lane-outcome ${JSON.stringify({
+    v: 1,
+    lane: "pr-unblock",
+    activity,
+    outcome: "failure",
+    credential: { secret: "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token", role: "PR_UNBLOCK" },
+    ...fields,
+  })}`;
+const resets = (at) => ({ resets: { at, window: "five_hour" } });
+// A failed run carrying a rate-limit record; `fields` add to it, and null
+// leaves no record.
+const failedRun = (completed, fields = {}) => ({
   name: CHECK_NAME,
   status: "completed",
   conclusion: "failure",
   completed_at: completed,
   output: {
     title: "Failed",
-    summary:
-      tokens === null
-        ? "The activity step failed."
-        : `lane=pr-unblock activity=resolve-conflicts class=rate-limit${tokens}\n\nThe activity step failed.`,
+    summary: "The activity step failed.",
+    ...(fields === null ? {} : { text: recordText("resolve-conflicts", { class: "rate-limit", ...fields }) }),
   },
 });
 const UNTRUSTED_SKIP = {
@@ -350,10 +360,10 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
     {
       pages: [[statedPast, statedFuture, fallbackPast, fallbackFuture, noRecord]],
       checked: new Map([
-        [statedPast.headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T11:00:00Z turns=3")]],
-        [statedFuture.headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T13:00:00Z")]],
+        [statedPast.headRefOid, [failedRun("2026-10-17T10:00:00Z", { ...resets("2026-10-17T11:00:00Z"), turns: 3 })]],
+        [statedFuture.headRefOid, [failedRun("2026-10-17T10:00:00Z", resets("2026-10-17T13:00:00Z"))]],
         [fallbackPast.headRefOid, [failedRun("2026-10-17T06:00:00Z")]],
-        [fallbackFuture.headRefOid, [failedRun("2026-10-17T08:00:00Z", " turns=2")]],
+        [fallbackFuture.headRefOid, [failedRun("2026-10-17T08:00:00Z", { turns: 2 })]],
         [noRecord.headRefOid, [failedRun("2026-10-01T00:00:00Z", null)]],
       ]),
     },
@@ -382,7 +392,7 @@ test("the resolved limits set how many reset limit stops hold a head", async () 
 // and the skip names the class and the reset.
 const authRun = (completed) => ({
   ...failedRun(completed, null),
-  output: { title: "Failed", summary: "lane=pr-unblock activity=resolve-conflicts class=auth turns=1\n\nThe activity step failed." },
+  output: { title: "Failed", summary: "The activity step failed.", text: recordText("resolve-conflicts", { class: "auth", turns: 1 }) },
 });
 
 test("a head whose run was refused its credential waits out fallback-reset, logged with its class, and is not recorded", async () => {
@@ -862,7 +872,7 @@ test("main holds a limit-stopped review-dependency head until its reset, by the 
     conclusion: "failure",
     started_at: "2026-10-17T10:00:00Z",
     completed_at: "2026-10-17T10:00:00Z",
-    output: { title: "Failed", summary: "lane=pr-unblock activity=review-dependency class=rate-limit resets=2026-10-17T11:00:00Z" },
+    output: { title: "Failed", text: recordText("review-dependency", { class: "rate-limit", ...resets("2026-10-17T11:00:00Z") }) },
   };
   const options = { pages: [[dependabot]], checked: new Map([[dependabot.headRefOid, [stop]]]) };
   const before = await runMain(options, LIMIT_DEFAULTS, Date.parse("2026-10-17T10:30:00Z"));
@@ -1429,7 +1439,7 @@ test("only a finished run that handles the head for good is recorded", async () 
   const runs = new Map([
     [pr(1).headRefOid, [UNTRUSTED_SKIP]],
     [pr(2).headRefOid, [{ status: "in_progress", conclusion: null }]],
-    [pr(3).headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T12:00:00Z")]],
+    [pr(3).headRefOid, [failedRun("2026-10-17T10:00:00Z", resets("2026-10-17T12:00:00Z"))]],
     [pr(4).headRefOid, [failedRun("2026-10-17T10:00:00Z", null)]],
     [pr(5).headRefOid, [SUCCESS_RUN]],
   ]);

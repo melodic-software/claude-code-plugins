@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { collapseStatus, StatusDisagreement } from "./issue-status.mjs";
 import { HUMAN_ID, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "./read-status.fixtures.mjs";
-import { DISAGREEMENT_WAIT_MS, fieldStatusSetter, readyWhileDeferred, StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
+import { carried, DECISION_LABELS, DISAGREEMENT_WAIT_MS, fieldStatusSetter, INFO_LABELS, isStatusLabel, readyWhileDeferred, StatusReadError, statusEvents, statusLabels, statusReader, syntheticFrom } from "./read-status.mjs";
 
 const unexpected = async (method, path) => {
   throw new Error(`unexpected ${method} ${path}`);
@@ -412,4 +412,18 @@ test("a reader's re-read of a disagreeing field is not counted against its limit
   const labels = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {}, limit: 2, sleep: async () => {} });
   assert.deepEqual(await labels(7, []), ["status: ready"]);
   assert.deepEqual(await labels(8, []), ["status: ready"]);
+});
+
+test("DECISION_LABELS and INFO_LABELS name each hold under both names, and carried and isStatusLabel read either", () => {
+  assert.deepEqual(DECISION_LABELS, ["status: needs-decision", "needs-owner-decision"]);
+  assert.deepEqual(INFO_LABELS, ["status: needs-info", "needs-reporter-info"]);
+  assert.equal(carried(["bug", "needs-owner-decision"], DECISION_LABELS), "needs-owner-decision");
+  assert.equal(carried(["status: needs-info"], INFO_LABELS), "status: needs-info");
+  assert.equal(carried(["bug"], DECISION_LABELS), undefined);
+  for (const name of ["status: ready", "Status: Needs-Decision", "needs-owner-decision", "needs-reporter-info"]) {
+    assert.equal(isStatusLabel(name), true, name);
+  }
+  for (const name of ["bug", "needs-human", undefined]) {
+    assert.equal(isStatusLabel(name), false, String(name));
+  }
 });

@@ -2,7 +2,7 @@
 # Suite for scripts/check-cant-fail-scan.sh. Each case builds a throwaway git
 # repository, commits a base, changes files on top, and runs the gate from that
 # repository against the real scanner. Expected exits come from the check-script
-# contract (README.md) and the scanner's --check exit codes.
+# contract (scripts/README.md) and the scanner's --check exit codes.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

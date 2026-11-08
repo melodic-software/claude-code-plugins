@@ -21,6 +21,8 @@ const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const RUN_ATTEMPT = /^[1-9][0-9]{0,4}$/;
+// A numeric id input: lanes-app-id, app-field-id and app-field-option.
+const ENV_ID = /^[1-9][0-9]{0,14}$/;
 // github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
 // A workflow_dispatch dispatcher must come from a listed human; push and
@@ -121,7 +123,7 @@ export async function responseDetail(response) {
   try {
     text = await response.clone().text();
   } catch {
-    text = "";
+    // No readable body: text stays "".
   }
   const fields = [
     `status=${response.status}`,
@@ -485,7 +487,7 @@ export async function isTrustedClose(github, repo, closedIssue, humans, isApp = 
   if (humans.has(closer?.id)) {
     return true;
   }
-  if (closedIssue?.state !== "closed" || !/^[1-9][0-9]{0,9}$/.test(String(closedIssue.number))) {
+  if (closedIssue?.state !== "closed" || !PR_NUMBER.test(String(closedIssue.number))) {
     return false;
   }
   const [owner, name] = repo.split("/");
@@ -609,6 +611,9 @@ export function parseDeniedIds(value = "") {
 
 export const isListed = (ids, user) => Number.isInteger(user?.id) && ids.has(user.id);
 
+// A user listed with kind human, matched by id, and not denied.
+const listedHuman = (list, deniedIds) => (user) => isListed(list.humans, user) && !deniedIds.has(user.id);
+
 // `fault` marks a stop a read GitHub failed to answer caused (isFault): the
 // reason is the one a refusal at that read gives, and with fault-reason on
 // (FAULT_REASON) main writes FAULT_REASON in its place.
@@ -688,7 +693,7 @@ async function fetchPull(github, repository, number, sleep) {
 // The PR a workflow_run belongs to. An empty `pull_requests` array is not a
 // fork signal, so the PR is always looked up from the run's head SHA.
 async function resolveRunPull(github, repository, run, attemptTimeoutMs) {
-  if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? "")) {
+  if (!SHA.test(run.head_sha ?? "")) {
     throw new Stop("no-pr");
   }
   let pulls;
@@ -918,12 +923,8 @@ async function verifyDispatcher({
   ) {
     throw new Stop("untrusted-actor");
   }
-  const isListedHuman = (user) =>
-    Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
-  const dispatcher = await readOrRefuse(
-    github,
-    `/repos/${repository}/actions/runs/${dispatcherRunId}`,
-  );
+  const isListedHuman = listedHuman(list, deniedIds);
+  const dispatcher = await readOrRefuse(github, `/repos/${repository}/actions/runs/${dispatcherRunId}`);
   const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}`);
   const created = timeOf(own.created_at);
   const started = timeOf(dispatcher.run_started_at);
@@ -1097,8 +1098,7 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   ) {
     throw new Stop(refuse);
   }
-  const isListedHuman = (user) =>
-    Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
+  const isListedHuman = listedHuman(list, deniedIds);
   // Each listing page's ETag and the body it came with. The re-read sends the
   // ETag (If-None-Match), and a 304, which GitHub does not count against the
   // rate limit, gives back that body, judged again as it was (outage posture
@@ -1333,10 +1333,7 @@ export async function evaluateTrigger({
   attemptTimeoutMs,
 }) {
   const { ids } = list;
-  if (typeof repository !== "string" || !repository.includes("/")) {
-    throw new Stop("no-pr");
-  }
-  if (requireKind !== "" && requireKind !== "human") {
+  if (typeof repository !== "string" || !repository.includes("/") || (requireKind !== "" && requireKind !== "human")) {
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
@@ -1507,13 +1504,13 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       runDispatcherRelay: env.RUN_DISPATCHER_RELAY ?? "",
       expectedUpstreamHead: env.EXPECTED_UPSTREAM_HEAD ?? "",
       pushedCommit: env.PUSHED_COMMIT ?? "",
-      lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
+      lanesAppId: ENV_ID.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,
       requirePr: env.REQUIRE_PR ?? "true",
       requireKind: env.REQUIRE_KIND ?? "",
       appLabel: env.APP_LABEL ?? "",
       // Both ids or neither: a half-set pair keeps every App field event stopped.
       appField:
-        /^[1-9][0-9]{0,14}$/.test(env.APP_FIELD_ID ?? "") && /^[1-9][0-9]{0,14}$/.test(env.APP_FIELD_OPTION ?? "")
+        ENV_ID.test(env.APP_FIELD_ID ?? "") && ENV_ID.test(env.APP_FIELD_OPTION ?? "")
           ? { id: env.APP_FIELD_ID, option: env.APP_FIELD_OPTION }
           : null,
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
@@ -1526,11 +1523,12 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       attemptTimeoutMs,
     });
   } catch (error) {
-    if (!(error instanceof Stop)) {
+    const stop = error instanceof Stop;
+    if (!stop) {
       console.log(`check-trusted-trigger: unexpected ${error?.name ?? "error"}; stopping`);
     }
-    const fault = error instanceof Stop ? error.fault : isFault(error);
-    result = stopped(env.FAULT_REASON === "true" && fault ? FAULT_REASON : error instanceof Stop ? error.reason : "no-pr");
+    const fault = stop ? error.fault : isFault(error);
+    result = stopped(env.FAULT_REASON === "true" && fault ? FAULT_REASON : stop ? error.reason : "no-pr");
   }
   try {
     writeOutputs(result, env.GITHUB_OUTPUT);

@@ -22,7 +22,7 @@ const row = (over = {}) => ({
 
 // A GitHub stand-in: open issues the list endpoint pages through 100 at a
 // time, the labels that exist, and a POST that adds the filed issue to the list.
-function fakeApi({ issues = [], labels = ["recurring", "cadence: monthly", "cadence: quarterly"], failPost = false, dropType = false } = {}) {
+function fakeApi({ issues = [], labels = ["recurring"], failPost = false, dropType = false } = {}) {
   const state = { issues: [...issues], posts: [], next: 900 };
   const call = async (method, path, body) => {
     const list = /^\/repos\/o\/r\/issues\?labels=recurring&state=open&per_page=100&page=(\d+)$/.exec(path);
@@ -61,7 +61,7 @@ test("a due row with no open issue is filed with the row's title, a type, the ro
         "",
         "<!-- recurring-schedule id=ci-pins -->",
       ].join("\n"),
-      labels: ["recurring", "cadence: monthly"],
+      labels: ["recurring"],
     },
   ]);
 });
@@ -161,11 +161,11 @@ test("a second run on the same day files nothing", async () => {
   assert.equal(api.state.posts.length, 2);
 });
 
-test("a cadence label the repository lacks is left off, and a missing recurring label fails the row", async () => {
+test("a filing applies only the recurring label, and a missing one fails the row", async () => {
   const noCadence = fakeApi({ labels: ["recurring"] });
   await fileDue({ schedule: { items: [row()] }, today: TODAY, call: noCadence.call, repo: REPO, wait: noWait });
   assert.deepEqual(noCadence.state.posts[0].labels, ["recurring"]);
-  const noRecurring = fakeApi({ labels: ["cadence: monthly"] });
+  const noRecurring = fakeApi({ labels: [] });
   const [result] = await fileDue({ schedule: { items: [row()] }, today: TODAY, call: noRecurring.call, repo: REPO, wait: noWait });
   assert.deepEqual([result.outcome, result.reason], ["failed", "label recurring does not exist"]);
   assert.deepEqual(noRecurring.state.posts, []);

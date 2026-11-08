@@ -46,9 +46,8 @@ Filled instance for the repository in use as of 2026-07-25.
   Effective rung today: human-only, until the promotion-evidence seam
   (#4588) returns a qualified read and the copy-blocks drop
   `--merge human-only`.
-- Work-class labels: deployed. Exact strings, ascending risk:
-  `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
-  `work-class: structural`, `work-class: untrusted-provenance`.
+- Work-class labels: `work-class: untrusted-provenance` is the one kept, read the same as
+  `provenance: untrusted`.
 - Stamped `agent-ready` items: **every open one carries a class label**, and
   the population is overwhelmingly `scoped`, with `mechanical` and
   `structural` in low single digits. No rung reads the label: once a rung's
@@ -478,9 +477,7 @@ terminals mutating the same row.
 >
 > `gh issue edit <numbers> --add-label "<label>"`
 >
-> The five labels in this repository, ascending risk:
-> `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
-> `work-class: structural`, `work-class: untrusted-provenance`.
+> `work-class: untrusted-provenance` is the only `work-class:` label kept in this repository.
 >
 > For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially

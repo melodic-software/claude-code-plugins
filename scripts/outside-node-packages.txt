@@ -1,6 +1,5 @@
-# Node packages outside the four sub-projects that already have CI steps
-# (miro, ai-briefing generate, video-digest extraction, course-digest extraction).
-# The runner executes each directory's own `npm test`. It does not guess
+# Node packages outside the sub-projects that already have CI steps
+# (scripts/node-subprojects.txt). The runner executes each directory's own `npm test`. It does not guess
 # `node --test` versus vitest. #3703
 .github/actions/check-born-triaged
 .github/actions/check-kill-switch
