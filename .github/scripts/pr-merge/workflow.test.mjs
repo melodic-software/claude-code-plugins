@@ -432,7 +432,7 @@ const prEvent = (action, number = 5) => ({
   event_name: "pull_request",
   ref: `refs/pull/${number}/merge`,
   repository: "o/r",
-  workflow: "pr-require-checks",
+  workflow: "PR Require Checks",
   run_id: 900 + number,
   event: { action, pull_request: { number, head: { repo: { full_name: "o/r" } } }, changes: {} },
 });
@@ -442,12 +442,12 @@ test("pr-require-checks.yml holds main's dispatches in one group that cancels no
   const on = checks.slice(checks.indexOf("\non:\n"), checks.indexOf("\npermissions:\n"));
   assert.doesNotMatch(on, /\n {2}push:/);
   assert.doesNotMatch(block[0], /queue:/);
-  const main = (run_id, run_attempt = 1) => ({ event_name: "workflow_dispatch", ref: "refs/heads/main", workflow: "pr-require-checks", run_id, run_attempt, event: { pull_request: { head: { repo: {} } }, changes: {} } });
+  const main = (run_id, run_attempt = 1) => ({ event_name: "workflow_dispatch", ref: "refs/heads/main", workflow: "PR Require Checks", run_id, run_attempt, event: { pull_request: { head: { repo: {} } }, changes: {} } });
   assert.equal(group(main(1)), group(main(2)));
   assert.equal(cancel(main(1)), false);
   // A re-run keeps its own group, so no newer dispatch replaces the one
   // re-run a red run waits on (babysit_postmerge.py reads it red otherwise).
-  assert.equal(group(main(3, 2)), "pr-require-checks-3");
+  assert.equal(group(main(3, 2)), "PR Require Checks-3");
   assert.equal(cancel(main(3, 2)), true);
 });
 
@@ -456,15 +456,15 @@ test("pr-require-checks.yml keeps every other run's group and cancel", () => {
   // A missing event field reads null in an expression; this stands in for it.
   const none = { pull_request: { head: { repo: {} } }, changes: {} };
   const other = [
-    { event_name: "workflow_dispatch", ref: "refs/heads/feat/x", workflow: "pr-require-checks", run_id: 7, event: none },
-    { event_name: "schedule", ref: "refs/heads/main", workflow: "pr-require-checks", run_id: 8, event: none },
-    { event_name: "merge_group", ref: "refs/heads/gh-readonly-queue/main/pr-1", workflow: "pr-require-checks", run_id: 9, event: none },
+    { event_name: "workflow_dispatch", ref: "refs/heads/feat/x", workflow: "PR Require Checks", run_id: 7, event: none },
+    { event_name: "schedule", ref: "refs/heads/main", workflow: "PR Require Checks", run_id: 8, event: none },
+    { event_name: "merge_group", ref: "refs/heads/gh-readonly-queue/main/pr-1", workflow: "PR Require Checks", run_id: 9, event: none },
   ];
   for (const github of other) {
-    assert.equal(group(github), `pr-require-checks-${github.run_id}`, github.event_name);
+    assert.equal(group(github), `PR Require Checks-${github.run_id}`, github.event_name);
     assert.equal(cancel(github), true, github.event_name);
   }
-  assert.equal(group(prEvent("synchronize")), "pr-require-checks-5");
+  assert.equal(group(prEvent("synchronize")), "PR Require Checks-5");
   assert.equal(group(prEvent("labeled")), "ci-contract-5-905");
   assert.equal(cancel(prEvent("synchronize")), true);
 });

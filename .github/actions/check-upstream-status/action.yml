@@ -1,4 +1,4 @@
-name: Check upstream status
+name: Check Upstream Status
 description: >
   Skip a token-spending lane while GitHub Actions or npm package installation
   lists partial_outage or major_outage on its status page. Emits degraded=true

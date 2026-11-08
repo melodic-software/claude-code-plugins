@@ -1,4 +1,4 @@
-name: intake-reenter
+name: Intake Reenter
 
 # Sends an answered issue back to intake triage. The issue's status is its
 # Work status field (hold labels still hold on top of it). A listed human's

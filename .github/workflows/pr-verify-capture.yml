@@ -1,4 +1,4 @@
-name: pr-verify-capture
+name: PR Verify Capture
 
 # The capture: drives the app a pull request changes, unattended, so the
 # pr-verify judges see it working. It runs the pull request's own code, so it
@@ -78,7 +78,7 @@ name: pr-verify-capture
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks]
+    workflows: [PR Require Checks]
     types: [completed]
     # As pr-verify.yml: only a pull_request run is captured.
     branches-ignore: [main, 'gh-readonly-queue/**']

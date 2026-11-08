@@ -110,7 +110,7 @@ test("a chunked review that wrote no verdict records chunk-failed for the record
 test("it runs only from main on pr-require-checks' completion", () => {
   const on = /\non:\n([\s\S]*?)\n\S/.exec(text)[1];
   assert.match(on, /^ {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]$/m);
-  assert.match(on, /^ {4}workflows: \[pr-require-checks\]$/m);
+  assert.match(on, /^ {4}workflows: \[PR Require Checks\]$/m);
   const keys = on.split("\n").filter((line) => !line.trim().startsWith("#")).map((line) => line.split(" #")[0]).join("\n");
   assert.doesNotMatch(keys, /pull_request|push|workflow_dispatch|issue|schedule/);
   assert.match(text, /github\.ref == 'refs\/heads\/main'/);

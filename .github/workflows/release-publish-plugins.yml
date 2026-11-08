@@ -1,4 +1,4 @@
-name: release-publish-plugins
+name: Release Publish Plugins
 
 # The bot-maintained release pull request of ADR 0048
 # (docs/adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md).

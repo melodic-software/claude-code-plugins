@@ -1,4 +1,4 @@
-name: pr-review-comment-relay
+name: PR Review Comment Relay
 
 # Relays a new review comment by a person on a lanes App pull request to
 # pr-feedback-dispatch.yml, which lists this workflow's name under

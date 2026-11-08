@@ -1,4 +1,4 @@
-name: maintenance-audit-test-selection
+name: Maintenance Audit Test Selection
 
 # Miss detection for the pull-request test selection (scripts/affected-tests.sh).
 # Informational: not in pr-require-checks.yml and not behind `ci-status`, so nothing here can
@@ -36,7 +36,7 @@ on:
   # Runs only for pr-require-checks runs on main, checks out main, holds a read-only token and
   # no secret, so no fork-controlled code runs with privileges.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks]
+    workflows: [PR Require Checks]
     types: [completed]
     branches: [main]
 

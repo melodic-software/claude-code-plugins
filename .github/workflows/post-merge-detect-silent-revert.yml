@@ -1,4 +1,4 @@
-name: post-merge-detect-silent-revert
+name: Post Merge Detect Silent Revert
 
 # Post-merge canary for #2691: detect a merge that silently deleted content
 # another recently-merged commit had just added.

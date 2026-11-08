@@ -1,4 +1,4 @@
-name: Report check run
+name: Report Check Run
 description: >
   Write one `<lane> / <activity>` check run (success, failure, or neutral
   with a skip reason) for a pipeline activity, from a scripted job that holds

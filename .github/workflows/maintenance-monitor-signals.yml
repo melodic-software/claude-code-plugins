@@ -1,4 +1,4 @@
-name: maintenance-monitor-signals
+name: Maintenance Monitor Signals
 
 # The monitoring lane: every hour, reads a fixed set of factory signals and
 # keeps one rolling issue per signal family, rewritten when its state changes,

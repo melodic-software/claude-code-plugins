@@ -1,4 +1,4 @@
-name: upstream-apply-changelog
+name: Upstream Apply Changelog
 
 # The release intake lane (#7407): for one Claude Code release, a model job
 # runs `/harness-ops:changelog apply --ci <release>`, which commits one local

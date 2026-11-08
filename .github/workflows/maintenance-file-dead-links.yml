@@ -1,4 +1,4 @@
-name: maintenance-file-dead-links
+name: Maintenance File Dead Links
 
 # Routes the dead links the weekly online link check finds to one rollup
 # issue, so each is repaired by the demotion path in
@@ -35,8 +35,10 @@ name: maintenance-file-dead-links
 on:
   # Runs this file from the default branch and executes no code from the
   # link-check run: the artifact is data, checked before use.
+  # Both names, because the link-check caller is sync-managed from standards
+  # and takes the Title Case name only when its source is renamed.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [maintenance-check-links-online-claude-code-plugins]
+    workflows: [maintenance-check-links-online-claude-code-plugins, Maintenance Check Links Online Claude Code Plugins]
     types: [completed]
     branches: [main]
 

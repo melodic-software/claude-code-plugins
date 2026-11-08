@@ -15,7 +15,7 @@ const job = text.slice(text.indexOf("\n  report-red-main:\n"), text.indexOf("\n 
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
   assert.match(job, /\n {4}needs: \[alert\]\n/);
-  assert.match(job, /needs\.alert\.outputs\.name == 'pr-require-checks'/);
+  assert.match(job, /needs\.alert\.outputs\.name == 'PR Require Checks'/);
   assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), needs\.alert\.outputs\.event\)/);
   assert.match(job, /needs\.alert\.outputs\.conclusion == 'failure'/);
   assert.match(job, /needs\.alert\.outputs\.branch == 'main'/);
@@ -125,11 +125,11 @@ test("the alert's group keys on signal and head SHA, the same for a dispatch and
     });
   const sha = "0123456789abcdef0123456789abcdef01234567";
   const sighting = group({
-    "github.event.workflow_run.name": "pr-require-checks",
+    "github.event.workflow_run.name": "PR Require Checks",
     "github.event.workflow_run.event": "workflow_dispatch",
     "github.event.workflow_run.head_sha": sha,
   });
-  assert.equal(sighting, `post-merge-demotion-alert-pr-require-checks-workflow_dispatch-${sha}`);
+  assert.equal(sighting, `post-merge-demotion-alert-PR Require Checks-workflow_dispatch-${sha}`);
   assert.equal(group({ "inputs['head-sha']": sha }), sighting);
 });
 
@@ -172,13 +172,13 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     .join("\n");
 
   // Candidates: every pair and conclusion either side names, plus ones neither does.
-  const stepLabels = [...script.matchAll(/^\s+([\w|: -]+)\)/gm)].flatMap((m) => m[1].split("|").map((s) => s.trim()));
+  const stepLabels = [...script.matchAll(/^\s+"?([\w|: -]+)"?\)/gm)].flatMap((m) => m[1].split("|").map((s) => s.trim()));
   const pairs = new Set([
     ...literals(/fromJSON\('(\["[^']*:[^']*\])'\)/g),
     ...stepLabels.filter((label) => label.includes(":")),
-    "pr-require-checks:pull_request",
-    "pr-require-checks:merge_group",
-    "post-merge-detect-silent-revert:schedule",
+    "PR Require Checks:pull_request",
+    "PR Require Checks:merge_group",
+    "Post Merge Detect Silent Revert:schedule",
     "other:push",
   ]);
   const conclusions = new Set([
@@ -287,13 +287,13 @@ test("close-cleared runs on every completed scheduled full run on main, with a n
     .replace(/github\./g, "ctx.")
     .replace(/([!=])=/g, "$1==");
   const admits = new Function("ctx", `return (${js});`);
-  const base = { name: "pr-require-checks", event: "schedule", conclusion: "success", run_attempt: 1, head_branch: "main", head_repository: { full_name: "o/r" } };
+  const base = { name: "PR Require Checks", event: "schedule", conclusion: "success", run_attempt: 1, head_branch: "main", head_repository: { full_name: "o/r" } };
   const ctx = (wr, event_name = "workflow_run") => ({ event_name, repository: "o/r", wr: { ...base, ...wr } });
   assert.equal(admits(ctx({})), true);
   assert.equal(admits(ctx({ conclusion: "failure" })), true, "a red scheduled run still scans");
   assert.equal(admits(ctx({ run_attempt: 2 })), true, "a re-run still scans");
   for (const [field, value] of [
-    ["name", "post-merge-detect-silent-revert"],
+    ["name", "Post Merge Detect Silent Revert"],
     ["event", "workflow_dispatch"],
     ["head_branch", "feature"],
     ["head_repository", { full_name: "fork/r" }],

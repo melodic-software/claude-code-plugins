@@ -222,7 +222,7 @@ test("only a push to main starts the gate, and only the gate's run starts the la
   }
   assert.deepEqual([...GATE.split("\non:\n")[1].split("\npermissions:")[0].matchAll(/^ {2}([a-z_]+):/gm)].map((m) => m[1]), ["push"]);
   assert.deepEqual([...LANE.split("\non:\n")[1].split("\npermissions:")[0].matchAll(/^ {2}([a-z_]+):/gm)].map((m) => m[1]), ["workflow_run"]);
-  assert.match(LANE, /\n {4}workflows: \[post-merge-select-mutation-range\]\n/);
+  assert.match(LANE, /\n {4}workflows: \[Post Merge Select Mutation Range\]\n/);
 });
 
 const MODEL_JOBS = ["generate", "generate-subscription", "generate-fallback", "triage", "triage-subscription", "triage-fallback"];

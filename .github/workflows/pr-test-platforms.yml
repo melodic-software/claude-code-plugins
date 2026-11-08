@@ -1,4 +1,4 @@
-name: pr-test-platforms
+name: PR Test Platforms
 
 # The informational lane for tests that need a Windows or macOS runner: the
 # Windows jobs and the macOS job (`test-macos-planning-shared`), which share one

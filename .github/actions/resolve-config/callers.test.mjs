@@ -2062,6 +2062,22 @@ test("work-resolve-issue.yml: an unlisted sender's agent-ready field write is re
 
 const READ_RUNNER = "./.github/workflows/pr-run-activity-read.yml";
 const workflowFiles = () => readdirSync(new URL("../../workflows/", import.meta.url)).filter((file) => /\.ya?ml$/.test(file));
+
+// A workflow's `name:` is what a workflow_run filter matches, so one that drifts from this rule
+// silently stops a trigger. babysit_review_evidence.py's workflow_display_name holds the same rule.
+const NAME_ACRONYMS = new Set(["pr", "ci", "api", "wip"]);
+const displayName = (stem) => stem.split("-").map((word) => (NAME_ACRONYMS.has(word) ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1))).join(" ");
+// Sync-managed from melodic-software/standards, byte-exact with a source that names them by stem,
+// until that source is renamed.
+const SYNC_MANAGED_NAMES = new Set(["maintenance-check-links-online-claude-code-plugins.yml", "pr-check-managed-files-hosted.yml"]);
+test("every workflow and action name is its file or directory stem in Title Case", () => {
+  const actions = readdirSync(new URL("..", import.meta.url)).filter((dir) => existsSync(new URL(`../${dir}/action.yml`, import.meta.url)));
+  const workflows = workflowFiles().filter((name) => !SYNC_MANAGED_NAMES.has(name));
+  for (const [file, stem] of [...workflows.map((name) => [new URL(`../../workflows/${name}`, import.meta.url), name.replace(/\.ya?ml$/, "")]), ...actions.map((dir) => [new URL(`../${dir}/action.yml`, import.meta.url), dir])]) {
+    assert.equal(parse(readFileSync(file, "utf8")).name, displayName(stem), String(file));
+  }
+});
+
 // The secret a read-runner input takes, by the suffix run-claude-cli names
 // it with: <ROLE>_CLAUDE_API_KEY or <ROLE>_CLAUDE_CODE_OAUTH_TOKEN.
 const CLAUDE_SECRETS = { "claude-api-key": "CLAUDE_API_KEY", "claude-code-oauth-token": "CLAUDE_CODE_OAUTH_TOKEN" };
@@ -9130,7 +9146,7 @@ test("pr-run-activity-read.yml: issue-fields logs the API budget only when it ch
 // repository only, whatever it concluded, unless it ran no job.
 test("work-unblock.yml: a finished work-resolve-issue run in this repository sweeps, a skipped or fork run does not", () => {
   const doc = workflow("work-unblock.yml");
-  assert.deepEqual(doc.on.workflow_run, { workflows: ["work-resolve-issue"], types: ["completed"] });
+  assert.deepEqual(doc.on.workflow_run, { workflows: ["Work Resolve Issue"], types: ["completed"] });
   const job = doc.jobs["label-unblocked"];
   const runs = ({ event = "workflow_run", ref = "refs/heads/main", head = "melodic-software/claude-code-plugins", conclusion = "success", sender = "Bot", action = "closed" } = {}) =>
     evaluate(job.if, {

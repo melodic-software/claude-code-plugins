@@ -1,4 +1,4 @@
-name: eval-browser-dispatch
+name: Eval Browser Dispatch
 
 # Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
 #

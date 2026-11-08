@@ -1,4 +1,4 @@
-name: Check the WIP cap
+name: Check WIP Cap
 description: >
   Read the lanes App's open, merged and opened pull requests in this
   repository with serial searches on the job's own token, then the open

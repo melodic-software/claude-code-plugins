@@ -1,4 +1,4 @@
-name: maintenance-reconcile-lost-runs
+name: Maintenance Reconcile Lost Runs
 
 # Re-runs PR CI and verify runs a GitHub outage ended without a result, so
 # nobody has to re-run them by hand. Every 30 minutes it looks at each open,

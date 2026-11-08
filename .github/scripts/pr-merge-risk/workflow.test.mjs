@@ -202,7 +202,7 @@ test("the names the arm side reads match merge-risk-line.mjs", () => {
 });
 
 test("the trigger is pr-verify's, judged only for a successful same-repository pull_request run on main", () => {
-  assert.match(text, /\non:\n {2}# [^\n]+\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[pr-require-checks\]\n {4}types: \[completed\]\n/);
+  assert.match(text, /\non:\n {2}# [^\n]+\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[PR Require Checks\]\n {4}types: \[completed\]\n/);
   for (const id of Object.values(LEGS)) {
     assert.match(job(id), /github\.ref == 'refs\/heads\/main'\n {6}&& github\.event\.workflow_run\.event == 'pull_request'\n {6}&& github\.event\.workflow_run\.conclusion == 'success'\n {6}&& github\.event\.workflow_run\.head_repository\.full_name == github\.repository\n/, id);
   }

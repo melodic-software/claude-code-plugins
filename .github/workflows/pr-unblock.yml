@@ -1,4 +1,4 @@
-name: pr-unblock
+name: PR Unblock
 
 # Lane caller for pr-unblock: its file stem is the lane, so the lanes token
 # broker accepts its write activities. No App key; each run job's OIDC token is

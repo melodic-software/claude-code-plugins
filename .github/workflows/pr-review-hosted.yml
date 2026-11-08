@@ -1,4 +1,4 @@
-name: pr-review-hosted
+name: PR Review Hosted
 
 # Locally owned: the `claude-review-hosted-caller` component of
 # melodic-software/standards (components/claude-lanes-hosted/claude-review.yml)

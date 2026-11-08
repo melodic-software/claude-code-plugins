@@ -1,4 +1,4 @@
-name: Seal lane output
+name: Seal Lane Output
 description: >
   Seal named payload files to a committed X25519 public key (ephemeral X25519,
   HKDF-SHA256, AES-256-GCM, bound to the payload name, the run id and the
