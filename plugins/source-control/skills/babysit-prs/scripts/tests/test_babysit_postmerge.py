@@ -3390,7 +3390,8 @@ class Remediation(CheckCase):
         writes = self.gh.writes()
         self.assertIn("dequeuePullRequest", " ".join(writes[0]))
         self.assertIn(f"repos/{REPO}/issues", writes[1])
-        self.assertEqual(len(writes), 2)
+        self.assertIn("type=Bug", writes[2])
+        self.assertEqual(len(writes), 3)
         self.assertEqual(events, [1])
         self.assertEqual(report["dequeued"], [7010])
         self.assertEqual(report["telemetry"], {"demotion_events": 1})
@@ -3470,6 +3471,16 @@ class Remediation(CheckCase):
         self.assertTrue(report["errors"][0].startswith("disarm: disarm #7030"))
         self.assertEqual(report["dequeued"], [7010])
         self.assertEqual(report["issues"], [9001])
+        self.assertIn(
+            ["api", "-X", "PATCH", f"repos/{REPO}/issues/9001", "-f", "type=Bug"],
+            self.gh.writes(),
+        )
+
+    def test_a_rejected_issue_type_still_files_the_issue(self) -> None:
+        self.gh.fail_reads = {"type=Bug"}
+        report = pm.remediate(REPO, self.failing_verdict(), agent_identity=IDENTITY)
+        self.assertEqual(report["issues"], [9001])
+        self.assertEqual(report["errors"], [])
 
     def test_a_failed_dequeue_read_still_disarms(self) -> None:
         verdict = self.failing_verdict()
@@ -3597,7 +3608,9 @@ class Remediation(CheckCase):
         )
         report = pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
         writes = [
-            w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)
+            w
+            for w in self.gh.writes()
+            if "dequeuePullRequest" not in " ".join(w) and "type=Bug" not in w
         ]
         self.assertIn(f"repos/{REPO}/issues", writes[0])
         self.assertIn(f"repos/{REPO}/issues/9001/comments", writes[1])
