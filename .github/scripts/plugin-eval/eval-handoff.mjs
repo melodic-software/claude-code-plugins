@@ -122,12 +122,14 @@ function readJson(path) {
   }
 }
 
-// The classifier's three files, copied under a folder of their own whose
-// package.json ends Node's package-scope lookup there. Required in place, the
-// lookup climbs past the sparse checkout to the workspace root, and a
-// package.json there that does not parse stops the require (run 42138674762).
+// The classifier's four files (lane.cjs and the three it requires), copied
+// under a folder of their own whose package.json ends Node's package-scope
+// lookup there. Required in place, the lookup climbs past the sparse checkout
+// to the workspace root, and a package.json there that does not parse stops
+// the require (run 42138674762).
 export const CLASSIFIER_FILES = [
   ".github/actions/run-claude-cli/lane.cjs",
+  ".github/actions/run-claude-cli/managed-settings.cjs",
   ".github/actions/report-lane-outcome/classify.cjs",
   ".github/scripts/resolve-npm-tool-version.cjs",
 ];

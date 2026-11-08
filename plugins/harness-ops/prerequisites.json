@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the harness-ops hooks cannot launch, so they do nothing.",
+      "degrade": "Without node, the harness-ops hooks cannot launch, so they do nothing, and /harness-ops:known-issues and /harness-ops:setup cannot resolve the registry directory, so the registry actions stop.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       }

@@ -72,7 +72,7 @@ to add them.
 | [`docs/migration-playbook.md`](docs/migration-playbook.md) | Design charter, extensibility model, the per-plugin migration gate, and the local development loop |
 | [`scripts/README.md`](scripts/README.md) | Validating a change before you push: affected tests, local forms of CI gates, the check-script contract |
 | [`REVIEW.md`](REVIEW.md) and [`docs/review/`](docs/review/README.md) | Review criteria |
-| [`docs/official-docs.md`](docs/official-docs.md) | The official Claude Code doc pages to read before changing plugin behavior |
+| [`docs/official-docs.md`](docs/official-docs.md) | Where to find the official Claude Code docs, and how to cite them |
 | `lib/` | The shared shell helpers. `scripts/sync-<helper>.sh` copies each into the plugins that use it, and CI rejects a copy that differs, so edit `lib/`, never a copy |
 | `prompts/` | Launch-prompt templates to fill in and paste into a session |
 | `.claude/` | This repository's own Claude Code configuration; it ships to no one |

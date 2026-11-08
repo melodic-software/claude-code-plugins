@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.5.0] - 2026-11-08
+
+### Changed
+
+- `/work-items:work` and the work-loop lane read each candidate's priority from the org `Priority` issue field, falling back to its `priority:` label so items without a field value keep their rank. `work_priority_order` no longer needs the `priority:` form: an entry may name a field option such as `high`, compared case-insensitively.
+
+- The default hold labels floor `needs-owner-decision` and `needs-reporter-info` beside `status: needs-decision` and `status: needs-info`, and the morning brief reads the decision queue under the new name once the repository has renamed it. A bare `needs-owner-decision` label now holds an item, which it did not before.
+
+### Fixed
+
+- The `get-statuses` verb honors `--field` for every field but `Work status` under `config.github.status_trust`; it used to return the Work status regardless of the field asked for.
+
 ## [12.4.1] - 2026-11-08
 
 ### Changed

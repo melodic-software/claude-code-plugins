@@ -1175,7 +1175,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1244,7 +1244,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1313,7 +1313,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1382,7 +1382,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2103,7 +2103,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2175,7 +2175,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2247,7 +2247,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -2319,7 +2319,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3002,7 +3002,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3072,7 +3072,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3142,7 +3142,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -3212,7 +3212,7 @@ jobs:
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
         continue-on-error: true
         timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"

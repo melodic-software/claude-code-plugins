@@ -14,8 +14,8 @@ Miro MCP server.
 
 > **Why the bundled server and not Miro's hosted one.** The live-board path targets the first-party
 > bundled server so that board teardown is possible and board and workshop content never leaves for
-> a third-party remote MCP. The decision record lives in the marketplace repo's MCP decision table in
-> `docs/migration-playbook.md`. For the tools Miro's hosted server exposes, fetch
+> a third-party remote MCP. The decision record is the miro record in the marketplace repo's
+> `docs/adr/0093-record-plugin-acceptance-security-reviews.md`; the carry verdict is `docs/adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md`. For the tools Miro's hosted server exposes, fetch
 > [MCP Tools and Capabilities](https://developers.miro.com/docs/mcp-intro#-mcp-tools-and-capabilities)
 > live (as of 2026-11-03; recheck when that list adds a board-delete tool).
 
