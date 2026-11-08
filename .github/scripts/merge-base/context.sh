@@ -53,13 +53,13 @@ mkdir -p "$out"
 
 written=0
 # keep <file> <cap> <command...>: the command's output into <file>, cut at
-# <cap> bytes with a note, or left out once the total is spent. Sets kept to
-# `kept` or `omitted`; runs in this shell, so the total adds up.
+# <cap> bytes with a note, or left out once the total is spent, which sets
+# omitted=true; runs in this shell, so the total adds up.
 keep() {
   local file=$1 cap=$2 size
   shift 2
   if ((written >= TOTAL_CAP)); then
-    kept=omitted
+    omitted=true
     return
   fi
   # The rest is drained, so the writer never dies of a closed pipe.
@@ -72,7 +72,6 @@ keep() {
     size=$(wc -c <"$file")
   fi
   written=$((written + size))
-  kept=kept
 }
 
 declare -A seen=() oids=()
@@ -102,12 +101,9 @@ for i in "${!paths[@]}"; do
     oid=${oids["${side%%:*}:$path"]:-}
     [[ -n $oid ]] || continue
     keep "$out/$name/${side#*:}" "$STAGE_CAP" g cat-file blob "$oid"
-    [[ $kept == kept ]] || omitted=true
   done
   keep "$out/$name/head.log" "$LOG_CAP" "${log[@]}" "$base..$head" -- "$path"
-  [[ $kept == kept ]] || omitted=true
   keep "$out/$name/base.log" "$LOG_CAP" "${log[@]}" "$head..$base" -- "$path"
-  [[ $kept == kept ]] || omitted=true
   entries+=("$(jq -cn --arg path "$path" --arg dir "$name" --argjson omitted "$omitted" '{path: $path, dir: $dir, omitted: $omitted}')")
 done
 
