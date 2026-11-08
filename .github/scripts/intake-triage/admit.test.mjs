@@ -2301,7 +2301,7 @@ describe("admit", () => {
   // A person's label under the hold's new name: the field stays theirs to set.
   test("a refusal for a needs-owner-decision label writes no Work status", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "needs-owner-decision" }] }) });
-    assert.deepEqual(await go(fake), { outcome: "refused", reasons: ["it carries needs-owner-decision"], status: NEEDS_DECISION });
+    assert.deepEqual(await go(fake), { outcome: "refused", reasons: ["it carries needs-owner-decision"], status: "needs-owner-decision" });
     const done = writes(fake.calls);
     assert.equal(done.length, 1, done.join("\n"));
     assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
