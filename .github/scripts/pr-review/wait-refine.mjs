@@ -42,9 +42,10 @@ export function readEnv(env) {
     if (!env[key]) throw new Error(`${key} is not set`);
   }
   const bound = (key, fallback) => {
-    if (env[key] === undefined || env[key] === "") return fallback * 1000;
-    if (!SECONDS.test(env[key])) throw new Error(`${key} is not a whole number of seconds`);
-    return Number(env[key]) * 1000;
+    const value = env[key];
+    if (value === undefined || value === "") return fallback * 1000;
+    if (!SECONDS.test(value)) throw new Error(`${key} is not a whole number of seconds`);
+    return Number(value) * 1000;
   };
   return {
     number: Number(env.PR_NUMBER),
@@ -109,7 +110,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     }
     const gone = await moved(pr);
     if (gone) return skip(gone, "the start");
-    let runs = [];
+    let runs;
     for (;;) {
       const listing = await api.get(`actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${head}&per_page=100`);
       runs = (listing.workflow_runs ?? []).filter(
@@ -128,11 +129,10 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       const waited = await completed(run);
       if (!waited) return await finish("dispatcher-timeout");
       if (waited.moved) return skip(waited.moved, `waiting for dispatcher run ${run.id}`);
-      const dispatcher = waited.run;
-      const { artifacts = [] } = await api.get(`actions/runs/${dispatcher.id}/artifacts?per_page=100`);
+      const { artifacts = [] } = await api.get(`actions/runs/${run.id}/artifacts?per_page=100`);
       for (const artifact of artifacts) {
         const found = Number(RECORD.exec(artifact.name ?? "")?.[1] ?? 0);
-        if (found > id) [id, source] = [found, dispatcher.id];
+        if (found > id) [id, source] = [found, run.id];
       }
     }
     if (id === 0) return await finish("no-dispatch");
