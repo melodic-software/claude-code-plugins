@@ -2804,6 +2804,7 @@ def _listed_runs(
         key=lambda item: item[1].created_at,
     )
     ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
+    canaries: list[Run] | None
     try:
         canaries = _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
     except PostMergeReadError as exc:
