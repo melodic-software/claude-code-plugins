@@ -165,13 +165,9 @@ ruff==0.17.3 \
     --hash=sha256:bbde18beccd98c29a227c63c99022e3443b99258e08326df6425dfe0443705ef \
     --hash=sha256:c673c170e27834d1262e3a9c1e97bdc9b9c3b180c63d89173ce69747232474c1 \
     --hash=sha256:e407b4a6852853a9a2cdce96963e94ad9775578bb44e7561a0f2829f3cc04b11
-# zizmor is the Actions security lint, previously reached through the
-# ci-workflows zizmor reusable workflow. 1.27.0 is the version that reusable
-# takes by default at the SHA this repository pinned it to, so the lint step in
-# pr-require-checks.yml is a like-for-like replacement and no security-lane behavior changed
-# inside a performance change. The reusable downloaded a native release archive
-# and verified a SHA-256 input; this pin lands on the reviewed Dependabot pip
-# surface instead. Like pyyaml above this is a platform-specific wheel, so the
+# zizmor is the Actions security lint the pr-require-checks.yml lint step runs.
+# Its exact pin and hashes sit on the reviewed Dependabot pip surface, which
+# moves the version. Like pyyaml above this is a platform-specific wheel, so the
 # hash is the manylinux_2_28_x86_64 build the ubuntu-24.04 runner resolves
 # (that image ships glibc 2.39). A host outside that platform cannot install
 # from this file under --require-hashes.
