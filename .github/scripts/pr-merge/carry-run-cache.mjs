@@ -92,10 +92,16 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+const warn = (what, error) => console.log(`::warning::${what}: ${escapeCommand(error?.message ?? error)}`);
+
+function writeAtomic(path, text) {
+  writeFileSync(`${path}.tmp`, text);
+  renameSync(`${path}.tmp`, path);
+}
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-function dated(entry, now, days = RETENTION_DAYS) {
+function dated(entry, now, days) {
   if (!isObject(entry) || typeof entry.at !== "string" || !ZONED.test(entry.at)) return false;
   const age = now - Date.parse(entry.at);
   return age >= 0 && age <= days * 86_400_000;
@@ -167,30 +173,21 @@ function laneRun(key, value, repo) {
 export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
   if (!isObject(data)) return out;
-  const take = (from, to, keep, shape = (value) => value) => {
-    if (!isObject(data[from])) return;
-    for (const [key, entry] of Object.entries(data[from])) {
-      if (dated(entry, now) && keep(key, entry.value)) out[to][key] = { at: entry.at, value: shape(entry.value) };
-    }
-  };
-  // Each section is kept from this run's reads and from what it carried in.
-  for (const from of ["carried-run-record", "run-record"]) {
-    take(from, "carried-run-record", (k, v) => originRecord(k, v, repo, branch), slimRecord);
-  }
-  for (const from of ["carried-fail-head-ref", "fail-head-ref"]) {
-    take(from, "carried-fail-head-ref", (k, v) => headRef(k, v, repo));
-  }
-  for (const from of ["carried-on-branch", "on-branch"]) {
-    take(from, "carried-on-branch", (k, v) => onBranch(k, v, repo, branch));
-  }
-  for (const from of ["carried-lane-run", "lane-run"]) {
-    if (!isObject(data[from])) continue;
-    for (const [key, entry] of Object.entries(data[from])) {
-      if (dated(entry, now, LANE_RUN_DAYS) && laneRun(key, entry.value, repo)) {
-        out["carried-lane-run"][key] = { at: entry.at, value: entry.value };
+  // Each section is kept from what this run carried in, then from its own reads.
+  const take = (section, keep, { shape = (value) => value, days = RETENTION_DAYS } = {}) => {
+    const to = `carried-${section}`;
+    for (const from of [to, section]) {
+      if (!isObject(data[from])) continue;
+      for (const [key, entry] of Object.entries(data[from])) {
+        if (dated(entry, now, days) && keep(key, entry.value)) out[to][key] = { at: entry.at, value: shape(entry.value) };
       }
     }
-  }
+  };
+  // Wrapped: the pinned lizard (js-complexity-share) cannot parse a bare `{ shape: slimRecord }` here.
+  take("run-record", (k, v) => originRecord(k, v, repo, branch), { shape: (value) => slimRecord(value) });
+  take("fail-head-ref", (k, v) => headRef(k, v, repo));
+  take("on-branch", (k, v) => onBranch(k, v, repo, branch));
+  take("lane-run", (k, v) => laneRun(k, v, repo), { days: LANE_RUN_DAYS });
   const newest = Object.entries(out["carried-lane-run"])
     .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, LANE_RUN_MAX);
@@ -209,13 +206,12 @@ export function main(env = process.env, now = Date.now()) {
       return;
     }
     const kept = carry(JSON.parse(readFileSync(from, "utf8")), { repo, branch, now });
-    writeFileSync(`${to}.tmp`, JSON.stringify(kept));
-    renameSync(`${to}.tmp`, to);
+    writeAtomic(to, JSON.stringify(kept));
     const any = Object.values(kept).some((entries) => Object.keys(entries).length > 0);
     if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `carried=true\n${any ? "kept=true\n" : ""}`);
     console.log(Object.entries(kept).map(([section, entries]) => `${section}=${Object.keys(entries).length}`).join(" "));
   } catch (error) {
-    console.log(`::warning::the run cache was not carried: ${escapeCommand(error.message)}`);
+    warn("the run cache was not carried", error);
   }
 }
 
@@ -255,7 +251,7 @@ export async function read({ env = process.env, actions: client, download } = {}
       try {
         kept = load(CARRY_ARTIFACT, mergeId);
       } catch (error) {
-        console.log(`::warning::the ${CARRY_ARTIFACT} file was not carried: ${escapeCommand(error?.message ?? error)}`);
+        warn(`the ${CARRY_ARTIFACT} file was not carried`, error);
       }
     }
     let verify;
@@ -263,17 +259,16 @@ export async function read({ env = process.env, actions: client, download } = {}
       const verifyId = await find(VERIFY_ARTIFACT);
       if (verifyId !== undefined) verify = load(VERIFY_ARTIFACT, verifyId);
     } catch (error) {
-      console.log(`::warning::the verifier reads were not carried: ${escapeCommand(error?.message ?? error)}`);
+      warn("the verifier reads were not carried", error);
     }
     if (kept === undefined && verify === undefined) {
       console.log("no earlier run cache to carry");
       return;
     }
     const text = verify === undefined ? kept : JSON.stringify(withCarried(JSON.parse(kept ?? "{}"), JSON.parse(verify)));
-    writeFileSync(`${to}.tmp`, text);
-    renameSync(`${to}.tmp`, to);
+    writeAtomic(to, text);
   } catch (error) {
-    console.log(`::warning::the run cache was not carried: ${escapeCommand(error?.message ?? error)}`);
+    warn("the run cache was not carried", error);
   }
 }
 
