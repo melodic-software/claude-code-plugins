@@ -20,7 +20,7 @@ name: Eval Browser Dispatch
 # summarize.mjs into the job summary: a with-versus-without table with PASS,
 # FAIL or NOT COMPARABLE per case and one health line per case, and the job
 # fails unless every case passes. Every run carries --max-cost-usd: 5 dollars
-# unless a dispatch sets the max-cost-usd input, at most 15.
+# unless a dispatch sets the max-cost-usd input, at most 12.
 #
 # Lane hardening follows ADR 0049
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
@@ -82,7 +82,7 @@ on:
         type: number
         default: 1
       max-cost-usd:
-        description: Per-run cost ceiling in whole US dollars, 1 to 15. Above 15 a run outlasts the job's 60-minute timeout.
+        description: Per-run cost ceiling in whole US dollars, 1 to 12. Above 12 a run leaves too little of the job's 60-minute timeout for setup and upload.
         required: false
         type: number
         default: 5
@@ -708,8 +708,8 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
-          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 15)); then
-            echo "::error::max-cost-usd must be a whole number from 1 to 15"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
             exit 1
           fi
           args=(
@@ -1538,8 +1538,8 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
-          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 15)); then
-            echo "::error::max-cost-usd must be a whole number from 1 to 15"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
             exit 1
           fi
           args=(
@@ -2321,8 +2321,8 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
-          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 15)); then
-            echo "::error::max-cost-usd must be a whole number from 1 to 15"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
             exit 1
           fi
           args=(
