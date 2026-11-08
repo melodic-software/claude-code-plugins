@@ -3,6 +3,7 @@
 // policy denies reads of process and runner state before sudo is removed,
 // the summary is redacted, and no results artifact is uploaded.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
@@ -99,4 +100,19 @@ test("a pull request run redacts its summary and uploads no results", () => {
     /if: >-\n {10}\(always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch' && steps\.judge\.outputs\.handoff != 'true'\) && steps\.scan-upload\.outputs\.clean == 'true'\n/,
   );
   assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
+});
+
+test("every eval leg takes its cost ceiling from the checked max-cost-usd input, default 5, at most 15", () => {
+  assert.equal(text.match(/--max-cost-usd "\$MAX_COST"/g).length, 3);
+  assert.doesNotMatch(text, /--max-cost-usd \d/);
+  assert.equal(text.match(/MAX_COST: \$\{\{ inputs\.max-cost-usd \|\| 5 \}\}/g).length, 3);
+  const guards = text.match(/if ! \[\[ \$MAX_COST .*?\n\s+fi\n/gs);
+  assert.equal(guards.length, 3);
+  const passes = (value) => spawnSync("bash", ["-c", guards[0]], { env: { MAX_COST: value } }).status === 0;
+  for (const value of ["1", "5", "15"]) {
+    assert.ok(passes(value), value);
+  }
+  for (const value of ["", "0", "16", "2.5", "1;true", "-1"]) {
+    assert.ok(!passes(value), value);
+  }
 });
