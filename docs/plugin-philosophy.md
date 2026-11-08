@@ -1274,10 +1274,10 @@ An implementation phase the plan routes `sonnet` as well-scoped drops one tier, 
 `implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
 or complex phases stay on `implementation:implementer` at the strong tier.
 
-Every agent definition in this repository pins `model`, so the heavy default is explicit. An agent that omits it
-falls through the harness's resolution order and, on a machine with no consumer default, runs on
-the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
-set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
+Every agent definition in this repository pins `model`, so the heavy default is explicit. Where an
+agent that omits it lands is in [multi-agent's keys](../plugins/multi-agent/reference/config.md#keys).
+Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`, set through the settings
+`env` map. We rely on it ranking below both the per-invocation `model`
 parameter and frontmatter, so it decides only for a subagent neither binds: a structural
 frontmatter binding holds against it, and the knob is a default for unbound subagents rather than
 an override.
@@ -1322,9 +1322,8 @@ For generic agents in a multi-agent run, the per-role defaults built on these ro
 | Mechanical work an objective failure signal backs | `sonnet` |
 | Bulk mechanical sweeps | `sonnet` |
 
-No row names `haiku`, and no role routes to it until it passes this repository's routing eval, and the
-[routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns that rule and the effort
-a Haiku role runs at. The release evidence behind it is recorded in
+No row names `haiku`: the [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns
+when a role may route to it and the effort it then runs at. The release evidence behind it is recorded in
 [docs/upstream/haiku-5-5-launch.md](upstream/haiku-5-5-launch.md).
 
 - **Pointer:** for what each alias resolves to on each provider, see
@@ -1463,9 +1462,8 @@ same depth on two models):
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
   change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Never on the
-  `haiku` alias: no lane routes there until it passes the eval the
-  [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) names, and a Haiku role then
-  runs at `high`. The two ladders also do not compose on that alias. Haiku 5.5 takes an effort
+  `haiku` alias: the [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns
+  whether a lane may route there and at what level. The two ladders also do not compose on that alias. Haiku 5.5 takes an effort
   level on the Anthropic API, while `haiku` still resolves to Haiku 4.5, which takes none, on
   Amazon Bedrock, Google Cloud's Agent Platform (Vertex AI), Microsoft Foundry and Claude Platform
   on AWS, so one pin does not mean one level across our operators (Pointer: when a lane weighs a
@@ -1536,28 +1534,20 @@ same depth on two models):
     models, providers or versions keep the cache across one.
 
 **Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
-a session tuned down for cost does not silently cheapen a worker. The twelve `model: inherit` agents
-pin neither: `discovery` `docs-fetcher` and `sweep-worker`; `docs-hygiene` `compare-labeler`;
-`multi-agent` `docs-fetcher`, `drift-checker` and `drift-reader`; `review` `lane-verifier` and
-`stage-normalizer`; `testing` `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each
-leaves the model to its dispatcher (a workflow's role map, a CI lane, or a per-call value), and so
-leaves the level to that dispatch or the session. Each other agent pins the level that model config's task rows give its
-kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
-`discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
-`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
-`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Eight pin
-`effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
-`planning` `upload-reader`, because it reads and summarizes one file it is handed;
-`implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
-at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
-it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
-`ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
-work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
-scope, and checking named areas of the development process. No pin goes below `medium`, because in this repository's judgment a low-effort executor stops
-detecting that it is stuck (the upstream pointers are under the [effort floor](#effort-floor)). A frontmatter pin is what holds a named agent's lane for any dispatch that
-passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
-writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
+a session tuned down for cost does not silently cheapen a worker. The `model: inherit` agents pin
+neither: `app-control` `source-reader`; `discovery` `docs-fetcher` and `sweep-worker`;
+`docs-hygiene` `compare-labeler`; `knowledge` `digest-worker`; `multi-agent` `docs-fetcher`,
+`drift-checker` and `drift-reader`; `review` `lane-verifier` and `stage-normalizer`; `testing`
+`green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each leaves the model to its
+dispatcher (a workflow's role map, a CI lane, or a per-call value), and so leaves the level to that
+dispatch or the session. Every other agent pins the level its lane rule above gives it. In
+`plugins/implementation`, `phase-verifier` pins `high`; `implementer` pins `medium`, because a phase
+brief is scoped feature work and its verifier runs at `high`; and `scoped-implementer` pins
+`medium`, because a plan routes only well-scoped work to it. The per-pin rows below give every other
+pin and its reason. No pin goes below `medium`, because in this repository's judgment a low-effort
+executor stops detecting that it is stuck (the upstream pointers are under the
+[effort floor](#effort-floor)). A pin holds for every dispatch that passes no `effort` of its own
+(see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`, and `git grep -L` for the agents with no
@@ -1589,6 +1579,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 
 | Agent | Model | Pin | Row | Why that row |
 |---|---|---|---|---|
+| `code-tidying` `comment-reviewer` | `sonnet` | `medium` | `medium` | Makes comment-only edits in one scope it is handed, each proven to leave code unchanged |
 | `discovery` `explorer` | `sonnet` | `medium` | `medium` | Reads and indexes a scope it is handed |
 | `discovery` `intent-tracer` | `opus` | `high` | `high` | Reconstructed rationale feeds decisions |
 | `discovery` `research-verifier` | `opus` | `high` | `high` | Verdict on a research artifact |
@@ -1622,7 +1613,8 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 `effort` included. A Workflow script's `agent()` call passes `opts.effort`, and `opts.model`, for
 that call alone, and an Agent-tool call that spawns a non-fork subagent passes its own `effort` for
 that dispatch alone, replacing the pin. A `maxEffortLevel` setting or an organization effort cap
-also limits every pin.
+also limits every pin; how the caps combine is in
+[multi-agent: hard cap](../plugins/multi-agent/reference/config.md#hard-cap).
 
 - **Pointer:** for the variable, see
   [environment variables](https://code.claude.com/docs/en/env-vars#variables); for how a pin ranks
@@ -1768,23 +1760,20 @@ and the release.
 A Workflow script this repository ships follows these rules;
 `plugins/review/workflows/fanout-sweep.js` is the reference.
 
-- **Aliases only.** A script names a model by alias, never by model id, for the reason the
-  [tier table](#model-tiers) gives.
-- **Roles arrive through `args.roles`.** The launching skill runs
-  `/multi-agent:route all session=<alias>` and passes the printed `roles` object unchanged. A stage
-  that runs one agent reads a role's `single` variant; a stage that runs several reads its `fanout`
-  variant. The keys are in `plugins/multi-agent/reference/config.md`.
-- **Built-in fallbacks.** A script runs without `args.roles`: it carries a fallback for each role it
-  reads and logs that the fallbacks applied, so the multi-agent plugin stays optional.
-- **`inherit` means omit `opts.model`.** Effort is always explicit on a generic `agent()` call, as
-  [Effort tiers](#effort-tiers) sets out.
+- **Routing through the multi-agent plugin.** Aliases only, roles through `args.roles` with a
+  `single` variant for a one-agent stage and a `fanout` variant otherwise, built-in fallbacks when
+  `args.roles` is absent, `inherit` meaning omit `opts.model`, and an explicit `effort` on every
+  generic `agent()` call are owned by
+  [multi-agent: how a workflow uses it](../plugins/multi-agent/README.md#how-a-workflow-uses-it) and
+  the [keys](../plugins/multi-agent/reference/config.md#keys); read them before writing a script's
+  routing. A script that runs on its fallbacks logs that they applied.
 - **Named agents keep their pins.** A call by `agentType` passes neither `model` nor `effort`, and
   the role map does not govern it. The exception is a named agent whose definition inherits the
   model and pins no effort, used only to narrow a stage's tools: the call passes the role's variant
   as a generic call would.
-- **Fan-out frontier guard.** A stage that runs more than one agent never runs them on a frontier
-  model, so a Fable root never fans out into Fable agents. When the session model is unknown, the
-  fan-out names `opus`. A single synthesis or judge agent may inherit.
+- **Fan-out frontier guard.** A stage that runs more than one agent never runs on a frontier model;
+  the rule, its default and its opt-out are owned by
+  [multi-agent: the fan-out guard](../plugins/multi-agent/reference/config.md#the-fan-out-guard).
 - **Wave caps plus one retry.** A fan-out runs in waves of `args.maxConcurrent`, with a small
   default, and retries a thrown dispatch once. A `null` result is final and is reported by name.
 - **Unattended runs stay small,** because upstream decides which runs pause at a usage limit
