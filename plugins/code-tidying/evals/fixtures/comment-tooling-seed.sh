@@ -13,7 +13,8 @@ here="$(dirname "${BASH_SOURCE[0]}")"
 # the tooling: a failure there fails the run. /usr/bin/python3, the sandbox's fallback when the
 # operator's interpreter is hidden, is best-effort: a failure there only warns, and the in-sandbox
 # probe-environment case catches a fallback that never got it. The pinned tree-sitter wheels cover
-# CPython 3.11 and 3.14 only (.github/requirements-ci.txt), so another minor fails at the install.
+# CPython 3.11, 3.12 and 3.14 only (.github/requirements-ci.txt), so another minor fails at the
+# install. The 3.12 wheel is Linux x64 only, for the hosted eval runner's system Python.
 install() {
   "$1" -m pip install --user --break-system-packages --require-hashes --only-binary=:all: \
     --no-deps --no-cache-dir --disable-pip-version-check --no-warn-script-location --quiet \
@@ -33,4 +34,4 @@ fallback="$(minor /usr/bin/python3)" || {
 [[ "$fallback" != "$own" ]] || exit 0
 # shellcheck disable=SC2310 # best-effort by design: a failure only warns
 install /usr/bin/python3 ||
-  echo "comment-tooling-seed: /usr/bin/python3 $fallback did not take the tooling (wheels cover 3.11 and 3.14); continuing" >&2
+  echo "comment-tooling-seed: /usr/bin/python3 $fallback did not take the tooling (wheels cover 3.11, 3.12 and 3.14); continuing" >&2
