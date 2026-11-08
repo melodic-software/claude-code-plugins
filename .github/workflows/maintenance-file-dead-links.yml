@@ -227,7 +227,7 @@ jobs:
             body="$(render "$keep")"
           done
           if [[ -z "$number" ]]; then
-            number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+            number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f type=Task \
               -f title="Dead links found by the online link check" -f body="$body" --jq .number)"
             if [[ ! "$number" =~ ^[1-9][0-9]*$ ]] ||
               ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-triage"}]}' |

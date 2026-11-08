@@ -463,7 +463,8 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   const b = { fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) };
   assert.deepEqual(await run(s, [a]), { ...nothing, filed: [100] });
   assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
-  assert.equal(s.issues[0].title, "Lane sweep: open findings");
+  assert.equal(s.issues[0].title, "Review the open findings from the lane sweep");
+  assert.equal(s.issues[0].type, "Task");
 
   const before = s.calls.length;
   assert.deepEqual(await run(s, [a]), nothing);

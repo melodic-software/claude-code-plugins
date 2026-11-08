@@ -178,7 +178,7 @@ function fakeApi({
     },
     createIssue: async (fields) => {
       calls.issues.push(fields);
-      const issue = { number: 99, user: { id: APP }, body: fields.body };
+      const issue = { number: 99, user: { id: APP }, body: fields.body, type: { name: fields.type } };
       issues.push(issue);
       return issue;
     },
@@ -346,6 +346,8 @@ test("close files the ignore issue, then closes the pull request", async () => {
   const result = await go(api, runOf({ output: output({ verdict: "close" }) }));
   assert.equal(result.escalationReason, "");
   assert.equal(api.calls.issues.length, 1);
+  assert.equal(api.calls.issues[0].title, "Decide whether dependabot.yml ignores the update closed in #7");
+  assert.equal(api.calls.issues[0].type, "Task");
   assert.match(api.calls.issues[0].body, /ignore:/);
   assert.match(api.calls.issues[0].body, /#7/);
   assert.deepEqual(api.calls.closed, [7]);
