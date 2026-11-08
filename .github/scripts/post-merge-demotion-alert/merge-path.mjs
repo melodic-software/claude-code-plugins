@@ -106,13 +106,34 @@ export const pullRequestsQuery = (numbers) =>
     )
     .join(" ")} } }`;
 
-// One pullRequest node as { number, body, labels, commitMessages, queue }.
+// The labels a pull request's label events leave on it, in timeline order: added by a
+// LabeledEvent, taken off by a later UnlabeledEvent. A label deleted repo-wide leaves its
+// LabeledEvent and no UnlabeledEvent, so it stays in this set.
+const labelsFromEvents = (nodes) => {
+  const held = new Set();
+  for (const e of nodes ?? []) {
+    const name = e?.label?.name;
+    if (!name) continue;
+    if (e.__typename === "UnlabeledEvent") held.delete(name);
+    else held.add(name);
+  }
+  return [...held];
+};
+
+// One pullRequest node as { number, body, labels, commitMessages, queue }. With the
+// rollup's label events read, `labels` also holds a label the pull request still had
+// when the label itself was deleted.
 export const toPr = (node) => ({
   number: node.number,
   title: node.title ?? "",
   body: node.body ?? "",
   mergedAt: node.mergedAt ?? null,
-  labels: (node.labels?.nodes ?? []).map((l) => l.name),
+  labels: [
+    ...new Set([
+      ...(node.labels?.nodes ?? []).map((l) => l.name),
+      ...labelsFromEvents(node.labelEvents?.nodes),
+    ]),
+  ],
   commitMessages: (node.commits?.nodes ?? []).map((c) => c.commit?.message ?? ""),
   queue: node.timelineItems?.nodes?.at(-1) ?? null,
 });
@@ -191,7 +212,10 @@ const days = (since, until) => {
 
 const MERGED_QUERY = `query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
   pageInfo { hasNextPage endCursor }
-  nodes { ... on PullRequest { number title body mergedAt labels(first: 100) { nodes { name } } ${QUEUE_FIELDS} } } } }`;
+  nodes { ... on PullRequest { number title body mergedAt labels(first: 100) { nodes { name } }
+  labelEvents: timelineItems(itemTypes: [LABELED_EVENT, UNLABELED_EVENT], last: 100) {
+    nodes { __typename ... on LabeledEvent { label { name } } ... on UnlabeledEvent { label { name } } } }
+  ${QUEUE_FIELDS} } } } }`;
 
 function search(gh, query, q) {
   const nodes = [];
@@ -206,7 +230,8 @@ function search(gh, query, q) {
 
 // The rollup over already-read pull requests: `merged` is every pull request
 // merged from the window's start to now, `revertRecords` the lane revert
-// records' bodies. A merge's path is its merge-path label, else `lanes` by
+// records' bodies. A merge's path is its merge-path label, current or held when the
+// label was deleted (its LabeledEvent survives with no UnlabeledEvent), else `lanes` by
 // enqueuer, else `other`. Reverted: labeled post-merge:reverted or named on a
 // lane revert record. Escaped: a later merged pull request with a fix: title
 // cites it as #N or by URL.

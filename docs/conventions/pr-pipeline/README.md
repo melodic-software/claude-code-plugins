@@ -4088,7 +4088,10 @@ labels any record-path pull request it also reverts. A failed label write fails 
 The rollup counts, per path, the merges in a window, how many were reverted (labeled
 `post-merge: reverted` (or the older `post-merge:reverted`) or named on a lane revert record) and how many escaped (a pull request with a
 `fix:` title merged later cites it as `#N` or by URL). That escape count is an upper bound, since
-a fix also cites pull requests it did not repair. A merge with no path label is `lanes` by
+a fix also cites pull requests it did not repair. A path or revert label counts when the pull request carries it
+now, or still had it when the label itself was deleted: the timeline keeps the LabeledEvent and records
+no UnlabeledEvent for a deleted label, so a prune (for example, an apply while it was undeclared) loses
+no history, while a label taken off on purpose stops counting. A merge with no path label is `lanes` by
 its enqueuer, else `other`, so record-path merges before the labels count as `other`:
 
 ```bash
