@@ -8,14 +8,12 @@ name: maintenance-monitor-signals
 # signals and the rules; the scripts and tests are in
 # .github/scripts/maintenance-monitor-signals/.
 #
-# It runs no model. The monitor job holds no lanes App token: the job's own
-# GITHUB_TOKEN reads runs, jobs, annotations, artifacts, pull requests and issue
-# comments, and writes only issues: it updates and closes incidents and retires
-# the old rolling issues. Only the file-incidents job holds a lanes App token,
-# for the one write that must start intake triage: opening an incident. Only the
-# schedule and a manual run with no inputs start it, on main. Run, annotation and
-# pull-request text reaches an issue only as inert lines inside a text fence,
-# never through a `${{ }}` expression.
+# It runs no model and holds no lanes App token or secret: the job's own
+# GITHUB_TOKEN reads runs, jobs, annotations, artifacts, pull requests and issue comments,
+# and writes only issues, so its issues come from github-actions[bot] and
+# start no workflow. Only the schedule and a manual run with no inputs start
+# it, on main. Run, annotation and pull-request text reaches an issue only as
+# inert lines inside a text fence, never through a `${{ }}` expression.
 #
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false".
@@ -48,9 +46,6 @@ jobs:
       contents: read # check out main
       issues: write # file and update the lane's own issues
       pull-requests: read # list merged pull requests
-    outputs:
-      plan-artifact-id: ${{ steps.upload-plan.outputs.artifact-id }}
-      plan-sha256: ${{ steps.hash-plan.outputs.sha256 }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -94,8 +89,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
 
-      - name: Read the signals and write their state
-        id: monitor
+      - name: Read the signals and file their issues
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -103,40 +97,11 @@ jobs:
           CALL_BUDGET: "250"
           WINDOW_MINUTES: "65"
           JOBS_CARRY_PATH: ${{ runner.temp }}/monitor-jobs/jobs.json
-          INCIDENT_PLAN_PATH: ${{ runner.temp }}/monitor-plan/plan.json
         run: |
-          mkdir -p "$RUNNER_TEMP/monitor-jobs" "$RUNNER_TEMP/monitor-plan"
+          mkdir -p "$RUNNER_TEMP/monitor-jobs"
           AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           export AGENT_IDENTITY
           node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs
-
-      # The incidents to file as the lanes App, by the next job. A credential
-      # in a plan withholds it; the next run plans them again.
-      - name: Scan the filing plan for credentials
-        id: scan-plan
-        if: steps.monitor.outputs.file == 'true'
-        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
-        with:
-          path: ${{ runner.temp }}/monitor-plan/plan.json
-
-      - name: Hash the filing plan
-        id: hash-plan
-        if: steps.scan-plan.outputs.clean == 'true'
-        env:
-          PLAN: ${{ runner.temp }}/monitor-plan/plan.json
-        run: |
-          sum=$(sha256sum <"$PLAN")
-          echo "sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-
-      - name: Keep the filing plan
-        id: upload-plan
-        if: steps.hash-plan.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: monitor-signals-incidents-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/monitor-plan/plan.json
-          if-no-files-found: error
-          retention-days: 1
 
       # Completed runs' job reads and the signals' timers, which the next run
       # reads (collect.mjs JOBS_ARTIFACT). A missing upload costs the next run
@@ -169,112 +134,3 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
-
-  # Opens the incidents the monitor job planned, as the lanes App, so intake
-  # triage runs on them; an issue the job token opens starts no workflow. Only
-  # this job can mint, it runs only when there is something to file, and it
-  # makes no other write. A refused mint fails only a run with an incident to
-  # file; the next hourly run plans it again.
-  file-incidents:
-    needs: monitor
-    if: ${{ !cancelled() && needs.monitor.outputs.plan-artifact-id != '' && needs.monitor.outputs.plan-sha256 != '' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read # check out main
-      id-token: write # prove to the token broker which workflow this is
-    env:
-      API_BUDGET_TOKEN: lanes-app
-    steps:
-      - name: Check out the run's main commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          path: .base
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
-        with:
-          node-version-file: .base/.node-version
-
-      - name: Resolve the config
-        id: config
-        env:
-          API_BUDGET_TOKEN: github-token
-        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
-        with:
-          lane: maintenance-monitor-signals
-          activity: file-incident
-          base-path: .base
-          output-path: ${{ runner.temp }}/resolved-config.json
-
-      - name: Download the filing plan
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          artifact-ids: ${{ needs.monitor.outputs.plan-artifact-id }}
-          path: ${{ runner.temp }}/plan
-
-      - name: Check the filing plan
-        id: verify
-        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
-        env:
-          PLAN: ${{ runner.temp }}/plan/plan.json
-          PLAN_SHA256: ${{ needs.monitor.outputs.plan-sha256 }}
-        run: |
-          if [ -L "$PLAN" ] || [ ! -f "$PLAN" ] || [ "$(stat -c %s "$PLAN")" -gt 1048576 ]; then
-            echo "::error::the filing plan is not a file of at most 1 MiB"
-            exit 1
-          fi
-          sum=$(sha256sum <"$PLAN")
-          if ! [[ $PLAN_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$PLAN_SHA256" ]; then
-            echo "::error::the filing plan does not match the SHA-256 the monitor job recorded"
-            exit 1
-          fi
-
-      # A kill switch turned on since the monitor job read it is a designed stop.
-      - name: Request the lane token
-        id: lane-token
-        if: steps.verify.outcome == 'success'
-        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
-        with:
-          broker-url: ${{ vars.LANES_BROKER_URL }}
-          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
-          lane: maintenance-monitor-signals
-          activity: file-incident
-          effect: ${{ steps.config.outputs.effect }}
-          contents: ${{ steps.config.outputs.contents }}
-          pull-requests: ${{ steps.config.outputs.pull-requests }}
-          issues: ${{ steps.config.outputs.issues }}
-          kill-switch-ok: true
-
-      - name: File the incidents
-        if: steps.lane-token.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
-          PLAN_FILE: ${{ runner.temp }}/plan/plan.json
-        run: |
-          AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          export AGENT_IDENTITY
-          node .base/.github/scripts/maintenance-monitor-signals/file-incidents.mjs
-
-      - name: Revoke the lane token
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: lanes-app

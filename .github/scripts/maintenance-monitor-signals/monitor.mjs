@@ -1,17 +1,13 @@
 // The monitoring lane's job: collect, detect, write every signal's state and
 // evidence to the job summary, then keep at most one open incident issue per
-// signal (issues.mjs planIssues). Updates, closes and the retirement of the
-// earlier rolling issues use the job's own token, 1 s apart, within the call
-// budget, and only touch the issues the lane filed. A new incident is only
-// written to a plan file: the workflow's file-incidents job files it as the
-// lanes App (file-incidents.mjs), so intake triage runs on it. No model.
+// signal (issues.mjs planIssues). Writes with the job's own token, 1 s apart,
+// within the call budget, and only to the issues it files. No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
 // WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, RUNNER_TEMP,
 // JOBS_CARRY_PATH (read the last run's job reads and episodes and write this
-// run's there), INCIDENT_PLAN_PATH (where the filing plan goes), GITHUB_OUTPUT
-// (receives file=true when it wrote one), GITHUB_STEP_SUMMARY. For a replay:
-// NOW (an ISO time) and DRY_RUN=1, which reads and plans but writes nothing.
+// run's there), GITHUB_STEP_SUMMARY. For a replay: NOW (an ISO time) and
+// DRY_RUN=1, which reads and plans but writes nothing.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +17,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { FILING, fenced, incidentRules, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
@@ -99,43 +95,41 @@ export function readIncidentRules({ path = CONFIG, run = execFileSync } = {}) {
 // is read at call time, so a test's stub is guarded too.
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
-// No needs-triage label: intake's own floor step adds it to an issue with no
-// priority label.
 const LABELS = ["source: factory-monitor"];
 const WORK_STATUS_FIELD = 48484079;
 const PRIORITY_FIELD = 49622037;
 const INCIDENT_TYPE = "Bug";
-const FILER_LOGIN = "github-actions[bot]";
 
-// What the file-incidents job posts as the lanes App. It leaves Size,
-// Complexity and Uncertainty to intake triage, which sets them from its
-// verdict.
-export function filingPlan({ plan, repo, labels, runUrl }) {
-  return {
-    version: 1,
-    repository: repo,
-    incidents: plan.file.map(({ family }) => ({
-      signal: family.signal,
-      title: FILING[family.signal].title,
-      body: renderBody(family, runUrl),
-      type: INCIDENT_TYPE,
-      labels,
-      fields: [
-        { field_id: WORK_STATUS_FIELD, value: "needs-triage" },
-        { field_id: PRIORITY_FIELD, value: FILING[family.signal].priority },
-      ],
-    })),
-  };
-}
+// What a signal knows at filing (docs/standards/issue-tracker.md, "Filing an
+// issue"). Size, Complexity and Uncertainty need someone who has read the
+// fault, and triage sets them.
+export const incidentFields = (signal) => [
+  { field_id: WORK_STATUS_FIELD, value: "needs-triage" },
+  { field_id: PRIORITY_FIELD, value: FILING[signal].priority },
+];
 
-// The job-token writes. A filed incident's body changes only when its findings
-// change, and no write adds a comment except the retirement note. The rewrite
-// takes agent-ready off first (statusWriter's leaveAgentReady, with orUnset),
-// since a person vetted the earlier text; the PATCH runs last and carries the
-// marker, so a failed call before it leaves the old state recorded and the
-// write is retried on the next run.
-export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
-  const done = { updated: [], closed: [], retired: [], failed: [] };
+// A filed incident's body changes only when its findings change, and no write
+// adds a comment except the retirement note. The rewrite takes agent-ready off
+// first (statusWriter's leaveAgentReady, with orUnset), since a person vetted
+// the earlier text; the PATCH runs last and carries the marker, so a failed
+// call before it leaves the old state recorded and the write is retried on the
+// next run. A failed filing is planned again next run; a failed field write
+// only warns, and triage sets what is missing.
+export async function writePlan({ plan, call, repo, labels = [], runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
+  const done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
+  for (const { family } of plan.file) {
+    try {
+      await wait();
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl), labels });
+      done.filed.push(issue.number);
+      // GitHub drops a type the token may not set without an error.
+      if (issue.type?.name !== INCIDENT_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${INCIDENT_TYPE}`);
+      await wait();
+      await setFields(issue.number, incidentFields(family.signal)).catch((error) => console.log(`::warning::#${issue.number}'s field values were not set: ${error.message}`));
+    } catch (error) {
+      done.failed.push({ target: family.signal, error: error.message });
+    }
+  }
   const attempt = async (number, into, write) => {
     try {
       await write();
@@ -249,14 +243,12 @@ async function main(env = process.env) {
     ownRate: ownRate && { used: ownRate.used, limit: ownRate.limit, remaining: ownRate.remaining },
   });
   const findings = detect(data);
-  // A threshold or identity this run could not read is a gap no source names,
-  // which leaves every signal and its issue as they are.
+  // Thresholds this run could not read are a gap no source names, which leaves
+  // every signal and its issue as they are.
   const rules = readIncidentRules();
   const gaps = [...data.gaps];
   if (rules instanceof Error) gaps.push(`incident thresholds: ${rules.message}`);
-  if (!env.AGENT_IDENTITY) gaps.push("incident issues: merge.agent-identity is empty");
-  const filed = [...(await listFiled({ get, repo, creator: FILER_LOGIN })), ...(env.AGENT_IDENTITY ? await listFiled({ get, repo, creator: env.AGENT_IDENTITY }) : [])];
-  const existing = filed.filter((i) => readMarker(i.body));
+  const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
   const plan = planIssues({ findings, existing, unread: unreadSignals(gaps), rules: rules instanceof Error ? {} : rules, episodes: carry.episodes, now });
   if (env.JOBS_CARRY_PATH) {
     try {
@@ -267,28 +259,27 @@ async function main(env = process.env) {
   }
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
-  let done = { updated: [], closed: [], retired: [], failed: [] };
+  let done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
   const labels = [];
   if (!env.DRY_RUN) {
     if (plan.file.length > 0) {
       for (const name of LABELS) {
         if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
       }
-      writeFileSync(env.INCIDENT_PLAN_PATH, JSON.stringify(filingPlan({ plan, repo, labels, runUrl })));
-      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "file=true\n");
     }
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
-    done = await writePlan({ plan, call, repo, runUrl, leaveAgentReady });
+    const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
+    done = await writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
   }
 
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. To file as the lanes App: ${plan.file.length}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
     "",
     ...statusLines(plan),
     ...plan.logged.map((f) => `- logged, not filed: ${f.title} (${f.summary})`),

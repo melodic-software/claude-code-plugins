@@ -753,18 +753,16 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   return data;
 }
 
-// Issues one identity filed (`creator`, by default github-actions[bot], the
-// author of the retired rolling issues; the lanes App files incidents), any
-// state and any age, newest first. The lane writes nothing while evidence is
-// unchanged, so an update-time cutoff would drop a quiet open or muted key,
-// and a page cap would drop the oldest. Paging stops at a short page; the call
-// budget bounds it, and spending it throws before any write. The caller keeps
-// those carrying the marker.
-export async function listFiled({ get, repo, creator = "github-actions[bot]" }) {
+// Issues the lane filed: github-actions[bot]'s, any state and any age, newest
+// first. The lane writes nothing while evidence is unchanged, so an update-time
+// cutoff would drop a quiet open or muted key, and a page cap would drop the
+// oldest. Paging stops at a short page; the call budget bounds it, and spending
+// it throws before any write. The caller keeps those carrying the marker.
+export async function listFiled({ get, repo }) {
   const out = [];
   for (let page = 1; ; page += 1) {
     const batch = await get(
-      `/repos/${repo}/issues?creator=${encodeURIComponent(creator)}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
+      `/repos/${repo}/issues?creator=${encodeURIComponent("github-actions[bot]")}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
     );
     out.push(...batch.filter((i) => !i.pull_request));
     if (batch.length < 100) break;

@@ -3444,7 +3444,7 @@ fence as inert lines. That summary is the status record. No run comments on a st
 
 An incident issue has a plain title set per signal in `issues.mjs` `FILING`, Issue Type `Bug`, Work
 status `needs-triage` and a Priority by signal severity (critical for `main-red`; high for what blocks
-the pipeline); Size, Complexity and Uncertainty are left to intake triage. Its first body line is
+the pipeline), set at filing; Size, Complexity and Uncertainty are left to triage. Its first body line is
 `<!-- factory-monitor key=incident:<signal> fp=<state> -->`; the body names the signal and, per
 finding, the key, the owning area, and the summary and the evidence each inside a text fence. The
 state fingerprint covers the findings' keys only, so new evidence for the same key writes nothing and
@@ -3466,7 +3466,7 @@ A run that could not read one of a signal's sources leaves that signal's timers 
 they are, so a partly read signal neither clears nor loses findings; a source the lane does not map,
 or thresholds it cannot read, leaves every signal as it is. Each rewrite takes `agent-ready` off the
 issue, since a person vetted the earlier text. Issues of every age are read, page by page until a
-short page, for both `github-actions[bot]` and `merge.agent-identity`; a run that spends its call
+short page; a run that spends its call
 budget there stops before writing. An open issue with an earlier marker (`key=family:<signal>` or a
 per-key form) is retired: closed as not planned with a comment pointing at the job summary, its
 history left in place. Filed issues are labeled `source: factory-monitor` where that label exists. It
@@ -3475,12 +3475,9 @@ cannot read is listed in the step summary and the other signals still run. Faile
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
 the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries, or one over 70 minutes old for any reason, leaves them no sweep and is a gap for those two, and signals 3 and 12 still read the held sweeps.
 
-The monitor job holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and
-`pull-requests` read, `issues: write`) for every read, update, close and retirement. The separate
-`file-incidents` job runs only when the plan holds a new incident: it checks the plan against the
-monitor job's hash, mints a lanes App token (activity `file-incident`) and opens the issue, so
-`intake-triage` runs on it, which an issue the job token opens would not start. The kill switch stops
-both. The lanes App reading in signal 2 is what pr-merge's token sees
+It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
+`issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
+workflow. The kill switch stops it. The lanes App reading in signal 2 is what pr-merge's token sees
 at the start and end of each run, not the broker's own quota record, which this token cannot read.
 
 ## Write identities
@@ -3491,8 +3488,8 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 
 | Identity | Workflows | Why |
 |---|---|---|
-| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest relies on so its issue starts no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml`, `maintenance-monitor-signals.yml` (the `file-incidents` job only) | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 

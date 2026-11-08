@@ -1,7 +1,7 @@
 // Runs end to end through detect, planIssues and writePlan against an
-// in-memory issue store: for each signal, the first run plans one incident
-// (the file-incidents job's part is stubbed here), a run with the same
-// findings writes nothing, new findings rewrite that issue's body with no
+// in-memory issue store: for each signal, the first run files one incident,
+// a run with the same findings writes nothing, new findings rewrite that
+// issue's body with no
 // comment, a clear run closes it, and a later episode files a new incident.
 // Every rewrite takes agent-ready off.
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 import { FILING, SIGNALS, familyOf, planIssues, readMarker } from "./issues.mjs";
-import { errorLines, filingPlan, readHoldRule, readIncidentRules, readJobsCarry, statusLines, writePlan } from "./monitor.mjs";
+import { errorLines, incidentFields, readHoldRule, readIncidentRules, readJobsCarry, statusLines, writePlan } from "./monitor.mjs";
 import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
 import { detect } from "./signals.mjs";
 
@@ -81,7 +81,7 @@ function store() {
   const call = async (method, path, body) => {
     calls.push(`${method} ${path}`);
     if (method === "POST" && path.endsWith("/issues")) {
-      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...body.labels] };
+      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, type: { name: body.type }, labels: [...body.labels] };
       issues.push(issue);
       return issue;
     }
@@ -99,19 +99,7 @@ const RULES = Object.fromEntries(SIGNALS.map((signal) => [signal, { open: 0, clo
 const planFor = (s, data, extra = {}) =>
   planIssues({ findings: detect({ now, windowStart, ...data }), existing: s.issues.filter((i) => readMarker(i.body)), rules: RULES, now: data.now ?? now, ...extra });
 
-// Stands in for the file-incidents job.
-const fileIncidents = (s, plan) =>
-  filingPlan({ plan, repo: "o/r", labels: ["source: factory-monitor"], runUrl: url(900) }).incidents.map(({ title, body, labels }) => {
-    const number = 100 + s.issues.length;
-    s.issues.push({ number, state: "open", state_reason: null, title, body, labels: [...labels] });
-    return number;
-  });
-
-async function runOnce(s, data, extra = {}) {
-  const plan = planFor(s, data, extra);
-  const filed = fileIncidents(s, plan);
-  return { filed, ...(await writePlan({ plan, call: s.call, repo: "o/r", runUrl: url(900), wait: async () => {} })) };
-}
+const runOnce = (s, data, extra = {}) => writePlan({ plan: planFor(s, data, extra), call: s.call, repo: "o/r", labels: ["source: factory-monitor"], runUrl: url(900), wait: async () => {} });
 
 const nothing = { filed: [], updated: [], closed: [], retired: [], failed: [] };
 // Throttling's first findings with a second key alongside.
@@ -237,7 +225,7 @@ test("open rolling and per-key issues are retired with a comment and their histo
 });
 
 const HUMAN = 153232337;
-const rewriteWith = async (s, leaveAgentReady) => ({ filed: [], ...(await writePlan({ plan: planFor(s, TWO_KEYS), call: s.call, repo: "o/r", runUrl: url(900), leaveAgentReady, wait: async () => {} })) });
+const rewriteWith = (s, leaveAgentReady) => writePlan({ plan: planFor(s, TWO_KEYS), call: s.call, repo: "o/r", runUrl: url(900), leaveAgentReady, wait: async () => {} });
 
 for (const [why, state, setter, written] of [
   ["an unset field", null, undefined, ["needs-triage"]],
@@ -308,14 +296,33 @@ test("a failed write is reported and the rest still run", async () => {
   assert.deepEqual(done.failed, [{ target: "#100", error: "PATCH /repos/o/r/issues/100: HTTP 422" }]);
 });
 
-test("the filing plan sets type, Work status and Priority, and leaves the dimensions to intake", () => {
+test("a filing sets Issue Type, Work status and Priority, and leaves the dimensions to triage", async () => {
   const s = store();
-  const plan = planFor(s, CASES[0][1]);
-  const { incidents, repository, version } = filingPlan({ plan, repo: "o/r", labels: ["l"], runUrl: url(900) });
-  assert.deepEqual([version, repository, incidents.length], [1, "o/r", 1]);
-  assert.equal(incidents[0].type, "Bug");
-  assert.deepEqual(incidents[0].fields, [{ field_id: 48484079, value: "needs-triage" }, { field_id: 49622037, value: "critical" }]);
-  assert.equal(readMarker(incidents[0].body).key, "incident:main-red");
+  const set = [];
+  await writePlan({ plan: planFor(s, CASES[0][1]), call: s.call, repo: "o/r", labels: ["l"], runUrl: url(900), setFields: async (number, values) => set.push([number, values]), wait: async () => {} });
+  assert.deepEqual(s.issues[0].type, { name: "Bug" });
+  assert.deepEqual(set, [[100, [{ field_id: 48484079, value: "needs-triage" }, { field_id: 49622037, value: "critical" }]]]);
+  assert.deepEqual(incidentFields("5 held PRs")[1], { field_id: 49622037, value: "medium" });
+  assert.equal(readMarker(s.issues[0].body).key, "incident:main-red");
+});
+
+test("a failed filing is reported and the next still files; a failed field write and a dropped type only warn", async (t) => {
+  const logged = t.mock.method(console, "log", () => {});
+  const s = store();
+  const call = async (method, path, body) => {
+    if (body?.title === FILING["1 main red"].title) throw new Error("POST /repos/o/r/issues: HTTP 422");
+    const issue = await s.call(method, path, body);
+    return { number: issue.number };
+  };
+  const setFields = async () => {
+    throw new Error("HTTP 500");
+  };
+  const done = await writePlan({ plan: planFor(s, { ...CASES[0][1], ...CASES[2][1] }), call, repo: "o/r", labels: [], runUrl: url(900), setFields, wait: async () => {} });
+  assert.deepEqual(done.filed, [100]);
+  assert.deepEqual(done.failed, [{ target: "1 main red", error: "POST /repos/o/r/issues: HTTP 422" }]);
+  const lines = logged.mock.calls.map((c) => c.arguments[0]);
+  assert.match(lines[0], /#100 came back without Issue Type Bug/);
+  assert.match(lines[1], /#100's field values were not set: HTTP 500/);
 });
 
 test("every signal's state is in the job summary, its evidence fenced", () => {

@@ -680,13 +680,6 @@ test("listFiled lists only github-actions[bot]'s issues", async () => {
   assert.deepEqual(api.calls.map((path) => new URL(path, "https://x").searchParams.get("creator")), ["github-actions[bot]"]);
 });
 
-// The lanes App files the incidents, so the lane reads its issues too.
-test("listFiled lists the creator it is given", async () => {
-  const api = fakeApi([[/\/issues\?/, []]]);
-  await listFiled({ get: api.get, repo, creator: "melodic-automation-lanes[bot]" });
-  assert.deepEqual(api.calls.map((path) => new URL(path, "https://x").searchParams.get("creator")), ["melodic-automation-lanes[bot]"]);
-});
-
 test("the signal timers round-trip, and a stale, missing or misshapen carry reads as none or throws", () => {
   const signals = { "3 throttling": { onSince: "2026-10-19T15:00:00Z", clearSince: null } };
   const carried = (episodes) => jobsCarryFile(repo, [], undefined, episodes);
