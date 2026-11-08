@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pr-survivor-three-classes
+description: 'Legacy principles 4. equivalent-not-suppression (llm) grades the suppression distinction; legacy-principles-4 (llm) quotes the legacy expectation.'
+tags: [principles, no-network, legacy]
+runs: 3
+expected_outcome: 'Separates equivalent, arid and productive; equivalence is undecidable and a claim from inspection must cite a demonstration; an equivalent mutant is not a suppression while an arid one is suppressed with a written reason.'
+execution:
+  prompt: 'A mutant survived but I''m pretty sure no test could ever catch it. What do I do? Answer with /mutation-testing:principles.'
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"mutation-testing:principles"'
+  - name: 'loads-theory-or-scaling'
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: 'skills/principles/reference/(?:theory|scaling-and-suppression)\.md'
+  - name: 'equivalent-not-suppression'
+    type: 'llm'
+    criteria: 'PASS only if the reply says an equivalent mutant is not suppressed (the check is wrong for that node) while an arid mutant is suppressed with a written reason. FAIL if it tells the user to suppress an equivalent mutant or treats the two the same way.'
+    focus: 'last_message'
+  - name: 'legacy-principles-4'
+    type: 'llm'
+    criteria: 'The run is a mutation-testing question answered through /mutation-testing:principles: “A mutant survived but I''m pretty sure no test could ever catch it. What do I do?”. It meets the legacy expectation: "Distinguishes equivalent from arid from productive. States that equivalence is formally undecidable and that an equivalence claim asserted from inspection is where false confidence is manufactured, so the verdict must cite a demonstration. Notes that an equivalent mutant is NOT a suppression -- the check is wrong for that node -- while an arid mutant is suppressed with a written reason. Loads reference/theory.md and/or reference/scaling-and-suppression.md."'
+    focus: 'trace'

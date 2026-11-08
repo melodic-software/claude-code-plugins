@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git symbolic-ref --short refs/remotes/origin/HEAD",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "documented call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "not origin/HEAD"
+    }
+  ]
+}

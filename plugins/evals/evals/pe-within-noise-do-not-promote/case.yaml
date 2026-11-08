@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: pe-within-noise-do-not-promote
+description: "Hard case. Source: legacy plugin-eval case 14 (do-not-promote-names-the-failed-condition). Why hard: a VALID run with a positive delta invites a yes; this plugin calls no gain while the noise verdict is within noise and ends with a do not promote line naming that failed condition."
+tags: [reading-results, hard]
+runs: 3
+expected_outcome: "The reply says the +0.12 is not an established gain because the noise report verdict is within noise, and ends with a do not promote line that names that verdict as the failed condition"
+execution:
+  prompt: "With the evals:plugin-eval skill: reading my results.json: VALID run, delta +0.12, and the noise report verdict is within noise. My teammate wants a yes or no on shipping the new prompt."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: ends-do-not-promote
+    type: regex
+    pattern: '\b(?:do not|don[''’]t)[ \t]+promote\b[^\n]*\s*$'
+    flags: i
+  - name: no-gain-claim
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not call the +0.12 delta a gain". PASS if the reply does not call the +0.12 a gain or an improvement, and says the gain is not established. FAIL if it calls it a gain, a small win or an improvement, even with a caveat. Example PASS: "Within noise, so the +0.12 is not an established gain." Example FAIL: "A modest +0.12 gain; ship it with care."'
+  - name: names-failed-condition
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Names the within-noise verdict as the condition that failed". PASS if the reply names the noise report''s within-noise verdict as the condition that blocks shipping. FAIL if it blocks shipping for another reason only, or names no failed condition. Example PASS: "do not promote: the noise report verdict is within noise." Example FAIL: "do not promote: run more cases."'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only

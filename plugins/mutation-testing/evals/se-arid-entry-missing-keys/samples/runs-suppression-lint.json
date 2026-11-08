@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/suppression-lint.sh .claude/mutation-testing-arid.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "the lint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/scripts/suppression-lint.sh\" .claude/mutation-testing-arid.md; echo \"exit $?\"",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "smoke reply at 492363d: quoted script path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .claude/mutation-testing-arid.md",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "reads it by hand"
+    }
+  ]
+}

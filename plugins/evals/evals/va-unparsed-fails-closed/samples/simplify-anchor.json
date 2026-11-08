@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Replace the anchor with the tags written out in each case.",
+      "why": "replace the anchor"
+    },
+    {
+      "answer": "Simplify the file: drop the &shared anchor and its alias.",
+      "why": "simplify"
+    },
+    {
+      "answer": "The anchor has to go: inline the list.",
+      "why": "anchor before the verb"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It is only a parser limit, so ignore it and run the suite.",
+      "why": "near miss: ignore"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run the CLI; it has the full parser.",
+      "why": "the other route only"
+    },
+    {
+      "answer": "Don't ignore it: the validator's parser does not expand YAML anchors, so it never read that case. Run claude plugin eval, which has the full parser.",
+      "why": "near miss: explains the anchor limit, offers only the CLI route"
+    }
+  ]
+}

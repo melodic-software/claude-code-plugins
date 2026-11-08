@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The check exited 1 with one FAIL row."
+    },
+    {
+      "answer": "setup-check: 1 FAIL (exit code 1)."
+    },
+    {
+      "answer": "It exits with 1."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The check finished with a warning."
+    },
+    {
+      "answer": "The check exited 0."
+    },
+    {
+      "answer": "One FAIL row."
+    }
+  ]
+}

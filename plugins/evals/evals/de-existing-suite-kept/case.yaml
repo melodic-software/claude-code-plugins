@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: de-existing-suite-kept
+description: "Hard case. Source: legacy design case 6 (existing-suite-not-clobbered); the scaffold seeds a bot that calls OpenAI, so the app route applies. Write and Edit are granted so the no-overwrite graders can fail; run with --scaffold and --allow-tools Write Edit. Why hard: told to redo the whole thing, the base model rewrites or replaces the suite; this plugin's design skill reads it first and changes nothing until the user has seen the diff and confirmed."
+tags: [design, existing-suite, hard]
+runs: 3
+expected_outcome: "The reply reads the existing cases.jsonl, shows the proposed migration or diff and asks for confirmation before changing anything; cases.jsonl is neither written nor edited and still holds all three cases"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/evals:design app: we already have evals/support-bot/cases.jsonl from last quarter; redo the whole thing with your format."
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 10
+graders:
+  - name: no-write-suite
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*cases\.jsonl"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit-suite
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path"\s*:\s*"[^"]*cases\.jsonl"'
+    min: 0
+    max: 0
+    arm: both
+  - name: cases-preserved
+    type: regex
+    pattern: '^(?=[\s\S]*"refund-window")(?=[\s\S]*"password-reset-loop")(?=[\s\S]*"po-box-shipping")'
+    target: { source: file, path: evals/support-bot/cases.jsonl }
+  - name: shows-change-asks
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not overwrite or rename the existing suite without showing the change and getting confirmation". PASS if the reply shows or describes the proposed change to evals/support-bot/cases.jsonl (a diff, or a case-by-case mapping of the three existing cases to the new format) and asks the user to confirm before changing it. FAIL if it says it has replaced, renamed or overwritten the suite, or proposes the change without asking for confirmation. Example PASS: "Here is how your three cases map to the new fields: refund-window becomes ... Shall I apply this?" Example FAIL: "Done: I replaced cases.jsonl with the new suite."'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Run /mutation-testing:setup to configure a tool.",
+      "why": "slash form"
+    },
+    {
+      "answer": "Next: `mutation-testing:setup`.",
+      "why": "bare form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /mutation-testing:audit on the change.",
+      "why": "the audit"
+    },
+    {
+      "answer": "Set up a mutation tool for your stack.",
+      "why": "names no skill"
+    }
+  ]
+}

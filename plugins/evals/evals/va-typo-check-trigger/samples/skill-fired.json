@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:validate",
+            "args": "my-plugin/evals"
+          }
+        }
+      ],
+      "why": "validate"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:plugin-eval",
+            "args": "validate my-plugin/evals"
+          }
+        }
+      ],
+      "why": "plugin-eval's validate action"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    }
+  ]
+}

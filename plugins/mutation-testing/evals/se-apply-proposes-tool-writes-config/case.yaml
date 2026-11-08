@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: se-apply-proposes-tool-writes-config
+description: 'Legacy setup 2. config-written and arid-record-written grade the two files (the Write tool is refused under .claude/, so the record lands through a shell write), diff-target-from-origin-head the resolution, no-tool-install the ask-first rule; legacy-setup-2 (llm) quotes the legacy expectation. The prompt asks for the recommended answers because a case has one turn. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'Check first, then apply: proposes a tool with its install command without installing, resolves the diff target from origin/HEAD, writes docs/conventions/mutation-testing.yaml and an empty .claude/mutation-testing-arid.md, re-verifies.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup apply. Take your recommended answer for every interview question.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: 'config-written'
+    type: 'file_exists'
+    path: 'docs/conventions/mutation-testing.yaml'
+  - name: 'arid-record-written'
+    type: 'file_exists'
+    path: '.claude/mutation-testing-arid.md'
+  - name: 'diff-target-from-origin-head'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'symbolic-ref(?:[^"\\]|\\.)*refs/remotes/origin/HEAD'
+  - name: 'no-tool-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\b(?:pip3?|pipx|uv\s+pip|uv\s+tool)\s+install\b|\bpython3?\s+-m\s+pip\s+install\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'legacy-setup-2'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup apply run on a scaffolded repository (A Python repo with no mutation-testing config). It meets the legacy expectation: "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool''s defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes docs/conventions/mutation-testing.yaml from the template''s YAML block plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md personal override convention."'
+    focus: 'trace'

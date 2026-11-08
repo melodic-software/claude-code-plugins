@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb assess 'D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin'" } }], "why": "assess is read-only" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb apply 'D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin' -Build wilsjo2 -Proxy dxgi.dll -Force" } }], "why": "apply on not-a-candidate" }
+  ]
+}

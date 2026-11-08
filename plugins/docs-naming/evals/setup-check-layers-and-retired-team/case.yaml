@@ -1,0 +1,66 @@
+schema_version: "1.1"
+name: setup-check-layers-and-retired-team
+description: 'Legacy setup 1 and 5, merged on one fixture: an old .claude/docs-hygiene.json team file with a file_names block, and no layer the resolver reads. Refit: setup sets disable-model-invocation, so the legacy natural prompts become the slash command plus their text. The check table is presented with its PASS, WARN and INFO rows and the layer rows intact (setup SKILL.md lines 36-71), docs-naming-r001 is INFO (report-only, lines 82-84), the old file is no longer read, and nothing is written. ran-check is the with-only indicator; layers-and-remedy (llm) quotes the legacy expectations the regexes do not decide. The scaffold puts the old file under the workspace .claude/, where the bundled check reads it in a run. r001-not-fail rejects FAIL stated as r001''s status (a FAIL status cell, ": FAIL", "is FAIL", in any case and through bold or backticks), so a negated FAIL ("not FAIL", "rather than FAIL", "No FAIL rows") passes; no-shell-change guards a shell rewrite, rm or mv of the old file or the team YAML. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, check, scaffold, no-network]
+plugins: ["../.."]
+expected_outcome: 'setup-check.sh and the retirement detection run. The reply shows the table as printed, with the three layer rows absent (INFO) explained as valid because the bundled defaults supply the keys, the old team file WARN row, and docs-naming-r001 reported as INFO, not FAIL. It says the old file is no longer read and that setup apply seeds docs/conventions/docs-naming.yaml from it so its settings carry over. No file is written or edited.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/docs-naming:setup check\n\nIs docs-naming configured in this repository? This repository still has .claude/docs-hygiene.json with a file_names block, and neither docs/conventions/docs-naming.yaml nor .claude/docs-naming.json.\n"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-check
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-check\.sh'
+    arm: with-only
+  - name: table-rows-intact
+    type: regex
+    pattern: '^(?=[\s\S]*\bPASS\b)(?=[\s\S]*\bINFO\b)(?=[\s\S]*\bWARN\b)(?=[\s\S]*user-global)(?=[\s\S]*personal[- ]override)'
+    target: last_message
+    arm: both
+  - name: r001-info
+    type: regex
+    pattern: 'docs-naming-r001[^\n]{0,160}\bINFO\b|\bINFO\b[^\n]{0,160}docs-naming-r001'
+    target: last_message
+    arm: both
+  - name: no-longer-read
+    type: regex
+    pattern: 'docs-hygiene\.json[^\n]{0,200}?\b(?:no longer|not|isn''t|is not|never)\s+(?:being\s+)?read\b|\b(?:no longer|not|isn''t|is not|never)\s+(?:being\s+)?read\b[^\n]{0,200}?docs-hygiene\.json'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: r001-not-fail
+    type: regex
+    pattern: 'docs-naming-r001[*_`]*(?:\s*\([^)\n]{0,60}\))?[*_`]*\s*(?:\|\s*[*_`]*FAIL\b|:\s*[*_`]*FAIL\b|(?:is|was|reports?|returns?|shows?|(?:is\s+)?(?:reported|marked|flagged)\s+as)\s+(?:an?\s+)?[*_`]*FAIL\b)|\|\s*[*_`]*FAIL[*_`]*\s*\|[^\n]{0,60}docs-naming-r001'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-shell-change
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\s+(?:-[a-zA-Z]*i|--in-place)|\bperl\s+-[a-zA-Z]*i|>>?\s*(?:\\")?|\btee\s+(?:-a\s+)?|\b(?:rm|mv|truncate)\s+(?:-\w+\s+)*)(?:[^"\\;&|]|\\.)*(?:docs-hygiene\.json|docs-naming\.yaml)'
+    min: 0
+    max: 0
+    arm: both
+  - name: layers-and-remedy
+    type: llm
+    criteria: 'Pass only if all of these legacy expectations hold. "The table is presented with its PASS, FAIL, WARN, and INFO rows intact rather than summarized as configured." "A layer reported absent is explained as valid (the layer below supplies those keys), not as an error." "check-retirements.sh is run against the plugin''s retirements.yaml and its finding docs-naming-r001 is reported as INFO, not FAIL." "The old file is described as no longer read, not as still read with a warning." "The remedy carries the old file''s settings into docs/conventions/docs-naming.yaml, not a fresh file of defaults beside it." "No file is changed by check": nothing is written, edited, moved or deleted.'
+    focus: trace
+    arm: both

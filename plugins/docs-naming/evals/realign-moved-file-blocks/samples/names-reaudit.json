@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The fix is a re-audit: run /docs-naming:audit-file-names on this tree."
+    },
+    {
+      "answer": "Re-audit, then accept the new id."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Try again with the new path."
+    },
+    {
+      "answer": "The plan is stale."
+    }
+  ]
+}

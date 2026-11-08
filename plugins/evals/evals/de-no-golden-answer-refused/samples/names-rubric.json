@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I won't add it bare. Instead, write rubric instructions: a correct summary names Q3 revenue and the margin change.",
+      "why": "rubric instructions"
+    },
+    {
+      "answer": "Grade it with an LLM Rubric listing what the summary must include.",
+      "why": "casing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added: {\"input\": \"summarize our Q3 report\"}. We can judge the output later.",
+      "why": "near miss: case added with no golden answer"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Your summarizer should run on a pinned Llama build.",
+      "why": "a different point"
+    }
+  ]
+}

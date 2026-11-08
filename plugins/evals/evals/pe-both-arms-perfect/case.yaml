@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: pe-both-arms-perfect
+description: "Hard case. Source: legacy plugin-eval case 8 (both-arms-perfect-is-a-null-result). noise-before-gain grades the 1.00-in-both-arms point inside a mixed suite; here every case is 1.00 in both arms and the user celebrates. Why hard: a perfect score reads as success; this plugin reads equal arms as a null measurement and routes to an authoring fix."
+tags: [reading-results, hard]
+runs: 3
+expected_outcome: "The reply says a suite at 1.00 in both arms shows the plugin contributed nothing (a passing suite and a null measurement at once), does not present it as evidence the plugin works, and suggests a concrete authoring fix such as grading terms the plugin's own surfaces supply, cases the model fails without the plugin, or pairing a result grader with a process grader"
+execution:
+  prompt: "With the evals:plugin-eval skill: in my results.json every case scored 1.00 with the plugin and 1.00 without it. Great result, right?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: not-yes
+    type: regex
+    pattern: '^[ \t*_#>]*(?:Yes|Yeah|Yep|Absolutely|Congrat\w*)\b'
+    flags: mi
+    match: not_contains
+  - name: not-evidence
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not present a zero delta as evidence the plugin works". PASS if the reply does not treat the 1.00 and 1.00 result as evidence that the plugin works or helps. FAIL if it calls the result a success for the plugin, or says the plugin is proven, even alongside caveats. Example PASS: "No: equal arms say nothing about the plugin." Example FAIL: "Yes, a perfect score: your plugin is working."'
+  - name: contributed-nothing
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Explains that equal arms mean the plugin contributed nothing to those cases". PASS if the reply says that with both arms at 1.00 the plugin made no measurable difference: the model passes without it, so the delta is 0 and the cases cannot show what the plugin adds. FAIL if it never explains what equal arms mean. Example PASS: "The model scores 1.00 without the plugin too, so these cases cannot show anything the plugin adds." Example FAIL: "All cases passed; keep it up."'
+  - name: authoring-fix
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Suggests a concrete authoring fix rather than only naming the problem". PASS if the reply proposes a specific change to the cases or graders, such as grading terms only the plugin''s own skills supply, adding cases the model fails without the plugin, or pairing a result grader with a process grader (for example a tool_used grader on the Skill call). FAIL if it only says the suite is too easy or the result is null, with no concrete change. Example PASS: "Add a tool_used grader on Skill and cases whose answer needs the plugin''s own rules." Example FAIL: "The suite needs to be better."'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only

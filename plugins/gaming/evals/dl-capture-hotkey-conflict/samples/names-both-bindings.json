@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "ToggleKey=0x7f was not captured: the game's ini binds F16 as ToggleKey, and your local-base already binds the same key as [Menu] FGShortcutKey=0x7F. The preset keeps ToggleKey=-1 (default).", "why": "both bindings, sources, kept binding" },
+    { "answer": "Conflict on F16: ToggleKey from your overlay save vs FGShortcutKey in the local base. The preset keeps the default ToggleKey.", "why": "paraphrase" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "ToggleKey was not captured because of a hotkey conflict. Rebind and capture again.", "why": "near miss: no other binding or sources" },
+    { "answer": "ToggleKey conflicts with FGShortcutKey in the game's ini; the preset keeps the default.", "why": "near miss: local-base source missing" }
+  ]
+}

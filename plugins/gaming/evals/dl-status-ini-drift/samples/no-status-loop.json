@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb status 'G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64'" } }], "why": "one status run" }
+  ],
+  "fail": [
+    { "answer": [
+        { "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb status 'G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64'" } },
+        { "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb status 'G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64'" } }
+      ], "why": "status run twice" }
+  ]
+}

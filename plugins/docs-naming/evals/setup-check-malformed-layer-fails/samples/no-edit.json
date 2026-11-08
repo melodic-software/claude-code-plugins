@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/conventions/docs-naming.yaml",
+            "old_string": "roots: {path: docs}",
+            "new_string": "roots:\n  - \"docs\""
+          }
+        }
+      ]
+    }
+  ]
+}

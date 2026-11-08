@@ -1,0 +1,8 @@
+{
+  "no-refresh-or-ack": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:-ConfirmRefresh\\b|\\s-Finish\\b|-AcceptAntiCheatRisk\\b)"
+  ]
+}

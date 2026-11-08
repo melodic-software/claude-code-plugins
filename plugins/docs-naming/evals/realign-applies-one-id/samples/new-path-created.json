@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "docs/release-notes.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "docs/Release-Notes.md"
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: de-classifier-exact-match
+description: "Hard case. Source: legacy design case 3 (grading-ladder-prefers-code); the prompt names a non-Claude stack so the Claude API route does not apply. Why hard: the base model reaches for an LLM judge on any LLM output; this plugin's design skill picks the cheapest reliable method, exact match on a label constrained to the label set, and adds ambiguous and off-topic edge cases."
+tags: [design, grading-method, hard]
+runs: 3
+expected_outcome: "The reply grades the label by exact match (code-graded), not an LLM judge, says to constrain the output to the three labels so code grading works, and its draft cases include an ambiguous or off-topic ticket"
+execution:
+  prompt: "/evals:design app: evaluate my classifier prompt that labels support tickets as billing, technical, or account. It runs on GPT-4o mini through OpenAI's API. Criteria: 90% accuracy on a representative set. That criterion is settled, so don't ask me anything; give the grading method and a first draft of cases in your reply, and write no file."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: names-code-grading
+    type: regex
+    pattern: '\bexact[ -]match\w*|\bstring[ -]match\w*|\bcode[- ]grad\w*'
+    flags: i
+  - name: code-grading
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Selects exact-match/code grading for the classification criterion, not an LLM judge". PASS if the reply grades the label with code, by exact match (or string match) against the expected label. FAIL if it grades the label with an LLM judge or a human, or offers code grading only as an optional extra beside a judge. Example PASS: "Grade each case by exact match: the output label must equal the golden label." Example FAIL: "Have an LLM grader read each ticket and decide whether the label is reasonable."'
+  - name: constrain-output
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Recommends constraining the model output format so code grading works". PASS if the reply says to constrain the classifier output to the label set (for example only the word billing, technical or account, or a JSON field holding one of them) so an exact-match check can grade it. FAIL if it never addresses the output format. Example PASS: "Have the prompt answer with exactly one of billing, technical, account and nothing else, so the check is a string comparison." Example FAIL: "Compare the model label to the golden label."'
+  - name: edge-case
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Includes at least one ambiguous or off-distribution edge case in the scaffolded set". PASS if the draft cases include at least one ticket that is ambiguous between labels (such as a billing error caused by a technical fault) or off-distribution (off-topic, empty, spam, another language). FAIL if every draft case is a clear-cut ticket for one label, or no draft cases are shown. Example PASS: "Case 7: I was charged twice because the app crashed at checkout (billing or technical)." Example FAIL: cases that are only a refund question, a login error and an email change.'

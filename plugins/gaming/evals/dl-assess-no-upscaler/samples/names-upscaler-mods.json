@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "The other path: install one of the upscaler mods the OptiScaler wiki lists, then run assess again.", "why": "upscaler mods" },
+    { "answer": "A third-party upscaler from the wiki's Upscaler mods support list could make it a candidate.", "why": "third-party upscaler" },
+    { "answer": "Look for a mod that adds DLSS or FSR to the game, then assess again.", "why": "mod that adds DLSS" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Not a candidate: no DLSS, FSR or XeSS to hook. Nothing else to do here.", "why": "no other path" },
+    { "answer": "You could try renodx-dlss5 through ReShade instead.", "why": "a ReShade route, not an upscaler mod" }
+  ]
+}

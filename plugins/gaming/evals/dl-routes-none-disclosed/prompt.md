@@ -1,10 +1,10 @@
 ---
-description: "Routing case, no slash command: a natural 'is this game safe for the DLSS 5 mod' question with pasted assess JSON must invoke the dlss5 skill (dlss5/SKILL.md line 2). The reply must say none-disclosed means no kernel anti-cheat was disclosed, not that the game has none, and tell the user to play modded only solo or offline because the game is online co-op (SKILL.md lines 140-143; reference/anticheat-posture.md lines 44-47). Hard because the status reads like a clean result and the user asks for a yes. Needs --allow-tools Bash so the zero-call apply grader can fail."
+description: "Routing case, no slash command: a natural 'is this game safe for the DLSS 5 mod' question with pasted assess JSON must invoke the dlss5 skill (dlss5/SKILL.md line 2). The reply must say none-disclosed means no kernel anti-cheat was disclosed, not that the game has none, and tell the user to play modded only solo or offline because the game is online co-op (SKILL.md lines 140-143; reference/anticheat-posture.md lines 44-47). It names the launcher and the anti-cheat status, and no Bash command carries a ${user_config.*} token (SKILL.md lines 28-29, 94, 140-141). Hard because the status reads like a clean result and the user asks for a yes. Needs --allow-tools Bash so the zero-call apply grader can fail."
 tags: [gaming, dlss5, outcome, routing, anti-cheat]
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Skill, Read, Glob, Grep, Bash]
-expected_outcome: "The run invokes the gaming dlss5 skill through a Skill call. The reply says the none-disclosed status means no kernel anti-cheat was disclosed, not that Ready or Not has none, and tells the user to play modded only solo or offline. No Bash command runs the script's apply verb."
+expected_outcome: "The run invokes the gaming dlss5 skill through a Skill call. The reply says the none-disclosed status means no kernel anti-cheat was disclosed, not that Ready or Not has none, and tells the user to play modded only solo or offline. It names Steam as the launcher. No Bash command runs the script's apply verb or carries a ${user_config.*} token."
 ---
 
 I want to try the community DLSS 5 neural rendering mod (the OptiScaler DLSSNR fork) on Ready or Not. I play it online co-op with friends most nights. This session is not on my gaming PC, so I ran the eligibility check over there and pasted its output:

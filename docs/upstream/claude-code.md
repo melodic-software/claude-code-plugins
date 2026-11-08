@@ -7,7 +7,9 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.318` (published 2026-11-04). Releases
+**Last audited upstream state:** changelog through `2.1.319` (published 2026-11-06). `2.1.319` was
+read by the release lane, its handoffs in
+[#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033). Releases
 `2.1.257` through `2.1.296` were read release by release as raw markdown. Releases `2.1.297` through
 `2.1.318` were not: that range was past the replay cap, so on 2026-11-04 the components were
 rechecked against the current docs instead
@@ -21,7 +23,7 @@ it to the newest published release.
 
 - **Pointer**: for what a release after the marker changed, fetch
   <https://code.claude.com/docs/en/changelog> live.
-- **As of**: 2026-11-04
+- **As of**: 2026-11-07
 - **Recheck trigger:** a new release block appears above the version on the marker line. Nothing
   before `2.1.257` was read release by release; the fleet's coverage of older releases, and of the
   rechecked range, rests on each skill's own verification stamps and the docs-conformance rechecks
@@ -92,6 +94,9 @@ with "Deferred" names the issue that tracks it.
 | The `/code-review` boundary follows the code-review page's effort text | 290-030 | review quality-gate code mode | [#6766](https://github.com/melodic-software/claude-code-plugins/pull/6766) |
 | The artifact script-host list follows the artifacts page; the inline-everything policy is unchanged | 281-025 | visualization `decision-matrix.md` | [#6769](https://github.com/melodic-software/claude-code-plugins/pull/6769) |
 | Deferred until a fetched page states the price relation: the observer default's cheapest-tier wording | 293-002 | session-flow `observer_analysis_model` | [#6759](https://github.com/melodic-software/claude-code-plugins/issues/6759) |
+| A self-paced `/loop` ends when a finished iteration made no reschedule, unless `CLAUDE_CODE_LOOP_KEEPALIVE=1`; a fixed-interval loop stops only when Claude cancels it | 319-115 | session-flow `reference/save-point.md` loop-aware re-arm | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
+| With the Bash sandbox on, nested `.claude/skills` load only from the start folder or after `/cd`; they stay audited as live grants | 319-114 | harness-config audit-permission-grants `reference/criteria.md` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
+| The cloud-session note also points at `/permissions`, which now says where the session's rules live | 319-072 | harness-config audit-permission-state `scripts/permission-state.sh` | [#14040](https://github.com/melodic-software/claude-code-plugins/pull/14040) |
 
 ## Nominated
 
@@ -148,6 +153,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 | `claude --resume <id> --bg` for `lanes restart` | 257-087 | Absent from cli-reference. Reopen when cli-reference documents it, or a probe settles prompt and name handling | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | `omitClaudeMd` on testing `green-runner` | 271-006 | The agent holds an ungated Bash shell, and the field also drops the user CLAUDE.md where operators keep shell safety rules; the context saving does not outweigh that. Reopen if the workflow gates its Bash the way the docs-fetchers are gated | this file |
 | OSC 7501 or `$.ui.notify` in place of desktop-notification | 295-003, 295-013 | Neither is a routable native replacement for a permission or idle alert today; the plugin stays. Reopen when the mods reference lists `$.ui.notify` or terminal-config names a Windows notification path | [#6228](https://github.com/melodic-software/claude-code-plugins/issues/6228) |
+| `permissions.denyInsteadOfPrompting` in lanes | 319-005 | Lane sessions carry no hook `ask` or `permissions.ask` rule and run in auto or dontAsk mode, where a denied call already returns to the session as a tool error (`AGENTS.md`, "When to stop and when to keep going"), so the setting adds no cover a lane lacks. Reopen when a lane shows a permission prompt waiting on no one | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
 
 No change for 280-030: a 2.1.296 probe showed PreToolUse and PostToolUse hooks receive a Write sent with alias keys as the normalized `file_path` and `content`, so guards keyed on `.tool_input.file_path` see those writes.
 
@@ -158,6 +164,7 @@ Gotcha, no upstream report (owner decision): a 2.1.312 probe ([#9886](https://gi
 | Question | Result | Claude Code | Owner surface | Record |
 |---|---|---|---|---|
 | Does a single-prompt `-p` run clamp or reject a Monitor `timeout_ms` above its cap? | Clamped to the run's cap, not rejected; the run stays up to deliver the deadline notice. No guidance change: the same arming call and re-arm rule hold in `-p` | 2.1.312 | source-control pull-request `monitor.md` §3.0.1 | [#6877](https://github.com/melodic-software/claude-code-plugins/issues/6877) |
+| Does headless `claude -p "/context"` keep only each list's 10 largest rows (319-104)? | No: a run listed 43 custom-agent rows; the release scopes the cap to the terminal. No change to context-budget `reference/engine.md`. The Skills table was not printed in that run, so its row count is unverified | 2.1.319 | context-budget audit `reference/engine.md` | [#14033](https://github.com/melodic-software/claude-code-plugins/issues/14033) |
 
 ## Docs lag
 
@@ -206,3 +213,14 @@ docs index.
 | The pinned-effort exception | 267-020 | [2.1.267](https://code.claude.com/docs/en/changelog#2-1-267) | [model-config, Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level) |
 | Version floor of the task-tool default set and `CLAUDE_CODE_ENABLE_TODO_TOOLS` | 268-016 | [2.1.268](https://code.claude.com/docs/en/changelog#2-1-268) | [env-vars](https://code.claude.com/docs/en/env-vars); [tools-reference, Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) |
 | The auto-mode classifier billing page in the docs index | 278-001 | [2.1.278](https://code.claude.com/docs/en/changelog#2-1-278) | [auto-mode-classifier-billing](https://code.claude.com/docs/en/auto-mode-classifier-billing) |
+
+The `2.1.319` read, on 2026-11-07, recorded the topics below. Each page was fetched that day and did
+not yet state the release's behavior; recheck a row when its page does.
+
+| Topic | Items | Release | Page |
+|---|---|---|---|
+| `permissions.denyInsteadOfPrompting` | 319-005 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [settings-reference](https://code.claude.com/docs/en/settings-reference); recheck when it lists the setting |
+| `/permissions` in cloud sessions | 319-072 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [claude-code-on-the-web, Manage context](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context); recheck when it names `/permissions` |
+| Nested skill loading under the Bash sandbox | 319-114 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [skills, Discovery from parent and nested directories](https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories); recheck when it states the sandbox condition |
+| Self-paced `/loop` end and `CLAUDE_CODE_LOOP_KEEPALIVE` | 319-115 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [scheduled-tasks, Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop); [env-vars](https://code.claude.com/docs/en/env-vars); recheck when the section drops its fallback-wakeup sentence |
+| `/context` row cap at the terminal | 319-104 | [2.1.319](https://code.claude.com/docs/en/changelog#2-1-319) | [commands, All commands](https://code.claude.com/docs/en/commands#all-commands); recheck when the `/context` row states the cap |

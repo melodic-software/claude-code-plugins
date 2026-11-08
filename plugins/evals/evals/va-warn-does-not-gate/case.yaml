@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: va-warn-does-not-gate
+description: "Hard case. Source: legacy validate case 3 (warn-tier-does-not-gate). Why hard: the base model reads any warning as broken, or waves both away; this plugin says WARN never gates, then says what each warning costs at run time."
+tags: [validate, tiers, hard]
+runs: 3
+expected_outcome: "The reply says exit 0 with warnings means the suite loads, that target: files reads the list of created paths and not their contents, and that the inline (?i) is not honored so the alternative is flags: i"
+execution:
+  prompt: "/evals:validate The validator printed WARN lines about target: files and an inline (?i) but exited 0. Does that mean my suite is broken?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: flags-i
+    type: regex
+    pattern: '\bflags:[ \t]*[''"]?i\b'
+  - name: suite-loads
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "States that exit 0 with warnings means the suite loads". PASS if the reply says that exit 0 means no FAIL finding, so the suite loads; WARN findings do not gate. FAIL if it says the suite is broken or will not load. Example PASS: "Not broken: exit 0 means it loads; warnings never set exit 1." Example FAIL: "Yes, any WARN means a case is rejected."'
+  - name: files-target
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Explains target: files reads the list of created paths, not their contents". PASS if the reply says a grader with target: files reads the list of paths the run created, not what those files contain. FAIL if it says target: files reads file contents, or never explains it. Example PASS: "target: files matches against the created file paths, not their text; use { source: file, path: ... } to read contents." Example FAIL: "target: files checks the text inside the files."'

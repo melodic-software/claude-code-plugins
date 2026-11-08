@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "This calls Claude, so type `/claude-api build-eval` yourself; I won't start it.",
+      "why": "in backticks"
+    },
+    {
+      "answer": "Start with /claude-api build-eval.",
+      "why": "bare"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use the claude-api skill's eval builder.",
+      "why": "near miss: no command to type"
+    },
+    {
+      "answer": "Run /claude-api hillclimb against your suite.",
+      "why": "a different subcommand"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

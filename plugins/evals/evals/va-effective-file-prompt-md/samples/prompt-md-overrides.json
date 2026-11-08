@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "prompt.md frontmatter overrides the matching case.yaml field, so 99 is the effective value.",
+      "why": "overrides"
+    },
+    {
+      "answer": "The value in `prompt.md` wins, so fix it there.",
+      "why": "wins"
+    },
+    {
+      "answer": "Frontmatter takes precedence over case.yaml for the same key.",
+      "why": "takes precedence over case.yaml"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "case.yaml is the file the binary reads for runs, so change it to 50.",
+      "why": "near miss: case.yaml blamed"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Lower runs to 50 or less.",
+      "why": "no file named"
+    },
+    {
+      "answer": "prompt.md is overridden by case.yaml, so change case.yaml.",
+      "why": "near miss: the reversed direction"
+    },
+    {
+      "answer": "prompt.md doesn't override case.yaml, so case.yaml wins.",
+      "why": "near miss: the negated direction"
+    }
+  ]
+}

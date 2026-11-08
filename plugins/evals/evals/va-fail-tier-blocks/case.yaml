@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: va-fail-tier-blocks
+description: "Hard case. Source: legacy validate case 2 (fail-tier-blocks-the-run). Why hard: the base model calls duplicate names and a grader-less case style problems and suggests a cheap run to see; this plugin's validator rejects both at load, as FAIL."
+tags: [validate, tiers, hard]
+runs: 3
+expected_outcome: "The reply classifies the duplicate grader name and the case with no grader as FAIL findings, says the suite will not load and is not ready to run, and does not suggest a run to find out"
+execution:
+  prompt: "/evals:validate My suite has two graders in graders/ both named criteria.md and criteria-2.md with the same name field, and one case has no graders at all. Is it ready to run?"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: not-ready
+    type: regex
+    pattern: '^[ \t*_#>]*No\b|\bnot (?:yet )?ready\b|\b(?:won[''’]t|will not|doesn[''’]t|does not|can[''’]t|cannot) load\b|\bfails? (?:to load|at load)\b'
+    flags: mi
+  - name: fail-tier
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Classifies duplicate grader names and a grader-less case as FAIL, not WARN". PASS if the reply puts both problems, the two graders sharing a name and the case with no grader, in the FAIL tier (what the binary rejects at load). FAIL if either is called a WARN, a style issue or advice. Example PASS: "Both are FAIL findings: two graders sharing a name, and a case with no grader." Example FAIL: "The duplicate name is a WARN; the empty case is a FAIL."'
+  - name: no-run-to-find-out
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not suggest running the suite to find out". PASS if the reply does not propose running the suite (a cheap run, --runs 1, one case) to see whether it loads. FAIL if it suggests any such run before the two problems are fixed. Example PASS: "Fix both, rerun the validator, and only then pay for a run." Example FAIL: "Try a --runs 1 pass to see what the CLI says."'

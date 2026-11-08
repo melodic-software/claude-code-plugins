@@ -26,6 +26,23 @@ graders:
     pattern: '\b(?:yes|confirm\w*|go ahead|proceed|OK to)\b'
     flags: 'i'
     target: last_message
+  - name: names-default-build
+    type: regex
+    pattern: '\bwilsjo2\b[\s\S]{0,80}?\bv?0\.8\.3\b'
+    flags: 'i'
+    target: last_message
+  - name: shows-confirm-fields
+    type: regex
+    pattern: '^(?=[\s\S]*G:[\\/]+[^\n]{0,80}?Cyberpunk 2077[\\/]+bin[\\/]+x64)(?=[\s\S]*\bwilsjo2\b)(?=[\s\S]*\bdxgi\.dll\b)(?=[\s\S]*\beligible\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-setup-bat
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?setup_windows\.bat'
+    min: 0
+    max: 0
+    arm: 'both'
   - name: no-apply-run
     type: tool_used
     tool: 'Bash'

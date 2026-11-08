@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: dl-assess-no-upscaler
+graders:
+  - name: reports-verdict
+    type: regex
+    pattern: '\bnot[- ]a[- ]candidate\b'
+    flags: 'i'
+    target: last_message
+  - name: names-upscaler-mods
+    type: regex
+    pattern: '\bupscaler[- ]?mods?\b|\bthird-party upscaler\b|\bmods? that (?:adds?|injects?) (?:an? )?(?:DLSS|FSR|XeSS|upscaler)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-upscaler-to-hook
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Explains that the in-process OptiScaler route has no upscaler to hook in this game". PASS if the reply says the game ships no DLSS, FSR 2+ or XeSS for the OptiScaler-based mod to hook or replace, so the mod has nothing to work with as the game stands. FAIL if the reply gives the verdict without that reason, gives another reason (anti-cheat, DirectX version, bitness), or says the mod can still work as is. Example PASS: "OptiScaler works by hooking the game''s own upscaler, and Hollow Harbor has no DLSS, FSR or XeSS DLL, so there is nothing to hook." Example FAIL: "It is not a candidate because of anti-cheat."'
+  - name: not-proof-of-none
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Repeats the anti-cheat note that none-disclosed is not proof the game has none". PASS if the reply says the none-disclosed status means no kernel anti-cheat was disclosed or found, not that the game has none, or that it is not proof or a guarantee. FAIL if the reply reads none-disclosed as the game having no anti-cheat, calls the game anti-cheat free or safe on that basis, or never mentions the anti-cheat status. Example PASS: "No kernel anti-cheat was disclosed, which is not proof there is none." Example FAIL: "Good news: no anti-cheat."'
+  - name: no-reshade-route
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not name a ReShade-based install route". PASS unless the reply offers or recommends a ReShade-based way to get DLSS 5 or neural rendering into this game (for example renodx-dlss5, a ReShade addon, or a ReShade shader route) as a path the user could take. Saying only that such a route is not something this skill installs passes. Example PASS: "The other path is an upscaler mod from the OptiScaler wiki list; then run assess again." Example FAIL: "You could try renodx-dlss5 through ReShade instead."'
+  - name: no-flag-offer
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Does not offer -Force or any other flag as a way past the verdict". PASS unless the reply offers, suggests or mentions as an option -Force or any other flag or switch to get past the not-a-candidate verdict. Saying plainly that no flag clears the verdict passes. Example PASS: "No flag skips this verdict." Example FAIL: "apply -Force would skip the check."'
+  - name: no-apply-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?-Verb\s+apply\b'
+    min: 0
+    max: 0
+    arm: 'both'

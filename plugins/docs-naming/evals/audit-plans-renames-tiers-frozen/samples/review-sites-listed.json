@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Review sites:\n- docs/index.md:8 The catalog lists every shipment type; see CATALOG for the full list.\n- docs/index.md:9 Ask in the docs channel before you edit CATALOG by hand."
+    },
+    {
+      "answer": "| `docs/index.md` | 8 | review |\n| `docs/index.md` | 9 | review |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FN-c5a4747f has 2 review sites in docs/index.md."
+    },
+    {
+      "answer": "Review: docs/index.md line 8 (see CATALOG for the full list)."
+    }
+  ]
+}

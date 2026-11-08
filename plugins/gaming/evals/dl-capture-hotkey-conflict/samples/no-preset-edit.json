@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\Gaming\\dlss5\\LEDGER.md", "old_string": "| Cyberpunk 2077 |", "new_string": "| Cyberpunk 2077 (ToggleKey conflict open) |" } }], "why": "a ledger note, not a preset" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "D:\\Gaming\\dlss5\\presets\\cyberpunk-2077.json", "old_string": "\"ini\": [", "new_string": "\"ini\": [{\"key\":\"ToggleKey\",\"value\":\"0x7f\"}," } }], "why": "adds ToggleKey to the preset by hand" }
+  ]
+}

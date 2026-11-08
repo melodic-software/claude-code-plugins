@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "CATALOG is a one-word stem that also reads as an ordinary English word."
+    },
+    {
+      "answer": "A dictionary-shaped stem like CATALOG can be a plain word in prose."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "These are marked review, so I can't apply them."
+    },
+    {
+      "answer": "The sweep could not classify these lines."
+    }
+  ]
+}

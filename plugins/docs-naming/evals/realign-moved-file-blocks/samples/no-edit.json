@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/opt/eval/ws/docs/index.md",
+            "old_string": "Release_Notes.md",
+            "new_string": "guides/notes.md"
+          }
+        }
+      ]
+    }
+  ]
+}

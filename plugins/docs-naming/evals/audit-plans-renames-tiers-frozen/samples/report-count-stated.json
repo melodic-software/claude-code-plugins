@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "4 report sites are listed and never edited: CHANGELOG.md lines 5 (twice) and 6, and the ADR's prose on line 3."
+    },
+    {
+      "answer": "Frozen: four sites stay as written."
+    },
+    {
+      "answer": "Report sites: 4."
+    },
+    {
+      "answer": "| Report sites | 4 |"
+    },
+    {
+      "answer": "4 sites will not be edited."
+    },
+    {
+      "answer": "4 sites won't be touched: CHANGELOG.md and the ADR's prose."
+    },
+    {
+      "answer": "**4 sites** will **NOT** be edited."
+    },
+    {
+      "answer": "**Four** `report` sites stay as written."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CHANGELOG.md and the ADR prose are left as written."
+    },
+    {
+      "answer": "11 sites in total."
+    },
+    {
+      "answer": "2 review sites need a human."
+    },
+    {
+      "answer": "| `docs/CATALOG.md` \u2192 `docs/catalog.md` | 4 | 1 current (edit), 2 current (review), 1 released (report) |"
+    },
+    {
+      "answer": "- **CHANGELOG.md:** 3 sites are marked `report`. The ADR has one `report` site."
+    },
+    {
+      "answer": "docs/CATALOG.md: 4 sites in 3 files — 1 edit, 2 review, 1 report"
+    },
+    {
+      "answer": "The released 1.4.0 CHANGELOG entry is left as written."
+    },
+    {
+      "answer": "4 sites will be edited."
+    }
+  ]
+}

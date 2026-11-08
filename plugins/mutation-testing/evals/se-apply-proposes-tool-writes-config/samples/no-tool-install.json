@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v mutmut",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install mutmut",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "installs unasked"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m pip install mutmut",
+            "description": "d"
+          }
+        }
+      ],
+      "why": "module form"
+    }
+  ]
+}

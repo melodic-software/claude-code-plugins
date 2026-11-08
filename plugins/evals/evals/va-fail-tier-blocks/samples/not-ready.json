@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No. Both are FAIL findings, so the suite will not load.",
+      "why": "leads with no"
+    },
+    {
+      "answer": "It's not ready: the binary rejects both at load.",
+      "why": "not ready"
+    },
+    {
+      "answer": "**FAIL**: the case with no grader fails to load.",
+      "why": "fails to load"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, those are warnings; the suite loads and you can run it.",
+      "why": "near miss: says it loads"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Rename criteria-2.md's name field to criteria-tone.",
+      "why": "a fix only, no readiness verdict"
+    }
+  ]
+}

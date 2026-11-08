@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "COLLISION: docs/BETA.md would become docs/beta.md, which already exists."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "COLLISION: docs/beta.md collides with an existing file."
+    },
+    {
+      "answer": "A case-only collision stops the audit."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Suppression record | PASS | 0 entries |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Records | ok |",
+      "why": "near miss"
+    }
+  ]
+}

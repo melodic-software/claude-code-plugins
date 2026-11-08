@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Tool present and runnable | PASS | manual |",
+      "why": "the row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Mutation | ok |",
+      "why": "near miss"
+    }
+  ]
+}

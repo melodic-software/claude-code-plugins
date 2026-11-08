@@ -1,0 +1,8 @@
+{
+  "no-remove-run": [
+    {
+      "use": "command_anywhere"
+    },
+    "(?:-Verb\\s+remove\\b|\\s-Finish\\b|Remove_OptiScaler|(?:\\brm\\b|\\bdel\\b|\\berase\\b|Remove-Item)(?:[^\"\\\\]|\\\\.)*?(?:Win64|OptiScaler|dxgi))"
+  ]
+}

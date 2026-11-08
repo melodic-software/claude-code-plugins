@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "1. docs/index.md:8 The catalog lists every shipment type; see CATALOG for the full list.\n2. docs/index.md:9 Ask in the docs channel before you edit CATALOG by hand.\n3. docs/getting-started.md:12 Open CATALOG and pick a shipment type.\n4. docs/faq.md:5 Why is the CATALOG so long?\n5. docs/ops/runbook.md:22 Restart the CATALOG service after a deploy.\n6. tools/rebuild.sh:14 echo \"CATALOG rebuilt\""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Six review sites in docs/index.md, docs/getting-started.md, docs/faq.md, docs/ops/runbook.md and tools/rebuild.sh."
+    },
+    {
+      "answer": "1. docs/index.md:8\n2. docs/index.md:9\n3. docs/getting-started.md:12\n4. docs/faq.md:5\n5. docs/ops/runbook.md:22"
+    }
+  ]
+}

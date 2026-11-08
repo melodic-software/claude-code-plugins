@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.18.1] - 2026-11-07
+
+### Changed
+
+- The audit and setup `evals.json` files are retired into the `evals/` case suite
+  ([#8635](https://github.com/melodic-software/claude-code-plugins/issues/8635)). Fourteen new
+  cases: `audit-unsourced-restatement-report-only` (a bare audit nominates an unsourced restatement,
+  clears a quoted and cited file, and stays report-only when the producer contract cannot be
+  resolved), `audit-paraphrase-tier-narration` (a paraphrase stays llm-suspected and not
+  fix-eligible), `audit-split-panel-routes-human` (a split panel goes to the human),
+  `audit-fetched-imperative-is-finding` (an imperative in a fetched page is a finding, not an
+  instruction), `audit-fix-offline-condenses` (an offline surface condenses to a stamped record),
+  `setup-check-no-config-defaults` (no config means bundled defaults, not an error),
+  `setup-set-one-key-narration` (a per-key edit in the team layer),
+  `setup-fixture-exclusion-in-config` and `setup-gates-do-not-quiet-report` (`excluded_paths` is the
+  remedy, not a script edit or a raised gate), `setup-trigger-less-measures-first` (measures before
+  enabling trigger-less stamps), `setup-apply-keeps-current-override`,
+  `setup-json-layer-moves-whole` and `setup-json-override-asks-before-carry` (retired r002, r003 and
+  r004 files are FAIL and migrate without a clean) and `setup-override-checks-gitignore` (the
+  personal override is checked against `.gitignore` first). `audit-stamp-declined-reported`,
+  `setup-check-writes-nothing`, `setup-apply-rejects-misplaced-key` and
+  `setup-check-reports-retired-config` gain graders. The eight golden-set cases are held: no native
+  case can run the golden set. The setup steps that need a second user turn are held. The audit
+  reference `dispositions.md` no longer tells authors to register golden files in `evals.json`.
+
 ## [0.18.0] - 2026-11-06
 
 ### Added

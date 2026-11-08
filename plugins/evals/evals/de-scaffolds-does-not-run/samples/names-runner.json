@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I don't run suites. Run them with `claude plugin eval ./my-plugin`.",
+      "why": "CLI named"
+    },
+    {
+      "answer": "Hand the cases to /evals:plugin-eval, which prices and runs them.",
+      "why": "runner skill named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran 8 cases: 7 passed, an 87.5% pass rate.",
+      "why": "near miss: simulated run, no runner named"
+    },
+    {
+      "answer": "Validate them first with /evals:validate.",
+      "why": "names a different skill"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

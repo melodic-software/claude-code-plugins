@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: se-red-baseline-still-configures
+description: 'Legacy setup 3. baseline-fail, config-written and timeout-not-derived (llm) grade the three legacy claims; legacy-setup-3 (llm) quotes the legacy expectation. Needs --scaffold --allow-tools Bash Write Edit.'
+tags: [setup, scaffold, no-network, legacy]
+runs: 3
+expected_outcome: 'The red baseline is a FAIL with its consequence (every mutant killed, a perfect score); tool, diff target and mutate paths still configured; the timeout is stated as not derived from a baseline.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/mutation-testing:setup apply. The test suite is currently failing. Set up mutation testing anyway, taking your recommended answer for every interview question.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: 'baseline-fail'
+    type: 'regex'
+    pattern: 'baseline[^\n]{0,80}\bFAIL\b|\bFAIL\b[^\n]{0,80}baseline'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'config-written'
+    type: 'file_exists'
+    path: 'docs/conventions/mutation-testing.yaml'
+  - name: 'timeout-not-derived'
+    type: 'llm'
+    criteria: 'PASS only if the reply says the timeout could not be derived from a baseline measurement because the suite is red, and must be revisited. FAIL if it states a timeout derived from the failing run or says nothing about the timeout.'
+    focus: 'last_message'
+  - name: 'legacy-setup-3'
+    type: 'llm'
+    criteria: 'The run is /mutation-testing:setup apply run on a scaffolded repository (A Python repo with no config whose branch commits a failing test). It meets the legacy expectation: "Reports the red baseline as a FAIL and explains the consequence: a red suite kills every mutant and reports a perfect score, so no mutation result is meaningful until it is green. Still completes the configuration steps that do not depend on a green suite (tool, diff target, mutate paths), and states explicitly that the timeout could not be derived from a baseline measurement and must be revisited. Does not report success on the baseline probe."'
+    focus: 'trace'

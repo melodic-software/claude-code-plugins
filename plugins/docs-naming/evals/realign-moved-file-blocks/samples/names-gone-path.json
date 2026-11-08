@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Blocked: 'docs/Release_Notes.md' is no longer tracked at this root."
+    },
+    {
+      "answer": "docs/Release_Notes.md is gone from the index."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Blocked: the finding could not be applied."
+    },
+    {
+      "answer": "apply-rename.sh exited 1."
+    }
+  ]
+}

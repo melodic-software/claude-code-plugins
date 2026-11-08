@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: pe-description-change-trigger
+description: "Triggering case, hard. Source: legacy plugin-eval case 10 (natural-language-trigger). The prompt names no skill and matches plugin-eval's 'does my skill actually fire' and 'did my change make the skill better' triggers, none of design's or methodology's. Why hard: the base model suggests trying prompts by hand or reading an absolute score; this plugin starts from preflight and the estimate and answers with the with-versus-without delta."
+tags: [triggering, hard]
+runs: 3
+expected_outcome: "plugin-eval fires without a slash command; the reply starts from preflight and the cost estimate rather than invoking the CLI, and frames the answer as the with-versus-without delta, not an absolute score"
+execution:
+  prompt: "I rewrote the description on one of our skills and I want to know whether the model actually picks it up now, and whether that change made anything worse. We have a plugin with some eval cases already."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:evals:)?plugin-eval"'
+    min: 1
+    arm: with-only
+  - name: preflight-first
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Starts from preflight and the cost estimate rather than invoking the CLI immediately". PASS if the reply''s plan starts with a preflight (version, sandbox, target checks) and a cost estimate before any claude plugin eval run. FAIL if it starts by running the suite, or never mentions the preflight or the estimate. Example PASS: "First a preflight and an estimate (about 0.2 USD per run), then the run." Example FAIL: "Run claude plugin eval ./plugins/x now and look at the score."'
+  - name: delta-framing
+    type: llm
+    focus: last_message
+    criteria: 'Expectation: "Frames the answer as the ablation delta rather than an absolute score". PASS if the reply says the question is answered by the with-plugin versus without-plugin delta (and, for whether the skill is picked up, by a tool_used Skill grader), not by the with-plugin score alone. FAIL if it answers with the absolute score only. Example PASS: "Read the delta between the with and without arms; a tool_used grader on Skill shows whether it fired." Example FAIL: "If the suite scores above 0.8 the new description works."'
