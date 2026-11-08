@@ -29,7 +29,6 @@ import { appendFileSync, mkdirSync, readFileSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
-
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
 // message names a rate limit, retry-after, x-ratelimit-remaining 0, and
 // "wait for at least one minute" when neither header gives the time. GraphQL
@@ -232,16 +231,15 @@ export function routeOf(url) {
   let name = false;
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
+    const placeholder = /^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : null;
     if (tail || name) {
-      out.push(/^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : "{x}");
+      out.push(placeholder ?? "{x}");
       name = false;
     } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
       out.push("{repo}");
       i++;
-    } else if (/^[0-9]+$/.test(seg)) {
-      out.push("{n}");
-    } else if (/^[0-9a-f]{7,}$/i.test(seg)) {
-      out.push("{sha}");
+    } else if (placeholder) {
+      out.push(placeholder);
     } else if (REST_PATH_WORDS.has(seg) && seg !== "api" && seg !== "v3" && seg !== "graphql") {
       out.push(seg);
       tail = ROUTE_TAIL.test(seg);
@@ -378,6 +376,9 @@ export function recordContentWrite({ dir = process.env.RUNNER_TEMP, at }) {
   }
 }
 
+// A name-to-value reader over a Headers or a plain object of lower-case names.
+const headerReader = (headers) => (typeof headers?.get === "function" ? (name) => headers.get(name) : (name) => headers?.[name]);
+
 const intHeader = (get, name) => {
   const value = String(get(name) ?? "");
   return /^\d{1,12}$/.test(value) ? Number(value) : null;
@@ -400,7 +401,8 @@ export function planOf({ limit, remaining }, limitCap = null) {
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
 export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null } = {}) {
-  const get = typeof headers?.get === "function" ? (name) => headers.get(name) : (name) => headers?.[name];
+  const get = headerReader(headers);
+  const graphqlPool = poolOf(url) === "graphql";
   let parsed = body;
   if (typeof body === "string") {
     try {
@@ -417,8 +419,8 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // GraphQL answers a secondary limit with a 200 or a 403 and an error
   // message (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit),
   // so for a GraphQL call any status counts.
-  const messages = [parsed?.message, ...(poolOf(url) === "graphql" ? errors.map((error) => error?.message) : [])].map((text) => String(text ?? ""));
-  const flagged = SIGNALS.statuses.includes(status) || poolOf(url) === "graphql";
+  const messages = [parsed?.message, ...(graphqlPool ? errors.map((error) => error?.message) : [])].map((text) => String(text ?? ""));
+  const flagged = SIGNALS.statuses.includes(status) || graphqlPool;
   const message = flagged && messages.some((text) => SIGNALS.message.test(text));
   const secondary = flagged && messages.some((text) => SIGNALS.secondary.test(text));
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
@@ -638,10 +640,8 @@ export function createRateLimitLatch({
       }
     } else if (verdict.low && !warned.has(pool)) {
       warned.add(pool);
-      const headers = response.headers;
-      const [limit, remaining] = ["limit", "remaining"].map((name) =>
-        Number(typeof headers?.get === "function" ? headers.get(`x-ratelimit-${name}`) : headers?.[`x-ratelimit-${name}`]),
-      );
+      const get = headerReader(response.headers);
+      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
       const { planned, left } = planOf({ limit, remaining }, limitCap);
       log(`::warning::GitHub's ${pool} API has under its read floor left (${left} of the planned ${planned}; header remaining ${remaining} of ${limit}); reads continue`);
     }
