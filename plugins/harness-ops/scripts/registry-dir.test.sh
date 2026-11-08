@@ -158,14 +158,44 @@ run "$R"
 check "not a repository: layer default" test "$(got '"\(.layer) \(.home)"')" == "default null"
 check "not a repository: says why" test -n "$(got '.home_skipped // empty')"
 
-# 15. A subdirectory of a repository anchors at the git toplevel.
+# 15. From a subdirectory session the team file and its value anchor at the git toplevel, and the
+# userConfig value joins to the session's own directory, where it always resolved.
 new_repo
 mkdir -p "$R/sub/dir"
+run "$R/sub/dir" '.known-issues'
+check "subdirectory: userConfig joins the session directory" test "$(got '"\(.layer) \(.data_dir)"')" == "userConfig $R/sub/dir/.known-issues"
 team 'docs/registry'
-run "$R/sub/dir"
-check "subdirectory: anchored at the toplevel" test "$(got .data_dir)" == "$R/docs/registry"
+run "$R/sub/dir" '.known-issues'
+check "subdirectory: the team file is read at the toplevel" test "$(got '"\(.layer) \(.path)"')" == "team docs/conventions/harness-ops.yaml"
+check "subdirectory: the team value joins the toplevel" test "$(got .data_dir)" == "$R/docs/registry"
 
-# 16. The containment rule matches the hooks' rule (hooks/harness-ops-paths.sh) value for value.
+# 16. A value holding a shell metacharacter is rejected in every layer and named, before any
+# containment check: data_dir is pasted into a double-quoted shell argument.
+new_repo
+# shellcheck disable=SC2016 # the literal metacharacters are the input under test
+for value in 'r$(touch pwned)' 'r`touch pwned`' 'r;touch pwned' 'r b' "r'q" 'r"q'; do
+  printf 'registry_dir: %s\n' "$(jq -Rn --arg v "$value" '$v')" >"$R/docs/conventions/harness-ops.yaml"
+  run "$R" 'tools/registry'
+  check "metacharacter in team ($value): layer default" test "$(got .layer)" == "default"
+  check "metacharacter in team ($value): named" test "$(got '[.errors[] | select(startswith("team (") and contains("character outside"))] | length')" -eq 1
+  printf 'registry_dir: reg\n' >"$R/docs/conventions/harness-ops.yaml"
+  printf 'registry_dir: %s\n' "$(jq -Rn --arg v "$value" '$v')" >"$R/docs/conventions/harness-ops.local.yaml"
+  run "$R"
+  check "metacharacter in local ($value): the team value stands" test "$(got '"\(.layer) \(.registry_dir)"')" == "team reg"
+  check "metacharacter in local ($value): named" test "$(got '[.errors[] | select(startswith("local (") and contains("character outside"))] | length')" -eq 1
+  rm -f "$R/docs/conventions/harness-ops.yaml" "$R/docs/conventions/harness-ops.local.yaml"
+  run "$R" "$value"
+  check "metacharacter in userConfig ($value): layer default" test "$(got .layer)" == "default"
+  check "metacharacter in userConfig ($value): named" test "$(got '[.errors[] | select(startswith("userConfig") and contains("character outside"))] | length')" -eq 1
+done
+check "metacharacters: nothing was run" test ! -e "$R/pwned"
+team 'tools/known-issues_v2/reg.d'
+run "$R"
+check "safe nested path: accepted" test "$(got '"\(.layer) \(.data_dir)"')" == "team $R/tools/known-issues_v2/reg.d"
+
+# 17. The containment rule matches the hooks' rule (hooks/harness-ops-paths.sh) value for value, on
+# values inside the safe character set. Outside it this reader is deliberately stricter: the hooks
+# join the path in-process, while data_dir reaches a shell command.
 # shellcheck source=../hooks/hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=../hooks/harness-ops-paths.sh
@@ -179,8 +209,11 @@ for value in 'a/b' 'a\b' './a' '/tmp/x' 'C:\x' 'C:x' '\\server\share' '../x' '..
   if [[ "$(got .layer)" == "userConfig" ]]; then mine=ok; else mine=rejected; fi
   check "parity with the hooks' rule: $value ($hooks)" test "$mine" == "$hooks"
 done
+harness_ops::resolve_project_relative_dir "$R" 'a b' >/dev/null && hooks=ok || hooks=rejected
+run "$R" 'a b'
+check "stricter than the hooks on purpose: 'a b' (hooks: $hooks) is rejected here" test "$(got .layer)" == "default"
 
-# 17. A bad argument is a usage error.
+# 18. A bad argument is a usage error.
 node "$READER" --no-such-flag >/dev/null 2>"$TEST_TMPDIR/err"
 RC=$?
 DETAIL="exit $RC; stderr: $(cat "$TEST_TMPDIR/err")"

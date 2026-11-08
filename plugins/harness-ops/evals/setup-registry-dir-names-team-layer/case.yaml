@@ -5,7 +5,7 @@ context:
 graders:
   - name: 'names-team-layer'
     type: 'regex'
-    pattern: '^[^\n]*registry_dir[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*$|^[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*registry_dir[^\n]*$'
+    pattern: '^[^\n]*tools/registry\b[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*$|^[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*tools/registry\b[^\n]*$'
     flags: 'm'
     target: 'last_message'
   - name: 'ran-registry-resolver'

@@ -47,13 +47,14 @@ It prints JSON: `layer` (`default`, `userConfig`, `team` or `local`), `path` (th
 `data_dir`, and `errors`.
 
 - `data_dir` is a path → pass `--data-dir "<data_dir>"` exactly as printed. The script has already
-  checked containment; do not join or normalize it yourself.
+  checked containment and that the value holds only letters, digits, `.`, `_`, `-`, `/` and `\`, so
+  nothing in it runs in the shell; do not join or normalize it yourself.
 - `data_dir` is null → pass `--data-dir "${CLAUDE_PLUGIN_DATA}"`. The Bash tool's environment does
   not carry this plugin's `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can export its
   own data directory under that name, so the script uses an inherited value only when it names
   harness-ops (Basis and recheck trigger: [Spoke paths](#spoke-paths)).
 - `errors` is non-empty → each names a layer, file, key and value that was dropped (an uncontained
-  path, or a value that is not a string). Show every one to the user with the layer that won instead,
+  path, a character outside that set, or a value that is not a string). Show every one to the user with the layer that won instead,
   and direct `/harness-ops:setup`. A dropped team or option value resolves to the plugin data
   directory, never to the layer below it.
 - The script cannot run (no `node`) → stop the registry action and say so; do not guess a directory.

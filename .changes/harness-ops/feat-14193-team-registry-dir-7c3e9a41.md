@@ -9,4 +9,4 @@ bump: minor
 
 ### Changed
 
-- An invalid `registry_dir` (absolute, drive, UNC, `..`, or an escaping symlink) in any layer is now named with its layer, file and value and dropped, as the config cascade drops any invalid value: an invalid option or team value resolves to the plugin data directory, and an invalid personal value leaves the layer below it. `/harness-ops:known-issues` reports the dropped value and continues, where it used to stop the registry action on an invalid option.
+- An invalid `registry_dir` (absolute, drive, UNC, `..`, an escaping symlink, or a character outside letters, digits, `.`, `_`, `-`, `/` and `\`, since the directory reaches a shell command) in any layer is now named with its layer, file and value and dropped, as the config cascade drops any invalid value: an invalid option or team value resolves to the plugin data directory, and an invalid personal value leaves the layer below it. `/harness-ops:known-issues` reports the dropped value and continues, where it used to stop the registry action on an invalid option.

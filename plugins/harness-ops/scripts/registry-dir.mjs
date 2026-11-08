@@ -7,15 +7,22 @@
 //    "path": the supplying file relative to the project | null,
 //    "data_dir": the absolute registry directory | null (null: use the plugin data directory),
 //    "home": dir | null, "home_skipped"?: why no repository file is read, "errors": [...]}
-// Every layer's value must be a contained project-relative path, the rule
-// hooks/harness-ops-paths.sh (harness_ops::resolve_project_relative_dir) applies to the hook paths:
-// no rooted, drive or UNC path, no `..` segment with either separator, and no existing symlink on
-// the way that leads outside the project. A value that fails it, or the schema, is named with its
-// layer, file, key and value and dropped: an invalid team or userConfig value resolves to the
-// default, never to a lower layer, and an invalid personal value leaves the value below it standing.
+// Every layer's value must be made of letters, digits, `.`, `_`, `-`, `/` and `\` only: data_dir is
+// pasted into a double-quoted shell argument, where `$(...)`, backticks and quotes would run or break
+// out, and a committed file is text from whoever can push to the repository. That is stricter than
+// the hooks' rule, which never meets a shell. The value must then be a contained relative path, the
+// rule hooks/harness-ops-paths.sh (harness_ops::resolve_project_relative_dir) applies to the hook
+// paths: no rooted, drive or UNC path, no `..` segment with either separator, and no existing
+// symlink on the way that leads outside its base. A value that fails either rule, or the schema, is
+// named with its layer, file, key and value and dropped: an invalid team or userConfig value
+// resolves to the default, never to a lower layer, and an invalid personal value leaves the value
+// below it standing.
 // Usage: registry-dir.mjs [--project DIR] [--user-registry-dir VALUE]
-// --project (default: the current directory) is anchored at its git toplevel; --user-registry-dir
-// is the option as the skill renders it, where an empty value or an unrendered placeholder is unset.
+// --project (default: the current directory) is the session's project directory. The userConfig
+// value joins to it as given, so a session started in a subdirectory keeps the registry it always
+// had; the team and personal files and their values anchor at its git toplevel, where <home> lives.
+// --user-registry-dir is the option as the skill renders it; an empty value or an unrendered
+// placeholder is unset.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,7 +49,8 @@ function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
-const project = resolvePath(gitRoot(resolvePath(opts.project ?? process.cwd())));
+const start = resolvePath(opts.project ?? process.cwd());
+const project = resolvePath(gitRoot(start));
 
 /** {home} or {home: null, skipped} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome() {
@@ -57,20 +65,28 @@ function conventionHome() {
 
 const inside = (child, parent) => child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 
-/** The absolute directory for a contained project-relative value, else null. */
-function contained(value) {
-  if (typeof value !== "string" || value === "") return null;
+const SAFE = /^[A-Za-z0-9._/\\-]+$/;
+
+/** The absolute directory for a value contained in `base`, else null. Checked after SAFE. */
+function contained(value, base) {
   const normalized = value.replaceAll("\\", "/");
   if (normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized)) return null;
   if (normalized.split("/").includes("..")) return null;
-  const candidate = join(project, normalized);
+  const candidate = join(base, normalized);
   let ancestor = candidate;
   while (!existsSync(ancestor) && dirname(ancestor) !== ancestor) ancestor = dirname(ancestor);
   try {
-    return inside(realpathSync(ancestor), realpathSync(project)) ? candidate : null;
+    return inside(realpathSync(ancestor), realpathSync(base)) ? candidate : null;
   } catch {
     return null;
   }
+}
+
+/** [data_dir, null] for a usable value, else [null, why it is not]. */
+function check(value, base) {
+  if (typeof value !== "string" || !SAFE.test(value)) return [null, "holds a character outside letters, digits, . _ - / and \\ (it reaches a shell command)"];
+  const dir = contained(value, base);
+  return dir ? [dir, null] : [null, "is not a contained relative path (no rooted, drive or UNC path, no .. segment, no symlink leading outside its base)"];
 }
 
 const schema = JSON.parse(readFileSync(join(ROOT, "schemas/harness-ops.schema.json"), "utf8"));
@@ -94,12 +110,17 @@ for (const layer of layers) {
   layer.errors.forEach((e, i) => [KEY, null].includes(layer.error_keys[i]) && errors.push(e));
   const value = layer.values[KEY];
   let invalid = layer.error_keys.includes(KEY);
-  if (value !== undefined && !invalid && contained(value) === null) {
-    errors.push(`${layer.name}${path ? ` (${layer.path})` : ""}: "${KEY}": ${JSON.stringify(value)} is not a contained project-relative path (no rooted, drive or UNC path, no .. segment, no symlink leading outside the project)`);
-    invalid = true;
+  let dir = null;
+  if (value !== undefined && !invalid) {
+    const [found, why] = check(value, layer.name === "userConfig" ? start : project);
+    if (why) {
+      errors.push(`${layer.name}${path ? ` (${layer.path})` : ""}: "${KEY}": ${JSON.stringify(value)} ${why}`);
+      invalid = true;
+    }
+    dir = found;
   }
   if (invalid) {
     if (layer.name !== "local") result = { registry_dir: null, layer: "default", path: null, data_dir: null };
-  } else if (value !== undefined) result = { registry_dir: value, layer: layer.name, path, data_dir: contained(value) };
+  } else if (value !== undefined) result = { registry_dir: value, layer: layer.name, path, data_dir: dir };
 }
 console.log(JSON.stringify({ ...result, home, ...(skipped && { home_skipped: skipped }), errors }));
