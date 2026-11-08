@@ -121,8 +121,8 @@ export PATH="$SHIM:$PATH"
 PLUGIN="$WORKDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER" "$PLUGIN/skills/pull-request/scripts/"
-cp -p "${SCRIPT_DIR}/../../../lib/convention-key.sh" "${SCRIPT_DIR}/../../../lib/yaml-subset.awk" "$PLUGIN/lib/"
-cp -p "${SCRIPT_DIR}/../../../scripts/lane-push.sh" "$PLUGIN/scripts/"
+cp -p "${SCRIPT_DIR}/../../../lib/convention-key.sh" "${SCRIPT_DIR}/../../../lib/yaml-subset.awk" "${SCRIPT_DIR}/../../../lib/github-remote.sh" "$PLUGIN/lib/"
+cp -p "${SCRIPT_DIR}/../../../scripts/lane-push.sh" "${SCRIPT_DIR}/../../../scripts/stale-base-overlap.sh" "$PLUGIN/scripts/"
 cat >"$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$@" >"$LOG/preflight.argv"
@@ -903,6 +903,120 @@ sync_run "$wc"
 check "sync, dirty tree: exit 0" "$RC" "0"
 check "sync, dirty tree: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
 check "sync, dirty tree: says why" "$(grep -c 'uncommitted' "$LOG/err")" "1"
+
+# 12. --preflight runs the checks a rebase's force push needs, prints the target
+#     and pushes nothing; the caller runs the literal force push itself.
+pre_run() {
+  local wc="$1"
+  shift
+  OUT=$(cd "$wc" && bash "$PUSH_BRANCH" "$@" 2>"$LOG/err")
+  RC=$?
+}
+TAB=$'\t'
+# pre_github_clone <name> <owner>: make_clone with origin at github.com/<owner>/app,
+# its bytes under $WORKDIR/<name>/root for PB_GITHUB_ROOT.
+pre_github_clone() {
+  local wc
+  wc=$(make_clone "$1")
+  mkdir -p "$WORKDIR/$1/root/$2"
+  mv "$WORKDIR/$1/origin.git" "$WORKDIR/$1/root/$2/app.git"
+  git -C "$wc" remote set-url origin "https://github.com/$2/app.git"
+  echo "$wc"
+}
+wc=$(pre_github_clone pre-ok example-org)
+export PB_GITHUB_ROOT="$WORKDIR/pre-ok/root"
+pre_run "$wc" --preflight "$BRANCH"
+check "--preflight, feature branch: exit 0" "$RC" "0"
+check "--preflight, feature branch: prints remote and branch" "$OUT" "origin${TAB}${BRANCH}"
+check "--preflight, feature branch: nothing pushed" "$(has_ref "$WORKDIR/pre-ok/root/example-org/app.git" "$BRANCH")" "no"
+check "--preflight, feature branch: no upstream written" "$(branch_config "$wc" remote)" "UNSET"
+
+# A rebase runs on a detached HEAD, so the branch comes from an argument.
+git -C "$wc" checkout -q --detach
+pre_run "$wc" --preflight
+check "--preflight, detached HEAD with no branch: refused" "$(nonzero)" "nonzero"
+check "--preflight, detached HEAD with no branch: says why" "$(grep -c 'needs a branch name' "$LOG/err")" "1"
+check "--preflight, detached HEAD with no branch: prints no target" "$OUT" ""
+pre_run "$wc" --preflight "$BRANCH"
+check "--preflight, detached HEAD, branch named: prints the target" "$OUT" "origin${TAB}${BRANCH}"
+pre_run "$wc" --preflight --check "$BRANCH"
+check "--preflight with --check: refused" "$(nonzero)" "nonzero"
+unset PB_GITHUB_ROOT
+
+wc=$(make_clone pre-default)
+git -C "$wc" branch -q -f main
+pre_run "$wc" --preflight main
+check "--preflight, main: refused" "$(nonzero)" "nonzero"
+check "--preflight, main: says why" "$(grep -c "'main' is refused" "$LOG/err")" "1"
+check "--preflight, main: prints no target" "$OUT" ""
+check "--preflight, main: nothing pushed" "$(has_ref "$WORKDIR/pre-default/origin.git" main)" "no"
+
+# pr_stub <answer>: a gh that answers an operator login and <answer> for the PR.
+pr_stub() {
+  mkdir -p "$WORKDIR/pre-stub"
+  # shellcheck disable=SC2016 # False positive: the $1 belongs to the generated stub.
+  printf '#!/usr/bin/env bash\n[[ "$1" == api ]] && echo example-user && exit 0\necho "%s"\n' "$1" >"$WORKDIR/pre-stub/gh"
+  chmod +x "$WORKDIR/pre-stub/gh"
+}
+
+# The head-repository check: a local branch of the PR head's name whose push
+# URL is another repository than the PR's head repository.
+wc=$(make_clone pre-fork)
+git -C "$wc" branch -q feat/b
+git -C "$wc" remote set-url origin https://github.com/elsewhere/app.git
+mkdir -p "$WORKDIR/pre-fork/root/elsewhere"
+mv "$WORKDIR/pre-fork/origin.git" "$WORKDIR/pre-fork/root/elsewhere/app.git"
+pr_stub "feat/b example-org/app example-org/app"
+PATH="$WORKDIR/pre-stub:$PATH" PB_GITHUB_ROOT="$WORKDIR/pre-fork/root" pre_run "$wc" --preflight --pr 42
+check "--preflight, push URL not the PR's head repository: refused" "$(nonzero)" "nonzero"
+check "--preflight, push URL not the PR's head repository: says why" "$(grep -c "not PR '42' head repository" "$LOG/err")" "1"
+check "--preflight, push URL not the PR's head repository: prints no target" "$OUT" ""
+
+# A fork head is refused outright, and so is a PR whose base repository could
+# not be read.
+wc=$(make_clone pre-forkhead)
+git -C "$wc" branch -q feat/b
+pr_stub "feat/b fork-owner/app example-org/app"
+PATH="$WORKDIR/pre-stub:$PATH" pre_run "$wc" --preflight --pr 42
+check "--preflight, fork head: refused" "$(nonzero)" "nonzero"
+check "--preflight, fork head: says why" "$(grep -c 'head is in a fork' "$LOG/err")" "1"
+check "--preflight, fork head: prints no target" "$OUT" ""
+pr_stub "feat/b example-org/app"
+PATH="$WORKDIR/pre-stub:$PATH" pre_run "$wc" --preflight --pr 42
+check "--preflight, base repository unread: refused" "$(nonzero)" "nonzero"
+check "--preflight, base repository unread: prints no target" "$OUT" ""
+
+# Without --pr, every push URL must be the repository gh reports.
+wc=$(pre_github_clone pre-noprfork fork-owner)
+PB_GITHUB_ROOT="$WORKDIR/pre-noprfork/root" pre_run "$wc" --preflight "$BRANCH"
+check "--preflight, branch on a fork remote: refused" "$(nonzero)" "nonzero"
+check "--preflight, branch on a fork remote: says why" "$(grep -c "not repository 'example-org/app'" "$LOG/err")" "1"
+check "--preflight, branch on a fork remote: prints no target" "$OUT" ""
+
+wc=$(pre_github_clone pre-noprread example-org)
+mkdir -p "$WORKDIR/pre-noread"
+# shellcheck disable=SC2016 # False positive: the $1 belongs to the generated stub.
+printf '#!/usr/bin/env bash\n[[ "$1" == api ]] && echo example-user && exit 0\nexit 1\n' >"$WORKDIR/pre-noread/gh"
+chmod +x "$WORKDIR/pre-noread/gh"
+PATH="$WORKDIR/pre-noread:$PATH" PB_GITHUB_ROOT="$WORKDIR/pre-noprread/root" pre_run "$wc" --preflight "$BRANCH"
+check "--preflight, repository unread: refused" "$(nonzero)" "nonzero"
+check "--preflight, repository unread: says why" "$(grep -c 'the repository could not be read' "$LOG/err")" "1"
+check "--preflight, repository unread: prints no target" "$OUT" ""
+
+wc=$(make_clone pre-login)
+PB_LOGIN_FAIL=1 pre_run "$wc" --preflight "$BRANCH"
+check "--preflight, login read failed: refused" "$(nonzero)" "nonzero"
+check "--preflight, login read failed: says why" "$(grep -c 'acting login could not be read' "$LOG/err")" "1"
+check "--preflight, login read failed: prints no target" "$OUT" ""
+check "--preflight, login read failed: nothing pushed" "$(has_branch "$WORKDIR/pre-login/origin")" "no"
+
+wc=$(make_clone pre-lane)
+rm -f "$LOG/push.argv"
+PB_LOGIN="$LANE" PB_IDENTITY="$LANE" PB_RECORD_PUSH=1 pre_run "$wc" --preflight "$BRANCH"
+check "--preflight in a lane: refused" "$(nonzero)" "nonzero"
+check "--preflight in a lane: says why" "$(grep -c 'refused in a lane' "$LOG/err")" "1"
+check "--preflight in a lane: prints no target" "$OUT" ""
+check "--preflight in a lane: lane-push.sh did not run" "$(lane_dest)" "NONE"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

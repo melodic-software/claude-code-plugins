@@ -22,6 +22,11 @@
       "default": false,
       "description": "When true, push-branch.sh merges the pull request's base into a branch that is behind it on overlapping paths just before it pushes, using the repository's scripts/check-stale-base-overlap.sh as the overlap rule when the checkout has one. A merge, never a rebase; a conflict aborts it and pushes nothing (exit 4). --sync-stale-base and --no-sync-stale-base override it for one push."
     },
+    "pr_update_method": {
+      "enum": ["auto", "merge", "rebase"],
+      "default": "auto",
+      "description": "How a pull request branch takes its base, read at the pull request's base branch and honored only when that base is the default branch. auto applies the shared criteria; merge or rebase replaces the method on the rows plugins/source-control/scripts/branch-update-method.sh marks forceable. Team level only. An unknown value falls back to auto."
+    },
     "dialect": {
       "type": "string",
       "minLength": 1,

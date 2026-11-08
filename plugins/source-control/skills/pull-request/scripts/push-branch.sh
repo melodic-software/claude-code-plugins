@@ -67,6 +67,17 @@
 # a fork of the base repository is exempt: that push goes to the fork. `--check` runs only that check
 # (create.md calls it before opening a PR) and pushes nothing.
 #
+# `--preflight` runs the checks a rebase needs before the caller's own force
+# push: the default-branch refusal, the head-repository URL check and the lane
+# refusal. It prints `<push-remote><TAB><branch>`, pushes nothing, never syncs
+# and holds no force push: the caller runs the literal
+# `git push --force-with-lease=<branch>:<sha>`, so the permission system sees
+# it. A branch name or --pr is required, since a rebase runs on a detached HEAD;
+# every push URL must be the PR's head repository with --pr, and without it the
+# repository `gh repo view` reports, a failed read refusing. A fork head is refused,
+# and so is any session whose acting login cannot be read or ends in `[bot]`:
+# a lane's only pushes go through lane-push.sh, which never rewrites a branch.
+#
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below), and --pr for a fork head needs --dir.
@@ -79,10 +90,9 @@
 # branch when the branch has no PR yet. It is fetched from the remote whose URL
 # is the PR's base repository on github.com (the fetch remote when there is no
 # PR); with no such remote the step is skipped. Nothing the pushed head holds
-# decides the step or runs in it: the overlap rule is the base ref's
-# scripts/check-stale-base-overlap.sh (with the base's scripts/ beside it),
-# run as --check <remote>/<base> (exit 1 merges, 0 does not, anything else
-# skips), else paths changed on both sides since the merge-base.
+# decides the step or runs in it: ../../../scripts/stale-base-overlap.sh, run
+# against <remote>/<base>, is the overlap rule (`yes` merges, `no` does not,
+# `unknown` skips).
 # The merge is `git merge --no-edit`, never a rebase, signed when
 # commit.gpgsign is true (git's own setting) or HEAD is signed (-S). It is
 # skipped, with a note, when the base cannot be read or fetched, the branch is
@@ -95,10 +105,10 @@
 # --no-sync-stale-base
 # turns it off. Off by default. A lane (below) never syncs. --check never syncs.
 #
-# Exit: 0 pushed (or --check passed); 1 refused or the push failed; 4 the
+# Exit: 0 pushed (or --check or --preflight passed); 1 refused or the push failed; 4 the
 # sync-stale-base merge conflicted and was aborted, nothing pushed.
 #
-# Usage: push-branch.sh [--check] [--dir <checkout>] [--sync-stale-base | --no-sync-stale-base]
+# Usage: push-branch.sh [--check | --preflight] [--dir <checkout>] [--sync-stale-base | --no-sync-stale-base]
 #                       [branch-name | --pr <number>]
 #   (options in any order; defaults to the current branch; any other argument
 #   refuses)
@@ -109,6 +119,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 CONVENTION_KEY="${SCRIPT_DIR}/../../../lib/convention-key.sh"
+# shellcheck source=../../../lib/github-remote.sh
+source "${SCRIPT_DIR}/../../../lib/github-remote.sh"
 
 DIR=""
 BRANCH=""
@@ -116,11 +128,16 @@ PR=""
 HAS_DIR=""
 HAS_PR=""
 CHECK=""
+PRE_PUSH=""
 SYNC=""
 while (($#)); do
   case "$1" in
     --check)
       CHECK=1
+      shift
+      ;;
+    --preflight)
+      PRE_PUSH=1
       shift
       ;;
     --sync-stale-base | --no-sync-stale-base)
@@ -158,6 +175,10 @@ while (($#)); do
       ;;
   esac
 done
+if [[ -n "$CHECK" && -n "$PRE_PUSH" ]]; then
+  echo "push-branch.sh: --check and --preflight are given one at a time; not pushing" >&2
+  exit 1
+fi
 if [[ -n "$HAS_PR" && -n "$BRANCH" ]]; then
   echo "push-branch.sh: unexpected argument '$BRANCH' beside --pr; not pushing" >&2
   exit 1
@@ -194,32 +215,6 @@ remote_default() {
   local out
   out=$(git ls-remote --symref "$1" HEAD 2>/dev/null) || return 0
   sed -n 's|^ref: refs/heads/\([^[:space:]]*\)[[:space:]]HEAD$|\1|p' <<<"${out//$'\r'/}"
-}
-
-# github_repo_of <url>: the owner/repo a github.com URL (https, ssh:// or
-# scp-style) names, or nothing.
-github_repo_of() {
-  local url="${1%/}"
-  url="${url%.git}"
-  case "${url,,}" in
-    https://github.com/*) echo "${url:19}" ;;
-    ssh://git@github.com/*) echo "${url:21}" ;;
-    git@github.com:*) echo "${url:15}" ;;
-    *) ;;
-  esac
-}
-
-# remote_of_repo <owner/repo>: the first remote whose fetch URL is that
-# github.com repository, or nothing.
-remote_of_repo() {
-  local r repo
-  for r in $(git remote); do
-    repo=$(github_repo_of "$(git remote get-url "$r" 2>/dev/null)")
-    if [[ -n "$repo" && "${repo,,}" == "${1,,}" ]]; then
-      echo "$r"
-      return 0
-    fi
-  done
 }
 
 # worktree_of <branch>: the worktree that has <branch> checked out, or nothing.
@@ -293,6 +288,20 @@ fi
 # keeps the operator path (residual R4).
 ACTING=$(gh api --hostname github.com graphql -f 'query=query{viewer{login}}' \
   --jq .data.viewer.login 2>/dev/null | tr -d '\r')
+if [[ -n "$PRE_PUSH" ]]; then
+  if [[ "$ACTING" == *"[bot]" ]]; then
+    echo "push-branch.sh: --preflight is refused in a lane: lane-push.sh is the only way a lane pushes, and it never rewrites a branch" >&2
+    exit 1
+  fi
+  if [[ ! "$ACTING" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+    echo "push-branch.sh: --preflight is refused: the acting login could not be read; not pushing" >&2
+    exit 1
+  fi
+  if [[ -n "$PR" && (-z "${PR_BASE_REPO:-}" || "${HEAD_REPO,,}" != "${PR_BASE_REPO,,}") ]]; then
+    echo "push-branch.sh: --preflight is refused: PR '$PR' head is in a fork or its base repository could not be read; not pushing" >&2
+    exit 1
+  fi
+fi
 if [[ "$ACTING" == *"[bot]" ]]; then
   BASE_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
   if [[ -z "$BASE_REPO" ]]; then
@@ -330,6 +339,10 @@ if [[ "$ACTING" == *"[bot]" ]]; then
   exec bash "$LANE_PUSH" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" --branch "$BRANCH"
 fi
 
+if [[ -n "$PRE_PUSH" && -z "$BRANCH" ]]; then
+  echo "push-branch.sh: --preflight needs a branch name or --pr (detached HEAD?); not pushing" >&2
+  exit 1
+fi
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
 # Never push main, master or the push remote's default branch (a cwd that reset
 # to the main checkout would otherwise push main).
@@ -337,15 +350,29 @@ PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
 # A same-named local branch is not the PR's head unless every URL the push
 # writes to is the PR's head repository on github.com (a fork PR's head lives
 # on the fork). The URLs are read after insteadOf rewriting, as git pushes them.
+URL_TARGET="PR '$PR' head repository '${HEAD_REPO:-}'"
+if [[ -n "$PRE_PUSH" && -z "$PR" ]]; then
+  HEAD_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
+  if [[ -z "$HEAD_REPO" ]]; then
+    echo "push-branch.sh: --preflight is refused: the repository could not be read; not pushing" >&2
+    exit 1
+  fi
+  URL_TARGET="repository '$HEAD_REPO'"
+fi
 if [[ -n "${HEAD_REPO:-}" ]]; then
   URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null)
   while IFS= read -r URL; do
     URL_REPO=$(github_repo_of "$URL")
     if [[ -z "$URL_REPO" || "${URL_REPO,,}" != "${HEAD_REPO,,}" ]]; then
-      echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO' on github.com (https://github.com/, ssh://git@github.com/ or git@github.com:); not pushing" >&2
+      echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not $URL_TARGET on github.com (https://github.com/, ssh://git@github.com/ or git@github.com:); not pushing" >&2
       exit 1
     fi
   done <<<"$URLS"
+fi
+
+if [[ -n "$PRE_PUSH" ]]; then
+  printf '%s\t%s\n' "$PUSH_REMOTE" "$BRANCH"
+  exit 0
 fi
 
 FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
@@ -391,7 +418,7 @@ setting_at() {
 # the setting unset everywhere this clone has fetched, it makes no network call.
 sync_stale_base() {
   local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
-  local tmp out ref rc mb tip paths_base paths_head overlap r sign=()
+  local out ref r sign=()
   [[ "$on" != false ]] || return 0
   [[ -z "$base_repo" ]] || remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
   if [[ -z "$on" && -z "$PR" ]]; then
@@ -443,30 +470,15 @@ sync_stale_base() {
     sync_skip "a merge is in progress in $wd"
     return 0
   }
-  if git -C "$wd" cat-file -e "$ref:scripts/check-stale-base-overlap.sh" 2>/dev/null; then
-    # The base's copy of the repository's rule (and the libraries beside it),
-    # never the pushed head's.
-    tmp=$(mktemp -d) || return 0
-    git -C "$wd" archive "$ref" -- scripts | tar -x -C "$tmp"
-    (cd "$wd" && bash "$tmp/scripts/check-stale-base-overlap.sh" --check "$ref") >&2
-    rc=$?
-    rm -rf "$tmp"
-    ((rc != 0)) || return 0
-    ((rc == 1)) || {
-      sync_skip "the base's scripts/check-stale-base-overlap.sh exited $rc"
+  out=$(bash "$SCRIPT_DIR/../../../scripts/stale-base-overlap.sh" "$wd" "$ref")
+  case "$out" in
+    yes) ;;
+    no) return 0 ;;
+    *)
+      sync_skip "${out#unknown }"
       return 0
-    }
-  else
-    if ! mb=$(git -C "$wd" merge-base HEAD "$ref") || ! tip=$(git -C "$wd" rev-parse "$ref^{commit}") ||
-      ! paths_base=$(git -C "$wd" diff --name-only --no-renames "$mb" "$tip") ||
-      ! paths_head=$(git -C "$wd" diff --name-only --no-renames "$mb" HEAD); then
-      sync_skip "the paths changed since the merge-base of HEAD and $ref could not be read"
-      return 0
-    fi
-    [[ "$mb" != "$tip" ]] || return 0
-    overlap=$(LC_ALL=C comm -12 <(LC_ALL=C sort -u <<<"$paths_base") <(LC_ALL=C sort -u <<<"$paths_head"))
-    [[ -n "${overlap//$'\n'/}" ]] || return 0
-  fi
+      ;;
+  esac
   out=$(git -C "$wd" cat-file commit HEAD)
   if [[ "$(git -C "$wd" config --bool commit.gpgsign)" != true && "$out" =~ (^|$'\n')gpgsig(-sha256)?\  ]]; then
     sign=(-S)
