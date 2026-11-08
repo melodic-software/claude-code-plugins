@@ -7,8 +7,8 @@
 # distinction is the only thing standing between a cleanup sweep and data loss.
 #
 # Read-only by construction: no fetch, no ref write, no checkout, no removal, and
-# no network unless --merged-pr-proof is passed (one read-only `gh pr list` per
-# unlanded branch). Every verdict is computed from refs already on disk, so a stale remote
+# no network unless --merged-pr-proof is passed (one read-only `gh pr list` of
+# merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
 # ref yields a conservative answer (see the fail-closed rule below), never a wrong
 # destructive one.
 #
@@ -67,6 +67,7 @@ $PROG — read-only landed-vs-stranded classification for git worktrees.
 Usage:
   $PROG [--repo-dir <dir>] [--worktree <path>]... [--base <ref>]
         [--merged-refs-file <path>] [--no-peers] [--merged-pr-proof]
+        [--merged-pr-limit <n>]
   $PROG --path-key <value>
   $PROG --help
 
@@ -91,13 +92,20 @@ Options:
                       offline.
   --no-peers          Skip peer detection (another worktree holding the same
                       commits). Peer detection is O(n^2) ancestry probes.
-  --merged-pr-proof   For a row that is not landed, read the branch's merged pull
-                      request (one \`gh pr list --state merged --head <branch>\`
-                      per branch, the only network use) and report landed when
-                      local HEAD equals or is an ancestor of the PR head commit,
-                      or every unpushed local commit is in the PR's commit list.
-                      A failed read keeps the prior verdict and names the read in
-                      the reason. Off by default, so the script stays offline.
+  --merged-pr-proof   For a row that is not landed, find the branch's merged pull
+                      request and report landed when local HEAD equals or is an
+                      ancestor of the PR head commit, or every unpushed local
+                      commit is in the PR's commit list. The PRs come from one
+                      \`gh pr list --state merged --base <base>\` per repository
+                      and base, read once and reused for every worktree (the
+                      only network use). The number of gh calls the run made is
+                      printed on stderr. A failed read keeps the prior verdict
+                      and names the read in the reason. Off by default, so the
+                      script stays offline.
+  --merged-pr-limit <n>
+                      Most merged PRs that listing reads, newest first.
+                      Default: 1000. A branch whose PR is older than that window
+                      stays unproven, and its reason says the listing was full.
   --path-key <value>  Print the path comparison key for <value> and exit. A
                       debug seam the test suite asserts the normalizer through.
 
@@ -162,6 +170,7 @@ BASE_REF=""
 MERGED_REFS_FILE=""
 DO_PEERS=true
 USE_PR_PROOF=false
+MERGED_PR_LIMIT=1000
 EXPLICIT_TARGETS=()
 
 while [[ $# -gt 0 ]]; do
@@ -203,6 +212,12 @@ while [[ $# -gt 0 ]]; do
   --merged-pr-proof)
     USE_PR_PROOF=true
     shift
+    ;;
+  --merged-pr-limit)
+    [[ $# -ge 2 ]] || die "--merged-pr-limit requires a value"
+    [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--merged-pr-limit must be a positive integer: $2"
+    MERGED_PR_LIMIT="$2"
+    shift 2
     ;;
   *) die "unknown argument: $1" ;;
   esac
@@ -645,6 +660,51 @@ classify_landed() {
   L_REASON="head-differs-from-base-on-${#specs[@]}-touched-path(s)"
 }
 
+GH_CALLS=0
+MP_KEYS=()
+MP_ERRS=()
+MP_FILE=""
+MP_ERR=""
+
+# merged_pr_listing <path> <base-name>: point MP_FILE at the merged PRs into
+# <base-name> for <path>'s repository, as `pr <head-ref> <base-ref>`, `head <oid>`
+# and `commit <oid>` lines. The first call for a repository and base runs one
+# `gh pr list`; later calls reuse its file, so N worktrees cost one listing, not
+# N reads. The repository is keyed by its common git dir, which every linked
+# worktree shares. A failed read is cached as well, so a rate-limited listing is
+# not retried once per worktree. Returns 1 with MP_ERR naming the failure.
+merged_pr_listing() {
+  local p="$1" base_name="$2" repo key i err
+  MP_FILE=""
+  MP_ERR=""
+  # `CDPATH=` keeps a relative `.git` from resolving through the caller's CDPATH.
+  repo=$(cd "$p" 2>/dev/null && common=$(git rev-parse --git-common-dir 2>/dev/null) &&
+    CDPATH='' cd -- "$common" 2>/dev/null && pwd -P) || repo=""
+  key="${repo:-$p}|$base_name"
+  for ((i = 0; i < ${#MP_KEYS[@]}; i++)); do
+    if [[ "${MP_KEYS[$i]}" == "$key" ]]; then
+      MP_FILE="$WORKDIR/merged-prs.$i"
+      MP_ERR="${MP_ERRS[$i]}"
+      [[ -z "$MP_ERR" ]]
+      return
+    fi
+  done
+  i=${#MP_KEYS[@]}
+  MP_FILE="$WORKDIR/merged-prs.$i"
+  GH_CALLS=$((GH_CALLS + 1))
+  if ! (cd "$p" && gh pr list --state merged --base "$base_name" --limit "$MERGED_PR_LIMIT" \
+    --json headRefName,headRefOid,baseRefName,commits \
+    --jq '.[] | "pr " + .headRefName + " " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$MP_FILE" 2>"$MP_FILE.err"; then
+    # Name gh's own error so a failed run states its cause; tabs and semicolons
+    # would break the record's columns and reason list.
+    err=$(head -n 1 "$MP_FILE.err" | tr '\t;' '  ' | cut -c1-120)
+    MP_ERR="gh-pr-list${err:+ ($err)}"
+  fi
+  MP_KEYS+=("$key")
+  MP_ERRS+=("$MP_ERR")
+  [[ -z "$MP_ERR" ]]
+}
+
 # merged_pr_proof <path> <branch>: affirmative proof from the branch's MERGED pull
 # request, for a row the content probes left `no` or `?`. Sets L_STATE, L_METHOD
 # and L_REASON; returns 0 only when it proved the branch landed.
@@ -675,14 +735,16 @@ merged_pr_proof() {
     L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:no-resolved-base"
     return 1
   fi
-  if ! (cd "$p" && gh pr list --state merged --head "$branch" --limit 20 \
-    --json headRefOid,baseRefName,commits \
-    --jq '.[] | "pr " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$out" 2>"$out.err"; then
-    # Name gh's own error so a failed run states its cause; tabs and semicolons
-    # would break the record's columns and reason list.
-    local err
-    err=$(head -n 1 "$out.err" | tr '\t;' '  ' | cut -c1-120)
-    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-pr-list${err:+ ($err)}"
+  if ! merged_pr_listing "$p" "$base_name"; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:$MP_ERR"
+    return 1
+  fi
+  # This branch's PRs, as `pr <base-ref>` / `head` / `commit` lines. A ref name
+  # holds no whitespace, so the default field split reads it whole. The `""`
+  # forces a string compare, so branch `1.0` never matches a PR from branch `1`.
+  if ! awk -v b="$branch" '$1 == "pr" { keep = ($2 "" == b ""); if (keep) print "pr " $3; next } keep' \
+    "$MP_FILE" >"$out"; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:branch-filter"
     return 1
   fi
   local in_base=false
@@ -698,7 +760,12 @@ merged_pr_proof() {
     esac
   done <"$out"
   if [[ ${#pr_heads[@]} -eq 0 ]]; then
-    L_REASON="${L_REASON:+$L_REASON; }no-merged-pr-into-$base_name-for-branch"
+    # A full listing may have cut off an older PR for this branch, so say so.
+    local window=""
+    if [[ "$(grep -c '^pr ' "$MP_FILE")" -ge "$MERGED_PR_LIMIT" ]]; then
+      window="-in-newest-$MERGED_PR_LIMIT"
+    fi
+    L_REASON="${L_REASON:+$L_REASON; }no-merged-pr-into-$base_name-for-branch$window"
     return 1
   fi
 
@@ -928,6 +995,10 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   fi
   R_REASON+=("$reason")
 done
+
+if [[ "$USE_PR_PROOF" == "true" ]]; then
+  printf '%s: merged-pr-proof made %s gh call(s)\n' "$PROG" "$GH_CALLS" >&2
+fi
 
 assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
 
