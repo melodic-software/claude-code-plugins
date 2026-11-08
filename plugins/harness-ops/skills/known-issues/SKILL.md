@@ -30,25 +30,34 @@ Claude Code ships frequently. Features that worked last week may have new bugs t
 ## Data Files
 
 The issue registry (`registry.json`) persists in the **registry directory**. By default this is the
-plugin's per-machine data directory (`${CLAUDE_PLUGIN_DATA}`, survives plugin updates). A consumer can
-instead keep the registry inside their repository, git-tracked and team-shared, by setting the
-`registry_dir` plugin option (personal user configuration).
+plugin's per-machine data directory (`${CLAUDE_PLUGIN_DATA}`, survives plugin updates). A repository
+can keep the registry inside itself, git-tracked and team-shared, with `registry_dir` in its
+`harness-ops.yaml` team file (convention home, default `docs/conventions`); one person can set it with
+the `registry_dir` plugin option or the personal `harness-ops.local.yaml`. The personal file beats the
+team file, which beats the option.
 
-**Registry location. Apply to EVERY `registry_manager.py` invocation:** the configured value is
-`${user_config.registry_dir}`; the project root is `${CLAUDE_PROJECT_DIR}`.
+**Registry location. Apply to EVERY `registry_manager.py` invocation:** resolve it once per action,
+before the first registry call:
 
-- If `${user_config.registry_dir}` is a non-empty path → first require a contained
-  project-relative value. Reject POSIX/rooted paths, Windows drive-qualified or drive-relative
-  paths, UNC paths, any `..` segment with either separator, and any existing symlink path that
-  resolves outside `${CLAUDE_PROJECT_DIR}`. If invalid, stop the registry action, report the
-  configuration problem visibly, and direct `/harness-ops:setup`; do not join, normalize, create,
-  or use the destination. If valid, pass
-  `--data-dir "${CLAUDE_PROJECT_DIR}/${user_config.registry_dir}"`.
-- If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → pass
-  `--data-dir "${CLAUDE_PLUGIN_DATA}"`. The Bash tool's environment does not carry this plugin's
-  `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can export its own data directory
-  under that name, so the script uses an inherited value only when it names harness-ops (Basis and
-  recheck trigger: [Spoke paths](#spoke-paths)).
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/registry-dir.mjs" --project "${CLAUDE_PROJECT_DIR}" --user-registry-dir '${user_config.registry_dir}'
+```
+
+It prints JSON: `layer` (`default`, `userConfig`, `team` or `local`), `path` (the file that set it),
+`data_dir`, and `errors`.
+
+- `data_dir` is a path → pass `--data-dir "<data_dir>"` exactly as printed. The script has already
+  checked containment and that the value holds only letters, digits, `.`, `_`, `-`, `/` and `\`, so
+  nothing in it runs in the shell; do not join or normalize it yourself.
+- `data_dir` is null → pass `--data-dir "${CLAUDE_PLUGIN_DATA}"`. The Bash tool's environment does
+  not carry this plugin's `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can export its
+  own data directory under that name, so the script uses an inherited value only when it names
+  harness-ops (Basis and recheck trigger: [Spoke paths](#spoke-paths)).
+- `errors` is non-empty → each names a layer, file, key and value that was dropped (an uncontained
+  path, a character outside that set, or a value that is not a string). Show every one to the user with the layer that won instead,
+  and direct `/harness-ops:setup`. A dropped team or option value resolves to the plugin data
+  directory, never to the layer below it.
+- The script cannot run (no `node`) → stop the registry action and say so; do not guess a directory.
 
 | File | Purpose | Who edits |
 | --- | --- | --- |

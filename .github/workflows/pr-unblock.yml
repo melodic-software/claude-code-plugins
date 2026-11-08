@@ -2136,7 +2136,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2217,7 +2217,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2300,7 +2300,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0 && steps.next-0-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2391,7 +2391,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2472,7 +2472,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2555,7 +2555,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1 && steps.next-1-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2646,7 +2646,7 @@ jobs:
         if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2727,7 +2727,7 @@ jobs:
         if: steps.sub.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2.outputs.next-leg == 'subscription'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -2810,7 +2810,7 @@ jobs:
         if: steps.fb.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2 && steps.next-2-subscription.outputs.next-leg == 'fallback'
         continue-on-error: true
         timeout-minutes: 20
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""

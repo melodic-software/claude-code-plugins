@@ -511,7 +511,7 @@ jobs:
       # too (run-claude-cli managed-settings.cjs checks it on every leg).
       - name: Apply the Claude managed settings
         if: steps.credential.outputs.present == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         with:
           loopback-base-url: http://127.0.0.1:47101
           settings: >-
@@ -852,7 +852,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 7
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -866,6 +866,9 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "10"
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060), as on "Capture the change", so the probe checks
+          # where the driver commands run.
+          sandbox: "false"
           tools: |
             Bash
             Read
@@ -1153,7 +1156,7 @@ jobs:
         if: steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 16
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@4aba9be6cc58c88c132308d417ebe136dd054296 # 4aba9be 2026-11-06
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CCD_RUNTIME_DIR: /home/runner/.ccd  # machine-path:allow
@@ -1172,6 +1175,9 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
+          # Sandbox off (melodic-software/ci-workflows#1060): driver.mjs launch starts a nested claude and
+          # runs npm ci, which need api.anthropic.com and registry.npmjs.org.
+          sandbox: "false"
           tools: |
             Bash
             Read
