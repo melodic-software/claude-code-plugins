@@ -2,7 +2,7 @@
 
 This audit checks each of the 14 lanes in `.github/actions/resolve-config/lane-rules.json` against
 the six elements of the outage posture (#9205, owner decision Q677). It is slice 3 of #9205,
-and issue #12291 is part 1 of 2 of #12283. Each `path:line` links to the commit it describes, by full SHA: `222d8023` for the first audit's rows, and for a later row the commit its section names, else the change that wrote it. Line numbers
+and issue #12291 is part 1 of 2 of #12283. Each `path:line` links to the commit it describes, by full SHA: `222d8023` for the first audit's rows, and for a later row the commit its section names or the change that wrote the citation. Line numbers
 drift as the files change, so re-read a cited line before relying on it. This page assumes you
 know the lanes and their terms (the hub, the kill switch, the reconciler) from
 [the pr-pipeline convention](conventions/pr-pipeline/README.md).
