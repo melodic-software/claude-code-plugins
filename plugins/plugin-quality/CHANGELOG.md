@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.19] - 2026-11-08
+
+### Changed
+
+- The audit's research gate takes its two labels from the target repository's tracker binding, `config.role_labels` in `work-items.yaml`. A suggested change that cleared research files under the `autonomous-eligible` role (default: `agent-ready`), and any other under the `owner-decision` role (default: `status: needs-decision`).
+
 ## [0.18.18] - 2026-11-05
 
 ### Fixed

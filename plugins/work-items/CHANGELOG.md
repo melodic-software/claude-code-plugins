@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.3.0] - 2026-11-08
+
+### Added
+
+- The tracker binding takes the label and state names the seam held fixed. `config.hold_labels` lists the labels that keep an item off the autonomous frontier (default: the owner-decision role label, `status: needs-info` and `needs-spec`). `config.hold_states` lists the Work status states that do the same (default: `needs-human`, `needs-owner-decision`, `needs-reporter-info` and `needs-spec`). `config.hold_state_labels` lists those states' labels (default: `needs-human`, the owner-decision role label, `needs-owner-decision`, `status: needs-info` and `needs-spec`). `config.wayfind_label_prefix` names the wayfind prefix (default: `wayfind:`). An absent or empty key keeps today's names; a present value of the wrong shape is a configuration error.
+- `config.role_labels` takes a fourth role, `owner-decision` (default: `status: needs-decision`). A remap of it reaches the hold label defaults. `/work-items:morning-brief` takes its decision label from this role when `--decision-label` is not passed, and the decision row of its Queues default from this role whatever the flag says.
+- The GitHub adapter's Work status trust reads `ready-state` from the model's `models.issue-status`: the one state a bot-setters value never counts for (default: `agent-ready`). `/work-items:morning-brief` reads that key and `hold-states` from the same block.
+
 ## [12.2.8] - 2026-11-07
 
 ### Fixed
