@@ -828,6 +828,10 @@ A new install subaction fits one of those four by what it writes. It does not in
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
 install one named tool, while `install-deps` and `install-build-deps` name a class.
 
+A write that installs nothing, such as a config file or a settings rule, is not an install
+subaction and carries no `install-` prefix: guardrails `identity-domains` and `read-deny`,
+context-guard `cache-line`.
+
 **Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
 install path recorded in the consumer's repo, declines to install. It uses this shape, not a
 plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
