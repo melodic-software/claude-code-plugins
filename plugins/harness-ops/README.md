@@ -364,8 +364,8 @@ your own repository's context:
   is only unique within one checkout. `<repo-key>` is a digest of the repository's
   canonical path; print the one for a given checkout with
   `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
-  repository. Opt in for the registry via the `registry_dir` option (see
-  Configuration) to keep it git-tracked and team-shared inside your repo
+  repository. Opt in for the registry with `registry_dir` in `harness-ops.yaml`
+  (see Configuration) to keep it git-tracked and team-shared inside your repo
   instead.
 - **Work-item and docs integration.** Where the skills propose follow-up work
   items or cross-reference quirks/workaround docs, they use whatever tracker
@@ -395,7 +395,8 @@ sampling are pure `os.walk` + `stat` + regex and behave identically on every pla
 OS-specific code is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
 body (`OpenProcess`); a probe that cannot run reports `unverified`, never `dead`.
 
-Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
+Core flows need only `git`, `jq`, `gh` (authenticated), `python3`, and `node` (the hooks, and
+resolving the known-issues registry directory).
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
 `otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
 plugin observes them but does not start them. Every skill reports missing optional tooling
@@ -409,6 +410,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
+| `registry_dir` | a contained project-relative directory of letters, digits, `.`, `_`, `-`, `/` and `\` | none: `${CLAUDE_PLUGIN_DATA}` | Where `/harness-ops:known-issues` keeps `registry.json`, for everyone working in the repository. Beats the `registry_dir` option; a personal `harness-ops.local.yaml` beats it. Read from the working tree by `scripts/registry-dir.mjs`, which reports the layer that set it (`/harness-ops:setup` shows it); an absolute, drive, UNC, traversal or escaping-symlink value, or one holding any other character (the value reaches a shell command), is named and dropped, and resolves to the plugin data directory. Team and personal values join the git toplevel; the option joins the session's project directory, as it always has. |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/harness-ops:audit-install-state` dispatches its fresh-context cross-review (`strict` also for a single-agent run) and `/harness-ops:changelog` its local verifier: `light` and `off` skip both and mark what they would have checked `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
@@ -438,9 +440,12 @@ options tune the skills:
   known-issues registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
   per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
-  Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are
-  invalid; known-issues operations must stop and direct you to reconfigure
-  rather than write outside the project.
+  This option is personal: Claude Code reads it from user settings only, so for
+  a registry everyone in the repository shares, commit `registry_dir` in
+  `harness-ops.yaml` instead (see [Configuration](#configuration)), which beats
+  the option. Absolute, drive-qualified, UNC, traversal, and escaping-symlink
+  paths are invalid; such a value is named and dropped, never written outside
+  the project.
 - **`lane_app_slug`** (string, optional). The GitHub App slug the `lanes` skill passes as
   `--app-slug` to the restart consumer and to `telemetry-upsert.sh`, so both read telemetry
   comments written by `<slug>[bot]` when the lanes run `gh` under that App's installation
@@ -508,7 +513,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `registry_dir` | string | *(none)* | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `registry_dir` | string | *(none)* | Project-relative directory holding the known-issues registry (registry.json). Unset: the plugin data directory, ${CLAUDE_PLUGIN_DATA}. A repository's registry_dir in harness-ops.yaml beats this option. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
 | `install_new` | string | `"ask"` | Sync action for catalog plugins not yet installed. ask (default) offers them in AskUserQuestion chunks, at most 4 options per question and 4 questions per call; a chunk of 1 is a single-select Install/Skip question. Each pick is installed and enabled. all installs every one; none only reports them. |
 | `directory_source_pull` | string | `"ask"` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
 | `quiet_auto_update_marketplaces` | string | *(none)* | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |

@@ -7,8 +7,8 @@
 # The output directory is KEYED by project. ${CLAUDE_PLUGIN_DATA} resolves to
 # ~/.claude/plugins/data/{id}/ and carries no project, checkout or worktree
 # segment, so a fixed `check-all-output/` is one scratch directory per MACHINE.
-# The registry this script reports on is per-project whenever the operator sets
-# the `registry_dir` option, so an unkeyed scratch directory lets one project's
+# The registry this script reports on is per-project whenever `registry_dir` is
+# set (the option, or the repository's harness-ops.yaml), so an unkeyed scratch directory lets one project's
 # snapshot be overwritten by another's and then reports the second project's
 # rows as the first's. That is a wrong answer served, not merely a lost file.
 # The key comes from lib/state-key.sh, the scheme
