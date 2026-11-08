@@ -36,7 +36,7 @@ apply, so existing repos need zero migration.
 | `autonomous-eligible` | `agent-ready` | Fully specified and briefed; eligible for autonomous (AFK) pickup from the frontier |
 | `human-gated` | `needs-human` | Needs human judgment (design decision, UX review, manual QA); excluded by `list-frontier --autonomous` |
 | `recurring-maintenance` | `recurring` | A scheduled maintenance item reconciled against `.github/recurring-schedule.json` |
-| `owner-decision` | `status: needs-decision` | Parked on an owner's decision; the decision label `/work-items:morning-brief` lists and `/plugin-quality:audit` files an unresearched change under, and a hold label by default |
+| `owner-decision` | `needs-owner-decision` | Parked on an owner's decision; the decision label `/work-items:morning-brief` lists and `/plugin-quality:audit` files an unresearched change under, and a hold label by default |
 
 Binding shape (every entry optional; unlisted roles keep their defaults):
 
@@ -47,7 +47,7 @@ Binding shape (every entry optional; unlisted roles keep their defaults):
       "autonomous-eligible": "agent-ready",
       "human-gated": "needs-human",
       "recurring-maintenance": "recurring",
-      "owner-decision": "status: needs-decision"
+      "owner-decision": "needs-owner-decision"
     }
   }
 }
@@ -89,9 +89,9 @@ configuration error.
 
 | Key | Default | What it holds |
 |-----|---------|---------------|
-| `hold_labels` | the `owner-decision` role label, `status: needs-info`, `needs-spec` | Labels that wait on a person |
+| `hold_labels` | `status: needs-decision`, the `owner-decision` role label, `status: needs-info`, `needs-spec` | Labels that wait on a person |
 | `hold_states` | `needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec` | Work status states that wait on a person |
-| `hold_state_labels` | `needs-human`, the `owner-decision` role label, `needs-owner-decision`, `status: needs-info`, `needs-spec` | The hold states' labels: an item carrying one has its hold decided by its labels |
+| `hold_state_labels` | `needs-human`, `status: needs-decision`, the `owner-decision` role label, `status: needs-info`, `needs-spec` | The hold states' labels: an item carrying one has its hold decided by its labels |
 | `wayfind_label_prefix` | `wayfind:` | The prefix of `/planning:wayfind`'s routing labels |
 
 A remap of the `owner-decision` role reaches the two defaults that name it. A key set

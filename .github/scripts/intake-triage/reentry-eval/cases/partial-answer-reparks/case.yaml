@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: partial-answer-reparks
-description: 'The decision answers question 1 only: triage quotes it, re-parks at status: needs-decision and asks question 2 again as a new question with a recommendation'
+description: 'The decision answers question 1 only: triage quotes it, re-parks at needs-owner-decision and asks question 2 again as a new question with a recommendation'
 tags: [intake, reentry]
 context:
   scaffold_script: scaffold.sh
@@ -38,7 +38,7 @@ graders:
     arm: both
   - name: reparks-needs-decision
     type: regex
-    pattern: '"labels"\s*:\s*\[[^\]]*"status: needs-decision"'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
     target: last_message
     arm: both
   - name: asks-with-recommendation

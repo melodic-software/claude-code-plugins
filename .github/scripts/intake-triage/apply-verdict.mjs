@@ -38,7 +38,7 @@
 // `status: ready`, so no hold lands without its record; needs-human, and
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. One exception: a needs-human or
-// status: needs-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
+// needs-owner-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
 // verdict that did not escalate, absent when the run started, with a readable
 // `Flags: none`, no `Cost: ` line (a `Cost decided: ` one is fine) and no outside-actor or untrusted-provenance
 // hold (read again right before the label writes), is refused and taken off when
@@ -114,7 +114,7 @@ const LANE_BOT = "github-actions[bot]";
 const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const READY = "status: ready";
-export const NEEDS_DECISION = "status: needs-decision";
+export const NEEDS_DECISION = "needs-owner-decision";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
@@ -123,7 +123,7 @@ const HOLDS = new Set([NEEDS_HUMAN, ...INFO_LABELS, ...DECISION_LABELS, OUTSIDE_
 // a refused triage label (planWrites).
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
 // Holds this run's triage may apply only beside a flag (planWrites refuses one without).
-const TRIAGE_REFUSABLE = [NEEDS_HUMAN, NEEDS_DECISION];
+const TRIAGE_REFUSABLE = [NEEDS_HUMAN, ...DECISION_LABELS];
 // Labels that stop admission for a person; a refusal is dropped when one
 // lands after the first read.
 const LATE_HOLDS = [OUTSIDE_ACTOR_LABEL, ...UNTRUSTED_LABELS];
@@ -401,7 +401,7 @@ export function planWrites(
     return { appHolds, found, holdCodes };
   };
   const isReady = (found) => reasons.length + found.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
-  // needs-human or status: needs-decision this run's triage applied on a
+  // needs-human or needs-owner-decision this run's triage applied on a
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
@@ -565,7 +565,7 @@ async function readFields(github, repository, number, fieldSetters) {
 // The Work status a verdict leaves on an issue whose label names, with the
 // verdict's label writes applied, are `labels`: the first state in `config`'s
 // order whose label is among them (issue-status.mjs collapseStatus), so the
-// triage run's needs-human, `status: needs-info` and `status: needs-decision`
+// triage run's needs-human, `status: needs-info` and `needs-owner-decision`
 // translate to their state; null for agent-ready, which admission writes.
 export async function verdictStatus(labels, config) {
   const { collapseStatus } = await import("../../actions/resolve-config/issue-status.mjs");

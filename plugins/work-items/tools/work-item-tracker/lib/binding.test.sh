@@ -170,16 +170,16 @@ assert_rejected "object container_label rejected" '{"schema_version":"1.0","prov
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
-assert_eq "owner-decision label defaults when unset" "status: needs-decision" "$WIT_OWNER_DECISION_LABEL"
+assert_eq "owner-decision label defaults when unset" "needs-owner-decision" "$WIT_OWNER_DECISION_LABEL"
 assert_eq "hold labels default when unset" '["status: needs-decision","needs-owner-decision","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
 assert_eq "hold states default when unset" '["needs-human","needs-owner-decision","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATES_JSON"
 assert_eq "hold-state labels default when unset" '["needs-human","status: needs-decision","needs-owner-decision","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
 assert_eq "wayfind prefix defaults when unset" "wayfind:" "$WIT_WAYFIND_PREFIX"
 
-write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"owner-decision":"needs-owner-decision"}}}'
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"owner-decision":"awaiting-owner"}}}'
 wit_read_binding "$BINDING"
-assert_eq "an owner-decision remap reaches the hold label defaults" '["needs-owner-decision","needs-owner-decision","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
-assert_eq "an owner-decision remap reaches the hold-state label defaults" '["needs-human","needs-owner-decision","needs-owner-decision","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
+assert_eq "an owner-decision remap reaches the hold label defaults" '["status: needs-decision","awaiting-owner","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
+assert_eq "an owner-decision remap reaches the hold-state label defaults" '["needs-human","status: needs-decision","awaiting-owner","status: needs-info","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_labels":["on hold"],"hold_states":["parked"],"hold_state_labels":["parked"],"wayfind_label_prefix":"map:"}}'
 wit_read_binding "$BINDING"

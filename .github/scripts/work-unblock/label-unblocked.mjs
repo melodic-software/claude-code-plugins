@@ -39,7 +39,7 @@
 // deferralLapsed). One of those holds keeps it deferred, and one that lost
 // `status: ready` loses admission-deferred. One that gained the security area
 // or a body edit since gets admit.mjs's comment and loses `status: ready` and
-// admission-deferred, parked at `status: needs-decision` for the security
+// admission-deferred, parked at `needs-owner-decision` for the security
 // area, else at `status: confirmed`. A hold's comment names its owner reason
 // as the stop-reason marker and line (heldText). A person's mark below is judged by
 // decide, which refuses on the same changes. Restarts, re-fires and relabels below
@@ -71,7 +71,7 @@
 // human or the App set it, as `status: ready` must be added; no default
 // stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
-// admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
+// admit verdict. A refusal gets admit.mjs's comment, `needs-owner-decision`
 // for `status: ready` when it holds for a person, else `status: confirmed`, as
 // intake's admit parks it; a wait on an open pull request stays deferred, and
 // one on a blocker goes back to ready, so its blocker's close admits it. One
@@ -1277,7 +1277,7 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // listed human nor the App added, or whose agent-ready removal stands
 // (admit.mjs admissionSettled). The writes are intake's (admit.mjs admit): an admit
 // verdict within the gate's room gets agent-ready, past it deferred;
-// a refusal parks at status: confirmed, or status: needs-decision when it
+// a refusal parks at status: confirmed, or needs-owner-decision when it
 // holds for a person; a wait on an open pull request is set deferred. `names`
 // gives a listed issue's names as the Work status field decides them
 // (listedNames).
