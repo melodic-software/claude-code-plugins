@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-08
+
+### Changed
+
+- Repaired stale comments in the line-ending library and clarified two README sentences.
+
 ## [1.0.7] - 2026-11-06
 
 ### Changed
