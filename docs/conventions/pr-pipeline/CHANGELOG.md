@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## [9.10.2] - 2026-11-08
+
+### Changed
+
+- The lane sweep digest is titled `Review the open findings from the lane sweep`. A new digest gets its Issue Type and Work status at filing.
+- `check-born-triaged` counts a Work status of `needs-spec` or `deferred` as the issue's status.
+
 ## [9.10.1] - 2026-11-08
 
 ### Fixed
