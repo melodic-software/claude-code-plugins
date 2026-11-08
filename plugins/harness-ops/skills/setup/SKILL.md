@@ -1,5 +1,5 @@
 ---
-description: "Verify harness-ops's personal path configuration for this repository (where the known-issues registry, the skill-usage log and the per-session hook event log resolve), check the self-ignoring guard on the hook log root, check that node and jq resolve for the hooks, detect retired conventions, and explain how to change the options through Claude Code. Use when: 'set up harness-ops', 'configure harness-ops', 'harness-ops setup', 'where does the known-issues registry live', 'where is skill usage logged', 'set up hook logging', 'where does the hook event log live', or 'turn on session event logging'. check (read-only, default) verifies and reports; apply writes exactly one file, the guard inside the hook log root, and runs the gated retired-convention cleanup. Every option itself is reconfigured through Claude Code, never by this skill. Re-runnable and safe."
+description: "Verify harness-ops's path configuration for this repository (where the known-issues registry resolves and which layer set it, and where the skill-usage log and the per-session hook event log resolve), check the self-ignoring guard on the hook log root, check that node and jq resolve for the hooks, detect retired conventions, and explain how to change the options through Claude Code. Use when: 'set up harness-ops', 'configure harness-ops', 'harness-ops setup', 'where does the known-issues registry live', 'where is skill usage logged', 'set up hook logging', 'where does the hook event log live', or 'turn on session event logging'. check (read-only, default) verifies and reports; apply writes exactly one file, the guard inside the hook log root, and runs the gated retired-convention cleanup. Every option itself is reconfigured through Claude Code, never by this skill. Re-runnable and safe."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,7 +12,10 @@ repeatable" in the marketplace repository). This plugin's configuration is nativ
 `userConfig` scalars that Claude Code owns (`registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
 and the six `session_*` hook-logging options): Claude Code prompts for them when the plugin is
 enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs` entries in
-project and local settings on current releases (at or above 2.1.207). This skill never writes them.
+project and local settings on current releases (at or above 2.1.207). `registry_dir` alone also has
+repository layers: the team file `<home>/harness-ops.yaml` (convention home, default
+`docs/conventions`) beats the option, and the personal override `<home>/harness-ops.local.yaml`
+beats the team file (config-cascade convention). This skill never writes any of them.
 
 One artifact is writable, and `apply` is bounded to it: the self-ignoring `.gitignore` inside the
 hook log root (`${user_config.session_event_log_dir}`, default `.observability/claude`). The plugin
@@ -37,10 +40,19 @@ Read the rendered `${user_config.*}` values from this skill, never inspect or ed
 or `pluginConfigs` directly. Report a PASS/FAIL/INFO table, one remediation line per FAIL. Do not
 modify anything.
 
-1. **`registry_dir`**. Report the effective known-issues-registry destination:
-   - empty or unexpanded: INFO, the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
-   - a configured value: validate containment (below). PASS when contained. It resolves from the
-     project root. FAIL when uncontained.
+1. **`registry_dir`**. Resolve it with
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/registry-dir.mjs" --project "${CLAUDE_PROJECT_DIR}" --user-registry-dir '${user_config.registry_dir}'`,
+   which applies the containment rule (below) to every layer, and report the effective
+   known-issues-registry destination with the layer that supplied it (`layer`, plus `path` for a
+   file layer):
+   - layer `default`: INFO, the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
+   - layer `userConfig` (the option), `team` (`harness-ops.yaml`) or `local`
+     (`harness-ops.local.yaml`): PASS, `data_dir` under the project root.
+   - each `errors` entry: FAIL, naming the layer, file and value dropped and the layer that won
+     instead (a dropped team or option value resolves to `default`, never to the layer below it);
+     remediation is to fix that file or the option.
+   - `home_skipped`: INFO, the reason the repository files were not read.
+   - the script cannot run: UNKNOWN, with probe 7's remediation, never green.
 2. **`skill_usage_dir` + `skill_usage_scope`**. Report the effective skill-usage-log destination:
    - scope empty, unexpanded, or `repo`: the store resolves under the project root; empty
      `skill_usage_dir` is INFO, the log uses `.claude/observability` (the zero-config default), kept
@@ -55,14 +67,15 @@ modify anything.
    - a configured `skill_usage_dir` (repo/user scopes): validate containment under the scope root.
      PASS when contained; FAIL when uncontained.
 3. **Containment**, a configured value must be a contained relative path under its base (the project
-   root for `registry_dir`, repo-scope `skill_usage_dir` and `session_event_log_dir`; `$HOME` for
+   root for `registry_dir`, which probe 1's script checks in every layer, repo-scope `skill_usage_dir` and `session_event_log_dir`; `$HOME` for
    user-scope `skill_usage_dir`). FAIL any POSIX/rooted path, Windows drive-qualified or
    drive-relative path, UNC path, any `..` segment with either separator, and any existing symlink
    path that resolves outside that base. Do not normalize an invalid value into acceptance, and do
    not run any operation that would use an invalid destination.
 4. **Personal-vs-project**. INFO: every option is a personal, user-scoped preference, not tracked
-   team policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose a
-   destination via the guidance below.
+   team policy; `registry_dir` alone can also be set for everyone in the repository by its team file.
+   Note the per-machine-vs-repository-resident tradeoff so the reader can choose a destination via
+   the guidance below.
 5. **Hook log root and its guard**. Anchor at the repo root: resolve `REPO_ROOT` once,
    `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`, and use that literal
    path for every read below. The root is `REPO_ROOT/<dir>` where `<dir>` is
@@ -149,7 +162,10 @@ The options live in Claude Code's native plugin configuration, which setup must 
   contained project-relative path through the reconfiguration path below, then rerun `check`.
 - **Choosing a destination:** if the reader wants the registry per-machine, leave `registry_dir` unset
   (default `${CLAUDE_PLUGIN_DATA}`); if repository-resident, recommend a portable contained path,
-  inspecting the consumer's declared artifact conventions. Same for `skill_usage_dir` (default
+  inspecting the consumer's declared artifact conventions. For a registry everyone in the repository
+  shares, the route is a committed `registry_dir: <path>` in `<home>/harness-ops.yaml`, which beats
+  each person's option; one person's deviation goes in `<home>/harness-ops.local.yaml`, which must be
+  gitignored. The reader edits those files; this skill writes neither. Same for `skill_usage_dir` (default
   `.claude/observability`) and `session_event_log_dir` (default `.observability/claude`, a root the
   guard keeps out of `git status`). State the tradeoff and let the reader pick. Do not prompt.
 - **Turning hook logging on:** `session_event_log_enabled` is off by default, and while off the
@@ -194,7 +210,8 @@ changes nothing and reports "already configured".
 - Run known-issues, registry, or observability operations. Those are the other harness-ops skills and
   have their own documented controls; pruning session files is the `SessionEnd` retention hook's
   job and `/harness-ops:observability clean`'s, never setup's.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, `pluginConfigs`, or `harness-ops.yaml` and
+  `harness-ops.local.yaml`.
 - Write the consumer's root `.gitignore` or `.git/info/exclude`, overwrite a guard an operator
   edited, or write anything at the project root.
 - Invent organization-specific configuration.
