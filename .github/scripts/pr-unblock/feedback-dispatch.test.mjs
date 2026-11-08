@@ -41,14 +41,33 @@ const marker = (lane, sha = HEAD, user = ACTIONS_BOT) => ({
 });
 // A failed address-feedback run; `line` is the lane record report-check-run
 // writes on the first line of its summary, or null for none.
-const failedRun = (line, completed = "2026-10-17T10:00:00Z") => ({
+// A failed address-feedback run carrying the lane-outcome record
+// report-check-run writes into output.text with `fields`, or none when null.
+const failedRun = (fields, completed = "2026-10-17T10:00:00Z") => ({
   id: 7,
   name: "pr-unblock / address-feedback",
   status: "completed",
   conclusion: "failure",
   completed_at: completed,
-  output: { title: "Failed", summary: line === null ? "The activity step failed." : `${line}\n\nThe activity step failed.` },
+  output: {
+    title: "Failed",
+    summary: "The activity step failed.",
+    ...(fields === null
+      ? {}
+      : {
+          text: `lane-outcome ${JSON.stringify({
+            v: 1,
+            lane: "pr-unblock",
+            activity: "address-feedback",
+            outcome: "failure",
+            credential: { secret: "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token", role: "PR_UNBLOCK" },
+            ...fields,
+          })}`,
+        }),
+  },
 });
+// A usage-limit stop that resets at `at`.
+const limited = (at) => ({ class: "rate-limit", resets: { at, window: "five_hour" } });
 // The first comment's review, as THREADS_QUERY reads it: its author's
 // review of `reviewed`.
 const onReview = (author, reviewed = HEAD) => ({ pullRequestReview: { author, commit: { oid: reviewed } } });
@@ -581,7 +600,7 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
     ["2026-10-17T11:00:00Z", 42],
     ["2026-10-17T13:00:00Z", undefined],
   ]) {
-    const stopped = failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`);
+    const stopped = failedRun(limited(resets));
     const api = fakeApi({ checkRuns: [stopped] });
     const result = await dispatchFeedback({
       api,
@@ -601,7 +620,7 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
 // branch: once the reviewer-bot threads are resolved there is nothing to redo,
 // and a head that moved past the stopped run's review is not dispatched for it.
 test("a reset limit stop does not dispatch once no reviewer-bot thread is open, or once the head moved", async () => {
-  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T11:00:00Z");
+  const stopped = failedRun(limited("2026-10-17T11:00:00Z"));
   for (const [label, options] of [
     ["threads resolved", { threads: [thread([CLAUDE], true)] }],
     ["head moved", { pulls: pull({ head: { sha: OLD_HEAD, repo: { full_name: REPOSITORY } } }) }],
@@ -623,9 +642,9 @@ test("a reset limit stop does not dispatch once no reviewer-bot thread is open, 
 });
 
 test("a failed check on the head that is not a limit stop blocks a dispatch", async () => {
-  for (const line of ["lane=pr-unblock activity=address-feedback class=other", null]) {
+  for (const line of [{ class: "other" }, null]) {
     const api = fakeApi({ checkRuns: [failedRun(line, "2026-10-01T00:00:00Z")] });
-    assert.equal((await decide(api)).result, null, String(line));
+    assert.equal((await decide(api)).result, null, JSON.stringify(line));
   }
 });
 
@@ -660,7 +679,7 @@ test("a head whose last round had no model turn dispatches again, and is not rec
 // until its reset and counts toward limits.limit-stops-per-head.
 test("a no-model-turn reply after a limit stop leaves the stop's reset hold and cap in place", async () => {
   const stop = (resets, started) => ({
-    ...failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`, started),
+    ...failedRun(limited(resets), started),
     started_at: started,
   });
   const at = async (runs, now) => {
@@ -1902,7 +1921,7 @@ test("a version 1 record that holds a no-model-turn head is ignored, and the hea
 
 test("a limit-stopped run is not recorded", async () => {
   const record = emptyRecord();
-  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T12:00:00Z");
+  const stopped = failedRun(limited("2026-10-17T12:00:00Z"));
   await decideWith(fakeApi({ checkRuns: [stopped] }), record);
   assert.equal(record.handled.size, 0);
 });
@@ -1912,7 +1931,7 @@ test("a limit-stopped run is not recorded", async () => {
 // reset it dispatches again.
 test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
   const stop = (resets, started) => ({
-    ...failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`, started),
+    ...failedRun(limited(resets), started),
     started_at: started,
   });
   const runs = [
@@ -3672,8 +3691,8 @@ test("SWEEP_HEAD_CAP bounds a fix request's head, by rounds and by releases", as
 });
 
 test("a fix request does not lift a limit stop's reset hold", async () => {
-  const limited = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-18T02:00:00Z", "2026-10-17T22:00:00Z");
-  const stop = { ...limited, started_at: "2026-10-17T20:00:00Z" };
+  const limitedRun = failedRun(limited("2026-10-18T02:00:00Z"), "2026-10-17T22:00:00Z");
+  const stop = { ...limitedRun, started_at: "2026-10-17T20:00:00Z" };
   const decideAt = (now) => {
     const api = fakeApi({ checkRuns: [stop] });
     return decide(api, resolvedLane(), { requestSince: Date.parse("2026-10-17T20:01:00Z"), now: Date.parse(now) });

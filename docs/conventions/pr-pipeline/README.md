@@ -207,8 +207,8 @@ a trusted human's `workflow_dispatch`:
 - It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
   GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`, or a
   `Skipped: awaiting-human` (a skip while held), a limit stop past its reset or a failure, until
-  `limits.limit-stops-per-head` of those last three stand on the head. A limit stop is a run its
-  lane record marks `class=rate-limit` or `class=auth` (a refused credential); until it resets the
+  `limits.limit-stops-per-head` of those last three stand on the head. A limit stop is a run whose
+  lane-outcome record's `class` is `rate-limit` or `auth` (a refused credential); until it resets the
   dispatcher logs a notice naming the class and the reset time.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.

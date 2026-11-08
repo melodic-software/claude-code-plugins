@@ -289,7 +289,10 @@ const limitStop = (started) => {
   const resets = new Date(Date.parse(started) + 3_600_000).toISOString().replace(".000", "");
   return {
     ...roundRun("review-dependency", "failure", "Failed", started),
-    output: { title: "Failed", summary: `lane=pr-unblock activity=review-dependency class=rate-limit resets=${resets}` },
+    output: {
+      title: "Failed",
+      text: `lane-outcome ${JSON.stringify({ v: 1, lane: "pr-unblock", activity: "review-dependency", outcome: "failure", class: "rate-limit", credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" }, resets: { at: resets, window: "five_hour" } })}`,
+    },
   };
 };
 
