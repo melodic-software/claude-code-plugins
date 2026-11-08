@@ -803,7 +803,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     // A needs-decision hold label holds on top of the field; confirmed is a
     // queue state the needs-triage field write already replaced.
     if (decisionHold) {
-      await removeLabel(github, base, decisionHold);
+      await removeLabel(github, base, carried(own, DECISION_LABELS) ?? decisionHold);
     }
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
@@ -887,7 +887,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     return exactStays(`${stays}, so it stays`);
   }
   // needs-triage first: a failure between the two leaves a status a sweep picks up.
-  return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, decisionHold));
+  return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, carried(own, DECISION_LABELS) ?? decisionHold));
 }
 
 // The lanes App's comment on a split issue: SIZE_SPLIT_MARKER, the split
