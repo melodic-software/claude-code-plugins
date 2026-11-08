@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.8] - 2026-11-08
+
+### Changed
+
+- The install guidance points at the [kjanat/actionlint](https://github.com/kjanat/actionlint) fork's v1.17.0 install guide, the release melodic-software CI pins ([ci-workflows#788](https://github.com/melodic-software/ci-workflows/issues/788)). That covers the missing-actionlint notice from `prerequisites.json`, the README Requirements section and `/actionlint:setup apply`. The fork accepts `$/` refs and `concurrency.queue`, which rhysd/actionlint 1.7.12 rejects. The git pre-commit entry's install hint names the v1.17.0 release asset and its checksums file, not a package that tracks the latest release; the unqualified `actionlint` package in Homebrew core and most registries still installs upstream.
+
 ## [1.0.7] - 2026-11-06
 
 ### Changed
