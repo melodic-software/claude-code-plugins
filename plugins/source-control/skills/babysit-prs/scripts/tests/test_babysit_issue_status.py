@@ -1243,6 +1243,47 @@ class TheBlockReachesEveryRead(unttd.Unattended):
             )
         self.assertIs(close.call_args.kwargs["issue_status"], self.status)
 
+    def test_the_gates_capped_close_takes_a_remapped_admission_label(self) -> None:
+        def role_label(
+            owner: str,
+            name: str,
+            *,
+            strict: bool = False,
+            role: str = "human-gated",
+            default: str = "needs-human",
+        ) -> str:
+            return "go ready" if role == policy.ADMISSION_ROLE else default
+
+        with (
+            mock.patch.object(policy, "entry_hold", return_value=None),
+            mock.patch.object(unttd.merge, "human_gated_label", return_value="h"),
+            mock.patch.object(
+                unttd.merge.postmerge, "_role_label", side_effect=role_label
+            ),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": False}
+            ) as close,
+        ):
+            unttd.merge.close_capped(
+                REPO, 7, IDENTITY, "main", self.config, {"pr": {"head": {"sha": SHA}}}
+            )
+        self.assertEqual(close.call_args.kwargs["admission"], "go ready")
+        # The default label is not passed, so the kwarg is the remap alone.
+        self.assertNotIn("admission", self.default_close_kwargs())
+
+    def default_close_kwargs(self) -> dict[str, Any]:
+        with (
+            mock.patch.object(policy, "entry_hold", return_value=None),
+            mock.patch.object(unttd.merge, "human_gated_label", return_value="h"),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": False}
+            ) as close,
+        ):
+            unttd.merge.close_capped(
+                REPO, 7, IDENTITY, "main", self.config, {"pr": {"head": {"sha": SHA}}}
+            )
+        return dict(close.call_args.kwargs)
+
     def test_the_capped_close_command_takes_the_block(self) -> None:
         config = dataclasses.replace(self.config, issue_holds=("needs-human",))
         with (
