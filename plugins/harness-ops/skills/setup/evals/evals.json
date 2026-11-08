@@ -5,11 +5,12 @@
       "id": 1,
       "name": "validates-registry-without-settings-edits",
       "prompt": "/harness-ops:setup",
-      "expected_output": "Reports the rendered registry_dir, skill_usage_dir and session_event_log_dir or their documented fallbacks, explains that the options are personal, validates containment, reports the hook log root's guard state, and does not read or edit settings files or pluginConfigs.",
+      "expected_output": "Reports the effective registry_dir with the layer scripts/registry-dir.mjs says supplied it (default, userConfig, team or local), the rendered skill_usage_dir and session_event_log_dir or their documented fallbacks, explains that the options are personal while registry_dir can also come from the repository's harness-ops.yaml, validates containment, reports the hook log root's guard state, and does not read or edit settings files or pluginConfigs.",
       "files": [],
       "expectations": [
-        "Reads only the rendered user_config values",
+        "Reads only the rendered user_config values and the registry-dir.mjs output",
         "Reports every effective destination and containment status",
+        "Names the layer that supplied registry_dir",
         "Explains personal versus repository-resident implications",
         "Does not inspect or edit settings files or pluginConfigs"
       ]
@@ -18,12 +19,13 @@
       "id": 2,
       "name": "routes-reconfiguration-through-claude",
       "prompt": "/harness-ops:setup\n\nKeep the known-issues registry in this repository.",
-      "expected_output": "Recommends a portable project-relative path from repository evidence, directs the user to Claude Code's plugin configuration prompt, and verifies the rendered value on rerun before claiming success.",
+      "expected_output": "Recommends a portable project-relative path from repository evidence, names a committed registry_dir in <home>/harness-ops.yaml as the route that applies to everyone in the repository and the plugin option, set through Claude Code's plugin configuration, as the personal route, writes neither, and verifies the effective value and its layer on rerun before claiming success.",
       "files": [],
       "expectations": [
         "Uses repository-declared artifact conventions",
         "Does not present a user option as tracked team policy",
-        "Routes persistence through Claude Code and verifies on rerun"
+        "Names the team file as the repository-wide route and writes no file itself",
+        "Verifies the effective value and its layer on rerun"
       ]
     },
     {
@@ -114,6 +116,20 @@
         "The block moves to work-items.local.yaml, never to the tracked work-items.yaml",
         "--clean harness-ops-r005 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result, and harness-ops-r003 is never cleaned",
         "Detection runs again last and the final state is reported"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "team-registry-dir-beats-the-option",
+      "prompt": "/harness-ops:setup\n\nThis repository commits docs/conventions/harness-ops.yaml holding `registry_dir: tools/registry`, and my rendered registry_dir option is notes/registry.",
+      "expected_output": "Runs scripts/registry-dir.mjs and reports registry_dir as PASS from layer team, file docs/conventions/harness-ops.yaml, resolving to tools/registry under the project root, and says the team file beat the option value notes/registry. Writes nothing.",
+      "narration": true,
+      "files": [],
+      "expectations": [
+        "Resolves registry_dir through scripts/registry-dir.mjs rather than reading the option alone",
+        "Reports layer team and the file docs/conventions/harness-ops.yaml",
+        "Says the option value notes/registry did not win",
+        "Writes no file"
       ]
     }
   ]
