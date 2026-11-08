@@ -922,7 +922,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/contracts/setup-lifecycle/`](contracts/setup-lifecycle/README.md) |
 | Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
 | Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/contracts/plugin-reconfiguration/`](contracts/plugin-reconfiguration/README.md) |
-| Commit-convention enforcement seam | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
+| Commit-convention enforcement boundary | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
