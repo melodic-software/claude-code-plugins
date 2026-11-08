@@ -133,6 +133,15 @@ rc=0
 out=$(run "$repo" "$TMP/current-base") || rc=$?
 check "copies current: empty" state=empty "$(grep '^state=' <<<"$out")"
 
+# A malformed base registry row fails the run, as the canonical sync script
+# fails it, instead of being skipped.
+repo=$(fixture malformed)
+printf 'lib/shared.sh\n' >>"$TMP/malformed-base/scripts/shared-copies.txt"
+rc=0
+out=$(run "$repo" "$TMP/malformed-base") || rc=$?
+check "malformed base registry: exit 2" 2 "$rc"
+check "malformed base registry: no state" "" "$(grep '^state=' <<<"$out" || true)"
+
 # A registry line with an inline comment registers its copy, as the
 # canonical sync script reads it.
 repo=$(fixture inline 'lib/shared.sh plugins/p/lib/shared.sh # generated copy')
