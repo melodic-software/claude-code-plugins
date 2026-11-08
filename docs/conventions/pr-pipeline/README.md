@@ -3417,8 +3417,9 @@ REST calls.
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
 every hour (and on a manual run from `main`) with no model. It reads the signals below over the last
-65 minutes, counting a run in the window it completed in, and keeps one rolling issue per signal, its
-findings listed by key. Its scripts and tests are in
+65 minutes, counting a run in the window it completed in, writes each signal's state and evidence to
+the job summary, and keeps at most one open incident issue per signal, its findings listed by key.
+Its scripts and tests are in
 [`.github/scripts/maintenance-monitor-signals/`](../../../.github/scripts/maintenance-monitor-signals/).
 
 | Signal | Fires when | Key |
@@ -3437,32 +3438,49 @@ findings listed by key. Its scripts and tests are in
 | 12 listing held | each of the newest 4 `pr-merge-summary` artifacts of trusted scheduled or manual `pr-merge` runs on `main` has `listing_held: true`: the merge job could not list the open pull requests, so it gated nothing while its runs stayed green; the issue names the newest summary's `listing_held_reason`, and it only notifies and clears on a sweep that listed. A run that kept no summary neither counts nor resets. The 4 must be unbroken: a fault that lets one sweep in 4 list never fires, and that sweep does gate. A 4-of-8 rule would read 8 summaries on every monitoring run in place of 1 | `listing-held` |
 | 13 lane holds | one lane has `monitor.lane-holds.threshold` held runs or more (default 4) over the last `monitor.lane-holds.window-hours` (default 24). A held run is a green run of this repository's head, on an event that runs the default branch's code, whose hold job succeeded with a hold notice: work-resolve-issue's `report-outcome / run` job naming a fault stop whose retries were all faults, work-unblock's `label-unblocked` job naming a listing it could not read, pr-refine's `fix-docs-handoff` or `fix-docs-subscription-handoff` job naming a `fix-docs` read that failed, and, on a green or red pr-refine run, its `record-passes` job's `refine-failed` warning naming a Refine pass that failed, intake-triage's `apply-verdict` job naming a `held:` fault, pr-verify's `check-intent`, `check-intent-subscription` or `check-intent-fallback` job and pr-review-main's `trigger`, `review`, `review-subscription` or `review-fallback` job each with a `held:` notice from a `Note the hold` step that ran, and pr-merge's `merge` or `enable-auto-merge` job naming a `Lane token hold`. Each monitoring run reads the newest green runs per lane that completed in its window, up to the lane's cap (`holdRuns` in `.github/scripts/maintenance-monitor-signals/signals.mjs` `HOLD_LANES`, else the default 6 in `collect.mjs` `LIMITS.holdRuns`: pr-verify and pr-merge set 80, pr-review-main to 70, intake-triage to 40 and work-unblock to 20; for pr-refine, its failed runs are listed and read as well, and the 6 covers its green and red runs together), or since the time the last run read through when that is earlier, and carries the held runs it has found to the next run in its `monitor-signals-jobs` artifact, with the span it read them over. An issue held that often is one of its lane's held runs, and the finding names each issue held more than once. It only notifies, adds no stop and no cap, and clears once the count drops below the threshold. A rule that was not read leaves the signal unread, and so does a span shorter than the window: the span starts again when a monitoring run finds no carry, or one that read through a time more than 6 hours before its window, and after a failed read | `lane-hold:work-resolve-issue`, `lane-hold:work-unblock`, `lane-hold:pr-refine`, `lane-hold:intake-triage`, `lane-hold:pr-verify`, `lane-hold:pr-review-main`, `lane-hold:pr-merge` |
 
-A rolling issue, titled `Monitoring: <signal>`, has the first body line
-`<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
-and, per current finding, the key, the owning area, and the summary and the evidence each inside
-a text fence as inert lines; the change comment fences each summary too. Each finding's fingerprint changes only when its evidence does: the failure text, the run, PR or
-stop-comment set, the newest failed merge group, the last merge, or the day for a ceiling; the state
-fingerprint covers the signal's keys and fingerprints, and no finding is the clear state. The newest
-issue for a signal decides: open with the same state, nothing is written; open with a new state, a
-comment names the change and the body is rewritten, and a clear state also closes it; closed as not
-planned or duplicate, the signal is muted; closed otherwise, the same issue is reopened with a new
-state, or for `main-red` on a failed run that started after the close, and never filed a second time.
-A run that could not read one of a signal's sources leaves that signal's open issue as it is, so a
-partly read signal neither clears nor loses findings; a source the lane does not map leaves every
-signal's issue as it is. Each rewrite takes `agent-ready` off
-the issue, since a person vetted the earlier text. Issues of every age are read, page by page until
-a short page; a run that spends its call budget there stops before writing. A still-open issue of
-the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a
-comment naming its signal's rolling issue. Issues are labeled `source: factory-monitor` where that
-label exists, never `needs-triage`: a rolling issue is a status record, and the job's token starts
-no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
+Every run's job summary lists every signal's state (clear, on with how long, the incident it holds,
+muted, or not read) and, per current finding, the key, the owning area and the evidence inside a text
+fence as inert lines. That summary is the status record. No run comments on a state change.
+
+An incident issue has a plain title set per signal in `issues.mjs` `FILING`, Issue Type `Bug`, Work
+status `needs-triage` and a Priority by signal severity (critical for `main-red`; high for what blocks
+the pipeline); Size, Complexity and Uncertainty are left to intake triage. Its first body line is
+`<!-- factory-monitor key=incident:<signal> fp=<state> -->`; the body names the signal and, per
+finding, the key, the owning area, and the summary and the evidence each inside a text fence. The
+state fingerprint covers the findings' keys only, so new evidence for the same key writes nothing and
+a body an admission read stays as it was; no finding is the clear state.
+
+`monitor.incidents.<signal>` in `pr-pipeline.yaml` sets, per signal, `open-hours` (how long the signal
+stays on, in unbroken hourly runs, before an incident opens; 0 opens at once, as `main-red` does) and
+`close-hours` (how long it stays clear before its open incident closes). A clear run restarts the open
+timer and an on run restarts the close timer, so a signal that flaps inside its thresholds opens no
+issue and writes nothing. The timers are carried in the `monitor-signals-jobs` artifact; a carry that
+is missing or over 6 hours old restarts them, which delays an incident and never opens one early. The
+newest incident for a signal decides: open with the same keys, nothing is written; open with new keys,
+the body is rewritten; past `close-hours` clear, it is closed as completed; closed as not planned or
+duplicate, the signal is muted, and reopening that issue ends the mute; closed otherwise, a later
+episode past its open threshold files a new incident, except that a person's close holds while the
+keys are the same and no finding is newer than the close.
+
+A run that could not read one of a signal's sources leaves that signal's timers and open incident as
+they are, so a partly read signal neither clears nor loses findings; a source the lane does not map,
+or thresholds it cannot read, leaves every signal as it is. Each rewrite takes `agent-ready` off the
+issue, since a person vetted the earlier text. Issues of every age are read, page by page until a
+short page, for both `github-actions[bot]` and `merge.agent-identity`; a run that spends its call
+budget there stops before writing. An open issue with an earlier marker (`key=family:<signal>` or a
+per-key form) is retired: closed as not planned with a comment pointing at the job summary, its
+history left in place. Filed issues are labeled `source: factory-monitor` where that label exists. It
+writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
 the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries, or one over 70 minutes old for any reason, leaves them no sweep and is a gap for those two, and signals 3 and 12 still read the held sweeps.
 
-It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
-`issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
-workflow. The kill switch stops it. The lanes App reading in signal 2 is what pr-merge's token sees
+The monitor job holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and
+`pull-requests` read, `issues: write`) for every read, update, close and retirement. The separate
+`file-incidents` job runs only when the plan holds a new incident: it checks the plan against the
+monitor job's hash, mints a lanes App token (activity `file-incident`) and opens the issue, so
+`intake-triage` runs on it, which an issue the job token opens would not start. The kill switch stops
+both. The lanes App reading in signal 2 is what pr-merge's token sees
 at the start and end of each run, not the broker's own quota record, which this token cannot read.
 
 ## Write identities
@@ -3473,8 +3491,8 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 
 | Identity | Workflows | Why |
 |---|---|---|
-| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
-| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
+| `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest relies on so its issue starts no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
+| Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml`, `maintenance-monitor-signals.yml` (the `file-incidents` job only) | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
 | Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 

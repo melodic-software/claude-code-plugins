@@ -607,6 +607,14 @@
       "reason": "Read by the next hourly run; 1 day is the minimum.",
       "scan": "upload"
     },
+    "monitor-signals-incidents-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-monitor-signals.yml file-incidents job, in the same run"
+      ],
+      "reason": "Read by the next job of the same run; 1 day is the minimum.",
+      "scan": "upload"
+    },
     "pr-feedback-dispatched-*": {
       "retention-days": 1,
       "readers": [

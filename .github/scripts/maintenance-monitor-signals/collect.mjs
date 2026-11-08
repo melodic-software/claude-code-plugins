@@ -146,7 +146,24 @@ export function parseJobsCarry(text, repo) {
 }
 
 const NO_HELD = { runs: [], from: null, through: null };
-export const jobsCarryFile = (repo, runs, held = NO_HELD) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held });
+const NO_EPISODES = { at: null, signals: {} };
+export const jobsCarryFile = (repo, runs, held = NO_HELD, episodes = NO_EPISODES) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held, episodes });
+
+// The signals' timers the same file carries, {signal: {onSince, clearSince}},
+// empty when the file has none or they are older than RUN_LOOKBACK_HOURS: runs
+// that kept no carry for that long say nothing about the time between. An
+// error for any other shape.
+export function parseEpisodeCarry(text, repo, now) {
+  const data = JSON.parse(text);
+  const episodes = data?.episodes ?? NO_EPISODES;
+  const time = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  const entry = (e) => isObject(e) && time(e.onSince ?? null) && time(e.clearSince ?? null);
+  if (data?.repository !== repo || !isObject(episodes.signals) || !time(episodes.at) || !Object.values(episodes.signals).every(entry)) {
+    throw new Error("the carried signal timers have an unexpected shape");
+  }
+  if (episodes.at === null || now.getTime() - Date.parse(episodes.at) > RUN_LOOKBACK_HOURS * 3600_000) return {};
+  return episodes.signals;
+}
 
 // The held runs the same file carries, {runs, from, through}: the runs, and
 // the unbroken span of completion times the lane read them over (null when
@@ -736,16 +753,18 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   return data;
 }
 
-// Issues the lane filed: github-actions[bot]'s, any state and any age, newest
-// first. The lane writes nothing while evidence is unchanged, so an update-time
-// cutoff would drop a quiet open or muted key, and a page cap would drop the
-// oldest. Paging stops at a short page; the call budget bounds it, and spending
-// it throws before any write. The caller keeps those carrying the marker.
-export async function listFiled({ get, repo }) {
+// Issues one identity filed (`creator`, by default github-actions[bot], the
+// author of the retired rolling issues; the lanes App files incidents), any
+// state and any age, newest first. The lane writes nothing while evidence is
+// unchanged, so an update-time cutoff would drop a quiet open or muted key,
+// and a page cap would drop the oldest. Paging stops at a short page; the call
+// budget bounds it, and spending it throws before any write. The caller keeps
+// those carrying the marker.
+export async function listFiled({ get, repo, creator = "github-actions[bot]" }) {
   const out = [];
   for (let page = 1; ; page += 1) {
     const batch = await get(
-      `/repos/${repo}/issues?creator=${encodeURIComponent("github-actions[bot]")}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
+      `/repos/${repo}/issues?creator=${encodeURIComponent(creator)}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
     );
     out.push(...batch.filter((i) => !i.pull_request));
     if (batch.length < 100) break;

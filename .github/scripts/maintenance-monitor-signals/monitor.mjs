@@ -1,16 +1,17 @@
-// The monitoring lane's job: collect, detect, then keep one rolling issue per
-// signal family: file it, rewrite it when its state changes, close it when the
-// signal clears and reopen it when the signal fires again. Platform incidents
-// go to the run summary only. Open issues from the earlier one-issue-per-key
-// scheme are closed, pointing at the family's issue. Writes with the job's own
-// token, 1 s apart, within the call budget, and only to the issues it files.
-// No model.
+// The monitoring lane's job: collect, detect, write every signal's state and
+// evidence to the job summary, then keep at most one open incident issue per
+// signal (issues.mjs planIssues). Updates, closes and the retirement of the
+// earlier rolling issues use the job's own token, 1 s apart, within the call
+// budget, and only touch the issues the lane filed. A new incident is only
+// written to a plan file: the workflow's file-incidents job files it as the
+// lanes App (file-incidents.mjs), so intake triage runs on it. No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
 // WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, RUNNER_TEMP,
-// JOBS_CARRY_PATH (read the last run's job reads and write this run's there),
-// GITHUB_STEP_SUMMARY. For a replay: NOW (an ISO time) and DRY_RUN=1, which
-// reads and plans but writes nothing.
+// JOBS_CARRY_PATH (read the last run's job reads and episodes and write this
+// run's there), INCIDENT_PLAN_PATH (where the filing plan goes), GITHUB_OUTPUT
+// (receives file=true when it wrote one), GITHUB_STEP_SUMMARY. For a replay:
+// NOW (an ISO time) and DRY_RUN=1, which reads and plans but writes nothing.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,8 +22,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
-import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
+import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
+import { FILING, fenced, incidentRules, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
@@ -37,9 +38,12 @@ const CONFIG = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml
 // reads (collect.mjs parseJobsCarry), empty with a warning when there is none
 // or it cannot be read, so every run's jobs are read as before. `held` is its
 // held runs (parseHeldCarry), null when there is none or, with a warning, when
-// it cannot be read. Off unless JOBS_CARRY_PATH is set.
-export async function readJobsCarry({ env, repo, actions, download }) {
-  const none = { jobs: new Map(), held: null };
+// it cannot be read. `episodes` is the signals' timers (parseEpisodeCarry),
+// empty when there is none or, with a warning, when it cannot be read, so a
+// timer restarts and an incident opens later, never earlier. Off unless
+// JOBS_CARRY_PATH is set.
+export async function readJobsCarry({ env, repo, actions, download, now = new Date() }) {
+  const none = { jobs: new Map(), held: null, episodes: {} };
   if (!env.JOBS_CARRY_PATH) return none;
   const warn = (what, error) => console.log(`::warning::monitoring lane: ${what}: ${error?.message ?? error}`);
   let text;
@@ -52,7 +56,7 @@ export async function readJobsCarry({ env, repo, actions, download }) {
     warn("nothing carried, so every run's jobs are read", error);
     return none;
   }
-  const carry = { jobs: new Map(), held: null };
+  const carry = { jobs: new Map(), held: null, episodes: {} };
   try {
     carry.jobs = parseJobsCarry(text, repo);
   } catch (error) {
@@ -62,6 +66,11 @@ export async function readJobsCarry({ env, repo, actions, download }) {
     carry.held = parseHeldCarry(text, repo);
   } catch (error) {
     warn("no held runs carried", error);
+  }
+  try {
+    carry.episodes = parseEpisodeCarry(text, repo, now);
+  } catch (error) {
+    warn("no signal timers carried, so each restarts", error);
   }
   return carry;
 }
@@ -76,78 +85,97 @@ export function readHoldRule({ path = CONFIG, run = execFileSync } = {}) {
   }
 }
 
+// pr-pipeline.yaml's monitor.incidents thresholds (issues.mjs incidentRules),
+// or the error that stopped the read.
+export function readIncidentRules({ path = CONFIG, run = execFileSync } = {}) {
+  try {
+    return incidentRules(JSON.parse(run("yq", ["-o=json", ".monitor.incidents // {}", path], { encoding: "utf8" })));
+  } catch (error) {
+    return new Error(`the monitor.incidents thresholds were not read: ${error?.message ?? error}`);
+  }
+}
+
 // Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
 // is read at call time, so a test's stub is guarded too.
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
-// No needs-triage: a rolling issue is a status record the lane rewrites, not
-// an intake item.
+// No needs-triage label: intake's own floor step adds it to an issue with no
+// priority label.
 const LABELS = ["source: factory-monitor"];
+const WORK_STATUS_FIELD = 48484079;
+const PRIORITY_FIELD = 49622037;
+const INCIDENT_TYPE = "Bug";
+const FILER_LOGIN = "github-actions[bot]";
 
-export async function writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
-  const done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
-  const rollingOf = new Map();
-  for (const { family } of plan.file) {
-    await wait();
+// What the file-incidents job posts as the lanes App. It leaves Size,
+// Complexity and Uncertainty to intake triage, which sets them from its
+// verdict.
+export function filingPlan({ plan, repo, labels, runUrl }) {
+  return {
+    version: 1,
+    repository: repo,
+    incidents: plan.file.map(({ family }) => ({
+      signal: family.signal,
+      title: FILING[family.signal].title,
+      body: renderBody(family, runUrl),
+      type: INCIDENT_TYPE,
+      labels,
+      fields: [
+        { field_id: WORK_STATUS_FIELD, value: "needs-triage" },
+        { field_id: PRIORITY_FIELD, value: FILING[family.signal].priority },
+      ],
+    })),
+  };
+}
+
+// The job-token writes. A filed incident's body changes only when its findings
+// change, and no write adds a comment except the retirement note. The rewrite
+// takes agent-ready off first (statusWriter's leaveAgentReady, with orUnset),
+// since a person vetted the earlier text; the PATCH runs last and carries the
+// marker, so a failed call before it leaves the old state recorded and the
+// write is retried on the next run.
+export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
+  const done = { updated: [], closed: [], retired: [], failed: [] };
+  const attempt = async (number, into, write) => {
     try {
-      const issue = await call("POST", `/repos/${repo}/issues`, {
-        title: titleOf(family.signal),
-        body: renderBody(family, runUrl),
-        labels,
-      });
-      done.filed.push(issue.number);
-      rollingOf.set(family.signal, issue.number);
-    } catch (error) {
-      done.failed.push({ target: family.signal, error: error.message });
-    }
-  }
-  // The rolling issue's author is github-actions[bot], outside the trusted
-  // list, so the issue lane never works from it: a person who wants a signal
-  // worked re-files it as a new issue. A stray agent-ready still comes off
-  // before the PATCH: `leaveAgentReady` (write-status.mjs statusWriter, with
-  // orUnset) sets a Work status field at agent-ready or unset to
-  // needs-triage, and a set field drops the agent-ready label as a queue
-  // label (read-status.mjs statusLabels). The PATCH runs last and
-  // carries the marker, so a failed call before it leaves the old state
-  // recorded and the write is retried on the next run.
-  const writes = [
-    ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
-    ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
-  ];
-  for (const { number, family, reopen, into } of writes) {
-    const clear = family.findings.length === 0;
-    const state = reopen
-      ? { state: "open", state_reason: "reopened" }
-      : clear
-        ? { state: "closed", state_reason: "completed" }
-        : {};
-    try {
-      await wait();
-      await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(family, runUrl) });
-      await wait();
-      await leaveAgentReady(number, "needs-triage", { orUnset: true });
-      await wait();
-      await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: renderBody(family, runUrl) });
+      await write();
       into.push(number);
     } catch (error) {
       done.failed.push({ target: `#${number}`, error: error.message });
     }
-  }
-  for (const { number, signal, rolling } of plan.close) {
-    try {
+  };
+  for (const { number, family } of plan.update) {
+    await attempt(number, done.updated, async () => {
       await wait();
-      await call("POST", `/repos/${repo}/issues/${number}/comments`, {
-        body: renderSupersede(signal, rolling ?? rollingOf.get(signal) ?? null),
-      });
+      await leaveAgentReady(number, "needs-triage", { orUnset: true });
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { body: renderBody(family, runUrl) });
+    });
+  }
+  for (const { number, family } of plan.close) {
+    await attempt(number, done.closed, async () => {
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "closed", state_reason: "completed", body: renderBody(family, runUrl) });
+    });
+  }
+  for (const { number } of plan.retire) {
+    await attempt(number, done.retired, async () => {
+      await wait();
+      await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderRetire(runUrl) });
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "closed", state_reason: "not_planned" });
-      done.closed.push(number);
-    } catch (error) {
-      done.failed.push({ target: `#${number}`, error: error.message });
-    }
+    });
   }
   return done;
 }
+
+// Every signal's state, then each current finding's evidence inside a fence.
+export const statusLines = (plan) =>
+  plan.status.flatMap(({ signal, state, findings }) => [
+    `- **${signal}**: ${state}`,
+    ...findings.flatMap((f) => ["", `\`${f.key}\` (${f.area}):`, "", fenced([f.summary, ...f.facts])]),
+    ...(findings.length > 0 ? [""] : []),
+  ]);
 
 // Signals the owner asked to surface as an ::error on the monitoring run too,
 // each run while they fire (#9170). The text is already inert.
@@ -205,7 +233,7 @@ async function main(env = process.env) {
   };
   // GET /rate_limit does not count against the limit.
   const ownRate = replay ? null : ((await get("/rate_limit").catch(() => null))?.resources?.core ?? null);
-  const carry = await readJobsCarry({ env, repo, actions: call });
+  const carry = await readJobsCarry({ env, repo, actions: call, now });
 
   const data = await collect({
     carriedJobs: carry.jobs,
@@ -220,50 +248,61 @@ async function main(env = process.env) {
     agentIdentity: env.AGENT_IDENTITY,
     ownRate: ownRate && { used: ownRate.used, limit: ownRate.limit, remaining: ownRate.remaining },
   });
+  const findings = detect(data);
+  // A threshold or identity this run could not read is a gap no source names,
+  // which leaves every signal and its issue as they are.
+  const rules = readIncidentRules();
+  const gaps = [...data.gaps];
+  if (rules instanceof Error) gaps.push(`incident thresholds: ${rules.message}`);
+  if (!env.AGENT_IDENTITY) gaps.push("incident issues: merge.agent-identity is empty");
+  const filed = [...(await listFiled({ get, repo, creator: FILER_LOGIN })), ...(env.AGENT_IDENTITY ? await listFiled({ get, repo, creator: env.AGENT_IDENTITY }) : [])];
+  const existing = filed.filter((i) => readMarker(i.body));
+  const plan = planIssues({ findings, existing, unread: unreadSignals(gaps), rules: rules instanceof Error ? {} : rules, episodes: carry.episodes, now });
   if (env.JOBS_CARRY_PATH) {
     try {
-      writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry, data.heldCarry));
+      writeFileSync(env.JOBS_CARRY_PATH, jobsCarryFile(repo, data.jobsCarry, data.heldCarry, { at: now.toISOString(), signals: plan.episodes }));
     } catch (error) {
-      console.log(`::warning::monitoring lane: the job reads were not carried: ${error.message}`);
+      console.log(`::warning::monitoring lane: the job reads and signal timers were not carried: ${error.message}`);
     }
   }
-  const findings = detect(data);
-  const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing, unread: unreadSignals(data.gaps) });
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
-  let done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
+  let done = { updated: [], closed: [], retired: [], failed: [] };
   const labels = [];
   if (!env.DRY_RUN) {
-    for (const name of LABELS) {
-      if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
+    if (plan.file.length > 0) {
+      for (const name of LABELS) {
+        if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
+      }
+      writeFileSync(env.INCIDENT_PLAN_PATH, JSON.stringify(filingPlan({ plan, repo, labels, runUrl })));
+      if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "file=true\n");
     }
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
-    done = await writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady });
+    done = await writePlan({ plan, call, repo, runUrl, leaveAgentReady });
   }
 
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Reopened: ${list(done.reopened)}. Closed as superseded: ${list(done.closed)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. To file as the lanes App: ${plan.file.length}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
     "",
-    ...findings.map((f) => `- ${f.signal} \`${f.key}\`: ${f.summary}`),
+    ...statusLines(plan),
     ...plan.logged.map((f) => `- logged, not filed: ${f.title} (${f.summary})`),
     ...plan.file.map((p) => `- plan: file ${p.family.signal}`),
-    ...plan.update.map((p) => `- plan: ${p.family.findings.length === 0 ? "clear and close" : "update"} #${p.number} ${p.family.signal}`),
-    ...plan.reopen.map((p) => `- plan: reopen #${p.number} ${p.family.signal}`),
-    ...plan.close.map((p) => `- plan: close #${p.number} \`${p.key}\` as superseded`),
+    ...plan.update.map((p) => `- plan: update #${p.number} ${p.family.signal}`),
+    ...plan.close.map((p) => `- plan: clear and close #${p.number} ${p.family.signal}`),
+    ...plan.retire.map((p) => `- plan: retire #${p.number} \`${p.key}\``),
     ...plan.skip.map((s) => `- plan: skip ${s.family} (${s.reason}${s.number ? `, #${s.number}` : ""})`),
-    ...data.gaps.map((g) => `- not read: ${g}`),
+    ...gaps.map((g) => `- not read: ${g}`),
     ...done.failed.map((f) => `- failed ${f.target}: ${f.error}`),
   ];
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   else console.log(lines.join("\n"));
-  for (const gap of data.gaps) console.log(`::warning::monitoring lane: not read: ${gap}`);
+  for (const gap of gaps) console.log(`::warning::monitoring lane: not read: ${gap}`);
   for (const line of errorLines(findings)) console.log(line);
   if (done.failed.length > 0) {
     console.log(`::error::${done.failed.length} monitoring lane write(s) failed; see the step summary`);

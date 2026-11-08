@@ -1368,10 +1368,56 @@ branch-cleanup:
 # notifies; it adds no stop and no cap. 4 matches the pr-merge sweeps in a row
 # that raise signal 12. 24 is the longest wait of work-unblock's stranded
 # backoff, so one issue's repeated holds can fall in one window.
+#
+# `incidents`, per signal: an incident issue opens once the signal has been on
+# for open-hours (0: at once), counted from continuous runs, and closes once it
+# has been clear for close-hours. A clear run resets the open timer; an on run
+# resets the close timer. Measured from the rolling issues' close and reopen
+# timelines, 2026-10-24 to 2026-11-08: open-hours is the whole hour just past
+# the p90 of how long the signal stayed on, at most 8; close-hours is the
+# median gap before it fired again, rounded up, at most 6. main-red opens at
+# once, and a signal with 3 episodes or fewer takes values from its cadence.
 monitor:
   lane-holds:
     threshold: 4
     window-hours: 24
+  incidents:
+    main-red:
+      open-hours: 0
+      close-hours: 6
+    ceiling:
+      open-hours: 2
+      close-hours: 6
+    throttling:
+      open-hours: 4
+      close-hours: 3
+    merge-queue-ejections:
+      open-hours: 4
+      close-hours: 6
+    held-prs:
+      open-hours: 4
+      close-hours: 6
+    report-only-audit:
+      open-hours: 2
+      close-hours: 6
+    throughput:
+      open-hours: 6
+      close-hours: 4
+    lane-stop:
+      open-hours: 3
+      close-hours: 6
+    stalled-lane-stop:
+      open-hours: 8
+      close-hours: 5
+    post-merge-unreadable:
+      open-hours: 2
+      close-hours: 6
+    listing-held:
+      open-hours: 2
+      close-hours: 6
+    lane-holds:
+      open-hours: 2
+      close-hours: 6
 
 merge:
   # The rung is a pacing cap: off merges nothing without a human; merge lets
