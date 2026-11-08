@@ -83,6 +83,20 @@ else
   fail "expected one npm ci of pkgs/locked, then npm test: $(cat "$fixture/npm.log")"
 fi
 
+# A missing list file fails the run instead of reading as zero packages.
+for missing in outside-node-packages.txt outside-node-exclusions.txt; do
+  printf 'pkgs/pass\n' >"$fixture/scripts/outside-node-packages.txt"
+  : >"$fixture/scripts/outside-node-exclusions.txt"
+  rm -f "$fixture/scripts/$missing"
+  rc=0
+  out="$(bash "$fixture/$RUNNER" 2>&1)" || rc=$?
+  if ((rc == 2)) && ! grep -q "outside-node: done" <<<"$out"; then
+    ok "a missing $missing exits 2"
+  else
+    fail "a missing $missing should exit 2, got $rc: $out"
+  fi
+done
+
 printf '%s\n' "plugins/knowledge/vendor/not-a-suite/missing.test.js" >"$list"
 if bash "$RUNNER" --paths "$list" >/dev/null 2>"$list.err"; then
   fail "an unclassified path should fail"

@@ -22,13 +22,15 @@
 #
 # Exit 0 when every selected package test passes, or the list names only
 # exclusions and suites another lane owns. Exit 1 on a failing package test or
-# an unclassified path. Exit 2 on usage.
+# an unclassified path. Exit 2 on usage or a missing list file.
 # shellcheck disable=SC2310
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 # shellcheck source=lib/test-git-env.sh
 . scripts/lib/test-git-env.sh
+# shellcheck source=lib/read-list.sh
+. scripts/lib/read-list.sh || exit 2
 
 PACKAGES_FILE="scripts/outside-node-packages.txt"
 EXCLUSIONS_FILE="scripts/outside-node-exclusions.txt"
@@ -47,19 +49,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-read_list() {
-  local file="$1" line
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%#*}"
-    line="${line%"${line##*[![:space:]]}"}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    [[ -n "$line" ]] || continue
-    printf '%s\n' "$line"
-  done <"$file"
-}
-
-mapfile -t packages < <(read_list "$PACKAGES_FILE")
-mapfile -t exclusions < <(read_list "$EXCLUSIONS_FILE")
+# Assigned through a nameref, which shellcheck cannot follow (SC2154).
+packages=() exclusions=()
+read_list::into packages "$PACKAGES_FILE" --comments inline || exit 2
+read_list::into exclusions "$EXCLUSIONS_FILE" --comments inline || exit 2
 
 four_prefixes=(
   "plugins/miro/"
