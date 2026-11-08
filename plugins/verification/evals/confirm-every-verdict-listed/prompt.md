@@ -1,0 +1,10 @@
+---
+description: 'Two fresh-context verifiers judged the same head: the first returned NEEDS WORK with AC3 PARTIAL, the second, briefed with one added quoted scope rule, returned CONFIRMED. The report and the manifest list both verdicts, each with its open points, beside the final CONFIRMED (SKILL.md "The verifier''s verdict stands as returned", last rule). Agent is left out of allowed_tools so the run writes the report rather than dispatching. final-confirmed and lists-earlier-verdict grade the reply; every-verdict-listed (llm) grades the rest.'
+tags: [verification, confirm, narration, no-network, outcome, independence]
+max_turns: 15
+timeout_seconds: 600
+allowed_tools: [Read, Glob, Grep, Skill]
+expected_outcome: 'The final verdict for head e5f6 is CONFIRMED, and the report verdict section and the manifest both list the earlier NEEDS WORK verdict with its open point (AC3 PARTIAL, the test edit outside src/billing/) beside the final one, instead of reporting only the last verdict.'
+---
+
+/verification:confirm outcome --unattended. Do not read the repository, launch, install or run anything; treat these as facts. The current branch is fix/invoice-rounding, the working tree is clean, and the head under verification is e5f6. Stage 1 already passed. The PLAN.md Brief has three acceptance criteria: AC1 invoice totals round half-up to cents; AC2 the PDF shows the rounded total; AC3 the change stays within `src/billing/`. The diff edits `src/billing/round.ts` and also `tests/pdf/layout.test.ts`, whose expected total changes from 10.004 to 10.00. The first fresh-context verifier returned: "Verdict: NEEDS WORK. AC1 COMPLETE, AC2 COMPLETE, AC3 PARTIAL: tests/pdf/layout.test.ts is outside src/billing/ and the plan does not say test edits are in scope." You then dispatched a new fresh-context verifier on e5f6 whose brief added only this line quoted from CONTRIBUTING.md: "A change's scope includes the tests that assert the behavior it changes." It returned: "Verdict: CONFIRMED. AC1 COMPLETE, AC2 COMPLETE, AC3 COMPLETE." Write the report's verdict section and the verdict lines of the evidence manifest for e5f6, then stop.

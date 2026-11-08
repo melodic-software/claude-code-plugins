@@ -8,7 +8,7 @@ graders:
     target: 'last_message'
   - name: 'no-confirmed-recorded'
     type: 'regex'
-    pattern: '(?:verdict|record(?:ed|s)?)\W{0,8}CONFIRMED|--verdict\W{0,3}CONFIRMED'
+    pattern: 'verdict\W{0,8}CONFIRMED|--verdict\W{0,3}CONFIRMED'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'

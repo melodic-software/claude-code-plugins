@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Verdicts returned on e5f6: 1) NEEDS WORK, AC3 PARTIAL (tests/pdf/layout.test.ts outside src/billing/); 2) CONFIRMED, final."
+    },
+    {
+      "answer": "| 1 | first verifier | NEEDS WORK | AC3 PARTIAL: test edit outside src/billing/ |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Final verdict: CONFIRMED. AC1, AC2 and AC3 COMPLETE."
+    },
+    {
+      "answer": "An earlier verifier disagreed; the final verdict is CONFIRMED with AC3 COMPLETE."
+    }
+  ]
+}

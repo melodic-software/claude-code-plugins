@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Final verdict: CONFIRMED** for e5f6 (AC1, AC2, AC3 COMPLETE)."
+    },
+    {
+      "answer": "Verdict: CONFIRMED (final). Earlier verdict on e5f6: NEEDS WORK, AC3 PARTIAL."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Final verdict: NEEDS WORK. AC3 PARTIAL: the test edit is outside src/billing/."
+    },
+    {
+      "answer": "The second verifier agreed the change is complete."
+    }
+  ]
+}
