@@ -37,8 +37,7 @@ All schema and behavior claims below were verified against the official docs on 
 "Reintegration" section's marketplace-settings claims, `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json`, on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
-Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
-2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
+Code 2.1.207; the Organization section's skill-listing claims on 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
 Re-verify fresh before acting, per
 [a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority). Recheck a
 section when a Claude Code release note changes the plugin schema, skill-listing, or
@@ -124,78 +123,9 @@ that way ("current state is evidence, never justification", `melodic-software/st
 
 ## Naming
 
-Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
-
-1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
-   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
-2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
-   `name` (not the marketplace name); mirror established Claude Code patterns.
-3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
-   no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit from a sibling
-   that would otherwise share its name; names track their semantic scope.
-
-Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`:
-
-- **The namespace (plugin `name`) is a noun, kebab-case, never a bare verb.** A **gerund** for an
-  activity domain (`planning`, `debugging`, `testing`); a **plain noun** for a subject domain
-  (`source-control`, `architecture`, `work-items`). Semantic accuracy binds the whole namespace:
-  the noun must be true of *every* skill under it.
-- **Skill name follows its KIND.** An action / user-invoked skill is an **action verb**
-  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill may be a **noun-phrase**
-  (`principles`, `methodology`). The verb heuristic scopes to action skills only. A `noun:noun`
-  invocation is correct for a knowledge skill.
-- **`/name:name` doubling is a naming defect, not idiomatic.** A stutter means one of the two names
-  is failing at its job: the namespace is not naming the domain, or the skill is not naming its
-  action. Fix it by, in preference order: rename the skill to its real action verb; rename the
-  plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
-  intents (per the Organization section's split rule above). Two exemptions:
-  **root-echo**, where the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`), and
-  **wrapper-echo**, a single-skill vendor-CLI wrapper whose one router skill repeats the tool
-  name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
-  Both are honest naming, not true doubling, and are accepted.
-- **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
-  first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
-  sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
-  A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
-  runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
-  (the `Workflow` tool): the base skill's main-context half chooses the tier
-  before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
-  `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
-  why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why
-  `discipline` folded `do-your-research-deep` and `recheck-against-upstream-deep` into their base
-  skills. Only a tier no entry point of the base skill can reach earns a sibling, and none does
-  today.
-- **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
-  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary:
-  `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
-  `scrape` / `crawl` / `map` per `firecrawl-cli`. The consumer already knows the vendor's verbs.
-  While it remains a single-skill router, the wrapper-echo exemption above applies instead.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `update`). The overloaded-term
-  caution governs plugin *identity*, not a namespaced skill leaf.
-- **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
-  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope,
-  so do not formalize such a split.
-
-**Built-in collisions never force a plugin skill's name.** "Plugin skills use a
-`plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
-changes the plugin-namespace sentence). A shadow-dodge name is never
-*required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
-`batch-simplify`) stand or evolve on their own merits, not out of collision fear.
-The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
-(auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
-
-**That namespace guarantee covers invocation, and the listing now carries it too.** The picker
-labels a row with the namespaced command it resolves, so a leaf name shared across plugins is told
-apart by its prefix rather than read identically; the plugin name reaches the reader a second time
-through the description, which renders as `(<plugin-name>) <description>`. See the philosophy's
-Naming section for the full display contract. Two consequences
-for this playbook: prefix typeahead groups a family by its **leaf** name, which is what the
-base-concept-first rule above is buying; and a deliberately shared leaf name (`setup` across every
-plugin that ships one) still asks the reader to scan prefixes, so each description's first clause
-has to name its object.
+Naming policy, from plugin and namespace names through skill families and built-in collisions, is
+[plugin philosophy § Naming](plugin-philosophy.md#naming). Apply it when choosing a migrated
+plugin's name and skill directories.
 
 ## Extensibility model: what works today
 

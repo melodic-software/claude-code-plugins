@@ -159,6 +159,24 @@ name on 2026-09-10).
 - **Recheck trigger**: the guidance's list of names to avoid changes, the specification's example
   names change, or `claude plugin validate` starts rejecting a form.
 
+Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
+
+1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
+   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
+2. **Official docs and ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's
+   own `name` (not the marketplace name); mirror established Claude Code patterns.
+3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` /
+   `-helper`); no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit
+   from a sibling that would otherwise share its name; names track their semantic scope.
+
+The namespace (plugin `name`) is a noun, never a bare verb: a gerund for an activity domain
+(`planning`, `debugging`, `testing`), a plain noun for a subject domain (`source-control`,
+`architecture`, `work-items`). The noun must be true of every skill under it. A branded name
+signals a tool-scoped plugin and a plain domain noun a tool-agnostic one; no marketplace separates
+plugins by tool scope, so tool scope is never a structural split. Generic skill leaves (`help`,
+`list`, `update`) are safe under namespacing: the overloaded-term caution governs plugin identity,
+not a namespaced leaf.
+
 Verb meanings are fixed:
 
 | Verb | Contract |
@@ -180,6 +198,20 @@ describes the person's workflow around the skill rather than what the skill does
 names no second step keeps the name: `in` before a place (`continue-in-background`), or `or`
 between alternatives the skill itself weighs (`reuse-or-replace`).
 
+`/name:name` doubling is a naming defect, not an idiom: one of the two names is failing at its job,
+the namespace not naming the domain or the skill not naming its action. Fix it by, in preference
+order: rename the skill to its real action verb; rename the plugin to its domain noun; decompose,
+when the single skill hides distinct discovery intents (the split rule in the migration playbook's
+[Organization](migration-playbook.md#organization-one-plugin-per-cohesive-concern) section). Two
+echoes are honest naming, not doubling, and are accepted: **root-echo**, where the domain's core
+action shares the domain's root word (`implementation:implement`, `code-tidying:tidy`,
+`work-items:work`), and **wrapper-echo**, the single-skill vendor-CLI wrapper exception below
+(`firecrawl:firecrawl`, `playwright:playwright`). A vendor-CLI plugin that decomposes into several
+skills names them after the vendor's own CLI verbs, which the consumer already knows:
+`/playwright:test` would mirror `npx playwright test`, and a firecrawl decomposition would use
+`scrape` / `crawl` / `map` per `firecrawl-cli`. While it remains a single-skill router,
+wrapper-echo applies instead.
+
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a knowledge router named by
@@ -199,9 +231,20 @@ and orphans users arriving from the upstream repo). The recorded `bro` decline s
 for a second entry carrying nothing but `wait-what`'s argument, for a capability this marketplace
 already shipped three times over, which is the blanket sanction the closing rule forbids.
 Every exception is an entry on this list, decided per name. A name class is never
-blanket-sanctioned. A heavier execution tier of a skill is not a `-deep` sibling name either: it is
-a `deep` argument or a runtime choice of the base skill, per the skill-family rule in the
-[migration playbook](migration-playbook.md).
+blanket-sanctioned.
+
+Sibling skills sharing a base concept put the base first (`design`, `design-handoff`, `implement`,
+`implement-dispatch`), so prefix typeahead, which groups by leaf name, and sorted listings group the
+family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`). A
+structural variant earns a new sibling name; a depth or intensity variant takes an argument, never
+a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
+runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
+(the `Workflow` tool): the base skill's main-context half chooses the tier before it dispatches,
+and a dispatched run of the base skill never selects it. So the tier is a `deep` argument or an
+automatic choice inside the base skill, never a `-deep` sibling. That is why `discovery` folded
+`explore-deep` into `explore` and `research-deep` into `research`, and why `discipline` folded
+`do-your-research-deep` and `recheck-against-upstream-deep` into their base skills. Only a tier no
+entry point of the base skill can reach earns a sibling, and none does today.
 
 A plugin skill declares no frontmatter `name`. We rely on the directory supplying the name, and
 the directory here is already the name the skill is documented and invoked by, so declaring it
@@ -220,7 +263,17 @@ collision registry from the commands that actually resolve. That is why `skill-q
 fails a divergent `name` and only warns on a redundant one.
 Never degrade a name to dodge a built-in command: plugin skills are namespaced and cannot collide
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
-namespaced form is the plugin skill's only command.
+namespaced form is the plugin skill's only command. The catalog's historical dodge names
+(`quality-gate`, `fanout`, `batch-simplify`) stand or evolve on their own merits, not out of
+collision fear. The one residual caution is model-side: avoid a skill leaf name *identical* to a
+bundled skill's (auto-invocation ambiguity when the model matches descriptions); similarity alone
+is fine.
+
+- **Pointer**: for why a plugin skill never collides, see
+  <https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name>.
+- **As of**: 2026-11-08
+- **Recheck trigger**: that table's plugin-skill row stops resolving a shared name by the plugin
+  namespace.
 
 Resolution settled, **display** follows from it. We rely on a plugin skill keeping its plugin
 prefix in autocomplete whether or not it declares `name`. A version-dependent display quirk for a
