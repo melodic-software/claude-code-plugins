@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3] - 2026-11-08
+
+### Changed
+
+- The README and the Miro integration reference point at the marketplace's miro trust record, in `docs/adr/0093-record-plugin-acceptance-security-reviews.md`, and its MCP carry verdict, `docs/adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md`.
+
 ## [0.7.2] - 2026-11-06
 
 ### Changed
