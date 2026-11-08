@@ -93,28 +93,27 @@
     },
     {
       "id": 8,
-      "name": "retirement-harness-ops-r004-migrates-the-morning-brief-team-settings",
-      "prompt": "/harness-ops:setup check, then apply, in a repo whose docs/conventions/harness-ops.yaml still holds the morning brief's Cost settings block beside a registry_dir key, and whose docs/conventions/work-items.yaml holds only ai_disclaimer: false.",
-      "expected_output": "check runs bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" and reports the harness-ops-r004 TSV row (kind block) as FAIL (action migrate: /work-items:morning-brief reads its settings from work-items.yaml, so the block in harness-ops.yaml is read by nothing), with apply as the remediation; the demoted harness-ops-r002 row is INFO and offers no cleanup. apply copies that block unchanged to the top level of docs/conventions/work-items.yaml, keeps ai_disclaimer: false, shows the operator the result and waits for their confirmation, and only then runs --clean harness-ops-r004 --i-migrated, which removes the block and leaves registry_dir in harness-ops.yaml. A --clean without --i-migrated is refused (exit 2). A final run of detection reports the leftover gone.",
+      "name": "retirement-harness-ops-r002-migrates-the-morning-brief-team-settings",
+      "prompt": "/harness-ops:setup check, then apply, in a repo whose docs/conventions/harness-ops.yaml still holds the morning brief's Cost settings block and whose docs/conventions/work-items.yaml holds only ai_disclaimer: false.",
+      "expected_output": "check runs bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" and reports the harness-ops-r002 TSV row as FAIL (action migrate: /work-items:morning-brief reads its settings from work-items.yaml, so the block in harness-ops.yaml is read by nothing), with apply as the remediation. apply copies that block unchanged to the top level of docs/conventions/work-items.yaml, keeps ai_disclaimer: false, shows the operator the result and waits for their confirmation, and only then runs --clean harness-ops-r002 --i-migrated. A --clean without --i-migrated is refused (exit 2). A final run of detection reports the leftover gone.",
       "files": [],
       "expectations": [
-        "check reports harness-ops-r004 as FAIL and harness-ops-r002 as INFO",
+        "check reports harness-ops-r002 as FAIL, not WARN or INFO",
         "The Cost settings block lands in work-items.yaml, and its other keys stay, before any clean",
-        "--clean harness-ops-r004 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result, and harness-ops-r002 is never cleaned",
-        "After the clean, harness-ops.yaml still holds registry_dir and no morning_brief block",
+        "--clean harness-ops-r002 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result",
         "Detection runs again last and the final state is reported"
       ]
     },
     {
       "id": 9,
-      "name": "retirement-harness-ops-r005-migrates-the-morning-brief-personal-settings",
-      "prompt": "/harness-ops:setup check, then apply, in a repo whose gitignored docs/conventions/harness-ops.local.yaml holds the morning brief's Cost settings block, which sets subscription, and nothing else, and that has no docs/conventions/work-items.local.yaml.",
-      "expected_output": "check reports the harness-ops-r005 TSV row (kind block) from check-retirements.sh as FAIL (action migrate: the brief reads its personal layer from work-items.local.yaml), with apply as the remediation; the demoted harness-ops-r003 row is INFO and offers no cleanup. apply creates docs/conventions/work-items.local.yaml holding that block unchanged, never copies the subscription into a tracked file, waits for the operator's confirmation, and only then runs --clean harness-ops-r005 --i-migrated, which removes the block and then harness-ops.local.yaml, since nothing else was in it. A --clean without --i-migrated is refused (exit 2). A final run of detection reports the leftover gone.",
+      "name": "retirement-harness-ops-r003-migrates-the-morning-brief-personal-settings",
+      "prompt": "/harness-ops:setup check, then apply, in a repo whose gitignored docs/conventions/harness-ops.local.yaml holds the morning brief's Cost settings block, which sets subscription, and that has no docs/conventions/work-items.local.yaml.",
+      "expected_output": "check reports the harness-ops-r003 TSV row from check-retirements.sh as FAIL (action migrate: the brief reads its personal layer from work-items.local.yaml), with apply as the remediation. apply creates docs/conventions/work-items.local.yaml holding that block unchanged, never copies the subscription into a tracked file, waits for the operator's confirmation, and only then runs --clean harness-ops-r003 --i-migrated. A --clean without --i-migrated is refused (exit 2). A final run of detection reports the leftover gone.",
       "files": [],
       "expectations": [
-        "check reports harness-ops-r005 as FAIL and harness-ops-r003 as INFO",
+        "check reports harness-ops-r003 as FAIL, not WARN or INFO",
         "The block moves to work-items.local.yaml, never to the tracked work-items.yaml",
-        "--clean harness-ops-r005 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result, and harness-ops-r003 is never cleaned",
+        "--clean harness-ops-r003 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result",
         "Detection runs again last and the final state is reported"
       ]
     },

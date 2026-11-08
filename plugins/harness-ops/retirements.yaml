@@ -20,9 +20,8 @@ kind: file
 path: docs/conventions/harness-ops.yaml
 content_match: '^morning[_]brief:'
 action: migrate
-successor: "/work-items:morning-brief now reads its Cost settings from work-items.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.yaml, then clean with harness-ops-r004, never this record: this record's clean deletes the whole file"
-note: "the morning-brief Cost settings moved from harness-ops.yaml to work-items.yaml; superseded by harness-ops-r004, whose clean removes only the block, since harness-ops.yaml holds other keys"
-status: report-only
+successor: "/work-items:morning-brief now reads its Cost settings from work-items.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.yaml, then clean"
+note: "the morning-brief Cost settings moved from harness-ops.yaml to work-items.yaml; nothing reads harness-ops.yaml"
 ---
 id: harness-ops-r003
 retired: 2026-11-02
@@ -31,26 +30,5 @@ kind: file
 path: docs/conventions/harness-ops.local.yaml
 content_match: '^morning[_]brief:'
 action: migrate
-successor: "/work-items:morning-brief now reads its personal Cost settings from work-items.local.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.local.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.local.yaml, then clean with harness-ops-r005, never this record: this record's clean deletes the whole file"
-note: "the personal morning-brief Cost settings moved from harness-ops.local.yaml to work-items.local.yaml; superseded by harness-ops-r005, whose clean removes only the block, since harness-ops.local.yaml holds other keys"
-status: report-only
----
-id: harness-ops-r004
-retired: 2026-11-08
-plugin_version: 8.10.0
-kind: block
-path: docs/conventions/harness-ops.yaml
-match: '^morning[_]brief:'
-action: migrate
-successor: "/work-items:morning-brief reads its Cost settings from work-items.yaml in the same convention home. Copy the top-level block this record's match finds, unchanged, to the top level of docs/conventions/work-items.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.yaml, then clean: the clean removes only that block and keeps every other key of harness-ops.yaml"
-note: "the morning-brief Cost settings moved from harness-ops.yaml to work-items.yaml; the rest of harness-ops.yaml stays in use"
----
-id: harness-ops-r005
-retired: 2026-11-08
-plugin_version: 8.10.0
-kind: block
-path: docs/conventions/harness-ops.local.yaml
-match: '^morning[_]brief:'
-action: migrate
-successor: "/work-items:morning-brief reads its personal Cost settings from work-items.local.yaml in the same convention home. Copy the top-level block this record's match finds, unchanged, to the top level of docs/conventions/work-items.local.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.local.yaml, then clean: the clean removes only that block and keeps every other key of harness-ops.local.yaml"
-note: "the personal morning-brief Cost settings moved from harness-ops.local.yaml to work-items.local.yaml; the rest of harness-ops.local.yaml stays in use"
+successor: "/work-items:morning-brief now reads its personal Cost settings from work-items.local.yaml in the same convention home. Move the top-level block this record's content_match finds, unchanged, to the top level of docs/conventions/work-items.local.yaml (create the file when it is absent; keep its other keys), confirm with the operator that the brief's settings: line names work-items.local.yaml, then clean"
+note: "the personal morning-brief Cost settings moved from harness-ops.local.yaml to work-items.local.yaml; nothing reads harness-ops.local.yaml"

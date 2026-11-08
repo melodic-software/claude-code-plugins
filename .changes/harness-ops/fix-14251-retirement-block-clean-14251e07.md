@@ -2,6 +2,6 @@
 bump: patch
 ---
 
-### Fixed
+### Changed
 
-- `/harness-ops:setup apply` no longer deletes the whole `harness-ops.yaml` or `harness-ops.local.yaml` when it cleans a migrated `morning_brief:` block. New retirement records `harness-ops-r004` and `harness-ops-r005` use the `block` kind, so the clean removes only that block and keeps `registry_dir`, `verification` and every other key; a file left with nothing else in it is removed. `harness-ops-r002` and `harness-ops-r003` are demoted to `report-only`, so cleanup is no longer offered for them, and their notes no longer say nothing reads the file ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)).
+- Shared `check-retirements.sh` synced where this plugin carries it ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)): it accepts a `block` record kind, which cleans one YAML key and its indented value instead of the whole file. No other change to this plugin yet; the records that use it follow.
