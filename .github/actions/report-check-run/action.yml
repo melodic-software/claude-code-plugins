@@ -77,42 +77,14 @@ inputs:
       `true` means the commits could not be verified.
     required: false
     default: ""
-  lane-class:
-    description: >
-      The run job's lane-class output: report-lane-outcome's failure class,
-      empty on a success. With the five below it becomes the first line of
-      the posted check run's output.summary and its output.text
-      (lane-record.mjs).
-    required: false
-    default: ""
-  lane-resets:
-    description: The run job's lane-resets output, the ISO time a usage limit resets.
-    required: false
-    default: ""
-  lane-turns:
-    description: The run job's lane-turns output, the turns the skill took.
-    required: false
-    default: ""
-  lane-max-turns:
-    description: The run job's lane-max-turns output, the skill's --max-turns cap.
-    required: false
-    default: ""
-  lane-models:
-    description: The run job's lane-models output, the comma list of models the run's modelUsage names.
-    required: false
-    default: ""
-  lane-profile:
-    description: The run job's lane-profile output, the models profile resolve-config gave the skill.
-    required: false
-    default: ""
   lane-outcome:
     description: >
       The run job's lane-outcome record, report-lane-outcome's `record`
       output (one JSON object). Its known fields are validated against the
       v1 shape, its lane must equal `lane`, and it is written with `activity`
       as the first line of output.text after the marker `lane-outcome `,
-      which .github/scripts/pr-unblock/limit-stop.mjs reads before the
-      summary line. Empty, malformed or another lane's writes nothing.
+      which .github/scripts/pr-unblock/limit-stop.mjs reads. Empty,
+      malformed or another lane's writes nothing.
     required: false
     default: ""
   verdict-path:
@@ -150,12 +122,6 @@ runs:
         CAN_COMMIT: ${{ inputs.can-commit }}
         ALL_VERIFIED: ${{ inputs.all-verified }}
         UNVERIFIED: ${{ inputs.unverified }}
-        LANE_CLASS: ${{ inputs.lane-class }}
-        LANE_RESETS: ${{ inputs.lane-resets }}
-        LANE_TURNS: ${{ inputs.lane-turns }}
-        LANE_MAX_TURNS: ${{ inputs.lane-max-turns }}
-        LANE_MODELS: ${{ inputs.lane-models }}
-        LANE_PROFILE: ${{ inputs.lane-profile }}
         LANE_OUTCOME: ${{ inputs.lane-outcome }}
         VERDICT_PATH: ${{ inputs.verdict-path }}
         BASE_PATH: ${{ inputs.base-path }}

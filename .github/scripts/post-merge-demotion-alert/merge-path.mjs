@@ -217,6 +217,9 @@ const MERGED_QUERY = `query($q: String!, $after: String) { search(query: $q, typ
     nodes { __typename ... on LabeledEvent { label { name } } ... on UnlabeledEvent { label { name } } } }
   ${QUEUE_FIELDS} } } } }`;
 
+const RECORDS_QUERY = `query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
+    pageInfo { hasNextPage endCursor } nodes { ... on Issue { number body author { login } } } } }`;
+
 function search(gh, query, q) {
   const nodes = [];
   let after = "";
@@ -270,8 +273,6 @@ export function readRollup({ repo, since, until, identity, gh = defaultGh, today
   const merged = days(since, today < until ? until : today).flatMap((d) =>
     search(gh, MERGED_QUERY, `repo:${repo} is:pr is:merged merged:${d}..${d}`).map(toPr),
   );
-  const RECORDS_QUERY = `query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
-    pageInfo { hasNextPage endCursor } nodes { ... on Issue { number body author { login } } } } }`;
   const filers = new Set(["github-actions", identity.replace(/\[bot\]$/, "").toLowerCase()]);
   const revertRecords = search(gh, RECORDS_QUERY, `repo:${repo} is:issue in:title "Post-merge revert"`)
     .filter((i) => filers.has((i.author?.login ?? "").replace(/\[bot\]$/, "").toLowerCase()))

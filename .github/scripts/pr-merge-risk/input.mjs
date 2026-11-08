@@ -26,11 +26,7 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 // Each path the diff changes, once, renames by their new path.
 export function changedFiles(diff) {
-  const files = [];
-  for (const match of String(diff).matchAll(/^diff --git a\/.+? b\/(.+)$/gm)) {
-    if (!files.includes(match[1])) files.push(match[1]);
-  }
-  return files;
+  return [...new Set(Array.from(String(diff).matchAll(/^diff --git a\/.+? b\/(.+)$/gm), (match) => match[1]))];
 }
 
 export function factsOf({ context, repository, pr, head, base, files }) {

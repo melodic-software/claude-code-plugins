@@ -33,17 +33,11 @@ export function matchedPaths(predicate, changedPaths) {
 // `paths-ignore` decide together: one changed path must pass both.
 const any = (test) => (listed, fact) =>
   listed.some((value) => test(value, fact));
+const somePathMatches = (_listed, paths, predicate) =>
+  matchedPaths(predicate, paths).length > 0;
 const KEYS = [
-  [
-    "paths",
-    "changedPaths",
-    (_listed, paths, predicate) => matchedPaths(predicate, paths).length > 0,
-  ],
-  [
-    "paths-ignore",
-    "changedPaths",
-    (_listed, paths, predicate) => matchedPaths(predicate, paths).length > 0,
-  ],
+  ["paths", "changedPaths", somePathMatches],
+  ["paths-ignore", "changedPaths", somePathMatches],
   ["labels", "labels", any((label, labels) => labels.includes(label))],
   [
     "labels-absent",

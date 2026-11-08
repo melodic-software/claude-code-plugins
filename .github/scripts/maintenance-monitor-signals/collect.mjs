@@ -146,7 +146,24 @@ export function parseJobsCarry(text, repo) {
 }
 
 const NO_HELD = { runs: [], from: null, through: null };
-export const jobsCarryFile = (repo, runs, held = NO_HELD) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held });
+const NO_EPISODES = { at: null, signals: {} };
+export const jobsCarryFile = (repo, runs, held = NO_HELD, episodes = NO_EPISODES) => JSON.stringify({ version: JOBS_VERSION, repository: repo, runs, held, episodes });
+
+// The signals' timers the same file carries, {signal: {onSince, clearSince}},
+// empty when the file has none or they are older than RUN_LOOKBACK_HOURS: runs
+// that kept no carry for that long say nothing about the time between. An
+// error for any other shape.
+export function parseEpisodeCarry(text, repo, now) {
+  const data = JSON.parse(text);
+  const episodes = data?.episodes ?? NO_EPISODES;
+  const time = (value) => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  const entry = (e) => isObject(e) && time(e.onSince ?? null) && time(e.clearSince ?? null);
+  if (data?.repository !== repo || !isObject(episodes.signals) || !time(episodes.at) || !Object.values(episodes.signals).every(entry)) {
+    throw new Error("the carried signal timers have an unexpected shape");
+  }
+  if (episodes.at === null || now.getTime() - Date.parse(episodes.at) > RUN_LOOKBACK_HOURS * 3600_000) return {};
+  return episodes.signals;
+}
 
 // The held runs the same file carries, {runs, from, through}: the runs, and
 // the unbroken span of completion times the lane read them over (null when

@@ -91,13 +91,16 @@ export function splitChildDims(dims, config, splitChild) {
   return splitChild === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
 }
 
+// Each dimension's table of keys.
+const tablesOf = (config) => ({ size: config.sizes, complexity: config.complexity, uncertainty: config.uncertainty });
+
 // The dimensions a pin (dimensionBudget's `pin`) names.
 export function parsePin(pin, config) {
   if (pin === NOT_ASSESSED) {
     return Object.fromEntries(DIMENSIONS.map((name) => [name, null]));
   }
   const parts = String(pin).split("/");
-  const tables = { size: config.sizes, complexity: config.complexity, uncertainty: config.uncertainty };
+  const tables = tablesOf(config);
   if (parts.length !== DIMENSIONS.length || DIMENSIONS.some((name, i) => !Object.hasOwn(tables[name], parts[i]))) {
     throw new Rejection("undefined-dimension", `issue-dimensions \`${pin}\` names no dimensions in models.issue-dimensions`);
   }
@@ -108,7 +111,7 @@ export function parsePin(pin, config) {
 // its table, the three field ids differ, UNSET's size runs, and so at least
 // one size runs.
 export function checkDimensions(config) {
-  const tables = { size: config.sizes, complexity: config.complexity, uncertainty: config.uncertainty };
+  const tables = tablesOf(config);
   for (const name of DIMENSIONS) {
     for (const [option, key] of Object.entries(config.fields[name].options)) {
       if (!Object.hasOwn(tables[name], key)) {

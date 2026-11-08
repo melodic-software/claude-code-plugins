@@ -593,20 +593,12 @@ jobs:
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
-      # The lane record, from steps that read the execution file after the
-      # skill. A forged limit stop can only restart the lane after a reset
-      # limit-stop.mjs and report-outcome clamp to at least
-      # `limits.reset-clamp-min` hours away, at
-      # most `limits.limit-stops-per-head` (a PR) or
-      # `limits.limit-stops-per-issue` (an issue) times.
-      lane-class: ${{ steps.lane-record.outputs.failure-class }}
-      lane-resets: ${{ steps.lane-record.outputs.resets-at }}
-      lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
-      lane-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
-      lane-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
-      lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
-      # The lane-outcome JSON itself, empty when the step wrote none; the
-      # report-check-run action validates it before the check run carries it.
+      # The lane-outcome JSON, from steps that read the execution file after
+      # the skill, empty when the step wrote none; the report-check-run action
+      # validates it before the check run carries it. A forged limit stop can
+      # only restart the lane after a reset limit-stop.mjs clamps to at least
+      # `limits.reset-clamp-min` hours away, at most
+      # `limits.limit-stops-per-head` times on one head.
       record: ${{ steps.lane-record.outputs.record }}
       # Set after the model ran, so forgeable: post.mjs checks every row.
       api-failures: ${{ steps.api-failures.outputs.api-failures }}
@@ -2618,12 +2610,6 @@ jobs:
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
           unverified: ${{ steps.signed.outputs.unverified }}
-          lane-class: ${{ needs.run.outputs.lane-class }}
-          lane-resets: ${{ needs.run.outputs.lane-resets }}
-          lane-turns: ${{ needs.run.outputs.lane-turns }}
-          lane-max-turns: ${{ needs.run.outputs.lane-max-turns }}
-          lane-models: ${{ needs.run.outputs.lane-models }}
-          lane-profile: ${{ needs.run.outputs.lane-profile }}
           lane-outcome: ${{ needs.run.outputs.record }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base

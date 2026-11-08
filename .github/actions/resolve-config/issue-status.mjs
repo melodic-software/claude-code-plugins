@@ -74,23 +74,18 @@ export function issueStatus(facts, config, trustedActors) {
 // issueStatus's `{state, setter}`: setter is the account id whose event
 // decided the state (undefined when none did).
 export function issueStatusSetter(facts, config, trustedActors) {
+  const fieldId = config["field-id"];
   const unmapped = (option) =>
     new Rejection(
       "unmapped-status",
-      `issue field ${config["field-id"]} (Work status) holds option ${option}, which models.issue-status does not map`,
+      `issue field ${fieldId} (Work status) holds option ${option}, which models.issue-status does not map`,
     );
-  const fieldId = config["field-id"];
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   const listed = ({ id, login }) =>
     (id === ACTIONS_BOT.id && login === ACTIONS_BOT.login) ||
     actors.some((actor) => actor?.id === id && actor?.login === login && actor?.kind === "bot");
   const botSetter = (id) => (config["bot-setters"] ?? []).some((entry) => entry.id === id && listed(entry));
   const row = facts.fieldValues.find((value) => value.field === fieldId);
-  const disagree = (named) => {
-    if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
-      throw new StatusDisagreement(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
-    }
-  };
   if (Array.isArray(facts.fieldEvents)) {
     const people = trustedSetters(trustedActors);
     const states = new Set(Object.values(config.options));
@@ -125,7 +120,10 @@ export function issueStatusSetter(facts, config, trustedActors) {
     return { state: null, setter: undefined };
   }
   const setter = facts.fieldSetters[String(fieldId)];
-  disagree(facts.fieldNames?.[String(fieldId)]);
+  const named = facts.fieldNames?.[String(fieldId)];
+  if (typeof named === "string" && row !== undefined && config.options[String(row.option)] !== named) {
+    throw new StatusDisagreement(`issue field ${fieldId} (Work status) holds option ${row.option}, but its newest field event set \`${named}\``);
+  }
   if (!botSetter(setter)) {
     return { state: trustedOption(facts, config, trustedActors, unmapped), setter };
   }

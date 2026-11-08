@@ -32,15 +32,27 @@ file_issue() {
   printf '%s\n' "${filed%% *}"
 }
 
-# set_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
+# post_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
 # one write of the org issue fields, by option name, so a failed call sets none.
-set_fields() {
+post_fields() {
   local issue="$1"
   shift
   jq -n '[[48484079, 49622037, 15462270, 48625720, 48625721], $ARGS.positional] | transpose
     | map(select(.[1] != null) | {field_id: .[0], value: .[1]}) | {issue_field_values: .}' --args "$@" |
     gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$issue/issue-field-values" \
       -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null
+}
+
+# set_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
+# the Size, Complexity and Uncertainty values in lowercase, the options' new
+# names, and once more Title-cased when GitHub refuses those; the REST write
+# takes option names, not ids.
+set_fields() {
+  local issue="$1"
+  shift
+  post_fields "$issue" "$@" && return
+  (($# > 2)) || return 1
+  post_fields "$issue" "$1" "$2" "${3^}" "${4^}" "${5^}"
 }
 
 # mark_undelivered <issue> <issue=N|check=name>: returns 1 when the marker could
@@ -178,15 +190,9 @@ retry_undelivered() {
     return 0
   }
   while IFS=$'\t' read -r n kind count first failing; do
-    if [[ -z "$n" ]]; then
-      continue
-    fi
-    if [[ "$kind" != record ]]; then
-      sendable[$n]=1
-    fi
-    if ((count == 0)); then
-      continue
-    fi
+    [[ -n "$n" ]] || continue
+    [[ "$kind" == record ]] || sendable[$n]=1
+    ((count > 0)) || continue
     marks="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$n/comments?per_page=100" \
       --jq '.[] | select(.user.login == "github-actions[bot]")
         | [.id, ((.body // "") | split("\n")[0] // "" | sub("\\s+$"; ""))]
@@ -195,9 +201,7 @@ retry_undelivered() {
       continue
     }
     while IFS=$'\t' read -r id mark; do
-      if [[ ! "$id" =~ ^[1-9][0-9]*$ ]]; then
-        continue
-      fi
+      [[ "$id" =~ ^[1-9][0-9]*$ ]] || continue
       if [[ "$mark" =~ ^\<!--\ post-merge-undelivered\ issue=([1-9][0-9]*)\ --\>$ ]]; then
         t="${BASH_REMATCH[1]}"
         if [[ "$kind" == record || "$t" == "$n" ]]; then
@@ -269,19 +273,11 @@ retry_undelivered() {
     fi
     if [[ -n "$fix_missed" ]]; then
       failed=1
-      if [[ -z "$fix_missed_issue" ]]; then
-        continue
-      fi
+      [[ -n "$fix_missed_issue" ]] || continue
       moved=''
-      if mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue"; then
-        moved=1
-      fi
-      if mark_undelivered "$r" "issue=$fix_missed_issue"; then
-        moved=1
-      fi
-      if [[ -z "$moved" ]]; then
-        continue
-      fi
+      mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" && moved=1
+      mark_undelivered "$r" "issue=$fix_missed_issue" && moved=1
+      [[ -n "$moved" ]] || continue
     fi
     clear_marks "$id"
   done

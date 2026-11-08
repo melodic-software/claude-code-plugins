@@ -3,7 +3,7 @@
 # (part a) and engine-b.test.sh to engine-d.test.sh: the tests/test_*.py modules
 # the case below puts in <part>, in one unittest process. Every module lands in
 # exactly one part, so the four parts run the whole suite between them; the
-# split keeps each part under the 120 s per-suite budget in CI (README.md,
+# split keeps each part under the 120 s per-suite budget in CI (scripts/README.md,
 # Per-suite time budget in CI). SKIPs (exit 0) when Python 3.11+ is unavailable.
 #   bash plugins/source-control/skills/babysit-prs/scripts/engine-run.sh <part>
 set -uo pipefail

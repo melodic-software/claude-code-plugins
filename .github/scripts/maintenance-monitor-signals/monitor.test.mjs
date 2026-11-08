@@ -1,17 +1,17 @@
 // Runs end to end through detect, planIssues and writePlan against an
-// in-memory issue store: for each signal family, the first run files one
-// rolling issue, a run with the same state writes nothing, a new state
-// rewrites that issue, a clear run closes it, and the next finding reopens
-// the same issue instead of filing a second. Every rewrite takes agent-ready
-// off.
+// in-memory issue store: for each signal, the first run files one incident,
+// a run with the same findings writes nothing, new findings rewrite that
+// issue's body with no
+// comment, a clear run closes it, and a later episode files a new incident.
+// Every rewrite takes agent-ready off.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
-import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
-import { errorLines, readHoldRule, readJobsCarry, writePlan } from "./monitor.mjs";
+import { FILING, SIGNALS, familyOf, planIssues, readMarker } from "./issues.mjs";
+import { errorLines, incidentFields, readHoldRule, readIncidentRules, readJobsCarry, statusLines, writePlan } from "./monitor.mjs";
 import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
 import { detect } from "./signals.mjs";
 
@@ -81,7 +81,7 @@ function store() {
   const call = async (method, path, body) => {
     calls.push(`${method} ${path}`);
     if (method === "POST" && path.endsWith("/issues")) {
-      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...body.labels] };
+      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, type: { name: body.type }, labels: [...body.labels] };
       issues.push(issue);
       return issue;
     }
@@ -95,15 +95,15 @@ function store() {
   return { issues, calls, comments, call };
 }
 
-async function runOnce(s, data, extra = {}) {
-  const findings = detect({ now, windowStart, ...data });
-  const existing = s.issues.filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing, ...extra });
-  return writePlan({ plan, call: s.call, repo: "o/r", labels: ["source: factory-monitor"], runUrl: url(900), wait: async () => {} });
-}
+const RULES = Object.fromEntries(SIGNALS.map((signal) => [signal, { open: 0, close: 0 }]));
+const planFor = (s, data, extra = {}) =>
+  planIssues({ findings: detect({ now, windowStart, ...data }), existing: s.issues.filter((i) => readMarker(i.body)), rules: RULES, now: data.now ?? now, ...extra });
 
-const nothing = { filed: [], updated: [], reopened: [], closed: [], failed: [] };
-const rewrite = (n) => [`POST /repos/o/r/issues/${n}/comments`, `PATCH /repos/o/r/issues/${n}`];
+const runOnce = (s, data, extra = {}) => writePlan({ plan: planFor(s, data, extra), call: s.call, repo: "o/r", labels: ["source: factory-monitor"], runUrl: url(900), wait: async () => {} });
+
+const nothing = { filed: [], updated: [], closed: [], retired: [], failed: [] };
+// Throttling's first findings with a second key alongside.
+const TWO_KEYS = { failedRuns: [denied(1, "lane-token-denied: the broker answered 500 with reason unknown"), denied(2, "HTTP 429 rate limit")] };
 
 const ROOT = new URL("../../..", import.meta.url).pathname;
 // The org Work status field and the option ids it maps, written by hand.
@@ -134,38 +134,45 @@ function workStatus(state, setter, postError) {
 }
 
 for (const [signal, first, changed] of CASES) {
-  test(`${signal}: one rolling issue, rewritten on a new state, closed when clear, reopened when it fires again`, async () => {
+  test(`${signal}: one incident, unchanged by new evidence for the same key, closed when clear, with no comment`, async () => {
     const s = store();
     const one = await runOnce(s, first);
     assert.equal(one.filed.length, 1);
     assert.ok(s.issues[0].body.includes(`**Signal:** ${signal}`));
     assert.deepEqual(s.issues[0].labels, ["source: factory-monitor"]);
+    assert.equal(s.issues[0].title, FILING[signal].title);
 
     const callsBefore = s.calls.length;
     assert.deepEqual(await runOnce(s, first), nothing);
+    assert.deepEqual(await runOnce(s, changed), nothing, "new evidence, same keys: nothing written");
     assert.equal(s.calls.length, callsBefore);
 
-    s.issues[0].labels.push("agent-ready");
-    const three = await runOnce(s, changed);
-    assert.deepEqual(three.updated, [100]);
-    assert.equal(s.issues.length, 1);
-    assert.deepEqual(s.calls.slice(-2), rewrite(100));
-    assert.ok(!s.calls.some((c) => c.startsWith("DELETE")), "no label DELETE: the Work status field takes agent-ready off");
-    assert.deepEqual(await runOnce(s, changed), nothing);
-
     const clear = await runOnce(s, {});
-    assert.deepEqual(clear.updated, [100]);
+    assert.deepEqual(clear, { ...nothing, closed: [100] });
     assert.equal(s.issues[0].state, "closed");
+    assert.equal(s.issues[0].state_reason, "completed");
     assert.match(s.issues[0].body, /\*\*State:\*\* clear in/);
     assert.deepEqual(await runOnce(s, {}), nothing);
 
-    const back = await runOnce(s, changed);
-    assert.deepEqual(back, { ...nothing, reopened: [100] });
-    assert.equal(s.issues.length, 1);
-    assert.equal(s.issues[0].state, "open");
-    assert.deepEqual(s.calls.slice(-2), rewrite(100));
+    const back = await runOnce(s, first);
+    assert.deepEqual(back, { ...nothing, filed: [101] });
+    assert.equal(s.issues.length, 2);
+    assert.deepEqual(s.comments, {}, "no comment on any state change");
   });
 }
+
+test("3 throttling: a new key rewrites the same issue's body with no comment", async () => {
+  const s = store();
+  await runOnce(s, CASES[2][1]);
+  s.issues[0].labels.push("agent-ready");
+  const done = await runOnce(s, TWO_KEYS);
+  assert.deepEqual(done, { ...nothing, updated: [100] });
+  assert.equal(s.issues.length, 1);
+  assert.match(s.issues[0].body, /broker-deny:500-unknown/);
+  assert.match(s.issues[0].body, /throttle:rate-limited/);
+  assert.deepEqual(s.comments, {});
+  assert.ok(!s.calls.some((c) => c.startsWith("DELETE")), "no label DELETE: the Work status field takes agent-ready off");
+});
 
 test("4 merge-queue ejections: the oldest group leaving the 24-hour window writes nothing", async () => {
   const s = store();
@@ -176,19 +183,11 @@ test("4 merge-queue ejections: the oldest group leaving the 24-hour window write
   assert.equal(s.calls.length, callsBefore);
 });
 
-test("two signals of one family share its issue; two families get two", async () => {
+test("two signals get one incident each", async () => {
   const s = store();
-  const done = await runOnce(s, {
-    failedRuns: [denied(1, "lane-token-denied: the broker answered 500 with reason unknown"), denied(2, "HTTP 429 rate limit")],
-    mainRun: red("not ok 1 - a"),
-  });
+  const done = await runOnce(s, { ...TWO_KEYS, mainRun: red("not ok 1 - a") });
   assert.deepEqual(done.filed, [100, 101]);
-  assert.deepEqual(
-    s.issues.map((i) => i.title),
-    ["Monitoring: main red", "Monitoring: throttling"],
-  );
-  assert.match(s.issues[1].body, /broker-deny:500-unknown/);
-  assert.match(s.issues[1].body, /throttle:rate-limited/);
+  assert.deepEqual(s.issues.map((i) => i.title), [FILING["1 main red"].title, FILING["3 throttling"].title]);
 });
 
 test("a platform incident files nothing", async () => {
@@ -206,31 +205,27 @@ test("an unread source leaves an open issue as it is", async () => {
   assert.equal(s.issues[0].state, "open");
 });
 
-test("open per-key issues close as superseded by the rolling issue filed in the same run", async () => {
+test("open rolling and per-key issues are retired with a comment and their history kept, once", async () => {
   const s = store();
-  const legacy = (key, number) => ({
+  const old = (key, number) => ({
     number,
     state: "open",
     state_reason: null,
-    labels: ["needs-triage"],
+    labels: [],
     body: `<!-- factory-monitor key=${key} fp=0123456789abcdef -->\nold`,
   });
-  s.issues.push(legacy("broker-deny:500-unknown", 7), legacy("platform:abc", 8));
-  const done = await runOnce(s, CASES[2][1]);
-  assert.deepEqual(done.filed, [102]);
-  assert.deepEqual(done.closed, [7, 8]);
+  s.issues.push(old("family:throttling", 7), old("broker-deny:500-unknown", 8));
+  const done = await runOnce(s, {});
+  assert.deepEqual(done, { ...nothing, retired: [7, 8] });
   assert.equal(s.issues[0].state, "closed");
   assert.equal(s.issues[0].state_reason, "not_planned");
-  assert.match(s.comments[7][0], /Superseded by #102/);
-  assert.match(s.comments[8][0], /run summary/);
-  assert.deepEqual(await runOnce(s, CASES[2][1]), nothing);
+  assert.match(s.issues[0].body, /old$/, "the body stays as it was");
+  assert.match(s.comments[7][0], /job summary/);
+  assert.deepEqual(await runOnce(s, {}), nothing);
 });
 
 const HUMAN = 153232337;
-const rewriteWith = async (s, leaveAgentReady) => {
-  const findings = detect({ now, windowStart, ...CASES[2][2] });
-  return writePlan({ plan: planIssues({ findings, existing: [...s.issues] }), call: s.call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
-};
+const rewriteWith = (s, leaveAgentReady) => writePlan({ plan: planFor(s, TWO_KEYS), call: s.call, repo: "o/r", runUrl: url(900), leaveAgentReady, wait: async () => {} });
 
 for (const [why, state, setter, written] of [
   ["an unset field", null, undefined, ["needs-triage"]],
@@ -267,42 +262,75 @@ test("a rewrite takes agent-ready off through the Work status field before the P
   const s = store();
   await runOnce(s, CASES[2][1]);
   s.issues[0].labels.push("agent-ready");
-  const existing = structuredClone(s.issues);
   const log = [];
   const call = async (method, path, body) => (log.push(method), s.call(method, path, body));
   const leaveAgentReady = async (number, state, options) => log.push(["FIELD", number, state, options]);
-  const findings = detect({ now, windowStart, ...CASES[2][2] });
-  const done = await writePlan({ plan: planIssues({ findings, existing }), call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
+  const done = await writePlan({ plan: planFor(s, TWO_KEYS), call, repo: "o/r", runUrl: url(900), leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
-  assert.deepEqual(log, ["POST", ["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
+  assert.deepEqual(log, [["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
 });
 
 test("a rewrite whose Work status write fails leaves the PATCH for the next run", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
-  const existing = structuredClone(s.issues);
   const log = [];
   const call = async (method, path, body) => (log.push(method), s.call(method, path, body));
   const leaveAgentReady = async () => {
     throw new Error("#100's Work status field could not be read: HTTP 502");
   };
-  const findings = detect({ now, windowStart, ...CASES[2][2] });
-  const done = await writePlan({ plan: planIssues({ findings, existing }), call, repo: "o/r", labels: [], runUrl: url(900), leaveAgentReady, wait: async () => {} });
+  const done = await writePlan({ plan: planFor(s, TWO_KEYS), call, repo: "o/r", runUrl: url(900), leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
-  assert.deepEqual(log, ["POST"]);
+  assert.deepEqual(log, []);
 });
 
 test("a failed write is reported and the rest still run", async () => {
   const s = store();
+  await runOnce(s, { ...CASES[0][1], ...CASES[2][1] });
   const failing = async (method, path, body) => {
-    if (body?.title === "Monitoring: main red") throw new Error("POST /repos/o/r/issues: HTTP 422");
+    if (path.endsWith("/issues/100")) throw new Error("PATCH /repos/o/r/issues/100: HTTP 422");
     return s.call(method, path, body);
   };
-  const findings = detect({ now, windowStart, ...CASES[0][1], ...CASES[3][1] });
-  const done = await writePlan({ plan: planIssues({ findings, existing: [] }), call: failing, repo: "o/r", labels: [], runUrl: url(900), wait: async () => {} });
-  assert.equal(done.filed.length, 1);
+  const done = await writePlan({ plan: planFor(s, {}), call: failing, repo: "o/r", runUrl: url(900), wait: async () => {} });
+  assert.deepEqual(done.closed, [101]);
+  assert.deepEqual(done.failed, [{ target: "#100", error: "PATCH /repos/o/r/issues/100: HTTP 422" }]);
+});
+
+test("a filing sets Issue Type, Work status and Priority, and leaves the dimensions to triage", async () => {
+  const s = store();
+  const set = [];
+  await writePlan({ plan: planFor(s, CASES[0][1]), call: s.call, repo: "o/r", labels: ["l"], runUrl: url(900), setFields: async (number, values) => set.push([number, values]), wait: async () => {} });
+  assert.deepEqual(s.issues[0].type, { name: "Bug" });
+  assert.deepEqual(set, [[100, [{ field_id: 48484079, value: "needs-triage" }, { field_id: 49622037, value: "critical" }]]]);
+  assert.deepEqual(incidentFields("5 held PRs")[1], { field_id: 49622037, value: "medium" });
+  assert.equal(readMarker(s.issues[0].body).key, "incident:main-red");
+});
+
+test("a failed filing is reported and the next still files; a failed field write and a dropped type only warn", async (t) => {
+  const logged = t.mock.method(console, "log", () => {});
+  const s = store();
+  const call = async (method, path, body) => {
+    if (body?.title === FILING["1 main red"].title) throw new Error("POST /repos/o/r/issues: HTTP 422");
+    const issue = await s.call(method, path, body);
+    return { number: issue.number };
+  };
+  const setFields = async () => {
+    throw new Error("HTTP 500");
+  };
+  const done = await writePlan({ plan: planFor(s, { ...CASES[0][1], ...CASES[2][1] }), call, repo: "o/r", labels: [], runUrl: url(900), setFields, wait: async () => {} });
+  assert.deepEqual(done.filed, [100]);
   assert.deepEqual(done.failed, [{ target: "1 main red", error: "POST /repos/o/r/issues: HTTP 422" }]);
+  const lines = logged.mock.calls.map((c) => c.arguments[0]);
+  assert.match(lines[0], /#100 came back without Issue Type Bug/);
+  assert.match(lines[1], /#100's field values were not set: HTTP 500/);
+});
+
+test("every signal's state is in the job summary, its evidence fenced", () => {
+  const s = store();
+  const lines = statusLines(planFor(s, CASES[2][1])).join("\n");
+  for (const signal of SIGNALS) assert.ok(lines.includes(`- **${signal}**:`), signal);
+  assert.match(lines, /- \*\*1 main red\*\*: clear/);
+  assert.match(lines, /`broker-deny:500-unknown` \(.*\):\n\n```text\n/);
 });
 
 test("signal 11 prints one ::error line per run while it fires; other signals print none", () => {
@@ -351,7 +379,7 @@ test("the job reads carry is read from the newest trusted run, past a pull_reque
 
 test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries nothing", async (t) => {
   const { actions, calls } = carryActions([{ id: 901, path: LANE, event: "schedule", head_branch: "main" }]);
-  assert.deepEqual(await readJobsCarry({ env: {}, repo: "o/r", actions }), { jobs: new Map(), held: null });
+  assert.deepEqual(await readJobsCarry({ env: {}, repo: "o/r", actions }), { jobs: new Map(), held: null, episodes: {} });
   assert.deepEqual(calls, []);
   t.mock.method(console, "log", () => {});
   for (const download of [
@@ -360,7 +388,7 @@ test("no JOBS_CARRY_PATH reads nothing, and a carry that cannot be read carries 
     },
     () => jobsCarryFile("other/repo", [ENTRY]),
   ]) {
-    assert.deepEqual(await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download }), { jobs: new Map(), held: null });
+    assert.deepEqual(await readJobsCarry({ env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" }, repo: "o/r", actions, download }), { jobs: new Map(), held: null, episodes: {} });
   }
   // A file from before the carry held runs carries none over no span; a bad held run drops only the held runs.
   const old = JSON.stringify({ version: 1, repository: "o/r", runs: [ENTRY] });
@@ -390,4 +418,36 @@ test("the checkout's pr-pipeline.yaml sets a hold rule the schema and holdRule t
   const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
   const props = schema.properties.monitor.properties["lane-holds"].properties;
   assert.deepEqual([props.threshold.default, props["window-hours"].default], [4, 24]);
+});
+
+test("the signal timers come back with the job reads", async () => {
+  const { actions } = carryActions([{ id: 901, path: LANE, event: "schedule", head_branch: "main" }]);
+  const signals = { "3 throttling": { onSince: "2026-10-19T15:00:00Z", clearSince: null } };
+  const { episodes } = await readJobsCarry({
+    env: { JOBS_CARRY_PATH: "/x", GITHUB_RUN_ID: "999" },
+    repo: "o/r",
+    actions,
+    now,
+    download: () => jobsCarryFile("o/r", [ENTRY], HELD, { at: "2026-10-19T15:52:00Z", signals }),
+  });
+  assert.deepEqual(episodes, signals);
+});
+
+test("the incident thresholds are read from pr-pipeline.yaml, and a bad one is an error", () => {
+  const full = JSON.stringify(Object.fromEntries(SIGNALS.map((s) => [familyOf(s), { "open-hours": 1, "close-hours": 2 }])));
+  assert.deepEqual(readIncidentRules({ path: "p.yaml", run: () => full })["1 main red"], { open: 1, close: 2 });
+  assert.match(readIncidentRules({ path: "p.yaml", run: () => "{}" }).message, /monitor\.incidents thresholds were not read/);
+  const failing = readIncidentRules({
+    run: () => {
+      throw new Error("yq: not found");
+    },
+  });
+  assert.match(failing.message, /yq: not found/);
+});
+
+test("the checkout's pr-pipeline.yaml sets thresholds for every signal, and main-red opens at once", () => {
+  const text = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  const row = (slug) => new RegExp(`^ {4}${slug}:\n {6}open-hours: (\\d+)\n {6}close-hours: (\\d+)$`, "m").exec(text);
+  for (const signal of SIGNALS) assert.ok(row(familyOf(signal)), familyOf(signal));
+  assert.equal(row("main-red")[1], "0");
 });

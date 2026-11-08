@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [9.11.0] - 2026-11-08
+
+### Changed
+
+- The monitoring lane replaces its rolling issues with status in each run's job summary and one incident issue per signal that needs action. `monitor.incidents` sets each signal's `open-hours` and `close-hours`: an incident opens only after the signal has stayed on past its open threshold and closes once clear past its close threshold, and a state change rewrites the body without a comment. Closing an incident as not planned or duplicate still mutes the signal. The lane closes the old rolling issues with a pointing comment and leaves their history in place.
+
+## [9.10.5] - 2026-11-08
+
+### Fixed
+
+- Intake triage reads a verdict's `Size:`, `Complexity:` and `Uncertainty:` values in any case, so `small` and `Small` both name the `small` option of `models.issue-dimensions`. Its field write sends the lowercase option name and, when GitHub answers 400 or 422, sends the Title-case name once more; either way it checks the answer by option id. Renaming the org's Size, Complexity and Uncertainty options to lowercase (ids unchanged) no longer breaks the write.
+
+## [9.10.4] - 2026-11-08
+
+### Changed
+
+- Workflow and composite action display names are their file or directory stem in Title Case, except the two workflows sync-managed from standards until their source is renamed, and the read-only workflow check accepts that form beside the stem. Filenames, job ids, job names and step names are unchanged, so `ci-status` is unaffected.
+
 ## [9.10.3] - 2026-11-08
 
 ### Changed

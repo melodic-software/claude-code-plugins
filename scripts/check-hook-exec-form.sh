@@ -57,7 +57,7 @@
 # hook is in exec form. Neither subsumes the other.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in README.md, "The check-script
+# the whole family's contract, stated once in scripts/README.md, "The check-script
 # contract", and held by scripts/check-script-contract.test.sh. A hook
 # declaration in the TREE that this gate cannot parse is a finding (1), not an
 # environment problem: the input is what is wrong, and clearing it would be the
