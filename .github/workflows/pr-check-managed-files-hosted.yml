@@ -102,18 +102,13 @@ jobs:
     name: pr-check-managed-files
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # No checkout step: the action checks out this repository itself, with
+    # full history and no persisted credentials (ci-workflows#881).
     steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # The guard diffs base...head; a shallow checkout has no base to
-          # diff against, and the action fails closed on a diff it cannot see.
-          fetch-depth: 0
       - name: Guard managed files
         # The org requires actions pinned to a full commit SHA (reusable
         # workflows may float on main); this pin moves by hand.
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@e4b17e9d86e72c9d97c2ae12a2cfe28dd0055b2e # v0.70.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@8e1076f6c33cb9ca3544a1ad2a215fd2262b4a72 # v0.71.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read
