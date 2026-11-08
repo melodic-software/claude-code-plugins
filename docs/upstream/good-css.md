@@ -6,18 +6,15 @@ techniques for agents. The `user-interface` plugin's `/user-interface:write-css`
 techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
 in skill files, where it is agent-facing noise.
 
-**Pinned upstream state:** `main@92d436ba1937d1b1407c47e35abb3e199eaace2e` (committed 2026-10-10,
-the latest commit to `PRACTICES.md`; the repository has no tags or releases, so the pin is a
-commit). Files read, by `git hash-object` blob SHA at the pin:
+**Last audited upstream state:** `vojtaholik/good-css@92d436ba1937d1b1407c47e35abb3e199eaace2e` (committed 2026-10-10, the latest commit to `PRACTICES.md`; no tags or releases).
 
-| Upstream path | Blob SHA at the pin | Ours |
-|---|---|---|
-| `PRACTICES.md` | `b8a6cb6e6a30331d852e151504d2c7b5567dfc20` | Absorbed: restructured into the eight topic files under [`skills/write-css/reference/`](../../plugins/user-interface/skills/write-css/reference/) |
-| `scripts/check-css.mjs` | `6fa72714ba18cf02f698fa8015f63df043b3af85` | Vendored unmodified: [`skills/write-css/vendor/check-css.mjs`](../../plugins/user-interface/skills/write-css/vendor/check-css.mjs) |
-| `LICENSE` | `66a325d82e56f2f41ebd14812517d6c50f5b66da` | Vendored unmodified: [`skills/write-css/vendor/LICENSE`](../../plugins/user-interface/skills/write-css/vendor/LICENSE) |
+Files read, each linked at the pin:
 
-`skills/good-css/SKILL.md` and its generated `references/` were read for structure; the skill does
-not ship, wrap or depend on them.
+| Upstream path | Ours |
+|---|---|
+| [`PRACTICES.md`](https://github.com/vojtaholik/good-css/blob/92d436ba1937d1b1407c47e35abb3e199eaace2e/PRACTICES.md) | Absorbed: restructured into the eight topic files under [`skills/write-css/reference/`](../../plugins/user-interface/skills/write-css/reference/) |
+| [`scripts/check-css.mjs`](https://github.com/vojtaholik/good-css/blob/92d436ba1937d1b1407c47e35abb3e199eaace2e/scripts/check-css.mjs) | Vendored unmodified: [`skills/write-css/vendor/check-css.mjs`](../../plugins/user-interface/skills/write-css/vendor/check-css.mjs) |
+| [`LICENSE`](https://github.com/vojtaholik/good-css/blob/92d436ba1937d1b1407c47e35abb3e199eaace2e/LICENSE) | Vendored unmodified: [`skills/write-css/vendor/LICENSE`](../../plugins/user-interface/skills/write-css/vendor/LICENSE) |
 
 `motion.md`, `show-and-hide.md`, `scroll-and-viewport.md` and `interaction.md` also carry recipes
 from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
@@ -27,14 +24,25 @@ from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
 `menu-items-that-fade-at-the-container-edge`, `card-with-a-distinct-link`); their provenance is
 `docs/upstream/aiforui-course.md`, not this record.
 
-- **Pointer**: when re-auditing the techniques, fetch
-  <https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md> live and diff it against the pin
-  (<https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main>).
-- **As of**: 2026-10-18
-- **Recheck trigger**: a new upstream commit to `PRACTICES.md`, `scripts/check-css.mjs` or
-  `LICENSE` after <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on -->, or a Baseline status change for a technique the skill uses. Re-audit
-  the affected rows below; a changed `check-css.mjs` or `LICENSE` means re-vendoring the copy and
-  updating its pin in the drift script and this table.
+- **Pointer**: when re-auditing the techniques, fetch the compare view of upstream against the pin
+  live (<https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main>)
+  and read [`PRACTICES.md` at the pin](https://github.com/vojtaholik/good-css/blob/92d436ba1937d1b1407c47e35abb3e199eaace2e/PRACTICES.md)
+  beside it.
+- **As of**: the 40-hex pin above stands in for the as-of date: the commit fixes exactly what was
+  read, and this page's git history records when.
+- **Recheck trigger**: a change, between the pinned commit and upstream HEAD, to a path a row we
+  took or rejected something from links, a unit removed or added under the scope: re-audit the
+  affected rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for
+  this upstream lists them
+  ([upstream-drift convention, "Pinned git upstreams"](../contracts/upstream-drift/README.md#pinned-git-upstreams)).
+  A Baseline status change for a technique the skill uses also obliges a re-audit of its row.
+- **Re-pin procedure**: re-auditing the affected rows moves the pin and records the outcome per row,
+  as [When a trigger fires](../contracts/upstream-drift/README.md#when-a-trigger-fires) requires:
+  move the pin on the marker line and in every upstream link, `## Map` included, and run
+  `scripts/check-upstream-drift.sh --links` on this page. A changed `check-css.mjs` or `LICENSE`
+  also means re-vendoring the copy. The weekly
+  `plugins/user-interface/scripts/check-good-css-drift.sh` and its test pin the upstream blob SHAs
+  too; update them in the same change.
 
 The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`)
 to <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on --> (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
@@ -43,13 +51,22 @@ past the content column, and adds a rule that the grid takes the place of any ce
 wrapper. The
 reference `layout.md` carries both; no credit changed.
 
+## Map
+
+Units we took nothing from; each counts only if removed upstream.
+
+- [`skills/good-css`](https://github.com/vojtaholik/good-css/tree/92d436ba1937d1b1407c47e35abb3e199eaace2e/skills/good-css):
+  its `SKILL.md` and generated `references/` were read for structure; the skill does not ship, wrap
+  or depend on them.
+
 ## Drift check
 
 [`plugins/user-interface/scripts/check-good-css-drift.sh`](../../plugins/user-interface/scripts/check-good-css-drift.sh)
-`--check` reads the current blob SHA of each of the three files on upstream `main` and compares it
-with the pin above, and checks that both vendored copies still hash to theirs. Exit 0 means no
-drift, 1 drift (it names each changed file and prints the compare URL), and 2 unverifiable (network,
-auth or rate limit). The pinned SHAs live in one array at the top of the script. The
+`--check` reads the current blob SHA of each of the three files on upstream `main`, compares it with
+the blob SHA the script pins for that file at the pin above, and checks that both vendored copies
+still hash to theirs. Exit 0 means no drift, 1 drift (it names each changed file and prints the
+compare URL), and 2 unverifiable (network, auth or rate limit). The pinned SHAs live in one array at
+the top of the script. The
 `user-interface:write-css` row of
 [`.github/workflows/maintenance-check-upstream-drift.yml`](../../.github/workflows/maintenance-check-upstream-drift.yml)
 runs it weekly under the exit-code contract every row shares. Its exit-code contract is
