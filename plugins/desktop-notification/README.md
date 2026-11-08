@@ -7,7 +7,7 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 ## Behavior
 
-- **Fires on attention prompts.** We match the `permission_prompt` and
+- **Fires on attention prompts.** The hook matches the `permission_prompt` and
   `idle_prompt` notification types, plus the `plugin_notification` this plugin's
   mod raises (title `desktop-notification`, see [Forwarding mod toasts](#forwarding-mod-toasts));
   every other notification is a silent no-op.
