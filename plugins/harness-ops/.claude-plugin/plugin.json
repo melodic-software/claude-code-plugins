@@ -32,7 +32,7 @@
     "registry_dir": {
       "type": "string",
       "title": "Known-issues registry directory",
-      "description": "Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. A repository's registry_dir in harness-ops.yaml beats this option. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid."
+      "description": "Project-relative directory holding the known-issues registry (registry.json). Unset: the plugin data directory, ${CLAUDE_PLUGIN_DATA}. A repository's registry_dir in harness-ops.yaml beats this option. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid."
     },
     "install_new": {
       "type": "string",

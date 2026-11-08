@@ -512,7 +512,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `registry_dir` | string | *(none)* | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. A repository's registry_dir in harness-ops.yaml beats this option. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `registry_dir` | string | *(none)* | Project-relative directory holding the known-issues registry (registry.json). Unset: the plugin data directory, ${CLAUDE_PLUGIN_DATA}. A repository's registry_dir in harness-ops.yaml beats this option. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
 | `install_new` | string | `"ask"` | Sync action for catalog plugins not yet installed. ask (default) offers them in AskUserQuestion chunks, at most 4 options per question and 4 questions per call; a chunk of 1 is a single-select Install/Skip question. Each pick is installed and enabled. all installs every one; none only reports them. |
 | `directory_source_pull` | string | `"ask"` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
 | `quiet_auto_update_marketplaces` | string | *(none)* | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
