@@ -345,10 +345,7 @@ async function refusal({ github, repo, pull, refused, run, blob, bot, lane, now,
 // The transient caps: one re-fire per failed run, TRANSIENT_PER_HEAD per head
 // tree. A marker for this run at the current head means its push did not land.
 async function transientRefusal({ github, repo, pull, run, comments, now }) {
-  const tree = (await github("GET", `/repos/${repo}/git/commits/${pull.head.sha}`))?.tree?.sha;
-  if (!SHA.test(String(tree))) {
-    throw new Error(`the head ${pull.head.sha} has no tree`);
-  }
+  const tree = await treeOf(github, repo, pull.head.sha);
   const markers = comments
     .map((comment) => ({ match: TRANSIENT_MARKER.exec(String(comment.body ?? "")), at: Date.parse(comment.created_at) }))
     .filter(({ match }) => match !== null);
@@ -366,6 +363,14 @@ async function transientRefusal({ github, repo, pull, run, comments, now }) {
   return { reason: null, recorded: mine.length > 0, tree };
 }
 
+async function treeOf(github, repo, sha) {
+  const tree = (await github("GET", `/repos/${repo}/git/commits/${sha}`))?.tree?.sha;
+  if (!SHA.test(String(tree))) {
+    throw new Error(`the head ${sha} has no tree`);
+  }
+  return tree;
+}
+
 // The head's tree, read after a fresh read of the PR: a PR closed, drafted,
 // retargeted or pushed since the listing is left alone.
 async function headTree(github, repo, pull) {
@@ -373,11 +378,7 @@ async function headTree(github, repo, pull) {
   if (current?.head?.sha !== pull.head.sha || current.head.ref !== pull.head.ref || current.state !== "open" || current.draft === true || current.base?.ref !== "main") {
     throw new PullFailure("the PR changed since it was listed; nothing pushed");
   }
-  const head = await github("GET", `/repos/${repo}/git/commits/${pull.head.sha}`);
-  if (!SHA.test(String(head?.tree?.sha))) {
-    throw new Error(`the head ${pull.head.sha} has no tree`);
-  }
-  return head.tree.sha;
+  return treeOf(github, repo, pull.head.sha);
 }
 
 // An empty commit on the head, moved onto the branch only as a fast-forward,
