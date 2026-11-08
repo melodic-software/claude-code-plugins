@@ -96,7 +96,7 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
@@ -108,7 +108,7 @@ const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
 const AGENT_READY = "agent-ready";
 // The holds besides needs-decision a not-exact refinement could overwrite.
-const PERSON_HOLDABLE = ["status: needs-info", "needs-spec"];
+const PERSON_HOLDABLE = [...INFO_LABELS, "needs-spec"];
 // The id of whoever last added label `name` in `events`, or undefined.
 const newestLabeler = (events, name) => events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -169,7 +169,7 @@ export function isThin({ body, laneBody }) {
 // [{n, kind, text}]}, each text the item's first line, whole. Who set the
 // label and wrote the comment is checked apart. Pure.
 export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
-  if (!(labels.includes(NEEDS_DECISION) || confirmedOnly(labels)) || flagsOf(laneBody)?.join() !== "none") {
+  if (!(carried(labels, DECISION_LABELS) || confirmedOnly(labels)) || flagsOf(laneBody)?.join() !== "none") {
     return null;
   }
   const items = taskItems(body, rules["task-list"]);
@@ -179,8 +179,8 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
   const owned = ownedLines(items, moved);
   // A nested task-list line the lane can perform would move unasked; with
   // none, an item stays exactly when one is not moved.
-  const carried = items.some(({ line }, index) => owned.has(line) && !moved.includes(index + 1));
-  if (found.length === 0 || carried || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
+  const leftBehind = items.some(({ line }, index) => owned.has(line) && !moved.includes(index + 1));
+  if (found.length === 0 || leftBehind || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
     return null;
   }
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
@@ -191,7 +191,7 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
 // held before at the lanes App's own `status: needs-decision` lifts as
 // decisionStays judges over `events`. Any other status stays.
 async function splitStays(github, base, labels, comments, appId, events) {
-  if (labels.includes(NEEDS_DECISION)) {
+  if (carried(labels, DECISION_LABELS)) {
     return decisionStays(github, base, comments, appId, events);
   }
   return admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`;
@@ -794,15 +794,16 @@ export async function applyRefinement({ github, repository, number, appId, human
     if ((await splitStays(github, base, labels, comments, appId, events)) !== null) {
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
-    const parkedAt = labels.includes(NEEDS_DECISION) ? NEEDS_DECISION : CONFIRMED;
+    const decisionHold = carried(labels, DECISION_LABELS);
+    const parkedAt = decisionHold ? NEEDS_DECISION : CONFIRMED;
     const held = await retriage();
     if (held) {
       return held;
     }
     // A needs-decision hold label holds on top of the field; confirmed is a
     // queue state the needs-triage field write already replaced.
-    if (parkedAt === NEEDS_DECISION) {
-      await removeLabel(github, base, NEEDS_DECISION);
+    if (decisionHold) {
+      await removeLabel(github, base, decisionHold);
     }
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
@@ -855,7 +856,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
     const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), hold) !== appId;
     const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
-    if (!labels.includes(NEEDS_DECISION) && !fieldHeld) {
+    if (!carried(labels, DECISION_LABELS) && !fieldHeld) {
       await setStatus(number, "needs-owner-decision");
     }
     await post();
@@ -872,7 +873,8 @@ export async function applyRefinement({ github, repository, number, appId, human
   // A `status: ready` issue admission has not taken (no needs-decision, no
   // agent-ready) is triaged again when the text admission counts, with this
   // refinement posted, holds criteria.
-  if (!labels.includes(NEEDS_DECISION)) {
+  const decisionHold = carried(labels, DECISION_LABELS);
+  if (!decisionHold) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
       return exactStays("no needs-decision to lift and nothing awaits admission");
     }
@@ -885,7 +887,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     return exactStays(`${stays}, so it stays`);
   }
   // needs-triage first: a failure between the two leaves a status a sweep picks up.
-  return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, NEEDS_DECISION));
+  return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, decisionHold));
 }
 
 // The lanes App's comment on a split issue: SIZE_SPLIT_MARKER, the split

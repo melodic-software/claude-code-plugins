@@ -33,7 +33,6 @@ const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, 
 export const FILER_LOGIN = "github-actions[bot]";
 // No needs-triage: the digest is a status record the sweep rewrites daily,
 // not an intake item.
-const LABELS = ["source: lane-sweep"];
 
 // The job names a unit's data shows: the failed jobs of slice A. Slice D's
 // green samples are not a list of the jobs that ran, and its workflow-level
@@ -227,14 +226,14 @@ const DIGEST_FIELDS = [
 // statusLabels). The PATCH runs last and carries the entry-set
 // fingerprint, so a failed call before it leaves the old state and is retried
 // on the next run.
-export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
+export async function writeDigest({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };
   if (!plan.action) return done;
   const body = renderDigest(plan.entries, runUrl);
   if (plan.action === "file") {
     await wait();
     try {
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, type: DIGEST_TYPE, body, labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, type: DIGEST_TYPE, body });
       done.filed.push(issue.number);
       // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== DIGEST_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${DIGEST_TYPE}`);
@@ -313,19 +312,13 @@ async function main() {
     complete,
     carry,
   });
-  const labels = [];
-  if (plan.action === "file") {
-    for (const name of LABELS) {
-      if (await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
-    }
-  }
   const runUrl = `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`;
   // The field write sends its own API version, which `call` cannot, so it
   // goes through its own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
   const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
-  const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
+  const done = await writeDigest({ plan, call, repo, runUrl, leaveAgentReady, setFields });
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     "### Lane sweep digest",

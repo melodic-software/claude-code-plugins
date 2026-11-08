@@ -315,7 +315,7 @@ import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { writeAdmissionRecord } from "../lib/admission-record.mjs";
-import { HOLD_STATES, loadTrustedActors, readyWhileDeferred, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { isStatusLabel, HOLD_STATES, loadTrustedActors, readyWhileDeferred, StatusReadError, statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -1072,7 +1072,7 @@ async function heldOnSet(writer, number, state) {
 
 // The labels a closed issue's state strip may remove: no status label, as
 // the Work status field carries that state.
-const unstatused = (issue) => labelNames(issue).filter((name) => !name.toLowerCase().startsWith("status: "));
+const unstatused = (issue) => labelNames(issue).filter((name) => !isStatusLabel(name));
 
 // A closed issue loses its state labels (host-run), so no queue or count
 // reads it as waiting. Read fresh: a run queued behind another may land after a reopen,

@@ -107,7 +107,7 @@ import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { HOLD_STATES, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -115,11 +115,10 @@ const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
-const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
-const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION, OUTSIDE_ACTOR_LABEL]);
+const HOLDS = new Set([NEEDS_HUMAN, ...INFO_LABELS, ...DECISION_LABELS, OUTSIDE_ACTOR_LABEL]);
 // Holds a lanes App hold-lift never takes off; needs-human comes off only as
 // a refused triage label (planWrites).
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
@@ -447,7 +446,7 @@ export function planWrites(
     if (had(READY)) {
       remove.push(READY);
     }
-    if (!labels.includes(NEEDS_DECISION) && !labels.includes(NEEDS_INFO)) {
+    if (!carried(labels, DECISION_LABELS) && !carried(labels, INFO_LABELS)) {
       add.push(NEEDS_DECISION);
     }
   }

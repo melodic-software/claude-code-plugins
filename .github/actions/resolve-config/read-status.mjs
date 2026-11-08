@@ -33,6 +33,16 @@ export class StatusReadError extends Error {
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
 const fold = (name) => String(name).toLowerCase();
 
+// The owner-decision and reporter-info hold labels, under each of their two
+// names; the old name is first, as the label a Work status state reads as.
+export const DECISION_LABELS = Object.freeze(["status: needs-decision", "needs-owner-decision"]);
+export const INFO_LABELS = Object.freeze(["status: needs-info", "needs-reporter-info"]);
+const HOLD_NAMES = new Set([...DECISION_LABELS, ...INFO_LABELS]);
+// The name in `aliases` the issue carries, or undefined. `labels` are as read.
+export const carried = (labels, aliases) => aliases.find((name) => labels.includes(name));
+// Whether `name` is a status label: a `status:` label or a hold under either name.
+export const isStatusLabel = (name) => fold(name).startsWith("status:") || HOLD_NAMES.has(fold(name));
+
 // `names` as the field's trusted `state` decides them. With no state, `names`
 // unchanged. With one: every queue-state label (a state not held, agent-ready
 // included) is dropped, hold labels are kept, and the state's first label is
