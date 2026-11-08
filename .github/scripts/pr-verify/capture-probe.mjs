@@ -42,6 +42,7 @@ export const CREDENTIAL_NAMES = Object.freeze([
 // Credential values whatever their variable's name: an Anthropic key or
 // OAuth token, and GitHub's token formats.
 const VALUE_SHAPES = [/sk-ant-[A-Za-z0-9_-]{8,}/, /\bgh[opsu]_[A-Za-z0-9]{20,}/, /\bgithub_pat_[A-Za-z0-9_]{20,}/];
+const credentialShaped = (text) => VALUE_SHAPES.some((shape) => shape.test(text));
 const CANARY = "PR_VERIFY_PROBE_CANARY";
 // Files that hold a credential git or gh would send.
 const AUTH_LINE = /extraheader|authorization:/i;
@@ -57,7 +58,7 @@ export function envHits(entries, names = CREDENTIAL_NAMES) {
     const name = at < 0 ? entry : entry.slice(0, at);
     const value = at < 0 ? "" : entry.slice(at + 1);
     if (value !== "" && names.includes(name)) hits.add(name);
-    if (VALUE_SHAPES.some((shape) => shape.test(value))) hits.add(`a credential-shaped value in ${name}`);
+    if (credentialShaped(value)) hits.add(`a credential-shaped value in ${name}`);
   }
   return [...hits];
 }
@@ -65,14 +66,12 @@ export function envHits(entries, names = CREDENTIAL_NAMES) {
 // Every process environment readable under procRoot: the hits per process,
 // how many it read, and whether one held the canary.
 export function scanProc(procRoot, canary, names = CREDENTIAL_NAMES) {
-  const hits = [];
-  let read = 0;
-  let canarySeen = false;
-  let pids = [];
+  const scan = { hits: [], read: 0, canarySeen: false };
+  let pids;
   try {
     pids = readdirSync(procRoot).filter((name) => /^[0-9]+$/.test(name));
   } catch {
-    return { hits, read, canarySeen };
+    return scan;
   }
   for (const pid of pids) {
     let entries;
@@ -81,11 +80,11 @@ export function scanProc(procRoot, canary, names = CREDENTIAL_NAMES) {
     } catch {
       continue;
     }
-    read += 1;
-    if (canary && entries.includes(`${CANARY}=${canary}`)) canarySeen = true;
-    for (const name of envHits(entries, names)) hits.push({ where: `process ${pid}`, name });
+    scan.read += 1;
+    if (canary && entries.includes(`${CANARY}=${canary}`)) scan.canarySeen = true;
+    for (const name of envHits(entries, names)) scan.hits.push({ where: `process ${pid}`, name });
   }
-  return { hits, read, canarySeen };
+  return scan;
 }
 
 // The credential files a process here could read.
@@ -98,7 +97,7 @@ export function scanFiles(files) {
     } catch {
       continue;
     }
-    if (AUTH_LINE.test(text) || VALUE_SHAPES.some((shape) => shape.test(text))) hits.push({ where: file, name: "a stored credential" });
+    if (AUTH_LINE.test(text) || credentialShaped(text)) hits.push({ where: file, name: "a stored credential" });
   }
   return hits;
 }

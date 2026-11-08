@@ -112,7 +112,7 @@ export function parseMetadata(message) {
 // subject included.
 export function subjectMajor(message, update) {
   const subject = String(message ?? "").split("\n", 1)[0].replace(PREFIX, "");
-  if (update.version === null || update.version === undefined || GROUP.test(subject)) {
+  if (update.version == null || GROUP.test(subject)) {
     return null;
   }
   const single = SINGLE.exec(subject);
@@ -135,9 +135,7 @@ export function parseTitle(title, body) {
   return single ? [{ name: single[1], major: isMajor(single[2], single[3]), version: single[3] }] : null;
 }
 
-const signed = (item) => [item?.commit?.author?.name, item?.commit?.author?.email];
-const isAuthor = (item, author) => signed(item)[0] === author[0] && signed(item)[1] === author[1];
-export const isDependabotCommit = (item) => isAuthor(item, DEPENDABOT_AUTHOR);
+export const isDependabotCommit = (item) => item?.commit?.author?.name === DEPENDABOT_AUTHOR[0] && item?.commit?.author?.email === DEPENDABOT_AUTHOR[1];
 
 // Why one REST pull-request commit may not merge, or null: it is
 // GitHub-verified, committed by GitHub, and Dependabot's. The pr-merge lane's
@@ -191,8 +189,8 @@ export function pinSwapRefusal(files) {
   const isWorkflow = (path) => /^\.github\/workflows\//i.test(path) || ACTION.test(path);
   for (const file of files) {
     const paths = [file.filename, file.previous_filename].filter(Boolean).map(String);
-    if (!paths.some(isWorkflow)) continue;
     const where = paths.find(isWorkflow);
+    if (!where) continue;
     if (!["modified", "renamed"].includes(file.status) || typeof file.patch !== "string") return `${where}:not-a-modification`;
     const blocks = [];
     let block = null;
@@ -416,15 +414,16 @@ export function isSemverRange(value) {
   });
 }
 
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const allKeys = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
 const parseJson = (text) => {
   try {
     const value = JSON.parse(String(text));
-    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+    return isObject(value) ? value : null;
   } catch {
     return null;
   }
 };
-const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const canonical = (value) =>
   Array.isArray(value)
     ? `[${value.map(canonical).join(",")}]`
@@ -481,7 +480,7 @@ export function installScriptPinRefusal(before, after) {
   const old = parseJson(before);
   const now = parseJson(after);
   if (!old || !now) return "package-json-unreadable";
-  const other = [...new Set([...Object.keys(old), ...Object.keys(now)])].sort().find((key) => key !== "allowScripts" && canonical(old[key]) !== canonical(now[key]));
+  const other = allKeys(old, now).find((key) => key !== "allowScripts" && canonical(old[key]) !== canonical(now[key]));
   return other ? `package-json-key:${other}` : allowScriptsRefusal(old, now);
 }
 
@@ -493,7 +492,7 @@ export function packageJsonRefusal(before, after) {
   const old = parseJson(before);
   const now = parseJson(after);
   if (!old || !now) return "package-json-unreadable";
-  for (const key of [...new Set([...Object.keys(old), ...Object.keys(now)])].sort()) {
+  for (const key of allKeys(old, now)) {
     if (!DEPENDENCY_SECTIONS.includes(key)) {
       if (canonical(old[key]) !== canonical(now[key]) && (key !== "allowScripts" || allowScriptsRefusal(old, now))) return `package-json-key:${key}`;
       continue;
@@ -559,10 +558,8 @@ export function lockRefusal(before, after) {
       if (value !== null && typeof value === "object") stack.push(value);
     }
   }
-  const was = isObject(old.packages) ? old.packages : {};
-  const is = isObject(now.packages) ? now.packages : {};
-  for (const name of [...new Set([...Object.keys(was), ...Object.keys(is)])].sort()) {
-    if ((was[name]?.hasInstallScript === true) !== (is[name]?.hasInstallScript === true)) return `lock-install-script:${name}`;
+  for (const name of keys) {
+    if ((old.packages[name]?.hasInstallScript === true) !== (now.packages[name]?.hasInstallScript === true)) return `lock-install-script:${name}`;
   }
   return null;
 }
@@ -602,7 +599,8 @@ export function requirementsRefusal(before, after) {
 // Why the fix's change to `path` from `before` to `after` (the file's text on
 // each side) is not a version change, or null.
 export function fixContentRefusal(path, before, after) {
-  const name = String(path ?? "").slice(String(path ?? "").lastIndexOf("/") + 1);
+  const text = String(path ?? "");
+  const name = text.slice(text.lastIndexOf("/") + 1);
   if (name === "package.json") return packageJsonRefusal(before, after);
   if (name === "package-lock.json" || name === "npm-shrinkwrap.json") return lockRefusal(before, after);
   if (/^requirements[^/]*\.(txt|in)$/.test(name)) return requirementsRefusal(before, after);
@@ -690,7 +688,7 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
     }
     for (const path of touched) extra.add(path);
   }
-  if (config === null || config === undefined) {
+  if (config == null) {
     return "dependabot-config-unreadable";
   }
   if (!Number.isInteger(changedFiles) || changedFiles !== files.length) {

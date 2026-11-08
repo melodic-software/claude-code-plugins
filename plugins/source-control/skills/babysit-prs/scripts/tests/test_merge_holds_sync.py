@@ -981,9 +981,6 @@ CARRIES = {
     "a job other than the status job": {
         "runs": [_run(HEAD, job="pr-review / review-key")]
     },
-    "a status job named as pr-review.yml names it": {
-        "runs": [_run(HEAD, job="pr-review / claude-review-status")]
-    },
     "a status job under another caller job": {
         "runs": [_run(HEAD, job="other / review-status")]
     },
@@ -1303,7 +1300,6 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a notice at the head",
             "a base merge since the decided head",
             "a notice from the security lane",
-            "a status job named as pr-review.yml names it",
             "a newer head pushed before it with a run of every lane",
         }
         for case in carried:

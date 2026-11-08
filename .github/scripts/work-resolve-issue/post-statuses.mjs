@@ -42,6 +42,8 @@ import { retryFetch } from "./retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
+// Strictest first: fail over pass over skipped.
+const rank = (state) => ["failure", "success", null].indexOf(state);
 
 const jobState = (result) => ({ success: "success", failure: "failure" })[result] ?? "error";
 
@@ -78,9 +80,8 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
     const reported = new Map();
     for (const step of Array.isArray(outcome.steps) ? outcome.steps : []) {
       if (PREP_STEPS.has(step?.activity) && (STEP_STATES[step?.result] || step?.result === "skipped")) {
-        // A step reported twice keeps its strictest result: fail over pass over skipped.
+        // A step reported twice keeps its strictest result.
         const state = STEP_STATES[step.result] ?? null;
-        const rank = (value) => ["failure", "success", null].indexOf(value);
         if (!reported.has(step.activity) || rank(state) < rank(reported.get(step.activity))) {
           reported.set(step.activity, state);
         }
@@ -132,12 +133,13 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    const issue = Number(env.ISSUE_NUMBER);
     const reuse = env.REUSE_BRANCH ?? "";
-    if (reuse && !isLaneBranch(reuse, Number(env.ISSUE_NUMBER))) {
+    if (reuse && !isLaneBranch(reuse, issue)) {
       throw new Error("REUSE_BRANCH is not this issue's lane branch");
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
-    const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
+    const ran = readBranch(dir, issue);
     // A resumed run that committed nothing has its PR opened from the branch
     // it resumed, at the tip run-checks checked, so its statuses go on that
     // tip, under report-outcome's gate: lane.json's resume (rewritable) is
@@ -146,7 +148,7 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
     // tip (one that cannot be read is not). Otherwise none is posted.
     const resume = env.RESUME_BRANCH ?? "";
     const resumed =
-      !reuse && !ran && resume !== "" && readBranch(dir, Number(env.ISSUE_NUMBER), "resume") === resume ? resume : "";
+      !reuse && !ran && resume !== "" && readBranch(dir, issue, "resume") === resume ? resume : "";
     const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });

@@ -12,12 +12,12 @@
 // head on the same file is that comment, so a re-run after a partial post
 // posts the rest and nothing twice. A note whose thread is resolved does not
 // count: a pass that superseded an earlier FAIL at the head resolved it, so a
-// later FAIL there posts again and its round has an open thread to work. Each note that starts with a path the pull
-// request changes (`path` or `path:line`, backticks allowed) goes on that
-// file; the summary and every other note go on the first such file, or on the
-// pull request's first changed file when no note names one. Model text is
-// quoted as data in a text fence, wrapped to fit the page (quote), never
-// interpolated into a command.
+// later FAIL there posts again and its round has an open thread to work. Each
+// note that starts with a path the pull request changes (`path` or
+// `path:line`, backticks allowed) goes on that file; the summary and every
+// other note go on the first such file, or on the pull request's first
+// changed file when no note names one. Model text is quoted as data in a text
+// fence, wrapped to fit the page (quote), never interpolated into a command.
 //
 // On a pull request the lanes App did not open, a person's, the FAIL is no
 // review thread: GitHub lets only its author or a writer resolve one, which
@@ -67,6 +67,11 @@ export const FAILED_LABEL = "pr-verify-failed";
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
+// Whether github-actions[bot] wrote the comment and its first line is `line`.
+const markedBy = (comment, line) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === line;
+
+const bullets = (notes) => notes.map((note) => `- ${note}`);
+
 function laneAppId(appId) {
   if (!Number.isSafeInteger(appId) || appId < 1) {
     throw new Error("APP_SENDER_ID must name the lanes App's bot user id");
@@ -92,8 +97,10 @@ export function noteComments({ head, summary, notes, files }) {
     const path = notePath(note, files);
     if (path === null) {
       loose.push(note);
+    } else if (byPath.has(path)) {
+      byPath.get(path).push(note);
     } else {
-      byPath.set(path, [...(byPath.get(path) ?? []), note]);
+      byPath.set(path, [note]);
     }
   }
   const paths = files.filter((file) => byPath.has(file));
@@ -102,7 +109,8 @@ export function noteComments({ head, summary, notes, files }) {
     return [];
   }
   return [first, ...paths.filter((path) => path !== first)].map((path) => {
-    const lines = path === first ? [`Summary: ${summary}`, ...loose.map((note) => `- ${note}`), ...(byPath.get(path) ?? []).map((note) => `- ${note}`)] : byPath.get(path).map((note) => `- ${note}`);
+    const own = bullets(byPath.get(path) ?? []);
+    const lines = path === first ? [`Summary: ${summary}`, ...bullets(loose), ...own] : own;
     return {
       path,
       body: [VERIFY_NOTE_MARKER, `The pr-verify verifier failed head \`${head}\`. What it wrote${path === first ? "" : " about this file"}, as data:`, "", quote(lines)].join("\n"),
@@ -116,7 +124,7 @@ export function failComment({ head, summary, notes }) {
     VERIFY_NOTE_MARKER,
     `The pr-verify verifier failed head \`${head}\`. What it wrote, as data:`,
     "",
-    quote([`Summary: ${summary}`, ...notes.map((note) => `- ${note}`)]),
+    quote([`Summary: ${summary}`, ...bullets(notes)]),
     "",
     `This pull request leaves the merge queue, and ci-status holds it out while it carries \`${FAILED_LABEL}\`. A pr-verify pass removes the label, at a new commit or at this same head: once a trusted person edits the body, and only trusted people have edited it since the fail, this head is judged again, so a fail on the body or the issues it links needs only the body fixed, no new commit.`,
   ].join("\n");
@@ -163,9 +171,10 @@ async function leaveQueue({ api, pr, log }) {
 // which a later clean commit does not rotate: it holds for a person, at
 // whatever head the pull request has moved to. The label goes on in any state,
 // so a closed pull request that reopens is still held; only an open one has a
-// queue step. The label is the hold, so it goes first; the comment, whose first line gate-source.mjs CREDENTIAL_HOLD reads,
-// keeps the clear paths off that label. It posts once per head whatever else
-// the label stands for, and names no text.
+// queue step. The label is the hold, so it goes first; the comment, whose
+// first line gate-source.mjs CREDENTIAL_HOLD reads, keeps the clear paths off
+// that label. It posts once per head whatever else the label stands for, and
+// names no text.
 async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedLabel, log }) {
   await everyStep(log, [
     async () => {
@@ -177,7 +186,7 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
     async () => {
       const reason = personReasonLines("pr-verify", "security");
       const said = `pr-verify withheld its fail at head \`${head}\``;
-      const posted = (await api.listIssueComments(pr)).some((comment) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === reason[0] && comment.body.includes(said));
+      const posted = (await api.listIssueComments(pr)).some((comment) => markedBy(comment, reason[0]) && comment.body.includes(said));
       if (!posted) {
         await api.createIssueComment(
           pr,
@@ -198,8 +207,7 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
 async function holdPersonPull({ api, pull, verdict, log }) {
   const { pr, head } = verdict;
   const body = failComment(verdict);
-  const mine = (await api.listIssueComments(pr)).filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === VERIFY_NOTE_MARKER);
-  const last = mine.at(-1);
+  const last = (await api.listIssueComments(pr)).findLast((comment) => markedBy(comment, VERIFY_NOTE_MARKER));
   if (last === undefined) {
     await api.createIssueComment(pr, body);
   } else if (last.body !== body) {
@@ -310,7 +318,7 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
   const resolved = new Set((await api.listThreads(pr)).filter((thread) => thread.isResolved === true).flatMap((thread) => (thread.comments?.nodes ?? []).map((comment) => comment.databaseId)));
   const posted = new Set(
     (await api.listReviewComments(pr))
-      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER && !resolved.has(comment.id))
+      .filter((comment) => markedBy(comment, VERIFY_NOTE_MARKER) && comment.commit_id === head && !resolved.has(comment.id))
       .map((comment) => comment.path),
   );
   const files = (await api.listPullFiles(pr)).map((file) => file.filename);

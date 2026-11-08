@@ -65,12 +65,21 @@ const SENDER_ACTIONS = new Set(["edited", "synchronize", "reopened"]);
 // names under `issue`.
 const isPull = (payload) => Boolean(payload.pull_request ?? payload.issue?.pull_request);
 
+// The payload's issue or pull request number, or null.
+const itemNumber = (payload) => {
+  const number = payload.issue?.number ?? payload.pull_request?.number;
+  return Number.isInteger(number) && number >= 1 ? number : null;
+};
+const idOf = (user) => (Number.isInteger(user.id) ? user.id : null);
+const loginOf = (user) => (typeof user.login === "string" && LOGIN.test(user.login) ? user.login : null);
+const who = (actor) => (actor.login ? `\`${actor.login}\`` : "an account whose login could not be read");
+
 // The content's author and where it lives, from the event payload. Returns
 // null when the payload names no issue or pull request number.
 export function readEvent(eventName, payload) {
   const content = payload.comment ?? payload.review ?? payload.pull_request ?? payload.issue ?? {};
-  const number = payload.issue?.number ?? payload.pull_request?.number;
-  if (!Number.isInteger(number) || number < 1 || !Object.hasOwn(KINDS, eventName)) {
+  const number = itemNumber(payload);
+  if (number === null || !Object.hasOwn(KINDS, eventName)) {
     return null;
   }
   // An edit, push or reopen by someone other than the author (retitling an
@@ -86,8 +95,8 @@ export function readEvent(eventName, payload) {
     pull: isPull(payload),
     kind: ACTION.test(payload.action ?? "") ? `${KINDS[eventName]} ${payload.action}` : KINDS[eventName],
     association: bySender ? undefined : content.author_association,
-    id: Number.isInteger(user.id) ? user.id : null,
-    login: typeof user.login === "string" && LOGIN.test(user.login) ? user.login : null,
+    id: idOf(user),
+    login: loginOf(user),
   };
 }
 
@@ -103,10 +112,9 @@ export function isTrusted(author, ids) {
 export const markerFor = (author) => `${MARKER} actor=${author.id ?? "unknown"} -->`;
 
 export function commentBody(author) {
-  const who = author.login ? `\`${author.login}\`` : "an account whose login could not be read";
   return [
     markerFor(author),
-    `**Outside actor.** ${who} (id ${author.id ?? "unknown"}) wrote here (event: ${author.kind}) and is neither an organization member nor on the trusted-actor list.`,
+    `**Outside actor.** ${who(author)} (id ${author.id ?? "unknown"}) wrote here (event: ${author.kind}) and is neither an organization member nor on the trusted-actor list.`,
     "",
     "A person reviews this before any lane acts on it. Their text is not quoted here.",
   ].join("\n");
@@ -154,8 +162,8 @@ export async function flag({ github, repository, author, setStatus }) {
 
 // Who removed which label, from an `unlabeled` event's payload.
 export function readRemoval(payload) {
-  const number = payload.issue?.number ?? payload.pull_request?.number;
-  if (!Number.isInteger(number) || number < 1) {
+  const number = itemNumber(payload);
+  if (number === null) {
     return null;
   }
   const sender = payload.sender ?? {};
@@ -163,8 +171,8 @@ export function readRemoval(payload) {
     number,
     pull: isPull(payload),
     label: payload.label?.name,
-    id: Number.isInteger(sender.id) ? sender.id : null,
-    login: typeof sender.login === "string" && LOGIN.test(sender.login) ? sender.login : null,
+    id: idOf(sender),
+    login: loginOf(sender),
     bot: sender.type !== "User",
   };
 }
@@ -175,10 +183,9 @@ export const mayRemove = (remover, humans) => !remover.bot && humans !== null &&
 export const removalMarkerFor = (remover) => `${MARKER} removed-by=${remover.id ?? "unknown"} -->`;
 
 export function removalBody(remover) {
-  const who = remover.login ? `\`${remover.login}\`` : "an account whose login could not be read";
   return [
     removalMarkerFor(remover),
-    `**Outside-actor label restored.** ${who} (id ${remover.id ?? "unknown"}) removed \`${LABEL}\` and is not a person on the trusted-actor list, so it and \`${NEEDS_HUMAN}\` are back.`,
+    `**Outside-actor label restored.** ${who(remover)} (id ${remover.id ?? "unknown"}) removed \`${LABEL}\` and is not a person on the trusted-actor list, so it and \`${NEEDS_HUMAN}\` are back.`,
     "",
     "Only a person on the trusted-actor list removes it.",
   ].join("\n");
@@ -194,6 +201,19 @@ export async function restore({ github, repository, remover, setStatus }) {
 const fieldSetter = (env, github) => async (number, state) =>
   (await statusWriter({ env, github, repository: env.GITHUB_REPOSITORY })).set(number, state);
 
+const clientFor = (env, github) => github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+
+// The trusted-actor list, or null sets when it cannot be read; `then` names
+// what the warning says happens next.
+function readTrusted(env, log, then) {
+  try {
+    return loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  } catch (error) {
+    log(`::warning::security-outside-actor: the trusted-actor list is unreadable (${error.message}); ${then}`);
+    return { ids: null, humans: null };
+  }
+}
+
 async function handleRemoval({ env, github, log, payload }) {
   const remover = readRemoval(payload);
   if (!remover) {
@@ -203,17 +223,12 @@ async function handleRemoval({ env, github, log, payload }) {
     log(`security-outside-actor: #${remover.number} a label other than ${LABEL} was removed; nothing changed`);
     return 0;
   }
-  let humans = null;
-  try {
-    ({ humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH));
-  } catch (error) {
-    log(`::warning::security-outside-actor: the trusted-actor list is unreadable (${error.message}); restoring the label`);
-  }
+  const { humans } = readTrusted(env, log, "restoring the label");
   if (mayRemove(remover, humans)) {
     log(`security-outside-actor: #${remover.number} listed person id ${remover.id} removed ${LABEL}; nothing changed`);
     return 0;
   }
-  const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+  const client = clientFor(env, github);
   const outcome = await restore({ github: client, repository: env.GITHUB_REPOSITORY, remover, setStatus: fieldSetter(env, client) });
   log(`::warning::security-outside-actor: #${remover.number} id ${remover.id ?? "unknown"} is not a listed person; ${LABEL} ${outcome}`);
   return 0;
@@ -232,17 +247,12 @@ export async function main({ env = process.env, github, log = console.log } = {}
     if (!author) {
       throw new Error("the event names no issue or pull request this workflow handles");
     }
-    let ids = null;
-    try {
-      ({ ids } = loadTrustedList(env.TRUSTED_ACTORS_PATH));
-    } catch (error) {
-      log(`::warning::security-outside-actor: the trusted-actor list is unreadable (${error.message}); flagging the author`);
-    }
+    const { ids } = readTrusted(env, log, "flagging the author");
     if (isTrusted(author, ids)) {
       log(`security-outside-actor: #${author.number} author id ${author.id} is trusted; nothing changed`);
       return 0;
     }
-    const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const client = clientFor(env, github);
     const outcome = await flag({ github: client, repository: env.GITHUB_REPOSITORY, author, setStatus: fieldSetter(env, client) });
     log(`::warning::security-outside-actor: #${author.number} outside actor id ${author.id ?? "unknown"} ${outcome}`);
     return 0;

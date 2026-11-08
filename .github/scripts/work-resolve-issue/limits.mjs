@@ -6,6 +6,19 @@ import { readFileSync } from "node:fs";
 
 const HOUR_MS = 3_600_000;
 
+// Every key of `defaults`, its value in `set` where `valid(value, key)` holds, else its default.
+const overDefaults = (defaults, set, valid) =>
+  Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, valid(set?.[key], key) ? set[key] : value]));
+
+// resolve-config's output file, parsed; undefined when it is absent or unreadable.
+const readConfig = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return undefined;
+  }
+};
+
 export const LIMIT_DEFAULTS = Object.freeze({
   "fallback-reset": 5,
   "reset-clamp-min": 1,
@@ -24,22 +37,12 @@ const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries"]);
 
 // Every leaf, each set integer within its range over its default.
 export const resolveLimits = (limits) =>
-  Object.fromEntries(
-    Object.entries(LIMIT_DEFAULTS).map(([key, value]) => {
-      const set = limits?.[key];
-      return [key, Number.isInteger(set) && set >= (ZERO_ALLOWED.has(key) ? 0 : 1) ? set : value];
-    }),
-  );
+  overDefaults(LIMIT_DEFAULTS, limits, (set, key) => Number.isInteger(set) && set >= (ZERO_ALLOWED.has(key) ? 0 : 1));
 
 // The limits in resolve-config's output file, the admission leaves included;
 // the defaults when it is absent or unreadable.
 export function readLimits(path) {
-  let limits;
-  try {
-    limits = JSON.parse(readFileSync(path, "utf8"))?.limits;
-  } catch {
-    limits = undefined;
-  }
+  const limits = readConfig(path)?.limits;
   return { ...resolveLimits(limits), ...resolveAdmission(limits), "stranded-backoff-hours": resolveStrandedBackoff(limits?.["stranded-backoff-hours"]) };
 }
 
@@ -58,14 +61,10 @@ export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
 // Every cause, each set whole number of hours from 1 to STRANDED_BACKOFF_MAX
 // over its default.
 export const resolveStrandedBackoff = (hours) =>
-  Object.fromEntries(
-    Object.entries(STRANDED_BACKOFF_DEFAULTS).map(([key, value]) => {
-      const set = hours?.[key];
-      return [key, Number.isInteger(set) && set >= 1 && set <= STRANDED_BACKOFF_MAX ? set : value];
-    }),
-  );
+  overDefaults(STRANDED_BACKOFF_DEFAULTS, hours, (set) => Number.isInteger(set) && set >= 1 && set <= STRANDED_BACKOFF_MAX);
 
-const positive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+const finite = (value) => typeof value === "number" && Number.isFinite(value);
+const positive = (value) => finite(value) && value > 0;
 
 // The two `limits` leaves that pace new issue-lane admissions (check-wip-cap's
 // queued cap). They are fractions, so resolveLimits, which keeps whole
@@ -76,14 +75,11 @@ export const ADMISSION_DEFAULTS = Object.freeze({
 });
 const ADMISSION_VALID = {
   "admission-factor": (value) => positive(value) && value <= 1,
-  "admission-min-per-hour": (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100,
+  "admission-min-per-hour": (value) => finite(value) && value >= 0 && value <= 100,
 };
 
 // Both admission leaves, each valid set value over its default.
-export const resolveAdmission = (limits) =>
-  Object.fromEntries(
-    Object.entries(ADMISSION_DEFAULTS).map(([key, value]) => [key, ADMISSION_VALID[key](limits?.[key]) ? limits[key] : value]),
-  );
+export const resolveAdmission = (limits) => overDefaults(ADMISSION_DEFAULTS, limits, (set, key) => ADMISSION_VALID[key](set));
 
 // The `wip` leaf of pr-pipeline.yaml: the issue lane's WIP cap derived from
 // the lane merge rate, the opened-to-merged ratio, the held-PR buffer and its age
@@ -110,17 +106,12 @@ const WIP_VALID = {
 };
 
 // Every wip leaf, each valid set value over its default.
-export const resolveWip = (wip) =>
-  Object.fromEntries(Object.entries(WIP_DEFAULTS).map(([key, value]) => [key, WIP_VALID[key](wip?.[key]) ? wip[key] : value]));
+export const resolveWip = (wip) => overDefaults(WIP_DEFAULTS, wip, (set, key) => WIP_VALID[key](set));
 
 // The wip leaf in resolve-config's output file; the defaults when it is absent
 // or unreadable.
 export function readWip(path) {
-  try {
-    return resolveWip(JSON.parse(readFileSync(path, "utf8"))?.wip);
-  } catch {
-    return resolveWip(undefined);
-  }
+  return resolveWip(readConfig(path)?.wip);
 }
 
 // When a limit stop at `from` may restart: its stated reset (else the

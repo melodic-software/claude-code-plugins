@@ -197,7 +197,8 @@ export function createUsageMeter(streaming) {
       }
     }
   };
-  const line = (l) => {
+  const line = (raw) => {
+    const l = raw.replace(/\r$/, "");
     if (!l.startsWith("data:")) return;
     let event;
     try { event = JSON.parse(l.slice(5)); } catch { return; }
@@ -216,11 +217,11 @@ export function createUsageMeter(streaming) {
       pending += chunk.toString("utf8");
       const lines = pending.split("\n");
       pending = lines.pop();
-      for (const l of lines) line(l.replace(/\r$/, ""));
+      lines.forEach(line);
     },
     end() {
       if (streaming) {
-        if (pending) line(pending.replace(/\r$/, ""));
+        if (pending) line(pending);
         pending = "";
       } else if (whole.length) {
         try { take(JSON.parse(Buffer.concat(whole).toString("utf8"))?.usage); } catch { /* not JSON: no usage */ }
@@ -474,6 +475,15 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
       return;
     }
 
+    let drainTimer;
+    let answered = false;
+    const refuseTooLarge = () => {
+      if (answered) return;
+      answered = true;
+      clearTimeout(drainTimer);
+      sendRefusal(res, refuse(413, "request_too_large", "request body exceeds the proxy's size limit"));
+      done(413, { refused: "request_too_large" });
+    };
     req.on("data", (c) => {
       if (tooLarge) return;
       bytes += c.length;
@@ -489,15 +499,6 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
       drainTimer = setTimeout(() => { refuseTooLarge(); req.destroy(); }, DRAIN_MS);
       drainTimer.unref();
     });
-    let drainTimer;
-    let answered = false;
-    const refuseTooLarge = () => {
-      if (answered) return;
-      answered = true;
-      clearTimeout(drainTimer);
-      sendRefusal(res, refuse(413, "request_too_large", "request body exceeds the proxy's size limit"));
-      done(413, { refused: "request_too_large" });
-    };
     req.on("end", async () => {
       if (tooLarge) return refuseTooLarge();
       const ctx = { method: req.method, path, query, headers: req.headers, raw: Buffer.concat(chunks), config, budget, state, preflight };
@@ -568,9 +569,8 @@ export function createProxy({ key, config, log = () => {}, clientKey, relayPrefl
         // its usage, except a stream that ended before its message_delta
         // (an incomplete response) or a body with no usage: those commit at
         // least the reservation (our decision).
-        if (!ok) settle(meter.total());
-        else if (streaming ? !meter.sawDelta : !meter.seen) settle(abandoned());
-        else settle(meter.total());
+        const incomplete = ok && (streaming ? !meter.sawDelta : !meter.seen);
+        settle(incomplete ? abandoned() : meter.total());
       });
       // Upstream dropped or stalled mid-response: drop the client too, so it
       // sees a dropped connection rather than a stall, and commit as for a

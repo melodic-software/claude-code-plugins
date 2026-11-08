@@ -50,6 +50,7 @@ const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const REF = /^[A-Za-z0-9._/-]+$/;
 const ISSUE_KEYS = "author_id,author_login,author_type,editor_id,editor_login,editor_type,last_edited_at,number,spec_comments";
+const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 // Each spec comment the model got: its id and update time, exactly.
 const specComment = (comment) =>
   isObject(comment) &&
@@ -58,8 +59,6 @@ const specComment = (comment) =>
   typeof comment.updated_at === "string";
 const stringOrNull = (value) => value === null || typeof value === "string";
 const idOrNull = (value) => value === null || Number.isSafeInteger(value);
-
-const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
 function checkIssues(issues) {
   if (
@@ -361,9 +360,10 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
   }
   const parsed = parseOutput(output);
-  const own = Array.isArray(specText) ? specText.find((entry) => entry?.source === "pull-request") : undefined;
+  const entries = Array.isArray(specText) ? specText : [];
+  const own = entries.find((entry) => entry?.source === "pull-request");
   const issues = checkIssues(linkedIssues);
-  const refs = Array.isArray(specText) && specText.some((entry) => entry?.spec_kind === "refs");
+  const refs = entries.some((entry) => entry?.spec_kind === "refs");
   return {
     pr: Number(pr),
     head_sha: headSha,
@@ -442,11 +442,29 @@ const positions = (value) =>
 
 const fileList = (value) => positions(value).filter(Boolean);
 
+// Throws on the first of `keys` the environment leaves unset or empty.
+function requireEnv(env, keys) {
+  for (const key of keys) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+}
+
 function readLog(file) {
   try {
     return readFileSync(file, "utf8");
   } catch {
     throw new Error("the run log is unreadable");
+  }
+}
+
+// A JSON file's value, or `message` thrown when it cannot be read or parsed.
+function readJson(file, message) {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    throw new Error(message);
   }
 }
 
@@ -457,11 +475,7 @@ const checkLog = (file) => earlierDenials(readLog(file));
 // this leg's logs, so this job records here whether every chunk it judged was
 // free of denials; the next job runs only on clean=true.
 export function checkKeyLeg(env = process.env) {
-  for (const key of ["LOG_FILES", "GITHUB_OUTPUT"]) {
-    if (!env[key]) {
-      throw new Error(`${key} is not set`);
-    }
-  }
+  requireEnv(env, ["LOG_FILES", "GITHUB_OUTPUT"]);
   // Every chunk listed ran, so a blank line is a leg that left no log. The
   // whole-spec leg lists every slot, and CHUNKS says how many ran before it.
   const lines = env.LOG_FILES.replace(/\n$/, "").split("\n");
@@ -563,14 +577,6 @@ export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
-function readExecution(file) {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    throw new Error("the execution file is unreadable");
-  }
-}
-
 // One run's messages and its checked output: it left an output on the schema
 // and a readable log, or this throws, and so does a denial on anything but a
 // fail. A fail cannot pass the head, so it stands and records the denials. The
@@ -578,7 +584,7 @@ function readExecution(file) {
 // text this script may not recognize and with no log when the log held it, so
 // that step's output is a withheld fail.
 function readJudgment(file, logFile, outcome, parse = parseOutput) {
-  const messages = readExecution(file);
+  const messages = readJson(file, "the execution file is unreadable");
   const result = lastResult(messages);
   const stopped = outcome !== "success";
   let output;
@@ -685,11 +691,7 @@ const firstError = (results, count) => {
 // here only from run-claude-cli's credential scan, leaves a withheld fail.
 function finalOutput(env, count) {
   try {
-    for (const key of ["FINAL_EXECUTION_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
-      if (!env[key]) {
-        throw new Error(`${key} is not set`);
-      }
-    }
+    requireEnv(env, ["FINAL_EXECUTION_FILE", "RESULTS_DIR", "MANIFEST_DIR"]);
     const judgment = readJudgment(env.FINAL_EXECUTION_FILE, env.FINAL_LOG_FILE, env.FINAL_OUTCOME, (text) => parseFinal(text, count));
     return countedOutput(judgment, [...filesIn(env.RESULTS_DIR), env.SPEC_FILE, ...filesIn(env.MANIFEST_DIR)]);
   } catch (error) {
@@ -725,11 +727,7 @@ const RESULT_BYTES_MAX = 300000;
 // and the head would fail on size alone. The prompt lists the files, whose
 // number only this step knows.
 export function writeChunkResults(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "LOG_FILES", "JUDGE_OUTCOMES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "PART_BYTES", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]) {
-    if (!env[key]) {
-      throw new Error(`${key} is not set`);
-    }
-  }
+  requireEnv(env, ["EXECUTION_FILES", "LOG_FILES", "JUDGE_OUTCOMES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "PART_BYTES", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]);
   // Past three bytes a character, one wrapped line always fits a part.
   const partBytes = Number(env.PART_BYTES);
   if (!Number.isSafeInteger(partBytes) || partBytes <= WRAP_CHARS * 3) {
@@ -774,7 +772,7 @@ export function writeChunkResults(env = process.env) {
 }
 
 export function main(env = process.env) {
-  for (const key of [
+  requireEnv(env, [
     "EXECUTION_FILES",
     "LOG_FILES",
     "CHUNKS",
@@ -787,27 +785,11 @@ export function main(env = process.env) {
     "GITHUB_RUN_ID",
     "VERDICT_DIR",
     "GITHUB_OUTPUT",
-  ]) {
-    if (!env[key]) {
-      throw new Error(`${key} is not set`);
-    }
-  }
+  ]);
   const { count, results } = judgedChunks(env);
   const output = headOutput(env, count, results);
-  let linkedIssues;
-  try {
-    linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
-  } catch {
-    throw new Error("the linked issues file is unreadable");
-  }
-  let specText = [];
-  if (env.SPEC_TEXT_FILE) {
-    try {
-      specText = JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8"));
-    } catch {
-      throw new Error("the spec text file is unreadable");
-    }
-  }
+  const linkedIssues = readJson(env.SPEC_FILE, "the linked issues file is unreadable");
+  const specText = env.SPEC_TEXT_FILE ? readJson(env.SPEC_TEXT_FILE, "the spec text file is unreadable") : [];
   // The evidence inputs are optional: no capture summary file is blocked
   // with find-capture's reason (CAPTURE_BLOCKED), or no-app with none, and
   // an unreadable one is blocked (null); a trusted PR text file

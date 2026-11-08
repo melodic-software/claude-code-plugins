@@ -78,9 +78,7 @@ for k in $(seq "$chunks"); do
         rest = substr(rest, at + 1); mark = "\\ continued: "
       }
       put(mark rest) }' "$dir.patch"
-  if [[ ! -s "$dir.patch" ]]; then
-    : >"$dir/part-001.patch"
-  fi
+  [[ -s "$dir.patch" ]] || : >"$dir/part-001.patch"
   bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
   rm "$dir.patch"
 done
