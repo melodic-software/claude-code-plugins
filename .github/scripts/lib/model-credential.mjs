@@ -65,6 +65,8 @@ function tokenize(expression) {
   return TOKENS.get(expression);
 }
 
+const truthy = (v) => v !== "" && v !== false;
+
 export function evaluate(expression, context) {
   const { text, tokens } = tokenize(expression);
   let at = 0;
@@ -73,7 +75,6 @@ export function evaluate(expression, context) {
     assert.ok(expected === undefined || tokens[at] === expected, `${expected} at ${at} in ${text}`);
     return tokens[at++];
   };
-  const truthy = (v) => v !== "" && v !== false;
   const operand = () => {
     if (peek() === "(") {
       take("(");
@@ -123,10 +124,7 @@ export function evaluate(expression, context) {
 }
 
 // A job condition: GitHub coerces the result to a boolean.
-export const runs = (condition, context) => {
-  const v = evaluate(condition, context);
-  return v !== "" && v !== false;
-};
+export const runs = (condition, context) => truthy(evaluate(condition, context));
 
 // An input value, as the string the step receives: a literal as written,
 // a `${{ }}` expression evaluated.
@@ -154,4 +152,3 @@ export function launcherOutcomes(handoffReason, leg, fallbackReady) {
   }
   return [...seen.values()];
 }
-

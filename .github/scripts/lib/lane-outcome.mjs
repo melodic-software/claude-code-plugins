@@ -120,11 +120,12 @@ export function validRecord(value) {
 // shortest prefix ending at a "}" that parses is the JSON, whatever free
 // text follows it.
 export function readRecord(text) {
-  const at = String(text ?? "").indexOf(MARKER);
+  const source = String(text ?? "");
+  const at = source.indexOf(MARKER);
   if (at < 0) {
     return null;
   }
-  const rest = String(text).slice(at + MARKER.length, at + MARKER.length + MAX_LENGTH + 200);
+  const rest = source.slice(at + MARKER.length, at + MARKER.length + MAX_LENGTH + 200);
   for (let end = rest.indexOf("}"); end >= 0; end = rest.indexOf("}", end + 1)) {
     try {
       return validRecord(JSON.parse(rest.slice(0, end + 1)));
