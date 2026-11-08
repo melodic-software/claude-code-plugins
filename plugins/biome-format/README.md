@@ -4,7 +4,7 @@ A Claude Code plugin that rewrites JavaScript, TypeScript, JSX, and JSON with
 [Biome](https://biomejs.dev/) in two places: once per batch of tool calls in a Claude Code session,
 and again at git pre-commit for every author. Both run `biome check --write` on `.ts`, `.tsx`,
 `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.json`, and `.jsonc` files. Findings that remain
-are reported by the pre-commit entry, on the lines the commit adds; they no longer reach Claude on
+are reported by the pre-commit entry, on the lines the commit adds; they do not reach Claude on
 each edit.
 
 It uses **your repository's own `biome.json`**. It ships no rules of its own and

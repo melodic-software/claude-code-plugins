@@ -192,7 +192,7 @@ printf 'export const x = 1;\n' >"$REPO/clean.ts"
 OUT=$(run_edit "$REPO/clean.ts")
 expect "a clean file: silent exit 0 and unchanged" "0||export const x = 1;" "$?|$OUT|$(cat "$REPO/clean.ts")"
 
-# Findings no longer reach the model: an unused variable is neither fixed nor reported.
+# Findings never reach the model: an unused variable is neither fixed nor reported.
 printf 'const unusedVar=1\n' >"$REPO/lib/lint.ts"
 OUT=$(run_edit "$REPO/lib/lint.ts")
 expect "a lint finding is not reported (no additionalContext, no systemMessage)" "0|" "$?|$OUT"
