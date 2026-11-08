@@ -10,9 +10,6 @@
 #   --base-fixed-failure  the caller knows a failure on the head was fixed on
 #                         the base, so base_change_needed is yes
 #
-# Babysit passes --base-fixed-failure and no --allow-rewrite: a pushed head then
-# reads rewrite blocked and base_change_needed yes, with no JSON override.
-#
 # The overlap read diffs HEAD against the base, so it runs only when HEAD is the
 # head being asked about; otherwise overlap is unknown.
 #
