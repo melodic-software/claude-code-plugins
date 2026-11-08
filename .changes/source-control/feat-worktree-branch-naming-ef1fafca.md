@@ -11,9 +11,10 @@ bump: minor
   one or a `worktree_branch_extra_prefixes` entry stays the type, and any other name goes under
   `worktree_branch_default_type` (default `chore`), so an isolated Agent spawn's `agent-<id>`
   becomes `chore/agent-<id>`. The derived branch is made ref-safe and checked against git's branch
-  grammar; the directory slug still comes from the name. An unknown value, an untracked file or a
-  YAML the parser rejects keeps the name verbatim with a note on stderr, so naming never fails a
-  worktree creation.
+  grammar; the directory slug still comes from the name. An unknown value, an untracked file, a
+  YAML the parser rejects, or a name that sanitizes to nothing keeps the name verbatim with a note
+  on stderr, so a configuration error never fails a worktree creation. Two names that derive one
+  branch (`feat/x`, `feature/x`) share it, so the second exits 4 while the first holds it.
 
 ### Changed
 

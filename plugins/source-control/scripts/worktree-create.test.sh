@@ -1447,12 +1447,19 @@ out=$(bash "$HELPER" --name "feat/-" --root "$TEST_TMPDIR/wtbranch-nodesc" --rep
 assert_eq "a known type with no description falls back to the default type" "chore/feat" \
   "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 assert_contains "a dropped known type is named on stderr" "$(cat "$TEST_TMPDIR/nodesc.err")" "no description"
+code=0
+out=$(bash "$HELPER" --name "_" --root "$TEST_TMPDIR/wtbranch-empty" --repo-dir "$repo" 2>"$TEST_TMPDIR/empty.err") || code=$?
+assert_exit "a name that sanitizes to nothing still creates (exit 0)" 0 "$code"
+assert_eq "a name that sanitizes to nothing keeps the raw name" "_" \
+  "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "the verbatim fallback is named on stderr" "$(cat "$TEST_TMPDIR/empty.err")" "empty description"
 bash "$HELPER" --name "wip/quiet" --root "$TEST_TMPDIR/wtbranch-quiet" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/quiet.err"
 assert_not_contains "an unknown type falls back without that note" "$(cat "$TEST_TMPDIR/quiet.err")" "no description"
 assert_contains "the derived branch is named on stderr" "$(cat "$TEST_TMPDIR/quiet.err")" "chore/wip-quiet"
 
-# The directory slug still comes from the raw name, so two names that derive
-# one branch keep two directories; stdout stays the sole path line.
+# The directory slug still comes from the raw name; stdout stays the sole path
+# line. A second name that derives a branch already checked out is refused
+# (see "Reuse" below).
 repo=$(conventionrepo "$CONVENTIONAL")
 root="$TEST_TMPDIR/wtbranch-slug"
 out=$(bash "$HELPER" --name feature/login-form --root "$root" --repo-dir "$repo" 2>/dev/null)

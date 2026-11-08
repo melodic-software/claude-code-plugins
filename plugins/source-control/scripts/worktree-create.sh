@@ -715,10 +715,13 @@ fi
 #                         description. Any other name goes whole under
 #                         worktree_branch_default_type (default chore).
 # A value the helper cannot use, an untracked file, or a YAML the parser rejects
-# keeps the name verbatim with a note on stderr. Naming never refuses a worktree:
-# the WorktreeCreate hook has no fallback, so a refusal would fail every isolated
-# spawn in the repository. --existing-branch names a branch that already exists,
-# so it is never derived.
+# keeps the name verbatim with a note on stderr, and so does a name that
+# sanitizes to nothing. A configuration error never refuses a worktree: the
+# WorktreeCreate hook has no fallback, so a refusal would fail every isolated
+# spawn in the repository. The derivation is many-to-one (feat/x and feature/x),
+# so a second name can meet its branch checked out elsewhere; "Reuse" below
+# refuses that, naming the holder. --existing-branch names a branch that already
+# exists, so it is never derived.
 CONVENTION_YAML_REL="docs/conventions/source-control.yaml"
 branch_naming="verbatim"
 branch_default_type="chore"
@@ -820,6 +823,11 @@ derive_conventional_branch() {
     fi
   fi
   branch_ref_segment "$name"
+  if [[ -z "$BRANCH_SEGMENT" ]]; then
+    printf '%s: name %q sanitizes to an empty description; keeping the branch name verbatim\n' "$PROG" "$name" >&2
+    branch="$name"
+    return 0
+  fi
   branch="$branch_default_type/$BRANCH_SEGMENT"
 }
 

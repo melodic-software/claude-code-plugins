@@ -258,10 +258,13 @@ reads the file itself, through a script where the key names one below.
   segments kept as the type and written as listed (`claude`, `codex`, `dependabot`). Resolution,
   lowest first: the default, then the keys in `docs/conventions/source-control.yaml` at the source
   repository's top level, tracked by git. No `userConfig` option, since the rule mirrors the
-  repository's own branch-name gate. `--existing-branch` is never derived. Naming never refuses a
-  worktree, because the hook has no fallback: an unknown `worktree_branch_naming` value, an
-  untracked file, or a YAML the parser rejects keeps the name verbatim, an invalid default type
-  uses `chore`, and an invalid prefix entry is skipped, each with a note on stderr.
+  repository's own branch-name gate. `--existing-branch` is never derived. A configuration error
+  never refuses a worktree, because the hook has no fallback: an unknown `worktree_branch_naming`
+  value, an untracked file, or a YAML the parser rejects keeps the name verbatim, an invalid
+  default type uses `chore`, and an invalid prefix entry is skipped, each with a note on stderr. A
+  name whose description sanitizes to nothing (`_`) keeps the name verbatim too. The derivation is
+  many-to-one, though: `feat/login` and `feature/login` both give `feat/login`, so while one is
+  checked out in a worktree the other exits 4, naming that worktree.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 
