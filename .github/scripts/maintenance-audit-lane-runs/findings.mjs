@@ -148,9 +148,7 @@ export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
 }
 
 const shortEntry = (entry) =>
-  [entry.text.split("\n", 2).join("\n"), "", `Fingerprint \`${entry.fingerprint}\`; details left out to fit the issue body limit.`].join(
-    "\n",
-  );
+  `${entry.text.split("\n", 2).join("\n")}\n\nFingerprint \`${entry.fingerprint}\`; details left out to fit the issue body limit.`;
 
 // The entry set and which issue tracks each entry. An entry's details are not
 // in it, so a reworded problem or a shifted quote writes nothing; a tracking
@@ -264,13 +262,7 @@ export function renderDigestComment({ added, dropped, retracked = [] }, runUrl) 
   ].join("\n");
 }
 
-const lastLineFp = (body) =>
-  MARKER.exec(
-    String(body ?? "")
-      .trimEnd()
-      .split("\n")
-      .at(-1) ?? "",
-  )?.[1] ?? null;
+const lastLineFp = (body) => MARKER.exec(String(body ?? "").trimEnd().split("\n").at(-1))?.[1] ?? null;
 
 // The fingerprint from the body's last line, for the per-finding issues
 // earlier sweeps filed; the digest is not one of them.
@@ -290,9 +282,9 @@ export function planDigest({ items, existing, openNumbers, complete = true, carr
       if (!digest || issue.number > digest.number) digest = issue;
       continue;
     }
+    // A fingerprint maps to its last open issue, else its first.
     const fp = readFingerprint(issue.body);
-    if (fp && !byFp.has(fp)) byFp.set(fp, issue);
-    if (fp && issue.state === "open") byFp.set(fp, issue);
+    if (fp && (!byFp.has(fp) || issue.state === "open")) byFp.set(fp, issue);
   }
   const skip = [];
   const entries = [];

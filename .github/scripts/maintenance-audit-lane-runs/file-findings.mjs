@@ -81,6 +81,7 @@ export const carryRule =
 export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath = null }) {
   const items = [];
   const dropped = [];
+  const drop = (unit, title, reason) => dropped.push({ unit, title, reason });
   const read = new Set();
   const partial = new Set();
   const unread = [];
@@ -94,7 +95,7 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
     try {
       data = JSON.parse(readFileSync(file, "utf8"));
     } catch {
-      dropped.push({ unit: entry, title: null, reason: "unreadable" });
+      drop(entry, null, "unreadable");
       complete = false;
       all ??= "findings-unreadable";
       continue;
@@ -114,30 +115,17 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
     for (const finding of Array.isArray(data.findings) ? data.findings : []) {
       const bad = validateFinding(finding);
       if (bad.length > 0) {
-        dropped.push({
-          unit: data.unit,
-          title: String(finding?.title ?? ""),
-          reason: bad.join(","),
-        });
+        drop(data.unit, String(finding?.title ?? ""), bad.join(","));
         continue;
       }
       const mismatch = unit ? unitMismatch(finding, unit) : "unit-unreadable";
       if (mismatch) {
-        dropped.push({ unit: data.unit, title: finding.title, reason: mismatch });
+        drop(data.unit, finding.title, mismatch);
         continue;
       }
-      const failed = finding.evidence
-        .map((claim) => [claim, checkClaim(baseDir, claim)])
-        .find(([, result]) => !result.ok);
-      if (failed) {
-        dropped.push({
-          unit: data.unit,
-          title: finding.title,
-          reason: `${failed[0].path}:${failed[0].line} ${failed[1].reason}`,
-        });
-        continue;
-      }
-      items.push({ fingerprint: fingerprint(finding), finding });
+      const failed = finding.evidence.map((claim) => [claim, checkClaim(baseDir, claim)]).find(([, result]) => !result.ok);
+      if (failed) drop(data.unit, finding.title, `${failed[0].path}:${failed[0].line} ${failed[1].reason}`);
+      else items.push({ fingerprint: fingerprint(finding), finding });
     }
   }
   if (unitsDir) {
