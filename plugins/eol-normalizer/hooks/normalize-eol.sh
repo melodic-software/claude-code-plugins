@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Symmetric working-tree EOL normalization driven by .gitattributes `eol=`.
-# Sourced (never executed) by the plugin's PostToolUse hook (eol-normalizer.sh).
+# Sourced (never executed) by the plugin's PostToolBatch hook (eol-normalizer.sh).
 #
-# Resolution is `git check-attr eol` — the single authoritative source that
+# Resolution is `git check-attr eol`, the single authoritative source that
 # honors the consuming repo's .gitattributes precedence (a narrow `eol=lf`
 # rule wins over a broader `*.txt eol=crlf`). NO fast-path extension list:
 # a hardcoded list re-introduces the very bug this lib removes.
 #
-# Dispatch (both arms run on every OS — the hook compensates for tool writes
+# Dispatch (both arms run on every OS: the hook compensates for tool writes
 # that bypass git's checkout smudge, and such writes happen on any platform):
 #   lf          -> CRLF->LF, idempotent.
 #   crlf        -> LF->CRLF, idempotent.
@@ -24,16 +24,15 @@
 # needs touching) is separated from the rewrite so the caller can skip the
 # rewrite AND everything that guards it. The action a plan reports is the arm
 # that APPLIES to the file, not a report of what was written: an already-LF
-# file under `eol=lf` plans `lf` with nothing to do, exactly as the old
-# unconditional path reported `lf` after a rewrite that changed no bytes. Every
-# caller-visible string is therefore unchanged.
+# file under `eol=lf` plans `lf` with nothing to do, so normalize_eol_file
+# reports the same action whether or not it rewrote any bytes.
 #
 # COST. On the Windows Git Bash host this plugin is tuned for, an exec costs
 # about a process spawn and a bash command substitution costs half of one, and
 # this library runs on every Write and Edit of every file in the repository. The
-# probes below are written as shell builtins for that reason, with the old
-# subprocess pipeline kept as the fallback wherever a builtin needs a bash
-# feature that may be absent.
+# probes below are written as shell builtins for that reason, with a subprocess
+# pipeline as the fallback wherever a builtin needs a bash feature that may be
+# absent.
 
 # True when this bash can read a fixed character count (`read -N`, bash 4.1+).
 # The builtin probes below need it; without it they defer to their subprocess
@@ -42,7 +41,7 @@ normalize_eol_read_supports_nchars() {
   ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)))
 }
 
-# Returns 0 when <file> looks binary: any NUL byte in the first 8000 bytes —
+# Returns 0 when <file> looks binary: any NUL byte in the first 8000 bytes,
 # the same window git's buffer_is_binary() uses for text=auto detection.
 #
 # The builtin path reads that window with NUL as the read delimiter, which makes
@@ -91,7 +90,7 @@ normalize_eol_is_binary() {
 # binary guard has already excluded the files where NULs are expected.
 #
 # Without `read -N` the probe cannot run, and it answers true so the caller
-# takes the unconditional path this library had before.
+# takes the unconditional rewrite.
 normalize_eol_has_cr() {
   normalize_eol_read_supports_nchars || return 0
   local chunk="" had_lc=0 old_lc="" found=1
@@ -214,13 +213,13 @@ normalize_eol_apply() {
 
 # Normalize <file>'s working-tree EOL to its .gitattributes `eol=` value.
 # <root> anchors `git -C <root> check-attr` so resolution is CWD-independent
-# (hook process CWD is not guaranteed to be the repo root — hooks/quirks.md).
-# Echoes the action performed (lf | crlf | skip); ALWAYS returns 0 — best-effort,
-# and safe under `set -e` in the pre-commit consumer's staged-file loop.
+# (hook process CWD is not guaranteed to be the repo root).
+# Echoes the action performed (lf | crlf | skip); ALWAYS returns 0: best-effort,
+# and safe under `set -e`.
 #
 # Plan and apply in one call, for a caller that does not need to know whether a
 # rewrite was needed before it happens. The hook uses the two halves directly so
-# it can skip its rewrite-disclosure snapshot on a file with nothing to rewrite.
+# it can skip its gitignore check on a file with nothing to rewrite.
 normalize_eol_file() {
   local plan action needed
   plan=$(normalize_eol_plan "$1" "$2")
@@ -238,7 +237,7 @@ normalize_eol_to_lf() {
     perl -pi -e 's/\r\n/\n/g' -- "$file"
   else
     # Portable fallback: strip all CR (text files carry no lone CR). Stage into a
-    # same-dir mktemp file (unpredictable name — CWE-377) then atomically mv.
+    # same-dir mktemp file (unpredictable name, CWE-377) then atomically mv.
     # `cp -p` first so the staged file carries the original's mode (chmod
     # --reference is GNU-only); the redirect then replaces its content.
     local tmp
@@ -258,7 +257,7 @@ normalize_eol_to_crlf() {
   if command -v perl >/dev/null 2>&1; then
     perl -pi -e 's/(?<!\r)\n/\r\n/g' -- "$file"
   else
-    # Stage into a same-dir mktemp file (unpredictable name — CWE-377) then mv.
+    # Stage into a same-dir mktemp file (unpredictable name, CWE-377) then mv.
     # `cp -p` first so the staged file carries the original's mode (chmod
     # --reference is GNU-only); the redirect then replaces its content.
     local tmp
