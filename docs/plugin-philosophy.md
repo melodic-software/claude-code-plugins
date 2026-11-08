@@ -208,7 +208,7 @@ action shares the domain's root word (`implementation:implement`, `code-tidying:
 `work-items:work`), and **wrapper-echo**, the single-skill vendor-CLI wrapper exception below
 (`firecrawl:firecrawl`, `playwright:playwright`). A vendor-CLI plugin that decomposes into several
 skills names them after the vendor's own CLI verbs, which the consumer already knows:
-`/playwright:test` would mirror `npx playwright test`, and a firecrawl decomposition would use
+a playwright decomposition would name a `test` skill after `npx playwright test`, and a firecrawl decomposition would use
 `scrape` / `crawl` / `map` per `firecrawl-cli`. While it remains a single-skill router,
 wrapper-echo applies instead.
 
