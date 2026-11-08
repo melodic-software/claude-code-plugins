@@ -86,6 +86,49 @@ export const DEFAULTS = Object.freeze({
 
 // The run id form the record's readers accept.
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const SHA = /^[0-9a-f]{40}$/;
+
+// The check-run handling both dispatchers read a head's runs under.
+const handleOptions = (limits) => ({ limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true });
+
+// prHold's reads of one listed PR.
+function holdReads(api, node) {
+  return {
+    labels: (node.labels?.nodes ?? []).map((label) => label?.name),
+    head: node.headRefOid,
+    readTimeline: () => api.listTimeline(node.number),
+    readReviews: reviewReader(api, node.number),
+  };
+}
+
+// The in-flight run of `activity` for the PR, logged as a skip, or undefined.
+function inFlightRun(log, active, { workflow, activity, node }) {
+  const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+  if (inFlight) {
+    log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
+  }
+  return inFlight;
+}
+
+// One pr-unblock.yml dispatch for the PR: the run id it started, or null when
+// it failed or named no usable id. The dispatched run's gate and the broker
+// refuse a run this run did not record, so a dispatch with no usable id counts
+// as failed. `label` prefixes the activity in its log lines.
+async function sendDispatch(api, log, { workflow, base, node, inputs, label = "" }) {
+  try {
+    const { workflowRunId } = await api.dispatchWorkflow({ workflow, ref: `refs/heads/${base}`, inputs });
+    const id = String(workflowRunId);
+    if (!RUN_ID.test(id)) {
+      log(`::error::#${node.number}: ${label}dispatch returned no valid workflow_run_id`);
+      return null;
+    }
+    log(`dispatched ${label}#${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
+    return id;
+  } catch (error) {
+    log(`::error::#${node.number}: ${label}dispatch failed: ${error.message}`);
+    return null;
+  }
+}
 
 // The log line that names a head-lag stop on the head as the cause of this
 // dispatch (limit-stop.mjs lagStopsRelease).
@@ -94,6 +137,7 @@ function lagRefire(log, node, checkName, existing, handled) {
     log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
   }
 }
+
 export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 // A merge commit on a Dependabot head stops Dependabot's own rebases, which
@@ -102,25 +146,18 @@ function isDependabotHead(node) {
   return String(node.headRefName ?? "").startsWith("dependabot/") && node.author?.databaseId === DEPENDABOT_ID;
 }
 
-function isCandidate(node, base) {
+function inState(node, base, mergeable) {
   return (
     node.isDraft === false &&
     node.isCrossRepository === false &&
     !isDependabotHead(node) &&
     node.baseRefName === base &&
-    node.mergeable === "CONFLICTING"
+    node.mergeable === mergeable
   );
 }
 
-function isPending(node, base) {
-  return (
-    node.isDraft === false &&
-    !isDependabotHead(node) &&
-    node.isCrossRepository === false &&
-    node.baseRefName === base &&
-    node.mergeable === "UNKNOWN"
-  );
-}
+const isCandidate = (node, base) => inState(node, base, "CONFLICTING");
+const isPending = (node, base) => inState(node, base, "UNKNOWN");
 
 export async function listAll(api, base) {
   const nodes = [];
@@ -231,31 +268,20 @@ export async function dispatchConflicting({
       log(`defer #${node.number}: ${maxDispatch} dispatches this run; left for a later run`);
       continue;
     }
-    const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
-    if (inFlight) {
-      log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
+    if (inFlightRun(log, active, { workflow, activity, node })) {
       continue;
     }
     let handled;
     let waiting = null;
     try {
-      const { held, why } = await prHold({
-        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
-        holdLabels,
-        gateLabel,
-        head: node.headRefOid,
-        activity,
-        appId: appSenderId,
-        readTimeline: () => api.listTimeline(node.number),
-        readReviews: reviewReader(api, node.number),
-      });
+      const { held, why } = await prHold({ ...holdReads(api, node), holdLabels, gateLabel, activity, appId: appSenderId });
       // Not recorded: the hold can come off with the head unchanged.
       if (held) {
         log(`skip #${node.number}: ${why}`);
         continue;
       }
       let existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      const options = { limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true };
+      const options = handleOptions(limits);
       // A push job that stopped on a reason routed to a failing status
       // releases the head's earlier checks: the next run retries the same
       // head, a fresh model session, until limit-stops-per-head such stops
@@ -316,25 +342,11 @@ export async function dispatchConflicting({
       continue;
     }
     sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), "dispatcher-run-id": String(runId) },
-      });
-      // The dispatched run's gate and the broker refuse a run this run did not
-      // record, so a dispatch with no usable id counts as failed.
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
-    } catch (error) {
+    const id = await sendDispatch(api, log, { workflow, base, node, inputs: { "pr-number": String(node.number), "dispatcher-run-id": String(runId) } });
+    if (id === null) {
       failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+    } else {
+      dispatched.push({ number: node.number, workflowRunId: id });
     }
   }
   return { dispatched, failed };
@@ -396,22 +408,13 @@ export async function dispatchSharedCopies({
       continue;
     }
     try {
-      const { laneEscalated, why } = await prHold({
-        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
-        holdLabels: ["do-not-merge"],
-        gateLabel,
-        head: node.headRefOid,
-        activity,
-        appId: appSenderId,
-        readTimeline: () => api.listTimeline(node.number),
-        readReviews: reviewReader(api, node.number),
-      });
+      const { laneEscalated, why } = await prHold({ ...holdReads(api, node), holdLabels: ["do-not-merge"], gateLabel, activity, appId: appSenderId });
       if (!laneEscalated) {
         log(`skip #${node.number}: no shared-copy refusal at head ${node.headRefOid} to answer${why ? ` (${why})` : ""}`);
         continue;
       }
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      const options = { limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true };
+      const options = handleOptions(limits);
       if (permanentlyHandles(existing, options)) {
         const capped = cappedAt(existing, options);
         if (capped > 0) {
@@ -424,9 +427,7 @@ export async function dispatchSharedCopies({
         continue;
       }
       active ??= (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
-      const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
-      if (inFlight) {
-        log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
+      if (inFlightRun(log, active, { workflow, activity, node })) {
         continue;
       }
       lagRefire(log, node, checkName, existing, false);
@@ -435,23 +436,11 @@ export async function dispatchSharedCopies({
       continue;
     }
     sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: ${activity} dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched ${activity} #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
-    } catch (error) {
+    const id = await sendDispatch(api, log, { workflow, base, node, label: `${activity} `, inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) } });
+    if (id === null) {
       failed += 1;
-      log(`::error::#${node.number}: ${activity} dispatch failed: ${error.message}`);
+    } else {
+      dispatched.push({ number: node.number, workflowRunId: id });
     }
   }
   return { dispatched, failed };
@@ -545,6 +534,11 @@ export function createGitHubApi({
     Connection: "close",
   };
 
+  const repoUrl = `${apiUrl}/repos/${owner}/${name}`;
+
+  const httpError = (method, url, response) =>
+    Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
+
   async function request(url, method = "GET", body) {
     const response = await fetch(url, {
       method,
@@ -552,18 +546,18 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
+      throw httpError(method, url, response);
     }
     return response.status === 204 ? {} : response.json();
   }
 
   async function paginate(path) {
     const rows = [];
-    let url = `${apiUrl}/repos/${owner}/${name}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
+    let url = `${repoUrl}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
-        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status, rateLimited: response.rateLimited === true });
+        throw httpError("GET", url, response);
       }
       rows.push(...(await response.json()));
       url = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1] ?? "";
@@ -596,6 +590,15 @@ export function createGitHubApi({
     return pages.get(key);
   }
 
+  // A run's latest jobs, which must fit one page.
+  async function latestJobs(runId) {
+    const jobs = await request(`${repoUrl}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+    if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+      throw new Error(`run ${runId}'s job listing is not one complete page`);
+    }
+    return jobs.jobs;
+  }
+
   return {
     async listOpenPulls({ base, after }) {
       return (await listPage(base, after)).repository.pullRequests;
@@ -604,7 +607,7 @@ export function createGitHubApi({
     async readBaseTip(base) {
       const target = (await graphql(BASE_TIP_QUERY, { owner, name, base })).repository.ref?.target;
       const committedAt = Date.parse(target?.committedDate ?? "");
-      if (!/^[0-9a-f]{40}$/.test(target?.oid ?? "") || !Number.isFinite(committedAt)) {
+      if (!SHA.test(target?.oid ?? "") || !Number.isFinite(committedAt)) {
         throw new Error(`the ${base} tip is not a commit`);
       }
       return { oid: target.oid, committedAt };
@@ -648,7 +651,7 @@ export function createGitHubApi({
     listPullFiles: (number) => paginate(`pulls/${Number(number)}/files`),
     listPullCommits: (number) => paginate(`pulls/${Number(number)}/commits`),
     async getCommit(sha) {
-      return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
+      return request(`${repoUrl}/commits/${encodeURIComponent(sha)}`);
     },
     // A held PR's issue timeline, review comments and reviews (gate-source.mjs
     // reads their REST shape).
@@ -661,7 +664,7 @@ export function createGitHubApi({
     async listCommitCheckRuns(sha) {
       const runs = [];
       for (let page = 1; page <= 3; page += 1) {
-        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
+        const data = await request(`${repoUrl}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         if ((data.check_runs ?? []).length < 100) {
           break;
@@ -676,10 +679,7 @@ export function createGitHubApi({
         filter: "all",
         per_page: "100",
       });
-      const result = await request(
-        `${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?${query}`,
-      );
-      return result.check_runs;
+      return (await request(`${repoUrl}/commits/${sha}/check-runs?${query}`)).check_runs;
     },
     // One check run's annotations: whether a cancelled job passed its time
     // limit (infra-failure.mjs timeLimitNoted).
@@ -687,29 +687,23 @@ export function createGitHubApi({
       if (!Number.isSafeInteger(checkRunId) || checkRunId < 1) {
         throw new Error("not a check run id");
       }
-      return request(`${apiUrl}/repos/${owner}/${name}/check-runs/${checkRunId}/annotations?per_page=100`);
+      return request(`${repoUrl}/check-runs/${checkRunId}/annotations?per_page=100`);
     },
     // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
     // workflow at path (pr-require-checks unless named) on the head that
     // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
     // and no jobs when there is none.
     async readRequiredRun(sha, path = ".github/workflows/pr-require-checks.yml") {
-      if (!/^[0-9a-f]{40}$/.test(sha)) {
+      if (!SHA.test(sha)) {
         throw new Error("not a commit SHA");
       }
-      const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      const listing = await request(`${repoUrl}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
       // A fork PR at the same head SHA lists its runs here too; a newer one
       // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
         .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
-      const tested = await testedRun(runs, async (run) => {
-        const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
-        if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
-          throw new Error(`run ${run.id}'s job listing is not one complete page`);
-        }
-        return jobs.jobs;
-      });
+      const tested = await testedRun(runs, (run) => latestJobs(run.id));
       return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
     },
     // One run's status and latest jobs, as fix-docs-dispatch.mjs counts a
@@ -720,57 +714,49 @@ export function createGitHubApi({
       }
       let run;
       try {
-        run = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}`);
+        run = await request(`${repoUrl}/actions/runs/${runId}`);
       } catch (error) {
         if (error.status === 404) {
           return null;
         }
         throw error;
       }
-      const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
-      if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
-        throw new Error(`run ${runId}'s job listing is not one complete page`);
-      }
-      return { status: run.status, jobs: jobs.jobs };
+      return { status: run.status, jobs: await latestJobs(runId) };
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {
-      const result = await request(
-        `${apiUrl}/repos/${owner}/${name}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`,
-      );
+      const result = await request(`${repoUrl}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`);
       return result.workflow_runs ?? [];
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
-      const result = await request(
-        `${apiUrl}/repos/${owner}/${name}/actions/workflows/${workflow}/dispatches`,
-        "POST",
-        {
-          ref,
-          inputs,
-          return_run_details: true,
-        },
-      );
+      const result = await request(`${repoUrl}/actions/workflows/${workflow}/dispatches`, "POST", { ref, inputs, return_run_details: true });
       return { workflowRunId: result.workflow_run_id };
     },
   };
 }
 
-// The base config's resolved limits, through the base checkout's
-// resolve-config; the workflow installs its dependencies before this runs. A
-// config the resolver refuses throws, so nothing is dispatched.
+// The base checkout's path.
+const basePath = (env) => env.BASE_PATH || ".base";
+
+// One reader of the base checkout's resolve-config, called on the base path;
+// the workflow installs its dependencies before this runs.
+async function fromBase(env, reader) {
+  const resolver = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+  return resolver[reader]({ BASE_PATH: basePath(env) });
+}
+
+// The base config's resolved limits. A config the resolver refuses throws, so
+// nothing is dispatched.
 export async function loadBaseLimits(env) {
-  const { limitsFromBase } = await import(
-    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
-  );
-  return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  return fromBase(env, "limitsFromBase");
 }
 
 // The base tracker config's human-gated label, as pr-merge.yml reads it.
 export function baseHumanGatedLabel(env) {
   let text = null;
   try {
-    text = trackerBindingText(`${env.BASE_PATH || ".base"}/${TRACKER_BINDING_PATH}`);
+    text = trackerBindingText(`${basePath(env)}/${TRACKER_BINDING_PATH}`);
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
@@ -781,28 +767,19 @@ export function baseHumanGatedLabel(env) {
 
 // The base config's `adoption` section as set, the same way.
 export async function loadBaseAdoption(env) {
-  const { adoptionFromBase } = await import(
-    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
-  );
-  return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  return fromBase(env, "adoptionFromBase");
 }
 
 // The base config's merge.refire-skip-branches, the same way: head branches a
 // workflow owns and rebuilds, which never get fix-ci.
 export async function loadBaseOwnedBranches(env) {
-  const { ownedBranchesFromBase } = await import(
-    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
-  );
-  return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  return fromBase(env, "ownedBranchesFromBase");
 }
 
 // The base config's resolve-issue tidy cutoffs, the same way, or null: the
 // fix-docs dispatcher skips a lane PR within them, which tidied in its run.
 export async function loadBaseTidyCutoffs(env) {
-  const { tidyCutoffsFromBase } = await import(
-    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
-  );
-  return tidyCutoffsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+  return fromBase(env, "tidyCutoffsFromBase");
 }
 
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
@@ -927,20 +904,20 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   let ownersHeld = "";
   if (adoption["idle-hours"] !== undefined) {
     try {
-      ownerIds = [...loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
+      ownerIds = [...loadTrustedList(`${basePath(env)}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
       log(`::error::cannot read the base trusted-actors list or the human-gated label from the base tracker binding (${error.message}); no adopted PR gets fix-ci`);
       ownersHeld = "base trusted-actors list or tracker config unreadable";
     }
   }
-  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
+  if (appSenderId !== undefined) {
     fixes = await dispatchCiFixes({
       api: client,
       record,
       runId: env.GITHUB_RUN_ID,
       log,
-      appSenderId: Number(env.APP_SENDER_ID),
+      appSenderId,
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
       maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,

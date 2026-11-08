@@ -409,6 +409,62 @@ describe("applyRefinement", () => {
     );
   });
 
+  const renamed = () => issueOf({ labels: [{ name: "needs-owner-decision" }] });
+  const renamedBy = (id) => [{ event: "labeled", label: { name: "needs-owner-decision" }, actor: { id } }];
+
+  test("an exact refinement lifts the App's needs-owner-decision label by that name", async () => {
+    const fake = fakeGitHub({ issue: renamed(), comments: [laneComment()], events: renamedBy(APP), spec: CONFIRMED });
+    assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+    );
+  });
+
+  test("an exact refinement leaves a needs-owner-decision label a person set", async () => {
+    const fake = fakeGitHub({ issue: renamed(), comments: [laneComment()], events: renamedBy(HUMAN), spec: CONFIRMED });
+    assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: false });
+    assert.deepEqual(writes(fake.calls).map(({ method, path }) => `${method} ${path}`), ["POST /repos/o/r/issues/7/comments"]);
+  });
+
+  test("an inexact refinement over needs-owner-decision writes no second hold", async () => {
+    const fake = fakeGitHub({ issue: renamed(), comments: [laneComment()], events: renamedBy(APP) });
+    assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+    assert.deepEqual(writes(fake.calls).map(({ method, path }) => `${method} ${path}`), ["POST /repos/o/r/issues/7/comments"]);
+  });
+
+  test("an inexact refinement writes needs-decision under a person's label-only needs-reporter-info over an unset field", async () => {
+    for (const fields of [{}, undefined]) {
+      const fake = fakeGitHub({
+        issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }),
+        comments: [laneComment()],
+        events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }],
+        fields,
+      });
+      assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+        ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+      );
+    }
+  });
+
+  // The label's events carry the new name while the field's read as
+  // `status: needs-info` (read-status.mjs syntheticFrom), so who set the hold
+  // last has to be read across both names.
+  const infoLabelAt = (id, created_at) => [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id }, created_at }];
+  test("an inexact refinement keeps needs-reporter-info when a person labeled it after the App's field write", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "needs-reporter-info" }] }), comments: [laneComment()], events: infoLabelAt(HUMAN, "2026-11-09T00:00:00Z"), fields: onField(APP, "needs-reporter-info") });
+    assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "STATUS"), JSON.stringify(writes(fake.calls)));
+  });
+
+  test("an inexact refinement replaces needs-reporter-info when the App labeled it after a person's field write", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "needs-reporter-info" }] }), comments: [laneComment()], events: infoLabelAt(APP, "2026-11-09T00:00:00Z"), fields: onField(HUMAN, "needs-reporter-info") });
+    await apply(fake, INEXACT);
+    assert.ok(writes(fake.calls).some(({ method, body }) => method === "STATUS" && body === "needs-owner-decision"), JSON.stringify(writes(fake.calls)));
+  });
+
   test("a person's needs-human set after the read stops the lift at the field write: nothing written, no re-triage", async () => {
     const fields = onField(APP, "needs-owner-decision");
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields });
@@ -865,6 +921,17 @@ describe("split", () => {
       const text = JSON.stringify(call.body ?? "");
       assert.ok(!text.includes("agent-ready") && !text.includes('"needs-human"'), "never agent-ready or needs-human");
     }
+  });
+
+  test("a split finds and removes the hold under its new name", async () => {
+    const labels = [{ name: "needs-owner-decision" }];
+    assert.notEqual(splitOf({ body: BODY, laneBody: laneComment("none").body, labels: ["needs-owner-decision"], admission: refusal(), rules, webHosts }), null);
+    const fake = fakeGitHub({ issue: held({ labels }), comments: heldComments, events: [{ event: "labeled", label: { name: "needs-owner-decision" }, actor: { id: APP } }] });
+    assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments"],
+    );
   });
 
   test("a second run does nothing: the body as written is already refined", async () => {

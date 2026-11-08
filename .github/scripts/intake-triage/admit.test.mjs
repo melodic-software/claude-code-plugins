@@ -13,7 +13,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -1538,7 +1538,7 @@ describe("decide", () => {
     // hold later is the re-mark, since no status: ready add follows it.
     const label = (event, name, at, id) => ({ event, label: { name }, actor: { id }, created_at: at });
     const stop = (hold) => [label("labeled", hold, "2026-10-20T00:00:00Z", APP), label("unlabeled", AGENT_READY, "2026-10-20T00:00:01Z", APP)];
-    for (const hold of ["needs-human", "status: needs-decision"]) {
+    for (const hold of ["needs-human", "status: needs-decision", "needs-owner-decision"]) {
       test(`a lane stop then a trusted lift of ${hold} is decided`, () => {
         assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", HUMAN)]), "admit");
         assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", APP)]), "admit");
@@ -2186,6 +2186,7 @@ describe("admit", () => {
   for (const [name, parent] of [
     ["an outsider filed", { state: "open", user: { id: OUTSIDER }, labels: [] }],
     ["awaits a decision", { state: "open", user: { id: HUMAN }, labels: [{ name: NEEDS_DECISION }] }],
+    ["awaits a decision under the renamed hold", { state: "open", user: { id: HUMAN }, labels: [{ name: "needs-owner-decision" }] }],
     ["is closed", { state: "closed", user: { id: HUMAN }, labels: [] }],
   ]) {
     test(`a Feature whose parent ${name} is refused through the real fetch path`, async () => {
@@ -2295,6 +2296,26 @@ describe("admit", () => {
     assert.equal((await go(fake)).status, CONFIRMED);
     const comment = fake.calls.find((call) => call.method === "POST" && call.path.endsWith("/comments"));
     assert.equal(parseReason(comment.body.body), null);
+  });
+
+  // A person's label under the hold's new name: the field stays theirs to set.
+  test("a refusal for a needs-owner-decision label writes no Work status", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "needs-owner-decision" }] }) });
+    assert.deepEqual(await go(fake), { outcome: "refused", reasons: ["it carries needs-owner-decision"], status: NEEDS_DECISION });
+    const done = writes(fake.calls);
+    assert.equal(done.length, 1, done.join("\n"));
+    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+  });
+
+  test("a status: confirmed issue beside either renamed hold is not parked at confirmed alone", () => {
+    for (const hold of ["needs-owner-decision", "needs-reporter-info"]) {
+      assert.equal(confirmedOnly([CONFIRMED, hold]), false, hold);
+    }
+  });
+
+  test("needs-reporter-info beside status: ready is decided as status: needs-info is", () => {
+    const decided = (name) => decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name }] }) }));
+    assert.deepEqual(decided("needs-reporter-info"), decided("status: needs-info"));
   });
 
   test("a refusal that needs a person over a parked status: confirmed label writes only the hold to the field", async () => {
@@ -3624,6 +3645,12 @@ describe("a Feature under a parent at status: needs-decision", () => {
       body: [VERDICT_MARKER, "The latest triage verdict holds nothing: admission moved the issue to needs-decision; its comment says why."].join("\n"),
     };
     assert.equal((await go(withParent({ comments: [holdsNothing] }))).outcome, "admitted");
+  });
+
+  test("reads the parent's needs-owner-decision label as it reads the old name", async () => {
+    const renamedBy = (id) => [{ event: "labeled", label: { name: "needs-owner-decision" }, actor: { id } }];
+    assert.equal((await go(withParent({ labels: ["needs-owner-decision"], events: renamedBy(APP) }))).outcome, "admitted");
+    assert.ok(refusedForParent(await go(withParent({ labels: ["needs-owner-decision"], events: renamedBy(HUMAN) }))));
   });
 
   test("is refused when the parent also carries needs-human", async () => {

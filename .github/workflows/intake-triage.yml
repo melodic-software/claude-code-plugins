@@ -295,6 +295,8 @@ jobs:
         priority: low
         status: needs-info
         status: needs-decision
+        needs-reporter-info
+        needs-owner-decision
         question
         area: security
         needs-human

@@ -2697,7 +2697,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // A state that is no hold is written only over no hold a person set since
   // the read (write-status.mjs keepHold); `held` ends admission there.
   const move = (state) => setStatus(number, state, { keepHold: true });
-  const write = (state, label) => (lower.includes(label) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
+  const write = (state, label) => (carried(lower, label === NEEDS_DECISION ? DECISION_LABELS : [label]) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
   const held = (result) => {
     if (result?.outcome !== "held") {
       return null;

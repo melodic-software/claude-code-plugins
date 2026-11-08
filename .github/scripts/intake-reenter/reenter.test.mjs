@@ -1041,3 +1041,89 @@ test("the job hands the script the field change's action and sender", () => {
   assert.match(workflow, /^ {10}EVENT_ACTION: \$\{\{ github\.event\.action \}\}$/m);
   assert.match(workflow, /^ {10}SENDER_ID: \$\{\{ github\.event\.sender\.id \}\}$/m);
 });
+
+// The two holds under their new names, as the live rename leaves them: the
+// issue carries `needs-owner-decision` or `needs-reporter-info`, and the same
+// answers release it, by the name the issue carries.
+const deletedLabels = (w) => w.writes.filter(([method]) => method === "DELETE").map(([, path]) => decodeURIComponent(path.slice(path.lastIndexOf("/") + 1)));
+
+test("a listed human's decision removes needs-owner-decision and sends the issue back to triage", async () => {
+  const w = world({ labels: ["needs-owner-decision", "priority: medium"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  expectTriage(w, ["priority: medium"]);
+  assert.deepEqual(deletedLabels(w), ["needs-owner-decision"]);
+  expectDispatched(w);
+});
+
+test("a reply from the author or a listed human removes needs-reporter-info; a stranger's changes nothing", async () => {
+  for (const user of [AUTHOR, OWNER]) {
+    const w = world({ labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user, body: "Here is the log." }] });
+    assert.equal(await run(w, 1), 0, user.login);
+    expectTriage(w, [], user.login);
+    assert.deepEqual(deletedLabels(w), ["needs-reporter-info"], user.login);
+  }
+  const stranger = world({ labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user: STRANGER, body: "Me too." }] });
+  assert.equal(await run(stranger, 1), 0);
+  assert.deepEqual(stranger.writes, []);
+});
+
+test("a decision beside needs-human changes nothing under the new name", async () => {
+  const labels = ["needs-human", "needs-owner-decision"];
+  const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), labels);
+  assert.deepEqual(w.writes, []);
+});
+
+test("a listed human lifting needs-human re-enters needs-owner-decision and leaves needs-reporter-info parked", async () => {
+  const w = world({ labels: ["needs-owner-decision"], events: [lift(OWNER)] });
+  assert.equal(await runLift(w), 0);
+  expectTriage(w, []);
+  assert.deepEqual(deletedLabels(w), ["needs-owner-decision"]);
+  expectDispatched(w);
+  const parked = world({ labels: ["needs-reporter-info"], events: [lift(OWNER)] });
+  assert.equal(await runLift(parked), 0);
+  assert.deepEqual(parked.writes, []);
+});
+
+test("a lift whose needs-owner-decision another run already took dispatches nothing", async () => {
+  const w = world({ labels: ["needs-owner-decision"], events: [lift(OWNER)], gone: ["needs-owner-decision"] });
+  assert.equal(await runLift(w), 0);
+  assert.equal(w.dispatches().length, 0);
+  assert.deepEqual(deletedLabels(w), ["needs-owner-decision"]);
+});
+
+for (const [hold, body] of [
+  ["needs-owner-decision", DECISION],
+  ["needs-reporter-info", "Answer."],
+]) {
+  test(`a failed dispatch puts ${hold} back under that name and sets its Work status back`, async () => {
+    const w = world({ labels: [hold], comments: [{ id: 1, user: OWNER, body }], fail: `POST ${DISPATCH}` });
+    assert.equal(await run(w, 1), 1);
+    assert.deepEqual(w.labels(), [hold]);
+    assert.equal(w.field(), hold);
+  });
+}
+
+test("a field at the same hold still removes the label the issue carries, not the state's first label", async () => {
+  const w = world({ labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
+  assert.equal(await runWithField(w, { [NUMBER]: { state: "needs-reporter-info" } }), 0);
+  expectTriage(w, []);
+  assert.deepEqual(deletedLabels(w), ["needs-reporter-info"]);
+});
+
+test("a reply to needs-reporter-info leaves a person's field-only hold", async () => {
+  for (const state of ["needs-human", "needs-owner-decision", "needs-spec"]) {
+    const w = world({ labels: ["needs-reporter-info"], author: AUTHOR, comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
+    assert.equal(await runWithField(w, { [NUMBER]: { state } }), 0, state);
+    assert.deepEqual(w.writes, [], state);
+  }
+});
+
+test("a field release changes nothing while a renamed hold label stays on the issue", async () => {
+  for (const hold of ["needs-owner-decision", "needs-reporter-info"]) {
+    const w = world({ labels: [hold], fieldNodes: [heldBy(), removed(OWNER)] });
+    assert.equal(await runField(w, "field_removed"), 0, hold);
+    assert.deepEqual(w.writes, [], hold);
+  }
+});
