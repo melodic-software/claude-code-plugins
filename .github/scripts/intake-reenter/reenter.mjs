@@ -99,6 +99,9 @@ const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+const openIssue = (issue) => !issue.pull_request && issue.state === "open";
+const positiveId = (value) => (/^[1-9][0-9]*$/.test(value ?? "") ? Number(value) : null);
+const notFound = (error) => error instanceof GitHubError && error.status === 404;
 
 // The issue's label names as its Work status field decides them:
 // `statusOf(number, names)` (read-status.mjs statusReader). With no
@@ -113,7 +116,7 @@ export async function answerLabels(issue, statusOf) {
 // decision on an issue with no status). `labels` are the issue's label
 // names, by default its own (answerLabels).
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId, labels = labelNames(issue) }) {
-  if (issue.pull_request || issue.state !== "open") {
+  if (!openIssue(issue)) {
     return null;
   }
   const user = comment.user ?? {};
@@ -163,7 +166,7 @@ async function removeLabel(github, base, name) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
     return true;
   } catch (error) {
-    if (error instanceof GitHubError && error.status === 404) {
+    if (notFound(error)) {
       return false;
     }
     throw error;
@@ -175,7 +178,7 @@ async function removeLabel(github, base, name) {
 // are the issue's names as the field decides them; `events()` its
 // statusEvents, whose newest `needs-human` removal names who lifted it.
 async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
-  if (issue.pull_request || issue.state !== "open") {
+  if (!openIssue(issue)) {
     return false;
   }
   const parked = labels.some((name) => name?.startsWith("status:") && name !== NEEDS_DECISION);
@@ -208,7 +211,7 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
   if (unknown !== undefined) {
     throw new Error(`models.issue-status maps no option to the hold \`${unknown}\``);
   }
-  if (issue.pull_request || issue.state !== "open" || !humans.has(senderId) || !authorAdmitted(issue, humans, lanesAppId)) {
+  if (!openIssue(issue) || !humans.has(senderId) || !authorAdmitted(issue, humans, lanesAppId)) {
     return null;
   }
   const own = new Set(labelNames(issue).map((name) => String(name).toLowerCase()));
@@ -262,7 +265,7 @@ async function dropRecord(client, repository, id) {
   try {
     await client("DELETE", `/repos/${repository}/issues/comments/${id}`);
   } catch (error) {
-    if (!(error instanceof GitHubError && error.status === 404)) {
+    if (!notFound(error)) {
       throw error;
     }
   }
@@ -277,7 +280,7 @@ async function dropRecord(client, repository, id) {
 // dispatch takes the record back, leaves the field as written and fails the
 // run, so a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
-  const senderId = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
+  const senderId = positiveId(env.SENDER_ID);
   const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
   const config = issueStatusFromBase(env);
   if (!config) {
@@ -359,7 +362,7 @@ export async function main({ env = process.env, github, log = console.log, statu
     if (!NUMBER.test(env.ISSUE_NUMBER ?? "") || !(lift || /^[1-9][0-9]{0,15}$/.test(env.COMMENT_ID ?? "")) || !REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("ISSUE_NUMBER, COMMENT_ID or GITHUB_REPOSITORY is malformed");
     }
-    const lanesAppId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null;
+    const lanesAppId = positiveId(env.LANES_APP_ID);
     const { ids, humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
