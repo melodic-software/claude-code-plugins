@@ -183,7 +183,8 @@ export function carry(data, { repo, branch, now }) {
       }
     }
   };
-  take("run-record", (k, v) => originRecord(k, v, repo, branch), { shape: slimRecord });
+  // Wrapped: the pinned lizard (js-complexity-share) cannot parse a bare `{ shape: slimRecord }` here.
+  take("run-record", (k, v) => originRecord(k, v, repo, branch), { shape: (value) => slimRecord(value) });
   take("fail-head-ref", (k, v) => headRef(k, v, repo));
   take("on-branch", (k, v) => onBranch(k, v, repo, branch));
   take("lane-run", (k, v) => laneRun(k, v, repo), { days: LANE_RUN_DAYS });
