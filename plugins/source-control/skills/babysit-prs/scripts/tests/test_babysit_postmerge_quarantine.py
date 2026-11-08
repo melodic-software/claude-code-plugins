@@ -244,6 +244,7 @@ class AffectedSet(AffectedBase):
         self.assertEqual(report["telemetry"], {"demotion_events": 0})
         self.assertEqual(report["quarantine"]["issues"], [9001])
         (post,) = self.posts()
+        self.assertIn("type=Bug", post)
         body = next(a for a in post if a.startswith("body="))
         self.assertTrue(body.startswith(f"body={pm.quarantine_marker(FLAKY)}\n"))
         self.assertIn(f"- Failing run: {SIGHTING}", body)

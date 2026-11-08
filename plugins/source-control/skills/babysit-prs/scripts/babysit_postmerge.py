@@ -3814,6 +3814,8 @@ def file_quarantines(
                     f"title={quarantine_title(branch, q.suite)}",
                     "-f",
                     f"body={body}",
+                    "-f",
+                    "type=Bug",
                 ],
                 f"file the quarantine issue for {q.suite}",
             )
@@ -4054,6 +4056,8 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
+                        "-f",
+                        "type=Bug",
                         # The lanes App's issue starts intake triage on its
                         # own; the human-gated label, or the Work status
                         # field set to needs-human below and retried on a

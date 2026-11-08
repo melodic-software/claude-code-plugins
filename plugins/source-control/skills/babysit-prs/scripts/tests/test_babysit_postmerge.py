@@ -3470,6 +3470,8 @@ class Remediation(CheckCase):
         self.assertTrue(report["errors"][0].startswith("disarm: disarm #7030"))
         self.assertEqual(report["dequeued"], [7010])
         self.assertEqual(report["issues"], [9001])
+        (filed,) = [c for c in self.gh.writes() if f"repos/{REPO}/issues" in c]
+        self.assertIn("type=Bug", filed)
 
     def test_a_failed_dequeue_read_still_disarms(self) -> None:
         verdict = self.failing_verdict()
