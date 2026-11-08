@@ -13,8 +13,9 @@ non-human `mergedBy` (`babysit_merge_policy.derive_auto_merge`, which
 `in_flight` shares); a queue-bypassing merge by a human is reported as the
 warning `unqueued-merge`. It is verified when a green
 dispatch run by the identity on a SHA containing the merge, a green canary
-run on such a SHA, and a matching read-back all exist, and no red full run or
-canary run counted against it first. Only an enqueue by the identity has a
+run on such a SHA (unless the repository has no canary workflow), and a
+matching read-back all exist, and no red full run or canary run counted
+against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue, and the identity's own native
 auto-merge (`native_auto_merge`, an immediate enqueue on arm included),
 verifies on the dispatch and canary runs alone. A red full run is attributed after one `rerun-failed-jobs` the
@@ -98,6 +99,7 @@ from babysit_util import (
 
 FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
+CANARY_PATH = f".github/workflows/{CANARY_WORKFLOW}"
 # The pr-merge lane dispatches the full run with its own GITHUB_TOKEN (the
 # lanes App holds no actions: write) and records the dispatched run's id in an
 # artifact named with this prefix; `_Context.lane_dispatched` reads it. The
@@ -2496,12 +2498,14 @@ def _judge(
     ctx: _Context,
     *,
     full_runs: list[tuple[str, Run]],
-    canary_runs: list[Run],
+    canary_runs: list[Run] | None,
     pinned: str | None,
     now: datetime,
     tally: _Tally,
     pin_required: bool,
 ) -> MergeState:
+    """`merge`'s state from its runs. `canary_runs` None: the repository has
+    no canary, so no canary run is required to verify it."""
     pending: list[str] = []
     failures: list[Failure] = []
     if not merge.merge_commit or not merge.merged_at:
@@ -2514,7 +2518,7 @@ def _judge(
         return run.created_at >= merged_at and ctx.contains(commit, run.head_sha)
 
     fulls = [(signal, run) for signal, run in full_runs if relevant(run)]
-    canaries = [run for run in canary_runs if relevant(run)]
+    canaries = [run for run in canary_runs or () if relevant(run)]
     own = [
         run
         for signal, run in fulls
@@ -2559,14 +2563,15 @@ def _judge(
         )
 
     verified_at = None
-    if green_dispatch and green_canary:
+    if green_dispatch and (green_canary or canary_runs is None):
         verified_at = max(
-            min(r.created_at for r in green_dispatch),
-            min(r.created_at for r in green_canary),
+            min(r.created_at for r in runs)
+            for runs in (green_dispatch, green_canary)
+            if runs
         )
     if not green_dispatch:
         pending.append("dispatch-run-pending")
-    if not green_canary:
+    if not green_canary and canary_runs is not None:
         pending.append("canary-run-pending")
     in_window = (
         (lambda run: run.created_at <= verified_at)
@@ -2771,9 +2776,10 @@ def _lane_reruns(
 
 def _listed_runs(
     ctx: _Context, floor: datetime, now: datetime, *, record: bool = False
-) -> tuple[list[tuple[str, Run]], list[Run]]:
+) -> tuple[list[tuple[str, Run]], list[Run] | None]:
     """The full runs (by signal) and canary runs on the branch since `floor`,
-    oldest first; the full runs are held for `_Context.superseded`. With
+    oldest first, the canary runs None when the repository has no canary
+    (`_canary_absent`); the full runs are held for `_Context.superseded`. With
     `record`, each listed run that had completed is kept in
     `_Context.judged_runs` at the `updated_at` read."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
@@ -2798,18 +2804,37 @@ def _listed_runs(
         key=lambda item: item[1].created_at,
     )
     ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
-    canaries = _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
+    try:
+        canaries = _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
+    except PostMergeReadError as exc:
+        if not _canary_absent(owner, name, exc):
+            raise
+        canaries = None
     if record:
         ctx.judged_runs = {
             r.id: r.updated_at
-            for r in [r for _, r in listed] + canaries
+            for r in [r for _, r in listed] + (canaries or [])
             if r.status == "completed" and r.updated_at is not None
         }
+    if canaries is None:
+        return full_runs, None
     canary_runs = sorted(
         (r for r in canaries if ctx.on_branch(r)),
         key=lambda r: r.created_at,
     )
     return full_runs, canary_runs
+
+
+def _canary_absent(owner: str, name: str, exc: PostMergeReadError) -> bool:
+    """Whether `exc`, a failed CANARY_WORKFLOW run listing, means the
+    repository has no canary: the listing answered 404 and the workflow file
+    is absent on the default branch. A 404 with the file present is a failed
+    read, and so is a failed file read (it raises `PostMergeReadError`)."""
+    return (
+        not isinstance(exc, _RunSearchCapped)
+        and gh_http_status(str(exc)) == 404
+        and _default_branch_text(owner, name, CANARY_PATH) is None
+    )
 
 
 def _final_by_runs(
@@ -4525,7 +4550,8 @@ def _verifying_runs_unchanged(
     than one page in an hour or two. A run started since and still running
     changes nothing yet. A completed run `judged` holds at the `updated_at`
     it reads now (`_judged_runs`) is one the check already read finished, so
-    it counts for nothing; a re-run moves its `updated_at`. A listing that is
+    it counts for nothing; a re-run moves its `updated_at`. A repository with
+    no canary (`_canary_absent`) has no canary runs to move. A listing that is
     not whole raises `PostMergeReadError`."""
 
     def moved(run: dict[str, Any]) -> bool:
@@ -4548,16 +4574,21 @@ def _verifying_runs_unchanged(
         f">={created.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
     )
     for workflow in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW):
-        payload = json_object(
-            _read(
-                [
-                    "api",
-                    f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
-                    f"?branch={quote(branch, safe='')}&created={floor}&per_page=100",
-                ],
-                f"{workflow} runs",
+        try:
+            payload = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
+                        f"?branch={quote(branch, safe='')}&created={floor}&per_page=100",
+                    ],
+                    f"{workflow} runs",
+                )
             )
-        )
+        except PostMergeReadError as exc:
+            if workflow != CANARY_WORKFLOW or not _canary_absent(owner, name, exc):
+                raise
+            continue
         runs = json_array(payload.get("workflow_runs"))
         if payload.get("total_count") != len(runs):
             raise PostMergeReadError(f"{workflow} runs: the listing is not whole")

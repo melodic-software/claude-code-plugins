@@ -266,6 +266,8 @@ class FakeGh:
         self.branch_commits: list[dict[str, Any]] = []
         # File texts by (path, ref) the contents API serves; any other is 404.
         self.files: dict[tuple[str, str], str] = {}
+        # The HTTP status a workflow's run listing fails with, by workflow file.
+        self.workflow_status: dict[str, int] = {}
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -309,6 +311,10 @@ class FakeGh:
             return completed({"full_name": REPO, "default_branch": self.default_branch})
         if "/actions/workflows/" in endpoint and "/runs?" in endpoint:
             workflow = endpoint.split("/actions/workflows/")[1].split("/")[0]
+            if workflow in self.workflow_status:
+                status = self.workflow_status[workflow]
+                reason = "Not Found" if status == 404 else "Error"
+                return completed(returncode=1, stderr=f"gh: {reason} (HTTP {status})")
             event = endpoint.split("event=")[1].split("&")[0]
             runs = self.runs.get((workflow, event), [])
             if "head_sha=" in endpoint:
@@ -711,6 +717,92 @@ class AutoMergeDerivation(CheckCase):
         )
         self.assertFalse(verdict.ok)
         self.assertEqual(verdict.reason, "merged-since-not-timezone-aware")
+
+
+class NoCanaryWorkflow(CheckCase):
+    """A repository without the canary workflow (#14059: the sandbox's canary
+    listing answered `gh: Not Found (HTTP 404)` and every merge was refused as
+    unreadable). A 404 with the file absent on the default branch is no
+    canary signal; any other failed canary read stays unreadable, and the
+    full-run reads are unchanged."""
+
+    CANARY_FILE = ".github/workflows/post-merge-detect-silent-revert.yml"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+
+    def test_a_canary_404_with_no_workflow_file_verifies_on_the_dispatch_run(
+        self,
+    ) -> None:
+        self.gh.workflow_status[pm.CANARY_WORKFLOW] = 404
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.ok)
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertNotIn("canary-run-pending", verdict.merges[0].pending)
+
+    def test_a_readable_canary_without_runs_still_holds_the_merge(self) -> None:
+        verdict = self.check()
+        self.assertTrue(verdict.readable)
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertIn("canary-run-pending", verdict.merges[0].pending)
+
+    def test_a_canary_404_with_the_workflow_file_present_is_unreadable(
+        self,
+    ) -> None:
+        self.gh.workflow_status[pm.CANARY_WORKFLOW] = 404
+        self.gh.files[(self.CANARY_FILE, "")] = "on: push\n"
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.ok)
+        self.assertIn("HTTP 404", verdict.reason)
+
+    def test_other_canary_read_failures_are_unreadable(self) -> None:
+        for status in (403, 502):
+            with self.subTest(status=status):
+                self.gh.workflow_status[pm.CANARY_WORKFLOW] = status
+                verdict = self.check()
+                self.assertFalse(verdict.readable)
+                self.assertFalse(verdict.ok)
+                self.assertIn(f"HTTP {status}", verdict.reason)
+
+    def test_a_failed_workflow_file_read_after_a_canary_404_is_unreadable(
+        self,
+    ) -> None:
+        self.gh.workflow_status[pm.CANARY_WORKFLOW] = 404
+        self.gh.fail_reads.add(f"contents/{self.CANARY_FILE}")
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("HTTP 502", verdict.reason)
+
+    def test_a_full_run_404_is_still_unreadable(self) -> None:
+        self.gh.workflow_status[pm.FULL_RUN_WORKFLOW] = 404
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn(f"{pm.FULL_RUN_WORKFLOW}", verdict.reason)
+        self.assertIn("HTTP 404", verdict.reason)
+
+    def test_a_canary_404_under_remediate_files_nothing(self) -> None:
+        self.gh.workflow_status[pm.CANARY_WORKFLOW] = 404
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                    "--remediate",
+                ]
+            )
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertEqual(self.gh.writes(), [])
 
 
 class Verification(CheckCase):
