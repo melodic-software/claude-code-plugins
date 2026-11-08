@@ -89,8 +89,7 @@ export async function dispatchDependencyReviews({
   limits,
 }) {
   const candidates = (listed ?? (await listAll(api, base)))
-    .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
-    .filter((node) => node.author?.databaseId === DEPENDABOT_ID)
+    .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base && node.author?.databaseId === DEPENDABOT_ID)
     .sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;

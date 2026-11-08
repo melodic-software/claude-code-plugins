@@ -71,14 +71,16 @@ export function parseRecord(text) {
   return record;
 }
 
+const byKey = (entries) => entries.sort(([a], [b]) => a.localeCompare(b));
+
 export function serializeRecord(record) {
   const handled = Object.fromEntries(
-    [...record.handled].filter(([, heads]) => heads.size > 0).sort(([a], [b]) => a.localeCompare(b)).map(([check, heads]) => [check, [...heads].sort()]),
+    byKey([...record.handled].filter(([, heads]) => heads.size > 0)).map(([check, heads]) => [check, [...heads].sort()]),
   );
-  const bases = Object.fromEntries([...record.bases].sort(([a], [b]) => a.localeCompare(b)));
-  const dispatched = Object.fromEntries([...record.dispatched].sort(([a], [b]) => a.localeCompare(b)));
+  const bases = Object.fromEntries(byKey([...record.bases]));
+  const dispatched = Object.fromEntries(byKey([...record.dispatched]));
   const docsRuns = Object.fromEntries(
-    [...record.docsRuns].filter(([, ids]) => ids.length > 0).sort(([a], [b]) => a.localeCompare(b)).map(([head, ids]) => [head, ids.slice(-MAX_DOCS_RUNS)]),
+    byKey([...record.docsRuns].filter(([, ids]) => ids.length > 0)).map(([head, ids]) => [head, ids.slice(-MAX_DOCS_RUNS)]),
   );
   return `${JSON.stringify({ version: RECORD_VERSION, handled, bases, dispatched, docsRuns })}\n`;
 }
@@ -112,14 +114,11 @@ export function pruneRecord(record, heads) {
 
 // The record at `path`, empty when the file is absent or unreadable.
 export function readRecord(path) {
-  if (!path) {
-    return { record: emptyRecord(), text: "" };
-  }
-  let text = "";
+  let text;
   try {
-    text = readFileSync(path, "utf8");
+    text = path ? readFileSync(path, "utf8") : "";
   } catch {
-    return { record: emptyRecord(), text: "" };
+    text = "";
   }
   return { record: parseRecord(text), text };
 }
