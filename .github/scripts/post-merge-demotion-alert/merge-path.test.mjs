@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatRollup, isAgentAuthored, label, labelPlan, pathOf, resolvePaths, rollup } from "./merge-path.mjs";
+import { formatRollup, isAgentAuthored, label, labelPlan, pathOf, resolvePaths, rollup, toPr } from "./merge-path.mjs";
 
 const REPO = "o/r";
 const IDENTITY = "melodic-automation-lanes[bot]";
@@ -148,6 +148,22 @@ test("label: with no record path configured nothing is read or written", () => {
   const result = label({ repo: REPO, merged: [50], reverted: [], config: { agentIdentity: IDENTITY, paths: {} }, gh: () => (calls++, "{}"), log: () => {} });
   assert.deepEqual(result, { plan: [], failed: 0 });
   assert.equal(calls, 0);
+});
+
+test("rollup: a merge whose path label was deleted still counts on its path through the label event", () => {
+  const node = (number, labels, events) => ({
+    number,
+    title: "feat: x",
+    body: "",
+    mergedAt: "2026-11-07T12:00:00Z",
+    labels: { nodes: labels.map((name) => ({ name })) },
+    labelEvents: { nodes: events.map((name) => ({ label: { name } })) },
+    timelineItems: { nodes: [] },
+  });
+  const merged = [node(200, [], ["merge-path:owner-agent"]), node(201, ["merge-path: owner-agent"], ["merge-path: owner-agent"]), node(202, [], [])].map(toPr);
+  const result = rollup({ repo: REPO, since: "2026-11-07", until: "2026-11-07", merged, revertRecords: [], identity: IDENTITY });
+  assert.equal(result.paths["owner-agent"].merges, 2);
+  assert.equal(result.paths.other.merges, 1);
 });
 
 test("rollup: merges, reverts and escapes per path for merges in the window", () => {
