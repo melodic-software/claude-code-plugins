@@ -1,14 +1,13 @@
-// The rolling-issue rules: a signal family gets one issue, found by its
-// marker; the same state writes nothing; a new state updates it in place; a
-// clear state closes it, and a later finding reopens that same issue instead
-// of filing a second; closing as not planned or duplicate mutes the family;
-// platform incidents are logged, never filed; issues of the earlier
-// one-issue-per-key scheme still open are closed.
+// The incident rules: a signal holds at most one open issue, found by its
+// marker, filed past its open threshold and closed past its close threshold;
+// a signal that flaps inside its thresholds files and comments nothing; a
+// closed-as-not-planned or duplicate incident mutes the signal; platform
+// incidents are logged, never filed; the old rolling issues are retired.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { LOG_ONLY, SIGNALS, familyOf, planIssues, readMarker, renderBody, renderComment, renderSupersede, unreadSignals } from "./issues.mjs";
+import { FILING, LOG_ONLY, SIGNALS, familyOf, incidentRules, planIssues, readMarker, renderBody, renderRetire, stateFingerprint, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
@@ -24,6 +23,10 @@ const denied = (id) => ({
 const findingFor = (runs) => detect({ now, windowStart, failedRuns: runs.map(denied) })[0];
 const THROTTLING = "3 throttling";
 const family = (findings) => ({ signal: THROTTLING, findings });
+const RULES = Object.fromEntries(SIGNALS.map((signal) => [signal, { open: 0, close: 0 }]));
+const THRESHOLDS = { ...RULES, [THROTTLING]: { open: 4, close: 3 } };
+const hoursAgo = (hours, from = now) => new Date(from.getTime() - hours * 3600_000).toISOString();
+const plan = (args) => planIssues({ rules: RULES, now, ...args });
 
 const issueFrom = (findings, number, extra = {}) => ({
   number,
@@ -32,7 +35,7 @@ const issueFrom = (findings, number, extra = {}) => ({
   body: renderBody(family(findings), runUrl),
   ...extra,
 });
-const legacyIssue = (key, number, extra = {}) => ({
+const oldIssue = (key, number, extra = {}) => ({
   number,
   state: "open",
   state_reason: null,
@@ -40,67 +43,134 @@ const legacyIssue = (key, number, extra = {}) => ({
   ...extra,
 });
 
-test("the marker names the family on the body's first line", () => {
+test("the marker names the incident on the body's first line", () => {
   const body = renderBody(family([findingFor([1])]), runUrl);
-  assert.equal(readMarker(body).key, "family:throttling");
+  assert.equal(readMarker(body).key, "incident:throttling");
   assert.equal(readMarker(`text\n${body}`), null);
   assert.equal(readMarker("<!-- factory-monitor key=x fp=zz -->"), null);
   assert.equal(familyOf("4 merge-queue ejections"), "merge-queue-ejections");
   assert.equal(familyOf("5 held PRs"), "held-prs");
 });
 
-test("a family's first finding files one issue holding every finding of that signal", () => {
+test("every signal has a plain title, no prefix, and a Priority value", () => {
+  assert.deepEqual(new Set(Object.keys(FILING)), new Set(SIGNALS));
+  for (const [signal, { title, priority }] of Object.entries(FILING)) {
+    assert.doesNotMatch(title, /^\[|^[A-Za-z]+:\s/, signal);
+    assert.ok(["critical", "high", "medium", "low"].includes(priority), signal);
+  }
+  assert.equal(FILING["1 main red"].priority, "critical");
+});
+
+test("the state fingerprint follows the findings' keys, so new evidence for the same key changes nothing", () => {
+  const a = findingFor([1]);
+  assert.equal(stateFingerprint([a]), stateFingerprint([{ ...a, summary: "other text", fingerprint: "ffffffffffffffff" }]));
+  assert.notEqual(stateFingerprint([a]), stateFingerprint([a, { ...a, key: "throttle:rate-limited" }]));
+  assert.notEqual(stateFingerprint([a]), stateFingerprint([]));
+});
+
+test("a signal under its open threshold files nothing and keeps its timer", () => {
+  const f = findingFor([1]);
+  const first = planIssues({ findings: [f], existing: [], rules: THRESHOLDS, now });
+  assert.deepEqual(first.file, []);
+  assert.deepEqual(first.episodes[THROTTLING], { onSince: now.toISOString(), clearSince: null });
+  assert.deepEqual(first.skip, [{ family: "throttling", number: null, reason: "below threshold" }]);
+  const carried = { [THROTTLING]: { onSince: hoursAgo(3.9), clearSince: null } };
+  assert.deepEqual(planIssues({ findings: [f], existing: [], rules: THRESHOLDS, episodes: carried, now }).file, []);
+});
+
+test("at its open threshold a signal files one incident holding every finding", () => {
   const a = findingFor([1]);
   const b = { ...findingFor([2]), key: "throttle:rate-limited" };
-  const plan = planIssues({ findings: [a, b], existing: [] });
-  assert.equal(plan.file.length, 1);
-  assert.equal(plan.file[0].family.signal, THROTTLING);
-  assert.deepEqual(
-    plan.file[0].family.findings.map((f) => f.key),
-    [a.key, b.key].sort(),
-  );
+  const carried = { [THROTTLING]: { onSince: hoursAgo(4), clearSince: null } };
+  const filed = planIssues({ findings: [a, b], existing: [], rules: THRESHOLDS, episodes: carried, now });
+  assert.equal(filed.file.length, 1);
+  assert.deepEqual(filed.file[0].family.findings.map((f) => f.key), [a.key, b.key].sort());
+  assert.equal(filed.episodes[THROTTLING].onSince, carried[THROTTLING].onSince);
 });
 
-test("the same state skips; a new state updates the open issue", () => {
-  const existing = [issueFrom([findingFor([1])], 41)];
-  const same = planIssues({ findings: [findingFor([1])], existing });
-  assert.deepEqual(same.file, []);
+test("a zero open threshold files at the first run; a clear run restarts the timer", () => {
+  const zero = planIssues({ findings: [findingFor([1])], existing: [], rules: { ...THRESHOLDS, [THROTTLING]: { open: 0, close: 3 } }, now });
+  assert.equal(zero.file.length, 1);
+  const carried = { [THROTTLING]: { onSince: hoursAgo(10), clearSince: null } };
+  const clear = planIssues({ findings: [], existing: [], rules: THRESHOLDS, episodes: carried, now });
+  assert.deepEqual(clear.episodes, {});
+  assert.deepEqual(clear.file, []);
+});
+
+// #9866's first twelve on and off spans, in hours, as the issue's timeline
+// recorded them (2026-10-24 on), replayed one run an hour.
+const FLAPPING = [
+  ["on", 1.01],
+  ["off", 2.0],
+  ["on", 1.34],
+  ["off", 0.76],
+  ["on", 1.93],
+  ["off", 13.96],
+  ["on", 1.0],
+  ["off", 10.08],
+  ["on", 0.95],
+  ["off", 1.35],
+  ["on", 3.66],
+  ["off", 12.96],
+];
+const hourlyRuns = (spans) => spans.flatMap(([kind, hours]) => Array(Math.max(1, Math.round(hours))).fill(kind === "on"));
+
+test("#9866's flapping inside its thresholds opens no issue and writes nothing", () => {
+  let episodes = {};
+  const f = findingFor([1]);
+  for (const [i, on] of hourlyRuns(FLAPPING).entries()) {
+    const at = new Date(now.getTime() + i * 3600_000);
+    const p = planIssues({ findings: on ? [f] : [], existing: [], rules: THRESHOLDS, episodes, now: at });
+    episodes = p.episodes;
+    assert.deepEqual([p.file, p.update, p.close, p.retire], [[], [], [], []], `run ${i}`);
+  }
+});
+
+test("an open incident is updated only when its findings' keys change, with no comment planned", () => {
+  const f = findingFor([1]);
+  const existing = [issueFrom([f], 41)];
+  const same = plan({ findings: [findingFor([1])], existing });
   assert.deepEqual(same.update, []);
   assert.deepEqual(same.skip, [{ family: "throttling", number: 41, reason: "unchanged" }]);
-
-  const changed = planIssues({ findings: [findingFor([1, 2])], existing });
+  const newEvidence = plan({ findings: [{ ...f, summary: "new text" }], existing });
+  assert.deepEqual(newEvidence.update, []);
+  const changed = plan({ findings: [f, { ...f, key: "throttle:rate-limited" }], existing });
+  assert.deepEqual(changed.update.map((u) => u.number), [41]);
   assert.deepEqual(changed.file, []);
-  assert.deepEqual(
-    changed.update.map((u) => u.number),
-    [41],
-  );
 });
 
-test("a family with no finding clears its open issue, unless one of its sources went unread", () => {
+test("a clear run starts the close timer, and only past close-hours does the incident close", () => {
   const existing = [issueFrom([findingFor([1])], 41)];
-  const clear = planIssues({ findings: [], existing });
-  assert.deepEqual(clear.update, [{ number: 41, family: family([]) }]);
-  const unread = planIssues({ findings: [], existing, unread: unreadSignals(["failed runs: HTTP 502"]) });
-  assert.deepEqual(unread.update, []);
-  assert.deepEqual(unread.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
-  const other = planIssues({ findings: [], existing, unread: unreadSignals(["audits: HTTP 502"]) });
-  assert.deepEqual(other.update, [{ number: 41, family: family([]) }]);
+  const first = planIssues({ findings: [], existing, rules: THRESHOLDS, now });
+  assert.deepEqual(first.close, []);
+  assert.deepEqual(first.episodes[THROTTLING], { onSince: null, clearSince: now.toISOString() });
+  const waiting = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: { [THROTTLING]: { onSince: null, clearSince: hoursAgo(2) } }, now });
+  assert.deepEqual(waiting.close, []);
+  assert.deepEqual(waiting.skip, [{ family: "throttling", number: 41, reason: "clearing" }]);
+  const past = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: { [THROTTLING]: { onSince: null, clearSince: hoursAgo(3) } }, now });
+  assert.deepEqual(past.close, [{ number: 41, family: family([]) }]);
 });
 
-test("a partly read family keeps its open issue as it is, even with findings", () => {
-  const existing = [issueFrom([findingFor([1]), { ...findingFor([2]), key: "throttle:rate-limited" }], 41)];
-  const partial = planIssues({ findings: [findingFor([1, 3])], existing, unread: unreadSignals(["pr-merge api budget: call budget of 250 spent"]) });
-  assert.deepEqual(partial.update, []);
-  assert.deepEqual(partial.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+test("an on run stops the close timer", () => {
+  const f = findingFor([1]);
+  const existing = [issueFrom([f], 41)];
+  const p = planIssues({ findings: [f], existing, rules: THRESHOLDS, episodes: { [THROTTLING]: { onSince: null, clearSince: hoursAgo(2) } }, now });
+  assert.deepEqual(p.close, []);
+  assert.equal(p.episodes[THROTTLING].clearSince, null);
 });
 
-test("an unread signal with nothing open files nothing unless a finding fires", () => {
-  const unread = unreadSignals(["pr-merge listed sweep: the newest is over 70 minutes old"]);
-  const quiet = planIssues({ findings: [], existing: [], unread });
-  assert.deepEqual(quiet.file, []);
-  assert.deepEqual(quiet.skip, []);
-  const firing = planIssues({ findings: [findingFor([1])], existing: [], unread });
-  assert.deepEqual(firing.file.map((f) => f.family.signal), ["3 throttling"]);
+test("an unread signal keeps its timers and leaves its incident as it is", () => {
+  const existing = [issueFrom([findingFor([1])], 41)];
+  const carried = { [THROTTLING]: { onSince: null, clearSince: hoursAgo(5) } };
+  const unread = unreadSignals(["failed runs: HTTP 502"]);
+  const quiet = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread, now });
+  assert.deepEqual([quiet.close, quiet.update], [[], []]);
+  assert.deepEqual(quiet.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+  assert.deepEqual(quiet.episodes[THROTTLING], carried[THROTTLING]);
+  const other = planIssues({ findings: [], existing, rules: THRESHOLDS, episodes: carried, unread: unreadSignals(["audits: HTTP 502"]), now });
+  assert.deepEqual(other.close.map((c) => c.number), [41]);
+  const firing = planIssues({ findings: [findingFor([1])], existing: [], rules: { ...THRESHOLDS, [THROTTLING]: { open: 0, close: 3 } }, unread, now });
+  assert.deepEqual(firing.file, []);
 });
 
 test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
@@ -117,47 +187,48 @@ test("each collect source maps to the signals it feeds, and an unknown gap leave
   assert.equal(unreadSignals([]).size, 0);
 });
 
-test("a closed rolling issue is reopened, never filed again, when its signal fires", () => {
+test("a later episode after the lane closed one files a new incident, and only one", () => {
   const closed = [issueFrom([], 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-19T10:00:00Z" })];
-  const plan = planIssues({ findings: [findingFor([1])], existing: closed });
-  assert.deepEqual(plan.file, []);
-  assert.deepEqual(
-    plan.reopen.map((r) => r.number),
-    [30],
-  );
-  assert.deepEqual(planIssues({ findings: [], existing: closed }), {
-    file: [],
-    update: [],
-    reopen: [],
-    close: [],
-    skip: [],
-    logged: [],
-  });
+  const carried = { [THROTTLING]: { onSince: hoursAgo(4), clearSince: null } };
+  const p = planIssues({ findings: [findingFor([1])], existing: closed, rules: THRESHOLDS, episodes: carried, now });
+  assert.equal(p.file.length, 1);
+  assert.deepEqual(plan({ findings: [], existing: closed }).file, []);
+  const openToo = [...closed, issueFrom([findingFor([1])], 31)];
+  assert.deepEqual(plan({ findings: [findingFor([1])], existing: openToo }).file, []);
 });
 
-test("a person's close with the same state stays closed until the evidence changes", () => {
-  const f = findingFor([1]);
+test("a person's completed close with the same keys holds until a finding is newer than the close", () => {
+  const f = { ...findingFor([1]), observedAt: "2026-10-19T15:00:00Z" };
   const closed = [issueFrom([f], 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-19T16:00:00Z" })];
-  const same = planIssues({ findings: [findingFor([1])], existing: closed });
-  assert.deepEqual(same.reopen, []);
+  const episodes = { [THROTTLING]: { onSince: "2026-10-19T14:00:00Z", clearSince: null } };
+  const same = plan({ findings: [f], existing: closed, episodes });
+  assert.deepEqual(same.file, []);
   assert.deepEqual(same.skip, [{ family: "throttling", number: 30, reason: "closed-unchanged" }]);
-  assert.deepEqual(
-    planIssues({ findings: [findingFor([1, 2])], existing: closed }).reopen.map((r) => r.number),
-    [30],
-  );
+  assert.equal(plan({ findings: [{ ...f, observedAt: "2026-10-19T16:30:00Z" }], existing: closed, episodes }).file.length, 1);
 });
 
-test("a not-planned or duplicate close mutes the family, and the newest issue decides", () => {
+test("a person's completed close holds only for the episode it closed, when findings carry no time", () => {
+  const f = findingFor([1]);
+  assert.equal(f.observedAt, null);
+  const closed = [issueFrom([f], 30, { state: "closed", state_reason: "completed", closed_at: hoursAgo(10) })];
+  const held = plan({ findings: [f], existing: closed, episodes: { [THROTTLING]: { onSince: hoursAgo(12), clearSince: null } } });
+  assert.deepEqual(held.skip, [{ family: "throttling", number: 30, reason: "closed-unchanged" }]);
+  const later = plan({ findings: [f], existing: closed, episodes: { [THROTTLING]: { onSince: hoursAgo(2), clearSince: null } } });
+  assert.equal(later.file.length, 1);
+});
+
+test("closing as not planned or duplicate mutes the signal, and the newest incident decides", () => {
   for (const reason of ["not_planned", "duplicate"]) {
-    const muted = planIssues({
+    const muted = plan({
       findings: [findingFor([1, 2])],
-      existing: [issueFrom([findingFor([1])], 10), issueFrom([findingFor([1])], 20, { state: "closed", state_reason: reason })],
+      existing: [issueFrom([findingFor([1])], 10, { state: "closed", state_reason: "completed", closed_at: "2026-10-01T00:00:00Z" }), issueFrom([findingFor([1])], 20, { state: "closed", state_reason: reason, closed_at: "2026-10-02T00:00:00Z" })],
     });
-    assert.deepEqual(muted.file, []);
-    assert.deepEqual(muted.update, []);
-    assert.deepEqual(muted.reopen, []);
+    assert.deepEqual([muted.file, muted.update], [[], []]);
     assert.deepEqual(muted.skip, [{ family: "throttling", number: 20, reason: "muted" }]);
+    assert.match(muted.status.find((s) => s.signal === THROTTLING).state, /muted by #20/);
   }
+  const reopened = plan({ findings: [findingFor([1])], existing: [issueFrom([findingFor([2])], 20, { state: "open" })] });
+  assert.deepEqual(reopened.skip, [{ family: "throttling", number: 20, reason: "unchanged" }]);
 });
 
 test("a platform incident is logged in the plan and never filed", () => {
@@ -170,37 +241,37 @@ test("a platform incident is logged in the plan and never filed", () => {
     },
   });
   assert.ok(LOG_ONLY.has(findings[0].signal));
-  const plan = planIssues({ findings, existing: [] });
-  assert.deepEqual(plan.file, []);
-  assert.deepEqual(plan.logged, findings);
+  const p = plan({ findings, existing: [] });
+  assert.deepEqual(p.file, []);
+  assert.deepEqual(p.logged, findings);
 });
 
-test("every open per-key issue is closed, pointing at its family's rolling issue", () => {
-  const plan = planIssues({
+test("every open rolling issue and earlier per-key issue is retired, and closed ones and incidents are left alone", () => {
+  const p = plan({
     findings: [],
     existing: [
       issueFrom([findingFor([1])], 90),
-      legacyIssue("broker-deny:500-unknown", 12),
-      legacyIssue("throttle:rate-limited", 11),
-      legacyIssue("platform:abc", 13),
-      legacyIssue("main-red:lint", 14),
-      legacyIssue("main-red:lint", 15),
-      legacyIssue("held-over-24h", 16, { state: "closed", state_reason: "completed" }),
+      oldIssue("family:throttling", 12),
+      oldIssue("family:lane-holds", 11),
+      oldIssue("broker-deny:500-unknown", 13),
+      oldIssue("family:ceiling", 16, { state: "closed", state_reason: "completed" }),
     ],
   });
-  assert.deepEqual(plan.close, [
-    { number: 11, key: "throttle:rate-limited", signal: THROTTLING, rolling: 90 },
-    { number: 12, key: "broker-deny:500-unknown", signal: THROTTLING, rolling: 90 },
-    { number: 13, key: "platform:abc", signal: "7 platform incident", rolling: null },
-    { number: 14, key: "main-red:lint", signal: "1 main red", rolling: null },
-    { number: 15, key: "main-red:lint", signal: "1 main red", rolling: null },
+  assert.deepEqual(p.retire, [
+    { number: 11, key: "family:lane-holds" },
+    { number: 12, key: "family:throttling" },
+    { number: 13, key: "broker-deny:500-unknown" },
   ]);
-  assert.match(renderSupersede(THROTTLING, 90), /Superseded by #90/);
-  assert.match(renderSupersede("7 platform incident", null), /run summary/);
-  assert.match(renderSupersede("1 main red", null), /next fires/);
+  assert.match(renderRetire(runUrl), /job summary/);
+  assert.ok(renderRetire(runUrl).includes(runUrl));
 });
 
-test("every detector's signal is a rolling family or logged only, and an unknown one is named in the plan", () => {
+test("a rolling issue closed as not planned does not mute the new flow", () => {
+  const p = plan({ findings: [findingFor([1])], existing: [oldIssue("family:throttling", 9, { state: "closed", state_reason: "not_planned" })] });
+  assert.equal(p.file.length, 1);
+});
+
+test("every detector's signal is an incident signal or logged only, and an unknown one is named in the plan", () => {
   const all = detect({
     now,
     windowStart,
@@ -220,70 +291,51 @@ test("every detector's signal is a rolling family or logged only, and an unknown
     holdRule: { threshold: 2, windowHours: 24 },
   });
   assert.deepEqual(new Set(all.map((f) => f.signal)), new Set([...SIGNALS, ...LOG_ONLY]));
-  const plan = planIssues({ findings: [{ ...findingFor([1]), signal: "10 renamed" }], existing: [] });
-  assert.deepEqual(plan.file, []);
-  assert.deepEqual(plan.skip, [{ family: "renamed", number: null, reason: "unknown signal" }]);
+  const p = plan({ findings: [{ ...findingFor([1]), signal: "10 renamed" }], existing: [] });
+  assert.deepEqual(p.file, []);
+  assert.deepEqual(p.skip, [{ family: "renamed", number: null, reason: "unknown signal" }]);
 });
 
-test("the body carries each finding's evidence inside a text fence; the comment names the change", () => {
+test("every signal reports one state line, with its findings as evidence", () => {
+  const f = findingFor([1]);
+  const p = plan({ findings: [f], existing: [] });
+  assert.deepEqual(p.status.map((s) => s.signal), SIGNALS);
+  const entry = p.status.find((s) => s.signal === THROTTLING);
+  assert.deepEqual(entry.findings, [f]);
+  assert.match(entry.state, /filing an incident/);
+  assert.equal(p.status.find((s) => s.signal === "1 main red").state, "clear");
+});
+
+test("the thresholds cover every signal and refuse a missing or fractional value", () => {
+  const raw = Object.fromEntries(SIGNALS.map((s) => [familyOf(s), { "open-hours": 2, "close-hours": 6 }]));
+  assert.deepEqual(incidentRules(raw)[THROTTLING], { open: 2, close: 6 });
+  const { throttling, ...missing } = raw;
+  assert.ok(throttling);
+  assert.throws(() => incidentRules(missing), /throttling open-hours/);
+  assert.throws(() => incidentRules({ ...raw, throttling: { "open-hours": 1.5, "close-hours": 1 } }), /throttling open-hours/);
+  assert.throws(() => incidentRules({ ...raw, throttling: { "open-hours": 1, "close-hours": -1 } }), /throttling close-hours/);
+});
+
+test("the body carries each finding's evidence inside a text fence, says how to mute, and takes no born-triaged marker", () => {
   const f = findingFor([1, 2]);
   const body = renderBody(family([f]), runUrl);
   assert.match(body, /Owning area/);
   assert.match(body, new RegExp(`### \`${f.key}\``));
   assert.match(body, /```text\n[^`]*lane-token-denied[^`]*\n```/);
   assert.match(body, /\*\*State:\*\* 1 current finding in/);
-  const comment = renderComment(family([f]), runUrl);
-  assert.ok(comment.includes(runUrl));
-  assert.ok(comment.includes(`\`${f.key}\``));
+  assert.match(body, /not planned or duplicate mutes the signal/);
+  assert.match(body, /## Done when\n\n- \[ \]/);
+  assert.doesNotMatch(body, /born-triaged/);
   assert.match(renderBody(family([]), runUrl), /\*\*State:\*\* clear in/);
-  assert.match(renderComment(family([]), runUrl), /^Clear in/);
-});
-
-test("a main-red family closed as completed reopens when main fails after the close, even with the same text", () => {
-  const red = (createdAt) =>
-    detect({
-      now,
-      windowStart,
-      mainRun: {
-        id: 77,
-        url: "https://github.com/o/r/actions/runs/77",
-        sha: "abc",
-        event: "schedule",
-        conclusion: "failure",
-        createdAt,
-        failedJobs: [{ name: "lint", conclusion: "failure", annotations: [{ level: "failure", message: "flaky 3" }] }],
-      },
-    })[0];
-  const closed = [
-    {
-      number: 30,
-      state: "closed",
-      state_reason: "completed",
-      closed_at: "2026-10-18T12:00:00Z",
-      body: renderBody({ signal: "1 main red", findings: [red("2026-10-18T09:17:00Z")] }, runUrl),
-    },
-  ];
-  const before = planIssues({ findings: [red("2026-10-18T09:17:00Z")], existing: closed });
-  assert.deepEqual(before.reopen, []);
-  assert.equal(before.skip[0].reason, "closed-unchanged");
-  const at = planIssues({ findings: [red("2026-10-18T12:00:00Z")], existing: closed });
-  assert.deepEqual(at.reopen, []);
-  const again = planIssues({ findings: [red("2026-10-19T16:17:00Z")], existing: closed });
-  assert.deepEqual(again.file, []);
-  assert.deepEqual(
-    again.reopen.map((r) => r.number),
-    [30],
-  );
 });
 
 // The post-hoc review of #9772: a finding's summary carries run, job and URL
 // text, and rendered outside a fence a mention, link or tag in it worked.
-test("each finding's summary renders inside a text fence, in the body and the comment", () => {
+test("each finding's summary renders inside a text fence in the body", () => {
   const hostile = { ...findingFor([1]), summary: "job @someone [x](https://e.example) <img src=x> #12 failed" };
-  for (const text of [renderBody(family([hostile]), runUrl), renderComment(family([hostile]), runUrl)]) {
-    assert.ok(text.includes("```text\njob @someone [x](https://e.example) <img src=x> #12 failed\n```"), text);
-    assert.equal(text.split("@someone").length, 2, "only the fenced copy");
-  }
+  const text = renderBody(family([hostile]), runUrl);
+  assert.ok(text.includes("```text\njob @someone [x](https://e.example) <img src=x> #12 failed\n```"), text);
+  assert.equal(text.split("@someone").length, 2, "only the fenced copy");
   const ticks = { ...findingFor([1]), summary: "a ``` b" };
   assert.ok(renderBody(family([ticks]), runUrl).includes("````text\na ``` b\n````"), "the fence outgrows a backtick run");
 });

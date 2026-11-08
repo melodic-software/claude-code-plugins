@@ -78,6 +78,7 @@ async function pages(call, path, max = 20) {
 }
 
 const refPath = (name) => name.split("/").map(encodeURIComponent).join("/");
+const readTip = (call, repo, name) => call("GET", `/repos/${repo}/git/ref/heads/${refPath(name)}`);
 
 // One branch's verdict: { verdict: delete | keep | report, rule or reason,
 // issue, pr }. Reads run cheapest first and stop at the first
@@ -135,11 +136,10 @@ export async function evaluate(call, { repo, owner, defaultBranch }, branch) {
   return { verdict: "delete", rule, issue, pr };
 }
 
-
 // Right before the delete: the tip still at the listed SHA, and no open pull
 // request from it or into it.
 async function stillDeletable(call, { repo, owner }, { name, sha }) {
-  const ref = await call("GET", `/repos/${repo}/git/ref/heads/${refPath(name)}`);
+  const ref = await readTip(call, repo, name);
   if (ref?.object?.sha !== sha) return `the tip moved to ${ref?.object?.sha ?? "nothing"} since the listing`;
   const from = await call("GET", `/repos/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${name}`)}&per_page=1`);
   if (!Array.isArray(from) || from.length > 0) return "a pull request from it is open";
@@ -174,6 +174,11 @@ const SHA = /^[0-9a-f]{40}$/;
 const issueRef = (value) => value === null || (Number.isSafeInteger(value) && value > 0);
 
 const row = (cells) => `| ${cells.map((c) => String(c ?? "").replaceAll("|", "\\|")).join(" | ")} |`;
+const TABLE_HEAD = [row(["Branch", "SHA", "Rule", "Issue", "PR"]), row(["---", "---", "---", "---", "---"])];
+const candidateRow = (c) => row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : ""]);
+const reasons = (list) => list.map((r) => `- \`${r.name}\`: ${r.reason}`);
+
+const isDryRun = (env) => env.DRY_RUN !== "false";
 
 const checkRepo = (repo) => {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) throw new Error("REPOSITORY is not owner/repo");
@@ -184,10 +189,9 @@ const checkRepo = (repo) => {
 // takes, { repo, planned: [{ name, sha, rule, issue, pr }] }.
 export async function plan(env, { call, loadConfig, log = console.log }) {
   const repo = checkRepo(env.REPOSITORY);
-  const dryRun = env.DRY_RUN !== "false";
-  const config = resolveBranchCleanup(loadConfig());
+  const dryRun = isDryRun(env);
   const owner = repo.split("/")[0];
-  const cap = config["max-deletes-per-run"];
+  const cap = resolveBranchCleanup(loadConfig())["max-deletes-per-run"];
   // Evaluation gets what the delete stage's share leaves of the budget.
   const evalLimit = (call.remaining?.() ?? Number.POSITIVE_INFINITY) - deleteBudget(cap);
   if (evalLimit <= 0) throw new Error(`the call budget does not cover ${cap} deletes and any reads`);
@@ -248,31 +252,23 @@ export async function plan(env, { call, loadConfig, log = console.log }) {
     `${dryRun ? "dry-run: would delete" : "will delete"} ${planned.length} of ${candidates.length} deletable branch(es) (cap ${cap}); ${branches.length} branch(es) listed`,
   );
 
-  const count = (verdict) => results.filter((r) => r.verdict === verdict).length;
+  const withVerdict = (verdict) => results.filter((r) => r.verdict === verdict);
+  const reported = withVerdict("report");
+  const kept = withVerdict("keep");
   const lines = [
     `### Branch cleanup plan${dryRun ? " (dry-run: nothing deleted)" : ""}`,
     "",
-    `${branches.length} branches: ${candidates.length} deletable, ${count("keep")} kept, ${count("report")} for a person, ${count("excluded")} excluded. Cap ${cap}.`,
+    `${branches.length} branches: ${candidates.length} deletable, ${kept.length} kept, ${reported.length} for a person, ${withVerdict("excluded").length} excluded. Cap ${cap}.`,
     "",
     `#### ${dryRun ? "Would delete" : "Listed for the delete job"} (${planned.length})`,
     "",
-    row(["Branch", "SHA", "Rule", "Issue", "PR"]),
-    row(["---", "---", "---", "---", "---"]),
-    ...planned.map((c) => row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : ""])),
+    ...TABLE_HEAD,
+    ...planned.map(candidateRow),
   ];
   if (unevaluated > 0) {
     lines.push("", `${unevaluated} branch(es) not evaluated this run (cap ${cap} reached or call budget spent); the next run starts at a different point in the listing.`);
   }
-  lines.push(
-    "",
-    `#### For a person (${count("report")})`,
-    "",
-    ...results.filter((r) => r.verdict === "report").map((r) => `- \`${r.name}\`: ${r.reason}`),
-    "",
-    `#### Kept (${count("keep")})`,
-    "",
-    ...results.filter((r) => r.verdict === "keep").map((r) => `- \`${r.name}\`: ${r.reason}`),
-  );
+  lines.push("", `#### For a person (${reported.length})`, "", ...reasons(reported), "", `#### Kept (${kept.length})`, "", ...reasons(kept));
   return { dryRun, results, candidates, planned, unevaluated, list: { repo, planned }, summary: lines.join("\n") };
 }
 
@@ -303,7 +299,7 @@ export function readList(list, { repo, cap, defaultBranch }) {
 // The delete stage: deletes the listed branches that are still deletable.
 export async function remove(env, { call, clock, loadConfig, append, list, log = console.log }) {
   const repo = checkRepo(env.REPOSITORY);
-  const dryRun = env.DRY_RUN !== "false";
+  const dryRun = isDryRun(env);
   const cap = resolveBranchCleanup(loadConfig())["max-deletes-per-run"];
   const repository = await call("GET", `/repos/${repo}`);
   const defaultBranch = repository?.default_branch;
@@ -333,8 +329,8 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
       branch: candidate.name,
       sha: candidate.sha,
       rule: candidate.rule,
-      issue: candidate.issue ?? null,
-      pr: candidate.pr ?? null,
+      issue: candidate.issue,
+      pr: candidate.pr,
       deletedAt: clock(),
     };
     append(entry);
@@ -344,7 +340,7 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
     } catch (error) {
       // A tip that moved after the re-read makes GitHub refuse the update:
       // that branch is skipped, not a failed delete.
-      const tip = await call("GET", `/repos/${repo}/git/ref/heads/${refPath(candidate.name)}`).catch(() => undefined);
+      const tip = await readTip(call, repo, candidate.name).catch(() => undefined);
       const reason =
         tip !== undefined && tip?.object?.sha !== candidate.sha
           ? `the tip moved to ${tip?.object?.sha ?? "nothing"} before the delete; GitHub refused it`
@@ -362,14 +358,11 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
     "",
     dryRun ? `#### Would delete (${planned.length})` : `#### Deleted (${deleted.length})`,
     "",
-    row(["Branch", "SHA", "Rule", "Issue", "PR"]),
-    row(["---", "---", "---", "---", "---"]),
-    ...(dryRun ? planned : planned.filter((c) => deleted.some((d) => d.branch === c.name))).map((c) =>
-      row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : ""]),
-    ),
+    ...TABLE_HEAD,
+    ...(dryRun ? planned : planned.filter((c) => deleted.some((d) => d.branch === c.name))).map(candidateRow),
   ];
   if (skipped.length > 0) {
-    lines.push("", "#### Skipped at delete time", "", ...skipped.map((s) => `- \`${s.name}\`: ${s.reason}`));
+    lines.push("", "#### Skipped at delete time", "", ...reasons(skipped));
   }
   return { dryRun, planned, deleted, skipped, summary: lines.join("\n") };
 }
@@ -378,7 +371,7 @@ async function main(env = process.env) {
   const { branchCleanupFromBase } = await import(
     pathToFileURL(`${env.BASE_PATH}/.github/actions/resolve-config/resolve-config.mjs`).href
   );
-  const dryRun = env.DRY_RUN !== "false";
+  const dryRun = isDryRun(env);
   const loadConfig = () => branchCleanupFromBase({ BASE_PATH: env.BASE_PATH });
   const summarize = (text) => {
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`);

@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, postOptionNames, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { createBudget } from "./collect.mjs";
 import {
   checkClaim,
@@ -201,10 +201,12 @@ const DIGEST_TYPE = "Task";
 const DIGEST_FIELDS = [
   { field_id: 48484079, value: "needs-triage" },
   { field_id: 49622037, value: "medium" },
-  { field_id: 15462270, value: "Small" },
-  { field_id: 48625720, value: "Low" },
-  { field_id: 48625721, value: "Known" },
+  { field_id: 15462270, value: "small" },
+  { field_id: 48625720, value: "low" },
+  { field_id: 48625721, value: "known" },
 ];
+// Size, Complexity and Uncertainty: the fields whose option names change case.
+const TITLED_FIELDS = new Set([15462270, 48625720, 48625721]);
 
 // The digest's author is github-actions[bot], outside the trusted list, so
 // the issue lane never works from it: a person who wants an entry worked
@@ -312,7 +314,8 @@ async function main() {
   // goes through its own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
-  const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
+  const setFields = (number, values) =>
+    postOptionNames((issue_field_values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values }, FIELD_API), values, TITLED_FIELDS);
   const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [

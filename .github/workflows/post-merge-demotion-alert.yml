@@ -1237,7 +1237,7 @@ jobs:
               exit 1
             fi
           # The record itself is only read and closed; its fix issues carry the work.
-          elif [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-triage critical Small Low Known; then
+          elif [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-triage critical small low known; then
             echo "::warning::could not set the field values of record '$record'"
           fi
           kind='demotion issue'

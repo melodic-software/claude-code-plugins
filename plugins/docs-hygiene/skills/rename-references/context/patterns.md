@@ -94,8 +94,8 @@ skills/<old>/
   excluded Form 2 residue: apply mode finishes and the re-sweep reports zero actionable
   stragglers while the marketplace points at a missing directory and installation is broken.
   Verified on this repository: renaming `docs-hygiene`, the alternative matches
-  `.claude-plugin/marketplace.json:193` (`"source": "./plugins/docs-hygiene"`), `README.md:108`
-  (`[…](plugins/docs-hygiene)`), and a deep script path: three real hits, no false positives.
+  `.claude-plugin/marketplace.json:193` (`"source": "./plugins/docs-hygiene"`), `docs/catalog.md:78`
+  (`[…](../plugins/docs-hygiene)`), and a deep script path: three real hits, no false positives.
 - **Both ends exclude a hyphen, same reason as Forms 13 and 15.** Container directories are
   kebab-case. Verified: `plugins/docs-hygiene` matches; `plugins/docs-hygiene-extra`,
   `plugins/docs-hygienex`, and `x-plugins/docs-hygiene` do not. The trailing class permits `/`,
@@ -421,7 +421,7 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
   double-quote-only on key and value.
 - **False-positives are real, and they are the reason for the scope rule below.** "A heading that
   IS the token can only be naming it" FAILS for an ordinary-word name: renaming a `testing`
-  plugin matches this repository's `README.md:86` (`### Testing`, a category heading), and
+  plugin matches this repository's `docs/catalog.md:47` (`## Testing`, a category heading), and
   renaming an `architecture` plugin matches `plugins/miro/README.md:39` (`## Architecture`, an
   unrelated section). Under precedence, a false Certain here is worse than a Form 2 hit, because
   it DISCARDS the safer classification.

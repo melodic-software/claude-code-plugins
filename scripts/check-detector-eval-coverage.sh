@@ -11,7 +11,7 @@
 #                                                     an eval case names an id
 #                                                     the detector cannot emit
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): 0 clean, 1 findings, 2 environment or usage, findings on stderr.
 #
 # WHY. claude-code-plugins#4149 found harness-config:audit-permission-grants

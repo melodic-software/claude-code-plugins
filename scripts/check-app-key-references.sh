@@ -17,7 +17,7 @@
 # bypasses the broker. Contract: docs/conventions/pr-pipeline/pr-run-activity.md,
 # "The lane token broker"; ADR 0058.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path:line: finding` per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any offender, 2 usage or environment.
 set -euo pipefail

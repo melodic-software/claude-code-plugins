@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
+import { collect, jobsCarryFile, JOBS_VERSION, LIMITS, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { ceilingFindings } from "./signals.mjs";
 
 const repo = "o/r";
@@ -678,6 +678,18 @@ test("listFiled lists only github-actions[bot]'s issues", async () => {
   const api = fakeApi([[/\/issues\?/, []]]);
   await listFiled({ get: api.get, repo });
   assert.deepEqual(api.calls.map((path) => new URL(path, "https://x").searchParams.get("creator")), ["github-actions[bot]"]);
+});
+
+test("the signal timers round-trip, and a stale, missing or misshapen carry reads as none or throws", () => {
+  const signals = { "3 throttling": { onSince: "2026-10-19T15:00:00Z", clearSince: null } };
+  const carried = (episodes) => jobsCarryFile(repo, [], undefined, episodes);
+  assert.deepEqual(parseEpisodeCarry(carried({ at: "2026-10-19T15:52:00Z", signals }), repo, now), signals);
+  assert.deepEqual(parseEpisodeCarry(carried({ at: "2026-10-19T08:00:00Z", signals }), repo, now), {}, "older than the run lookback");
+  assert.deepEqual(parseEpisodeCarry(JSON.stringify({ version: 1, repository: repo, runs: [] }), repo, now), {}, "a file from before the carry held timers");
+  assert.deepEqual(parseEpisodeCarry(carried(undefined), repo, now), {}, "no timers");
+  assert.throws(() => parseEpisodeCarry(carried({ at: "2026-10-19T15:52:00Z", signals }), "other/repo", now), /unexpected shape/);
+  assert.throws(() => parseEpisodeCarry(carried({ at: "not a time", signals }), repo, now), /unexpected shape/);
+  assert.throws(() => parseEpisodeCarry(carried({ at: "2026-10-19T15:52:00Z", signals: { x: { onSince: "not a time", clearSince: null } } }), repo, now), /unexpected shape/);
 });
 
 // GitHub's open pull request list, honoring sort direction, page and per_page.

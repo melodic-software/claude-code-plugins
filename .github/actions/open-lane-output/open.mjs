@@ -149,11 +149,8 @@ export function main(env = process.env) {
   if (!path.isAbsolute(directory)) throw new OpenError("bad-input: the directory input is not an absolute path");
   const parts = Array.from({ length: MAX_CHUNKS }, (_, i) => env[`SEALED_${i + 1}`] ?? "");
   const lengthText = env.SEALED_LENGTH ?? "";
-  let opened = new Map();
-  if (lengthText !== "" || parts.some((part) => part !== "")) {
-    const bundle = joinChunks(lengthText, parts);
-    opened = openBundle(recipient, expected, caps, bundle, runId, jobId);
-  }
+  const opened =
+    lengthText !== "" || parts.some((part) => part !== "") ? openBundle(recipient, expected, caps, joinChunks(lengthText, parts), runId, jobId) : new Map();
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   if (readdirSync(directory).length > 0) throw new OpenError("bad-input: the directory is not empty");
   for (const [name, data] of opened) writeFileSync(path.join(directory, name), data, { flag: "wx", mode: 0o444 });

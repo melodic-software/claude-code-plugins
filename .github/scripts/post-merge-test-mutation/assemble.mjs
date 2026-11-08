@@ -44,7 +44,8 @@ export function assemble(executed, triage) {
     mutants: executed.mutants.map(({ path, line, operator, state }, index) => {
       if (state !== "survived") return { path, line, operator, state, disposition: "none", cause: "none" };
       const v = verdicts.get(index);
-      return { path, line, operator, state, disposition: v?.disposition ?? "unclassified", cause: v?.disposition === "productive" ? v.cause : v ? "none" : "unclassified" };
+      if (!v) return { path, line, operator, state, disposition: "unclassified", cause: "unclassified" };
+      return { path, line, operator, state, disposition: v.disposition, cause: v.disposition === "productive" ? v.cause : "none" };
     }),
   };
 }

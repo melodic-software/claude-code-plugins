@@ -21,7 +21,7 @@
 #
 # Exit 0 clean, 1 findings, 2 environment or usage (htmlhint missing: run
 # `npm ci`); findings on stderr. That is the whole family's contract, stated
-# once in README.md, "The check-script contract", and held by
+# once in scripts/README.md, "The check-script contract", and held by
 # scripts/check-script-contract.test.sh.
 #
 # Test injection: CHECK_HTML_ASSETS_ROOT overrides the repo root,

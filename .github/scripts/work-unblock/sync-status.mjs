@@ -30,10 +30,10 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { HOLD_STATES } from "../../actions/resolve-config/read-status.mjs";
+import { createGitHub, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { fieldStatus, HOLD_STATES, loadTrustedActors } from "../../actions/resolve-config/read-status.mjs";
+import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
-const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const AGENT_READY = "agent-ready";
 const fold = (name) => String(typeof name === "string" ? name : name?.name).toLowerCase();
 const annotate = (line) => String(line).replaceAll(/[\r\n%]/g, " ");
@@ -103,11 +103,9 @@ export async function main({ env = process.env, log = console.log } = {}) {
       throw new Error("this runs only on an issue label event");
     }
     const repository = env.GITHUB_REPOSITORY;
-    // resolve-config.mjs and issue-status.mjs load the packages the job
-    // installs, so they load here, after the kill switch.
+    // resolve-config.mjs loads the packages the job installs, so it loads
+    // here, after the kill switch.
     const { issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
-    const { fieldStatus, loadTrustedActors } = await import("../../actions/resolve-config/read-status.mjs");
-    const { statusWriter } = await import("../../actions/resolve-config/write-status.mjs");
     const config = issueStatusFromBase(env);
     if (!config) {
       log("sync-status: models.issue-status is unset, so no Work status field is written");
@@ -119,7 +117,8 @@ export async function main({ env = process.env, log = console.log } = {}) {
     const fieldState = (number) => fieldStatus({ github, repository, number, config, trustedActors });
     const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
     const result = await onLabelEvent({ event, config, status: { ...writer, fieldState } });
-    log(`sync-status: #${Number(event.issue?.number)} ${result.outcome}${result.reason ? ` (${result.reason})` : result.state ? ` (${result.state})` : ""}`);
+    const detail = result.reason || result.state;
+    log(`sync-status: #${Number(event.issue?.number)} ${result.outcome}${detail ? ` (${detail})` : ""}`);
     return 0;
   } catch (error) {
     log(`::error title=sync-status::${annotate(error?.message ?? error)}`);
