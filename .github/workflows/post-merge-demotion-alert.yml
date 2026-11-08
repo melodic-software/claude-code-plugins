@@ -1301,8 +1301,8 @@ jobs:
           tokens: github-token
 
   # A canary push's merges on a record-mode post-merge path get
-  # merge-path:<path>, and the pull requests it reverts on one also
-  # post-merge:reverted (merge-path.mjs; README.md, "Merge paths"). Record
+  # merge-path: <path>, and the pull requests it reverts on one also
+  # post-merge: reverted (merge-path.mjs; README.md, "Merge paths"). Record
   # only: no issue, comment, demotion or hold, and GITHUB_TOKEN's label
   # writes start no workflow run. It runs whatever the alert job concluded,
   # as file-revert does, from the main tip that job checked out.
