@@ -105,7 +105,7 @@ playwright-cli run-code "async page => {
 playwright-cli -s=login open https://app.example.com/login --persistent
 playwright-cli -s=login snapshot
 playwright-cli -s=login fill e1 "user@example.com"
-playwright-cli -s=login fill e2 "$E2E_TEST_PASSWORD" --submit
+bash "<skill-dir>/scripts/fill-secret.sh" login e2 E2E_TEST_PASSWORD --submit
 playwright-cli -s=login state-save auth.json
 playwright-cli -s=login close
 
@@ -117,8 +117,9 @@ playwright-cli -s=test goto https://app.example.com/dashboard
 playwright-cli -s=test close
 ```
 
-Set `E2E_TEST_PASSWORD` in your own environment before running this. An unset variable
-expands to an empty string and the fill succeeds while typing nothing.
+Set `E2E_TEST_PASSWORD` in your own environment before running this. The helper refuses an
+unset or empty variable and discards `playwright-cli`'s output, which would echo the password
+([Secret fills](../SKILL.md#secret-fills)).
 
 ## Shared login state
 
