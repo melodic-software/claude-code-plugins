@@ -431,7 +431,7 @@ where the sink has no labels, never autonomous-eligible (`agent-ready` by defaul
 a `tier-0` or `tier-1` finding is written as a recommendation, with its primary source named.
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
-surface. (a) the full item draft (title + body), (b) the destination (target repo, tracker, or
+surface. (a) the full item draft (title + body, for a tracker drafted after reading `${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md` and applying it), (b) the destination (target repo, tracker, or
 directory), and (c) the acting identity (`gh auth status` for `gh`; the tracker's acting identity
 for a seam emit. Machines can hold multiple identity domains and the wrong one cross-pollinates
 them). Only on explicit confirmation perform the emit. This gate covers `gh issue create` and any

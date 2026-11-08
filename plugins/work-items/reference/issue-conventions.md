@@ -1,32 +1,23 @@
 # Issue conventions
 
 The shape of a well-formed tracker item: title, body, type, labels, close reason, and the
-dependents a close must re-point. This document is the **single source of truth for the title
-convention and the dependents step**; for the other four it **points** at the existing owner
-rather than restating it, so each of those rules stays in one place.
+dependents a close must re-point. This document is the **single source of truth for the
+dependents step**; for the rest it **points** at the existing owner rather than restating it, so
+each of those rules stays in one place.
 
 ## Title
 
-`<prefix>: <lowercase summary>`, with no trailing period. Derived from established org usage. Two prefix
-dialects are accepted:
-
-- **Area / path form**: `<plugin>`, `<plugin>/<skill>`, or `<plugin>:<skill>`
-  (e.g. `work-items/triage: reconcile state machine with live labels`).
-- **Conventional-commit form**: `<type>(<scope>)`
-  (e.g. `feat(toolchain): add pyright to python ecosystem check-cmd`).
-
-Umbrella / epic items use an `Epic:` prefix or a trailing `(umbrella)`. A child-of relationship is
-recorded as a native sub-issue edge, **never** as a title suffix.
+Read [`issue-house-style.md`](issue-house-style.md) before filing or retitling an item and follow
+what it resolves. A child-of relationship is recorded as a native sub-issue edge, **never** as a
+title suffix.
 
 When folding a member into an umbrella, treat the sequence as **one atomic action**: post the
 membership comment on the item, post the matching membership comment on the umbrella issue, record
 the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone
 (#633).
 
-Recurring maintenance items take the conventional-commit form too: `chore(<scope>): <summary>` by
-default, the summary being the schedule row's `title` with a lowercase first letter, `<scope>` the
-row's first `area` entry, and `chore:` alone when `area` is empty. The title never links an item to its schedule row; the
-[recurring marker](#recurring-marker) does.
+A recurring maintenance item's title is its schedule row's `title`. The title never links an item
+to its schedule row; the [recurring marker](#recurring-marker) does.
 
 ### Recurring marker
 
