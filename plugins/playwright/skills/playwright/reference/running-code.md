@@ -166,11 +166,10 @@ playwright-cli run-code "async page => {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/dashboard');
   await page.context().storageState({ path: 'auth.json' });
-  return 'Login successful';
-}"
+}" >/dev/null 2>&1
 ```
 
-The shell runs the `node -p` substitution before `run-code` sees the code, and `JSON.stringify` turns the value into one quoted JavaScript string, so no character in it can end the string and run as code. Never splice a raw `$VAR` between quotes in a `run-code` body. Set `E2E_TEST_PASSWORD` in your own environment first.
+The shell runs the `node -p` substitution before `run-code` sees the code, and `JSON.stringify` turns the value into one quoted JavaScript string, so no character in it can end the string and run as code. Never splice a raw `$VAR` between quotes in a `run-code` body. Set `E2E_TEST_PASSWORD` in your own environment first. The command discards its output, as any command carrying a secret does ([Secret fills](../SKILL.md#secret-fills)), so judge it by its exit status and a `snapshot` afterwards.
 
 ## Animation capture
 
