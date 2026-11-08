@@ -79,17 +79,19 @@ export const HOST_RUN_LABEL = "host-run";
 // The label attended routes add, likewise declared in github-iac.
 export const ATTENDED_LABEL = "attended";
 
+// A reason's row, or undefined when the table does not list it.
+const rowOf = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason] : undefined);
 // A reason's route; a reason the table does not list names no owner reason,
 // so it fails rather than reaching a person.
-export const stopRoute = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].route : "fail");
+export const stopRoute = (reason) => rowOf(reason)?.route ?? "fail";
 // The stop-reason code (../lib/stop-reason.mjs) a reason's comment carries:
 // its hold row's class as intent, design, security or cost, else none.
 const CLASS_CODES = { "intent-change": "intent", "design-change": "design", "security-risk": "security", "cost-risk": "cost" };
-export const stopReasonCode = (reason) => (Object.hasOwn(STOP_ROUTES, reason) && CLASS_CODES[STOP_ROUTES[reason].class]) || "none";
+export const stopReasonCode = (reason) => CLASS_CODES[rowOf(reason)?.class] || "none";
 // The most retries a reason's row allows, within limits.stop-retries.
-export const stopRetries = (reason, cap) => Math.min(cap, (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].retries : undefined) ?? cap);
-export const stopFault = (reason) => Object.hasOwn(STOP_ROUTES, reason) && STOP_ROUTES[reason].fault === true;
-export const stopWhy = (reason) => (Object.hasOwn(STOP_ROUTES, reason) ? STOP_ROUTES[reason].why : "the stop reason is not in the lane's route table");
+export const stopRetries = (reason, cap) => Math.min(cap, rowOf(reason)?.retries ?? cap);
+export const stopFault = (reason) => rowOf(reason)?.fault === true;
+export const stopWhy = (reason) => rowOf(reason)?.why ?? "the stop reason is not in the lane's route table";
 
 // The codes a run may open its `stopped` reason with, longest first, each in
 // any case: security-risk with a hyphen, underscore, space or nothing between
