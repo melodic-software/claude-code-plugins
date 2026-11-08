@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-08
+
+### Added
+
+- The playwright skill states a secret-fill rule: a `fill`, `type` or `run-code` that carries a secret runs with its output discarded, since `playwright-cli` echoes the typed text. A new `scripts/fill-secret.sh` fills from a named environment variable and discards the output, and the auth reference examples use it.
+
 ## [1.1.0] - 2026-11-06
 
 ### Added
