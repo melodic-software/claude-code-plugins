@@ -317,3 +317,22 @@ test("a credit stop on an API key is no limit stop", () => {
   const credit = { class: "credit-stop", credential: { secret: "LANES_CLAUDE_API_KEY", kind: "api-key", role: "LANES" } };
   assert.equal(limitResetsAt(posted(credit)), null);
 });
+
+// docs/lane-outcome.md, Failure classes: review-unposted is a run that
+// succeeded with no review to post, shell-failed an older run with no working
+// shell. Neither is a usage limit or a run whose model never started.
+test("review-unposted and shell-failed records are read, and are neither a limit nor a fault stop", () => {
+  const now = ended + HOUR;
+  for (const cls of ["review-unposted", "shell-failed"]) {
+    const runs = [1, 2, 3].map((id) => posted({ class: cls }, { id }));
+    assert.equal(limitResetsAt(runs[0]), null, cls);
+    assert.equal(anyHandles(runs.slice(0, 1), { now }), true, `${cls} handles the head`);
+    assert.equal(cappedAt(runs, { failuresRetry: true }), 3, `${cls} counts toward the cap`);
+  }
+});
+
+test("a record whose class this reader does not know is no limit stop", () => {
+  const later = posted({ class: "later-class" });
+  assert.equal(limitResetsAt(later), null);
+  assert.equal(anyHandles([later], { now: ended + HOUR, failuresRetry: true }), false, "a failure with no stop class retries");
+});

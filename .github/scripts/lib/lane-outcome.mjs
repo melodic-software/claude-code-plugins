@@ -21,8 +21,16 @@ const HEX16 = /^[0-9a-f]{16}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);
 const CLASSES = new Set([
   "auth", "credit-stop", "rate-limit", "overloaded", "max-turns", "timeout", "install-failed",
-  "no-execution", "sandbox-unavailable", "skipped-validation", "incomplete", "no-credential", "no-outcome", "other",
+  "no-execution", "sandbox-unavailable", "skipped-validation", "incomplete", "review-unposted", "shell-failed",
+  "no-credential", "no-outcome", "other",
 ]);
+// A class this reader does not know is ignored, not a reason to drop the
+// record (docs/lane-outcome.md, Compatibility: "A reader ignores fields and
+// class values it does not know"), as long as it is the closed kebab shape an
+// enum value has; free text in it still makes the record unreadable.
+const CLASS_SHAPE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const DROP = Symbol("drop");
+const klass = (value) => CLASSES.has(value) || (typeof value === "string" && value.length <= 40 && CLASS_SHAPE.test(value) ? DROP : false);
 const REASONS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
 const STATUSES = new Set(["allowed", "allowed_warning", "rejected"]);
 
@@ -44,6 +52,9 @@ const shape = (fields, required = []) => (value) => {
       continue;
     }
     const result = check(value[key]);
+    if (result === DROP) {
+      continue;
+    }
     if (result === false) {
       return false;
     }
@@ -71,9 +82,10 @@ const RECORD = shape(
     lane: matches(NAME),
     activity: matches(ACTIVITY),
     outcome: oneOf(OUTCOMES),
-    class: oneOf(CLASSES),
+    class: klass,
     credential,
     handoff: (value) => typeof value === "boolean",
+    shellFailed: (value) => typeof value === "boolean",
     fallback: shape({ reason: oneOf(REASONS) }),
     resets: shape({ at: matches(ISO), window: matches(WINDOW) }),
     error: shape({
@@ -104,7 +116,8 @@ const RECORD = shape(
 // characters.
 export function validRecord(value) {
   const kept = RECORD(value);
-  if (!kept || (kept.outcome !== "success" && !Object.hasOwn(kept, "class"))) {
+  // A failure must name a class, known or not.
+  if (!kept || (kept.outcome !== "success" && !Object.hasOwn(value, "class"))) {
     return null;
   }
   const { activity, ...record } = kept;

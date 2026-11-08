@@ -2446,6 +2446,7 @@ LANE_DEFS='
     | if $c | index("rate-limit") then "rate-limit"
       elif $c | index("auth") then "auth"
       elif ($c | index("max-turns")) or test("error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
+      elif $c | index("review-unposted") then "review-unposted"
       else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
   def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
@@ -2471,6 +2472,9 @@ LANE_DEFS='
       | . + {
           read: ($t != null),
           record: ($recs | length > 0),
+          # A run with no working shell: a success record with shellFailed
+          # true, or an older record of class shell-failed.
+          shell: ($recs | any(.shellFailed == true or .class == "shell-failed")),
           failed: (.conclusion | IN("failure", "timed_out", "startup_failure")),
           turns: (if $t != null then ($t | turns_of($recs)) else null end),
           cap: (if $t != null then ($t | cap_of($recs)) else null end),
@@ -2505,7 +2509,7 @@ LANES_JQ="$LANE_DEFS"'
   | ($r | sort_by(.created_at) | map(.cap | numbers) | last) as $cap
   | (if ($ts | length) > 0 then $ts[((($ts | length) * 0.9) | ceil) - 1] else null end) as $p90
   | ($f | map(select(.class == "max-turns")) | length) as $maxturns
-  | "  \($wf)  runs=\($r | length)  failed=\($f | length) [rate-limit \($stops), max-turns \($maxturns), auth \($f | map(select(.class == "auth")) | length), other \($f | map(select(.class == "other")) | length)\(($f | map(select(.class == "unread")) | length) as $u | if $u > 0 then ", unread \($u)" else "" end)]  limit-stops=\($stops)  restarts=\($restarts)",
+  | "  \($wf)  runs=\($r | length)  failed=\($f | length) [rate-limit \($stops), max-turns \($maxturns), auth \($f | map(select(.class == "auth")) | length), other \($f | map(select(.class == "other")) | length)\(($f | map(select(.class == "review-unposted")) | length) as $n | if $n > 0 then ", review-unposted \($n)" else "" end)\(($f | map(select(.class == "unread")) | length) as $u | if $u > 0 then ", unread \($u)" else "" end)]  limit-stops=\($stops)  restarts=\($restarts)\(($r | map(select(.shell)) | length) as $sh | if $sh > 0 then "  shell-failed=\($sh)" else "" end)",
     (if ($ts | length) > 0 then
        "    turns: max=\($ts | last) p90=\($p90) cap=\($cap // "?") (\($ts | length) runs)"
        + (if $maxturns > 0 or ($p90 | hot($cap)) then "  CHECK: " + ([ (if $maxturns > 0 then "\($maxturns) max-turns failure(s)" else empty end), (if ($p90 | hot($cap)) then "p90 at or above 80% of the cap" else empty end) ] | join("; ")) + "; raise the cap or inspect the runs" else "" end)

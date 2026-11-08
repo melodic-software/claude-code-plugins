@@ -1913,6 +1913,30 @@ assert_contains "lanes: legacy tokens alone class no run" "$LANES_LEGACY" \
   "pr-verify.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
 assert_not_contains "lanes: legacy tokens alone give no turns" "$LANES_LEGACY" "turns: max="
 assert_contains "lanes: legacy tokens alone are no lane record" "$LANES_LEGACY" "    1 run(s) left out: no lane record was read"
+# review-unposted is its own failure class; a run with no working shell (a
+# success record with shellFailed true, or an older shell-failed record) is
+# counted beside the row.
+cat >"$TMP/lane-runs-classes.json" <<'EOF'
+{
+  "pr-review-main.yml": [
+    {"id": 96, "html_url": "http://x/runs/96", "event": "workflow_run", "display_title": "PR U", "head_sha": "c0de1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T00:00:00Z"},
+    {"id": 97, "html_url": "http://x/runs/97", "event": "workflow_run", "display_title": "PR V", "head_sha": "c0de5678", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T01:00:00Z"},
+    {"id": 98, "html_url": "http://x/runs/98", "event": "workflow_run", "display_title": "PR W", "head_sha": "c0de9abc", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T02:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations-classes.json" <<'EOF'
+{
+  "96": "pr-review concluded: failure. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"failure\",\"class\":\"review-unposted\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}",
+  "97": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"shellFailed\":true,\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}",
+  "98": "pr-review exited with: failure. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"failure\",\"class\":\"shell-failed\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}"
+}
+EOF
+LANES_CLASSES="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-classes.json" --lane-annotations-json "$TMP/lane-annotations-classes.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "lanes: review-unposted is shown as its own class, and shell-failed runs are counted" "$LANES_CLASSES" \
+  "pr-review-main.yml  runs=3  failed=2 [rate-limit 0, max-turns 0, auth 0, other 1, review-unposted 1]  limit-stops=0  restarts=0  shell-failed=2"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \

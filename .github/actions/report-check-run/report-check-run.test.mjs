@@ -160,6 +160,22 @@ test("a malformed run attempt posts the record without an external_id", async ()
   assert.match(calls[0].body.output.text, /^lane-outcome \{/);
 });
 
+test("a shell-failed success record and a review-unposted record reach the check run whole", async () => {
+  const shell = { ...OUTCOME, outcome: "success", class: undefined, resets: undefined, shellFailed: true };
+  const { calls } = await run({ LANE_OUTCOME: JSON.stringify(shell) });
+  assert.deepEqual(JSON.parse(calls[0].body.output.text.slice("lane-outcome ".length)), { ...JSON.parse(JSON.stringify(shell)), activity: "simplify" });
+  const unposted = { ...OUTCOME, class: "review-unposted", resets: undefined };
+  const second = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify(unposted) });
+  assert.equal(JSON.parse(second.calls[0].body.output.text.slice("lane-outcome ".length)).class, "review-unposted");
+});
+
+test("a class this reader does not know is left out and the record still written", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, class: "later-class" }) });
+  const written = JSON.parse(calls[0].body.output.text.slice("lane-outcome ".length));
+  assert.equal(Object.hasOwn(written, "class"), false);
+  assert.equal(written.lane, "pr-refine");
+});
+
 test("the record drops keys it does not know", async () => {
   const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, host: "runner-7", resets: { ...OUTCOME.resets, path: "/var/tmp/x" } }) });
   const { output } = calls[0].body;
