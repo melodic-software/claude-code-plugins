@@ -30,11 +30,7 @@ import {
   renderUnreportedNote,
   resolveRedMain,
 } from "./red-main.mjs";
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
-const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
+import { budgetedClient, pages } from "../lib/github-rest.mjs";
 
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
@@ -43,44 +39,10 @@ const BOT = "github-actions[bot]";
 const BOT_ID = 41898282;
 const CANARY_RECORD = /^<!-- (?:babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=canary -->$/;
 
-export function client(env, { pace = () => delay(300) } = {}) {
-  let used = 0;
-  const budget = Number(env.CALL_BUDGET ?? 200);
-  return async (method, path, body) => {
-    if (used >= budget) throw new Error(`call budget of ${budget} spent`);
-    used += 1;
-    await pace();
-    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
-      method,
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${env.GITHUB_TOKEN}`,
-        "x-github-api-version": "2022-11-28",
-        ...(body ? { "content-type": "application/json" } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`);
-    return response.json();
-  };
-}
-
-// Every page of a list endpoint, until a short page. `key` names the array in
-// an object response (jobs, workflow_runs).
-async function pages(call, path, key, max = 20) {
-  const items = [];
-  for (let page = 1; page <= max; page += 1) {
-    const response = await call("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
-    const batch = (key ? response?.[key] : response) ?? [];
-    items.push(...batch);
-    if (batch.length < 100) return items;
-  }
-  throw new Error(`${path.split("?")[0]}: more than ${max} pages`);
-}
+export const client = (env, { pace = () => delay(300) } = {}) => budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 200), pace });
 
 async function attemptChecks(call, repo, runId, attempt) {
-  const jobs = await pages(call, `/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs`, "jobs");
+  const jobs = await pages(call, `/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs`, { key: "jobs" });
   const annotations = {};
   for (const job of jobs.filter((j) => j.conclusion === "failure")) {
     annotations[job.id] = (await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`)) ?? [];
@@ -118,7 +80,7 @@ async function awaitRerun(call, repo, runId, minutes, sleep) {
 // The merge-queue actor of the pull request's latest entry, as the alert's
 // classify step and babysit_merge_policy.derive_auto_merge read it.
 async function enqueuer(call, repo, number) {
-  const events = await pages(call, `/repos/${repo}/issues/${number}/timeline`, null, 10);
+  const events = await pages(call, `/repos/${repo}/issues/${number}/timeline`, { max: 10 });
   return events.filter((e) => e.event === "added_to_merge_queue").at(-1)?.actor?.login ?? "";
 }
 
@@ -157,7 +119,7 @@ const lastGreen = (runs, sha) => newest(runs.filter((r) => r.conclusion === "suc
 
 // github-actions[bot]'s issues.
 async function botIssues(call, repo) {
-  return (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`, null)).filter(
+  return (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`)).filter(
     (i) => !i.pull_request && i.user?.id === BOT_ID,
   );
 }
@@ -169,7 +131,7 @@ const logIssue = (issues) => issues.filter((i) => firstLine(i.body) === LOG_MARK
 // The log's report markers.
 async function logMarkers(call, repo, log) {
   if (!log) return [];
-  const comments = await pages(call, `/repos/${repo}/issues/${log.number}/comments`, null);
+  const comments = await pages(call, `/repos/${repo}/issues/${log.number}/comments`);
   return comments
     .filter((c) => c.user?.id === BOT_ID)
     .map((c) => ({ match: MARKER_PATTERN.exec(firstLine(c.body)), at: c.created_at }))

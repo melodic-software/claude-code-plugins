@@ -52,7 +52,9 @@ printf '[]\n' >"$TMP/empty.json"
 # A merged-PR read always carries a page document; a bare [] is UNREADABLE.
 printf '[{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false}, "nodes": []}}}}]\n' >"$TMP/merged.json"
 printf '{"pr-unblock.yml": [{"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}]}\n' >"$TMP/lane-runs.json"
-printf '{"30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5.\\nactivity=resolve-conflicts"}\n' >"$TMP/lane-ann.json"
+cat >"$TMP/lane-ann.json" <<'EOF'
+{"30": "pr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":8,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]}\nactivity=resolve-conflicts"}
+EOF
 # The cost reads, all clear, so the fixture brief reads every section.
 printf '{"usageItems": []}\n' >"$TMP/usage.json"
 printf '{"budgets": [], "has_next_page": false}\n' >"$TMP/budgets.json"

@@ -86,9 +86,11 @@ jobs:
            && github.event.comment.user.type == 'User'
            && !github.event.comment.performed_via_github_app
            && (((contains(github.event.issue.labels.*.name, 'status: needs-decision')
+                 || contains(github.event.issue.labels.*.name, 'needs-owner-decision')
                  || contains(github.event.issue.labels.*.name, 'status: confirmed'))
                 && contains(github.event.comment.body, '**Decision recorded.**'))
                || contains(github.event.issue.labels.*.name, 'status: needs-info')
+               || contains(github.event.issue.labels.*.name, 'needs-reporter-info')
                || github.event.comment.user.id == github.event.issue.user.id
                || (contains(github.event.comment.body, '**Decision recorded.**')
                    && !contains(github.event.issue.labels.*.name, 'status: ready')

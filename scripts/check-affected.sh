@@ -479,32 +479,42 @@ else
   run_check ruff "scripts/run-ruff.sh check --force-exclude ${py[*]}" "$tools/scripts/run-ruff.sh" check --force-exclude "${py[@]}"
 fi
 
-# typos: the exclusions are the `exclude:` input of the checked tree's
-# workflow typos step, read as data, so a branch that exempts files is judged
-# by its own exemption; no workflow or no globs fails closed. Any non-zero exit
-# is a finding, never run_check's "could not run" 2; a missing binary was
-# skipped above. The config is the copy's, else the checked tree's (a copy made
-# by the pre-push hook carries none).
+# step_input <step id> <input>: the words of that input of the checked tree's
+# hygiene workflow step, one per line, written on the key's line or as a block
+# scalar below it. Both composites that read one (typos, check-machine-paths)
+# split the value on whitespace, so every form yields the same words. The scan
+# covers only the step: its keys sit at the indent of its `id:` line, and the
+# first non-blank line indented less ends the step.
+hygiene_workflow=.github/workflows/pr-require-checks.yml
+step_input() {
+  awk -v id="$1" -v key="$2" '
+    function words(s, a, n, i) { n = split(s, a, " "); for (i = 1; i <= n; i++) print a[i] }
+    blk { match($0, /^ */); if (NF && RLENGTH <= kind) exit; words($0); next }
+    ind { match($0, /^ */); if (NF && RLENGTH < ind) exit }
+    $0 ~ "^ *(- )?id: " id "$" { match($0, /^ *(- )?/); ind = RLENGTH; next }
+    ind && $0 ~ "^ *" key ":( |$)" {
+      match($0, /^ */); kind = RLENGTH; sub("^ *" key ": *", "")
+      if ($0 ~ /^[>|][-+]?$/) { blk = 1; next }
+      words($0); exit
+    }' "$hygiene_workflow"
+}
+
+# typos: the exclusions are the `exclude:` input of the workflow's typos step,
+# read as data, so a branch that exempts files is judged by its own exemption;
+# no workflow or no globs fails closed. Any non-zero exit is a finding, never
+# run_check's "could not run" 2; a missing binary was skipped above. The config
+# is the copy's, else the checked tree's (a copy made by the pre-push hook
+# carries none).
 typos_check() {
-  local workflow=.github/workflows/pr-require-checks.yml g
+  local g
   local -a excludes=()
-  if [[ ! -f "$workflow" ]]; then
-    echo "typos: $workflow is missing, so its typos step's exclude globs cannot be read"
+  if [[ ! -f "$hygiene_workflow" ]]; then
+    echo "typos: $hygiene_workflow is missing, so its typos step's exclude globs cannot be read"
     return 1
   fi
-  # The scan covers only the typos step: its keys sit at the indent of its
-  # `id: typos` line, and the first non-blank line indented less ends the step.
-  while IFS= read -r g; do excludes+=(--exclude "$g"); done < <(
-    awk 'ind { match($0, /^ */); if (NF && RLENGTH < ind) exit }
-      /^ *(- )?id: typos$/ { match($0, /^ *(- )?/); ind = RLENGTH; next }
-      ind && /^ *exclude: / { sub(/^ *exclude: /, ""); n = split($0, a, " "); for (i = 1; i <= n; i++) print a[i]; exit }' "$workflow"
-  )
-  if [[ "${excludes[1]-}" == ['>|']* ]]; then
-    echo "typos: $workflow writes its typos step's exclude as a YAML block scalar (${excludes[1]}); write the globs on the exclude: line itself"
-    return 1
-  fi
+  while IFS= read -r g; do excludes+=(--exclude "$g"); done < <(step_input typos exclude)
   if ((${#excludes[@]} == 0)); then
-    echo "typos: $workflow has no exclude globs on its typos step (id: typos)"
+    echo "typos: $hygiene_workflow has no exclude globs on its typos step (id: typos)"
     return 1
   fi
   typos --config "$1" --force-exclude "${excludes[@]}" -- "${changed[@]}" || return 1
@@ -535,25 +545,18 @@ fi
 # (melodic-software/ci-workflows) runs, over the changed files of the types it
 # scans. The regex bodies come from the merge-base's guardrails plugin copy of
 # the patterns file the composite sources; no second copy of them is written
-# here. The exclusions mirror the `exclude:` input of the workflow's
-# machine-paths step, and the types are the composite's default `extensions`
-# input, which that step does not override (scripts/check-affected-gates.test.sh
-# holds both to the workflow). The boundary, the five scans and the exemptions
+# here. The exclusions and the types are the `exclude:` and `extensions:` inputs
+# of the workflow's machine-paths step, read as data like typos'; with no
+# `extensions:` the types are the composite's default for that input, copied
+# from its action.yml at ci-workflows 2476d5dde8979eab34374150b7e4b0a2b99f4e88:
+# recheck it when the pin moves. The boundary, the five scans and the exemptions
 # repeat the composite's entry script as read at ci-workflows v0.65.17
 # (81a603a6e2b0319428c981bf28f3fe923032afb2); recheck them when the pin moves.
 machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
-machine_paths_excludes=(
-  ':(exclude)plugins/guardrails/lib/path-detection/**'
-  ':(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**'
-  ':(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json'
-  ':(exclude)plugins/harness-config/skills/audit-permission-state/reference/criteria.md'
-  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.sh'
-  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh'
-  ':(exclude)plugins/harness-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh'
-  ':(exclude)plugins/source-control/scripts/worktree-create.test.sh'
-)
-read -ra machine_paths_types <<<'*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.toml *.ts *.tsx *.yaml *.yml'
-declare -a machine_paths_files=()
+machine_paths_default_types='*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.toml *.ts *.tsx *.yaml *.yml'
+declare -a machine_paths_types=() machine_paths_excludes=() machine_paths_files=()
+[[ -f "$hygiene_workflow" ]] && while IFS= read -r g; do machine_paths_types+=("${g//[\"\']/}"); done < <(step_input machine_paths extensions)
+((${#machine_paths_types[@]})) || read -ra machine_paths_types <<<"$machine_paths_default_types"
 for f in ${changed[@]+"${changed[@]}"}; do
   for g in "${machine_paths_types[@]}"; do
     # shellcheck disable=SC2053 # $g is a glob on purpose.
@@ -623,7 +626,23 @@ machine_paths_scan() {
 # slash-rooted bodies take its boundary prefix; the Windows ones anchor on the
 # drive letter.
 machine_paths_check() {
-  local boundary i rc found=0 errored=0
+  local boundary i g rc found=0 errored=0
+  if [[ ! -f "$hygiene_workflow" ]]; then
+    echo "machine-specific-paths: $hygiene_workflow is missing, so its machine-paths step's exclude pathspecs cannot be read"
+    return 1
+  fi
+  while IFS= read -r g; do
+    # Anything but an exclusion would widen the scan past the changed files.
+    if [[ "$g" != ':(exclude)'* && "$g" != ':!'* && "$g" != ':^'* ]]; then
+      echo "machine-specific-paths: $hygiene_workflow's machine-paths step excludes '$g', which is not an exclusion pathspec"
+      return 1
+    fi
+    machine_paths_excludes+=("$g")
+  done < <(step_input machine_paths exclude)
+  if ((${#machine_paths_excludes[@]} == 0)); then
+    echo "machine-specific-paths: $hygiene_workflow has no exclude pathspecs on its machine-paths step (id: machine_paths)"
+    return 1
+  fi
   boundary=$'(^|[[:space:]"\'`(=]|file://)'
   local -a labels=("Windows user path" "macOS user path" "Linux user path" "Windows repo path" "Escaped Windows repo path")
   local -a patterns=("$HPP_WIN_USER_BODY" "$boundary$HPP_MACOS_USER_BODY" "$boundary$HPP_LINUX_USER_BODY"

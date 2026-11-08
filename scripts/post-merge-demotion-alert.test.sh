@@ -163,6 +163,11 @@ fi
 if [[ "$method" == POST && "${STUB_REVERT_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q 'signal=revert -->'; then
   exit 1
 fi
+# STUB_FIELD_REFUSE, an option name, fails a field write that sends it.
+if [[ "$method" == POST && -n "${STUB_FIELD_REFUSE:-}" && "$endpoint" == */issue-field-values ]] && printf '%s\n' "${fields[@]}" | grep -q "\"value\":\"$STUB_FIELD_REFUSE\""; then
+  printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
+  exit 1
+fi
 # A write answers with issue number 900 + its log line, through --jq as gh does.
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
@@ -1701,7 +1706,7 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq
   "$(dispatch_post 1)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 1)" &&
   "$(dispatch_post 2)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 2)" &&
   "$(field_input "$(fix_number 1)")" == '{"issue_field_values":[{"field_id":48484079,"value":"needs-triage"},{"field_id":49622037,"value":"critical"}]}' &&
-  "$(field_input "$r")" == '{"issue_field_values":[{"field_id":48484079,"value":"needs-triage"},{"field_id":49622037,"value":"critical"},{"field_id":15462270,"value":"Small"},{"field_id":48625720,"value":"Low"},{"field_id":48625721,"value":"Known"}]}' ]]; then
+  "$(field_input "$r")" == '{"issue_field_values":[{"field_id":48484079,"value":"needs-triage"},{"field_id":49622037,"value":"critical"},{"field_id":15462270,"value":"small"},{"field_id":48625720,"value":"low"},{"field_id":48625721,"value":"known"}]}' ]]; then
   ok "two newly failing checks file two fix issues in the fixed template, each sent to intake"
 else
   fail "two fix issues: rc=$RC log='$LOG' out='$OUT' fix1='$(fix_post 1 2>/dev/null)'"
@@ -3015,5 +3020,16 @@ else
   fail "failing lift close: rc=$RC out='$OUT'"
 fi
 rm -rf "$TMP_ROOT/work/.base"
+
+# set_fields: lowercase first, Title case when GitHub refuses the lowercase names.
+mkdir -p "$TMP_ROOT/stub"
+: >"$TMP_ROOT/stub/log"
+RC=0
+OUT="$(STUB_DIR="$TMP_ROOT/stub" STUB_FIELD_REFUSE=small GITHUB_REPOSITORY=o/r PATH="$TMP_ROOT/bin:$PATH" bash -c 'source "$1"; set_fields 7 needs-triage critical small low known' _ "$ROOT/.github/scripts/post-merge-demotion-alert/handoff.bash" 2>&1)" || RC=$?
+if [[ "$RC" -eq 0 && "$(wc -l <"$TMP_ROOT/stub/log")" -eq 2 && "$(cat "$TMP_ROOT/stub/post.1")" == *'"value":"small"'* && "$(cat "$TMP_ROOT/stub/post.2")" == *'"value":"Small"'*'"value":"Low"'*'"value":"Known"'* ]]; then
+  ok "set_fields sends the names Title-cased after GitHub refuses the lowercase ones"
+else
+  fail "set_fields fallback: rc=$RC out='$OUT'"
+fi
 
 test_harness::report

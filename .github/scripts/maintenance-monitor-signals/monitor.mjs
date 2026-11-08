@@ -21,7 +21,7 @@ import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-stat
 import { collect, JOBS_ARTIFACT, JOBS_FILE, jobsCarryFile, listFiled, parseEpisodeCarry, parseHeldCarry, parseJobsCarry } from "./collect.mjs";
 import { FILING, fenced, incidentRules, planIssues, readMarker, renderBody, renderRetire, unreadSignals } from "./issues.mjs";
 import { detect, holdRule } from "./signals.mjs";
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { budgetedClient } from "../lib/github-rest.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
@@ -91,11 +91,6 @@ export function readIncidentRules({ path = CONFIG, run = execFileSync } = {}) {
   }
 }
 
-// Every GitHub call goes through the rate guard (rate-guard.mjs); the fetch
-// is read at call time, so a test's stub is guarded too.
-const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
-
-const LABELS = ["source: factory-monitor"];
 const WORK_STATUS_FIELD = 48484079;
 const PRIORITY_FIELD = 49622037;
 const INCIDENT_TYPE = "Bug";
@@ -115,12 +110,12 @@ export const incidentFields = (signal) => [
 // call before it leaves the old state recorded and the write is retried on the
 // next run. A failed filing is planned again next run; a failed field write
 // only warns, and triage sets what is missing.
-export async function writePlan({ plan, call, repo, labels = [], runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
+export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
   for (const { family } of plan.file) {
     try {
       await wait();
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl), labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl) });
       done.filed.push(issue.number);
       // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== INCIDENT_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${INCIDENT_TYPE}`);
@@ -176,37 +171,12 @@ export const statusLines = (plan) =>
 const ERROR_SIGNALS = new Set(["11 post-merge unreadable"]);
 export const errorLines = (findings) => findings.filter((f) => ERROR_SIGNALS.has(f.signal)).map((f) => `::error::${f.title}: ${f.summary}`);
 
-function client(env) {
-  let used = 0;
-  const budget = Number(env.CALL_BUDGET ?? 250);
-  const call = async (method, path, body) => {
-    if (used >= budget) throw new Error(`call budget of ${budget} spent`);
-    used += 1;
-    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
-      method,
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${env.GITHUB_TOKEN}`,
-        "x-github-api-version": "2022-11-28",
-        ...(body ? { "content-type": "application/json" } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`), { status: response.status });
-    }
-    return path.endsWith("/zip") ? Buffer.from(await response.arrayBuffer()) : response.json();
-  };
-  return { call, used: () => used };
-}
-
 async function main(env = process.env) {
   const repo = env.REPOSITORY;
   const replay = Boolean(env.NOW);
   const now = replay ? new Date(env.NOW) : new Date();
   const windowStart = new Date(now.getTime() - Number(env.WINDOW_MINUTES ?? 65) * 60_000);
-  const { call, used } = client(env);
+  const call = budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 250) });
   const get = (path) => call("GET", path);
   const graphql = (query, variables) => call("POST", "/graphql", { query, variables });
   const getStatus = async (url) => {
@@ -260,26 +230,20 @@ async function main(env = process.env) {
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
   let done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
-  const labels = [];
   if (!env.DRY_RUN) {
-    if (plan.file.length > 0) {
-      for (const name of LABELS) {
-        if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
-      }
-    }
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
     const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
-    done = await writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
+    done = await writePlan({ plan, call, repo, runUrl, leaveAgentReady, setFields });
   }
 
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Calls: ${call.used()}.`,
     "",
     ...statusLines(plan),
     ...plan.logged.map((f) => `- logged, not filed: ${f.title} (${f.summary})`),

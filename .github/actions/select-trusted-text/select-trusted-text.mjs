@@ -61,7 +61,7 @@ async function prConnection(github, query, field, repository, prNumber, first) {
       throw new Error(`${field} could not be read`);
     }
     nodes.push(...connection.nodes);
-    if (connection?.pageInfo?.hasNextPage !== true) {
+    if (connection.pageInfo?.hasNextPage !== true) {
       return nodes;
     }
     after = connection.pageInfo.endCursor;
@@ -114,7 +114,7 @@ function createTrustCheck(github, ids) {
       return false;
     }
     const app = item.performed_via_github_app;
-    return app === null || app === undefined || (await appBotListed(app));
+    return app == null || (await appBotListed(app));
   };
 }
 
@@ -162,14 +162,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   // A trusted PR's title may be kept, so its renames' first page comes in the
   // closing issues' request; it is checked only when the title is weighed.
   const firstPages = await prPage(github, prTrusted ? CLOSING_AND_RENAMES : CLOSING_ISSUES, repository, prNumber, null);
-  const references = await prConnection(
-    github,
-    CLOSING_ISSUES,
-    "closingIssuesReferences",
-    repository,
-    prNumber,
-    firstPages,
-  );
+  const references = await prConnection(github, CLOSING_ISSUES, "closingIssuesReferences", repository, prNumber, firstPages);
   for (const reference of references) {
     // Only issues in the PR's own repository: an issue elsewhere sits under
     // another repository's permissions and authors.
@@ -243,11 +236,7 @@ export async function selectTrustedIssueComments({ github, repository, issueNumb
       dropped["issue-comment"] += 1;
     }
   }
-  const editedByListed = await readEditors(
-    github,
-    ids,
-    authored.map((comment) => comment.node_id),
-  );
+  const editedByListed = await readEditors(github, ids, authored.map((comment) => comment.node_id));
   const kept = [];
   for (const comment of authored) {
     if (!editedByListed(comment.node_id)) {

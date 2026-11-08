@@ -9,6 +9,7 @@
 - [3. Capability tiers](#3-capability-tiers)
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
+- [Permission modes](#permission-modes)
 - [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
 - [Confirm-then-record](#confirm-then-record)
@@ -1030,13 +1031,13 @@ state block carries `lane_instance`, a
 per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten every cycle, and
 `paused_until`. At cycle start, after reading its own block:
 
-- `writer_nonce` matches mine → ordinary continuation.
+- `writer_nonce` matches mine: this is ordinary continuation.
 - `writer_nonce` differs **and** the block is stale (`heartbeat_at` older than **2 hours**, and past
-  `paused_until` when set) → a previous session of this same instance restarted or died. Adopt the
+  `paused_until` when set): a previous session of this same instance restarted or died. Adopt the
   block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the
   one-hour `ScheduleWakeup` ceiling above, so a healthy lane at maximum idle backoff can never look
   stale.
-- `writer_nonce` differs **and** the block is fresh → **another live lane is using my instance id.**
+- `writer_nonce` differs **and** the block is fresh: **another live lane is using my instance id.**
   Write nothing to the block, escalate per §2 (role label + machine-marked comment), and stop the
   loop cleanly.
 
@@ -1288,6 +1289,31 @@ escalation exactly as §4's terminal state exists to prevent, and runs until sto
 the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a
 known gap rather than left as an unstated assumption, on the model §6 uses for the single-account
 assumption.
+
+### Permission modes
+
+Root `AGENTS.md` ("Unattended lanes") holds the rules every session loads: no bypass mode and no
+hook `ask` in a lane. This subsection holds which mode each lane runs in.
+
+- **Local lanes** launch with `--permission-mode auto`. A lane whose action the auto-mode
+  classifier denies records the denial in its lane telemetry and moves on.
+- **CI lanes** run with no prompt handler, so an unlisted tool is denied. Intake triage and the
+  review lanes pass `--permission-mode dontAsk` with a fixed tool allowlist. Read-runner
+  activities (`fix-ci`, `fix-docs`) run `dontAsk` with explicit allow rules and no write token;
+  `permission-mode: auto` there fails red, because under the launcher's subprocess env scrub the
+  CLI starts in the default mode. All run under the hardening in
+  [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
+  which also covers the untrusted-text risk for them.
+- **`--permission-prompts none`** is documented for print-mode runs where nobody can answer a
+  prompt. A host run on 2026-10-28 (Claude Code 2.1.312,
+  [probe record](../../../plugins/session-flow/skills/continue-in-background/reference/denial-probe.md))
+  launched `claude --bg --permission-mode auto` without that flag: one classifier denial came back
+  to the session as a tool error and it went on to its next step. What a `--bg` lane does with the
+  flag is UNVERIFIED.
+- **Pointer:** for the flag, fetch
+  [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live.
+- **As of:** 2026-11-01.
+- **Recheck trigger:** that page's `--permission-prompts` row changes.
 
 ## 6. Rate-limit guard binding
 

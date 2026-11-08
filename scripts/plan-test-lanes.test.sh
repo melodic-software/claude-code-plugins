@@ -24,7 +24,7 @@ fixture_tree::build repo --sut plan-test-lanes.sh --sut affected-tests.sh --sut 
 fixture_tree::build scratch --label plan-test-lanes-err || exit 1
 ERR="$scratch/plan.err"
 
-cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$repo/scripts/"
+cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$REPO_ROOT/scripts/node-subprojects.txt" "$repo/scripts/"
 : >"$repo/scripts/run-plugin-tests-serial.txt"
 printf '%s\n' plugins/knowledge/vendor/repo-analysis .github/actions/check-signed-commits .github/actions/check-wip-cap \
   .github/actions/log-api-budget .github/scripts/lib .github/scripts/pr-merge .github/scripts/pr-verify \
@@ -298,6 +298,18 @@ check "a change to the knowledge plugin's shared scripts runs both extraction pa
 plan -- plugins/orphan/o.js
 [[ "$RC" -eq 2 ]] && grep -q 'plugins/orphan/o.test.js is a selected Node suite that no lane runs' "$ERR"
 check "a selected Node suite with no wrapper and no package fails the plan" $?
+
+cp "$repo/scripts/node-subprojects.txt" "$scratch/node-subprojects.saved"
+printf '# no rows\n' >"$repo/scripts/node-subprojects.txt"
+plan -- plugins/orphan/o.js
+[[ "$RC" -eq 2 ]] && grep -q 'node-subprojects.txt has no rows' "$ERR"
+check "an empty sub-project list stops the plan instead of matching every suite" $?
+
+printf 'plugins/x/server\n' >"$repo/scripts/node-subprojects.txt"
+plan -- plugins/orphan/o.js
+[[ "$RC" -eq 2 ]] && grep -q "row 'plugins/x/server' has no owner directory" "$ERR"
+check "a sub-project row with no owner stops the plan" $?
+cp "$scratch/node-subprojects.saved" "$repo/scripts/node-subprojects.txt"
 
 plan -- plugins/fx/evals/fixtures/fx.test.js
 [[ "$RC" -eq 0 ]] && is "$(key node)" false

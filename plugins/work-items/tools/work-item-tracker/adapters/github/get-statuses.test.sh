@@ -178,6 +178,7 @@ assert_eq "the lanes App's agent-ready counts" "agent-ready" "$(st 5)"
 assert_eq "a counted removal reads null" "null" "$(st 6)"
 assert_eq "an unlisted account's hold alone reads null; another field's event is not read" "null" "$(st 7)"
 assert_eq "an uncounted removal leaves the counted hold standing" "needs-human" "$(st 8)"
+
 assert_contains "the trusted query, passed as a file, reads the field events" "$(cat "$LOG")" "timelineItems(last: 100"
 assert_contains "the trusted query defines its fragments" "$(cat "$LOG")" "fragment who on Actor"
 assert_contains "the trust list is read from the item repository" "$(cat "$LOG")" "repos/o/r/contents/trust/actors.json"
@@ -254,5 +255,15 @@ assert_eq "below the window, a value with no counted event reads null" "0|null" 
 unmapped="$TMP_ROOT/unmapped.json"
 answer "$unmapped" "i1=$(issue confirmed "$(ev add 100 confirmed)")"
 ANSWER="$unmapped" trust_fails 1 "a counted state the model does not map"
+
+# --- status_trust governs Work status alone: another field reads plain ---
+PRIORITY="$TMP_ROOT/priority.json"
+answer "$PRIORITY" \
+  'i1={"issueFieldValues":{"nodes":[{"name":"high","field":{"name":"Priority"}},{"name":"ready","field":{"name":"Work status"}}]}}' \
+  'i2={"issueFieldValues":{"nodes":[{"name":"ready","field":{"name":"Work status"}}]}}'
+BINDING="$TRUST_BINDING" ANSWER="$PRIORITY" run --field Priority "github:o/r#1" "github:o/r#2"
+assert_eq "a trust binding reads another field plainly → exit 0" "0" "$RC"
+assert_eq "the named field's value, null when unset" '{"github:o/r#1":"high","github:o/r#2":null}' "$(jq -c '.statuses' <<<"$OUT")"
+assert_eq "a Priority read asks for no event history" "0" "$(grep -c timelineItems "$LOG")"
 
 [[ $FAILED -eq 0 ]] || exit 1

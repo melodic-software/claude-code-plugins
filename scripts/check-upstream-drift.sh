@@ -26,7 +26,7 @@
 # holds `<blob sha> <repo-relative path>` lines for the whole tree; a line
 # reading `truncated` marks a truncated read. A missing file exits 2.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): findings on stderr, the clean statement on stdout; --report prints
 # its report on stdout for exit 0 and 1. Exit: 0 clean, 1 drift (or a bad link
 # under --links), 2 environment or usage; on exit 2 nothing reaches stdout.

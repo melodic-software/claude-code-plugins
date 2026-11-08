@@ -21,7 +21,6 @@ import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
 
 export const RECURRING = "recurring";
-export const cadenceLabel = (cadence) => `cadence: ${cadence}`;
 
 // A line of its own (issue-conventions.md "Recurring marker"). The shared
 // definition is .github/scripts/intake-triage/admit.mjs SCHEDULE_MARKER, which
@@ -110,7 +109,7 @@ export async function fileDue({ schedule, today, call, repo, wait = () => delay(
     }
     try {
       if (!(await labelExists(RECURRING))) throw new Error(`label ${RECURRING} does not exist`);
-      const labels = [RECURRING, ...((await labelExists(cadenceLabel(row.cadence))) ? [cadenceLabel(row.cadence)] : [])];
+      const labels = [RECURRING];
       await wait();
       const issue = await call("POST", `/repos/${repo}/issues`, { title: issueTitle(row), body: issueBody(row), labels, type: ISSUE_TYPE });
       covered.set(row.id, issue.number);
