@@ -125,7 +125,7 @@ const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].
 const minorSecurity = (comments) => comments?.[0]?.lane === "claude-security-review" && !securityNeedsPerson(comments[0].body);
 export const adjudicable = (comments) => {
   const root = comments?.[0];
-  if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? ""))) {
+  if (root?.author !== "reviewer" || isCritical(root.body)) {
     return false;
   }
   if (root.listed === true) {
@@ -233,7 +233,7 @@ export const dependencyFlag = (comments, path) => {
     root.lane === "claude-security-review" &&
     PLUGIN_MANIFEST.test(path ?? "") &&
     DEPENDENCIES_FLAG.test(firstContentLine(body)) &&
-    !CRITICAL.test(body) &&
+    !isCritical(body) &&
     ["SUGGESTION", "IMPORTANT"].includes(severityOf(body))
   );
 };
@@ -245,6 +245,13 @@ const parseObject = (text) => {
   } catch {
     return null;
   }
+};
+
+// The object entries of a marketplace file's `plugins`, none when it does not
+// read.
+const pluginEntries = (text) => {
+  const plugins = parseObject(text)?.plugins;
+  return Array.isArray(plugins) ? plugins.filter((entry) => entry !== null && typeof entry === "object") : [];
 };
 
 // What the dependency at `dir` adds that Claude Code runs at `ref`, as a
@@ -306,8 +313,7 @@ export async function hardRequire({ getText, listTree, sha, baseSha, path, evide
   const baseText = at(baseSha);
   const dir = PLUGIN_MANIFEST.exec(path ?? "")?.[1];
   const manifest = dir ? parseObject(await text(path)) : null;
-  const plugins = parseObject(await text(MARKETPLACE))?.plugins;
-  const entries = Array.isArray(plugins) ? plugins.filter((entry) => entry !== null && typeof entry === "object") : [];
+  const entries = pluginEntries(await text(MARKETPLACE));
   if (!manifest || !entries.some((entry) => entry.source === `./plugins/${dir}`)) {
     return { why: `the flagged plugin is not an entry of ${MARKETPLACE}` };
   }
@@ -315,8 +321,7 @@ export async function hardRequire({ getText, listTree, sha, baseSha, path, evide
   if (!Array.isArray(dependencies) || dependencies.length === 0) {
     return { why: "the manifest lists no dependencies" };
   }
-  const basePlugins = parseObject(await baseText(MARKETPLACE))?.plugins;
-  const baseEntries = Array.isArray(basePlugins) ? basePlugins.filter((entry) => entry !== null && typeof entry === "object") : [];
+  const baseEntries = pluginEntries(await baseText(MARKETPLACE));
   const sites = [];
   for (const dependency of dependencies) {
     if (typeof dependency !== "string" || !BARE_NAME.test(dependency)) {
@@ -791,6 +796,8 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       return "failed";
     }
   };
+  // How a "resolved" or LEFT_OPEN outcome reads in the log.
+  const closed = (outcome) => (outcome === LEFT_OPEN ? "left open for the person" : "resolved");
   for (const { thread, disposition } of posted) {
     const comments = now.get(thread)?.comments;
     if (stood(comments)) {
@@ -818,7 +825,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       raise("feedback-question-security");
       continue;
     }
-    if (listedState(comments) === "pending" && !CRITICAL.test(String(comments[0].body ?? ""))) {
+    if (listedState(comments) === "pending" && !isCritical(comments[0].body)) {
       log(`${thread}: the security-review lane has not reviewed this head yet; the dispute waits for the next round`);
       deferred = true;
       continue;
@@ -839,7 +846,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
           break;
         }
         if (outcome === "resolved" || outcome === LEFT_OPEN) {
-          log(`${thread}: a dependencies flag on hard requires in this marketplace; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
+          log(`${thread}: a dependencies flag on hard requires in this marketplace; ${closed(outcome)}`);
         }
         continue;
       }
@@ -900,7 +907,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
           break;
         }
         if (outcome === "resolved" || outcome === LEFT_OPEN) {
-          log(`${thread}: tests-only, and every covering check passed; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
+          log(`${thread}: tests-only, and every covering check passed; ${closed(outcome)}`);
         }
       }
       continue;
@@ -919,7 +926,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       break;
     }
     if (outcome === "resolved" || outcome === LEFT_OPEN) {
-      log(`${thread}: the finding does not hold; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
+      log(`${thread}: the finding does not hold; ${closed(outcome)}`);
     } else if (outcome === "posted") {
       log(`${thread}: the finding stands`);
       stands = true;
