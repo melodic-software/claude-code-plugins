@@ -110,7 +110,7 @@ const AGENT_READY = "agent-ready";
 // The holds besides needs-decision a not-exact refinement could overwrite.
 const PERSON_HOLDABLE = [...INFO_LABELS, "needs-spec"];
 // The id of whoever last added label `name` in `events`, or undefined.
-const newestLabeler = (events, name) => events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name).at(-1)?.actor?.id;
+const newestLabeler = (events, names) => events.filter((event) => event.event === "labeled" && names.includes(String(event.label?.name).toLowerCase())).at(-1)?.actor?.id;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
 const EXTERNAL_KINDS = new Set(["none", "iac", "manual"]);
@@ -854,7 +854,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     // App's write (read-status.mjs statusLabels) and would otherwise leave a
     // stale queue label to win once the person lifts it.
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
-    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), hold) !== appId;
+    const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), INFO_LABELS.includes(hold) ? INFO_LABELS : [hold]) !== appId;
     const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
     if (!carried(labels, DECISION_LABELS) && !fieldHeld) {
       await setStatus(number, "needs-owner-decision");
