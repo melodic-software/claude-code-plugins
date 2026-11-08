@@ -22,8 +22,6 @@ section each decision rests on, which a reader opens to read the author's own wo
 - [The unknowns taxonomy](#the-unknowns-taxonomy)
 - [The pre-implementation workflow](#the-pre-implementation-workflow)
 - [Prompt-pattern catalog](#prompt-pattern-catalog)
-- [Reply-affordance convention](#reply-affordance-convention)
-- [Export-button rule](#export-button-rule)
 - [Deviation-log convention (opt-in)](#deviation-log-convention-opt-in)
 - [When HTML, and when not](#when-html-and-when-not)
 - [The buy-in pattern](#the-buy-in-pattern)
@@ -134,14 +132,6 @@ prompt-line to adapt. Patterns with an owning skill are listed in the
 Reconciliation note: the corpus's tweakable-plan ordering is already `planning:plan`'s
 documented presentation default (high-tweak decisions first, mechanical work collapsed); it
 needed no new mode here.
-
-## Reply-affordance convention
-
-Moved to the rendered-views contract's [reply-affordance rule](contracts/rendered-views/README.md#reply-affordance-rule).
-
-## Export-button rule
-
-Moved to the rendered-views contract's [export-button rule](contracts/rendered-views/README.md#export-button-rule).
 
 ## Deviation-log convention (opt-in)
 
