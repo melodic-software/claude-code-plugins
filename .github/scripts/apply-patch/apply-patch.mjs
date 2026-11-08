@@ -89,6 +89,7 @@ export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
 export const DEPENDABOT_PATH = ".github/dependabot.yml";
 const SHA = /^[0-9a-f]{40}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const SYMLINK = "120000";
 const GITLINK = "160000";
@@ -182,28 +183,30 @@ const BINARY_HUNK = /^GIT binary patch$/m;
 const unscannedKind = (file, kind) => (existsSync(file) && lstatSync(file).isFile() && findInFile(file, (text) => BINARY_HUNK.test(text)) ? "credential" : kind);
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
-const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
-
-const ESCALATED_REASON = new RegExp(`^.+?: escalated (${REASONS})(?: |$)`);
+const ESCALATED = new RegExp(`^(.+?): escalated (${REASONS})(?: |$)`);
 // The reasons a fix-ci retry one model rung up may answer; protected-path,
 // weaken-required and flaky stay with a person.
 const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
 
-const reportLines = (text) => String(text).split("\n").map((line) => line.replace(/\r$/, ""));
+// A report's `<check>: escalated <reason> <sentence>` lines, as { check,
+// reason }. The report is model output: only this shape is read.
+const escalations = (text) =>
+  String(text).split("\n").flatMap((line) => {
+    const match = ESCALATED.exec(line.replace(/\r$/, ""));
+    return match ? [{ check: match[1], reason: match[2] }] : [];
+  });
+const escalatedReasons = (text) => escalations(text).map(({ reason }) => reason);
 
-// The checks a report escalated, one per `<check>: escalated <reason>
-// <sentence>` line. The report is model output: only this shape is read.
+// The checks a report escalated.
 export function escalatedChecks(text) {
-  return reportLines(text)
-    .map((line) => ESCALATED_LINE.exec(line)?.[1])
-    .filter(Boolean);
+  return escalations(text).map(({ check }) => check);
 }
 
 // Whether a report escalated at least one check and every escalation is one
 // a stronger model may answer.
 export function rungUpEscalation(text) {
-  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
-  return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
+  const reasons = escalatedReasons(text);
+  return reasons.length > 0 && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
 }
 
 // An escalation the lane cannot settle, and the reason it stops with: a fix
@@ -217,7 +220,7 @@ const HELD_ESCALATIONS = [
 
 // The held reason a report's escalations name, or "".
 export function heldEscalation(text) {
-  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
+  const reasons = escalatedReasons(text);
   return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
 }
 
@@ -251,6 +254,10 @@ const REQUIREMENTS = {
 // git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
+// A blob's text from the local objects, or null for the zero id of a side
+// with no file.
+const blobText = (git, sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
+
 // The mode of `path` in the tree `treeSha`, walked one directory at a time
 // through the Git trees API; null when it is absent.
 async function modeAt(api, treeSha, path) {
@@ -258,11 +265,11 @@ async function modeAt(api, treeSha, path) {
   let sha = treeSha;
   for (const [i, name] of parts.entries()) {
     const item = ((await api.getTree(sha))?.tree ?? []).find((row) => row?.path === name);
-    if (!item || (i < parts.length - 1 && item.type !== "tree")) {
-      return null;
-    }
     if (i === parts.length - 1) {
-      return item.type === "blob" ? item.mode : null;
+      return item?.type === "blob" ? item.mode : null;
+    }
+    if (item?.type !== "tree") {
+      return null;
     }
     sha = item.sha;
   }
@@ -302,7 +309,6 @@ export const CONTENT_RULES = {
   // runs the same rule again on what landed.
   "dependency-version-change": async ({ entries, git, context }) => {
     const byPath = new Map(entries.map((entry) => [entry.path, entry]));
-    const blob = (sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
     return fixRefusal(
       entries.map((entry) => ({ filename: entry.path, status: STATUS[entry.status?.[0]] ?? String(entry.status) })),
       context.dependabotConfig,
@@ -311,7 +317,7 @@ export const CONTENT_RULES = {
           const mode = byPath.get(path).newMode;
           return { type: mode === GITLINK ? "commit" : "blob", mode: Number.parseInt(mode, 8) };
         },
-        text: async (side, path) => blob(side === "before" ? byPath.get(path).oldSha : byPath.get(path).newSha),
+        text: async (side, path) => blobText(git, side === "before" ? byPath.get(path).oldSha : byPath.get(path).newSha),
       },
     );
   },
@@ -324,9 +330,8 @@ export const CONTENT_RULES = {
       return `the patch changes ${entries.map((entry) => entry.path).join(", ") || "nothing"}, not package.json alone`;
     }
     const [entry] = entries;
-    const blob = (sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
     const scope = await CONTENT_RULES["dependency-version-change"]({ entries, git, context });
-    return scope ?? installScriptPinRefusal(blob(entry.oldSha), blob(entry.newSha));
+    return scope ?? installScriptPinRefusal(blobText(git, entry.oldSha), blobText(git, entry.newSha));
   },
 };
 
@@ -393,15 +398,15 @@ export const TARGETS = {
   },
 };
 
-// A target's write, answering why the patch is superseded, else nothing. On a
-// target whose ref can move, a 422 is superseded only when a re-read shows
-// another commit on the branch, and the line keeps GitHub's answer, which may
-// be more than the race; any other refusal, or a re-read that fails or names
-// no commit, throws it.
-async function land(target, api, ref, commit, head) {
+// Writes the commit to the target's ref: true once the ref reads it, false,
+// logged, when another push superseded the patch. On a target whose ref can
+// move, a 422 is superseded only when a re-read shows another commit on the
+// branch, and the line keeps GitHub's answer, which may be more than the race;
+// any other refusal, a re-read that fails or names no commit, or a ref that
+// reads another commit after the write throws.
+async function landed(target, api, ref, commit, head, log) {
   try {
     await target.write(api, ref, commit);
-    return "";
   } catch (error) {
     if (!target.movedHead || error.status !== 422) {
       throw error;
@@ -410,8 +415,14 @@ async function land(target, api, ref, commit, head) {
     if (!SHA.test(String(tip)) || tip === head || tip === commit) {
       throw error;
     }
-    return `${movedFrom(head, tip)} (${error.message})`;
+    log(`${movedFrom(head, tip)} (${error.message})`);
+    return false;
   }
+  const after = await api.readBranch(ref);
+  if (after !== commit) {
+    throw new Error(`${ref} reads ${after} after the write of ${commit}`);
+  }
+  return true;
 }
 
 // The producer's row: the target's, which for a PR is its prepare mode's, or
@@ -577,7 +588,7 @@ export function patchProblem(file, expected) {
   }
   const refused = (why) => ({ kind: unscannedKind(file, "invalid"), why });
   const bytes = readCapped(file, MAX_PATCH_BYTES + 1);
-  if (!/^[0-9a-f]{64}$/.test(String(expected))) {
+  if (!SHA256.test(String(expected))) {
     return refused("the patch or its SHA-256 is missing");
   }
   if (bytes.length === 0 || bytes.length > MAX_PATCH_BYTES) {
@@ -638,7 +649,7 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     const held = escalated ? weakenStop(report.held(reportDir), weakenRetry) : "";
     return decide(false, "awaiting-human", held || reasonFor(row, escalated ? "escalated" : "empty"));
   }
-  let names = [];
+  let names;
   try {
     names = readdirSync(patchDir);
   } catch {
@@ -691,6 +702,39 @@ function changes(raw) {
     }
   }
   return entries;
+}
+
+// The entries `git diff-tree` lists from one tree-ish to another; with no
+// rename detection unless `flags` asks for it.
+const diffEntries = (git, from, to, flags = ["--no-renames"]) => changes(git(["diff-tree", "-r", "-z", ...flags, from, to]));
+
+// A `<fields>\t<path>` record, as git ls-tree, git ls-files and
+// tree-entries.sh print it: its space-separated fields, then its path.
+const fieldsAndPath = (record) => {
+  const tab = record.indexOf("\t");
+  return [record.slice(0, tab).split(" "), record.slice(tab + 1)];
+};
+
+// The first [entry, names] pair whose entry matches one of its names'
+// refusals, as { kind, why }, or null.
+function firstRefusal(checks) {
+  for (const [entry, names] of checks) {
+    const [refusal] = refusalsOf(entry, names);
+    if (refusal) {
+      return { kind: REFUSALS[refusal].kind, why: `refused (${refusal}): ${entry.path}` };
+    }
+  }
+  return null;
+}
+
+// Why the written blobs are too large, one or all together, or "".
+function oversizeBlobs(git, written) {
+  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
+  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
+  if (big !== -1) {
+    return `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`;
+  }
+  return sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES ? `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes` : "";
 }
 
 // The tree the patch makes on a commit's tree, or "" when it does not apply.
@@ -747,9 +791,8 @@ const workflowEntries = (git, tree) =>
     .split("\0")
     .filter(Boolean)
     .map((record) => {
-      const tab = record.indexOf("\t");
-      const [mode, , oid] = record.slice(0, tab).split(" ");
-      return `${mode} ${oid} ${record.slice(tab + 1)}`;
+      const [[mode, , oid], path] = fieldsAndPath(record);
+      return `${mode} ${oid} ${path}`;
     });
 
 // A merge tree whose workflows differ from the head's is admitted only when
@@ -793,7 +836,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     !["clean", "conflicted"].includes(merge.state) ||
     !(merge.unmerged instanceof Set) ||
     !merge.treeEntries?.script ||
-    !/^[0-9a-f]{64}$/.test(String(merge.treeEntries?.sha256))
+    !SHA256.test(String(merge.treeEntries?.sha256))
   ) {
     throw new Error("a merge row needs the pinned base, the conflict tree, the merge state, the conflicted paths and tree-entries.sh");
   }
@@ -837,7 +880,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       if (!tree) {
         return escalate("not-applied", "the patch does not apply to the conflict tree");
       }
-      entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", merge.conflictTree, tree]));
+      entries = diffEntries(git, merge.conflictTree, tree);
       if (entries.length === 0) {
         return escalate("empty", "the patch changes nothing in the conflict tree");
       }
@@ -849,13 +892,11 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       return escalate("invalid", "a clean merge takes no patch");
     }
     // Only the patch's own changes face the rules; one refused entry refuses it whole.
-    const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", merge.conflictTree, tree]));
+    const renames = diffEntries(git, merge.conflictTree, tree, ["-M", "--diff-filter=R"]);
     const refuse = [...row.refuse, ...ALWAYS];
-    for (const [entry, names] of [...renames.map((item) => [item, ["rename-into-refused"]]), ...entries.map((item) => [item, refuse])]) {
-      const [refusal] = refusalsOf(entry, names);
-      if (refusal) {
-        return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
-      }
+    const refused = firstRefusal([...renames.map((item) => [item, ["rename-into-refused"]]), ...entries.map((item) => [item, refuse])]);
+    if (refused) {
+      return escalate(refused.kind, refused.why);
     }
     if (row["max-files"] !== null && entries.length > row["max-files"]) {
       return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
@@ -865,22 +906,16 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (outside) {
       return reason("unexpected-path-staged", `not a conflicted path: ${outside.path}`);
     }
-    const written = entries.filter((entry) => !ZERO.test(entry.newSha));
-    const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
-    const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
-    if (big !== -1) {
-      return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
-    }
-    if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
-      return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+    const oversize = oversizeBlobs(git, entries.filter((entry) => !ZERO.test(entry.newSha)));
+    if (oversize) {
+      return escalate("invalid", oversize);
     }
     // Every conflicted path still in the tree is resolved.
     const listed = merge.unmerged.size === 0 ? [] : git(["ls-tree", "-z", "--full-tree", "-r", tree, "--", ...merge.unmerged]).toString("utf8").split("\0").filter(Boolean);
     for (const record of listed) {
-      const tab = record.indexOf("\t");
-      const [mode, , oid] = record.slice(0, tab).split(" ");
+      const [[mode, , oid], path] = fieldsAndPath(record);
       if (mode !== GITLINK && hasConflictMarkers(git(["cat-file", "blob", oid]).toString("latin1"))) {
-        return reason("unresolved-conflict", `a conflicted path still holds conflict markers: ${record.slice(tab + 1)}`);
+        return reason("unresolved-conflict", `a conflicted path still holds conflict markers: ${path}`);
       }
     }
     if (!workflowsAreBaseOwn(git, headSha, merge.baseSha, tree)) {
@@ -902,9 +937,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     const treeEntries = [];
     const uploads = [];
     for (const line of listing.split("\n").filter(Boolean)) {
-      const tab = line.indexOf("\t");
-      const [mode, sha, flag] = line.slice(0, tab).split(" ");
-      const path = line.slice(tab + 1);
+      const [[mode, sha, flag], path] = fieldsAndPath(line);
       const type = mode === GITLINK ? "commit" : "blob";
       treeEntries.push({ path, mode, type, sha: sha === "null" ? null : sha });
       if (flag === "create-blob") {
@@ -935,14 +968,8 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
     }
     const commit = await api.createCommit(message, tree, [headSha, merge.baseSha]);
-    const movedLate = await land(target, api, headRef, commit, headSha);
-    if (movedLate) {
-      log(movedLate);
+    if (!(await landed(target, api, headRef, commit, headSha, log))) {
       return { outcome: "superseded" };
-    }
-    const after = await api.readBranch(headRef);
-    if (after !== commit) {
-      throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
     }
     log(`pushed merge ${commit} (${entries.length} patched path(s), ${uploads.length} new blob(s)) onto ${headRef}`);
     return { outcome: "pushed", commit, branch: headRef };
@@ -1027,7 +1054,7 @@ export async function push({
       const kind = unscannedKind(patchFile, "invalid");
       return escalate(kind, kind === "credential" ? `the patch's blobs cannot be read on ${patchHeadSha}, so they may carry a credential shape` : elsewhere);
     }
-    const leaked = leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer])));
+    const leaked = leakedBlob(git, diffEntries(git, patchHeadSha, atProducer));
     if (leaked) {
       return escalate("credential", leakWhy(leaked));
     }
@@ -1042,7 +1069,7 @@ export async function push({
     if (!atProducer) {
       return escalate("not-applied", "the patch does not apply to the head it was made on");
     }
-    const patched = new Set(changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer])).map((entry) => entry.path));
+    const patched = new Set(diffEntries(git, patchHeadSha, atProducer).map((entry) => entry.path));
     const touched = git(["diff-tree", "-r", "-z", "--no-renames", "--name-only", patchHeadSha, headSha]).toString("utf8").split("\0");
     if (touched.some((path) => patched.has(path))) {
       log("commits since the model's head touch a patched path; the patch is superseded");
@@ -1055,7 +1082,7 @@ export async function push({
     const holds = row.escalations.some((reason) => reason.endsWith("-credential"));
     return escalate(holds ? unscannedKind(patchFile, "not-applied") : "not-applied", "the patch does not apply to the gated head");
   }
-  const entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", headSha, tree]));
+  const entries = diffEntries(git, headSha, tree);
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
   }
@@ -1074,21 +1101,18 @@ export async function push({
     }
     from = git(["merge-base", refusalBase, headSha]).toString("utf8").trim();
   }
-  const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
-  const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
+  const reaching = from === headSha ? entries : diffEntries(git, from, tree);
+  const renames = diffEntries(git, from, tree, ["-M", "--diff-filter=R"]);
   // One refused entry refuses the whole patch, before anything is written.
   // A rename is checked as one first; every entry then meets the rest.
   const refuse = [...row.refuse, ...ALWAYS];
-  const checks = [
+  const refused = firstRefusal([
     ...renames.map((entry) => [entry, ["rename-into-refused"]]),
     ...entries.map((entry) => [entry, refuse]),
     ...(reaching === entries ? [] : reaching.map((entry) => [entry, refuse])),
-  ];
-  for (const [entry, names] of checks) {
-    const [refusal] = refusalsOf(entry, names);
-    if (refusal) {
-      return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
-    }
+  ]);
+  if (refused) {
+    return escalate(refused.kind, refused.why);
   }
   if (row["max-files"] !== null && entries.length > row["max-files"]) {
     return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
@@ -1098,13 +1122,9 @@ export async function push({
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
   const written = entries.filter((entry) => !ZERO.test(entry.newSha));
-  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
-  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
-  if (big !== -1) {
-    return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
-  }
-  if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
-    return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+  const oversize = oversizeBlobs(git, written);
+  if (oversize) {
+    return escalate("invalid", oversize);
   }
   const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   // Before any tree or commit is built: each file's change must also meet the
@@ -1150,14 +1170,8 @@ export async function push({
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
   const commit = await api.createCommit(message, tree, [headSha]);
-  const movedLate = await land(target, api, headRef, commit, headSha);
-  if (movedLate) {
-    log(movedLate);
+  if (!(await landed(target, api, headRef, commit, headSha, log))) {
     return { outcome: "superseded" };
-  }
-  const after = await api.readBranch(headRef);
-  if (after !== commit) {
-    throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
   }
   log(`pushed ${commit} (${entries.length} path(s)) onto ${headRef}`);
   return { outcome: "pushed", commit, branch: headRef };
@@ -1335,12 +1349,7 @@ export function dependabotPairs(baseDir) {
 export function mergeFrom(env, { cwd = process.cwd(), gitBin = "/usr/bin/git" } = {}) {
   need(env, ["MERGE_BASE_SHA", "CONFLICT_TREE", "MERGE_STATE", "TREE_ENTRIES_SCRIPT", "TREE_ENTRIES_SHA256"]);
   const raw = gitRunner(cwd, gitBin)(["ls-files", "-u", "-z"]).toString("utf8");
-  const unmerged = new Set(
-    raw
-      .split("\0")
-      .filter(Boolean)
-      .map((record) => record.slice(record.indexOf("\t") + 1)),
-  );
+  const unmerged = new Set(raw.split("\0").filter(Boolean).map((record) => fieldsAndPath(record)[1]));
   return {
     baseSha: env.MERGE_BASE_SHA,
     conflictTree: env.CONFLICT_TREE,
