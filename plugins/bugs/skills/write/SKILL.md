@@ -164,7 +164,9 @@ Recommend the next step; do not invoke it yourself:
   resolves, hand the report to `/work-items:track add` (report summary via `--context`); it owns
   dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker
   directly beside it. Map severity onto the tracker's priority labels if it has them.
-  Without `work-items`, in a GitHub repository with the `gh` CLI: `--body-file` needs the report on
+  Without `work-items`, before filing by any other path, read the house style
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md))
+  and apply it. In a GitHub repository with the `gh` CLI: `--body-file` needs the report on
   disk (the `--file` path, or in stdout mode offer to re-run the write step or Write it to a temp
   file). Run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title. If
   filing non-interactively, never interpolate the reporter's title into the command string: write it

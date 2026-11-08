@@ -27,7 +27,9 @@ question) without naming a tracker's commands.
 1. **Apply each change**, in this order, stopping at the first failure and reporting what already
    applied:
    - `--title-file`, `--body-file` (adapter: "Edit title / body"). `--body-file` replaces the whole body;
-     to change part of it, read it with `view` first and write back the whole result.
+     to change part of it, read it with `view` first and write back the whole result. Before a title
+     change, read the house style ([`reference/issue-house-style.md`](../../../reference/issue-house-style.md))
+     and hold the new title to it.
    - `--add-label`, `--remove-label` (adapter: "Edit labels / assignees").
    - `--blocked-by` through the seam, both IDs qualified:
 

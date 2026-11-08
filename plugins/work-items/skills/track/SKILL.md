@@ -37,7 +37,7 @@ actions below:
 - [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md):
   the label structure `add` validates against and `list --category` filters by.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md):
-  the title convention `add` applies.
+  the item shape `add` follows; its title rule points at the house style.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md):
   the brief template `add --agent-ready` uses instead of the default body.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md):

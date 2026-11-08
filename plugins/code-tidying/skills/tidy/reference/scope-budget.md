@@ -31,21 +31,11 @@ Bin-packing-optimal selection is not worth the complexity. Greedy by priority ca
 
 ## 2. Deferred-items message template
 
-When filing a deferral, use this exact title and body shape so the deferred items are searchable, sortable, and pre-filled for the next tidy run.
+When filing a deferral, use this body shape and the labels below so the deferred items are findable and pre-filled for the next tidy run.
 
-### Title format
+### Title
 
-```text
-<conv-type>(<area>): <one-line what>
-```
-
-Conventional Commits type matches the lane's default (`refactor:`, `docs:`, `chore:`, `test:`). The `<area>` is the lane name or a more specific scope. The one-line what describes the tidying without specifying its full implementation.
-
-Examples:
-
-- `refactor(core): consolidate result-chain helpers`
-- `docs(skills): repair stale cross-references in retro/SKILL.md`
-- `chore(tools): apply shfmt drift across tools/setup-*.sh`
+Read the house style (`<plugin-root>/reference/issue-house-style.md`) before filing by `gh issue create` and hold the title to it; `/work-items:track add` does this itself. The title describes the tidying without specifying its full implementation.
 
 ### Body format (use as-is, fill in the angle-bracket placeholders)
 

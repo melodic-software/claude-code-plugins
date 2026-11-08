@@ -38,7 +38,7 @@ The choice is per-cite. The bundled `detect.sh` is a **candidate enumerator**: e
 | *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table. Behind the no-scope confirmation below when nothing narrows the scope |
 | `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation, for when the user already said "whole repo" |
 | `fix <file>:<line>` | Targeted remediation | Interactive Path A (promote-out) vs Path B (route-via-`/<skill>`) for one hit |
-| `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`); emit a checklist if no tracker is available |
+| `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`), after reading the house style (`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`) and applying it; emit a checklist if no tracker is available |
 
 One action per response.
 
