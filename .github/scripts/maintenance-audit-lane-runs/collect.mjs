@@ -169,12 +169,22 @@ function client({ api, token, budget }) {
   return { call };
 }
 
-const seconds = (r) => Math.round((new Date(r.updated_at) - new Date(r.run_started_at ?? r.created_at)) / 1000);
+const elapsed = (start, end) => Math.round((new Date(end) - new Date(start)) / 1000);
+const failedNames = (items) => (items ?? []).filter((x) => x.conclusion === "failure").map((x) => x.name);
+const runUrl = (repo, id) => `https://github.com/${repo}/actions/runs/${id}`;
+const latestJobs = (gh, repo, id) => gh.call(`/repos/${repo}/actions/runs/${id}/jobs?filter=latest&per_page=100`);
+
+// How many items end in each conclusion, or each status while unfinished.
+const countOutcomes = (items) => {
+  const counts = {};
+  for (const x of items) counts[x.conclusion ?? x.status] = (counts[x.conclusion ?? x.status] ?? 0) + 1;
+  return counts;
+};
 
 async function detailA(gh, repo, unit) {
   const runs = [];
   for (const id of unit.runIds.slice(0, RUNS_PER_UNIT)) {
-    const { jobs } = await gh.call(`/repos/${repo}/actions/runs/${id}/jobs?filter=latest&per_page=100`);
+    const { jobs } = await latestJobs(gh, repo, id);
     const failed = [];
     for (const job of jobs.filter((j) => j.conclusion === "failure").slice(0, FAILED_JOBS_PER_RUN)) {
       const checkRunId = /\/check-runs\/(\d+)$/.exec(job.check_run_url ?? "")?.[1];
@@ -189,54 +199,38 @@ async function detailA(gh, repo, unit) {
         : [];
       let log;
       try {
-        log = tailLog(
-          await gh.call(`/repos/${repo}/actions/jobs/${job.id}/logs`, {
-            text: true,
-          }),
-        );
+        log = tailLog(await gh.call(`/repos/${repo}/actions/jobs/${job.id}/logs`, { text: true }));
       } catch (error) {
         if (/call budget/.test(error.message)) throw error;
         log = `log unavailable (${error.message})`;
       }
-      failed.push({
-        id: job.id,
-        name: job.name,
-        failed_steps: (job.steps ?? []).filter((s) => s.conclusion === "failure").map((s) => s.name),
-        annotations,
-        log_tail: log,
-      });
+      failed.push({ id: job.id, name: job.name, failed_steps: failedNames(job.steps), annotations, log_tail: log });
     }
-    runs.push({
-      id,
-      url: `https://github.com/${repo}/actions/runs/${id}`,
-      failed_jobs: failed,
-    });
+    runs.push({ id, url: runUrl(repo, id), failed_jobs: failed });
   }
   return { runs };
 }
 
 async function detailD(gh, repo, unit, allRuns) {
   const mine = allRuns.filter((r) => unit.runIds.includes(r.id));
-  const conclusions = {};
-  for (const r of mine) conclusions[r.conclusion ?? r.status] = (conclusions[r.conclusion ?? r.status] ?? 0) + 1;
-  const durations = mine.map(seconds).sort((a, b) => a - b);
+  const durations = mine.map((r) => elapsed(r.run_started_at ?? r.created_at, r.updated_at)).sort((a, b) => a - b);
   const sampled = [];
   for (const r of mine.filter((x) => x.conclusion === "success").slice(0, 3)) {
-    const { jobs } = await gh.call(`/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
+    const { jobs } = await latestJobs(gh, repo, r.id);
     sampled.push({
       id: r.id,
-      url: `https://github.com/${repo}/actions/runs/${r.id}`,
+      url: runUrl(repo, r.id),
       jobs: jobs.map((j) => ({
         name: j.name,
         conclusion: j.conclusion,
-        seconds: Math.round((new Date(j.completed_at) - new Date(j.started_at)) / 1000),
-        failed_steps_in_green_job: (j.steps ?? []).filter((s) => s.conclusion === "failure").map((s) => s.name),
+        seconds: elapsed(j.started_at, j.completed_at),
+        failed_steps_in_green_job: failedNames(j.steps),
       })),
     });
   }
   return {
     runs: mine.length,
-    conclusions,
+    conclusions: countOutcomes(mine),
     reruns: mine.filter((r) => r.run_attempt > 1).length,
     seconds_median: durations[Math.floor(durations.length / 2)] ?? null,
     seconds_max: durations.at(-1) ?? null,
@@ -250,8 +244,6 @@ async function detailC(gh, repo, unit, pullsByNumber) {
   for (const number of unit.pulls) {
     const p = pullsByNumber.get(number);
     const { check_runs: checks } = await gh.call(`/repos/${repo}/commits/${p.head.sha}/check-runs?per_page=100`);
-    const counts = {};
-    for (const c of checks) counts[c.conclusion ?? c.status] = (counts[c.conclusion ?? c.status] ?? 0) + 1;
     pulls.push({
       number,
       title: p.title,
@@ -260,8 +252,8 @@ async function detailC(gh, repo, unit, pullsByNumber) {
       created_at: p.created_at,
       updated_at: p.updated_at,
       head_sha: p.head.sha,
-      checks: counts,
-      failing_checks: checks.filter((c) => c.conclusion === "failure").map((c) => c.name),
+      checks: countOutcomes(checks),
+      failing_checks: failedNames(checks),
     });
   }
   return { pulls };
@@ -276,11 +268,7 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
   const repo = env.REPOSITORY;
   const out = env.OUT_DIR;
   const budget = createBudget(Number(env.CALL_BUDGET ?? 350));
-  const gh = client({
-    api: env.GITHUB_API_URL,
-    token: env.GITHUB_TOKEN,
-    budget,
-  });
+  const gh = client({ api: env.GITHUB_API_URL, token: env.GITHUB_TOKEN, budget });
   const list = JSON.parse(readFileSync(env.TRUSTED_ACTORS_PATH, "utf8"));
   const trusted = new Set(list.actors.map((a) => String(a.id)));
   if (/^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "")) trusted.add(env.LANES_APP_ID);
@@ -327,18 +315,8 @@ export async function main({ env = process.env, now = Date.now() } = {}) {
     join(out, "collect-status.json"),
     `${JSON.stringify({ complete: truncated === null && partial.length === 0, truncated, partial: partial.map((p) => p.path) })}\n`,
   );
-  writeFileSync(
-    join(out, "open-items.json"),
-    `${JSON.stringify(
-      open.map((i) => ({
-        number: i.number,
-        kind: i.pull_request ? "pr" : "issue",
-        title: i.title,
-      })),
-      null,
-      2,
-    )}\n`,
-  );
+  const openItems = open.map((i) => ({ number: i.number, kind: i.pull_request ? "pr" : "issue", title: i.title }));
+  writeFileSync(join(out, "open-items.json"), `${JSON.stringify(openItems, null, 2)}\n`);
   console.log(
     `collect: ${runs.length} runs, ${pulls.length} open PRs, units ${written.join(",") || "none"}, ${budget.used} calls`,
   );

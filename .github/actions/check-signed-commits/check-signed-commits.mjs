@@ -3,6 +3,7 @@
 // escalation label (only if the repository already has it) and posts one
 // fixed comment listing the SHAs. It never rewrites or force-pushes.
 import process from "node:process";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
@@ -16,7 +17,6 @@ export { SIGNED_COMMITS_HOLD };
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
 // GitHub knows as an ancestor of the head; otherwise null. `complete` is false
@@ -38,12 +38,11 @@ async function compareSince(github, base, sinceSha, headSha) {
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     return null;
   }
-  const commits = Array.isArray(comparison.commits) ? comparison.commits : [];
-  const complete =
-    Array.isArray(comparison.commits) &&
-    Number.isInteger(comparison.total_commits) &&
-    comparison.total_commits <= commits.length;
-  return { commits, complete };
+  if (!Array.isArray(comparison.commits)) {
+    return { commits: [], complete: false };
+  }
+  const { commits, total_commits: total } = comparison;
+  return { commits, complete: Number.isInteger(total) && total <= commits.length };
 }
 
 // The lane's commits and whether they could all be read. A complete comparison
@@ -53,17 +52,14 @@ async function compareSince(github, base, sinceSha, headSha) {
 // drop lane commits it never listed. Anything else checks every PR commit,
 // which is whole only when the PR list is.
 function laneCommits(comparison, prCommits, prListComplete) {
-  if (comparison?.complete) {
-    if (!prListComplete) {
-      return { commits: comparison.commits, checkable: true };
-    }
-    const inPr = new Set(prCommits.map((commit) => commit.sha));
-    return {
-      commits: comparison.commits.filter((commit) => inPr.has(commit.sha)),
-      checkable: true,
-    };
+  if (!comparison?.complete) {
+    return { commits: prCommits, checkable: prListComplete };
   }
-  return { commits: prCommits, checkable: prListComplete };
+  if (!prListComplete) {
+    return { commits: comparison.commits, checkable: true };
+  }
+  const inPr = new Set(prCommits.map((commit) => commit.sha));
+  return { commits: comparison.commits.filter((commit) => inPr.has(commit.sha)), checkable: true };
 }
 
 function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown, headConfirmed }) {
@@ -103,13 +99,7 @@ function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown,
   return lines.join("\n");
 }
 
-export async function checkSignedCommits({
-  github,
-  repository,
-  prNumber,
-  sinceSha,
-  sleep = delay,
-}) {
+export async function checkSignedCommits({ github, repository, prNumber, sinceSha, sleep = delay }) {
   const base = `/repos/${repository}`;
   const { pull, headConfirmed } = await readPull(github, base, prNumber, sleep);
   const prCommits = await paginate(github, `${base}/pulls/${prNumber}/commits`);
@@ -117,18 +107,13 @@ export async function checkSignedCommits({
   // when the PR's commit count says so.
   const countKnown = Number.isInteger(pull.commits);
   const prListComplete = countKnown && pull.commits <= prCommits.length;
-  const comparison = headConfirmed
-    ? await compareSince(github, base, sinceSha, pull.head.sha)
-    : null;
+  const comparison = headConfirmed ? await compareSince(github, base, sinceSha, pull.head.sha) : null;
   const lane = laneCommits(comparison, prCommits, prListComplete);
-  const { commits } = lane;
   const checkable = headConfirmed && lane.checkable;
   // A commit whose SHA is malformed cannot be named safely, so it counts as
   // unverified and is reported as `<invalid-sha>`, never echoed.
-  const unverified = commits
-    .filter(
-      (commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true,
-    )
+  const unverified = lane.commits
+    .filter((commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true)
     .map((commit) => (SHA.test(commit.sha ?? "") ? commit.sha : "<invalid-sha>"));
   return {
     allVerified: checkable && unverified.length === 0,
