@@ -1,7 +1,7 @@
 # Run knowledge apply from the corpus against an explicit target
 
 - Status: proposed. No `apply` skill exists under `plugins/knowledge/skills/`, and the plugin's
-  video-digest output contract dropped its routing to the unbuilt `/knowledge:apply`, so this
+  video-digest output contract dropped its routing to the unbuilt apply skill, so this
   records a design not built, not a decision in force.
 - Date: 2026-07-13
 - Related: [ADR 0022](0022-consume-the-knowledge-corpus-from-a-separate-repository.md) (the corpus
