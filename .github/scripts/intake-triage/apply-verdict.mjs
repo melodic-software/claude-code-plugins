@@ -5,8 +5,8 @@
 // marker) and takes:
 //
 // - Size, Complexity and Uncertainty from lines that start the line with exactly
-//   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value an option
-//   name of models.issue-dimensions (its key, capitalized: Small, Knowable);
+//   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value a key of
+//   models.issue-dimensions in any case (small, Small, KNOWABLE);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
 //   security, cost and untrusted, the last marking untrusted provenance as
 //   the legacy `work-class: untrusted-provenance` proposal on the comment's
@@ -134,6 +134,22 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
+// Each field's options in reading order, the order a problem lists them in.
+// An options map is keyed by numeric option id, and JavaScript lists such keys
+// ascending, which would read Size backwards (large, medium, small). A name
+// not listed here follows the listed ones.
+const OPTION_ORDER = Object.freeze({
+  size: ["small", "medium", "large"],
+  complexity: ["low", "medium", "high"],
+  uncertainty: ["known", "knowable", "unknown"],
+});
+const inReadingOrder = (key, names) => {
+  const rank = (name) => {
+    const index = OPTION_ORDER[key].indexOf(name.toLowerCase());
+    return index === -1 ? OPTION_ORDER[key].length : index;
+  };
+  return names.toSorted((a, b) => rank(a) - rank(b));
+};
 // The reusable's second line; only its legacy untrusted proposal is read.
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
@@ -150,6 +166,8 @@ const COST_PROBLEM = "a Cost line is not in the `Cost: ` / `Cost decided: ` form
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 
 const capitalize = (key) => key.charAt(0).toUpperCase() + key.slice(1);
+// The statuses GitHub answers a field value that names no option with.
+const NAME_REFUSED = new Set([400, 422]);
 
 // The --check answer: whether the broker would mint for this run's actors.
 export function checkActors(env, humans, logins) {
@@ -224,9 +242,9 @@ export function parseVerdict(body, dimensionsConfig) {
   for (const [key, prefix] of Object.entries(DIMENSIONS)) {
     const value = lineValue(prefix);
     const options = Object.values(dimensionsConfig?.fields?.[key]?.options ?? {});
-    const option = options.find((name) => capitalize(name) === value);
+    const option = options.find((name) => name.toLowerCase() === value?.toLowerCase());
     if (value !== null && option === undefined) {
-      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${options.map(capitalize).join(", ")}`);
+      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${inReadingOrder(key, options).join(", ")}`);
     }
     dimensions[key] = option ?? null;
   }
@@ -346,7 +364,7 @@ export function planWrites(
           key,
           fieldId,
           optionId: Number(optionId),
-          name: capitalize(verdict.dimensions[key]),
+          name: verdict.dimensions[key],
         });
       }
     }
@@ -650,18 +668,32 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   if (plan.fieldWrites.length > 0) {
     // Safe to send twice: the POST sets each listed field to one option, so a
     // second copy after a 5xx that GitHub did apply sets the same values.
-    const written = await github(
-      "POST",
-      `${base}/issue-field-values`,
-      {
-        issue_field_values: plan.fieldWrites.map(({ fieldId, name }) => ({
-          field_id: fieldId,
-          value: name,
-        })),
-      },
-      FIELD_API,
-      { resendOnce: true },
-    );
+    const post = (spell) =>
+      github(
+        "POST",
+        `${base}/issue-field-values`,
+        {
+          issue_field_values: plan.fieldWrites.map(({ fieldId, name }) => ({
+            field_id: fieldId,
+            value: spell(name),
+          })),
+        },
+        FIELD_API,
+        { resendOnce: true },
+      );
+    // The REST write takes an option name, not an id. The org's options move
+    // from Title case to the lowercase key, so a name GitHub refuses is sent
+    // once more Title-cased; the answer is checked by option id either way.
+    let written;
+    try {
+      written = await post((name) => name);
+    } catch (error) {
+      if (!(error instanceof GitHubError && NAME_REFUSED.has(error.status))) {
+        throw error;
+      }
+      log(`apply-verdict: GitHub refused the lowercase field names (${error.status} ${error.detail}); sending them Title-cased`);
+      written = await post(capitalize);
+    }
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);
     if (wrong.length > 0) {
