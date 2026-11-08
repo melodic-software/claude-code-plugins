@@ -62,8 +62,8 @@ const LANES = {
   "pr-review-hosted.yml": { check: "pr-review / review-status", lane: "claude-review" },
   "pr-review-security-hosted.yml": { check: "pr-review-security / review-status", lane: "claude-security-review" },
 };
-// pr-review-cli.yml's status job names before ci-workflows#866.
-const EARLIER_CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
+// The status job names pr-review-cli.yml gave before it named both review-status.
+const RETIRED_CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
 const pushes = [
   { activity_type: "push", actor: PERSON, after: HEAD, timestamp: "2026-10-18T11:00:00Z" },
   { activity_type: "push", actor: PERSON, after: OLD, timestamp: "2026-10-18T09:50:00Z" },
@@ -141,10 +141,12 @@ test("ci-status's recheck accepts the App's removal while the hold still no long
   assert.ok(w.calls.every((call) => call.startsWith("GET ") || call === "POST /graphql"), "the recheck writes nothing");
 });
 
-test("ci-status's recheck reads each lane's status job under its earlier name too", async () => {
-  const { code, log } = await run(world({ checks: EARLIER_CHECKS }));
-  assert.equal(code, 0, log);
-  assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}`));
+test("ci-status's recheck fails when a lane's status job runs under its retired name", async () => {
+  for (const [file, check] of Object.entries(RETIRED_CHECKS)) {
+    const { code, log } = await run(world({ checks: { [file]: check } }));
+    assert.equal(code, 1, check);
+    assert.match(log, new RegExp(`${LANES[file].lane} has not passed on ${HEAD}`), check);
+  }
 });
 
 test("ci-status's recheck fails when a lane's status job runs under another caller job", async () => {

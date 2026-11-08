@@ -5562,8 +5562,7 @@ jobs:
           # `ran` lists, per lane, the heads of its runs from this repository
           # started before the decision.
           notices='[]' vetted='' ran='[]'
-          # Each lane's status job names, split by `|`: pr-review-cli.yml's,
-          # then the one it gave before ci-workflows#866.
+          # Each lane's status job name, as pr-review-cli.yml names it.
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5594,8 +5593,8 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml pr-review / review-status|pr-review / claude-review-status
-          pr-review-security-hosted.yml pr-review-security / review-status|pr-review-security / security-review'
+          done <<<'pr-review-hosted.yml pr-review / review-status
+          pr-review-security-hosted.yml pr-review-security / review-status'
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
@@ -7022,11 +7021,10 @@ jobs:
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
-          # Each lane's status job names, split by `|`: pr-review-cli.yml's,
-          # which the messages below name, then the one it gave before
-          # ci-workflows#866.
-          lanes='pr-review-hosted.yml claude-review pr-review / review-status|pr-review / claude-review-status
-          pr-review-security-hosted.yml claude-security-review pr-review-security / review-status|pr-review-security / security-review'
+          # Each lane's status job name, as pr-review-cli.yml names it and the
+          # messages below name it.
+          lanes='pr-review-hosted.yml claude-review pr-review / review-status
+          pr-review-security-hosted.yml claude-security-review pr-review-security / review-status'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
