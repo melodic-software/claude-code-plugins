@@ -122,6 +122,7 @@
       "name": "team-registry-dir-beats-the-option",
       "prompt": "/harness-ops:setup\n\nThis repository commits docs/conventions/harness-ops.yaml holding `registry_dir: tools/registry`, and my rendered registry_dir option is notes/registry.",
       "expected_output": "Runs scripts/registry-dir.mjs and reports registry_dir as PASS from layer team, file docs/conventions/harness-ops.yaml, resolving to tools/registry under the project root, and says the team file beat the option value notes/registry. Writes nothing.",
+      "narration": true,
       "files": [],
       "expectations": [
         "Resolves registry_dir through scripts/registry-dir.mjs rather than reading the option alone",

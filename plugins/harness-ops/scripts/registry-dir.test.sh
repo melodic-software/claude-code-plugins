@@ -173,7 +173,7 @@ source "$HOOK_DIR/harness-ops-paths.sh"
 new_repo
 mkdir -p "$TEST_TMPDIR/far"
 ln -s "$TEST_TMPDIR/far" "$R/out"
-for value in 'a/b' 'a\b' './a' '/tmp/x' 'C:\x' 'C:x' '\\server\share' '../x' '..\x' 'a/../b' 'out/x' 'out'; do
+for value in 'a/b' 'a\b' './a' '/tmp/x' 'C:\x' 'C:x' '\\server\share' '../x' '..\x' 'a/../b' 'out/x' 'out'; do # portability-ok: Windows path fixtures, not grep classes
   if harness_ops::resolve_project_relative_dir "$R" "$value" >/dev/null; then hooks=ok; else hooks=rejected; fi
   run "$R" "$value"
   if [[ "$(got .layer)" == "userConfig" ]]; then mine=ok; else mine=rejected; fi
