@@ -187,9 +187,10 @@ sees the force push. The branch moves only after that push succeeds.
    git rev-parse "refs/remotes/<remote>/<branch>"   # this is <sha>
    ```
 
-   With a pull request, `<sha>` must equal the decision's `head_sha`, and in every case the local
-   `HEAD` must equal `<sha>`, so a local branch behind the remote never overwrites it. Otherwise
-   the decision is stale: start over at step 1 of the sequence.
+   With a pull request, `<sha>` must equal the decision's `head_sha`. In every case
+   `git merge-base --is-ancestor <sha> HEAD` must pass, so a local branch behind the remote never
+   overwrites it and commits not yet pushed stay in the rebase. Otherwise the decision is stale:
+   start over at step 1 of the sequence.
 3. Rebase on a detached HEAD, with `--no-update-refs`, so the branch moves only after the push:
 
    ```bash
@@ -218,7 +219,8 @@ sees the force push. The branch moves only after that push succeeds.
    **Refused:** run `git switch <branch>`; the branch has not moved. A rejected lease makes the
    decision stale: start over at step 1 of the sequence. Any other refusal, the permission
    system's included: a decision from the `native-stack` row becomes `hold`; any other takes
-   [Carry out a merge](#carry-out-a-merge) and reports the fallback.
+   [Carry out a merge](#carry-out-a-merge), or with no pull request the merge its own step
+   states, and reports the fallback.
 
 - **Pointer**: when choosing the rebase's flags, fetch
   [git-rebase `--update-refs`](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---update-refs)
