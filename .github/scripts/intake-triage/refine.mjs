@@ -86,18 +86,16 @@
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
 //   CONTEXT_PATH          where --select writes, and --apply reads, the context
 //   REFINEMENT_PATH       the model's structured output (--apply)
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { appendFileSync } from "node:fs";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, linesDigest, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitItemsLine, splitRecord, splitSourceLine, splitTaskLines, taskItems, taskText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, SPLIT_PENDING, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
@@ -124,9 +122,20 @@ const CANDIDATES = 10;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// The issue as the model reads it.
+const issueContext = (number, issue) => ({ number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) });
+
+// Whether the lanes App, by its account id, posted `item`.
+const byApp = (item, appId) => appId !== undefined && item?.user?.id === appId;
+
+// The one intake lane comment, if this run (from `startedAt`) wrote it; else null.
+const laneComment = (comments, startedAt) => {
+  const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
+  return lane.length === 1 && Date.parse(lane[0].updated_at) >= startedAt ? lane[0] : null;
+};
+
 // The lanes App's own refinement comment: posted by its account id, marker first.
-export const isRefinement = (comment, appId) =>
-  appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+export const isRefinement = (comment, appId) => byApp(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
 // Whether the lanes App already refined `body`.
 const refinedBody = (comments, appId, body) => comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body));
@@ -278,7 +287,7 @@ const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${c
 // for this body. The text is fixed; no model or issue text is rendered.
 async function postDecline({ github, base, appId, body, code, log }) {
   const head = `${declineMarker(code)}\n${bodyVersion(body)}\n`;
-  if ((await paginate(github, `${base}/comments`)).some((item) => appId !== undefined && item?.user?.id === appId && String(item.body ?? "").startsWith(head))) {
+  if ((await paginate(github, `${base}/comments`)).some((item) => byApp(item, appId) && String(item.body ?? "").startsWith(head))) {
     log(`refine: ${base} already says why it is not split (${code})`);
     return;
   }
@@ -306,17 +315,19 @@ export async function applySizeDecline({ github, repository, number, appId, cont
 // same lines files no second set of sub-issues. Pure.
 export const splitDigest = ({ lines, source }) => linesDigest(source === null ? lines : [...lines, splitSourceLine(source)]);
 
+// The body of the lanes App's admission comment, or undefined.
+const admissionComment = (comments, appId) => comments.find((comment) => byApp(comment, appId) && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
+
 // Whether the lanes App's admission comment waits on a SPLIT_PENDING reason.
 export function sizeSplitPending(comments, appId) {
   const prefix = `${ADMIT_MARKER}\nNot admitted to the issue lane yet: `;
-  const own = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
-  const body = String(own?.body ?? "");
+  const body = String(admissionComment(comments, appId) ?? "");
   return body.startsWith(prefix) && body.slice(prefix.length).replace(/\.$/, "").split("; ").some((reason) => SPLIT_PENDING.has(reason));
 }
 
 // The lanes App's split record on the issue: {comment, record}, or null.
 const ownSplit = (comments, appId) => {
-  const comment = comments.find((item) => appId !== undefined && item?.user?.id === appId && splitRecord(item.body) !== null);
+  const comment = comments.find((item) => byApp(item, appId) && splitRecord(item.body) !== null);
   return comment ? { comment, record: splitRecord(comment.body) } : null;
 };
 
@@ -334,9 +345,9 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     return { refine: false, reason: `parked for its size split, not split: ${why}` };
   };
   // A decline that leaves the issue parked for good: apply-refinement posts it.
-  const visible = (code, why) => ({ ...decline(why), refine: true, context: { version: 1, size_decline: code, issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) } } });
-  const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
-  if (lane.length !== 1 || !(Date.parse(lane[0].updated_at) >= startedAt)) {
+  const visible = (code, why) => ({ ...decline(why), refine: true, context: { version: 1, size_decline: code, issue: issueContext(number, issue) } });
+  const lane = laneComment(comments, startedAt);
+  if (lane === null) {
     return decline("no single intake lane comment from this run");
   }
   if (String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
@@ -366,8 +377,8 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
     context: {
       version: 1,
       size_split: { items: lines.map((text, index) => ({ n: index + 1, text })), digest: splitDigest(split), max_parts: sizeSplitSettings(splitConfig().rules).maxParts },
-      issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
-      triage: String(lane[0].body),
+      issue: issueContext(number, issue),
+      triage: String(lane.body),
     },
   };
 }
@@ -446,20 +457,19 @@ export function subsetProblem({ groups, order }, lines, maxParts, taskList) {
 
 // Why `order` is no acyclic list of distinct pairs over parts 1..count. Pure.
 function orderProblem(order, count) {
-  const parts = Array.from({ length: count });
   const pairs = new Set();
   if (!Array.isArray(order)) {
     return "order must be a list of pairs";
   }
   for (const pair of order) {
-    const valid = Array.isArray(pair) && pair.length === 2 && pair.every((p) => Number.isInteger(p) && p >= 1 && p <= parts.length) && pair[0] !== pair[1];
+    const valid = Array.isArray(pair) && pair.length === 2 && pair.every((p) => Number.isInteger(p) && p >= 1 && p <= count) && pair[0] !== pair[1];
     if (!valid || pairs.has(pair.join(">"))) {
       return "each order pair must name two different parts, once";
     }
     pairs.add(pair.join(">"));
   }
   // Kahn's algorithm: every part leaves the queue only when the order has no cycle.
-  const waits = parts.map((_, index) => order.filter(([, b]) => b === index + 1).length);
+  const waits = Array.from({ length: count }, (_, index) => order.filter(([, b]) => b === index + 1).length);
   const ready = waits.flatMap((w, index) => (w === 0 ? [index + 1] : []));
   let done = 0;
   while (ready.length > 0) {
@@ -472,7 +482,7 @@ function orderProblem(order, count) {
       }
     }
   }
-  return done === parts.length ? null : "the order has a cycle";
+  return done === count ? null : "the order has a cycle";
 }
 
 // {refine, reason, context}. Reads only.
@@ -492,7 +502,8 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!authorAdmitted(issue, humans, appId)) {
     return no("the author is neither a listed human nor the lanes App");
   }
-  if ((statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue)).includes(NEEDS_HUMAN)) {
+  const labels = labelNames(issue);
+  if ((statusOf ? await statusOf(number, labels) : labels).includes(NEEDS_HUMAN)) {
     return no(`a person holds it (${NEEDS_HUMAN})`);
   }
   const comments = await paginate(github, `${base}/comments`);
@@ -500,20 +511,19 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (sized !== null && sized.thin === undefined) {
     return sized;
   }
-  const lane = comments.filter((c) => c.user?.login === LANE_BOT && c.user?.type === "Bot" && String(c.body ?? "").startsWith(MARKER));
-  if (lane.length !== 1 || !(Date.parse(lane[0].updated_at) >= startedAt)) {
+  const lane = laneComment(comments, startedAt);
+  if (lane === null) {
     return no("no single intake lane comment from this run");
   }
   if (refinedBody(comments, appId, issue.body)) {
     return no("the lanes App already refined this body");
   }
-  const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane[0].body });
-  const admission = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
-  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), admission, ...splitConfig() });
+  const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body });
+  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, labels, admission: admissionComment(comments, appId), ...splitConfig() });
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
-  const stays = split === null ? null : await splitStays(github, base, labelNames(issue), comments, appId);
+  const stays = split === null ? null : await splitStays(github, base, labels, comments, appId);
   if (stays !== null) {
     return no(stays);
   }
@@ -523,13 +533,13 @@ export async function selectRefinement({ github, repository, number, humans, app
     reason: split === null ? reasons.join("; ") : `held for done-when items ${split.items.map(({ n }) => n).join(", ")}, which a lane run cannot perform`,
     context: {
       version: 1,
-      issue: { number, title: String(issue.title ?? ""), body: String(issue.body ?? ""), labels: labelNames(issue) },
+      issue: issueContext(number, issue),
       thin: reasons,
       split,
       // pr-pipeline.yaml attended.classes: the only classes a manual
       // External state may name.
       attended: { ...(splitConfig().attended ?? {}) },
-      triage: String(lane[0].body),
+      triage: String(lane.body),
       comments: kept.map(({ comment }) => ({ author: comment.user?.login ?? "", created_at: comment.created_at ?? null, body: String(comment.body ?? "") })),
       candidates: await candidates(github, repository, issue, (id) => humans.has(id) || (appId !== undefined && id === appId)),
     },
@@ -635,30 +645,26 @@ export function externalLine({ state, repo, class: kind, what }) {
   return state === "manual" ? `${EXTERNAL_STATE}manual (${kind}: ${line(what)})` : `${EXTERNAL_STATE}none`;
 }
 
-// One line of model text, unable to forge markup the lanes read.
-export function line(text) {
-  let out = String(text).replaceAll(/\s+/g, " ").trim().slice(0, TEXT_MAX);
-  out = out
-    .replaceAll("<", "&lt;")
+// Mentions, `#N` and `GH-N` references, `://` and `www.`, each broken with a
+// zero-width space.
+const breakLinks = (text) =>
+  text
     .replaceAll("@", "@​")
     .replaceAll(/(#|GH-)(?=\d)/gi, "$1​")
-    .replaceAll(/[[\]()]/g, "\\$&")
     .replaceAll("://", ":/​/")
     .replaceAll(/www\./gi, "www​.");
-  return out;
+
+// One line of model text, unable to forge markup the lanes read.
+export function line(text) {
+  const out = String(text).replaceAll(/\s+/g, " ").trim().slice(0, TEXT_MAX);
+  return breakLinks(out.replaceAll("<", "&lt;").replaceAll(/[[\]()]/g, "\\$&"));
 }
 
 // One line of title text: a title renders no Markdown links or HTML, so it
 // keeps its brackets, parens and `<` as written (a Conventional Commits scope
 // stays `type(scope):`), and still breaks mentions, issue links and URLs.
 export function titleLine(text) {
-  return String(text)
-    .replaceAll(/\s+/g, " ")
-    .trim()
-    .replaceAll("@", "@\u200b")
-    .replaceAll(/(#|GH-)(?=\d)/gi, "$1\u200b")
-    .replaceAll("://", ":/\u200b/")
-    .replaceAll(/www\./gi, "www\u200b.");
+  return breakLinks(String(text).replaceAll(/\s+/g, " ").trim());
 }
 
 // The reply a refinement that asks questions shows the owner to copy: only a
@@ -819,6 +825,27 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
+  // An exact refinement that leaves the labels as they are.
+  const exactStays = async (why) => {
+    await post();
+    log(`refine: #${number} is exact; ${why}`);
+    return { outcome: "exact", redispatch: false };
+  };
+  // An exact refinement admission can read: needs-triage, then `lift`, then
+  // the comment, which asks for triage again.
+  const exactRetriage = async (why, lift = async () => {}) => {
+    if (await untrusted()) {
+      return { outcome: "exact", redispatch: false };
+    }
+    const held = await retriage();
+    if (held) {
+      return held;
+    }
+    await lift();
+    await post(true);
+    log(`refine: #${number} is exact; ${why}`);
+    return { outcome: "exact", redispatch: true };
+  };
   if (!output.exact) {
     // A person's needs-info or needs-spec on the field stays: an App
     // needs-decision there would let a later exact refinement lift it as the
@@ -840,57 +867,25 @@ export async function applyRefinement({ github, repository, number, appId, human
   // parked issue resumes here: an App refinement never lifts a person's own
   // confirmation, which intake-reenter lifts on that person's decision.
   if (admissionParked(labels, comments, appId)) {
-    if (await untrusted()) {
-      return { outcome: "exact", redispatch: false };
-    }
-    const held = await retriage();
-    if (held) {
-      return held;
-    }
-    await post(true);
-    log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
-    return { outcome: "exact", redispatch: true };
+    return exactRetriage(`${CONFIRMED} lifted and triage asked again`);
   }
   // A `status: ready` issue admission has not taken (no needs-decision, no
   // agent-ready) is triaged again when the text admission counts, with this
   // refinement posted, holds criteria.
   if (!labels.includes(NEEDS_DECISION)) {
     if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
-      await post();
-      log(`refine: #${number} is exact; no needs-decision to lift and nothing awaits admission`);
-      return { outcome: "exact", redispatch: false };
+      return exactStays("no needs-decision to lift and nothing awaits admission");
     }
-    if (await untrusted()) {
-      return { outcome: "exact", redispatch: false };
-    }
-    const held = await retriage();
-    if (held) {
-      return held;
-    }
-    await post(true);
-    log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
-    return { outcome: "exact", redispatch: true };
+    return exactRetriage("triage asked again so admission reads the criteria");
   }
   // Only the lanes App's own needs-decision gives way, and not for a flag past
   // intent: a person's stays.
   const stays = await decisionStays(github, base, comments, appId, events);
   if (stays !== null) {
-    await post();
-    log(`refine: #${number} is exact; ${stays}, so it stays`);
-    return { outcome: "exact", redispatch: false };
-  }
-  if (await untrusted()) {
-    return { outcome: "exact", redispatch: false };
+    return exactStays(`${stays}, so it stays`);
   }
   // needs-triage first: a failure between the two leaves a status a sweep picks up.
-  const held = await retriage();
-  if (held) {
-    return held;
-  }
-  await removeLabel(github, base, NEEDS_DECISION);
-  await post(true);
-  log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
-  return { outcome: "exact", redispatch: true };
+  return exactRetriage(`${NEEDS_DECISION} lifted and triage asked again`, () => removeLabel(github, base, NEEDS_DECISION));
 }
 
 // The lanes App's comment on a split issue: SIZE_SPLIT_MARKER, the split
