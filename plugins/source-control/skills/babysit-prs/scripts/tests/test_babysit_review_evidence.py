@@ -875,6 +875,8 @@ class ReadOnlyWorkflowTests(Base):
             ".github/workflows/lint-docs.yaml",
             ".github/workflows/sub/lint-docs.yml",
             ".github/workflows/Lint-Docs.yml",
+            # A stem that is itself the Title Case name is not a readonly candidate.
+            ".github/workflows/Lint Docs.yml",
             ".github/workflows",
         ):
             with self.subTest(path):
