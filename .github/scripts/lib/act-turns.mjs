@@ -15,6 +15,7 @@ export const MAIN_LOOP_ONLY = "the execution file holds main-loop messages only"
 
 const textOf = (content) =>
   typeof content === "string" ? content : (content ?? []).map((block) => block?.text ?? "").join("\n");
+const serialize = (value) => `${JSON.stringify(value, null, 2)}\n`;
 
 // Assistant messages in the main loop (null parent_tool_use_id) and in
 // subagents (set), as messages and as distinct model turns by message id, so a
@@ -45,6 +46,17 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
     .map((m) => textOf(m.message?.content))
     .filter((text) => text.includes("<local-command-stderr>"));
   const models = Object.keys(result.modelUsage ?? {});
+  const denials = result.permission_denials ?? [];
+  // The first 20 calls the permission mode denied, each with its tool name
+  // cut to 100 characters and its command, file_path, path or pattern cut to
+  // 300; denied_total counts them all. Entries drop from the end until denied
+  // serializes to at most 8192 bytes (a JSON-escaped control character is 6 bytes).
+  const denied = denials.slice(0, 20).map((d) => {
+    const i = d?.tool_input ?? {};
+    const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
+    return { tool_name: String(d?.tool_name ?? "").slice(0, 100), input: input == null ? null : redact(String(input)).slice(0, 300) };
+  });
+  while (Buffer.byteLength(JSON.stringify(denied), "utf8") > 8192) denied.pop();
   const diag = {
     subtype: result.subtype == null ? null : String(result.subtype).slice(0, 100),
     is_error: result.is_error ?? null,
@@ -56,26 +68,14 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
     // each cut to 2000 characters; local_command_stderr_total counts them all.
     local_command_stderr: stderr.slice(0, 4).map((text) => redact(text).slice(0, 2000)),
     local_command_stderr_total: stderr.length,
-    // The first 20 calls the permission mode denied, each with its tool name
-    // cut to 100 characters and its command, file_path, path or pattern cut to
-    // 300; denied_total counts them all. Entries drop from the end until denied
-    // serializes to at most 8192 bytes (a JSON-escaped control character is 6 bytes).
-    denied: (() => {
-      const kept = (result.permission_denials ?? []).slice(0, 20).map((d) => {
-        const i = d?.tool_input ?? {};
-        const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
-        return { tool_name: String(d?.tool_name ?? "").slice(0, 100), input: input == null ? null : redact(String(input)).slice(0, 300) };
-      });
-      while (Buffer.byteLength(JSON.stringify(kept), "utf8") > 8192) kept.pop();
-      return kept;
-    })(),
-    denied_total: (result.permission_denials ?? []).length,
+    denied,
+    denied_total: denials.length,
   };
-  let text = `${JSON.stringify(diag, null, 2)}\n`;
+  let text = serialize(diag);
   while (Buffer.byteLength(text, "utf8") > CAP && (diag.local_command_stderr.length > 0 || diag.denied.length > 0)) {
     if (diag.local_command_stderr.length > 0) diag.local_command_stderr.shift();
     else diag.denied.pop();
-    text = `${JSON.stringify(diag, null, 2)}\n`;
+    text = serialize(diag);
   }
   return { diag, models, text };
 }
@@ -83,8 +83,9 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
 // The step body. `summary` writes the run fields to the step summary: the
 // write runner does; the read runner shows them only after its scan job's leak scan.
 export async function runStep({ core, executionFile, replyDir, redact, summary = false }) {
+  const out = `${replyDir}/act-turns.json`;
   // Head code could have planted one; only this step's copy is uploaded.
-  rmSync(`${replyDir}/act-turns.json`, { force: true });
+  rmSync(out, { force: true });
   let messages;
   try {
     messages = JSON.parse(readFileSync(executionFile, "utf8"));
@@ -95,7 +96,7 @@ export async function runStep({ core, executionFile, replyDir, redact, summary =
   if (!Array.isArray(messages)) messages = [];
   const { diag, models, text } = actTurns(messages, { redact });
   mkdirSync(replyDir, { recursive: true });
-  writeFileSync(`${replyDir}/act-turns.json`, text);
+  writeFileSync(out, text);
   if (summary) {
     const more = diag.denied_total - diag.denied.length;
     const shown = {

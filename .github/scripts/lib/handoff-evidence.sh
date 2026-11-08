@@ -113,10 +113,10 @@ settle='
       elif $b.conclusion != "success" then "false"
       elif $m.conclusion == "skipped" then "false"
       else by_step($b; "Ask the broker whether the lane may run") end;
-  def posted($c): job("\($c) / report") as $r
-    | if $r == null or $r.conclusion == "skipped" then "false"
-      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
-      else by_step($r; "Post the check run") end;
+  def job_step($n; $s): job($n) as $j
+    | if $j == null or $j.conclusion == "skipped" then "false"
+      elif ($j.conclusion // "") == "" then "missing: \($j.name) has no conclusion"
+      else by_step($j; $s) end;
   def handed_off($c): allowed($c) as $a | job("\($c) / run") as $r | job("\($c) / scan") as $s
     | if $a != "true" then $a
       elif $r == null then "false"
@@ -125,21 +125,18 @@ settle='
       elif $s == null or $s.conclusion == "skipped" then "true"
       elif ($s.conclusion // "") == "" then "missing: \($s.name) has no conclusion"
       else "false" end;
-  def stale($c): job("\($c) / run") as $r
-    | if $r == null or $r.conclusion == "skipped" then "false"
-      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
-      else by_step($r; "Stop on stale workflow files") end;
-  def credit_stop($c): job("\($c) / run") as $r
-    | if $r == null or $r.conclusion == "skipped" then "false"
-      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
-      else by_step($r; "Mark a key credit stop") end;
+  def fact($f; $c): if $f == "allowed" then allowed($c)
+    elif $f == "posted" then job_step("\($c) / report"; "Post the check run")
+    elif $f == "stale" then job_step("\($c) / run"; "Stop on stale workflow files")
+    elif $f == "credit-stop" then job_step("\($c) / run"; "Mark a key credit stop")
+    else handed_off($c) end;
   def any_of($vals): if any($vals[]; . == "true") then "true"
     elif any($vals[]; startswith("missing")) then ([$vals[] | select(startswith("missing"))] | join("; "))
     else "false" end;
   ($calls | split(" ") | map(select(. != ""))) as $cs
   | $facts | split(" ")[]
   | . as $f
-  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) elif $f == "credit-stop" then credit_stop(.) else handed_off(.) end]))"'
+  | "\($f)\t\(any_of([$cs[] | fact($f; .)]))"'
 
 # Pages read per listing: a Link header that never ends cannot loop.
 max_pages=20
