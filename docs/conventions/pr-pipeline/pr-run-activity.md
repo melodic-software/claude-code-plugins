@@ -386,21 +386,18 @@ execution file, still fails the job. There a skill whose step succeeded is a fai
 no model turn, when it is a gate skill and the verdict check (below) fails, or when its commits
 could not be moved onto the PR branch. These checks are steps that run after the skill.
 
-The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
-failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
-execution file's structured fields, `lane-turns` and `lane-max-turns`, the turns taken and the
-cap, `lane-models`, the comma list of model IDs the result's `modelUsage` names, and
-`lane-profile`, the models profile `resolve-config` gave the skill. They come from steps after the
-skill. The report job passes them to `report-check-run`, which checks each against a fixed shape
-and writes them into the posted check run: as the first line of `output.summary`,
-`lane=<lane> activity=<activity>` then `class`, `resets`, `turns`, `max-turns`, `models` and
-`profile` in that order, each omitted when absent; and as one JSON block in `output.text`. Every
+Both files also output the lane record of a skill run: `record`, the lane-outcome JSON
+(ci-workflows `docs/lane-outcome.md`) that ci-workflows' `report-lane-outcome` builds from the
+execution file after the skill, naming the credential the leg ran on, or for a read leg that
+failed before the launcher named it (a CLI install), the secret the call was given. The report job
+passes it to `report-check-run`, which validates its known fields, adds `activity`, and writes it
+as the first line of the posted check run's `output.text` after the marker `lane-outcome `. Every
 check it posts, with a record or without, carries `external_id`
 `<lane>:<activity>:<run id>:<run attempt>`, the one field that names the posting run: GitHub
-returns the check's `details_url` as the check run's own page. A failed run whose record says `class=rate-limit`
-is the limit stop the pr-unblock dispatchers read from the check-run list they already fetch; a
-failed run with no record line is not one. In issue mode the
-same `class` and `resets` go into `lane.json` beside the kept branch, for report-outcome's
+returns the check's `details_url` as the check run's own page. A failed run whose record's `class`
+is `rate-limit` is the limit stop the pr-unblock dispatchers read from the check-run list they
+already fetch; a failed run with no record is not one. In issue mode the
+same class and reset go into `lane.json` beside the kept branch, for report-outcome's
 `limited` exit. Any code the activity runs, not only the model, can forge this record, for
 example by planting the execution file. A forged limit stop can only restart the lane, at least an
 hour later and a bounded number of times.

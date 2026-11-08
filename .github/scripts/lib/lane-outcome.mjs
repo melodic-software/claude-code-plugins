@@ -2,9 +2,8 @@
 // with every known field a closed enum, a fixed pattern or a count, so no
 // value, hostname, path or email can pass. Unknown keys are dropped, as the
 // contract's Compatibility rules let v1 add fields. A record whose known field
-// breaks its rule, or that names another `v`, is no record and the reader
-// falls back to the legacy summary line. `activity` is the hub's own addition,
-// written by report-check-run from its runner input.
+// breaks its rule, or that names another `v`, is no record. `activity` is the
+// hub's own addition, written by report-check-run from its runner input.
 
 export const MARKER = "lane-outcome ";
 const MAX_LENGTH = 1024;

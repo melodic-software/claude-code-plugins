@@ -9,7 +9,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createGitHub, detailSuffix } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
 import { MARKER, validRecord } from "../../scripts/lib/lane-outcome.mjs";
-import { laneRecordOutput } from "./lane-record.mjs";
 import { externalIdOf } from "./posting-run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -116,23 +115,6 @@ export async function main({
     return 1;
   }
   const body = { ...decision.report };
-  const record = laneRecordOutput({
-    lane: env.LANE,
-    failureClass: env.LANE_CLASS ?? "",
-    resets: env.LANE_RESETS ?? "",
-    turns: env.LANE_TURNS ?? "",
-    maxTurns: env.LANE_MAX_TURNS ?? "",
-    models: env.LANE_MODELS ?? "",
-    profile: env.LANE_PROFILE ?? "",
-    activity: env.ACTIVITY,
-  });
-  if (record) {
-    body.output = {
-      ...body.output,
-      summary: `${record.line}\n\n${body.output.summary}`,
-      text: record.text,
-    };
-  }
   const outcome = laneOutcomeLine(env.LANE_OUTCOME, env.LANE, env.ACTIVITY);
   if (outcome) {
     body.output = { ...body.output, text: body.output.text ? `${outcome}\n\n${body.output.text}` : outcome };

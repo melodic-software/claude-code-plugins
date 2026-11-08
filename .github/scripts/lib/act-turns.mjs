@@ -116,9 +116,6 @@ export async function runStep({ core, executionFile, replyDir, redact, summary =
   if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
     core.setOutput("turns", String(diag.num_turns));
   }
-  // The CLI's modelUsage keys, the models the run used; the report job's
-  // lane-record.mjs drops a list that fails its shape.
-  core.setOutput("models", models.join(","));
   if (!(diag.num_turns > 0) || models.length === 0) {
     core.setFailed(
       "no-model-turn: the skill ended without a model turn, so it did nothing; " +
