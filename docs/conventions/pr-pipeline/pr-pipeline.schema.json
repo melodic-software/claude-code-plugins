@@ -438,6 +438,29 @@
               "description": "Hours back from the monitoring run whose held runs count. The lane carries them from one run to the next in its job reads artifact."
             }
           }
+        },
+        "incidents": {
+          "type": "object",
+          "description": "Per signal (by its slug): how long it must stay on before an incident issue opens and stay clear before it closes.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["open-hours", "close-hours"],
+            "properties": {
+              "open-hours": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 168,
+                "description": "Hours the signal stays on, in unbroken runs, before an incident opens. 0 opens at once."
+              },
+              "close-hours": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 168,
+                "description": "Hours the signal stays clear, in unbroken runs, before its open incident closes."
+              }
+            }
+          }
         }
       }
     },

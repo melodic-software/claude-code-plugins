@@ -1,11 +1,12 @@
 name: Maintenance Monitor Signals
 
-# The monitoring lane: every hour, reads a fixed set of factory signals and
-# keeps one rolling issue per signal family, rewritten when its state changes,
-# closed when it clears and reopened when it fires again; GitHub incidents go
-# to the run summary only. docs/conventions/pr-pipeline/README.md,
-# "The monitoring lane", lists the signals and the dedup rules; the scripts
-# and tests are in .github/scripts/maintenance-monitor-signals/.
+# The monitoring lane: every hour, reads a fixed set of factory signals, writes
+# each signal's state and evidence to the job summary, and keeps at most one
+# open incident issue per signal, past thresholds set in pr-pipeline.yaml
+# monitor.incidents; GitHub incidents go to the run summary only.
+# docs/conventions/pr-pipeline/README.md, "The monitoring lane", lists the
+# signals and the rules; the scripts and tests are in
+# .github/scripts/maintenance-monitor-signals/.
 #
 # It runs no model and holds no lanes App token or secret: the job's own
 # GITHUB_TOKEN reads runs, jobs, annotations, artifacts, pull requests and issue comments,
@@ -102,9 +103,9 @@ jobs:
           export AGENT_IDENTITY
           node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs
 
-      # Completed runs' job reads, which the next run reads instead of asking
-      # GitHub again (collect.mjs JOBS_ARTIFACT). A missing upload costs the
-      # next run a full read.
+      # Completed runs' job reads and the signals' timers, which the next run
+      # reads (collect.mjs JOBS_ARTIFACT). A missing upload costs the next run
+      # a full read and restarts the timers, so an incident opens later.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
