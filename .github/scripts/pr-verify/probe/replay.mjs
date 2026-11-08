@@ -20,7 +20,8 @@
 // - Settings: an empty CLAUDE_CONFIG_DIR and HOME per run. --restricted
 //   ignores user, project and local settings, so the runner's one settings
 //   file, the managed settings apply-claude-managed-settings writes, goes in
-//   with --settings, the one flag lane.cjs does not pass. Of its keys,
+//   with --settings, where lane.cjs passes its sandbox settings instead. The
+//   judge has no Bash, so the sandbox cannot change its judgment. Of its keys,
 //   allowManagedHooksOnly takes effect only in managed settings, so it does
 //   nothing here; the empty config directory is what keeps the caller's hooks
 //   out. Pointer: the allowManagedHooksOnly row of
@@ -84,7 +85,7 @@ export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/action
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
 // pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6";
+export const RUN_CLAUDE_CLI_PIN = "8f2240359aff2febf49ff1ff838d1ffb27d6b14f";
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
@@ -143,7 +144,8 @@ export const JUDGE = Object.freeze({
   },
 });
 
-// lane.cjs cliArgs at the pin, for this lane's inputs, plus --settings.
+// lane.cjs cliArgs at the pin, for this lane's inputs, with the settings file
+// as --settings' value in place of the sandbox settings.
 export function cliArgs({ model, effort, maxTurns, settingsFile }) {
   return [
     "-p",

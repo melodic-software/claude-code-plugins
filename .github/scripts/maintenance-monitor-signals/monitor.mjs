@@ -39,57 +39,51 @@ const CONFIG = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml
 // timer restarts and an incident opens later, never earlier. Off unless
 // JOBS_CARRY_PATH is set.
 export async function readJobsCarry({ env, repo, actions, download, now = new Date() }) {
-  const none = { jobs: new Map(), held: null, episodes: {} };
-  if (!env.JOBS_CARRY_PATH) return none;
+  const carry = { jobs: new Map(), held: null, episodes: {} };
+  if (!env.JOBS_CARRY_PATH) return carry;
   const warn = (what, error) => console.log(`::warning::monitoring lane: ${what}: ${error?.message ?? error}`);
   let text;
   try {
     const id = await newestTrustedRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, name: JOBS_ARTIFACT, workflow: WORKFLOW_PATH });
-    if (id === undefined) return none;
+    if (id === undefined) return carry;
     download ??= ghDownload({ repo, token: env.GITHUB_TOKEN, dir: env.RUNNER_TEMP ?? tmpdir(), name: JOBS_ARTIFACT, file: JOBS_FILE });
     text = download(id);
   } catch (error) {
     warn("nothing carried, so every run's jobs are read", error);
-    return none;
+    return carry;
   }
-  const carry = { jobs: new Map(), held: null, episodes: {} };
-  try {
-    carry.jobs = parseJobsCarry(text, repo);
-  } catch (error) {
-    warn("no job reads carried, so every run's jobs are read", error);
-  }
-  try {
-    carry.held = parseHeldCarry(text, repo);
-  } catch (error) {
-    warn("no held runs carried", error);
-  }
-  try {
-    carry.episodes = parseEpisodeCarry(text, repo, now);
-  } catch (error) {
-    warn("no signal timers carried, so each restarts", error);
+  const parts = [
+    ["jobs", () => parseJobsCarry(text, repo), "no job reads carried, so every run's jobs are read"],
+    ["held", () => parseHeldCarry(text, repo), "no held runs carried"],
+    ["episodes", () => parseEpisodeCarry(text, repo, now), "no signal timers carried, so each restarts"],
+  ];
+  for (const [field, parse, what] of parts) {
+    try {
+      carry[field] = parse();
+    } catch (error) {
+      warn(what, error);
+    }
   }
   return carry;
 }
 
-// pr-pipeline.yaml's monitor.lane-holds rule (signals.mjs holdRule), read with
-// yq as the workflow reads merge.agent-identity, or the error that stopped it.
-export function readHoldRule({ path = CONFIG, run = execFileSync } = {}) {
+// One monitor leaf of pr-pipeline.yaml, read with yq as the workflow reads
+// merge.agent-identity and passed to `parse`, or the error that stopped it.
+function readMonitorLeaf({ path, run, query, parse, what }) {
   try {
-    return holdRule(JSON.parse(run("yq", ["-o=json", '.monitor."lane-holds" // {}', path], { encoding: "utf8" })));
+    return parse(JSON.parse(run("yq", ["-o=json", query, path], { encoding: "utf8" })));
   } catch (error) {
-    return new Error(`the monitor.lane-holds rule was not read: ${error?.message ?? error}`);
+    return new Error(`${what} not read: ${error?.message ?? error}`);
   }
 }
 
-// pr-pipeline.yaml's monitor.incidents thresholds (issues.mjs incidentRules),
-// or the error that stopped the read.
-export function readIncidentRules({ path = CONFIG, run = execFileSync } = {}) {
-  try {
-    return incidentRules(JSON.parse(run("yq", ["-o=json", ".monitor.incidents // {}", path], { encoding: "utf8" })));
-  } catch (error) {
-    return new Error(`the monitor.incidents thresholds were not read: ${error?.message ?? error}`);
-  }
-}
+// pr-pipeline.yaml's monitor.lane-holds rule (signals.mjs holdRule).
+export const readHoldRule = ({ path = CONFIG, run = execFileSync } = {}) =>
+  readMonitorLeaf({ path, run, query: '.monitor."lane-holds" // {}', parse: holdRule, what: "the monitor.lane-holds rule was" });
+
+// pr-pipeline.yaml's monitor.incidents thresholds (issues.mjs incidentRules).
+export const readIncidentRules = ({ path = CONFIG, run = execFileSync } = {}) =>
+  readMonitorLeaf({ path, run, query: ".monitor.incidents // {}", parse: incidentRules, what: "the monitor.incidents thresholds were" });
 
 const WORK_STATUS_FIELD = 48484079;
 const PRIORITY_FIELD = 49622037;
@@ -110,8 +104,10 @@ export const incidentFields = (signal) => [
 // call before it leaves the old state recorded and the write is retried on the
 // next run. A failed filing is planned again next run; a failed field write
 // only warns, and triage sets what is missing.
+const nothingDone = () => ({ filed: [], updated: [], closed: [], retired: [], failed: [] });
+
 export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
-  const done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
+  const done = nothingDone();
   for (const { family } of plan.file) {
     try {
       await wait();
@@ -229,7 +225,7 @@ async function main(env = process.env) {
   }
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
-  let done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
+  let done = nothingDone();
   if (!env.DRY_RUN) {
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
