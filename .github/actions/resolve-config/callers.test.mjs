@@ -10228,3 +10228,9 @@ test("a credential passed outside the launcher step is caught", () => {
   assert.deepEqual(stray(doc(job([through], { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.R_CLAUDE_CODE_OAUTH_TOKEN }}" }))), ["job env"]);
   assert.deepEqual(stray({ env: { K: "${{ secrets.R_CLAUDE_API_KEY }}" }, jobs: { j: job([through]) } }), ["workflow env"]);
 });
+
+test("report-outcome keeps the base checkout its run-time .base imports need", () => {
+  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  assert.equal(config.activities["report-outcome"].checkout, "base");
+  assert.match(read("../../scripts/work-resolve-issue/report-outcome.mjs"), /env\.BASE_PATH \|\| "\.base", "\.github", "actions"/);
+});
