@@ -498,11 +498,17 @@ async function checksHeld(read, repo, head) {
 
 // The review lanes reviewLanesClean reads, as pr-require-checks.yml's
 // `Require both review lanes on this head` step names them: the workflow, the
-// lane its completion record names, its status job, and whether only a whole
+// lane its completion record names, its status job's names (pr-review-cli.yml's,
+// then the one it gave before ci-workflows#866), and whether only a whole
 // review counts.
 const LANE_RECORDS = Object.freeze([
-  { file: "pr-review-hosted.yml", lane: "claude-review", job: "pr-review / claude-review-status", whole: false },
-  { file: "pr-review-security-hosted.yml", lane: "claude-security-review", job: "pr-review-security / security-review", whole: true },
+  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: ["pr-review / review-status", "pr-review / claude-review-status"], whole: false },
+  {
+    file: "pr-review-security-hosted.yml",
+    lane: "claude-security-review",
+    jobs: ["pr-review-security / review-status", "pr-review-security / security-review"],
+    whole: true,
+  },
 ]);
 const RECORD_TITLE = "claude-lane-review-complete";
 // A review's completion record (babysit_review_evidence.py RECORD_RE); a skip
@@ -533,7 +539,7 @@ const newestById = (items) => items.reduce((newest, item) => (newest === undefin
 async function reviewLanesClean(context) {
   const { read, repo, pull, timeline } = context;
   const head = pull.head.sha;
-  for (const { file, lane, job, whole } of LANE_RECORDS) {
+  for (const { file, lane, jobs: names, whole } of LANE_RECORDS) {
     const scope = await read(async (reader) => {
       const runs = (await reader("GET", `/repos/${repo}/actions/workflows/${file}/runs?head_sha=${head}&event=pull_request&per_page=100`))?.workflow_runs;
       if (!Array.isArray(runs) || runs.length >= 100) {
@@ -549,7 +555,7 @@ async function reviewLanesClean(context) {
       if (!Array.isArray(jobs) || jobs.length >= 100) {
         return null;
       }
-      const status = newestById(jobs.filter((item) => item?.name === job));
+      const status = newestById(jobs.filter((item) => names.includes(item?.name)));
       if (status?.status !== "completed" || status.conclusion !== "success") {
         return null;
       }
@@ -868,7 +874,7 @@ async function laneThreads({ github, repo, number }) {
 // One review caller's verdict at `head`, read with the job token: { findings,
 // inline, whole } from its review-complete notice, or { held } saying why it
 // has not passed there.
-async function laneReview({ checks, repo, head }, [file, check]) {
+async function laneReview({ checks, repo, head }, [file, names]) {
   const lane = LANE_OF[file];
   try {
     const runs = (await checks("GET", `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&head_sha=${head}&per_page=100`))?.workflow_runs;
@@ -880,7 +886,7 @@ async function laneReview({ checks, repo, head }, [file, check]) {
       return { held: `${lane} has not run on ${head}` };
     }
     const jobs = (await checks("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
-    const job = (Array.isArray(jobs) ? jobs : []).filter((item) => item?.name === check).sort((a, b) => b.id - a.id)[0];
+    const job = (Array.isArray(jobs) ? jobs : []).filter((item) => names.includes(item?.name)).sort((a, b) => b.id - a.id)[0];
     if (job?.status !== "completed" || job.conclusion !== "success") {
       return { held: `${lane} has not passed on ${head}` };
     }

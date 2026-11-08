@@ -31,7 +31,7 @@ BIND_FIELDS = gh.LANE_ATTEMPT_FIELDS
 
 class LaneAttemptReuseTests(unittest.TestCase):
     REPO = "melodic-software/claude-code-plugins"
-    LANES = [(".github/workflows/pr-review-hosted.yml", "claude-review-status")]
+    LANES = [(".github/workflows/pr-review-hosted.yml", ("pr-review / claude-review-status",))]
 
     def setUp(self) -> None:
         recorded = json.loads(FIXTURE.read_text(encoding="utf-8"))

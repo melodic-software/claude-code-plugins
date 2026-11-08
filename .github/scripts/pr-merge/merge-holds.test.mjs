@@ -30,7 +30,7 @@ const HUMANS = new Set([5]);
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 const OLD = "fedcba9876543210fedcba9876543210fedcba98";
-const CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
+const CHECKS = { "pr-review-hosted.yml": "pr-review / review-status", "pr-review-security-hosted.yml": "pr-review-security / review-status" };
 // A review lane's pull_request run on `sha`, started at `created`, whose
 // status job (or `job`) finished at `at` and recorded a hold notice naming
 // `notice`, with its head in `repo`.
@@ -696,11 +696,17 @@ test("the decided head is the newest cost notice a lane's status job recorded be
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z"))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml" }))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" }))).link, LINK);
+  // pr-review-cli.yml named the status job this before ci-workflows#866.
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / claude-review-status" }))).link, LINK);
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / security-review" }))).link, LINK);
   for (const [name, extra] of Object.entries({
     "a job done after the decision": laneRun(HEAD, "2026-10-22T12:30:00Z"),
     "a run started after the decision": laneRun(HEAD, "2026-10-22T11:30:00Z", { created: "2026-10-22T12:10:00Z" }),
     "a job other than the status job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-key" }),
     "the other lane's status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: CHECKS["pr-review-security-hosted.yml"] }),
+    "the other lane's earlier status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review-security / security-review" }),
+    "the status job's name under another caller job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "other / review-status" }),
+    "the status job's bare name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "review-status" }),
     "a notice naming another head than its run's": laneRun(OLD, "2026-10-22T11:30:00Z", { notice: HEAD }),
     "a notice without cost": laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "trust-gate" }),
     "a run whose head is in another repository": laneRun(HEAD, "2026-10-22T11:30:00Z", { repo: "fork/repo" }),

@@ -738,12 +738,13 @@ export function namesPull(text, number) {
 }
 
 // The review lanes whose status job records a `claude-lane-hold` notice, as
-// [workflow file, status job name] (ci-status's cost-hold step reads the same
-// two). The notice's head and criteria, and the base branch name a compare
-// takes, as the hold step reads it.
+// [workflow file, status job names] (ci-status's cost-hold step reads the same
+// two): pr-review-cli.yml's name, then the one it gave before
+// ci-workflows#866. The notice's head and criteria, and the base branch name a
+// compare takes, as the hold step reads it.
 export const REVIEW_LANES = [
-  ["pr-review-hosted.yml", "pr-review / claude-review-status"],
-  ["pr-review-security-hosted.yml", "pr-review-security / security-review"],
+  ["pr-review-hosted.yml", ["pr-review / review-status", "pr-review / claude-review-status"]],
+  ["pr-review-security-hosted.yml", ["pr-review-security / review-status", "pr-review-security / security-review"]],
 ];
 const HOLD_NOTICE = /^claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label=/;
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;
@@ -853,7 +854,7 @@ async function noticedHead(read, repo, branch, base, at) {
   const notices = [];
   const vetted = new Set();
   const ran = [];
-  for (const [file, check] of REVIEW_LANES) {
+  for (const [file, checks] of REVIEW_LANES) {
     const runs = await listed(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
     const heads = [];
     ran.push(heads);
@@ -873,7 +874,7 @@ async function noticedHead(read, repo, branch, base, at) {
         vetted.add(head);
       }
       for (const job of await listed(read, `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs")) {
-        if (job?.name === check && Date.parse(job.completed_at) < cutoff) {
+        if (checks.includes(job?.name) && Date.parse(job.completed_at) < cutoff) {
           notices.push(...costNotices(await pages(read, `/repos/${repo}/check-runs/${job.id}/annotations`), head, job.completed_at));
         }
       }

@@ -59,16 +59,18 @@ const thread = (severity, lane = "claude-security-review", { isResolved = false,
 const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });
 const notice = (lane) => ({ annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=0 inline=0 scope=whole` });
 const LANES = {
-  "pr-review-hosted.yml": { check: "pr-review / claude-review-status", lane: "claude-review" },
-  "pr-review-security-hosted.yml": { check: "pr-review-security / security-review", lane: "claude-security-review" },
+  "pr-review-hosted.yml": { check: "pr-review / review-status", lane: "claude-review" },
+  "pr-review-security-hosted.yml": { check: "pr-review-security / review-status", lane: "claude-security-review" },
 };
+// pr-review-cli.yml's status job names before ci-workflows#866.
+const EARLIER_CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
 const pushes = [
   { activity_type: "push", actor: PERSON, after: HEAD, timestamp: "2026-10-18T11:00:00Z" },
   { activity_type: "push", actor: PERSON, after: OLD, timestamp: "2026-10-18T09:50:00Z" },
 ];
 
 // One token answers every read, as ci-status's job token does.
-function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [] } = {}) {
+function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notRun = null, head = HEAD, activity = pushes, extra = [], threadComments = [], checks = {} } = {}) {
   const calls = [];
   const github = async (method, path) => {
     calls.push(`${method} ${path}`);
@@ -109,7 +111,7 @@ function world({ threads = [thread("severity: SUGGESTION"), heldFinding()], notR
         return { workflow_runs: file === notRun ? [] : [{ id, head_sha: HEAD, head_repository: { full_name: REPO } }] };
       }
       if (route === `/repos/${REPO}/actions/runs/${id}/jobs?filter=latest`) {
-        return { jobs: [{ id: id * 10, name: check, status: "completed", conclusion: "success" }] };
+        return { jobs: [{ id: id * 10, name: checks[file] ?? check, status: "completed", conclusion: "success" }] };
       }
       if (route === `/repos/${REPO}/check-runs/${id * 10}/annotations`) {
         return [notice(lane)];
@@ -137,6 +139,18 @@ test("ci-status's recheck accepts the App's removal while the hold still no long
   assert.equal(code, 0, log);
   assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}: kyle-sexton moved the head`));
   assert.ok(w.calls.every((call) => call.startsWith("GET ") || call === "POST /graphql"), "the recheck writes nothing");
+});
+
+test("ci-status's recheck reads each lane's status job under its earlier name too", async () => {
+  const { code, log } = await run(world({ checks: EARLIER_CHECKS }));
+  assert.equal(code, 0, log);
+  assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}`));
+});
+
+test("ci-status's recheck fails when a lane's status job runs under another caller job", async () => {
+  const { code, log } = await run(world({ checks: { "pr-review-security-hosted.yml": "other / review-status" } }));
+  assert.equal(code, 1);
+  assert.match(log, new RegExp(`claude-security-review has not passed on ${HEAD}`));
 });
 
 test("ci-status's recheck fails a valid marker once a CRITICAL thread opened after the clear", async () => {

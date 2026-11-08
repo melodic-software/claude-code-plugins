@@ -36,7 +36,7 @@ CARRY = (
     / ".github/scripts/pr-merge/carry-run-cache.mjs"
 )
 REPO = "melodic-software/claude-code-plugins"
-LANES = [(".github/workflows/pr-review-hosted.yml", "claude-review-status")]
+LANES = [(".github/workflows/pr-review-hosted.yml", ("pr-review / claude-review-status",))]
 TREE = "7ee1" * 10
 
 

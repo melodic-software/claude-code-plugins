@@ -5013,14 +5013,8 @@ class LaneEvidenceReadToken(unittest.TestCase):
         if endpoint == f"{runs}/attempts/1":
             return {"id": self.RUN, "run_attempt": 1}
         if endpoint == f"{runs}/attempts/1/jobs?per_page=100":
-            suffixes = [s for _, s in merge.review_evidence.LANES.values()]
-            return [
-                {
-                    "jobs": [
-                        {"id": self.JOB, "name": f"pr-review / {n}"} for n in suffixes
-                    ]
-                }
-            ]
+            names = [jobs[0] for _, jobs in merge.review_evidence.LANES.values()]
+            return [{"jobs": [{"id": self.JOB, "name": n} for n in names]}]
         if endpoint.endswith(("/timeline?per_page=100", "/comments?per_page=100")):
             return [[]]
         if endpoint.endswith("/annotations?per_page=100"):
@@ -5134,7 +5128,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     for i, lane in enumerate(merge.review_evidence.LANES)
                 ]
             ]
-        for lane, (path, suffix) in merge.review_evidence.LANES.items():
+        for lane, (path, names) in merge.review_evidence.LANES.items():
             run, job = self.ids[lane]
             done = {"status": "completed", "conclusion": "success", "head_sha": HEAD}
             if f"/actions/workflows/{path.rsplit('/', 1)[-1]}/" in endpoint:
@@ -5161,7 +5155,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                                 "id": job,
                                 "run_id": run,
                                 "run_attempt": 1,
-                                "name": f"pr-review / {suffix}",
+                                "name": names[0],
                                 "started_at": "2026-10-22T01:00:00Z",
                                 "completed_at": "2026-10-22T01:30:00Z",
                                 **done,
