@@ -9360,7 +9360,7 @@ test("the tip step outputs the exact ref's SHA from this repository and fails on
   assert.match(missing.stdout, /^::error::the tip of main did not resolve$/m);
 });
 
-// Element 1 of docs/outage-posture-audit.md: at most 3 tries, with full-jitter
+// Element 1 of docs/conventions/pr-pipeline/README.md#outage-posture: at most 3 tries, with full-jitter
 // waits of 0-2 s and then 0-4 s, and red when no try yields a SHA. Each case
 // runs under both shells a step gets: bash -e, and bash -eo pipefail under
 // shell: bash.

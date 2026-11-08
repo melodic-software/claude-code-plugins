@@ -2545,7 +2545,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     typed && parent !== null && carried(names(parent.labels), DECISION_LABELS) ? await parentDecisionOpen({ github, repository, parent, humans, appId, events: parentEvents }) : undefined;
   // Only a visibility that reads public skips the cost_private charge words.
   // A failed read throws, like the reads above, so no verdict rests on a
-  // visibility it did not read (docs/outage-posture-audit.md, element 4).
+  // visibility it did not read (docs/conventions/pr-pipeline/README.md#outage-posture, element 4).
   const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
   const subIssues = await openSubIssues(github, base, issue);
   return {

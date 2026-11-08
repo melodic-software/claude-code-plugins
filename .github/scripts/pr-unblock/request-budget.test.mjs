@@ -131,7 +131,7 @@ test("a 429 with retry-after waits retry-after seconds", async () => {
   assert.equal(gh.sent[1].url, gh.sent[0].url);
 });
 
-// Element 1 of the outage posture (docs/outage-posture-audit.md): a
+// Element 1 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): a
 // non-idempotent write is never sent again, a rate limit included.
 test("a rate-limited write is returned at once, marked rateLimited, and never sent again", async () => {
   const writes = [

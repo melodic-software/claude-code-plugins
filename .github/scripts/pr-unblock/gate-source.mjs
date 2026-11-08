@@ -444,7 +444,7 @@ export async function prHold({ labels, holdLabels, gateLabel, head, activity, ap
 // listReviews (REST pulls/<n>/comments and pulls/<n>/reviews, which a
 // pull-requests: read token may list; reviews take no since filter). The two
 // reads go out one after the other, never in parallel, per the outage
-// posture's element 6 (docs/outage-posture-audit.md).
+// posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
 export const reviewReader = (api, number) => async (since) => {
   const comments = await api.listReviewComments(number, since);
   const reviews = await api.listReviews(number);

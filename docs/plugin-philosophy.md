@@ -956,8 +956,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Tracker reference form inside a code comment | [`docs/contracts/tracker-reference-form/`](contracts/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/contracts/untrusted-content/`](contracts/untrusted-content/README.md) |
 | Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/contracts/record-bundle/`](contracts/record-bundle/README.md) |
-| Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
-| Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
+| Reply affordance on decision-collecting artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#reply-affordance-rule) |
+| Export button on interactive HTML artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/contracts/retired-conventions/`](contracts/retired-conventions/README.md) |
 | Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/contracts/recommendation-basis/`](contracts/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/contracts/authoring-formats/`](contracts/authoring-formats/README.md) |
@@ -1153,7 +1153,7 @@ collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
 plugin external to this marketplace is never a manifest dependency. Invocation mechanics such as
 synchronous waiting, diff-base selection, and which artifacts a surface can judge are the advisor
-plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+plugin's own documentation's concern. A checkpoint site names the capability and the fallback,
 never the advisor's command flags, which drift against the surface their owner evolves.
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer

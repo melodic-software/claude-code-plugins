@@ -4,8 +4,9 @@ Graduated reference for the "Finding Your Unknowns" methodology: an artifact-fir
 working where, before and during an implementation, the agent produces small purpose-built
 artifacts (explainers, brainstorms, interviews, mockups, plans) whose job is to surface
 what you don't yet know while it is still cheap to find out. This doc owns the house
-conventions the methodology graduated into this marketplace: the reply-affordance
-convention, the export-button rule, and the opt-in deviation-log convention. It also owns the
+posture for the opt-in deviation-log convention. The reply-affordance and export-button
+rules the methodology produced live in the
+[rendered-views contract](contracts/rendered-views/README.md#loop-closure-and-the-export-obligation). It also owns the
 pattern catalog and the boundaries (when HTML, when not; what deliberately stays
 un-codified). Sibling docs: `plugin-philosophy.md` (governance),
 `glossary.md` (vocabulary), `migration-playbook.md` (delivery).
@@ -21,8 +22,6 @@ section each decision rests on, which a reader opens to read the author's own wo
 - [The unknowns taxonomy](#the-unknowns-taxonomy)
 - [The pre-implementation workflow](#the-pre-implementation-workflow)
 - [Prompt-pattern catalog](#prompt-pattern-catalog)
-- [Reply-affordance convention](#reply-affordance-convention)
-- [Export-button rule](#export-button-rule)
 - [Deviation-log convention (opt-in)](#deviation-log-convention-opt-in)
 - [When HTML, and when not](#when-html-and-when-not)
 - [The buy-in pattern](#the-buy-in-pattern)
@@ -133,36 +132,6 @@ prompt-line to adapt. Patterns with an owning skill are listed in the
 Reconciliation note: the corpus's tweakable-plan ordering is already `planning:plan`'s
 documented presentation default (high-tweak decisions first, mechanical work collapsed); it
 needed no new mode here.
-
-## Reply-affordance convention
-
-**The rule.** A generated review artifact ends with a structured reply affordance: a
-machine-legible way for the human's reaction to become the next prompt: steal/skip
-choices, a chip-filled reply template, a decisions table, a confirmation token. Default
-with judgment: apply it to artifacts that exist to collect a decision; skip it for purely
-informational output. In session contexts that render artifacts (the `artifact-design`
-built-in skill's territory), the affordance rides the artifact; in plain chat it is a
-reply template in the closing message.
-
-**Who is bound.** Skills that generate decision-collecting artifacts cite this section
-instead of restating it.
-
-**Conformance** = the template blocks in `prototype:explore-directions` (structured
-steal/graft capture and the assembled-reply template) and `prototype:pressure-test` (the
-validation answer set). Fleet audits check those surfaces against this section.
-
-## Export-button rule
-
-**The rule.** Every interactive HTML artifact our skills emit ends with a control that
-copies the state the user built out as text they can paste into the session or commit. For the author's version of this rule, see S2, section "Custom editing
-interfaces". The doctrine recurs three times independently in the corpus; it is what keeps a
-throwaway editor inside the agent loop instead of becoming a dead end.
-
-**Who is bound.** Skills that emit interactive HTML artifacts cite this section.
-
-**Conformance** = the same template blocks named in the
-[reply-affordance convention](#reply-affordance-convention); the export button is the
-HTML-artifact form of the reply affordance.
 
 ## Deviation-log convention (opt-in)
 
