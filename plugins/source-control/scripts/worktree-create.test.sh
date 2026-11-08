@@ -1387,4 +1387,121 @@ bash "$HELPER" --name feat/keep-inputs --fallback-root-file "$inputs/worktree-ro
   --data-root-file "$inputs/data-root" --repo-dir "$repo" >/dev/null 2>&1
 assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
+# --- Branch naming: worktree_branch_naming and its two companion keys -----------
+# conventionrepo <yaml> — a fixture repo whose tracked
+# docs/conventions/source-control.yaml holds <yaml>. Echoes the repo path.
+conventionrepo() {
+  local repo
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  mkdir -p "$repo/docs/conventions"
+  printf '%s\n' "$1" >"$repo/docs/conventions/source-control.yaml"
+  {
+    git -C "$repo" add docs/conventions/source-control.yaml
+    git -C "$repo" commit -qm "add the source-control convention"
+  } >/dev/null 2>&1
+  printf '%s' "$repo"
+}
+
+# branch_for <repo> <name> — create a worktree for <name> and echo its branch;
+# empty when creation failed. Each call takes a root of its own: it runs in a
+# command-substitution subshell, so a counter would not persist.
+branch_for() {
+  local out
+  out=$(bash "$HELPER" --name "$2" --root "$(mktemp -d "$TEST_TMPDIR/wtbranchXXXXXX")/wt" --repo-dir "$1" 2>/dev/null) || return 0
+  git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+CONVENTIONAL='worktree_branch_naming: conventional-commits'
+AGENT_PREFIXES="$CONVENTIONAL
+worktree_branch_extra_prefixes:
+  - claude
+  - codex
+  - cursor
+  - copilot
+  - dependabot"
+
+# Unset keeps today's behavior: the branch is the name.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+assert_eq "no convention file: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo 'pr_open_state: ready')
+assert_eq "a convention file without the key: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo 'worktree_branch_naming: verbatim')
+assert_eq "verbatim: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+code=0
+bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtbranch-verbatim-bad" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "verbatim: a git-invalid name is still refused (exit 2)" 2 "$code"
+
+# conventional-commits: the derivation, case by case.
+repo=$(conventionrepo "$CONVENTIONAL")
+assert_eq "a name without a slash takes the default type" "chore/agent-abc123" "$(branch_for "$repo" agent-abc123)"
+assert_eq "a dash-delimited agent word is not a type" "chore/claude-code-updates" "$(branch_for "$repo" claude-code-updates)"
+assert_eq "a known type passes through" "feat/login-form" "$(branch_for "$repo" feat/login-form)"
+assert_eq "an unknown type falls back to the default type over the whole name" "chore/wip-spike" "$(branch_for "$repo" wip/spike)"
+assert_eq "an agent prefix outside the extra list is not a type" "chore/codex-fix-thing" "$(branch_for "$repo" codex/fix-thing)"
+assert_eq "a type matches in any case; the description keeps its case" "feat/Upper-Case" "$(branch_for "$repo" FEAT/Upper-Case)"
+assert_eq "hotfix is a fix alias" "fix/urgent" "$(branch_for "$repo" hotfix/urgent)"
+assert_eq "documentation is a docs alias" "docs/guide" "$(branch_for "$repo" documentation/guide)"
+assert_eq "repeated dots in the description collapse" "feat/a.b" "$(branch_for "$repo" feat/a..b)"
+assert_eq "a trailing .lock is stripped" "feat/x" "$(branch_for "$repo" feat/x.lock)"
+out=$(bash "$HELPER" --name "feat/-" --root "$TEST_TMPDIR/wtbranch-nodesc" --repo-dir "$repo" 2>"$TEST_TMPDIR/nodesc.err")
+assert_eq "a known type with no description falls back to the default type" "chore/feat" \
+  "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "a dropped known type is named on stderr" "$(cat "$TEST_TMPDIR/nodesc.err")" "no description"
+bash "$HELPER" --name "wip/quiet" --root "$TEST_TMPDIR/wtbranch-quiet" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/quiet.err"
+assert_not_contains "an unknown type falls back without that note" "$(cat "$TEST_TMPDIR/quiet.err")" "no description"
+assert_contains "the derived branch is named on stderr" "$(cat "$TEST_TMPDIR/quiet.err")" "chore/wip-quiet"
+
+# The directory slug still comes from the raw name, so two names that derive
+# one branch keep two directories; stdout stays the sole path line.
+repo=$(conventionrepo "$CONVENTIONAL")
+root="$TEST_TMPDIR/wtbranch-slug"
+out=$(bash "$HELPER" --name feature/login-form --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_eq "the directory slug comes from the raw name" "$root/acme-widget-feature-login-form" "$out"
+assert_eq "feature is a feat alias" "feat/login-form" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
+# worktree_branch_extra_prefixes passes the listed first segments through.
+repo=$(conventionrepo "$AGENT_PREFIXES")
+assert_eq "an extra prefix passes through" "codex/fix-thing" "$(branch_for "$repo" codex/fix-thing)"
+assert_eq "an extra prefix matches in any case and is written as listed" "claude/task" "$(branch_for "$repo" Claude/task)"
+assert_eq "later slashes in the description become dashes" "dependabot/nuget-Foo.Bar" \
+  "$(branch_for "$repo" dependabot/nuget/Foo.Bar)"
+assert_eq "an extra prefix list leaves the no-slash default alone" "chore/claude-code-updates" \
+  "$(branch_for "$repo" claude-code-updates)"
+
+# worktree_branch_default_type replaces chore.
+repo=$(conventionrepo "$CONVENTIONAL
+worktree_branch_default_type: build")
+assert_eq "worktree_branch_default_type replaces chore" "build/agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo "$CONVENTIONAL
+worktree_branch_default_type: 'Not/A Type'")
+bash "$HELPER" --name agent-def --root "$TEST_TMPDIR/wtbranch-badtype" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/badtype.err"
+assert_eq "an invalid default type falls back to chore" "chore/agent-def" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-badtype/acme-widget-agent-def" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "an invalid default type is named on stderr" "$(cat "$TEST_TMPDIR/badtype.err")" "worktree_branch_default_type"
+
+# A value the helper cannot use, an untracked file, or a YAML the parser
+# rejects keeps the raw name: a worktree is never refused over naming.
+repo=$(conventionrepo 'worktree_branch_naming: kebab')
+bash "$HELPER" --name agent-ghi --root "$TEST_TMPDIR/wtbranch-unknown" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/unknown.err"
+assert_exit "an unknown worktree_branch_naming value still creates (exit 0)" 0 "$?"
+assert_eq "an unknown worktree_branch_naming value keeps the raw name" "agent-ghi" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-unknown/acme-widget-agent-ghi" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "an unknown value is named on stderr" "$(cat "$TEST_TMPDIR/unknown.err")" "worktree_branch_naming"
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+mkdir -p "$repo/docs/conventions"
+printf '%s\n' "$CONVENTIONAL" >"$repo/docs/conventions/source-control.yaml"
+assert_eq "an untracked convention file is not read" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo "$CONVENTIONAL
+$CONVENTIONAL")
+bash "$HELPER" --name agent-jkl --root "$TEST_TMPDIR/wtbranch-rejected" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/rejected.err"
+assert_eq "a rejected YAML keeps the raw name" "agent-jkl" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-rejected/acme-widget-agent-jkl" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "a rejected YAML is named on stderr" "$(cat "$TEST_TMPDIR/rejected.err")" "source-control.yaml"
+
+# --existing-branch checks out the named branch; no derivation applies.
+repo=$(conventionrepo "$CONVENTIONAL")
+git -C "$repo" branch parked-work >/dev/null 2>&1
+out=$(bash "$HELPER" --name parked-work --existing-branch --root "$TEST_TMPDIR/wtbranch-existing" --repo-dir "$repo" 2>/dev/null)
+assert_eq "--existing-branch keeps the named branch" "parked-work" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
 [[ $FAILED -eq 0 ]] || exit 1

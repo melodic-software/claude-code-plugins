@@ -236,6 +236,32 @@ reads the file itself, through a script where the key names one below.
   adapter's branch grammar reads `<key>` back from the branch name. Without one, the built-in
   grammar of `parse-branch-issue.sh` reads a numeric `<key>` under the default prefix, and a
   tracker key needs a `branch_issue_pattern` that captures it.
+- `worktree_branch_naming`: how [`worktree-create.sh`](../scripts/worktree-create.sh) names a new
+  worktree's branch from the worktree name: the `WorktreeCreate` hook's `name` (`agent-<id>` for
+  an isolated Agent spawn, the `claude --worktree <name>` argument otherwise) or the
+  `/source-control:worktree create` name. Two values:
+  - `verbatim`, the default: the branch is the name.
+  - `conventional-commits`: the branch is `<type>/<description>`. Only a `/` marks a type. The
+    first segment, matched in any case, is the type when it is a Conventional Commits type
+    (`build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`,
+    `test`), an alias of one (`feature`, `bugfix`, `hotfix`, `documentation`, `doc`, `tests`,
+    `performance`), or a `worktree_branch_extra_prefixes` entry; the rest is the description, its
+    later slashes turned to `-`. Any other name, or a type with an empty description, goes whole
+    under `worktree_branch_default_type` (`agent-a1b2` becomes `chore/agent-a1b2`, `wip/spike`
+    becomes `chore/wip-spike`), and a dropped type is noted on stderr. Each part is made ref-safe:
+    a character outside `[A-Za-z0-9._-]` becomes `-`, runs of `.` and of `-` collapse, leading and
+    trailing `-`, `.` and `_` go, then a trailing `.lock`. Git's branch grammar is then checked on
+    the derived branch, and the directory slug still comes from the name.
+
+  Companion keys, read only under `conventional-commits`: `worktree_branch_default_type`, one
+  lowercase segment, default `chore`; and `worktree_branch_extra_prefixes`, a list of lowercase
+  segments kept as the type and written as listed (`claude`, `codex`, `dependabot`). Resolution,
+  lowest first: the default, then the keys in `docs/conventions/source-control.yaml` at the source
+  repository's top level, tracked by git. No `userConfig` option, since the rule mirrors the
+  repository's own branch-name gate. `--existing-branch` is never derived. Naming never refuses a
+  worktree, because the hook has no fallback: an unknown `worktree_branch_naming` value, an
+  untracked file, or a YAML the parser rejects keeps the name verbatim, an invalid default type
+  uses `chore`, and an invalid prefix entry is skipped, each with a note on stderr.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 

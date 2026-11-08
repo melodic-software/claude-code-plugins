@@ -23,7 +23,7 @@ The name (branch and, via the helper's slug, directory) must meet the `EnterWork
 - `/` is a valid segment separator (enables `feat/my-feature` format)
 - The name must also be a **legal git branch name** (`git check-ref-format --branch`). The character rule above does not imply this: `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` all satisfy it yet git rejects them as refs. The helper checks this after resolving the repository, so exits 3 and 4 can precede an invalid-name exit 2.
 
-Validate the name against these rules; if invalid, explain what's wrong and ask for correction. The helper re-validates and **refuses** a violating name (exit 2) rather than let `git worktree add` fail opaquely. The branch keeps the name verbatim; the helper derives the **directory slug** from it (each `/` → `-`).
+Validate the name against these rules; if invalid, explain what's wrong and ask for correction. The helper re-validates and **refuses** a violating name (exit 2) rather than let `git worktree add` fail opaquely. The helper derives the **directory slug** from the name (each `/` → `-`). The branch is the name, unless the repository sets `worktree_branch_naming: conventional-commits`; the helper then derives `<type>/<description>` from it, names that branch on stderr, and checks the git branch grammar on the derived branch ([config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)).
 
 ## Base branch
 
@@ -48,7 +48,7 @@ Before creating, tell the user:
 ```text
 Creating worktree (shared helper, external root, outside every repository):
   Directory: <root>/<owner>-<repo>-<slug>   (root = the worktree_root config key)
-  Branch: <name>                            (kept verbatim; slug derived for the dir)
+  Branch: <branch>                          (the name, or derived per worktree_branch_naming)
   Local files: .worktreeinclude matches copied in (gitignored ones only)
   Dependencies: npm ci when package-lock.json exists (non-fatal on failure)
   Entering: EnterWorktree(path:) switches the session in. Because the path is

@@ -2,8 +2,8 @@
 # worktree-create.sh — shared worktree-creation helper (Phase A).
 #
 # Single owner of worktree creation for this plugin: external-root path
-# computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
-# resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
+# computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, the branch name
+# (worktree_branch_naming), base-ref resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
 # `git worktree lock` liveness guard (#2257) with an optional --session-id
 # claim token, the `.worktreeinclude` local-file copy, and `npm ci` when the
 # new tree has a package-lock.json. The `.worktreeinclude` copy Claude Code
@@ -188,7 +188,14 @@ Options:
                       character rules but is an illegal ref (feat/foo..bar,
                       foo.lock, HEAD) is refused (exit 2), not left to git later.
                       That grammar check runs after the repository is resolved,
-                      so exits 3 and 4 can precede it.
+                      so exits 3 and 4 can precede it. The branch is the name
+                      unless the repository's tracked
+                      docs/conventions/source-control.yaml sets
+                      worktree_branch_naming: conventional-commits, which
+                      derives <type>/<description> from it (the stderr note
+                      names the branch); the grammar check then applies to the
+                      derived branch. The directory slug always comes from the
+                      name.
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
                       re-quoting of the value happens on that path). Wins over
@@ -480,8 +487,9 @@ fi
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
 # each '/'-separated segment contains only letters, digits, dots, underscores,
 # and dashes. Reject invalid names loudly (exit 2) here rather than let
-# `git worktree add` fail opaquely downstream. The branch is used verbatim; only
-# the directory slug transforms it.
+# `git worktree add` fail opaquely downstream. The directory slug always comes
+# from the name; the branch is the name unless worktree_branch_naming derives
+# one (see "Branch naming" below).
 if ((${#name} > 64)); then
   printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
   exit 2
@@ -685,6 +693,136 @@ EOF
   printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
 
+# --- Branch naming ---------------------------------------------------------------
+# worktree_branch_naming in the repository's tracked
+# docs/conventions/source-control.yaml picks how the new branch is named from
+# --name; reference/config-resolution.md "YAML keys" owns the values:
+#   verbatim (default)    the branch is --name itself;
+#   conventional-commits  <type>/<description>. Only a `/` marks a type: the first
+#                         segment, matched in any case, is a Conventional Commits
+#                         type, an alias of one, or an entry of
+#                         worktree_branch_extra_prefixes, and the rest is the
+#                         description. Any other name goes whole under
+#                         worktree_branch_default_type (default chore).
+# A value the helper cannot use, an untracked file, or a YAML the parser rejects
+# keeps the name verbatim with a note on stderr. Naming never refuses a worktree:
+# the WorktreeCreate hook has no fallback, so a refusal would fail every isolated
+# spawn in the repository. --existing-branch names a branch that already exists,
+# so it is never derived.
+CONVENTION_YAML_REL="docs/conventions/source-control.yaml"
+branch_naming="verbatim"
+branch_default_type="chore"
+branch_extra_prefixes=()
+
+# branch_type_is_valid <value> — one lowercase segment, safe as a ref component.
+branch_type_is_valid() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
+
+# read_branch_naming — fill the three branch_* globals from the team YAML under
+# $toplevel. Loads the reader only when the file exists, so a repository without
+# one pays no process for this.
+read_branch_naming() {
+  local records key value naming="" default_type=""
+  [[ -f "$toplevel/$CONVENTION_YAML_REL" ]] || return 0
+  # shellcheck source=../lib/convention-key.sh
+  source "${BASH_SOURCE[0]%/*}/../lib/convention-key.sh" || {
+    printf '%s: cannot load lib/convention-key.sh; keeping the branch name verbatim\n' "$PROG" >&2
+    return 0
+  }
+  convention_key_tracked "$toplevel" "$CONVENTION_YAML_REL" || return 0
+  if ! records="$(convention_key_records "$toplevel")"; then
+    printf '%s: the YAML parser rejected %s; keeping the branch name verbatim\n' "$PROG" "$CONVENTION_YAML_REL" >&2
+    return 0
+  fi
+  while IFS=$'\t' read -r key value; do
+    case "$key" in
+    worktree_branch_naming) naming="$value" ;;
+    worktree_branch_default_type) default_type="$value" ;;
+    worktree_branch_extra_prefixes.[0-9]*)
+      if branch_type_is_valid "$value"; then
+        branch_extra_prefixes+=("$value")
+      else
+        printf '%s: worktree_branch_extra_prefixes entry %q is not one lowercase segment; skipping it\n' "$PROG" "$value" >&2
+      fi
+      ;;
+    *) ;;
+    esac
+  done <<<"$records"
+  case "$naming" in
+  "" | verbatim) ;;
+  conventional-commits) branch_naming="$naming" ;;
+  *) printf '%s: worktree_branch_naming %q in %s is not verbatim or conventional-commits; keeping the branch name verbatim\n' \
+    "$PROG" "$naming" "$CONVENTION_YAML_REL" >&2 ;;
+  esac
+  if [[ -n "$default_type" ]]; then
+    if branch_type_is_valid "$default_type"; then
+      branch_default_type="$default_type"
+    else
+      printf '%s: worktree_branch_default_type %q in %s is not one lowercase segment; using chore\n' \
+        "$PROG" "$default_type" "$CONVENTION_YAML_REL" >&2
+    fi
+  fi
+}
+
+# branch_ref_segment <text> — <text> as one ref-safe segment, into the global
+# BRANCH_SEGMENT (a global, so no subshell is forked): every character outside
+# [A-Za-z0-9._-], `/` included, becomes `-`; runs of `.` and of `-` collapse;
+# leading and trailing `-`, `.` and `_` go; then a trailing `.lock` goes.
+branch_ref_segment() {
+  local s="${1//[^A-Za-z0-9._-]/-}"
+  while [[ "$s" == *..* ]]; do s="${s//../.}"; done
+  while [[ "$s" == *--* ]]; do s="${s//--/-}"; done
+  while [[ "$s" == [-._]* ]]; do s="${s#?}"; done
+  while [[ "$s" == *[-._] ]]; do s="${s%?}"; done
+  BRANCH_SEGMENT="${s%.lock}"
+}
+
+# derive_conventional_branch <name> — the conventional-commits branch for
+# <name>, into the global `branch`.
+derive_conventional_branch() {
+  local name="$1" type canonical="" prefix
+  if [[ "$name" == */* ]]; then
+    type="${name%%/*}"
+    type="${type,,}"
+    case "$type" in
+    feat | feature) canonical="feat" ;;
+    fix | bugfix | hotfix) canonical="fix" ;;
+    docs | documentation | doc) canonical="docs" ;;
+    test | tests) canonical="test" ;;
+    perf | performance) canonical="perf" ;;
+    build | chore | ci | refactor | revert | style) canonical="$type" ;;
+    *)
+      for prefix in ${branch_extra_prefixes[@]+"${branch_extra_prefixes[@]}"}; do
+        if [[ "$type" == "$prefix" ]]; then
+          canonical="$prefix"
+          break
+        fi
+      done
+      ;;
+    esac
+    if [[ -n "$canonical" ]]; then
+      branch_ref_segment "${name#*/}"
+      if [[ -n "$BRANCH_SEGMENT" ]]; then
+        branch="$canonical/$BRANCH_SEGMENT"
+        return 0
+      fi
+      printf '%s: name %q has type %s but no description; using %s/ (pass %s/<description> to keep the type)\n' \
+        "$PROG" "$name" "$canonical" "$branch_default_type" "$canonical" >&2
+    fi
+  fi
+  branch_ref_segment "$name"
+  branch="$branch_default_type/$BRANCH_SEGMENT"
+}
+
+branch="$name"
+if [[ "$existing_branch" -eq 0 ]]; then
+  read_branch_naming
+  if [[ "$branch_naming" == conventional-commits ]]; then
+    derive_conventional_branch "$name"
+    printf '%s: branch %s derived from name %s (worktree_branch_naming: conventional-commits)\n' \
+      "$PROG" "$branch" "$name" >&2
+  fi
+fi
+
 # Second half of name validation: the character class checked above is NOT a
 # subset of git's ref grammar, so it alone cannot uphold the exit-2-for-an-
 # invalid-name contract. `feat/foo..bar` (`..`), `.foo` and `feat/.` (component
@@ -704,9 +842,15 @@ fi
 # Both streams are discarded: on success `--branch` echoes the name to stdout,
 # which would corrupt the sole-stdout-line output contract, and on failure git's
 # message is superseded by ours. An option-shaped name is read as a ref because
-# git parses no further options after `--branch`.
-if ! git -C "$toplevel" check-ref-format --branch "$name" >/dev/null 2>&1; then
-  printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
+# git parses no further options after `--branch`. A derived branch is checked
+# instead of the name, since it is the one git will create.
+if ! git -C "$toplevel" check-ref-format --branch "$branch" >/dev/null 2>&1; then
+  if [[ "$branch" == "$name" ]]; then
+    printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
+  else
+    printf '%s: branch %q derived from --name %q is not a valid git branch name (see: git help check-ref-format)\n' \
+      "$PROG" "$branch" "$name" >&2
+  fi
   exit 2
 fi
 
@@ -1051,11 +1195,11 @@ else
   # push.default=simple and push-branch.sh, which sets -u only when no upstream
   # exists, keeps the wrong one. head stays as it was.
   if [[ "$base_ref" == fresh ]]; then
-    git -C "$toplevel" worktree add --no-track -b "$name" "$worktree_path" "$base_commit" >&2
+    git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
   else
-    git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2
+    git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
   fi || {
-    printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
+    printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$branch" >&2
     exit 4
   }
 fi
@@ -1184,7 +1328,7 @@ fi
 if [[ "$existing_branch" -eq 1 ]]; then
   printf '%s: created worktree on existing branch %q\n' "$PROG" "$name" >&2
 else
-  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
+  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_ref" >&2
 fi
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then
