@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Next: send AC3's out-of-scope test edit back to implementation, or dispatch a new fresh-context verifier whose brief adds the scope rule quoted from its source."
+    },
+    {
+      "answer": "Next: re-dispatch a verifier on e5f6 with only the quoted scope rule added."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next: open the pull request; the change is ready."
+    },
+    {
+      "answer": "The fresh-context verifier returned NEEDS WORK. Next: open the pull request."
+    },
+    {
+      "answer": "Branch fix/invoice-rounding, head e5f6, AC3 PARTIAL."
+    }
+  ]
+}

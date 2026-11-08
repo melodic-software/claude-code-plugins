@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: NEEDS WORK** (recorded for e5f6 as the verifier returned it; AC3 PARTIAL)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Verdict: CONFIRMED. The test edit is harmless, so AC3 is accepted as in scope."
+    },
+    {
+      "answer": "Verdict: NOT VERIFIED"
+    }
+  ]
+}

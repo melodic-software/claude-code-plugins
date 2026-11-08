@@ -199,6 +199,13 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
 **Verification level.** Before Stage 2, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin verification --skill confirm --file docs/conventions/verification.yaml` and copy its line, plus the second line it prints when a branch's copy differs, into the report beside the proof-level line. It reads `verification_skills.confirm`, else `verification`, from `docs/conventions/verification.yaml`, the file that holds `proof_level`, on the default branch, and always prints a level ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `standard` is the paragraph above. `strict` drops the mechanical, behavior-preserving exemption: the verifier renders the verdict for every change. Under `light`, and `off`, which acts as `light` at this step, dispatch no verifier for a change the paragraph above sends to one, and never render the verdict yourself in its place: the report writes `verification: skipped (<level>)` and the verdict is `NOT VERIFIED`, recorded as such, so a skipped check never reads as `CONFIRMED`. No level drops Stage 1 or any evidence the resolved `proof_level` requires.
 
+**The verifier's verdict stands as returned.** A verdict the producer can upgrade is not independent. So:
+
+- Record and publish each verdict exactly as the verifier returned it, `PARTIAL` and `MISSING` rows included.
+- Never answer a question the verdict leaves open (a scope doubt, an edit it could not trace to a requirement) and never upgrade the verdict, even when the verifier recommends accepting what it flagged. A producer's `Justified?` entry in the report never turns a verifier's `PARTIAL` or `MISSING` into `COMPLETE`. A question no source answers goes to the person, or, unattended, into the report's `## Next` as an open question.
+- After a verdict below `CONFIRMED`, either send what it names back to implementation and verify the new head (Evidence loop below), or dispatch a new fresh-context verifier on the same head. That verifier's brief adds at least one fact the earlier brief lacked, and only facts quoted from a named source, such as a scope rule, never the producer's assessment. It carries no wanted verdict and none of the earlier verifiers' recommendations or verdicts. The last verdict returned is the final one.
+- The report and the manifest list every verdict returned on that head, each with its open points, beside the final one.
+
 **Record the verdict for the head it judged.** Once the verdict is final (including a
 `NOT VERIFIED` from the Stage 1 gate), store it for the commit it judged, so the pull request
 `ready` report can name it:
