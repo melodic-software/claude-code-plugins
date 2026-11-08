@@ -108,6 +108,8 @@ export function unratedLine(reason) {
   return `Merge-Risk: unrated reason=${reason}`;
 }
 
+const unrated = (reason) => ({ line: unratedLine(reason), token: `unrated:${reason}` });
+
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 // `body` with `line` as its last line. Only what this writes is replaced: the
@@ -144,10 +146,10 @@ export function appOnlyBody(pull, bot) {
 // one for this head is still going. `download(artifactId)` returns the text of
 // rating.json. A throwing read is `unreadable`; a bad rating `invalid`.
 export async function readRating({ actions, download, repository, pr, head, base = "main" }) {
-  const unrated = (reason) => ({ line: unratedLine(reason), token: `unrated:${reason}` });
   const name = artifactName(pr, head);
-  let found;
+  let text;
   try {
+    let found;
     const listed = (await actions("GET", `/repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100`))?.artifacts ?? [];
     const candidates = listed.filter((item) => item?.name === name && item.expired === false && Number.isSafeInteger(item.workflow_run?.id) && Number.isSafeInteger(item.id)).sort((a, b) => b.id - a.id);
     for (const artifact of candidates) {
@@ -162,11 +164,6 @@ export async function readRating({ actions, download, repository, pr, head, base
       const mine = runs.filter((run) => run?.display_title === runTitle(pr, head) && ofOrigin(run, { path: RATING_WORKFLOW_PATH, repository, base }));
       return unrated(mine.length === 0 ? "no-run" : mine.some((run) => run.status !== "completed") ? "pending" : "no-rating");
     }
-  } catch {
-    return unrated("unreadable");
-  }
-  let text;
-  try {
     text = await download(found.id);
   } catch {
     return unrated("unreadable");
@@ -206,12 +203,10 @@ export async function recordMergeRisk({ pull, repository, actions, github, downl
       result.skipped = "untrusted-body";
       return result;
     }
-    const over = { line: unratedLine("over-budget"), token: "unrated:over-budget" };
-    const unreadable = { line: unratedLine("unreadable"), token: "unrated:unreadable" };
     const read = await within(
-      (async () => readRating({ actions, download, repository, pr, head }))().catch(() => unreadable),
+      readRating({ actions, download, repository, pr, head }).catch(() => unrated("unreadable")),
       readMs,
-      over,
+      unrated("over-budget"),
     );
     result.token = read.token;
     result.readMs = now() - started;
@@ -223,7 +218,7 @@ export async function recordMergeRisk({ pull, repository, actions, github, downl
         if (next === String(live ?? "")) return "exact";
         await github("PATCH", `/repos/${repository}/pulls/${pr}`, { body: next });
         return "wrote";
-      })().catch(() => "write-failed"),
+      })(),
       writeMs,
       "write-failed",
     );

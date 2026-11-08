@@ -25,7 +25,11 @@ const STOPPED = {
   status: "completed",
   conclusion: "failure",
   completed_at: "2026-10-17T06:00:00Z",
-  output: { title: "Failed", summary: "lane=pr-unblock activity=resolve-conflicts class=rate-limit\n\nThe activity step failed." },
+  output: {
+    title: "Failed",
+    summary: "The activity step failed.",
+    text: `lane-outcome ${JSON.stringify({ v: 1, lane: "pr-unblock", activity: "resolve-conflicts", outcome: "failure", class: "rate-limit", credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" } })}`,
+  },
 };
 
 function baseWith(text) {

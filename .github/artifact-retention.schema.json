@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/melodic-software/claude-code-plugins/.github/artifact-retention.schema.json",
   "title": "Actions artifact retention policy",
-  "description": "One row per artifact name family: how many days its uploads keep the artifact, who reads it, and why that length is needed. scripts/check-artifact-retention.sh holds every actions/upload-artifact step to its row and states the matching rule.",
+  "description": "One row per artifact name family: how many days its uploads keep the artifact, who reads it, and why that length is needed. Keep the shortest retention the readers need: an upload with no retention-days keeps its artifact 90 days, and every kept artifact lengthens the listing the pr-verify evidence reader pages through. scripts/check-artifact-retention.sh holds every actions/upload-artifact step to its row and states the matching rule.",
   "type": "object",
   "additionalProperties": false,
   "required": ["families"],

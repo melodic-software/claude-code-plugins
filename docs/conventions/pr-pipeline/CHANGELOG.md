@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [9.11.1] - 2026-11-08
+
+### Changed
+
+- A pipeline check run carries the lane-outcome record alone: `report-check-run` no longer writes the `lane=<lane> activity=<activity> class=...` first line of `output.summary` or its JSON block in `output.text`, and its `lane-class`, `lane-resets`, `lane-turns`, `lane-max-turns`, `lane-models` and `lane-profile` inputs are removed. The pr-unblock dispatchers read a limit stop only from the record. A read leg that fails before the launcher names its credential (a CLI install) records the secret its call was given, so its record is still written.
+- The lane-outcome reader knows the `review-unposted` and `shell-failed` classes and the `shellFailed` field, and keeps a class it does not know (an enum-shaped token) as written instead of dropping the record; such a class is no limit or fault stop, and neither are the two new ones.
+
+### Fixed
+
+- Every writer of the Size, Complexity and Uncertainty issue fields now sends the option's lowercase name and falls back to Title case when GitHub refuses it, so the org can rename those options to lowercase without breaking the intake digest or post-merge record writes. Intake triage and the digest write one field at a time while part of the rename has landed; the post-merge record write only warns until the rename is done.
+
+## [9.11.0] - 2026-11-08
+
+### Changed
+
+- The monitoring lane replaces its rolling issues with status in each run's job summary and one incident issue per signal that needs action. `monitor.incidents` sets each signal's `open-hours` and `close-hours`: an incident opens only after the signal has stayed on past its open threshold and closes once clear past its close threshold, and a state change rewrites the body without a comment. Closing an incident as not planned or duplicate still mutes the signal. The lane closes the old rolling issues with a pointing comment and leaves their history in place.
+
 ## [9.10.5] - 2026-11-08
 
 ### Fixed

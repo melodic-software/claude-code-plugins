@@ -2973,30 +2973,31 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   assert.equal(issueLane("handoff"), "work-resolve-issue (key ISSUE_LANE_CLAUDE_API_KEY handed off)");
   assert.equal(issueLane("fallback"), "work-resolve-issue (token ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN handed off)");
   assert.equal(record.with["step-timeout-minutes"], "${{ steps.launch.outputs.step-minutes }}", "the launcher step's timeout");
-  assert.equal(
-    record.with.credential,
-    "${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}",
-    "the credential the leg ran on",
-  );
+  // The credential the leg ran on, else, for a leg that failed before
+  // run-claude-cli named it (a CLI install), the secret the call was given,
+  // so the record (which needs a credential) is still written.
+  const legs = {
+    "steps.act-key.outputs.credential": "",
+    "steps.act-token.outputs.credential": "",
+    "steps.act-fallback.outputs.credential": "",
+    "steps.act-key.outcome": "skipped",
+    "steps.act-token.outcome": "skipped",
+    "steps.act-fallback.outcome": "skipped",
+    "steps.launch.outputs.key-name": "PR_UNBLOCK_CLAUDE_API_KEY",
+    "steps.launch.outputs.token-name": "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN",
+  };
+  const credential = (context) => atStep(record.with.credential, { ...legs, ...context });
+  assert.equal(credential({ "steps.act-token.outcome": "failure", "steps.act-token.outputs.credential": "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN" }), "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN");
+  assert.equal(credential({ "steps.act-key.outcome": "failure" }), "PR_UNBLOCK_CLAUDE_API_KEY");
+  assert.equal(credential({ "steps.act-token.outcome": "failure" }), "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN");
+  assert.equal(credential({ "steps.act-fallback.outcome": "failure" }), "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN");
+  assert.equal(credential({ "steps.act-key.outcome": "success" }), "", "a leg that ran names its own credential, or none");
+  assert.equal(credential({}), "");
 });
 
-// limit-stop.mjs reads a stop only from the lane record on the check run's
-// first summary line; without it, a refused credential or a usage limit on a
-// read activity reads as a plain failure (the 2026-10-25 outage: three
-// resolve-conflicts runs on one head in 23 minutes, then the cap).
-test("pr-run-activity-read.yml: the posted check carries the lane record's class and reset", () => {
+// The same action, at the same pin, as the write workflow.
+test("pr-run-activity-read.yml: the lane record uses the write workflow's report-lane-outcome", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
-  assert.equal(jobs.run.outputs["record-class"], "${{ steps.lane-record.outputs.failure-class }}");
-  assert.equal(jobs.run.outputs["record-resets"], "${{ steps.lane-record.outputs.resets-at }}");
-  const post = jobs.report.steps.find((s) => s.name === "Post the check run");
-  assert.equal(post.with["lane-class"], "${{ needs.run.outputs.record-class }}");
-  assert.equal(post.with["lane-resets"], "${{ needs.run.outputs.record-resets }}");
-  // A run that ended well has no class, so these are what make its record.
-  for (const [input, output] of [["lane-turns", "record-turns"], ["lane-max-turns", "record-max-turns"], ["lane-models", "record-models"], ["lane-profile", "record-profile"]]) {
-    assert.equal(post.with[input], `\${{ needs.run.outputs.${output} }}`);
-    assert.match(jobs.run.outputs[output], /^\$\{\{ steps\.lane-record\.outcome == 'success' && steps\.(act-turns|config)\.outputs\.[a-z-]+ \|\| '' \}\}$/);
-  }
-  // The same action, at the same pin, as the write workflow whose record limit-stop.mjs already reads.
   const writeRecord = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-record");
   assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
 });
@@ -3009,7 +3010,11 @@ test("pr-run-activity read and write: the posted check carries the lane-outcome 
     assert.equal(jobs.run.outputs.record, "${{ steps.lane-record.outputs.record }}", file);
     const post = jobs.report.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
     assert.equal(post.with["lane-outcome"], "${{ needs.run.outputs.record }}", file);
+    // The retired key=value summary line's inputs (ADR 0087 slice 3).
+    assert.deepEqual(Object.keys(post.with).filter((key) => /^lane-(class|resets|turns|max-turns|models|profile)$/.test(key)), [], file);
   }
+  const action = parse(readFileSync(new URL("../report-check-run/action.yml", import.meta.url), "utf8"));
+  assert.deepEqual(Object.keys(action.inputs).filter((key) => /^lane-(class|resets|turns|max-turns|models|profile)$/.test(key)), []);
 });
 
 // A caller whose handoff job read only that the first call posted no check
@@ -4768,7 +4773,6 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
     env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root, ACT_TURNS_MODULE: module, ACT_TURNS_SHA256: sha256 },
   });
   assert.ok(/^[1-9][0-9]*$/.test(outputs.turns), outputs.turns);
-  assert.ok(outputs.models, "the run's models are an output");
   const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
   assert.deepEqual(kept, [1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`));
 });

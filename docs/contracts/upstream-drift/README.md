@@ -432,7 +432,7 @@ date.
 pin form, or each `--page <file>`, and compares the upstream git trees at the pin and at upstream
 HEAD through `gh api`. It needs `jq`, `gh`, and a token (`GH_TOKEN` in Actions, `gh auth login`
 locally). It is a member of the check-script family
-([README.md, "The check-script contract"](../../../README.md#the-check-script-contract)):
+([scripts/README.md, "The check-script contract"](../../../scripts/README.md#the-check-script-contract)):
 
 | Mode | Output | Exit |
 |---|---|---|

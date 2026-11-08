@@ -102,7 +102,7 @@ def claude_command(
     mcp_config: str,
     resume: str | None = None,
 ) -> list[str]:
-    """A real-setup `claude -p` run in the lanes' permission mode (AGENTS.md)."""
+    """A real-setup `claude -p` run in the lanes' permission mode (loop-lane convention, "Permission modes")."""
     cmd = ["claude", "-p", "--model", MODEL_ID, "--permission-mode", "auto"]
     if plugin_dir:
         cmd += ["--plugin-dir", plugin_dir]

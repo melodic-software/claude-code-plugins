@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, postOptionNames, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { createBudget } from "./collect.mjs";
 import {
   checkClaim,
@@ -33,7 +33,6 @@ const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, 
 export const FILER_LOGIN = "github-actions[bot]";
 // No needs-triage: the digest is a status record the sweep rewrites daily,
 // not an intake item.
-const LABELS = ["source: lane-sweep"];
 
 // The job names a unit's data shows: the failed jobs of slice A. Slice D's
 // green samples are not a list of the jobs that ran, and its workflow-level
@@ -213,10 +212,12 @@ const DIGEST_TYPE = "Task";
 const DIGEST_FIELDS = [
   { field_id: 48484079, value: "needs-triage" },
   { field_id: 49622037, value: "medium" },
-  { field_id: 15462270, value: "Small" },
-  { field_id: 48625720, value: "Low" },
-  { field_id: 48625721, value: "Known" },
+  { field_id: 15462270, value: "small" },
+  { field_id: 48625720, value: "low" },
+  { field_id: 48625721, value: "known" },
 ];
+// Size, Complexity and Uncertainty: the fields whose option names change case.
+const TITLED_FIELDS = new Set([15462270, 48625720, 48625721]);
 
 // The digest's author is github-actions[bot], outside the trusted list, so
 // the issue lane never works from it: a person who wants an entry worked
@@ -227,14 +228,14 @@ const DIGEST_FIELDS = [
 // statusLabels). The PATCH runs last and carries the entry-set
 // fingerprint, so a failed call before it leaves the old state and is retried
 // on the next run.
-export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
+export async function writeDigest({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };
   if (!plan.action) return done;
   const body = renderDigest(plan.entries, runUrl);
   if (plan.action === "file") {
     await wait();
     try {
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, type: DIGEST_TYPE, body, labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, type: DIGEST_TYPE, body });
       done.filed.push(issue.number);
       // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== DIGEST_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${DIGEST_TYPE}`);
@@ -313,19 +314,14 @@ async function main() {
     complete,
     carry,
   });
-  const labels = [];
-  if (plan.action === "file") {
-    for (const name of LABELS) {
-      if (await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
-    }
-  }
   const runUrl = `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`;
   // The field write sends its own API version, which `call` cannot, so it
   // goes through its own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
-  const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
-  const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
+  const setFields = (number, values) =>
+    postOptionNames((issue_field_values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values }, FIELD_API), values, TITLED_FIELDS);
+  const done = await writeDigest({ plan, call, repo, runUrl, leaveAgentReady, setFields });
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     "### Lane sweep digest",

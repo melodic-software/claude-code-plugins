@@ -327,11 +327,11 @@ validates against (same `read:org` need). An adapter that declares no `get-field
 `6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
 
 `get-statuses` reads, for each `<id>`, the item's value of one single-select issue field, by its
-exact name: the autonomous frontier asks for `Work status`. It prints `{schema_version,
+exact name: the autonomous frontier asks for `Work status`, `/work-items:work` for `Priority`. It prints `{schema_version,
 statuses: {"<id>": "<option name>" | null}}`, null for an item whose field is unset. Only the
 GitHub adapter implements it, from GraphQL `Issue.issueFieldValues`, one query per repository per
 100 items, so a session whose proxy refuses GraphQL exits `3`. When the binding sets
-`config.github.status_trust`, the GitHub adapter answers only values a trusted account set: the
+`config.github.status_trust` and the field is `Work status`, the GitHub adapter answers only values a trusted account set: the
 state the newest counted field event left, or null when that event removed the value, so an
 uncounted change neither sets nor clears a counted state. A missing or invalid trust
 configuration exits `3`; a read whose window may hide the counted event, or a counted state the

@@ -44,7 +44,7 @@
 # docs/conventions/docs-naming.yaml, whose roots carry the same scope and whose
 # exempt_basenames carries the same list; the co-located test compares the two.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path: reason` finding per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any offender, 2 environment or usage
 # (git or python 3 missing, repo root unresolved, bad argument).

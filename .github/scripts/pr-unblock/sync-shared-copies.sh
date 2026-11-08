@@ -20,7 +20,7 @@
 # state=written|empty, sha256=<hex> and paths=<n>, or refused=<reason>.
 # Empty means the merge already holds current copies, which
 # apply-shared-copies then pushes as the merge alone.
-# Exit 0, 3 on a refusal, 2 on a usage error.
+# Exit 0, 3 on a refusal, 2 on a usage error or a malformed base registry.
 set -euo pipefail
 
 if (($# != 4)); then
@@ -46,22 +46,20 @@ if ! git -C "$head_dir" diff --quiet "$base_sha" -- "${tooling[@]}" ||
   refuse shared-copy-tooling-changed "the head changes the sync script, its registry or scripts/lib; a person regenerates the copies"
 fi
 
-# The registry's copy column, from the base checkout: `<canonical> <copy>`,
-# everything from a `#` on stripped as scripts/sync-shared-copies.sh strips it.
-declare -A registered=()
-while IFS= read -r line || [[ -n $line ]]; do
-  line=${line%%#*}
-  src="" copy="" extra=""
-  read -r src copy extra <<<"$line" || true
-  [[ -n $src && -n $copy && -z $extra ]] || continue
-  registered[$copy]=1
-done <"$base_dir/scripts/shared-copies.txt"
-
 bin=$(mktemp -d)
 trap 'rm -rf "$bin"' EXIT
 mkdir -p "$bin/scripts"
 cp "$base_dir/scripts/sync-shared-copies.sh" "$bin/scripts/"
 cp -R "$base_dir/scripts/lib" "$bin/scripts/lib"
+
+# The copies the base registry lists, as the base script's --print-manifest
+# reports them; a malformed registry row fails the run there.
+manifest=$(cd "$base_dir" && bash "$bin/scripts/sync-shared-copies.sh" --print-manifest)
+declare -A registered=()
+while IFS=$'\t' read -r kind path; do
+  [[ $kind == copy ]] && registered[$path]=1
+done <<<"$manifest"
+
 (cd "$head_dir" && bash "$bin/scripts/sync-shared-copies.sh") >&2
 
 mapfile -t written < <(

@@ -51,11 +51,14 @@ readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=(
 
 # An item waiting on an owner decision, on information or on a spec is not
 # workable by an autonomous lane, whatever else it carries. Defaults of binding
-# config.hold_labels. needs-spec is a bare Meta label, not a status: value.
+# config.hold_labels. needs-spec is a bare Meta label, not a status: value. The
+# two holds are read under both names until the old ones are dropped.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
+  "needs-owner-decision"
   "status: needs-info"
+  "needs-reporter-info"
   "needs-spec"
 )
 
@@ -71,8 +74,7 @@ readonly WIT_HUMAN_FLOOR_STATUS_STATES=(
 )
 
 # The labels of those states. An item carrying one already has its hold decided by
-# its labels, so the field adds none (needs-owner-decision floors only through the
-# field's hold, never through its bare label, as before the field was read).
+# its labels, so the field adds none.
 # Defaults of binding config.hold_state_labels.
 # shellcheck disable=SC2034
 readonly WIT_HOLD_STATE_LABELS=(
@@ -80,6 +82,7 @@ readonly WIT_HOLD_STATE_LABELS=(
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
   "needs-owner-decision"
   "status: needs-info"
+  "needs-reporter-info"
   "needs-spec"
 )
 

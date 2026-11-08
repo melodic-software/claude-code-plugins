@@ -106,8 +106,8 @@ import { isDecisionComment, selectTrustedIssueComments } from "../../actions/sel
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
-import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { HOLD_STATES, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { FIELD_API, postOptionNames, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, loadTrustedActors, statusEvents, statusReader } from "../../actions/resolve-config/read-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -115,11 +115,10 @@ const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
-const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
-const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION, OUTSIDE_ACTOR_LABEL]);
+const HOLDS = new Set([NEEDS_HUMAN, ...INFO_LABELS, ...DECISION_LABELS, OUTSIDE_ACTOR_LABEL]);
 // Holds a lanes App hold-lift never takes off; needs-human comes off only as
 // a refused triage label (planWrites).
 const PERSON_HOLDS = new Set([NEEDS_HUMAN, OUTSIDE_ACTOR_LABEL]);
@@ -164,10 +163,6 @@ const COST_LABEL = /^\W*costs?(?!-(?:benefit|effective)\b)\s*[:\u2014\u2013(-]/i
 const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
 const COST_PROBLEM = "a Cost line is not in the `Cost: ` / `Cost decided: ` form";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
-
-const capitalize = (key) => key.charAt(0).toUpperCase() + key.slice(1);
-// The statuses GitHub answers a field value that names no option with.
-const NAME_REFUSED = new Set([400, 422]);
 
 // The --check answer: whether the broker would mint for this run's actors.
 export function checkActors(env, humans, logins) {
@@ -447,7 +442,7 @@ export function planWrites(
     if (had(READY)) {
       remove.push(READY);
     }
-    if (!labels.includes(NEEDS_DECISION) && !labels.includes(NEEDS_INFO)) {
+    if (!carried(labels, DECISION_LABELS) && !carried(labels, INFO_LABELS)) {
       add.push(NEEDS_DECISION);
     }
   }
@@ -668,32 +663,14 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   if (plan.fieldWrites.length > 0) {
     // Safe to send twice: the POST sets each listed field to one option, so a
     // second copy after a 5xx that GitHub did apply sets the same values.
-    const post = (spell) =>
-      github(
-        "POST",
-        `${base}/issue-field-values`,
-        {
-          issue_field_values: plan.fieldWrites.map(({ fieldId, name }) => ({
-            field_id: fieldId,
-            value: spell(name),
-          })),
-        },
-        FIELD_API,
-        { resendOnce: true },
-      );
-    // The REST write takes an option name, not an id. The org's options move
-    // from Title case to the lowercase key, so a name GitHub refuses is sent
-    // once more Title-cased; the answer is checked by option id either way.
-    let written;
-    try {
-      written = await post((name) => name);
-    } catch (error) {
-      if (!(error instanceof GitHubError && NAME_REFUSED.has(error.status))) {
-        throw error;
-      }
-      log(`apply-verdict: GitHub refused the lowercase field names (${error.status} ${error.detail}); sending them Title-cased`);
-      written = await post(capitalize);
-    }
+    const post = (issue_field_values) => github("POST", `${base}/issue-field-values`, { issue_field_values }, FIELD_API, { resendOnce: true });
+    // The answer is checked by option id whichever casing GitHub took.
+    const written = await postOptionNames(
+      post,
+      plan.fieldWrites.map(({ fieldId, name }) => ({ field_id: fieldId, value: name })),
+      new Set(plan.fieldWrites.map(({ fieldId }) => fieldId)),
+      (line) => log(`apply-verdict: ${line}`),
+    );
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);
     if (wrong.length > 0) {

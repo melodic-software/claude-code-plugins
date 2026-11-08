@@ -155,12 +155,10 @@ test("a field that mirrors the labels changes no answer", async () => {
   }
 });
 
-// needs-owner-decision is a state whose first label is `status: needs-decision`,
-// so the field reading it gives the issue a status the bare label does not.
-test("a needs-owner-decision field counts as the status the bare label lacks", async () => {
-  const labels = ["needs-owner-decision"];
-  assert.deepEqual(await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 }), { skip: "false", reason: "no-status" });
-  assert.deepEqual(await fieldRun(labels, { 7: { state: "needs-owner-decision" } }), { skip: "true", reason: "born-triaged" });
+test("the two hold labels count as a status under their new names", async () => {
+  for (const labels of [["needs-owner-decision"], ["needs-reporter-info"]]) {
+    assert.deepEqual(await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 }), { skip: "true", reason: "born-triaged" }, labels[0]);
+  }
 });
 
 // A field-only agent-ready, with no label, is a status: the label is going away.

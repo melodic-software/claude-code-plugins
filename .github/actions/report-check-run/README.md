@@ -73,12 +73,10 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   `<lane>:<activity>:<GITHUB_RUN_ID>:<GITHUB_RUN_ATTEMPT>` whenever all four are well formed, and
   [posting-run.mjs](posting-run.mjs) `postingRunId` reads the run back from it, and `postingAttempt`
   the run and attempt.
-- When the run job's `lane-class`, `lane-resets`, `lane-turns`, `lane-max-turns`, `lane-models` and
-  `lane-profile` outputs make a lane record ([lane-record.mjs](lane-record.mjs)), it opens
-  `output.summary` as one line of `key=value` tokens
-  (`lane activity class resets turns max-turns models profile`, absent ones omitted, `models` a
-  comma list of model IDs), goes into
-  `output.text` as one JSON block. It never changes the conclusion or title.
+- When the `lane-outcome` input holds a valid v1 lane-outcome record for `lane`
+  ([lane-outcome.mjs](../../scripts/lib/lane-outcome.mjs)), it opens `output.text` as
+  `lane-outcome <json>`, with `activity` added and only the known fields kept. It never changes the
+  conclusion or title.
 - Exit 0 after posting; exit 1 on a refusal, a malformed repository,
   head SHA, fallback SHA or non-empty PR head SHA, or a failed POST.
 

@@ -128,7 +128,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
@@ -227,7 +227,7 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
-const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
+const PARENT_HOLDS = new Set(["needs-human"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
@@ -1250,7 +1250,7 @@ export function authorAdmitted(issue, humans, appId) {
 // Whether status: confirmed is the issue's only status label and agent-ready is
 // off, whether admission parked it there or a person confirmed it. Pure.
 export const confirmedOnly = (labels) =>
-  labels.includes(CONFIRMED) && !labels.some((label) => label === AGENT_READY || (label?.startsWith("status:") && label !== CONFIRMED));
+  labels.includes(CONFIRMED) && !labels.some((label) => label === AGENT_READY || (isStatusLabel(label) && label !== CONFIRMED));
 
 // Whether admission parked the issue at status: confirmed, which is also
 // triage's verified status: no other status, no agent-ready, and the lanes
@@ -1381,7 +1381,7 @@ export function removalStands(events, isRemoval, isMark = () => true, isReMark =
 
 // The holds a lane stop adds beside its agent-ready removal. Lifting one
 // releases the issue, and no `status: ready` add follows a lift.
-const STOP_HOLDS = ["needs-human", NEEDS_DECISION];
+const STOP_HOLDS = ["needs-human", ...DECISION_LABELS];
 
 // Why admission leaves an issue alone whatever its verdict, or null: its
 // trusted Work status `state` (read-status.mjs statusReader's state) is
@@ -1478,7 +1478,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
     // An App-set needs-decision with no open decision does not hold
     // (parentDecisionOpen); a parent read without that fact holds.
-    const held = (label) => PARENT_HOLDS.has(label) || (label === NEEDS_DECISION && parent.decisionOpen !== false);
+    const held = (label) => PARENT_HOLDS.has(label) || (DECISION_LABELS.includes(label) && parent.decisionOpen !== false);
     const parentOk = parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.holdLabels ?? parent.labels).some(held);
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
@@ -1843,7 +1843,7 @@ export function earlierFlags(comments, appId) {
 // (read-status.mjs statusEvents, where the field's needs-owner-decision reads
 // as a `status: needs-decision` add); by default its REST events.
 export async function decisionStays(github, base, comments, appId, events = () => paginate(github, `${base}/events`)) {
-  const setter = (await events()).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
+  const setter = (await events()).filter((event) => event?.event === "labeled" && DECISION_LABELS.includes(event.label?.name)).at(-1)?.actor?.id;
   if (setter !== appId) {
     return `a person set its ${NEEDS_DECISION}`;
   }
@@ -2542,7 +2542,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // After parentHolds, so its events reuse that field read.
   const parentEvents = parentHolds && (() => statusOf.events(parent.number));
   const decisionOpen =
-    typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId, events: parentEvents }) : undefined;
+    typed && parent !== null && carried(names(parent.labels), DECISION_LABELS) ? await parentDecisionOpen({ github, repository, parent, humans, appId, events: parentEvents }) : undefined;
   // Only a visibility that reads public skips the cost_private charge words.
   // A failed read throws, like the reads above, so no verdict rests on a
   // visibility it did not read (docs/outage-posture-audit.md, element 4).

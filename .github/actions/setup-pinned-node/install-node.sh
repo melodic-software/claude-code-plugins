@@ -8,21 +8,18 @@
 # committed keyring (the test points them at local fixtures).
 set -euo pipefail
 
-file=${1:?usage: install-node.sh VERSION_FILE}
-[[ -r $file ]] || {
-  echo "::error::setup-pinned-node: cannot read $file"
+fail() {
+  echo "::error::setup-pinned-node: $1"
   exit 1
 }
+
+file=${1:?usage: install-node.sh VERSION_FILE}
+[[ -r $file ]] || fail "cannot read $file"
 version=$(tr -d '[:space:]' <"$file")
 version=${version#v}
-[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-  echo "::error::setup-pinned-node: $file must pin an exact X.Y.Z version, not '$version'"
-  exit 1
-}
-[[ ${RUNNER_OS:-}/${RUNNER_ARCH:-} == Linux/X64 ]] || {
-  echo "::error::setup-pinned-node: supports Linux X64 runners only, not ${RUNNER_OS:-?}/${RUNNER_ARCH:-?}"
-  exit 1
-}
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "$file must pin an exact X.Y.Z version, not '$version'"
+[[ ${RUNNER_OS:-}/${RUNNER_ARCH:-} == Linux/X64 ]] ||
+  fail "supports Linux X64 runners only, not ${RUNNER_OS:-?}/${RUNNER_ARCH:-?}"
 
 dir=${RUNNER_TOOL_CACHE:?}/node/$version/x64
 if [[ -f $dir.complete && -x $dir/bin/node ]]; then
@@ -36,24 +33,17 @@ else
   # so GITHUB_ACTION_PATH is not this directory, and gpgv looks for a bare filename
   # in its own home directory.
   keyring=${NODE_RELEASE_KEYRING:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pubring.kbx}
+  fetch() { curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/$1" "$base/$1"; }
   echo "Downloading $base/$name"
-  curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/SHASUMS256.txt" "$base/SHASUMS256.txt"
-  curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/SHASUMS256.txt.sig" "$base/SHASUMS256.txt.sig"
-  gpgv --keyring="$keyring" "$tmp/SHASUMS256.txt.sig" "$tmp/SHASUMS256.txt" || {
-    echo "::error::setup-pinned-node: SHASUMS256.txt.sig does not verify against $keyring"
-    exit 1
-  }
-  curl -fsSL --proto-redir '=https' --retry 5 --retry-all-errors -o "$tmp/$name" "$base/$name"
+  fetch SHASUMS256.txt
+  fetch SHASUMS256.txt.sig
+  gpgv --keyring="$keyring" "$tmp/SHASUMS256.txt.sig" "$tmp/SHASUMS256.txt" ||
+    fail "SHASUMS256.txt.sig does not verify against $keyring"
+  fetch "$name"
   want=$(awk -v n="$name" '$2 == n { print $1 }' "$tmp/SHASUMS256.txt")
-  [[ $want =~ ^[0-9a-f]{64}$ ]] || {
-    echo "::error::setup-pinned-node: SHASUMS256.txt lists no checksum for $name"
-    exit 1
-  }
+  [[ $want =~ ^[0-9a-f]{64}$ ]] || fail "SHASUMS256.txt lists no checksum for $name"
   got=$(sha256sum "$tmp/$name" | cut -d' ' -f1)
-  [[ $got == "$want" ]] || {
-    echo "::error::setup-pinned-node: $name has SHA-256 $got, SHASUMS256.txt says $want"
-    exit 1
-  }
+  [[ $got == "$want" ]] || fail "$name has SHA-256 $got, SHASUMS256.txt says $want"
   rm -rf "$dir" "$dir.complete"
   mkdir -p "$dir"
   tar -xJf "$tmp/$name" -C "$dir" --strip-components=1
@@ -61,8 +51,5 @@ else
   echo "Installed $name (sha256 $got) @ $dir"
 fi
 
-[[ $("$dir/bin/node" --version) == "v$version" ]] || {
-  echo "::error::setup-pinned-node: $dir/bin/node does not report v$version"
-  exit 1
-}
+[[ $("$dir/bin/node" --version) == "v$version" ]] || fail "$dir/bin/node does not report v$version"
 echo "$dir/bin" >>"${GITHUB_PATH:?}"
