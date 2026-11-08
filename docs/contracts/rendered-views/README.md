@@ -788,6 +788,38 @@ page. On a K2 page every payload carries only reader input and builder-assigned 
 (see View tiers), so a K2 page has no generated follow-up prompt and no export rebuilt
 from data-block strings.
 
+### Reply-affordance rule
+
+**The rule.** A generated review artifact ends with a structured reply affordance: a
+machine-legible way for the human's reaction to become the next prompt: steal/skip
+choices, a chip-filled reply template, a decisions table, a confirmation token. Default
+with judgment: apply it to artifacts that exist to collect a decision; skip it for purely
+informational output. In session contexts that render artifacts (the `artifact-design`
+built-in skill's territory), the affordance rides the artifact; in plain chat it is a
+reply template in the closing message.
+
+**Who is bound.** Skills that generate decision-collecting artifacts cite this section
+instead of restating it.
+
+**Conformance** = the template blocks in `prototype:explore-directions` (structured
+steal/graft capture and the assembled-reply template) and `prototype:pressure-test` (the
+validation answer set). Fleet audits check those surfaces against this section.
+
+### Export-button rule
+
+**The rule.** Every interactive HTML artifact our skills emit ends with a control that
+copies the state the user built out as text they can paste into the session or commit. For
+the author's version of this rule, see S2, section "Custom editing interfaces"
+([source list](../../finding-your-unknowns.md#sources-and-citation-shape)). The doctrine
+recurs three times independently in the corpus; it is what keeps a throwaway editor inside
+the agent loop instead of becoming a dead end.
+
+**Who is bound.** Skills that emit interactive HTML artifacts cite this section.
+
+**Conformance** = the same template blocks named in the
+[reply-affordance rule](#reply-affordance-rule); the export button is the HTML-artifact form
+of the reply affordance.
+
 ## The loop-closure and export snippet reference
 
 Canonical copy: `plugins/visualization/reference/html-loop-closure.html`, carried and
