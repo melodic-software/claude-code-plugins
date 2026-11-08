@@ -1062,8 +1062,9 @@ class TheDemotionRecord(CheckCase):
         self.gh.pipeline = SMALL
         report = self.remediate()
         self.assertEqual(report["errors"], [])
-        create, field = self.gh.writes()[-2:]
+        create, set_type, field = self.gh.writes()[-3:]
         self.assertIn(f"repos/{PM_REPO}/issues", create)
+        self.assertIn("type=Bug", set_type)
         self.assertFalse(any(a.startswith("labels[]=") for a in create))
         self.assertEqual(
             field,
@@ -1165,7 +1166,7 @@ class TheDemotionRecord(CheckCase):
     def test_unconfigured_files_the_labeled_record_as_before(self) -> None:
         report = self.remediate()
         self.assertEqual(report["errors"], [])
-        create = self.gh.writes()[-1]
+        (create,) = self.creates()
         self.assertEqual(create[-2:], ["-f", "labels[]=needs-human"])
         self.assertFalse(
             any("issue-field-values" in " ".join(w) for w in self.gh.writes())
