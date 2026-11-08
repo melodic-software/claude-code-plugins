@@ -36,15 +36,13 @@ const STOPPED = new Set(["cancelled", "timed_out"]);
 export const INFRA_BACKOFF_MINUTES = 15;
 // An outage loss is re-run within a day; an older one is left to a person (judgment).
 export const LOOKBACK_HOURS = 24;
+const inLookback = (run, now) => Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
 // True for a failed run whose failed jobs the reconciler re-runs, once its
 // backoff has passed, when its failures are infra only; fix-ci leaves exactly
 // these heads to it.
 export const reconcilerRetries = (run, now) =>
-  run?.status === "completed" &&
-  run.conclusion === "failure" &&
-  run.run_attempt === 1 &&
-  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
+  run?.status === "completed" && run.conclusion === "failure" && run.run_attempt === 1 && inLookback(run, now);
 
 // True for a failed run at attempt 1 inside the lookback with a failed lane
 // job: when its failures are not infra only, the reconciler re-runs its failed
@@ -53,12 +51,7 @@ export const reconcilerRetries = (run, now) =>
 // and head. A run where only ci-status failed (a title or hold label) would
 // fail the same way, so it gets none.
 export const firstFailure = (run, jobs, now) =>
-  run?.status === "completed" &&
-  run.conclusion === "failure" &&
-  run.run_attempt === 1 &&
-  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000 &&
-  Array.isArray(jobs) &&
-  jobs.some((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
+  reconcilerRetries(run, now) && Array.isArray(jobs) && jobs.some((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
 
 // Run statuses that mean a run, or a re-run of it, is queued or going.
 const IN_FLIGHT = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
@@ -76,7 +69,7 @@ export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * 30;
 // read.
 export function reconcilerOwns({ run, jobs }, now) {
   // A run stuck in flight holds fix-ci off only inside the lookback.
-  if (IN_FLIGHT.has(run?.status) && Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000) {
+  if (IN_FLIGHT.has(run?.status) && inLookback(run, now)) {
     return `run ${run.id} attempt ${run.run_attempt} is ${run.status}; its result decides`;
   }
   // Every wait ends at RERUN_DUE_MINUTES: an unreadable time or attempt waits on nothing.
@@ -87,7 +80,7 @@ export function reconcilerOwns({ run, jobs }, now) {
   // A lost first attempt gets the reconciler's one re-run (reconcile.mjs
   // isLost), as an infra-only failure does; a job past its time limit is infra
   // there too.
-  if (run.status === "completed" && LOST.has(run.conclusion) && run.run_attempt === 1 && Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000) {
+  if (run.status === "completed" && LOST.has(run.conclusion) && run.run_attempt === 1 && inLookback(run, now)) {
     return `run ${run.id} attempt 1 ended ${run.conclusion}, re-run job re-runs it once`;
   }
   if (!reconcilerRetries(run, now)) {
@@ -124,8 +117,9 @@ export function stepsKnown(job) {
 // by the job's check-run annotations (job.annotations, read by the caller):
 // GitHub's own failure message, as maintenance-monitor-signals matches it.
 const LOST_RUNNER = /lost communication with the server|runner has received a shutdown signal/i;
-export const lostRunnerNoted = (job) =>
-  Array.isArray(job?.annotations) && job.annotations.some((a) => a?.annotation_level === "failure" && LOST_RUNNER.test(String(a.message ?? "")));
+const failureNoted = (annotations, pattern) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && pattern.test(String(a.message ?? "")));
+export const lostRunnerNoted = (job) => failureNoted(job?.annotations, LOST_RUNNER);
 
 // A job past its timeout-minutes ends cancelled, like a fail-fast matrix
 // sibling or a person's cancel; only GitHub's own failure annotation on its
@@ -133,8 +127,7 @@ export const lostRunnerNoted = (job) =>
 // matched from its start, so an annotation that only quotes it does not count;
 // a step can still emit it, which gains nothing a failing test does not.
 const TIME_LIMIT = /^The job has exceeded the maximum execution time of /;
-export const timeLimitNoted = (annotations) =>
-  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && TIME_LIMIT.test(String(a.message ?? "")));
+export const timeLimitNoted = (annotations) => failureNoted(annotations, TIME_LIMIT);
 
 // True when a failed lane job's steps cannot be read, so whether the run's
 // failures are infra is unknown.
@@ -144,7 +137,7 @@ export const stepsUnread = (jobs) =>
 // Why the failed job is infra ("time limit", "install", "lost runner"), or ""
 // when it is real or its steps did not list.
 export function infraCause(job) {
-  if (job?.conclusion === "cancelled" || job?.conclusion === "timed_out") {
+  if (STOPPED.has(job?.conclusion)) {
     return "time limit";
   }
   if (job?.conclusion !== "failure") {
@@ -202,7 +195,6 @@ export function infraOnly(jobs) {
   if (!Array.isArray(jobs)) {
     return false;
   }
-  const failed = jobs.filter((job) => FAILED.has(job?.conclusion));
-  const lanes = failed.filter((job) => !AGGREGATE_JOBS.has(job.name));
+  const lanes = jobs.filter((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
   return lanes.length > 0 && lanes.every((job) => infraCause(job) !== "");
 }
