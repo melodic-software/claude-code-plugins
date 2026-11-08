@@ -1,14 +1,20 @@
-# knowledge: apply/integrate skill (design record)
+# Run knowledge apply from the corpus against an explicit target
+
+- Status: proposed. No `apply` skill exists under `plugins/knowledge/skills/`, and the plugin's
+  video-digest output contract dropped its routing to the unbuilt apply skill, so this
+  records a design not built, not a decision in force.
+- Date: 2026-07-13
+- Related: [ADR 0022](0022-consume-the-knowledge-corpus-from-a-separate-repository.md) (the corpus
+  repository and integration flow this spec builds on); `melodic-software/medley#1477` (the design
+  issue)
+
+## Context
 
 Spec for the `knowledge` plugin's first-class value step: a session opens against the consolidated
 `knowledge-corpus` corpus and fits relevant findings into **any** target repo. Capability and shape
-(a skill, not a manual workflow) are already locked by the decision record for the knowledge-corpus
-consuming repo and integration flow (2026-07-13), listed under `migration-playbook.md`
-"Decision records". This record
+(a skill, not a manual workflow) are already locked by ADR 0022. This record
 specs the skill; it does not re-open the mechanism. **No build here**. The implement follow-up is
 emitted below.
-
-## The problem
 
 Ingest skills (`distill`, `video-digest`, `course-digest`) produce durable, concept-organized artifacts
 that each carry repo-applicability recommendations. Today those recommendations are read by a human and
@@ -19,10 +25,12 @@ the repo that happens to be open.
 
 Scope boundary: the corpus holds ingest-pipeline material and its synthesized outputs: source media,
 transcripts, frame extractions, distilled reference files. It is not a general documentation home;
-repo-owned docs stay in their repos, and durable per-topic knowledge flows through the knowledge-vault
-seam, not this corpus.
+repo-owned docs stay in their repos, and durable per-topic knowledge flows through the knowledge
+vault, not this corpus.
 
-## Core decision: the session's home is the corpus
+## Decision
+
+### Core decision: the session's home is the corpus
 
 A session runs **in the corpus checkout** (`knowledge-corpus` is `${CLAUDE_PROJECT_DIR}`); the
 **target repo is an explicit per-invocation argument**. This falls directly out of the record's framing
@@ -39,7 +47,7 @@ two-pointer tension cleanly:
 Rejected alternative: *session home is the target, corpus reached via a new `corpus_dir` knob*. It adds a
 speculative knob, and couples every target-repo session to corpus config it otherwise never needs.
 
-## Invocation surface
+### Invocation surface
 
 - Invoked from a checkout of `knowledge-corpus`: `/knowledge:apply --target <path-or-repo>`.
 - `--target` accepts a local path (a sibling checkout) or an `owner/repo` slug the skill clones into a
@@ -50,7 +58,7 @@ speculative knob, and couples every target-repo session to corpus config it othe
 - `argument-hint` advertises the target argument; the skill refuses with a clear message when run outside
   a corpus checkout (no corpus to analyze) rather than guessing a corpus location.
 
-## Target-repo scan
+### Target-repo scan
 
 The skill discovers what in the target is improvable against the corpus, read-only:
 
@@ -64,7 +72,7 @@ The skill discovers what in the target is improvable against the corpus, read-on
 Scan is bounded and cached to `${CLAUDE_PLUGIN_DATA}` (machine state, survives updates) so a re-run
 against the same target does not re-walk the tree.
 
-## Relevance ranking
+### Relevance ranking
 
 Corpus artifacts (reference files, YouTube applicability menus, course digests) are matched and ranked to
 the target's surfaces by three factors, highest-weighted first:
@@ -78,7 +86,7 @@ Output is a ranked candidate menu (backend-neutral **work-item** vocabulary), ea
 source artifact and the target surface it would touch, enough for the operator to decide without
 re-reading the corpus.
 
-## Proposal / apply mechanism: read-only-first, human-gated
+### Proposal / apply mechanism: read-only-first, human-gated
 
 A strict **report → diff → PR** ladder, never a silent write:
 
@@ -91,10 +99,10 @@ A strict **report → diff → PR** ladder, never a silent write:
 The human review gate sits between every stage. The skill frames edits in the target's *own* conventions
 (from the scan) rather than imposing corpus-repo style.
 
-## Contract v2.1 fit
+### Contract v2.1 fit
 
 - **Seam 1 (`userConfig`)**: no new knob. Corpus = CWD; target = per-invocation argument. `library_dir`
-  is left as the ingest landing seam it already is.
+  stays the ingest landing directory it already is.
 - **Seam 3 (consumer steering)**: the skill reads the *target's* `CLAUDE.md` / `.claude/rules` so
   proposals match the target's declared conventions with no plugin-side wiring.
 - **Convention-resolution ladder**: config present → use it; absent → infer from the target tree and
@@ -102,7 +110,7 @@ The human review gate sits between every stage. The skill frames edits in the ta
 - **`${CLAUDE_PLUGIN_DATA}`**: scan results and ranking cache only (machine state), never configuration.
 - **External systems**: the PR step uses `gh` directly with backend-neutral work-item vocabulary; no
   pluggable-tracker abstraction, no shipped MCP server (CLI covers the need, per MCP discriminator
-  rule 1).
+  rule 1 in [MCP servers as a plugin component](../migration-playbook.md#mcp-servers-as-a-plugin-component-carry-decision)).
 - **Cross-skill references**: degrade gracefully. Hand off to a present skill via its slash invocation,
   fall back to prose when absent.
 - **Setup**: unchanged. The apply skill introduces no new persisted config, so `/knowledge:setup` needs
@@ -112,7 +120,7 @@ The human review gate sits between every stage. The skill frames edits in the ta
   (`plugins/knowledge/evals/<case>/case.yaml`, checked with `/evals:validate`) against fixtures in
   the implement issue; fixtures do not need the live corpus repo.
 
-## Cross-repo mechanics
+### Cross-repo mechanics
 
 Two repos, one session, no MCP:
 
@@ -123,7 +131,9 @@ Two repos, one session, no MCP:
   is never a commit target. A `owner/repo` target with no local checkout is cloned read-then-branch; a
   path target is operated on in place (or in a worktree) at the operator's choice.
 
-## Emitted issue
+## Consequences
+
+Emitted issue:
 
 - **`implement(knowledge-integration)`**: build the `/knowledge:apply` skill to this spec: `SKILL.md`
   (invocation, scan, ranking, report→diff→PR gate), plugin suite cases
