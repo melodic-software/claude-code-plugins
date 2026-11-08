@@ -41,13 +41,15 @@
 # (machine-parseable); all diagnostics go to stderr.
 #
 # Exit codes:
-#   0  success — worktree created; path on stdout. A failed, skipped or timed-out
+#   0  success — worktree created, or an existing one this session may claim
+#      reused (see "Reuse" below); path on stdout. A failed, skipped or timed-out
 #      dependency install still exits 0 and names the failure on stderr
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
 #   3  refuse — no usable external root, root inside a repository, or a
 #      cross-drive root on Windows at any resolution rung including the
 #      unconfigured plugin-data-dir default (guidance on stderr); nothing created
-#   4  environment error: not a git repo, `git worktree add` failed, or the tree
+#   4  environment error: not a git repo, the target path or the branch is held
+#      by another worktree or session, `git worktree add` failed, or the tree
 #      was created and then left incomplete because a `.worktreeinclude` file
 #      failed to copy. That last case shares exit 5's shape, a tree on disk that
 #      is not what the caller asked for, so a caller treating 4 as "nothing was
@@ -287,7 +289,15 @@ npm ci in it (output on stderr), capped at WORKTREE_CREATE_DEPS_CAP_SECONDS
 (default 45). A missing npm, a failed install or the cap only warns on stderr;
 the exit code is unchanged.
 
-On success the created worktree path is printed as the sole stdout line, for the
+Reuse: a worktree already at the target path, on the branch this run would use,
+is printed as it is (no copy, no npm ci) when its lock names --session-id, when
+it is unlocked (claimed first), or when worktree-claim.sh stale proves its
+session's claim stale (handed over). Anything else there, a live or
+session-less claim, or no --session-id, exits 4. An existing branch checked out
+nowhere is checked out without -b and --base-ref does not apply; one checked out
+in another worktree exits 4, naming it.
+
+On success the worktree path is printed as the sole stdout line, for the
 caller to feed to EnterWorktree(path:).
 
 Exit codes: 0 success · 2 usage · 3 refuse (no usable root) · 4 environment ·
@@ -1007,9 +1017,95 @@ fi
 # the unconfigured plugin-data-dir default.
 check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
 
-if [[ -e "$worktree_path" ]]; then
-  printf '%s: target path already exists: %s\n' "$PROG" "$worktree_path" >&2
+# --- Reuse: an existing worktree at the target, or an existing branch -----------
+# A relaunched `claude -w <name>`, and two names that derive one branch, meet a
+# worktree or branch an earlier run left. The claim rules worktree-claim.sh
+# enforces decide whether this session may take it:
+#   * a worktree at exactly the target path, on the branch this run would use, is
+#     returned as it is when its lock names --session-id, when it is unlocked (it
+#     is claimed first), or when its lock names another session that
+#     `worktree-claim.sh stale` proves stale (the claim is handed over). It is
+#     left alone: no .worktreeinclude copy over the tree's edits, no npm ci;
+#   * anything else at the target path, a live or session-less claim, or no
+#     --session-id to prove ownership with, refuses (exit 4);
+#   * an existing branch checked out in no worktree is checked out without -b,
+#     keeping its commits, and --base-ref does not apply; one checked out in
+#     another worktree refuses, naming that worktree.
+# Worktree facts are read once, only when the target or the branch exists.
+worktree_facts_read=0
+read_worktree_facts() {
+  ((worktree_facts_read)) && return 0
+  worktree_facts_read=1
+  worktree_facts_parse_z <(git -C "$toplevel" worktree list --porcelain -z 2>/dev/null)
+}
+
+# reuse_refuse <line>... — print each line on stderr and exit 4.
+reuse_refuse() {
+  local line
+  for line in "$@"; do printf '%s: %s\n' "$PROG" "$line" >&2; done
   exit 4
+}
+
+# reuse_existing_target — return the worktree at $worktree_path when this
+# session may claim it, else refuse. Never returns.
+reuse_existing_target() {
+  local top i idx=-1 reason held_branch old_sid claim="${BASH_SOURCE[0]%/*}/worktree-claim.sh"
+  # git's own spelling of the target's top level is the one `worktree list`
+  # prints, on every platform. Whole-path equality, never a prefix test: a
+  # registered feat-login-form must not answer for feat-login.
+  top="$(git -C "$worktree_path" rev-parse --show-toplevel 2>/dev/null)" || top=""
+  if [[ -n "$top" ]]; then
+    read_worktree_facts
+    for i in "${!WT_FACT_PATH[@]}"; do
+      [[ "${WT_FACT_PATH[i]}" == "$top" ]] && idx=$i && break
+    done
+  fi
+  ((idx >= 0)) || reuse_refuse "target path already exists and is not a worktree of this repository: $worktree_path" \
+    "move it aside or choose another name"
+  [[ "${WT_FACT_LINKED[idx]}" == yes ]] || reuse_refuse "target path is the repository's main worktree: $worktree_path"
+  held_branch="${WT_FACT_BRANCH[idx]}"
+  [[ "$held_branch" == "$branch" ]] || reuse_refuse \
+    "the worktree at $worktree_path holds branch ${held_branch:-(none)}, not $branch; choose another name"
+  [[ -n "$session_id" ]] || reuse_refuse \
+    "a worktree already exists at $worktree_path; pass --session-id so the helper can prove this session may reuse it"
+  reason="${WT_FACT_LOCKED[idx]}"
+  if [[ "${WT_FACT_IS_LOCKED[idx]}" == no ]]; then
+    git -C "$toplevel" worktree lock --reason "$(worktree_lock_reason worktree-create.sh "$session_id")" "$top" >&2 ||
+      reuse_refuse "could not claim the unlocked worktree at $worktree_path; another process may have claimed it first"
+    printf '%s: claimed the unlocked worktree at %s for session %s\n' "$PROG" "$worktree_path" "$session_id" >&2
+  elif worktree_reason_is_ours "$reason" "$session_id"; then
+    :
+  elif [[ -z "$reason" ]]; then
+    reuse_refuse "the worktree at $worktree_path is locked with no reason, so it names no session; unlock it by hand if it is free"
+  elif ! worktree_reason_lane "$reason" >/dev/null; then
+    reuse_refuse "the worktree at $worktree_path is locked by a claim that names no session: $reason" \
+      "unlock it by hand (git worktree unlock) if no session is working there"
+  else
+    old_sid="${BASH_REMATCH[2]}"
+    if ! bash "$claim" stale "$top" --repo-dir "$toplevel" >&2; then
+      reuse_refuse "another session holds a live claim on the worktree at $worktree_path: $reason" \
+        "finish in that session, or hand it over: worktree-claim.sh handover $worktree_path --session-id $old_sid --to $session_id"
+    fi
+    bash "$claim" handover "$top" --repo-dir "$toplevel" --session-id "$old_sid" --to "$session_id" >&2 ||
+      reuse_refuse "could not hand the stale claim on $worktree_path over to session $session_id"
+    printf '%s: took over the stale claim of session %s on %s\n' "$PROG" "$old_sid" "$worktree_path" >&2
+  fi
+  printf '%s: reusing the existing worktree at %s (branch %s)\n' "$PROG" "$worktree_path" "$branch" >&2
+  printf '%s\n' "$worktree_path"
+  exit 0
+}
+
+[[ -e "$worktree_path" ]] && reuse_existing_target
+
+branch_exists=0
+if git -C "$toplevel" show-ref --verify --quiet "refs/heads/$branch"; then
+  branch_exists=1
+  read_worktree_facts
+  for i in "${!WT_FACT_PATH[@]}"; do
+    [[ "${WT_FACT_BRANCH[i]}" == "$branch" ]] &&
+      reuse_refuse "branch $branch is already checked out in the worktree at ${WT_FACT_PATH[i]}" \
+        "work there, or choose a name that does not resolve to $branch"
+  done
 fi
 
 # Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
@@ -1023,9 +1119,14 @@ if [[ "$existing_branch" -eq 1 ]]; then
     printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
     exit 2
   fi
-  if ! git -C "$toplevel" show-ref --verify --quiet "refs/heads/$name"; then
+  if ((!branch_exists)); then
     printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
     exit 2
+  fi
+elif ((branch_exists)); then
+  if [[ -n "$base_ref" ]]; then
+    printf '%s: branch %s already exists, so --base-ref %s does not apply; checking it out as it is\n' \
+      "$PROG" "$branch" "$base_ref" >&2
   fi
 else
 [[ -z "$base_ref" ]] && base_ref="fresh"
@@ -1184,25 +1285,27 @@ fresh)
 esac
 fi
 
-if [[ "$existing_branch" -eq 1 ]]; then
-  if ! git -C "$toplevel" worktree add "$worktree_path" "$name" >&2; then
-    printf '%s: git worktree add failed for existing branch %q\n' "$PROG" "$name" >&2
-    exit 4
-  fi
+# --no-track on fresh: the base is <remote>/<default>, and git would otherwise
+# record it as the new branch's upstream, so a bare `git push` fails under
+# push.default=simple and push-branch.sh, which sets -u only when no upstream
+# exists, keeps the wrong one. head stays as it was.
+if ((branch_exists)); then
+  git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
+elif [[ "$base_ref" == fresh ]]; then
+  git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
 else
-  # --no-track on fresh: the base is <remote>/<default>, and git would otherwise
-  # record it as the new branch's upstream, so a bare `git push` fails under
-  # push.default=simple and push-branch.sh, which sets -u only when no upstream
-  # exists, keeps the wrong one. head stays as it was.
-  if [[ "$base_ref" == fresh ]]; then
-    git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
+  git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
+fi || {
+  # A concurrent run may have created the target or the branch since the checks
+  # above; that run's lock is its claim, so this one refuses rather than share.
+  if [[ -e "$worktree_path" ]]; then
+    printf '%s: another process created %s while this one was creating it; rerun to reuse it if this session may claim it\n' \
+      "$PROG" "$worktree_path" >&2
   else
-    git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
-  fi || {
-    printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$branch" >&2
-    exit 4
-  }
-fi
+    printf '%s: git worktree add failed for branch %q (git'\''s error is above)\n' "$PROG" "$branch" >&2
+  fi
+  exit 4
+}
 
 # Arm the removal guard the moment the worktree exists: a locked worktree makes
 # `git worktree remove` refuse (a single --force included) and its record
@@ -1325,8 +1428,8 @@ if [[ -f "$worktree_path/package-lock.json" ]]; then
   fi
 fi
 
-if [[ "$existing_branch" -eq 1 ]]; then
-  printf '%s: created worktree on existing branch %q\n' "$PROG" "$name" >&2
+if ((branch_exists)); then
+  printf '%s: created worktree on existing branch %q\n' "$PROG" "$branch" >&2
 else
   printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_ref" >&2
 fi

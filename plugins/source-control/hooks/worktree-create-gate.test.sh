@@ -146,6 +146,29 @@ assert_eq "the agent name takes the repository's default type" "chore/agent-a1b2
   "$(git -C "$OUT" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
 # --------------------------------------------------------------------------
+# Re-entry: the same payload twice (a relaunched `claude -w <name>`) returns the
+# worktree the first run made; another live session's worktree still refuses.
+# --------------------------------------------------------------------------
+
+REPO_AGAIN="$(mkrepo)"
+GATE_CFG="$TEST_TMPDIR/gate-config"
+mkdir -p "$GATE_CFG/projects/p"
+FIRST="$(payload "feat/gate-again" "$REPO_AGAIN" |
+  CLAUDE_CONFIG_DIR="$GATE_CFG" CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
+SECOND="$(payload "feat/gate-again" "$REPO_AGAIN" |
+  CLAUDE_CONFIG_DIR="$GATE_CFG" CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
+assert_exit "the same payload twice succeeds" 0 "$?"
+assert_eq "the second run prints the first run's path" "$FIRST" "$SECOND"
+assert_eq "the second run registers no second worktree" "2" \
+  "$(git -C "$REPO_AGAIN" worktree list | grep -c .)"
+
+: >"$GATE_CFG/projects/p/s1.jsonl"
+ERR="$(printf '{"session_id":"s2","transcript_path":"t","cwd":"%s","hook_event_name":"WorktreeCreate","name":"feat/gate-again"}' "$REPO_AGAIN" |
+  CLAUDE_CONFIG_DIR="$GATE_CFG" CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
+assert_contains "another live session's worktree is named in the refusal" "$ERR" "session s1 since"
+assert_contains "the exit-4 text covers a held target" "$ERR" "held by another worktree or session"
+
+# --------------------------------------------------------------------------
 # Refusals — every one fails the creation rather than falling through
 # --------------------------------------------------------------------------
 
