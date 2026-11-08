@@ -166,6 +166,38 @@ assert_rejected "numeric container_label rejected" '{"schema_version":"1.0","pro
 assert_rejected "boolean container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":true}}'
 assert_rejected "object container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":{"a":1}}}'
 
+# --- hold lists, wayfind prefix and the owner-decision role: defaults and remaps ---
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
+wit_read_binding "$BINDING"
+assert_eq "owner-decision label defaults when unset" "status: needs-decision" "$WIT_OWNER_DECISION_LABEL"
+assert_eq "hold labels default when unset" '["status: needs-decision","status: needs-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
+assert_eq "hold states default when unset" '["needs-human","needs-owner-decision","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATES_JSON"
+assert_eq "hold-state labels default when unset" '["needs-human","status: needs-decision","needs-owner-decision","status: needs-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
+assert_eq "wayfind prefix defaults when unset" "wayfind:" "$WIT_WAYFIND_PREFIX"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"owner-decision":"needs-owner-decision"}}}'
+wit_read_binding "$BINDING"
+assert_eq "an owner-decision remap reaches the hold label defaults" '["needs-owner-decision","status: needs-info","needs-spec"]' "$WIT_HOLD_LABELS_JSON"
+assert_eq "an owner-decision remap reaches the hold-state label defaults" '["needs-human","needs-owner-decision","needs-owner-decision","status: needs-info","needs-spec"]' "$WIT_HOLD_STATE_LABELS_JSON"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_labels":["on hold"],"hold_states":["parked"],"hold_state_labels":["parked"],"wayfind_label_prefix":"map:"}}'
+wit_read_binding "$BINDING"
+assert_eq "hold labels honor configured list" '["on hold"]' "$WIT_HOLD_LABELS_JSON"
+assert_eq "hold states honor configured list" '["parked"]' "$WIT_HOLD_STATES_JSON"
+assert_eq "hold-state labels honor configured list" '["parked"]' "$WIT_HOLD_STATE_LABELS_JSON"
+assert_eq "wayfind prefix honors configured value" "map:" "$WIT_WAYFIND_PREFIX"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_states":[],"wayfind_label_prefix":""}}'
+wit_read_binding "$BINDING"
+assert_eq "an empty hold-state list keeps the default" '["needs-human","needs-owner-decision","needs-reporter-info","needs-spec"]' "$WIT_HOLD_STATES_JSON"
+assert_eq "an empty wayfind prefix keeps the default" "wayfind:" "$WIT_WAYFIND_PREFIX"
+
+assert_rejected "scalar hold_labels rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_labels":"on hold"}}'
+assert_rejected "hold_states with an empty entry rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_states":["parked",""]}}'
+assert_rejected "hold_state_labels with a numeric entry rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"hold_state_labels":[5]}}'
+assert_rejected "non-string wayfind_label_prefix rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"wayfind_label_prefix":["map:"]}}'
+
 # --- personal override: .work-item-tracker.local.json beside the binding, allowlist-only ---
 
 OROOT="$TEST_TMPDIR/override-repo"

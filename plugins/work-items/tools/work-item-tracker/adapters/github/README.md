@@ -679,12 +679,13 @@ tracker:
 - `trusted_actors`: a repo-relative path to the trust list, `{version: 1, actors: [{id, login,
   kind}]}`, every id a positive whole number.
 - `model`: a repo-relative path to a YAML file whose `models.issue-status` block gives `field-id`,
-  `options` (option id to state), and `bot-setters` (`{id, login}` entries).
+  `options` (option id to state), and `bot-setters` (`{id, login}` entries), and may give
+  `ready-state`, the state only a person's value counts for (absent or empty: `agent-ready`).
 - `lanes_app`: the lanes App's login, which counts for every state while the trust list holds it.
 
 Both files are read from each item repository's default branch. A Work status field event counts
 when a listed `human` or the lanes App wrote it, for any state, or when a `bot-setters` account
-wrote any state but `agent-ready`, provided it is `github-actions[bot]` (id 41898282) or the trust
+wrote any state but the `ready-state`, provided it is `github-actions[bot]` (id 41898282) or the trust
 list holds it as `kind: bot` with the same id and login. The newest counted event decides; a
 counted removal reads null, and with no counted event the item reads null. The read takes the
 newest 100 field events and 25 field values per issue.

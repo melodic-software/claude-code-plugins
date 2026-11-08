@@ -26,7 +26,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 
 ## Canonical roles
 
-Three meta-axis members are **canonical roles**: skill and action prose speaks the role name, and
+Four labels are **canonical roles**: skill and action prose speaks the role name, and
 the repo-actual label string resolves from the tracker binding (the `tracker` mapping of
 `<home>/work-items.yaml`, else the legacy repo-root JSON binding), key `config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
 apply, so existing repos need zero migration.
@@ -36,6 +36,7 @@ apply, so existing repos need zero migration.
 | `autonomous-eligible` | `agent-ready` | Fully specified and briefed; eligible for autonomous (AFK) pickup from the frontier |
 | `human-gated` | `needs-human` | Needs human judgment (design decision, UX review, manual QA); excluded by `list-frontier --autonomous` |
 | `recurring-maintenance` | `recurring` | A scheduled maintenance item reconciled against `.github/recurring-schedule.json` |
+| `owner-decision` | `status: needs-decision` | Parked on an owner's decision; the decision label `/work-items:morning-brief` lists and `/plugin-quality:audit` files an unresearched change under, and a hold label by default |
 
 Binding shape (every entry optional; unlisted roles keep their defaults):
 
@@ -45,7 +46,8 @@ Binding shape (every entry optional; unlisted roles keep their defaults):
     "role_labels": {
       "autonomous-eligible": "agent-ready",
       "human-gated": "needs-human",
-      "recurring-maintenance": "recurring"
+      "recurring-maintenance": "recurring",
+      "owner-decision": "status: needs-decision"
     }
   }
 }
@@ -77,6 +79,23 @@ a **sibling** of `config.role_labels` (it marks a graph root, not a worker role)
 remapped label must exist (or route through the repo's label-as-code owner), and a repo
 that already holds containers must relabel them when remapping, because the frontier exclusion is
 an exact match against the resolved string.
+
+### Hold lists and the wayfind prefix
+
+The labels and Work status states that keep an item off the autonomous frontier, and the
+wayfind label prefix, resolve from these `config` keys, siblings of `config.role_labels`.
+An absent or empty key keeps its default; a present value of the wrong shape is a
+configuration error.
+
+| Key | Default | What it holds |
+|-----|---------|---------------|
+| `hold_labels` | the `owner-decision` role label, `status: needs-info`, `needs-spec` | Labels that wait on a person |
+| `hold_states` | `needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec` | Work status states that wait on a person |
+| `hold_state_labels` | `needs-human`, the `owner-decision` role label, `needs-owner-decision`, `status: needs-info`, `needs-spec` | The hold states' labels: an item carrying one has its hold decided by its labels |
+| `wayfind_label_prefix` | `wayfind:` | The prefix of `/planning:wayfind`'s routing labels |
+
+A remap of the `owner-decision` role reaches the two defaults that name it. A key set
+explicitly replaces its whole default list.
 
 ### Recorded postures: fixed strings without a remap seam
 

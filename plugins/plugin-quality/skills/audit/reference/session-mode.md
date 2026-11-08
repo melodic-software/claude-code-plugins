@@ -101,8 +101,12 @@ carries a readiness label, decided at step 4:
    `needs-decision`. Research absent, declined, or empty means `needs-decision`. The audit never
    assigns `agent-ready` on its own judgment.
 
-The two label names are this repository's readiness vocabulary. Where the target repository names
-its states differently, use its equivalent for each and keep the rule.
+The two names are roles, not literal labels. Read each from the target repository's tracker
+binding, `config.role_labels` under `tracker:` in its `docs/conventions/work-items.yaml` (else the
+legacy `.work-item-tracker.json`): `agent-ready` is the `autonomous-eligible` role and
+`needs-decision` the `owner-decision` role. With no binding or no entry for a role, use its
+default: `agent-ready` and `status: needs-decision`. Where the sink has no labels, keep the rule
+and state the decision in the item.
 
 ## Review seams by role
 

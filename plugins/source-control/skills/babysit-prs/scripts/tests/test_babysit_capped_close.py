@@ -137,6 +137,7 @@ class World:
         holds: tuple[str, ...] = (),
         issue_holds: tuple[str, ...] = ("needs-human",),
         reason: str = ve.CLOSE_VERIFY,
+        admission: str | None = None,
     ) -> dict[str, Any]:
         with (
             mock.patch.object(ve.merge_policy, "pull_request", return_value=self.pr),
@@ -151,6 +152,7 @@ class World:
                 holds=holds,
                 issue_holds=issue_holds,
                 reason=reason,
+                **({"admission": admission} if admission is not None else {}),
             )
 
     def calls(self) -> list[str]:
@@ -579,6 +581,145 @@ class LeavesItAlone(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
 
+# A remapped admission label, with a space so the URL quoting is covered too.
+GO = "go ready"
+GO_PATH = "go%20ready"
+
+
+class ARemappedAdmissionLabel(unittest.TestCase):
+    """Every read and write of `agent-ready` in `capped_close` goes by
+    `admission`: the carried check, the lanes App removals, the park's done
+    check, the quoted label removal, the re-add and the comment wording."""
+
+    def test_the_restart_toggles_the_remapped_label(self) -> None:
+        world = World()
+        result = world.run(StubReader(issue_labels=(GO,)), admission=GO)
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/comments",
+                f"DELETE repos/{REPO}/issues/{ISSUE}/labels/{GO_PATH}",
+                f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
+        self.assertIn(f"labels[]={GO}", world.writes[-2])
+        self.assertIn(f"goes back to `{GO}`", world.body(1))
+        self.assertFalse(any("agent-ready" in " ".join(w) for w in world.writes))
+
+    def test_only_the_remapped_label_counts_as_carried(self) -> None:
+        world = World()
+        result = world.run(StubReader(issue_labels=("agent-ready",)), admission=GO)
+        self.assertEqual(result["unrestarted"], [ISSUE])
+        self.assertEqual(
+            world.calls(),
+            [
+                f"POST repos/{REPO}/issues/{PR}/comments",
+                f"POST repos/{REPO}/issues/{ISSUE}/comments",
+                f"PATCH repos/{REPO}/pulls/{PR}",
+            ],
+        )
+        self.assertIn(f"did not carry `{GO}`", world.body(1))
+
+    def test_a_rerun_reads_removals_of_the_remapped_label(self) -> None:
+        # Carried: only the App's removal of the remapped label since the
+        # record means the toggle already happened.
+        for label, writes in (
+            (
+                "agent-ready",
+                [
+                    f"DELETE repos/{REPO}/issues/{ISSUE}/labels/{GO_PATH}",
+                    f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                    f"PATCH repos/{REPO}/pulls/{PR}",
+                ],
+            ),
+            ("Go Ready", [f"PATCH repos/{REPO}/pulls/{PR}"]),
+        ):
+            with self.subTest(label):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [
+                    comment(
+                        f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 -->"
+                    )
+                ]
+                world.events[ISSUE] = [event("unlabeled", BOT, RECORDED, label=label)]
+                world.run(StubReader(issue_labels=(GO,)), admission=GO)
+                self.assertEqual(world.calls(), writes)
+
+    def test_a_rerun_puts_back_only_its_own_removal_of_the_remapped_label(
+        self,
+    ) -> None:
+        for label, restarted in ((GO, [ISSUE]), ("agent-ready", [])):
+            with self.subTest(label):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [
+                    comment(
+                        f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 -->"
+                    )
+                ]
+                world.events[ISSUE] = [event("unlabeled", BOT, RECORDED, label=label)]
+                result = world.run(StubReader(issue_labels=()), admission=GO)
+                self.assertEqual(result["restarted"], restarted)
+                if restarted:
+                    self.assertEqual(
+                        world.calls(),
+                        [
+                            f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                            f"PATCH repos/{REPO}/pulls/{PR}",
+                        ],
+                    )
+                    self.assertIn(f"labels[]={GO}", world.writes[0])
+                else:
+                    self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
+
+    def test_a_parked_rerun_is_unfinished_only_while_the_remapped_label_stays(
+        self,
+    ) -> None:
+        parked = f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 parked -->"
+        for labels, writes in (
+            (("status: confirmed", "agent-ready"), [f"PATCH repos/{REPO}/pulls/{PR}"]),
+            (
+                ("status: confirmed", GO),
+                [
+                    f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                    f"DELETE repos/{REPO}/issues/{ISSUE}/labels/status%3A%20ready",
+                    f"DELETE repos/{REPO}/issues/{ISSUE}/labels/{GO_PATH}",
+                    f"PATCH repos/{REPO}/pulls/{PR}",
+                ],
+            ),
+        ):
+            with self.subTest(labels):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [comment(parked)]
+                result = world.run(StubReader(issue_labels=labels), admission=GO)
+                self.assertEqual(result["parked"], [ISSUE])
+                self.assertEqual(world.calls(), writes)
+
+
+def role_label(
+    owner: str,
+    name: str,
+    *,
+    strict: bool = False,
+    role: str = "human-gated",
+    default: str = "needs-human",
+) -> str:
+    """`postmerge._role_label` for a binding that maps only the human-gated
+    role, to needs-human: every other role reads its default."""
+    return "needs-human" if role == "human-gated" else default
+
+
 class TheCommand(unittest.TestCase):
     """`capped-close`, which enable-auto-merge.mjs pythonClose runs."""
 
@@ -612,7 +753,7 @@ class TheCommand(unittest.TestCase):
             mock.patch.object(
                 ve.merge_policy, "with_default_branch", return_value=config
             ),
-            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(ve.postmerge, "_role_label", side_effect=role_label),
             mock.patch.object(
                 ve, "capped_close", return_value={"closed": True}
             ) as close,
@@ -637,13 +778,41 @@ class TheCommand(unittest.TestCase):
             mock.patch.object(
                 ve.merge_policy, "with_default_branch", return_value=config
             ),
-            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(ve.postmerge, "_role_label", side_effect=role_label),
             mock.patch.object(
                 ve, "capped_close", return_value={"closed": True}
             ) as close,
         ):
             self.main("--reason", ve.NOT_CONVERGING)
         self.assertEqual(close.call_args.kwargs["reason"], ve.NOT_CONVERGING)
+
+    def test_a_remapped_admission_label_reaches_the_close(self) -> None:
+        config = mock.Mock(
+            error=None,
+            max_verify_fails=3,
+            agent_identity=BOT,
+            verify_cap_attempts=2,
+            issue_holds=("needs-human",),
+            issue_status=None,
+        )
+        with (
+            mock.patch.object(ve.merge_policy, "config_at", return_value=config),
+            mock.patch.object(
+                ve.merge_policy, "with_default_branch", return_value=config
+            ),
+            mock.patch.object(
+                ve.postmerge,
+                "_role_label",
+                side_effect=lambda *_, role="human-gated", **__: (
+                    "go" if role == ve.merge_policy.ADMISSION_ROLE else "needs-human"
+                ),
+            ),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": True}
+            ) as close,
+        ):
+            self.main()
+        self.assertEqual(close.call_args.kwargs["admission"], "go")
 
     def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
         with mock.patch.object(

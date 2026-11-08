@@ -498,6 +498,21 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
         order = tuple(row[""] for row in listed("order."))
         if sorted(order) != sorted(states):
             raise ValueError("order must list every mapped state once")
+        # A state no option maps would never match, so a misspelt hold state
+        # drops its hold and a misspelt ready state lets a bot setter's
+        # agent-ready count: both are errors, not defaults.
+        if "hold-states" in rows:
+            raise ValueError("hold-states is not a list of states")
+        holds = tuple(row[""] for row in listed("hold-states."))
+        if set(holds) - set(states):
+            raise ValueError("hold-states names a state no option maps")
+        if any(k.startswith("ready-state.") for k in rows):
+            raise ValueError("ready-state is not a state")
+        ready = rows.get("ready-state") or ""
+        if ready and ready not in states:
+            raise ValueError("ready-state names a state no option maps")
+        holds = holds or HOLD_STATES
+        ready = ready or READY_STATE
     except ValueError as exc:
         return IssueStatusConfig(0, (), (), (), (), f"{ISSUE_STATUS_KEY}: {exc}")
     return IssueStatusConfig(
@@ -506,6 +521,8 @@ def _issue_status_rows(rows: Mapping[str, str]) -> IssueStatusConfig:
         tuple((int(s["id"]), s["login"]) for s in setters),
         labels,
         order,
+        hold_states=holds,
+        ready_state=ready,
     )
 
 
@@ -905,12 +922,28 @@ class PipelineConfig:
     issue_status: IssueStatusConfig | None = None
 
 
+# The Work status states that hold an issue for a person (read-status.mjs
+# HOLD_STATES), unless `models.issue-status.hold-states` names others.
+HOLD_STATES = (
+    "needs-human",
+    "needs-owner-decision",
+    "needs-reporter-info",
+    "needs-spec",
+)
+# The state that admits an issue to the lane and stays with its label until its
+# readers move to the field: the one state a `bot-setters` account's value
+# never counts for, unless `models.issue-status.ready-state` names another.
+READY_STATE = "agent-ready"
+
+
 @dataclass(frozen=True)
 class IssueStatusConfig:
     """`models.issue-status` (`ISSUE_STATUS_KEY`): the field id, each option
     id with its state, the `bot-setters` (id, login) pairs, each state's
     labels, and the collapse order. `error` names a malformed block, which
-    `issue_status` refuses to read."""
+    `issue_status` refuses to read. `hold_states` and `ready_state` are the
+    block's `hold-states` and `ready-state`, else `HOLD_STATES` and
+    `READY_STATE`."""
 
     field_id: int
     options: tuple[tuple[str, str], ...]
@@ -918,19 +951,11 @@ class IssueStatusConfig:
     labels: tuple[tuple[str, tuple[str, ...]], ...]
     order: tuple[str, ...]
     error: str | None = None
+    hold_states: tuple[str, ...] = HOLD_STATES
+    ready_state: str = READY_STATE
 
 
 ISSUE_STATUS_KEY = "models.issue-status"
-# The Work status states that hold an issue for a person (read-status.mjs
-# HOLD_STATES).
-HOLD_STATES = (
-    "needs-human",
-    "needs-owner-decision",
-    "needs-reporter-info",
-    "needs-spec",
-)
-# The one state a `bot-setters` account's value never counts for.
-PERSON_ONLY_STATE = "agent-ready"
 # The job token's bot, a bot setter the trusted-actor list does not list.
 ACTIONS_BOT = (41898282, "github-actions[bot]")
 # The one App whose field values count for every state.
@@ -1498,6 +1523,7 @@ def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
         return isinstance(v, list) and bool(v) and all(text(x) for x in v)
 
     order = value.get("order")
+    holds = value.get("hold_states")
     status = IssueStatusConfig(
         value.get("field_id"),
         pairs(value.get("options"), str, text),
@@ -1505,12 +1531,16 @@ def _cached_issue_status(value: Any) -> IssueStatusConfig | None:
         pairs(value.get("labels"), str, texts),
         tuple(order) if texts(order) else (),
         value.get("error"),
+        tuple(holds) if texts(holds) else (),
+        value.get("ready_state"),
     )
     if (
         type(status.field_id) is not int
         or status.field_id < 1
         or status.error is not None
         or not status.order
+        or not status.hold_states
+        or not text(status.ready_state)
         or set(value) != {f.name for f in fields(IssueStatusConfig)}
     ):
         raise ValueError("not a saved issue status")
@@ -2811,15 +2841,22 @@ def issue_hold_refusal(
     issue: dict[str, Any],
     holds: Collection[str],
     status: Callable[[int], str | None] | None = None,
+    hold_states: Collection[str] | None = None,
 ) -> str | None:
     """Why a hold refuses the lane's linked `issue` (a node read with its
     `labels`), or None: no hold label resolved (`issue_hold_labels`), labels
     that cannot be read whole, or a label in `holds`, matched
     case-insensitively and named; then, when `status` reads the issue's Work
-    status (`issue_status_reader`), a state in `HOLD_STATES`, named, or a
-    read that raises `PolicyReadError`. A person clears it by removing the
-    label or setting the field; an edit to the issue is the verifier's
-    (`verify:spec-changed`)."""
+    status (`issue_status_reader`), a state in `hold_states` (by default the
+    reader's config's, else `HOLD_STATES`), named, or a read that raises
+    `PolicyReadError`. A person clears it by removing the label or setting the
+    field; an edit to the issue is the verifier's (`verify:spec-changed`)."""
+    if hold_states is None:
+        hold_states = (
+            status.config.hold_states
+            if isinstance(status, IssueStatusReader)
+            else HOLD_STATES
+        )
     if not holds:
         return "closing-issue-holds-unresolved"
     labels = _label_names(issue)
@@ -2833,7 +2870,7 @@ def issue_hold_refusal(
         state = status(issue["number"])
     except PolicyReadError:
         return "closing-issue-status-unreadable"
-    return f"closing-issue-held:{state}" if state in HOLD_STATES else None
+    return f"closing-issue-held:{state}" if state in hold_states else None
 
 
 # The field values one read takes: a full page may hold more, so it fails the
@@ -2866,7 +2903,7 @@ def issue_status(
     (`config`), or None when that event removed the value or no event counts.
     An event counts when a listed human or the lanes App on the trusted list
     at `ref` wrote it, or a `bot-setters` account wrote any state but
-    `PERSON_ONLY_STATE`, github-actions[bot] always and any other only while
+    `config.ready_state`, github-actions[bot] always and any other only while
     the list holds it as a bot with the same id and login. Unlike
     issue-status.mjs issueStatus, which reads the newest event's setter, an
     uncounted later change or removal leaves a counted state standing.
@@ -2925,7 +2962,7 @@ def issue_status(
             else event.get("newValue" if kind == "IssueFieldChangedEvent" else "value")
         )
         if type(setter) is not int or not (
-            setter in people or setter in bots and state != PERSON_ONLY_STATE
+            setter in people or setter in bots and state != config.ready_state
         ):
             continue
         if state is not None and state not in config.order:
@@ -2940,30 +2977,27 @@ def issue_status(
     return None
 
 
-# The Work status that stays with its label until its readers move to the field.
-AGENT_READY_STATE = "agent-ready"
-
-
 def status_label_names(
     state: str | None, names: list[str], config: IssueStatusConfig | None
 ) -> list[str]:
     """`names` (an issue's labels) as its Work status `state` decides them
     (read-status.mjs statusLabels). With no state, `names` unchanged. With
-    one: every queue-state label (a state neither held nor agent-ready) is
-    dropped, hold labels and agent-ready are kept, and the state's first label
-    is added unless present or the state is agent-ready."""
+    one: every queue-state label (a state neither held nor the config's ready
+    state) is dropped, hold labels and the ready state's are kept, and the
+    state's first label is added unless present or the state is the ready
+    state."""
     if state is None or config is None:
         return names
     labels = dict(config.labels)
     queue = {
         n.casefold()
         for s, group in labels.items()
-        if s != AGENT_READY_STATE and s not in HOLD_STATES
+        if s != config.ready_state and s not in config.hold_states
         for n in group
     }
     kept = [n for n in names if n.casefold() not in queue]
     label = next(iter(labels.get(state, ())), None)
-    if state == AGENT_READY_STATE or label is None:
+    if state == config.ready_state or label is None:
         return kept
     return kept if any(n.casefold() == label.casefold() for n in kept) else [*kept, label]
 
@@ -3048,21 +3082,29 @@ def issue_status_set_since(
     return False
 
 
+@dataclass(frozen=True)
+class IssueStatusReader:
+    """`issue_status` on `repo` under `config`, called with an issue number:
+    the trusted list read at the default branch head (`branch` when already
+    read). `issue_hold_refusal` reads the hold states from `config`."""
+
+    repo: str
+    config: IssueStatusConfig
+    branch: str | None = None
+
+    def __call__(self, number: int) -> str | None:
+        head = _default_branch_config(self.repo, self.branch).base_sha
+        return issue_status(self.repo, head, number, self.config)
+
+
 def issue_status_reader(
     repo: str, status: IssueStatusConfig | None, branch: str | None = None
-) -> Callable[[int], str | None] | None:
+) -> IssueStatusReader | None:
     """`issue_status` for `issue_hold_refusal` under `status` (a config's
     `issue_status`), the trusted list read at the default branch head
     (`branch` when already read); None when `status` is None, which reads no
     field."""
-    if status is None:
-        return None
-
-    def read(number: int) -> str | None:
-        head = _default_branch_config(repo, branch).base_sha
-        return issue_status(repo, head, number, status)
-
-    return read
+    return None if status is None else IssueStatusReader(repo, status, branch)
 
 
 def _claimed_before(

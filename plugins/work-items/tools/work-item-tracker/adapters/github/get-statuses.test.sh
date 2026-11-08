@@ -186,6 +186,14 @@ assert_contains "the model is read from the item repository" "$(cat "$LOG")" "re
 BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" run --field "Work status"
 assert_eq "trusted, no ids → no call" '{}|0' "$(jq -c '.statuses' <<<"$OUT")|$(wc -l <"$LOG" | tr -d ' ')"
 
+# The model's ready-state names the one state a bot-setter's value never counts for.
+READY_MODEL="$TMP_ROOT/ready-model.yaml"
+awk '{ print } /^    field-id: 777$/ { print "    ready-state: ready" }' "$MODEL" >"$READY_MODEL"
+BINDING="$TRUST_BINDING" ANSWER="$TRUSTED" MODEL_FILE="$READY_MODEL" run --field "Work status" "${ids[@]}"
+assert_eq "a configured ready-state → exit 0" "0" "$RC"
+assert_eq "under ready-state ready, a bot-setter's agent-ready counts" "agent-ready" "$(st 2)"
+assert_eq "under ready-state ready, a bot-setter's ready does not count" "needs-human" "$(st 3)"
+
 # trust_fails <exit> <name> [run args via env]: the read fails with <exit>, one stderr line
 # and nothing on stdout.
 trust_fails() {
@@ -217,6 +225,9 @@ MODEL_FILE="$bad" trust_fails 3 "a model that maps no option"
 bad="$TMP_ROOT/bad-model-none.yaml"
 printf 'models:\n  other: 1\n' >"$bad"
 MODEL_FILE="$bad" trust_fails 3 "a model with no models.issue-status block"
+bad="$TMP_ROOT/bad-model-ready.yaml"
+awk '{ print } /^    field-id: 777$/ { print "    ready-state: agent_ready" }' "$MODEL" >"$bad"
+MODEL_FILE="$bad" trust_fails 3 "a ready-state no option maps"
 BINDING="$(trust_binding '{"trusted_actors":"trust/actors.json","model":"trust/model.yaml"}')" \
   trust_fails 3 "a status_trust without lanes_app"
 BINDING="$(trust_binding '{"trusted_actors":"/etc/actors.json","model":"trust/model.yaml","lanes_app":"a[bot]"}')" \

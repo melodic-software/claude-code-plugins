@@ -64,7 +64,9 @@
 #   morning-brief.sh --repo owner/name        target a specific repo
 #   morning-brief.sh --telemetry-issue N      pin the lane-telemetry issue
 #   morning-brief.sh --queue-labels A,B,C     pin the queue-label set (comma-separated)
-#   morning-brief.sh --decision-label L       pin the parked-decision label
+#   morning-brief.sh --decision-label L       pin the parked-decision label (default: the
+#                                             tracker binding's owner-decision role label in
+#                                             <home>/work-items.yaml, else status: needs-decision)
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
 #   morning-brief.sh --stuck-days N           age in a queue label past which an open item is listed as stuck (default 7)
@@ -696,11 +698,23 @@ config_layer() {
   CONFIG_SOURCES+=("${file##*/}")
   awk -F'\t' '$1 ~ /^morning_brief\./ { sub(/^morning_brief\./, "", $1); print $1 "\t" $2 }' <<<"$out"
 }
+# binding_decision_label FILE: the tracker binding's owner-decision role label in FILE
+# (tracker.config.role_labels.owner-decision; label-taxonomy.md "Canonical roles"), or
+# nothing when the file is absent, a symlink, unparsable or sets none. Only the team
+# file binds the tracker, so the personal layer is never read for it.
+binding_decision_label() {
+  local out
+  [[ -f "$1" && ! -L "$1" ]] || return 0
+  out="$(awk -f "$SCRIPT_DIR/lib/yaml-subset.awk" "$1" 2>/dev/null)" || return 0
+  awk -F'\t' '$1 == "tracker.config.role_labels.owner-decision" && $2 !~ /[[:cntrl:]]/ { print $2; exit }' <<<"$out"
+}
 CONFIG_TEAM=""
 CONFIG_LOCAL=""
+CONFIG_DECISION_LABEL=""
 if CONFIG_HOME="$(config_home)"; then
   CONFIG_TEAM="$(config_layer "$CONFIG_HOME/work-items.yaml")"
   CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/work-items.local.yaml")"
+  CONFIG_DECISION_LABEL="$(binding_decision_label "$CONFIG_HOME/work-items.yaml")"
 fi
 COST_SETTING_LAYERS=()
 # config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
@@ -926,7 +940,7 @@ label_exists_in_repo() {
 # Parked-decisions can short-circuit on a fixture label inventory when the
 # decision label is absent — no gh issue list needed for that probe.
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
-  _probe_decision_label="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
+  _probe_decision_label="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
   if fetch_repo_label_names "$WORK/probe-labels.json"; then
     label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
@@ -1061,10 +1075,11 @@ fmt_age() {
 }
 
 # --- Queue label resolution ---------------------------------------------------
-# Defaults match melodic-software's taxonomy. Live runs filter to labels that
-# actually exist in the target repo so a consuming repo with a different scheme
-# does not render misleading rows. Pass --queue-labels / --decision-label to
-# pin a custom set (same spirit as --telemetry-issue).
+# Defaults match melodic-software's taxonomy, with the decision label the tracker
+# binding maps. Live runs filter to labels that actually exist in the target repo
+# so a consuming repo with a different scheme does not render misleading rows.
+# Pass --queue-labels / --decision-label to pin a custom set (same spirit as
+# --telemetry-issue).
 resolve_queue_labels() {
   QUEUE_LABELS=()
   if [[ -n "$QUEUE_LABELS_ARG" ]]; then
@@ -1076,12 +1091,18 @@ resolve_queue_labels() {
       [[ -n "$part" ]] && QUEUE_LABELS+=("$part")
     done
   else
-    QUEUE_LABELS=("${DEFAULT_QUEUE_LABELS[@]}")
+    local label
+    for label in "${DEFAULT_QUEUE_LABELS[@]}"; do
+      [[ "$label" == "$DEFAULT_DECISION_LABEL" ]] && label="${CONFIG_DECISION_LABEL:-$label}"
+      QUEUE_LABELS+=("$label")
+    done
   fi
 }
 
+# The decision label: the flag, else the binding's owner-decision role label, else
+# the default.
 resolve_decision_label() {
-  DECISION_LABEL="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
+  DECISION_LABEL="${DECISION_LABEL_ARG:-${CONFIG_DECISION_LABEL:-$DEFAULT_DECISION_LABEL}}"
 }
 
 resolve_queue_labels
@@ -1144,38 +1165,45 @@ status_model() {
     jq -R -n -c '
       reduce (inputs | split("\t") | select(.[0] | startswith("models.issue-status.")))
         as $r ({}; setpath($r[0] | ltrimstr("models.issue-status.") | split("."); $r[1]))
-      | if has("field-id") then .labels |= map_values([to_entries[] | .value]) else null end
+      | if has("field-id") then .labels |= map_values([to_entries[] | .value])
+          | if has("hold-states") then .["hold-states"] |= [to_entries[] | .value] else . end
+        else null end
     ' "$WORK/pipeline.flat" >"$WORK/status.model"
   fi
   jq -e '. == null or ((.["field-id"] | tostring | test("^[1-9][0-9]*$")) and (.options | type == "object")
-    and (.labels | type == "object" and all(.[]; type == "array")))' "$WORK/status.model" >/dev/null 2>&1 || {
+    and (.labels | type == "object" and all(.[]; type == "array"))
+    and (.["hold-states"] | . == null or (type == "array" and all(.[]; type == "string")))
+    and (.["ready-state"] | . == null or type == "string"))' "$WORK/status.model" >/dev/null 2>&1 || {
     LAST_ERR="the Work status model (models.issue-status) is malformed"
     return 1
   }
   STATUS_MODEL="$(cat "$WORK/status.model")"
 }
 
-# jq definitions over the model $m. `effective($state)` is the issue's label
-# names as its Work status value decides them: none set leaves them; a set one
-# drops every queue-state label (a state neither held nor agent-ready), keeps
-# hold labels and agent-ready, and adds the state's first label unless present
-# or the state is agent-ready. `synthetic` turns one issue's field events into
+# jq definitions over the model $m. `holds` is the model's hold-states and
+# `ready` its ready-state, else the defaults below. `effective($state)` is the
+# issue's label names as its Work status value decides them: none set leaves
+# them; a set one drops every queue-state label (a state neither held nor
+# ready), keeps hold labels and ready, and adds the state's first label unless
+# present or the state is ready. `synthetic` turns one issue's field events into
 # label events: an unlabeled event of the state left, a labeled event of the
-# state set, each its first label; agent-ready makes none. A bot's field event
+# state set, each its first label; ready makes none. A bot's field event
 # before field-events-since mirrored a label change and is dropped. A value the
 # model has no option for is an error.
 # shellcheck disable=SC2016  # jq program, not shell
 STATUS_DEFS='
   def fold: ascii_downcase;
+  def holds: $m["hold-states"] // [] | if length == 0 then ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"] else . end;
+  def ready: $m["ready-state"] // "" | if . == "" then "agent-ready" else . end;
   def mapped: if . == null or IN($m.options[]) then . else error("Work status `\(.)` is no option of the model") end;
   def effective($state):
     if $state == null then .
-    else ([$m.labels | to_entries[]
-           | select(.key != "agent-ready" and (.key | IN("needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec") | not))
+    else ready as $ready | ([$m.labels | to_entries[]
+           | select(.key != $ready and (.key | IN(holds[]) | not))
            | .value[] | fold]) as $queue
       | [ .[] | select(fold | IN($queue[]) | not) ] as $kept
       | $m.labels[$state][0] as $label
-      | if $state == "agent-ready" or $label == null or any($kept[]; fold == ($label | fold)) then $kept else $kept + [$label] end
+      | if $state == $ready or $label == null or any($kept[]; fold == ($label | fold)) then $kept else $kept + [$label] end
     end;
   def synthetic:
     reduce (.[]? | select(.issueField.fullDatabaseId == ($m["field-id"] | tostring))) as $e ({held: null, out: []};
@@ -1188,7 +1216,7 @@ STATUS_DEFS='
              or (.at | fromdateiso8601) >= ($m["field-events-since"] | fromdateiso8601))
     | . as $e
     | (["UnlabeledEvent", $e.from], ["LabeledEvent", $e.to])
-    | select(.[1] != null and .[1] != "agent-ready" and $m.labels[.[1]][0] != null)
+    | select(.[1] != null and .[1] != ready and $m.labels[.[1]][0] != null)
     | {__typename: .[0], createdAt: $e.at, actor: {login: ($e.actor.login // "")}, label: {name: $m.labels[.[1]][0]}};
 '
 

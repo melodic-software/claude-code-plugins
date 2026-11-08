@@ -322,7 +322,9 @@ suggested change, carries its `research:` line in the ledger, and a tier record 
 file and quoted span the collector checks. A suggested change is labeled `agent-ready` only
 after a `/discovery:research` pass, with its source tiers recorded in the item. Every other
 suggested change files as `needs-decision`, and research that is absent, declined, or empty means
-`needs-decision`, never `agent-ready`. A claim that did not clear research is written as an open
+`needs-decision`, never `agent-ready`. Both names stand for the target repository's labels,
+taken from its configuration ([`reference/session-mode.md`](reference/session-mode.md) "Research
+gate"). A claim that did not clear research is written as an open
 question, never as a fact or a recommendation ([`reference/session-mode.md`](reference/session-mode.md)
 "Research gate").
 
@@ -424,8 +426,8 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
 
 **Research decides the label.** Step 4's research gate applies to the ledger: a finding with `research: open-question`, or one that did not
 clear the research seam at this run's effort, is a decision for the maintainers, not a
-recommendation. State its claim in the item as an open question, and carry its remediation as `status: needs-decision` (or as a stated open decision
-where the sink has no labels), never autonomous-eligible (`agent-ready` by default). Only
+recommendation. State its claim in the item as an open question, and carry its remediation under the owner-decision label (`status: needs-decision` by default; [`reference/session-mode.md`](reference/session-mode.md) "Research gate"), or as a stated open decision
+where the sink has no labels, never autonomous-eligible (`agent-ready` by default). Only
 a `tier-0` or `tier-1` finding is written as a recommendation, with its primary source named.
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
