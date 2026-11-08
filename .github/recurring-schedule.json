@@ -2,7 +2,7 @@
   "items": [
     {
       "id": "frontier-release-instruction-ablation",
-      "title": "Model release: run audit-instructions (any release) + unhobble (frontier only) over this repo",
+      "title": "Run audit-instructions (any release) and unhobble (frontier only) over this repo after a model release",
       "cadence": "quarterly",
       "area": [],
       "category": "general",
@@ -19,7 +19,7 @@
     },
     {
       "id": "listing-budget-watch",
-      "title": "Listing-budget watch: report the shared aggregate and drift",
+      "title": "Report the shared listing-budget aggregate and drift",
       "cadence": "quarterly",
       "area": [],
       "category": "general",
@@ -31,7 +31,7 @@
     },
     {
       "id": "stale-doc-drift-watch",
-      "title": "Stale-doc drift watch: report doc references that no longer hold",
+      "title": "Report doc references that no longer hold",
       "cadence": "quarterly",
       "area": [],
       "category": "general",

@@ -13,9 +13,11 @@ never skips intake.
 - Its author is on [`trusted-actors.json`](../../standards/trusted-actors/trusted-actors.json) with
   kind `human`, or is the lanes App bot, both matched by numeric user id. A marker in an issue from
   anyone else is ignored.
-- It has an Issue Type and a status label: `agent-ready`, `needs-human`, or any `status:` label.
+- It has an Issue Type and a status: a Work status field a trusted account set to anything but
+  `needs-triage`, or the label `agent-ready`, `needs-human`, `needs-spec`, `admission-deferred`, or
+  any `status:` label.
 
-The publisher sets the type and labels in calls after the issue is created, so while only those are
+The publisher sets the type and status in calls after the issue is created, so while only those are
 missing the gate re-reads the issue every 5 seconds, 6 reads in all, before it gives up. A publisher
 on gh older than 2.94 sets a `type:` label instead of an Issue Type, so its items still get intake.
 

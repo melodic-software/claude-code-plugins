@@ -663,6 +663,14 @@ reference/one-way-doors.md
 lib/one-way-doors.md -> plugins/*/reference/one-way-doors.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/issue-house-style.md, the pointer every issue-filing skill reads.
+reference/issue-house-style.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/issue-house-style.md -> plugins/*/reference/issue-house-style.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/read-verification.sh.
 lib/read-verification.sh
 

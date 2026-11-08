@@ -31,7 +31,7 @@ The naming grammar above governs labels only. Issue titles are free text: there 
 
 **Issue forms set no title prefix.** GitHub's issue-form examples ship a `title: "[Bug]: "` default; forms here leave `title` empty and set the type through the form's `type:` key instead, so every issue reads the same.
 
-**Open issues conform; closed ones stay.** An open issue that breaks this rule is retitled when it is next triaged. Closed issues are not backfilled.
+**Open issues conform; closed ones stay.** Retitle an open issue that breaks this rule, unless automation finds that issue by its exact title. Closed issues are not backfilled.
 
 ## Filing an issue
 

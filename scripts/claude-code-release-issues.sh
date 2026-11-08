@@ -184,10 +184,13 @@ for title in "${TITLES[@]}"; do
   ((DRY)) && continue
   body_file="$TMPDIR_RUN/body-$i.md"
   write_body "$title" "$body_file"
-  gh issue create --title "$title" --body-file "$body_file" >/dev/null || {
+  if url="$(gh issue create --title "$title" --body-file "$body_file")"; then
+    [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
+      printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
+  else
     printf '%s: issue create failed for %s\n' "$SELF" "$title" >&2
     failed=1
-  }
+  fi
 done
 
 exit "$failed"

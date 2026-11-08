@@ -39,6 +39,7 @@ printf '%s\n' \
   'done' \
   '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" ]] && exit 1' \
   'if [[ "$1 $2" == "issue list" ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
+  'if [[ "$1 $2" == "issue create" ]]; then echo https://github.com/acme/site/issues/77; fi' \
   'exit 0' >"$STUB/gh"
 chmod +x "$STUB/gh"
 
@@ -139,6 +140,7 @@ expect_eq "one unread: one issue filed" "$(creates)" 1
 c="$(calls)"
 expect_has "one unread: reads issues of every state" "$c" 'issue list --state all'
 expect_has "one unread: titled with the version" "$c" 'issue create --title Claude Code changelog: 2.1.297 --body-file'
+expect_has "one unread: the issue gets its Issue Type" "$c" 'api -X PATCH repos/{owner}/{repo}/issues/77 -f type=Task'
 expect_lacks "one unread: no label" "$c" '--label'
 body="$(body_n 1)"
 expect_has "one unread: body asks for apply over the release" "$body" '`/harness-ops:changelog apply v2.1.297`'

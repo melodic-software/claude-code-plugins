@@ -297,9 +297,9 @@ if ((status != 0)); then
     ;;
   4)
     gate::refuse \
-      "if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
-      "the helper hit an environment error (exit 4): either $repo_dir is not a git repository, or git worktree add itself failed" \
-      'the git error above this line, if any, is the authoritative detail'
+      "if the helper named a worktree or session holding the target or its branch, finish there or choose another name; if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
+      "the helper refused with exit 4: $repo_dir is not a git repository, the target or its branch is held by another worktree or session, or git worktree add itself failed" \
+      'the helper or git message above this line is the authoritative detail'
     ;;
   *)
     gate::refuse \

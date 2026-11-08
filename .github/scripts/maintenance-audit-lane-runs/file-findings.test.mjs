@@ -457,13 +457,44 @@ const run = async (s, items, extra = {}) => {
 };
 const nothing = { filed: [], updated: [], reopened: [], failed: [] };
 
+test("a filed digest sets its field values in one write; a rewrite sets none", async () => {
+  const s = store();
+  const sets = [];
+  const write = (entry) =>
+    writeDigest({
+      plan: planDigest({ items: [entry], existing: s.issues, openNumbers: new Set() }),
+      call: s.call,
+      repo: "o/r",
+      labels: [],
+      runUrl: "https://run/1",
+      setFields: async (number, values) => sets.push([number, values]),
+      wait: async () => {},
+    });
+  await write({ fingerprint: FP, finding: finding() });
+  assert.deepEqual(sets, [
+    [
+      100,
+      [
+        { field_id: 48484079, value: "needs-triage" },
+        { field_id: 49622037, value: "medium" },
+        { field_id: 15462270, value: "Small" },
+        { field_id: 48625720, value: "Low" },
+        { field_id: 48625721, value: "Known" },
+      ],
+    ],
+  ]);
+  await write({ fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) });
+  assert.equal(sets.length, 1);
+});
+
 test("the sweep files one digest, rewrites it in place on a change, and closes it when no finding is left", async () => {
   const s = store();
   const a = { fingerprint: FP, finding: finding() };
   const b = { fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) };
   assert.deepEqual(await run(s, [a]), { ...nothing, filed: [100] });
   assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
-  assert.equal(s.issues[0].title, "Lane sweep: open findings");
+  assert.equal(s.issues[0].title, "Review the open findings from the lane sweep");
+  assert.equal(s.issues[0].type, "Task");
 
   const before = s.calls.length;
   assert.deepEqual(await run(s, [a]), nothing);
@@ -562,6 +593,18 @@ test("a rewrite whose Work status write fails reports it and leaves the old stat
   assert.match(done.failed[0].error, /^#100's Work status field was not set to `needs-triage`: HTTP 500/);
   assert.equal(s.issues[0].body, old);
   assert.equal(next, "update");
+});
+
+test("a filed digest whose field write fails stays filed, with a warning", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const s = store();
+  const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: s.issues, openNumbers: new Set() });
+  const setFields = async () => {
+    throw new Error("HTTP 403");
+  };
+  const result = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", setFields, wait: async () => {} });
+  assert.deepEqual(result, { ...nothing, filed: [100] });
+  assert.ok(log.mock.calls.some((c) => /#100's field values were not set: HTTP 403/.test(c.arguments[0])));
 });
 
 test("a failed filing is recorded", async () => {

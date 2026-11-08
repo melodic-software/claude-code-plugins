@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { createBudget } from "./collect.mjs";
 import {
   checkClaim,
@@ -207,6 +207,17 @@ export function carriedNote(carried) {
 
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
+const DIGEST_TYPE = "Task";
+// Work status, Priority, Size, Complexity and Uncertainty, by option name. The
+// digest is only read; each entry a person wants worked is re-filed and sized.
+const DIGEST_FIELDS = [
+  { field_id: 48484079, value: "needs-triage" },
+  { field_id: 49622037, value: "medium" },
+  { field_id: 15462270, value: "Small" },
+  { field_id: 48625720, value: "Low" },
+  { field_id: 48625721, value: "Known" },
+];
+
 // The digest's author is github-actions[bot], outside the trusted list, so
 // the issue lane never works from it: a person who wants an entry worked
 // re-files it as a new issue. A stray agent-ready still comes off before the
@@ -216,15 +227,18 @@ export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: 
 // statusLabels). The PATCH runs last and carries the entry-set
 // fingerprint, so a failed call before it leaves the old state and is retried
 // on the next run.
-export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, wait = () => delay(1000) }) {
+export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };
   if (!plan.action) return done;
   const body = renderDigest(plan.entries, runUrl);
   if (plan.action === "file") {
     await wait();
     try {
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, body, labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: DIGEST_TITLE, type: DIGEST_TYPE, body, labels });
       done.filed.push(issue.number);
+      // GitHub drops a type the token may not set without an error.
+      if (issue.type?.name !== DIGEST_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${DIGEST_TYPE}`);
+      await setFields(issue.number, DIGEST_FIELDS).catch((error) => console.log(`::warning::#${issue.number}'s field values were not set: ${error.message}`));
     } catch (error) {
       done.failed.push({ target: "digest", error: error.message });
     }
@@ -310,7 +324,8 @@ async function main() {
   // goes through its own client, outside the call budget.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
-  const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady });
+  const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
+  const done = await writeDigest({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     "### Lane sweep digest",

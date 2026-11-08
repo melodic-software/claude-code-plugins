@@ -1,8 +1,9 @@
 // Intake gate: skip an issue that /work-items:decompose published already
 // triaged. Skip only when the issue carries the born-triaged marker, its
 // author is a listed human or the lanes App (matched by numeric id), and it
-// has an Issue Type and a status label, read with the Work status field as
-// read-status.mjs folds it in, so a field-only agent-ready counts.
+// has an Issue Type and a status: a Work status field a trusted account set to
+// anything but needs-triage (read-status.mjs folds it into the labels), or a
+// status label.
 // Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -16,7 +17,8 @@ import { statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
-const ROLE_LABELS = new Set(["agent-ready", "needs-human"]);
+// The bare labels that name a status; every other status label starts `status:`.
+const STATUS_LABELS = new Set(["agent-ready", "needs-human", "needs-spec", "admission-deferred"]);
 // Reasons a later read can change: the publisher sets the type and some
 // labels in calls after the issue is created.
 const PENDING = new Set(["no-type", "no-status"]);
@@ -61,7 +63,7 @@ export function notBornTriaged(issue, trusted, names = labelNames(issue)) {
   if (!issue.type?.name) {
     return "no-type";
   }
-  if (!names.some((name) => ROLE_LABELS.has(name) || name.startsWith("status:"))) {
+  if (!names.some((name) => STATUS_LABELS.has(name) || name.startsWith("status:"))) {
     return "no-status";
   }
   return null;

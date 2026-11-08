@@ -1229,16 +1229,16 @@ jobs:
           # only on a person's close, and no retry can file a check over the cap
           # or outside the charset. A failed hand-off to intake is not one of them.
           # TODO(#10517): move these holds off needs-human.
-          record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" --jq .number)"
+          record="$(file_issue Bug -f title="$title" -f body="$body")"
           if [[ "$signal" == canary || -n "$fix_over" ]]; then
-            if [[ ! "$record" =~ ^[1-9][0-9]*$ ]] ||
-              ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-human"}]}' |
-              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/issue-field-values" \
-                -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null; then
+            # A person holds this work and sizes it, so it gets no dimensions.
+            if [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-human critical; then
               echo "::error::record '$record' was filed without Work status needs-human"
               exit 1
             fi
+          # The record itself is only read and closed; its fix issues carry the work.
+          elif [[ ! "$record" =~ ^[1-9][0-9]*$ ]] || ! set_fields "$record" needs-triage critical Small Low Known; then
+            echo "::warning::could not set the field values of record '$record'"
           fi
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
@@ -1432,12 +1432,18 @@ jobs:
             echo "every revert commit at ${RUN_SHA:0:12} is already listed on a revert record: nothing to file"
             exit 0
           fi
-          if ! record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$REVERT_TITLE" -f body="$REVERT_BODY" --jq .number)" || [[ ! "$record" =~ ^[1-9][0-9]*$ ]]; then
+          filed="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f type=Bug \
+            -f title="$REVERT_TITLE" -f body="$REVERT_BODY" --jq '"\(.number) \(.type.name // "")"')" || filed=''
+          record="${filed%% *}"
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the revert demotion issue was not filed"
             exit 1
           fi
-          if ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-human"}]}' |
+          # GitHub drops a type the token may not set without an error.
+          if [[ "${filed#* }" != Bug ]]; then
+            echo "::warning::revert record #$record came back without Issue Type Bug"
+          fi
+          if ! jq -n '{issue_field_values: [{field_id: 48484079, value: "needs-human"}, {field_id: 49622037, value: "critical"}]}' |
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/issue-field-values" \
               -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null; then
             echo "::error::revert record #$record was filed without Work status needs-human"

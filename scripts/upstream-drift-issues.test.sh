@@ -39,6 +39,7 @@ printf '%s\n' \
   'done' \
   '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" || "$1" == "${GH_STUB_FAIL:-none}" ]] && exit 1' \
   'if [[ "$1" == api ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
+  'if [[ "$1 $2" == "issue create" ]]; then echo https://github.com/acme/site/issues/77; fi' \
   'exit 0' >"$STUB/gh"
 chmod +x "$STUB/gh"
 
@@ -130,6 +131,7 @@ c="$(calls)"
 expect_has "create: reads the bot's issues of every state through the REST list" "$c" "$LIST_API"
 expect_lacks "create: no search" "$c" 'search'
 expect_has "create: creates the titled issue from a body file" "$c" 'issue create --title Upstream drift: acme/widgets --body-file'
+expect_has "create: the issue gets its Issue Type" "$c" 'api -X PATCH repos/{owner}/{repo}/issues/77 -f type=Task'
 expect_lacks "create: a near-match title is not edited" "$c" 'issue edit'
 body="$(body_of create)"
 expect_has "create: body lists the changed row in a code span" "$body" '`skills/alpha/SKILL.md`'
