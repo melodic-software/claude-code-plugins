@@ -46,7 +46,7 @@
 #
 # Exit 0 clean, 1 findings (including a reproduced args-drop), 2 environment or
 # usage. Findings on stderr; the clean statement and SKIP lines on stdout
-# (README.md, "The check-script contract"). An unparsable hook config is a
+# (scripts/README.md, "The check-script contract"). An unparsable hook config is a
 # finding (1), as in scripts/check-hook-exec-form.sh.
 # shellcheck disable=SC2016
 set -euo pipefail
