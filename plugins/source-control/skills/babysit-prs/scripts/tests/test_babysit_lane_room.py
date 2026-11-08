@@ -873,6 +873,59 @@ class PendingRunsUnchanged(unittest.TestCase):
             ]
         )
 
+    def canary_fails(self, stderr: str, *, file_present: bool = False) -> bool:
+        """The answer when the canary listing fails with `stderr` and the full
+        listing holds nothing; the canary file read on the default branch
+        answers when `file_present`, else 404 (#14059)."""
+
+        def read(args: list[str], label: str) -> dict[str, object]:
+            if "post-merge-detect-silent-revert.yml" in args[1]:
+                raise pm.PostMergeReadError(f"{label}: {stderr}")
+            return {"total_count": 0, "workflow_runs": []}
+
+        contents = (
+            subprocess.CompletedProcess(["gh"], 0, "on: push\n", "")
+            if file_present
+            else subprocess.CompletedProcess(["gh"], 1, "", "gh: Not Found (HTTP 404)")
+        )
+        with (
+            mock.patch.object(pm, "_read", side_effect=read),
+            mock.patch.object(pm, "gh_capture", return_value=contents),
+        ):
+            return pm.pending_runs_unchanged(
+                REPO, shared(report=PENDING), "main", now=STALE_NOW
+            )
+
+    def test_a_repository_without_the_canary_workflow_holds(self) -> None:
+        self.assertTrue(self.canary_fails("gh: Not Found (HTTP 404)"))
+
+    def test_a_canary_404_with_the_workflow_file_present_moves_it(self) -> None:
+        self.assertFalse(
+            self.canary_fails("gh: Not Found (HTTP 404)", file_present=True)
+        )
+
+    def test_any_other_canary_read_failure_moves_it(self) -> None:
+        for stderr in ("gh: Forbidden (HTTP 403)", "gh: Server Error (HTTP 502)"):
+            with self.subTest(stderr=stderr):
+                self.assertFalse(self.canary_fails(stderr))
+
+    def test_a_full_run_404_moves_it(self) -> None:
+        def read(args: list[str], label: str) -> dict[str, object]:
+            raise pm.PostMergeReadError(f"{label}: gh: Not Found (HTTP 404)")
+
+        contents = subprocess.CompletedProcess(
+            ["gh"], 1, "", "gh: Not Found (HTTP 404)"
+        )
+        with (
+            mock.patch.object(pm, "_read", side_effect=read),
+            mock.patch.object(pm, "gh_capture", return_value=contents),
+        ):
+            self.assertFalse(
+                pm.pending_runs_unchanged(
+                    REPO, shared(report=PENDING), "main", now=STALE_NOW
+                )
+            )
+
     def test_a_canary_still_queued_in_a_verified_window_is_listed(self) -> None:
         # A verified merge's canary queued before the unverified merge can
         # still turn red and fail it, so the listing reaches back to it; an
