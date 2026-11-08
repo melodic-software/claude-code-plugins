@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Return one verdict: CONFIRMED, NEEDS WORK or NOT VERIFIED, with each criterion COMPLETE, PARTIAL or MISSING.\n",
+      "why": "names the verdict vocabulary, wants none"
+    },
+    {
+      "answer": "**Verdict:** `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED`\n"
+    },
+    {
+      "answer": "There is no expected verdict; audit the diff against the criteria.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "With the scope rule added, criterion 4 should pass.\n"
+    },
+    {
+      "answer": "Expected verdict: CONFIRMED.\n"
+    },
+    {
+      "answer": "This should now be CONFIRMED.\n"
+    },
+    {
+      "answer": "**Verdict: CONFIRMED** once the scope rule is applied.\n"
+    }
+  ]
+}

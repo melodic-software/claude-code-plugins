@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: confirm-lists-every-verifier-verdict
+graders:
+  - name: 'lists-both-in-order'
+    type: 'regex'
+    pattern: '[Vv]erifier[\s\S]{0,120}?NEEDS WORK[\s\S]{0,400}?CONFIRMED'
+    target: 'last_message'
+  - name: 'final-confirmed'
+    type: 'regex'
+    pattern: '[Vv]erdict(?:\*\*|__)?\W{1,8}CONFIRMED'
+    target: 'last_message'
+  - name: 'records-confirmed-once'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?confirm-verdict\.sh(?:[^"\\]|\\.)*?\brecord\b(?:[^"\\]|\\.)*?--verdict(?:\s|=)+(?:\\"|'')?CONFIRMED\b'
+    min: 1
+    max: 1

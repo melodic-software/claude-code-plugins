@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: confirm-redispatch-brief-facts-only
+graders:
+  - name: 'quotes-scope-rule'
+    type: 'regex'
+    pattern: 'edits[\s>]+to[\s>]+existing[\s>]+order[\s>]+tests[\s>]+that[\s>]+exercise[\s>]+the[\s>]+note[\s>]+limit'
+    target: { source: file, path: .work/redispatch-brief.md }
+  - name: 'names-scope-source'
+    type: 'regex'
+    pattern: 'PLAN\.md'
+    target: { source: file, path: .work/redispatch-brief.md }
+  - name: 'no-recommendation'
+    type: 'regex'
+    pattern: '\brecommended\b|accept (?:the|this) edit'
+    flags: 'i'
+    match: 'not_contains'
+    target: { source: file, path: .work/redispatch-brief.md }
+  - name: 'no-wanted-verdict'
+    type: 'regex'
+    pattern: '[Ss]hould pass|(?<![Nn]o )[Ee]xpected verdict|(?:(?:[Ee]xpect|[Ww]ant|[Ss]hould|[Ll]ikely|[Pp]robably|[Hh]ope)\w*\W{1,20}(?:\w+\W{1,5}){0,3}|[Vv]erdict(?:\*\*|__)?\W{1,8})CONFIRMED(?!\W{1,6}(?:NEEDS WORK|NOT VERIFIED|or|if|when|only)\b)'
+    match: 'not_contains'
+    target: { source: file, path: .work/redispatch-brief.md }

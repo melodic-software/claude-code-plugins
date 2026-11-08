@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Source: PLAN.md Brief, Constraints.\n"
+    },
+    {
+      "answer": "From `PLAN.md` (Brief): \"Scope: ...\"\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Scope rule: \"Scope: src/orders/notes/ and tests/orders/, including edits to existing order tests that exercise the note limit.\"\n",
+      "why": "quotes the rule without naming its source"
+    }
+  ]
+}
