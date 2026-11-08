@@ -828,6 +828,9 @@ A new install subaction fits one of those four by what it writes. It does not in
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
 install one named tool, while `install-deps` and `install-build-deps` name a class.
 
+A write that installs nothing, such as a config file or a settings rule, is not an install
+subaction and carries no `install-` prefix: guardrails `identity-domains` and `read-deny`.
+
 **Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
 install path recorded in the consumer's repo, declines to install. It uses this shape, not a
 plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
@@ -918,7 +921,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/contracts/setup-lifecycle/`](contracts/setup-lifecycle/README.md) |
 | Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
 | Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/contracts/plugin-reconfiguration/`](contracts/plugin-reconfiguration/README.md) |
-| Commit-convention enforcement seam | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
+| Commit-convention enforcement boundary | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
