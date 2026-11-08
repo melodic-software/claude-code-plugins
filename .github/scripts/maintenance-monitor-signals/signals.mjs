@@ -41,6 +41,10 @@ const slug = (text) =>
     .slice(0, 60) || "unnamed";
 const day = (date) => date.toISOString().slice(0, 10);
 const pct = (used, limit) => `${((used / limit) * 100).toFixed(1)}%`;
+const share = (r) => r.used / r.limit;
+// Counts masked, so a fingerprint keeps still while the same cause recurs.
+const masked = (text) => text.replace(/\d+/g, "N");
+const reasonOf = (r) => r.reason ?? "no reason recorded";
 
 function finding({ key, signal, title, area, summary, facts, evidence, observedAt = null }) {
   return {
@@ -78,8 +82,8 @@ export function ceilingFindings({ now, budgetReadings = [], jobsInUse = null }) 
   for (const { names, key, label } of CEILINGS) {
     const readings = budgetReadings.filter((r) => names.includes(r.name) && r.limit > 0);
     if (readings.length === 0) continue;
-    const peak = readings.reduce((a, b) => (b.used / b.limit > a.used / a.limit ? b : a));
-    if (peak.used / peak.limit <= CEILING) continue;
+    const peak = readings.reduce((a, b) => (share(b) > share(a) ? b : a));
+    if (share(peak) <= CEILING) continue;
     out.push(
       finding({
         key,
@@ -88,7 +92,7 @@ export function ceilingFindings({ now, budgetReadings = [], jobsInUse = null }) 
         area: "GitHub Support (API and Actions limits)",
         summary: `Peak reading ${peak.used} of ${peak.limit} used (${pct(peak.used, peak.limit)}), ${peak.remaining} remaining, over ${readings.length} readings in the last hour.`,
         facts: readings
-          .filter((r) => r.used / r.limit > CEILING)
+          .filter((r) => share(r) > CEILING)
           .map((r) => `${r.phase} ${r.name}: used ${r.used} of ${r.limit} (${pct(r.used, r.limit)}) ${r.url ?? "this run"}`),
         evidence: [key, day(now)],
       }),
@@ -192,7 +196,7 @@ export function mainRedFindings({ mainRun = null }) {
         area: "CI (pr-require-checks on main)",
         summary: `${job.name} failed in the newest full run on main (${mainRun.event}) at ${String(mainRun.sha).slice(0, 12)}: ${mainRun.url}`,
         facts: [`flake class: ${flakeClass(job)}`, ...failures.map((a) => `failure: ${a.message}`)],
-        evidence: [key, failures.map((a) => String(a.message).replace(/\d+/g, "N")).sort()],
+        evidence: [key, failures.map((a) => masked(String(a.message))).sort()],
         observedAt: mainRun.createdAt ?? null,
       }),
     );
@@ -319,7 +323,8 @@ export function laneStopFindings({ laneStops = [] }) {
   const groups = new Map();
   for (const stop of laneStops) {
     if (!LANE_STOPS.has(stop.outcome)) continue;
-    groups.set(stop.outcome, [...(groups.get(stop.outcome) ?? []), stop]);
+    if (!groups.has(stop.outcome)) groups.set(stop.outcome, []);
+    groups.get(stop.outcome).push(stop);
   }
   return [...groups].map(([outcome, stops]) =>
     finding({
@@ -363,16 +368,15 @@ export function postMergeUnreadableFindings({ postMergeReports = [] }) {
   const streak = postMergeReports.slice(0, POST_MERGE_UNREADABLE_SWEEPS);
   if (streak.length < POST_MERGE_UNREADABLE_SWEEPS || streak.some((r) => r.code !== "3")) return [];
   const [newest] = streak;
-  const reason = (r) => r.reason ?? "no reason recorded";
   return [
     finding({
       key: "post-merge-unreadable",
       signal: "11 post-merge unreadable",
       title: `Post-merge check: unreadable in the last ${POST_MERGE_UNREADABLE_SWEEPS} pr-merge sweeps`,
       area: "Merge lane (pr-merge post-merge check)",
-      summary: `pr-merge's post-merge check exited 3 (unreadable) in each of its last ${POST_MERGE_UNREADABLE_SWEEPS} sweeps, so lane merges hold until a sweep reads again. Newest ${newest.url}: ${reason(newest)}`,
-      facts: streak.map((r) => `${r.createdAt} ${r.url}: ${reason(r)}`),
-      evidence: ["post-merge-unreadable", reason(newest).replace(/\d+/g, "N")],
+      summary: `pr-merge's post-merge check exited 3 (unreadable) in each of its last ${POST_MERGE_UNREADABLE_SWEEPS} sweeps, so lane merges hold until a sweep reads again. Newest ${newest.url}: ${reasonOf(newest)}`,
+      facts: streak.map((r) => `${r.createdAt} ${r.url}: ${reasonOf(r)}`),
+      evidence: ["post-merge-unreadable", masked(reasonOf(newest))],
       observedAt: newest.createdAt,
     }),
   ];
@@ -387,16 +391,15 @@ export function listingHeldFindings({ heldSweeps = [] }) {
   if (heldSweeps.length < LISTING_HELD_SWEEPS) return [];
   const streak = heldSweeps.slice(0, LISTING_HELD_SWEEPS);
   const [newest] = streak;
-  const reason = (s) => s.reason ?? "no reason recorded";
   return [
     finding({
       key: "listing-held",
       signal: "12 listing held",
       title: `Merge lane: listing held in the last ${LISTING_HELD_SWEEPS} pr-merge sweeps`,
       area: "Merge lane (pr-merge listing)",
-      summary: `pr-merge could not list the open pull requests in each of its last ${LISTING_HELD_SWEEPS} sweeps, so its merge job gated nothing and its runs stayed green. Newest ${newest.url}: ${reason(newest)}`,
-      facts: streak.map((s) => `${s.createdAt} ${s.url}: ${reason(s)}`),
-      evidence: ["listing-held", reason(newest).replace(/\d+/g, "N")],
+      summary: `pr-merge could not list the open pull requests in each of its last ${LISTING_HELD_SWEEPS} sweeps, so its merge job gated nothing and its runs stayed green. Newest ${newest.url}: ${reasonOf(newest)}`,
+      facts: streak.map((s) => `${s.createdAt} ${s.url}: ${reasonOf(s)}`),
+      evidence: ["listing-held", masked(reasonOf(newest))],
       observedAt: newest.createdAt,
     }),
   ];
@@ -566,7 +569,7 @@ export function laneHoldFindings({ laneHolds = [], holdRule: rule = null }) {
         area,
         summary: `${holds.length} green ${lane} runs held on a fault in the last ${rule.windowHours} hours, at or over the threshold of ${rule.threshold}; each ended with only a notice and is retried later.${repeated.length > 0 ? ` Held more than once: ${repeated.join(", ")}.` : ""}`,
         facts: holds.map((h) => `${h.at}${h.item ? ` ${h.item}` : ""} ${h.url}: ${h.reason}`),
-        evidence: [`lane-hold:${lane}`, [...new Set(holds.map((h) => h.reason.replace(/\d+/g, "N")))].sort()],
+        evidence: [`lane-hold:${lane}`, [...new Set(holds.map((h) => masked(h.reason)))].sort()],
         observedAt: holds[0].at,
       }),
     );
