@@ -46,11 +46,6 @@ function laneRecord({ failureClass = "", resets = "", turns = "", maxTurns = "",
   return { class: failureClass || null, ...fields };
 }
 
-const tokensOf = (fields) =>
-  Object.entries(fields)
-    .filter(([, value]) => value !== null)
-    .map(([key, value]) => `${key}=${value}`);
-
 // The record as the check run's output fields, or null when
 // there is none. The summary line is `lane=<lane> activity=<activity>` then
 // class, resets, turns, max-turns, models and profile in that order, each
@@ -60,17 +55,15 @@ export function laneRecordOutput({ lane, activity, ...inputs }) {
   if (!record || !NAME.test(lane ?? "") || !NAME.test(activity ?? "")) {
     return null;
   }
-  const fields = { lane, activity, ...record };
+  const present = Object.entries({ lane, activity, ...record }).filter(([, value]) => value !== null);
   const json = Object.fromEntries(
-    Object.entries(fields)
-      .filter(([, value]) => value !== null)
-      .map(([key, value]) => [
-        key,
-        key.endsWith("turns") ? Number(value) : key === "models" ? value.split(",") : value,
-      ]),
+    present.map(([key, value]) => [
+      key,
+      key.endsWith("turns") ? Number(value) : key === "models" ? value.split(",") : value,
+    ]),
   );
   return {
-    line: tokensOf(fields).join(" "),
+    line: present.map(([key, value]) => `${key}=${value}`).join(" "),
     text: `\`\`\`json\n${JSON.stringify(json)}\n\`\`\``,
   };
 }

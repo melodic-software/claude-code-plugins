@@ -18,14 +18,16 @@ export function externalIdOf({ lane, activity, runId, runAttempt }) {
     : null;
 }
 
+const externalIdMatch = (check) => EXTERNAL_ID.exec(String(check?.external_id ?? ""));
+
 // The id of the workflow run that posted `check` (a REST check run), or null.
 export function postingRunId(check) {
-  return EXTERNAL_ID.exec(String(check?.external_id ?? ""))?.[1] ?? RUN_PAGE.exec(String(check?.details_url ?? ""))?.[1] ?? null;
+  return externalIdMatch(check)?.[1] ?? RUN_PAGE.exec(String(check?.details_url ?? ""))?.[1] ?? null;
 }
 
 // `<run id>:<run attempt>` of the workflow run attempt that posted `check`, read
 // from external_id alone (a run page names no attempt), or null.
 export function postingAttempt(check) {
-  const match = EXTERNAL_ID.exec(String(check?.external_id ?? ""));
+  const match = externalIdMatch(check);
   return match ? `${match[1]}:${match[2]}` : null;
 }
