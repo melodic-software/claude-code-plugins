@@ -378,6 +378,12 @@ const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
 export const SETTLED_VERSION = 3;
 
 class RateLimited extends Error {}
+// Rethrows a rate limit, which stops the run; the caller handles any other error.
+const passRateLimit = (error) => {
+  if (error instanceof RateLimited) {
+    throw error;
+  }
+};
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const jobsKey = (id, attempt) => `${id}:${attempt}`;
@@ -463,6 +469,20 @@ const slimJob = (job) => ({
 });
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+
+// A workflow path's file name, as the per-workflow runs endpoint takes it.
+const workflowFile = (path) => path.slice(path.lastIndexOf("/") + 1);
+// A runs listing's `created` filter for runs created at or after `ms`, to the second.
+const createdSince = (ms) => encodeURIComponent(`>=${new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+
+// A run's first-attempt job listing, which must fit one page.
+async function firstAttemptJobs(call, repo, id) {
+  const listing = await call("GET", `/repos/${repo}/actions/runs/${id}/attempts/1/jobs?per_page=100`);
+  if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
+    throw new Error("its job listing is not one complete page");
+  }
+  return listing;
+}
 
 // The Actions component's status, or undefined when the page has none.
 export const actionsStatus = (page) => componentStatus(page, ACTIONS.name);
@@ -756,10 +776,7 @@ async function holdReason(call, repo, run, judge, settled, carry = new Map(), ke
 // way). An unreadable listing throws.
 export const WRITTEN = "after its verdict write started, so a re-run would judge the head again";
 async function faultHeld(call, repo, run) {
-  const listing = await call("GET", `/repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=100`);
-  if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
-    throw new Error("its job listing is not one complete page");
-  }
+  const listing = await firstAttemptJobs(call, repo, run.id);
   const marked = listing.jobs.filter(
     (job) => Number.isSafeInteger(job?.id) && Array.isArray(job.steps) && job.steps.some((step) => step?.name === HELD_STEP && step.conclusion === "success"),
   );
@@ -802,9 +819,7 @@ async function passStarts(call, repo, number, head, known = new Map()) {
     let started = known.get(id);
     if (started === undefined) {
       const run = await call("GET", `/repos/${repo}/actions/runs/${id}`).catch((error) => {
-        if (error instanceof RateLimited) {
-          throw error;
-        }
+        passRateLimit(error);
         return null;
       });
       started = run?.run_started_at ?? null;
@@ -854,9 +869,7 @@ export async function prefilterSpec(call, repo, candidates) {
     const answer = await call("POST", "/graphql", { query: query(candidates.map((c, i) => `p${i}: pullRequest(number: ${c.pull.number}) { ${PREFILTER_PULL} }`).join(" ")) });
     pulls = answer?.data?.repository;
   } catch (error) {
-    if (error instanceof RateLimited) {
-      throw error;
-    }
+    passRateLimit(error);
     return candidates;
   }
   const refs = [];
@@ -888,9 +901,7 @@ export async function prefilterSpec(call, repo, candidates) {
         if (issueMoved(answer?.data?.repository?.[`r${j}`], r.after)) keep.add(r.i);
       });
     } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
+      passRateLimit(error);
       refs.forEach((r) => keep.add(r.i));
     }
   }
@@ -949,11 +960,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       return "";
     })());
   const noteFailure = (what, error) => {
-    if (error instanceof RateLimited) {
-      throw error;
-    }
+    passRateLimit(error);
     failed += 1;
     console.log(`::error title=reconcile::${what}: ${escapeCommand(error?.message ?? error)}`);
+  };
+  // A pull request whose spec or verdict read failed: the next run reads it again.
+  const sayUnchecked = (pull, what, error) => {
+    passRateLimit(error);
+    say(`#${pull.number}: its ${what} could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
   };
   for (const pull of pulls) {
     try {
@@ -1091,14 +1105,16 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
+        // A lanes App PR's ci-status that failed on the kill switch.
+        const switchNoted = notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes);
         if (reviewStopNoted(notes)) {
           const review = await stoppedReview();
           if (review) {
             set.push(review);
           }
-        } else if (isFailedChecks(checks) && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
+        } else if (isFailedChecks(checks) && switchNoted) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
-        } else if (checks.run_attempt >= 2 && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
+        } else if (checks.run_attempt >= 2 && switchNoted) {
           say(`#${pull.number}: ci-status failed on the kill switch at attempt ${checks.run_attempt}; a re-run needs a person on the trusted-actor list`);
         } else if (isFailedChecks(checks) && notes && pendingReviewNoted(notes)) {
           // Every PR, not only the lanes App's: a lost rerun-ci-status strands
@@ -1160,10 +1176,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           into.push({ pull, checks, starts });
         }
       } catch (error) {
-        if (error instanceof RateLimited) {
-          throw error;
-        }
-        say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+        sayUnchecked(pull, "spec", error);
       }
     }
   };
@@ -1207,10 +1220,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: checks.run_attempt, head: pull.head.sha })]);
       }
     } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
-      say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+      sayUnchecked(pull, "spec", error);
     }
   }
   // A pull request past TOO_OLD_DAYS whose head has no counted verdict (an
@@ -1225,17 +1235,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
       }
     } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
-      say(`#${pull.number}: its verdict could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+      sayUnchecked(pull, "verdict", error);
     }
   }
   // Spec re-runs join the CI sets in the PRs' merge-critical order. A PR
   // holds at most one entry: a spec re-run only when it has no CI set.
   const position = new Map(pulls.map((p, i) => [p.number, i]));
   ready.sort((a, b) => position.get(a[0].pr) - position.get(b[0].pr));
-  const created = encodeURIComponent(`>=${new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+  const created = createdSince(since);
   const lanes = [];
   // Each lane's runs by id, or the error its listing failed with. Statuses
   // are read in LANE_LIST_STATUSES order for every lane together, so each
@@ -1261,9 +1268,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         return page.workflow_runs;
       }
     } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
+      passRateLimit(error);
     }
     return undefined;
   };
@@ -1275,15 +1280,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     const shared = SHARED_LIST_STATUSES.has(status) ? await sharedRuns(status) : undefined;
     for (const lanePath of open) {
       try {
-        const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
-        const listed = shared?.filter((r) => r?.path === lanePath) ?? (await paginate(runsPage, `/repos/${repo}/actions/workflows/${file}/runs?created=${created}&status=${status}`, LANE_RUN_PAGES));
+        const listed =
+          shared?.filter((r) => r?.path === lanePath) ??
+          (await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(lanePath)}/runs?created=${created}&status=${status}`, LANE_RUN_PAGES));
         for (const r of listed) {
           laneRuns.get(lanePath).set(r.id, r);
         }
       } catch (error) {
-        if (error instanceof RateLimited) {
-          throw error;
-        }
+        passRateLimit(error);
         laneFailures.set(lanePath, error);
       }
     }
@@ -1348,15 +1352,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const recent = now - FAULT_HELD_HOURS * 3_600_000;
   const heldStart = Math.max(since, Math.min(recent, heldFrom ?? recent));
   let heldSince = recent;
-  const heldCreated = encodeURIComponent(`>=${new Date(heldStart).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+  const heldCreated = createdSince(heldStart);
   const listed = [];
   for (const lanePath of FAULT_HELD_LANES) {
     try {
-      const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
       // Newest first; past the page cap the newest runs are kept, and the
       // older ones are named, never read.
       for (let page = 1; page <= LANE_RUN_PAGES; page += 1) {
-        const batch = await runsPage("GET", `/repos/${repo}/actions/workflows/${file}/runs?created=${heldCreated}&status=success&per_page=100&page=${page}`);
+        const batch = await runsPage("GET", `/repos/${repo}/actions/workflows/${workflowFile(lanePath)}/runs?created=${heldCreated}&status=success&per_page=100&page=${page}`);
         listed.push(...batch);
         if (batch.length < 100) {
           break;
@@ -1434,17 +1437,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const intake = [];
   let candidates = [];
   try {
-    const listed = await paginate(
-      async (...args) => {
-        const page = await call(...args);
-        if (!Array.isArray(page?.workflow_runs)) {
-          throw new Error("its run listing is not a page of runs");
-        }
-        return page.workflow_runs;
-      },
-      `/repos/${repo}/actions/workflows/${INTAKE.slice(INTAKE.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
-      LANE_RUN_PAGES,
-    );
+    const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(INTAKE)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
     candidates = listed.filter((r) => isFailedIntake(r, since) && now - Date.parse(r.updated_at) <= INTAKE_JOBS_WINDOW_MS).sort(byAge);
   } catch (error) {
     noteFailure(INTAKE, error);
@@ -1455,10 +1448,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       continue;
     }
     try {
-      const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
-      if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
-        throw new Error("its job listing is not one complete page");
-      }
+      const listing = await firstAttemptJobs(call, repo, r.id);
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
         intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
@@ -1476,17 +1466,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const verdicts = [];
   let stopped = [];
   try {
-    const listed = await paginate(
-      async (...args) => {
-        const page = await call(...args);
-        if (!Array.isArray(page?.workflow_runs)) {
-          throw new Error("its run listing is not a page of runs");
-        }
-        return page.workflow_runs;
-      },
-      `/repos/${repo}/actions/workflows/${VERDICT_DISPATCH.slice(VERDICT_DISPATCH.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
-      LANE_RUN_PAGES,
-    );
+    const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
     stopped = listed.filter((r) => isStoppedVerdict(r, since)).sort(byAge);
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);
@@ -1497,10 +1477,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       continue;
     }
     try {
-      const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
-      if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
-        throw new Error("its job listing is not one complete page");
-      }
+      const listing = await firstAttemptJobs(call, repo, r.id);
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
       if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
@@ -1545,12 +1522,25 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   return { items, failed, settle, heldSince, jobs: [...keepJobs.values()], passes: [...new Map(keepPasses.map((e) => [passesKey(e.pr, e.head), e])).values()] };
 }
 
+// The item kinds that name no PR: act labels them by kind and reads no PR.
+const RUN_ONLY_KINDS = new Set(["lane", "fault-held", "intake", "verdict"]);
+// The item kinds act re-runs only the failed jobs of, each with its summary tail.
+const FAILED_JOBS_WHY = new Map([
+  ["intake", ""],
+  ["verdict", ""],
+  ["infra", ", which failed on infra only"],
+  ["flake", ", its one re-run before fix-ci takes it"],
+  ["switch", ": ci-status failed while the lanes kill switch was on"],
+  ["pending", ": ci-status failed on a review that has since finished"],
+  ["upstream", ": the upstream-status gate stopped its review, and the gate lets it run now"],
+]);
+
 // Re-runs each planned item still lost on a fresh read.
 async function act({ repo, call, say, since, sleep, items }) {
   let failed = 0;
   let wrote = false;
   for (const item of items) {
-    const where = item.kind === "lane" || item.kind === "fault-held" || item.kind === "intake" || item.kind === "verdict" ? item.kind : `#${item.pr}`;
+    const where = RUN_ONLY_KINDS.has(item.kind) ? item.kind : `#${item.pr}`;
     try {
       if (recorded(item) && item.record !== rerunRecordName(item.id, nextAttempt(item), item.head)) {
         throw new Error("the plan names no record for it");
@@ -1560,7 +1550,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(`${where}: run ${item.id} changed since the listing; left alone`);
         continue;
       }
-      if (item.kind !== "lane" && item.kind !== "fault-held" && item.kind !== "intake" && item.kind !== "verdict") {
+      if (!RUN_ONLY_KINDS.has(item.kind)) {
         // A push since the listing makes this run obsolete, and re-running it
         // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
@@ -1573,31 +1563,14 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (
-        item.kind === "intake" ||
-        item.kind === "verdict" ||
-        item.kind === "infra" ||
-        item.kind === "flake" ||
-        item.kind === "switch" ||
-        item.kind === "pending" ||
-        item.kind === "upstream"
-      ) {
+      if (FAILED_JOBS_WHY.has(item.kind)) {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
-        const why = {
-          intake: "",
-          verdict: "",
-          infra: ", which failed on infra only",
-          flake: ", its one re-run before fix-ci takes it",
-          switch: ": ci-status failed while the lanes kill switch was on",
-          pending: ": ci-status failed on a review that has since finished",
-          upstream: ": the upstream-status gate stopped its review, and the gate lets it run now",
-        }[item.kind];
         say(
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
             : item.kind === "verdict"
               ? `${where}: re-ran run ${item.id} (${item.path}), whose pr-verify verdict the lanes kill switch kept from its PR`
-              : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${why}`,
+              : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${FAILED_JOBS_WHY.get(item.kind)}`,
         );
         continue;
       }
@@ -1614,9 +1587,7 @@ async function act({ repo, call, say, since, sleep, items }) {
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {
-      if (error instanceof RateLimited) {
-        throw error;
-      }
+      passRateLimit(error);
       if (item.kind === "pending") {
         console.log(`::warning title=reconcile::${where} run ${item.id}: ${escapeCommand(error?.message ?? error)}`);
         continue;
@@ -1748,9 +1719,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         download ??= ghDownloadArtifact({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
         settled = await readSettled({ repo, runId: String(env.GITHUB_RUN_ID), call, download });
       } catch (error) {
-        if (error instanceof RateLimited) {
-          throw error;
-        }
+        passRateLimit(error);
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
