@@ -92,7 +92,8 @@
 # PR); with no such remote the step is skipped. Nothing the pushed head holds
 # decides the step or runs in it: ../../../scripts/stale-base-overlap.sh, run
 # against <remote>/<base>, is the overlap rule (`yes` merges, `no` does not,
-# `unknown` skips).
+# `unknown` skips), comparing paths only unless the remote reports <base> as its
+# default branch.
 # The merge is `git merge --no-edit`, never a rebase, signed when
 # commit.gpgsign is true (git's own setting) or HEAD is signed (-S). It is
 # skipped, with a note, when the base cannot be read or fetched, the branch is
@@ -418,7 +419,7 @@ setting_at() {
 # the setting unset everywhere this clone has fetched, it makes no network call.
 sync_stale_base() {
   local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
-  local out ref r sign=()
+  local out ref r sign=() flags=(--paths-only)
   [[ "$on" != false ]] || return 0
   [[ -z "$base_repo" ]] || remote=$(cd "${wd:-.}" && remote_of_repo "$base_repo")
   if [[ -z "$on" && -z "$PR" ]]; then
@@ -470,7 +471,9 @@ sync_stale_base() {
     sync_skip "a merge is in progress in $wd"
     return 0
   }
-  out=$(bash "$SCRIPT_DIR/../../../scripts/stale-base-overlap.sh" "$wd" "$ref")
+  # Only a base the remote reports as its default branch may run its own rule.
+  [[ "$base" != "$(cd "$wd" && remote_default "$remote")" ]] || flags=()
+  out=$(bash "$SCRIPT_DIR/../../../scripts/stale-base-overlap.sh" ${flags[@]+"${flags[@]}"} "$wd" "$ref")
   case "$out" in
     yes) ;;
     no) return 0 ;;

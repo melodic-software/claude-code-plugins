@@ -894,6 +894,25 @@ check "sync, repo rule: the base's copy ran with --check and the fetched base" "
 check "sync, repo rule: the head's copy did not run" "$([[ -e $LOG/head-rule-ran ]] && echo ran || echo none)" "none"
 check "sync, repo rule: its pass means no merge" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
 
+# A base that is not the default branch never runs its rule, which its author
+# may have pushed unreviewed: the paths decide, so the overlap merges.
+wc=$(sync_clone sync-stacked-rule yes)
+git -C "$wc" checkout -q -b stack/base
+mkdir -p "$wc/scripts"
+printf '#!/usr/bin/env bash\ntouch "%s/stacked-rule-ran"\nexit 0\n' "$LOG" >"$wc/scripts/check-stale-base-overlap.sh"
+git -C "$wc" add -A
+git -C "$wc" commit -q -m "stacked base adds a rule"
+set_line "$wc" c.txt 10 base-ten
+git -C "$wc" push -q origin stack/base 2>/dev/null
+STACK_TIP=$(git -C "$wc" rev-parse HEAD)
+git -C "$wc" checkout -q "$BRANCH"
+set_line "$wc" c.txt 1 branch-one
+git -C "$wc" remote set-url origin "https://github.com/sync-stacked-rule/origin.git"
+PB_GITHUB_ROOT="$WORKDIR" PB_PR_BASE=stack/base PB_PR_BASE_REPO=sync-stacked-rule/origin sync_run "$wc"
+check "sync, stacked base's rule: exit 0" "$RC" "0"
+check "sync, stacked base's rule: did not run" "$([[ -e $LOG/stacked-rule-ran ]] && echo ran || echo none)" "none"
+check "sync, stacked base's rule: the overlapping paths merged the base" "$(git -C "$wc" rev-parse HEAD^2)" "$STACK_TIP"
+
 # Uncommitted edits to tracked files: the sync is skipped, the push goes on.
 wc=$(sync_clone sync-dirty yes)
 set_line "$wc" c.txt 1 branch-one
