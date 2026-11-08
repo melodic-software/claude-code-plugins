@@ -32,13 +32,9 @@ export const scheduleIds = (body) => [...new Set([...String(body ?? "").matchAll
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ID = /^[A-Za-z0-9._-]+$/;
 
-// The recurring title plugins/work-items/reference/issue-conventions.md "Title"
-// sets, which `track add --recurring` and `work`'s create path also write.
-export function issueTitle(row) {
-  const summary = row.title.charAt(0).toLowerCase() + row.title.slice(1);
-  const scope = Array.isArray(row.area) && row.area[0] ? `(${row.area[0]})` : "";
-  return `chore${scope}: ${summary}`;
-}
+// The row's own title, written as the plain verb-first summary the org filing
+// rule asks for; the body marker, not the title, links the issue to its row.
+export const issueTitle = (row) => row.title;
 
 export function issueBody(row) {
   const precondition = row.precondition?.prompt
@@ -81,6 +77,7 @@ export async function listOpenRecurring({ call, repo }) {
 }
 
 export const HELD = "needs an operator's confirmation (requires_operator_confirmation)";
+const ISSUE_TYPE = "Task";
 
 // One result per row: { id, next_due, due, outcome: filed | covered | held |
 // not-due | failed, issue?, reason? }. A list that cannot be read fails every due row
@@ -122,9 +119,10 @@ export async function fileDue({ schedule, today, call, repo, wait = () => delay(
       if (!(await labelExists(RECURRING))) throw new Error(`label ${RECURRING} does not exist`);
       const labels = [RECURRING, ...((await labelExists(cadenceLabel(row.cadence))) ? [cadenceLabel(row.cadence)] : [])];
       await wait();
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: issueTitle(row), body: issueBody(row), labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: issueTitle(row), body: issueBody(row), labels, type: ISSUE_TYPE });
       covered.set(row.id, issue.number);
-      results.push({ ...base, outcome: "filed", issue: issue.number });
+      // GitHub drops a type the token may not set without an error.
+      results.push({ ...base, outcome: "filed", issue: issue.number, ...(issue.type?.name === ISSUE_TYPE ? {} : { typeDropped: true }) });
     } catch (error) {
       results.push({ ...base, outcome: "failed", reason: error.message });
     }
@@ -190,7 +188,10 @@ export async function main({ argv = process.argv.slice(2), env = process.env, ca
   if (!DATE.test(today)) throw new Error(`TODAY ${today} is not YYYY-MM-DD`);
   const api = call ? { call, used: () => null } : client(env);
   const results = await fileDue({ schedule, today, call: api.call, repo: env.REPOSITORY, wait });
-  for (const r of results) log(`file-due ${JSON.stringify({ today, ...r })}`);
+  for (const r of results) {
+    log(`file-due ${JSON.stringify({ today, ...r })}`);
+    if (r.typeDropped) log(`::warning::#${r.issue} came back without Issue Type ${ISSUE_TYPE}`);
+  }
   const summary = summarize(results);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary.markdown);
   log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, held ${summary.held}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${api.used() ?? "n/a"}`);

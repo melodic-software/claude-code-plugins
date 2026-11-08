@@ -54,6 +54,7 @@ const STOP_WHY = {
 const stopLine = (release, stop) =>
   `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): ${STOP_WHY[stop] ?? "no changelog row was derived and no branch was opened"}. ` +
   "The release is marked done once this issue holds its handoffs, so later runs do not take it again.";
+const RELEASE_ISSUE_TYPE = "Task";
 const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
 const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
 
@@ -81,7 +82,7 @@ export function renderItems(handoffs, budget) {
 // plan's issue opens with its stop_reason.
 export function releaseIssue(release, handoffs, stop = null) {
   const head = `${releaseMarker(release)}\n\n${stop ? `${stopLine(release, stop)}\n\n` : ""}`;
-  return { title: releaseTitle(release, handoffs.length), body: head + renderItems(handoffs, ISSUE_BODY_MAX - head.length) };
+  return { title: releaseTitle(release, handoffs.length), type: RELEASE_ISSUE_TYPE, body: head + renderItems(handoffs, ISSUE_BODY_MAX - head.length) };
 }
 
 // Every string publish can post from the plan, as plain text for the scan
@@ -114,7 +115,11 @@ export async function fileReleaseHandoffs({ repo, release, handoffs, stop = null
     (i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker),
   );
   if (!issue) {
-    await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs, stop) });
+    const filed = await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs, stop) });
+    // GitHub drops a type the token may not set without an error.
+    if (filed?.type?.name !== RELEASE_ISSUE_TYPE) {
+      console.log(`::warning::#${filed?.number} came back without Issue Type ${RELEASE_ISSUE_TYPE}`);
+    }
     return `filed ${handoffs.length} handoffs as one issue`;
   }
   if (issue.state !== "open" && !stop) return `the release issue #${issue.number} is closed; nothing filed`;

@@ -171,6 +171,13 @@ test("run lets the Work status field decide an issue's status, agent-ready inclu
   assert.deepEqual(await fieldRun([], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged" });
 });
 
+test("every set Work status but needs-triage counts, with no status label", async () => {
+  for (const state of ["needs-spec", "deferred", "needs-reporter-info", "needs-owner-decision", "needs-human", "agent-ready", "ready", "confirmed"]) {
+    assert.deepEqual(await fieldRun([], { 7: { state } }), { skip: "true", reason: "born-triaged" }, state);
+  }
+  assert.deepEqual(await fieldRun([], { 7: { state: "needs-triage" } }), { skip: "false", reason: "no-status" });
+});
+
 test("a hold the Work status field adds still counts as the status", async () => {
   assert.deepEqual(await fieldRun(["status: ready"], { 7: { state: "needs-human" } }), { skip: "true", reason: "born-triaged" });
 });

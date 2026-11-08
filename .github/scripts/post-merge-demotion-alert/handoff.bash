@@ -18,6 +18,31 @@ fix_name_ok() {
   [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
 }
 
+# file_issue <type> <gh api field args>: files an issue with that Issue Type and
+# prints its number. GitHub drops a type the token may not set without an
+# error, so the response is checked and a dropped type warns.
+file_issue() {
+  local type="$1" filed
+  shift
+  filed="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" -f type="$type" "$@" \
+    --jq '"\(.number) \(.type.name // "")"')" || return 1
+  if [[ "${filed#* }" != "$type" ]]; then
+    echo "::warning::#${filed%% *} came back without Issue Type $type" >&2
+  fi
+  printf '%s\n' "${filed%% *}"
+}
+
+# set_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
+# one write of the org issue fields, by option name, so a failed call sets none.
+set_fields() {
+  local issue="$1"
+  shift
+  jq -n '[[48484079, 49622037, 15462270, 48625720, 48625721], $ARGS.positional] | transpose
+    | map(select(.[1] != null) | {field_id: .[0], value: .[1]}) | {issue_field_values: .}' --args "$@" |
+    gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$issue/issue-field-values" \
+      -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null
+}
+
 # mark_undelivered <issue> <issue=N|check=name>: returns 1 when the marker could
 # not be written.
 mark_undelivered() {
@@ -91,10 +116,14 @@ The check \`$check\` started failing on main in a \`$signal\` run of pr-require-
 - Merge range: $merges
 
 Fix the check on main. Closing this issue changes nothing on $on_record."
-    if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-      -f title="Fix main: $check fails since ${sha:0:12}" -f body="$fix_body" --jq .number)" &&
+    if fix_number="$(file_issue Bug -f title="Fix $check on main, failing since ${sha:0:12}" -f body="$fix_body")" &&
       [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
       echo "filed fix issue #$fix_number for $check"
+      # Intake sets Size, Complexity and Uncertainty: apply-verdict.mjs holds an
+      # issue whose dimensions this token set. Its Work status stands in for the
+      # floor label until intake's verdict replaces it.
+      set_fields "$fix_number" needs-triage critical ||
+        echo "::warning::could not set the field values of #$fix_number"
       own_records+=$'\n'"$fix_number"$'\topen\tnone\t'"$fix_marker"
       if send_to_intake "$fix_number"; then
         fix_handled="$fix_number"

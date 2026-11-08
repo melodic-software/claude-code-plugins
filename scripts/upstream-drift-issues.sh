@@ -231,10 +231,13 @@ for i in "${!REPOS[@]}"; do
   case "$action" in
   create)
     write_body "$i" "$body_file"
-    gh issue create --title "$title" --body-file "$body_file" >/dev/null || {
+    if url="$(gh issue create --title "$title" --body-file "$body_file")"; then
+      [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
+        printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
+    else
       printf '%s: issue create failed for %s\n' "$SELF" "$repo" >&2
       failed=1
-    }
+    fi
     ;;
   edit)
     write_body "$i" "$body_file"
