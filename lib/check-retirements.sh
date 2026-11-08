@@ -20,10 +20,11 @@
 #   id             <plugin>-rNNN — unique within the manifest, never reused
 #   retired        YYYY-MM-DD
 #   plugin_version semver of the release that retired the convention
-#   kind           file | dir | line
+#   kind           file | dir | line | block
 #   path           repo-relative; absolute, `..` segments, a leading `~`,
 #                  backslashes, `.` and tabs are rejected
-#   match          POSIX ERE — REQUIRED for kind line, forbidden otherwise
+#   match          POSIX ERE — REQUIRED for kind line and block, forbidden
+#                  otherwise
 #   heading        optional ATX heading (1-6 hashes, whitespace, title), kind
 #                  line only: the record only fires when a matching line sits
 #                  in that heading's section body, so a standalone occurrence
@@ -32,7 +33,8 @@
 #                  when the file's content matches, so a path the successor
 #                  reuses is not reported as a leftover
 #   action         delete | remove-line | migrate — remove-line only with kind
-#                  line, delete only with kind file or dir
+#                  line, delete only with kind file or dir, kind block only
+#                  with migrate
 #   successor      prose the model follows for a migrate — REQUIRED for migrate
 #   note           one line, required
 #   status         optional; active (default) | report-only (the demotion)
@@ -40,8 +42,11 @@
 # DETECTION. Per kind: file = a regular file exists at path AND (no
 # content_match OR it matches); dir = a directory exists; line = the file
 # exists AND some line matches `match` (and, when `heading` is set, that line
-# sits in the body of a markdown section whose heading line equals `heading`).
-# A section runs from the line after that heading through the line before the
+# sits in the body of a markdown section whose heading line equals `heading`);
+# block = the file exists AND some line matches `match`, that line starting a
+# block that also holds every following blank line or line indented deeper
+# than it, up to the next non-blank line indented no deeper (a YAML key and
+# its value). A section runs from the line after that heading through the line before the
 # next ATX heading of the same or higher level, or EOF; every such section is
 # searched. A trailing carriage return is stripped from every line before
 # matching, so a `$`-anchored pattern matches a CRLF-authored file. One TSV
@@ -64,7 +69,9 @@
 # root itself). remove-line rewrites the file keeping every non-matching line
 # byte-for-byte — each line's own ending survives, so a CRLF file stays CRLF —
 # via a temp file in the same directory and a rename. When `heading` is set,
-# only matching lines inside that heading's section body are removed. A migrate
+# only matching lines inside that heading's section body are removed. block
+# rewrites the file the same way without each matched block, and removes the
+# file when no non-blank line is left. A migrate
 # record refuses to clean until `--i-migrated` states that the successor prose
 # was followed; it then removes the artifact the way its kind implies.
 #
@@ -306,9 +313,9 @@ $r_id
     invalid plugin_version "must be semver: '$r_plugin_version'"
 
   case "$r_kind" in
-  file | dir | line) ;;
+  file | dir | line | block) ;;
   "") invalid kind "is required" ;;
-  *) invalid kind "must be file, dir or line: '$r_kind'" ;;
+  *) invalid kind "must be file, dir, line or block: '$r_kind'" ;;
   esac
 
   [[ -n "$r_path" ]] || invalid path "is required"
@@ -324,11 +331,11 @@ $r_id
   grep -Eq '(^|/)\.\.(/|$)' <<<"$r_path" &&
     invalid path "must not contain a .. segment: '$r_path'"
 
-  if [[ "$r_kind" == "line" ]]; then
-    [[ -n "$r_match" ]] || invalid match "is required for kind line"
+  if [[ "$r_kind" == "line" || "$r_kind" == "block" ]]; then
+    [[ -n "$r_match" ]] || invalid match "is required for kind $r_kind"
     ere_valid "$r_match" || invalid match "is not a valid POSIX ERE: '$r_match'"
   elif [[ -n "$r_match" ]]; then
-    invalid match "is only allowed for kind line (kind is $r_kind)"
+    invalid match "is only allowed for kind line or block (kind is $r_kind)"
   fi
 
   if [[ -n "$r_heading" ]]; then
@@ -345,6 +352,7 @@ $r_id
   case "$r_action" in
   delete)
     [[ "$r_kind" != "line" ]] || invalid action "delete is not allowed for kind line (use remove-line)"
+    [[ "$r_kind" != "block" ]] || invalid action "kind block takes only migrate (action is delete)"
     ;;
   remove-line)
     [[ "$r_kind" == "line" ]] || invalid action "remove-line requires kind line (kind is $r_kind)"
@@ -510,6 +518,19 @@ matching_line_nrs() {
   done
 }
 
+# block_line_nrs <file> <start nrs> — space-separated line numbers of every
+# block that starts at one of <start nrs>: the start line, then each following
+# line (CR stripped) that is blank or indented deeper than the start line,
+# ending before the first non-blank line indented no deeper.
+block_line_nrs() {
+  awk -v starts=" $2" '
+    { sub(/\r$/, "") }
+    index(starts, " " NR " ") > 0 { match($0, /^[ \t]*/); indent = RLENGTH; inside = 1; printf "%d ", NR; next }
+    inside && $0 ~ /^[ \t]*$/ { printf "%d ", NR; next }
+    inside { match($0, /^[ \t]*/); if (RLENGTH > indent) { printf "%d ", NR; next }; inside = 0 }
+  ' "$1"
+}
+
 # A linked worktree's .git is a file, and git's shared files (hooks among them)
 # sit in the main checkout's git dir, so there a `.git/` record path resolves
 # under `git rev-parse --git-common-dir`. Empty in a normal checkout.
@@ -554,7 +575,7 @@ present() {
   dir)
     [[ -d "$target" ]]
     ;;
-  line)
+  line | block)
     [[ -f "$target" ]] || return 1
     nrs=$(matching_line_nrs "$target" "${REC_MATCH[$i]}" "${REC_HEADING[$i]}")
     [[ -n "${nrs// /}" ]]
@@ -677,19 +698,20 @@ dir)
   echo "check-retirements: $CLEAN_ID: removed directory $path." >&2
   exit 0
   ;;
-line)
+line | block)
   assert_target_inside_root
   match="${REC_MATCH[$idx]}"
   # Which input lines match, by number, decided once by grep -E (the same ERE
   # dialect detection used); when heading is set, only section-body hits
-  # count. awk then copies every other line through with its own bytes, CR
-  # included. Only the matched lines' text is stripped of the CR, and only
-  # for the comparison.
+  # count, and for a block each hit widens to its whole block. awk then copies
+  # every other line through with its own bytes, CR included. Only the matched
+  # lines' text is stripped of the CR, and only for the comparison.
   matched_lines=$(matching_line_nrs "$target" "$match" "${REC_HEADING[$idx]}")
   [[ -n "$matched_lines" ]] || {
     echo "check-retirements: $CLEAN_ID: no line of $path matches; nothing to clean." >&2
     exit 1
   }
+  [[ "$kind" == "line" ]] || matched_lines=$(block_line_nrs "$target" "$matched_lines")
   # Whether the original's last line carries a newline: `tail -c 1` prints the
   # final byte and command substitution eats a trailing newline, so an empty
   # result means the file ended with one.
@@ -721,6 +743,11 @@ line)
     die "could not replace $path with the rewritten file — $locked_hint"
   fi
   removed=$(printf '%s' "$matched_lines" | wc -w | tr -d ' ')
+  if [[ "$kind" == "block" ]] && ! grep -q '[^[:space:]]' "$target"; then
+    rm -f "$target" || die "could not remove $path, left with no content — $locked_hint"
+    echo "check-retirements: $CLEAN_ID: removed $removed line(s) from $path, then the file, which held nothing else." >&2
+    exit 0
+  fi
   echo "check-retirements: $CLEAN_ID: removed $removed line(s) from $path." >&2
   exit 0
   ;;

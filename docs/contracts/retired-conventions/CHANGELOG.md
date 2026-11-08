@@ -8,6 +8,17 @@ field, removing a field, changing a kind's detection semantics, an exit code's m
 severity map is a major bump; adding an optional field, a `status` value, or a new `kind` with its
 own detection rule is a minor bump.
 
+## [2.1] - 2026-11-08
+
+New `kind: block`: one YAML key and its value. It requires `match`; the line that matches starts a
+block that also holds every following blank line or line indented deeper than it, up to the next
+non-blank line indented no deeper. Detection is the `line` rule. The only action is `migrate`, and
+its `--clean` rewrites the file without each block, the way `remove-line` keeps the other bytes,
+then removes the file if nothing but whitespace is left. A `kind: file` record with
+`content_match` deletes the whole file, which is wrong for a config file whose other keys are still
+read; a `block` record that supersedes it removes only the retired key. Minor per the versioning
+rule: a new `kind` with its own detection rule. No existing kind, exit code or severity changed.
+
 ## [2.0] - 2026-11-05
 
 `kind: file` detection now needs a repository root. When the resolved root is `$HOME`, or has no

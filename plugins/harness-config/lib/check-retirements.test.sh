@@ -276,6 +276,14 @@ good_record fx-r001 file present.txt remove-line >"$m"
 bad_case "remove-line on kind file" action fx-r001
 good_record fx-r001 line present.txt delete 'match: x' >"$m"
 bad_case "delete on kind line" action fx-r001
+good_record fx-r001 block present.txt migrate 'successor: s' >"$m"
+bad_case "block without match" match fx-r001
+good_record fx-r001 block present.txt delete 'match: x' >"$m"
+bad_case "delete on kind block" action fx-r001
+good_record fx-r001 block present.txt remove-line 'match: x' >"$m"
+bad_case "remove-line on kind block" action fx-r001
+good_record fx-r001 block present.txt migrate 'match: x' 'successor: s' 'heading: "## h"' >"$m"
+bad_case "heading on kind block" heading fx-r001
 good_record fx-r001 file present.txt delete 'status: retired' >"$m"
 bad_case "bad status" status fx-r001
 good_record fx-r001 file present.txt shred >"$m"
@@ -694,6 +702,39 @@ mkdir -p "$r/.git" "$r/.claude"
 printf '{}\n' >"$r/.claude/old.json"
 run_at "$r"
 assert_contains "case 23: a .git that git rejects still reports the file row" "$OUT" "fx-r001"
+
+# --- Case 24: kind block removes one YAML key and its value, nothing else -----
+r="$(mkrepo block-kind)"
+m="$TEST_TMPDIR/block.yaml"
+good_record fx-r001 block conf.yaml migrate "match: '^old[_]key:'" 'successor: move old_key to new.yaml' | manifest "$m"
+printf 'registry_dir: tools/registry\n\nold_key:\n  budget: 5\n\n  nested:\n    - a\n\nverification:\n  command: make check\n' >"$r/conf.yaml"
+run --manifest "$m" --root "$r"
+assert_exit "case 24: block leftover exits 1" 1 "$RC"
+assert_contains "case 24: block row names the kind" "$OUT" "$(printf '\tblock\t')"
+run --manifest "$m" --root "$r" --clean fx-r001
+assert_exit "case 24: block migrate without --i-migrated exits 2" 2 "$RC"
+run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
+assert_exit "case 24: block clean exits 0" 0 "$RC"
+printf 'registry_dir: tools/registry\n\nverification:\n  command: make check\n' >"$TEST_TMPDIR/block-expected"
+assert_file_eq "case 24: keys before and after the block survive byte for byte" "$TEST_TMPDIR/block-expected" "$r/conf.yaml"
+assert_contains "case 24: count reported" "$ERR" "removed 6 line(s)"
+run --manifest "$m" --root "$r"
+assert_exit "case 24: re-run after clean is clean" 0 "$RC"
+
+printf 'verification:\r\n  command: make check\r\nold_key:\r\n  budget: 5\r\n' >"$r/conf.yaml"
+printf 'verification:\r\n  command: make check\r\n' >"$TEST_TMPDIR/block-expected"
+run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
+assert_file_eq "case 24: CRLF block at end of file" "$TEST_TMPDIR/block-expected" "$r/conf.yaml"
+
+printf 'old_key:\n  budget: 5\nold_key_extra: kept\n' >"$r/conf.yaml"
+printf 'old_key_extra: kept\n' >"$TEST_TMPDIR/block-expected"
+run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
+assert_file_eq "case 24: the next column-0 key ends the block" "$TEST_TMPDIR/block-expected" "$r/conf.yaml"
+
+printf 'old_key:\n  budget: 5\n\n' >"$r/conf.yaml"
+run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
+assert_exit "case 24: a file holding only the block cleans" 0 "$RC"
+if [[ -e "$r/conf.yaml" ]]; then fail "case 24: a file left empty is removed" "still present"; else pass "case 24: a file left empty is removed"; fi
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
