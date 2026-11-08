@@ -1373,14 +1373,11 @@ jobs:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
-      # Actions security lint, previously the `zizmor` reusable-workflow job.
-      # It is a hash-pinned wheel from .github/requirements-ci.txt now, at the
-      # same 1.27.0 the reusable takes by default at its pinned SHA, run with
-      # the reusable's own persona so this is a like-for-like replacement and
-      # no security-lane behavior changes inside a performance change. The
-      # reusable ran in SARIF mode and gated on `fail-on-severity: low`; the
-      # github format exits non-zero on any finding, which is the same
-      # threshold. GH_TOKEN comes from the job's read-only workflow token, for
+      # Actions security lint: zizmor from the hash-pinned wheel in
+      # .github/requirements-ci.txt. The github format exits non-zero on any
+      # finding, so any finding blocks the lane (the fleet's
+      # `fail-on-severity: low` threshold).
+      # GH_TOKEN comes from the job's read-only workflow token, for
       # the online audits. scripts/run-zizmor.sh runs the offline audits first,
       # then the online ones, where only a GitHub API network error (403, 429,
       # 5xx, no response) becomes a warning instead of a failure.
