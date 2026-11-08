@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { StatusWriteError, statusWriter, writeState } from "./write-status.mjs";
+import { RESTART_GAP_MS, StatusWriteError, statusWriter, writeState } from "./write-status.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
   "issue-status"
@@ -93,7 +93,7 @@ function fieldWorld(option, setter) {
   };
   return { github, posts, put };
 }
-const writerOver = (github, env = { BASE_PATH: ROOT }) => statusWriter({ env, github, repository: "o/r" });
+const writerOver = (github, env = { BASE_PATH: ROOT }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
 
 test("statusWriter set writes a state once per issue in a process, and skips one `fields` shows", async () => {
   const w = fieldWorld(null);
@@ -121,6 +121,30 @@ test("statusWriter restart clears the field and sets agent-ready even after this
   assert.equal((await restart(7)).outcome, "written");
   assert.deepEqual(deletes, [["/repos/o/r/issues/7/issue-field-values/48484079", "2026-03-10"]]);
   assert.deepEqual(w.posts().map(([, , body]) => body.issue_field_values[0].value), ["agent-ready", "agent-ready"]);
+});
+
+test("statusWriter restart waits between the clear and the set, and not after a 404 clear", async () => {
+  const run = async (clear) => {
+    const w = fieldWorld(null);
+    const order = [];
+    const github = async (method, path, body) => {
+      if (method === "DELETE") {
+        order.push("clear");
+        return clear();
+      }
+      if (method === "POST" && path.endsWith("/issue-field-values")) order.push("set");
+      return w.github(method, path, body);
+    };
+    await (await writerOver(github, undefined, async (ms) => order.push(ms))).restart(7);
+    return order;
+  };
+  assert.deepEqual(await run(() => null), ["clear", RESTART_GAP_MS, "set"]);
+  assert.deepEqual(
+    await run(() => {
+      throw new Error("GitHub answered status 404");
+    }),
+    ["clear", "set"],
+  );
 });
 
 test("statusWriter restart treats a 404 clear as nothing set, and stops on a person's hold", async () => {
