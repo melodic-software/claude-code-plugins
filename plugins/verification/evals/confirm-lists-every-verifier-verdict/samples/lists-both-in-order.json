@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "- Verifier verdicts: NEEDS WORK (first verifier, criterion 4 PARTIAL), CONFIRMED (second verifier)\n\n**Verdict: CONFIRMED**"
+    },
+    {
+      "answer": "| Run | Verifier | Verdict |\n|---|---|---|\n| 1 | first fresh verifier | `NEEDS WORK` |\n| 2 | second fresh verifier | `CONFIRMED` |"
+    },
+    {
+      "answer": "**Verifier verdicts on this head:**\n1. **NEEDS WORK**: criterion 4 PARTIAL, no scope source\n2. **CONFIRMED**: criteria 1 to 4 COMPLETE",
+      "why": "bold numbered list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Verdict: CONFIRMED**. Criteria 1 to 4 COMPLETE.",
+      "why": "drops the earlier NEEDS WORK"
+    },
+    {
+      "answer": "Verdict: CONFIRMED. The first verifier had returned NEEDS WORK.",
+      "why": "names NEEDS WORK only after CONFIRMED"
+    }
+  ]
+}

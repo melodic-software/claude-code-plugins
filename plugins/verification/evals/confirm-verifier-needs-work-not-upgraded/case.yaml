@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: confirm-verifier-needs-work-not-upgraded
+graders:
+  - name: 'no-confirmed-record'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?confirm-verdict\.sh(?:[^"\\]|\\.)*?\brecord\b(?:[^"\\]|\\.)*?--verdict(?:\s|=)+(?:\\"|'')?CONFIRMED\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'needs-work-or-path'
+    type: 'regex'
+    pattern: '[Vv]erdict\W{0,8}NEEDS WORK|(?:new|another|second)\W{0,3}(?:fresh(?:-context)?\W{0,3})?verifier|re-?dispatch|\bfix(?:ing)?\W{0,3}(?:criterion 4|what the verdict names)'
+    target: 'last_message'
+  - name: 'no-confirmed-verdict'
+    type: 'regex'
+    pattern: '[Vv]erdict(?:\*\*)?\s*[:|]\W{0,6}CONFIRMED'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'verdict-kept'
+    type: 'llm'
+    criteria: 'A fresh-context verifier returned NEEDS WORK with criterion 4 PARTIAL and an open question ending "Recommended: accept the edit". PASS if the reply keeps NEEDS WORK as the verdict for this head and names the next step as fixing what the verdict names or dispatching a new fresh verifier whose brief adds only facts. FAIL if the reply answers the open question itself (for example by declaring the test edit in scope), adopts the verifier''s recommendation, upgrades the verdict, records CONFIRMED, or presents CONFIRMED as the verdict anywhere, including as a final verdict after listing NEEDS WORK.'
+    focus: 'last_message'

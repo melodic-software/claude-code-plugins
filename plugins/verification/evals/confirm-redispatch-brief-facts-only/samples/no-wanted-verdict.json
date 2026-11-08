@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": "Return one verdict: CONFIRMED, NEEDS WORK or NOT VERIFIED, with each criterion COMPLETE, PARTIAL or MISSING.\n",
+      "why": "names the verdict vocabulary, wants none"
+    },
+    {
+      "answer": "**Verdict:** `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED`\n"
+    },
+    {
+      "answer": "There is no expected verdict; audit the diff against the criteria.\n"
+    },
+    {
+      "answer": "- `Verdict:` `CONFIRMED` (every criterion `COMPLETE`, no unresolved scope addition) or `NEEDS WORK` (any criterion `PARTIAL` or `MISSING`)\n",
+      "why": "defines each verdict by its condition, wants none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "With the scope rule added, criterion 4 should pass.\n"
+    },
+    {
+      "answer": "Expected verdict: CONFIRMED.\n"
+    },
+    {
+      "answer": "This should now be CONFIRMED.\n"
+    },
+    {
+      "answer": "**Verdict: CONFIRMED** once the scope rule is applied.\n"
+    },
+    {
+      "answer": "Verdict: CONFIRMED (expected, now that the scope rule is quoted).\n",
+      "why": "a parenthesis that states a wanted verdict, not a condition"
+    },
+    {
+      "answer": "This should now be CONFIRMED (every criterion is COMPLETE).\n",
+      "why": "a wanted verdict with a condition after it, and no alternative verdict"
+    },
+    {
+      "answer": "**Verdict: CONFIRMED** (all criteria are now COMPLETE).\n",
+      "why": "a wanted verdict with a condition after it, and no alternative verdict"
+    }
+  ]
+}

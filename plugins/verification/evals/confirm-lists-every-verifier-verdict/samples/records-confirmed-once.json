@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/verification/scripts/confirm-verdict.sh\" record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict 'CONFIRMED'"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict CONFIRMED"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "records nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict 'NEEDS WORK'"
+          }
+        }
+      ],
+      "why": "records the superseded verdict"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict CONFIRMED"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/verification/scripts/confirm-verdict.sh record --head 4f1c2a9e8b7d6c5f4e3a2b1c0d9e8f7a6b5c4d3e --verdict \"CONFIRMED\""
+          }
+        }
+      ],
+      "why": "records CONFIRMED twice"
+    }
+  ]
+}

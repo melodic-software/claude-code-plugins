@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: CONFIRMED**"
+    },
+    {
+      "answer": "**Verdict:** `CONFIRMED`"
+    },
+    {
+      "answer": "| Final verdict | CONFIRMED |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Verdict: NEEDS WORK**",
+      "why": "keeps the superseded verdict as final"
+    },
+    {
+      "answer": "Verifier verdicts: NEEDS WORK, CONFIRMED.",
+      "why": "lists both but states no final verdict"
+    }
+  ]
+}

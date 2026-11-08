@@ -94,6 +94,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - Deviations: N (all justified / N unjustified)
 - Scope additions: N (M justified)
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
+- Verifier verdicts: <each verdict returned on this head, in order, as returned; the last is the verdict> / none (no verifier ran: <why>)
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
 - Stand-in: <none | what the proof ran on in place of the real target; each setup step the stand-in did that the target will not, marked unverified>
 - Capture: <ran | not-applicable | blocked | skipped> (<reason, or none for ran>); <count> evidence artifacts kept

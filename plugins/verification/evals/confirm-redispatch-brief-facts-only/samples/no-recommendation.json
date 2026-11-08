@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria: 1 to 4 from the PLAN.md Brief.\nAdded fact: PLAN.md Brief, Constraints: \"Scope: src/orders/notes/ and tests/orders/, including edits to existing order tests that exercise the note limit.\"\n"
+    },
+    {
+      "answer": "This brief carries no earlier verifier's recommendation.\n",
+      "why": "names recommendations only to exclude them"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The earlier verifier asked about test_note_limits.py. Recommended: accept the edit.\n",
+      "why": "carries the earlier recommendation"
+    },
+    {
+      "answer": "Please accept the edit to test_note_limits.py as in scope.\n",
+      "why": "steers toward the earlier recommendation"
+    }
+  ]
+}

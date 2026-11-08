@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "## Added fact\n\nPLAN.md Brief, Constraints: \"Scope: src/orders/notes/ and tests/orders/, including edits to existing order tests that exercise the note limit.\"\n"
+    },
+    {
+      "answer": "> Scope: src/orders/notes/ and tests/orders/, including edits to existing\n> order tests that exercise the note limit.\n\n(source: the PLAN.md Brief, Constraints)\n",
+      "why": "quote wrapped across lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The edit to tests/orders/test_note_limits.py is in scope.\n",
+      "why": "states a conclusion instead of quoting the rule"
+    },
+    {
+      "answer": "Scope covers the notes module and its tests.\n",
+      "why": "paraphrases the rule"
+    }
+  ]
+}
