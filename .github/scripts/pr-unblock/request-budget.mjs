@@ -20,7 +20,7 @@
 // That happens inside the read's 3 attempts and only while the resets the latch
 // waited out, summed, fit its minute (SERVER_RETRY_BUDGET_MS), and the guard
 // fails nothing for a refusal it resends. Any other call is a write the outage
-// posture never resends (docs/outage-posture-audit.md, element 1). A refusal
+// posture never resends (docs/conventions/pr-pipeline/README.md#outage-posture, element 1). A refusal
 // that is not resent carries rateLimited: true, so a caller can defer its work
 // instead of failing; the guard fails the step on it unless the step holds
 // (API_BUDGET_HOLD=1), and keeps the pool stopped until the reset. A

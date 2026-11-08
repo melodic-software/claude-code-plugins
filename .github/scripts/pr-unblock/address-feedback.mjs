@@ -800,7 +800,7 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
 // already read it. A failed read is null, which codexRequest fails closed on.
 export async function readTriggers({ api, pr, pull }) {
   try {
-    // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+    // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
     const read = pull ?? (await api.getPull(pr));
     const timeline = await api.listTimeline(pr);
     const history = await api.listRequestHistory(pr);

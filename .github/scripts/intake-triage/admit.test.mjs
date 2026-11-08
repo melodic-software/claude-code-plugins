@@ -1049,7 +1049,7 @@ describe("decide", () => {
       }
     });
 
-    // Element 4 of the outage posture (docs/outage-posture-audit.md): a failed
+    // Element 4 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): a failed
     // visibility read is no evidence the repository is private, so it throws
     // and no verdict is written, instead of tightening the cost checks.
     test("admissionFacts counts a repository public only when its visibility reads public, and a failed read throws", async () => {

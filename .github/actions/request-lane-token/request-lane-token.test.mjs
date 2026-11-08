@@ -192,7 +192,7 @@ const GITHUB_UNAVAILABLE = {
   body: { error: "unavailable", reason: "github-unavailable", detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403" },
 };
 const ISSUE_LANE = { LANE: "work-resolve-issue", ACTIVITY: "resolve-issue", PR_NUMBER: "", ISSUE_NUMBER: "77" };
-// The outage posture's element 1 (docs/outage-posture-audit.md): at most 3
+// The outage posture's element 1 (docs/conventions/pr-pipeline/README.md#outage-posture): at most 3
 // requests, capped backoff with full jitter (0-20 s, then 0-40 s), and at most
 // 60 s of waiting in all.
 const BACKOFF = [20, 40];

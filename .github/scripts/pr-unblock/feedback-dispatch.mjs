@@ -354,7 +354,7 @@ async function requestEvidence({ api, number, pull, comments, threads, reviewerI
   if (!listed) {
     return { mentions: [], reviews: [], triggers: null };
   }
-  // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const reviews = await api.listReviews(number);
   const triggers = await readTriggers({ api, pr: number, pull });
   return {

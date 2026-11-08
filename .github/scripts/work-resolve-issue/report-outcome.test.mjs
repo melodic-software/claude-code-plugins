@@ -1905,7 +1905,7 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
 
 // A create that fails on the network may still have opened the PR: it is read
 // back, and never sent again, since a create is a non-idempotent write
-// (element 1 of docs/outage-posture-audit.md). When the read finds none, the
+// (element 1 of docs/conventions/pr-pipeline/README.md#outage-posture). When the read finds none, the
 // run fails for a rerun to settle. A read that lost its socket is sent again.
 test("main after a dropped PR create reads the PR back, and never creates it again", async () => {
   const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
@@ -5133,7 +5133,7 @@ test("main fails a crashed run whose retries are spent: Work status to needs-tri
   });
 });
 
-// Element 4 of docs/outage-posture-audit.md: a fault is no evidence about the
+// Element 4 of docs/conventions/pr-pipeline/README.md#outage-posture: a fault is no evidence about the
 // issue, so retries that were all faults do not fail it. The earlier retries'
 // comments here are the ones main itself posts, for the crash below.
 const crashRetryComment = async () =>

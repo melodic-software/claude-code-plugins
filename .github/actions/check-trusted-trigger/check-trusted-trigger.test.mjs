@@ -3702,7 +3702,7 @@ test("reconciler record: no record does not vouch, after one re-read", async () 
   assert.equal(sleeps.length, 1);
 });
 
-// Outage posture element 6 (docs/outage-posture-audit.md): the record listing's
+// Outage posture element 6 (docs/conventions/pr-pipeline/README.md#outage-posture): the record listing's
 // re-read is a conditional request. GitHub answers 304 to an If-None-Match
 // naming the page's current ETag and, for an authorized request, does not count
 // it against the primary rate limit

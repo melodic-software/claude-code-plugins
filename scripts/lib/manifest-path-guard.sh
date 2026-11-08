@@ -2,16 +2,17 @@
 # Shared trust boundary for manifest-pointed hook config paths. Sourced, never
 # executed.
 #
-# check-hook-exec-form.sh and check-hook-userconfig-argv.sh both follow a plugin
+# hook-configs.sh (the corpus walker the exec-form, Windows-probe and
+# slow-shapes gates read) and check-hook-userconfig-argv.sh both follow a plugin
 # manifest's `hooks` string/array value to another file, and a manifest is input
 # the gate does not control. A value that leaves the plugin directory -- an
 # absolute path, a Windows drive letter, or any `..` segment -- is refused
 # rather than followed, so a crafted manifest cannot point a gate at files
 # outside the tree it claims to scan.
 #
-# The refusal is a VISIBLE skip (scripts/check-silent-skips.sh), and both gates'
-# suites assert the wording of that line, so it is a CI contract: only the
-# leading script name differs between the two.
+# The refusal is a VISIBLE skip (scripts/check-silent-skips.sh), and the
+# callers' suites assert the wording of that line, so it is a CI contract: only
+# the leading script name differs between callers.
 #
 # The test is a portable string check on purpose: no realpath, no `readlink -f`,
 # nothing that would need the BSD fallback ladder.
