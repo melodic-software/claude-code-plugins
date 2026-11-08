@@ -1994,7 +1994,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read # check out main
-      issues: read # the actor check reads whether the issue is still open
       id-token: write # prove to the token broker which workflow this is
     outputs:
       redispatch: ${{ steps.apply.outputs.redispatch }}
