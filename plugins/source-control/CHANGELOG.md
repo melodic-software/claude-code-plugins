@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.5.6] - 2026-11-08
+
+### Fixed
+
+- `landed-work.sh` hashes each base commit once per run instead of once per worktree. Before, every
+  worktree ran `git log -p | git patch-id` over its whole `merge-base..base` range, so a worktree
+  thousands of commits behind the base spent most of its time re-hashing commits the previous
+  worktree had already hashed. Now each worktree hashes only the base commits no earlier worktree
+  in the run has hashed, and takes its own range's ids from the shared set. The base-side count
+  check, the empty-commit excuse and every failure reason still apply per worktree, and the TSV
+  rows the script prints are unchanged when the worktrees share their diff attributes and diff
+  config. A worktree whose attributes render a base commit differently can miss a base match and
+  fall back to the two-dot check, which reports landed only when the branch's touched paths
+  match the base.
+
 ## [8.5.5] - 2026-11-08
 
 ### Fixed
