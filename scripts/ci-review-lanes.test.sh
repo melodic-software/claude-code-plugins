@@ -311,10 +311,10 @@ else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# pr-review-cli.yml named its status jobs these before ci-workflows#866.
+# The status job names pr-review-cli.yml gave before it named both review-status.
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status 'pr-review / claude-review-status' completed success)")"
 JOBS_20="$(jobs "$(kill_job success skipped)" "$(status 'pr-review-security / security-review' completed success)")"
-expect "status jobs under their earlier names count" 0 "'$SEC_CHECK' passed on $HEAD" "::error::"
+expect "status jobs under their retired names do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
 # A status job counts only under its own lane's caller job.
 for name in 'other / review-status' 'review-status' "$CODE_CHECK"; do
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"

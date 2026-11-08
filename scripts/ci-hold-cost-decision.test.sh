@@ -627,11 +627,11 @@ expect "a notice under the other lane's status job name in this lane's workflow 
 nodecided
 decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-security-hosted.yml "$SEC_CHECK"
 expect "a cost notice from the security lane's status job decides its head" yes yes yes
-# pr-review-cli.yml named its status jobs these before ci-workflows#866.
+# The status job names pr-review-cli.yml gave before it named both review-status.
 for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-security-hosted.yml pr-review-security / security-review'; do
   nodecided
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
-  expect "a cost notice from the status job named '${lane#* }' decides its head" yes yes yes
+  expect "a cost notice from the retired status job name '${lane#* }' decides nothing" no no no "covering this head"
 done
 for name in 'other / review-status' 'review-status'; do
   nodecided
