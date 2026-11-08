@@ -7,7 +7,7 @@
 # When the binding sets config.github.status_trust (README "Work status trust"), the value is
 # instead the one the newest counted Work status event left, null when that event removed it,
 # so an uncounted change neither sets nor clears a counted state. The field is the model's
-# models.issue-status field-id, not --field.
+# models.issue-status field-id. Trust covers Work status only: any other --field reads plain.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -34,6 +34,8 @@ done
 [[ -n "$field" ]] || wit_usage_error "$usage"
 wit_require_graphql_session "get-statuses"
 wit_gh_load_status_trust
+COUNTED_TRUST=""
+[[ "$field" != "Work status" ]] || COUNTED_TRUST="$WIT_GH_STATUS_TRUST"
 
 # A full page of field values may hide the Work status value; a full event window holding a
 # value and no counted event may have pushed the counted setter out. Either fails the read.
@@ -43,7 +45,7 @@ readonly FIELD_EVENT_WINDOW=100
 readonly ACTIONS_BOT_ID=41898282 ACTIONS_BOT_LOGIN="github-actions[bot]"
 
 TRUST_TMP=""
-[[ -z "$WIT_GH_STATUS_TRUST" ]] || {
+[[ -z "$COUNTED_TRUST" ]] || {
   TRUST_TMP="$(mktemp -d)"
   trap 'rm -rf "$TRUST_TMP"' EXIT
 }
@@ -176,11 +178,11 @@ while IFS= read -r group; do
   [[ -n "$group" ]] || continue
   repo="$(jq -r '.[0].repo' <<<"$group")"
   count="$(jq 'length' <<<"$group")"
-  [[ -z "$WIT_GH_STATUS_TRUST" ]] || trust_context "$repo"
+  [[ -z "$COUNTED_TRUST" ]] || trust_context "$repo"
   for ((i = 0; i < count; i += 100)); do
     chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$group")"
     # Aliases are built from validated issue numbers only.
-    if [[ -z "$WIT_GH_STATUS_TRUST" ]]; then
+    if [[ -z "$COUNTED_TRUST" ]]; then
       aliases="$(jq -r 'map("i\(.number): issue(number: \(.number)) { issueFieldValues(first: 25) { nodes { ... on IssueFieldSingleSelectValue { name field { ... on IssueFieldSingleSelect { name } } } } } }") | join(" ")' <<<"$chunk")"
       fragments=""
     else
@@ -189,7 +191,7 @@ while IFS= read -r group; do
     fi
     # shellcheck disable=SC2016  # GraphQL variables, not bash expansions
     query="query(\$owner: String!, \$name: String!) { repository(owner: \$owner, name: \$name) { $aliases } }$fragments"
-    if [[ -z "$WIT_GH_STATUS_TRUST" ]]; then
+    if [[ -z "$COUNTED_TRUST" ]]; then
       query_arg=(-f query="$query")
     else
       # 100 trusted aliases run past the 32,767-character Windows command line, so the
@@ -198,7 +200,7 @@ while IFS= read -r group; do
       query_arg=(-F query="@$TRUST_TMP/query.graphql")
     fi
     wit_run_gh read api graphql -f owner="${repo%%/*}" -f name="${repo#*/}" "${query_arg[@]}"
-    if [[ -z "$WIT_GH_STATUS_TRUST" ]]; then
+    if [[ -z "$COUNTED_TRUST" ]]; then
       page="$(jq -c --argjson chunk "$chunk" --arg f "$field" '
         .data.repository as $r
         | {statuses: (reduce $chunk[] as $c ({}; .[$c.id] =
