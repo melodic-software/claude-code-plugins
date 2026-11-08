@@ -696,15 +696,13 @@ test("the decided head is the newest cost notice a lane's status job recorded be
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z"))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml" }))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" }))).link, LINK);
-  // pr-review-cli.yml named the status job this before ci-workflows#866.
-  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / claude-review-status" }))).link, LINK);
-  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / security-review" }))).link, LINK);
   for (const [name, extra] of Object.entries({
     "a job done after the decision": laneRun(HEAD, "2026-10-22T12:30:00Z"),
     "a run started after the decision": laneRun(HEAD, "2026-10-22T11:30:00Z", { created: "2026-10-22T12:10:00Z" }),
     "a job other than the status job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-key" }),
     "the other lane's status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: CHECKS["pr-review-security-hosted.yml"] }),
-    "the other lane's earlier status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review-security / security-review" }),
+    "the status job's retired name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / claude-review-status" }),
+    "the security status job's retired name": laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / security-review" }),
     "the status job's name under another caller job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "other / review-status" }),
     "the status job's bare name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "review-status" }),
     "a notice naming another head than its run's": laneRun(OLD, "2026-10-22T11:30:00Z", { notice: HEAD }),

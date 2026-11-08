@@ -25,14 +25,18 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const CAPTURE_PATH = ".github/workflows/pr-verify-capture.yml";
-const RUN_ID = /^[1-9][0-9]{0,19}$/;
+// A run or artifact id, and a run conclusion (GitHub's lowercase enum:
+// failure, cancelled, timed_out, ...).
+const ID = "[1-9][0-9]{0,19}";
+const ENDED_AS = "[a-z_]{1,32}";
+const RUN_ID = new RegExp(`^${ID}$`);
 const PR = /^[1-9][0-9]{0,15}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const CREATED = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
-const CARRIED = /^([1-9][0-9]{0,19}):([1-9][0-9]{0,19})$/;
+const CARRIED = new RegExp(`^(${ID}):(${ID})$`);
 // A miss: a code alone, a code and the run id, or `ended`, the run id and its
-// conclusion (GitHub's lowercase enum: failure, cancelled, timed_out, ...).
-const MISS = /^(?:(not-started|malformed|unreadable)|(running|no-artifact|mismatch):([1-9][0-9]{0,19})|(ended):([1-9][0-9]{0,19}):([a-z_]{1,32}))$/;
+// conclusion.
+const MISS = new RegExp(`^(?:(not-started|malformed|unreadable)|(running|no-artifact|mismatch):(${ID})|ended:(${ID}):(${ENDED_AS}))$`);
 // The misses that cannot change, which alone are carried to the later jobs:
 // a malformed input, and a completed run's outcome. A run not yet started,
 // still running, or an API read that failed can change by the time a later
@@ -40,8 +44,8 @@ const MISS = /^(?:(not-started|malformed|unreadable)|(running|no-artifact|mismat
 // again under the same bound. That costs it little: the capture job's own
 // 30-minute timeout has mostly run out by then, so its wait is short, and a
 // run that never started is given up on in two minutes.
-const PERMANENT = /^(?:malformed|(?:no-artifact|mismatch):[1-9][0-9]{0,19}|ended:[1-9][0-9]{0,19}:[a-z_]{1,32})$/;
-const CONCLUSION = /^[a-z_]{1,32}$/;
+const PERMANENT = new RegExp(`^(?:malformed|(?:no-artifact|mismatch):${ID}|ended:${ID}:${ENDED_AS})$`);
+const CONCLUSION = new RegExp(`^${ENDED_AS}$`);
 const MINUTE = 60_000;
 // The capture job's timeout (pr-verify-capture.yml) and five minutes for its
 // queue and gates: past this the capture cannot still be running.
@@ -76,6 +80,9 @@ const isCaptureRun = (run, { repository, upstreamRunId, headSha }) =>
   run.display_title === runTitle(upstreamRunId, headSha) &&
   RUN_ID.test(String(run.id));
 
+// The highest-id entry of a listed array that passes keep, if any.
+const newest = (listed, keep) => (Array.isArray(listed) ? listed : []).filter(keep).sort((a, b) => b.id - a.id)[0];
+
 // The newest matching run in the listing since `createdAt`, page by page.
 async function captureRun(github, ids, createdAt) {
   const since = CREATED.test(String(createdAt)) ? `&created=${encodeURIComponent(`>=${createdAt}`)}` : "";
@@ -83,7 +90,7 @@ async function captureRun(github, ids, createdAt) {
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const listed = await github("GET", `${runsPath}&page=${page}`);
     const runs = Array.isArray(listed?.workflow_runs) ? listed.workflow_runs : [];
-    const run = runs.filter((candidate) => isCaptureRun(candidate, ids)).sort((a, b) => b.id - a.id)[0];
+    const run = newest(runs, (candidate) => isCaptureRun(candidate, ids));
     if (run) return run;
     if (runs.length < PER_PAGE) return undefined;
   }
@@ -94,14 +101,14 @@ async function captureRun(github, ids, createdAt) {
 export function missReason(miss) {
   const match = MISS.exec(String(miss ?? ""));
   if (!match) return undefined;
-  const [, bare, code, runId, ended, endedId, conclusion] = match;
+  const [, bare, code, runId, endedId, conclusion] = match;
   if (bare === "not-started") return "no capture run was started for this head";
   if (bare === "malformed") return "the upstream run, pull request or head is malformed";
   if (bare === "unreadable") return "the capture run or its artifact could not be read";
   if (code === "running") return `capture run ${runId} was still running after ${Math.round(WAIT_MS / MINUTE)} minutes`;
   if (code === "no-artifact") return `capture run ${runId} left no capture artifact for this head`;
   if (code === "mismatch") return `capture run ${runId}'s record no longer names this upstream run and head`;
-  return ended && `capture run ${endedId} ended ${conclusion}`;
+  return `capture run ${endedId} ended ${conclusion}`;
 }
 
 const miss = (code) => ({ miss: code, reason: missReason(code) });
@@ -111,13 +118,14 @@ const miss = (code) => ({ miss: code, reason: missReason(code) });
 // capture's collect and upload steps run always()), but it is not taken.
 async function completed(github, { repository, pr, headSha }, run) {
   if (run.conclusion !== "success") {
-    return miss(typeof run.conclusion === "string" && CONCLUSION.test(run.conclusion) ?`ended:${run.id}:${run.conclusion}` : "unreadable");
+    return miss(typeof run.conclusion === "string" && CONCLUSION.test(run.conclusion) ? `ended:${run.id}:${run.conclusion}` : "unreadable");
   }
   const name = artifactName(pr, headSha);
   const artifacts = await github("GET", `/repos/${repository}/actions/runs/${run.id}/artifacts?name=${name}&per_page=10`);
-  const artifact = (Array.isArray(artifacts?.artifacts) ? artifacts.artifacts : [])
-    .filter((candidate) => candidate?.name === name && candidate.expired === false && RUN_ID.test(String(candidate.id)))
-    .sort((a, b) => b.id - a.id)[0];
+  const artifact = newest(
+    artifacts?.artifacts,
+    (candidate) => candidate?.name === name && candidate.expired === false && RUN_ID.test(String(candidate.id)),
+  );
   return artifact ? { artifactId: String(artifact.id), runId: String(run.id) } : miss(`no-artifact:${run.id}`);
 }
 

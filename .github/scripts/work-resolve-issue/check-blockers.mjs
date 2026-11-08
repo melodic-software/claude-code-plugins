@@ -86,6 +86,12 @@ export async function main({ env = process.env, github, log = console.log, write
   let splitChild;
   let finished = null;
   let rechecked = false;
+  // Logs why the run does not proceed and writes its outputs; never fails the job.
+  const skip = (message, outputs = { proceed: "false", untrusted: "false" }) => {
+    log(message);
+    write(outputs);
+    return 0;
+  };
   try {
     if (!REPO.test(repository) || !NUMBER.test(number) || !NUMBER.test(env.LANES_APP_ID ?? "")) {
       throw new Error("GITHUB_REPOSITORY, ISSUE_NUMBER or LANES_APP_ID is not set to a repository, issue number and App id");
@@ -112,40 +118,31 @@ export async function main({ env = process.env, github, log = console.log, write
         // A blocker the App closed report-delivered no longer holds once a
         // verdict or admission postdates its close (admit.mjs reportCleared).
         const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
-        const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closedByTrusted({ github: client, repository, humans, appId }), after });
+        const closed = closedByTrusted({ github: client, repository, humans, appId });
+        const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closed, after });
         pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
         subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
         if (pending.length === 0 && subs.length === 0) {
           const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
           splitChild = await trustedSplitChild(client, repository, Number(number), humans, appId, taskList);
-          finished = await finishedParent({ github: client, repository, issue, trusted: closedByTrusted({ github: client, repository, humans, appId }) });
+          finished = await finishedParent({ github: client, repository, issue, trusted: closed });
         }
       }
     }
   } catch (error) {
-    log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers, sub-issues or split-child provenance could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
-    write({ proceed: "false", untrusted: "false" });
-    return 0;
+    return skip(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers, sub-issues or split-child provenance could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
   }
   if (outsider) {
-    log("::notice title=outside author::the run is stopped: the issue's author is neither a listed human nor the lanes App, so the lane will not work from its text; report-skip removes agent-ready and asks a listed human to re-file the work as a new issue; work-unblock never re-fires this run");
-    write({ proceed: "false", untrusted: "true", outsider: "true" });
-    return 0;
+    return skip("::notice title=outside author::the run is stopped: the issue's author is neither a listed human nor the lanes App, so the lane will not work from its text; report-skip removes agent-ready and asks a listed human to re-file the work as a new issue; work-unblock never re-fires this run", { proceed: "false", untrusted: "true", outsider: "true" });
   }
   if (held) {
-    log(`::notice title=untrusted provenance::the run is stopped: \`${UNTRUSTED}\` holds the issue (on it, or last removed by neither a listed human nor the lanes App), so a person decides it; work-unblock never re-fires this run`);
-    write({ proceed: "false", untrusted: "true" });
-    return 0;
+    return skip(`::notice title=untrusted provenance::the run is stopped: \`${UNTRUSTED}\` holds the issue (on it, or last removed by neither a listed human nor the lanes App), so a person decides it; work-unblock never re-fires this run`, { proceed: "false", untrusted: "true" });
   }
   if (pending.length > 0) {
-    log(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);
-    write({ proceed: "false", untrusted: "false" });
-    return 0;
+    return skip(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);
   }
   if (subs.length > 0) {
-    log(`::notice title=umbrella::the run is skipped and agent-ready kept: the issue is an umbrella whose work is its sub-issues', and ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")} ${subs.length > 1 ? "are" : "is"} open; work-unblock's sweep re-fires it once none is`);
-    write({ proceed: "false", untrusted: "false" });
-    return 0;
+    return skip(`::notice title=umbrella::the run is skipped and agent-ready kept: the issue is an umbrella whose work is its sub-issues', and ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")} ${subs.length > 1 ? "are" : "is"} open; work-unblock's sweep re-fires it once none is`);
   }
   if (rechecked) {
     write({ proceed: "true", untrusted: "false" });

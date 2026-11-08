@@ -4,6 +4,11 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [4.2.2] - 2026-11-08
+
+Patch: `t3dotgg-tstack.md` joins the adopters. No required part, canonical name, or enforceability
+tier changes.
+
 ## [4.2.1] - 2026-11-05
 
 Patch: records the owner's decision that the cleaned-state CI gate is deferred until a sweep applies
