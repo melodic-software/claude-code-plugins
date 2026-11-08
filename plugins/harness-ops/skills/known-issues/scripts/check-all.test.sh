@@ -190,8 +190,8 @@ assert_contains "repo-a directory carries its remote identity" "$DIR_A" "/check-
 assert_contains "repo-b directory carries its remote identity" "$DIR_B" "/check-all-output/github.com/example/beta/"
 if [[ -d "$DIR_A" ]]; then pass "--print-output-dir creates the directory"; else fail "--print-output-dir creates the directory" "directory" "absent"; fi
 
-# Two worktrees of ONE repository. The registry is project-relative whenever the
-# `registry_dir` option is set, so two worktrees hold two registries and must
+# Two worktrees of ONE repository. The registry is project-relative whenever
+# `registry_dir` is set, so two worktrees hold two registries and must
 # not share a scratch directory. state-key.sh splits them.
 git -C "$REPO_A" worktree add -q -b key-wt-second "$TEST_TMPDIR/key-repo-a-wt2" >/dev/null 2>&1
 DIR_A_WT2=$(out_dir_for "$TEST_TMPDIR/key-repo-a-wt2")

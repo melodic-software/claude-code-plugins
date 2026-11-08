@@ -164,6 +164,9 @@ const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
 const COST_PROBLEM = "a Cost line is not in the `Cost: ` / `Cost decided: ` form";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 
+const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+const admissionError = (error) => ({ outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) });
+
 // The --check answer: whether the broker would mint for this run's actors.
 export function checkActors(env, humans, logins) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
@@ -222,14 +225,12 @@ export function parseVerdict(body, dimensionsConfig) {
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
-    if (found.length === 1) {
-      // Model text: only letters, digits and plain punctuation reach a reason.
-      shown[prefix] = found[0].slice(0, 40).replaceAll(/[^A-Za-z0-9 ,.:-]/g, "?");
-    }
     if (found.length !== 1) {
       problems.push(`${found.length === 0 ? "no" : "more than one"} \`${prefix}:\` line`);
       return null;
     }
+    // Model text: only letters, digits and plain punctuation reach a reason.
+    shown[prefix] = found[0].slice(0, 40).replaceAll(/[^A-Za-z0-9 ,.:-]/g, "?");
     return found[0];
   };
 
@@ -627,7 +628,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
 
   const verdict = parseVerdict(comment.body, dimensionsConfig);
-  const issueLabels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+  const issueLabels = labelNames(issue);
   // A hold only the Work status field holds counts as its label.
   const labels = statusOf ? await statusOf(number, issueLabels) : issueLabels;
   const fields = await readFields(github, repository, number, fieldSetters);
@@ -703,7 +704,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // dropped when a late hold landed.
   let lateHolds = [];
   if (plan.refused.length > 0) {
-    const now = ((await github("GET", base)).labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
+    const now = labelNames(await github("GET", base));
     lateHolds = LATE_HOLDS.filter((label) => now.includes(label) && !labels.includes(label));
     if (lateHolds.length > 0) {
       log(`apply-verdict: ${lateHolds.join(", ")} landed after the first read; nothing triage applied is refused`);
@@ -752,12 +753,14 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     await addLabels(github, base, labelAdds);
   }
   const stateWrite = await writeState();
+  const report = (admission, summary) => {
+    log(summary);
+    return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
+  };
   // A person's hold set since the read ends the run: the issue is theirs.
   if (stateWrite?.outcome === "held") {
     const why = `a person's Work status ${stateWrite.state} holds it`;
-    const summary = `apply-verdict: #${number} left as is (${why}); no admission`;
-    log(summary);
-    return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission: { outcome: "held", reasons: [why], status: stateWrite.state }, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
+    return report({ outcome: "held", reasons: [why], status: stateWrite.state }, `apply-verdict: #${number} left as is (${why}); no admission`);
   }
   // An admission error stops neither the reasons comment nor the summary; the caller
   // fails the job on it, or holds on a fault (closing).
@@ -766,7 +769,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     try {
       admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
     } catch (error) {
-      admission = { outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) };
+      admission = admissionError(error);
     }
   }
   // A held issue never reaches admission, so its split note, when a done-when
@@ -775,7 +778,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     try {
       admission = await noteSplit(issue);
     } catch (error) {
-      admission = { outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) };
+      admission = admissionError(error);
     }
   }
   if (plan.ready) {
@@ -796,8 +799,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
     ...(reasonsError ? [`- Reasons comment: not written (${reasonsError})`] : []),
   ].join("\n");
-  log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, missed: edges?.missed ?? [], undeleted: edges?.undeleted ?? [], summary };
+  return report(admission, summary);
 }
 
 async function removeLabels(github, base, names) {
@@ -1027,8 +1029,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         issues: (states, options) => issuesByStatus(github, repository, states, { ...options, config: statusConfig, trustedActors }),
         events: (number) => statusEvents({ github, repository, number, config: statusConfig }),
       };
-      // Read only when admitting, so a malformed rules file stops
-      // admission and not the verdict.
+      // Read only when admitting or noting a split, so a malformed rules
+      // file stops those and not the verdict.
+      const rules = () => loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`);
       const admitIssue = (verdict) =>
         admit({
           setStatus,
@@ -1037,7 +1040,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           repository,
           number: Number(env.ISSUE_NUMBER),
           verdict,
-          rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
+          rules: rules(),
           humans,
           appId: logins.get(LANES_APP_LOGIN),
           webHosts: issueLaneWebHostsFromBase(env),
@@ -1058,7 +1061,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           github,
           repository,
           issue,
-          rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
+          rules: rules(),
           webHosts: issueLaneWebHostsFromBase(env),
           statusOf: statusReader({ env, github, repository }),
         });

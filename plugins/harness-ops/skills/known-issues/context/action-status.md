@@ -13,7 +13,7 @@ Quick health snapshot for proactive auto-invocation. Combines registry stats wit
 - Count of open blocking issues (need attention)
 - Stale issues (not checked in >14 days)
 
-Use the registry manager script for efficient stats (`<registry-dir>` per the SKILL.md registry-location rule: the configured `registry_dir`, else the plugin data directory):
+Use the registry manager script for efficient stats (`<registry-dir>` per the SKILL.md registry-location rule: the `data_dir` its resolver prints, else the plugin data directory):
 
 ```bash
 python "<skill-dir>/scripts/registry_manager.py" --data-dir "<registry-dir>" stats

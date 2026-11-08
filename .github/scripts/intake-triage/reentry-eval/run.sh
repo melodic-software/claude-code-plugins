@@ -38,10 +38,10 @@ flags=(--scaffold --trust-plugin --no-publish --model sonnet --judge-model opus 
 # An empty HOME keeps the host's own stores (a Docker context link among them)
 # out of the run; the login stays in the operator's config dir.
 config=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
-env=(env HOME="$out/home" CLAUDE_CONFIG_DIR="$config" CLAUDE_CODE_EFFORT_LEVEL=medium "${CLAUDE_BIN:-claude}" plugin eval)
+plugin_eval=(env HOME="$out/home" CLAUDE_CONFIG_DIR="$config" CLAUDE_CODE_EFFORT_LEVEL=medium "${CLAUDE_BIN:-claude}" plugin eval)
 # A failing case exits nonzero; run the baseline either way.
 rc=0
-"${env[@]}" "$out/with" "${flags[@]}" --output-dir "$out/results-with" || rc=$?
-"${env[@]}" "$out/without" "${flags[@]}" --ablation none --output-dir "$out/results-without" || rc=$?
+"${plugin_eval[@]}" "$out/with" "${flags[@]}" --output-dir "$out/results-with" || rc=$?
+"${plugin_eval[@]}" "$out/without" "${flags[@]}" --ablation none --output-dir "$out/results-without" || rc=$?
 echo "built from ci-workflows $sha (caller ref $ref); results in $out/results-with and $out/results-without"
 exit "$rc"
