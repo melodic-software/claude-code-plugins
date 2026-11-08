@@ -170,7 +170,8 @@ done
 # --- allowlist contents are pinned ------------------------------------------
 # Growing the allowlist must be a visible, reviewed diff that also edits this
 # assertion -- never a quiet one-word change.
-if grep -q '^EXEC_NAME_ALLOWLIST=(node)$' "$SCRIPT"; then
+if [[ "$(grep -c '^EXEC_NAME_ALLOWLIST=' "$SELF_DIR/lib/hook-configs.sh")" == 1 ]] &&
+  grep -q '^EXEC_NAME_ALLOWLIST=(node)$' "$SELF_DIR/lib/hook-configs.sh"; then
   ok "allowlist is pinned to exactly (node)"
 else
   fail "EXEC_NAME_ALLOWLIST changed; review the admission criterion and update this test deliberately"

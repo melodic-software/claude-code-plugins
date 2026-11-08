@@ -46,6 +46,10 @@
 # JSON hook config: `.hooks` for a hooks.json or pointed file, `.hooks` or
 # `.hooks[N]` for an inline map in a manifest. For gates that walk events
 # rather than every hook object. An unreadable manifest is skipped here.
+#
+#   hook_configs::allowed_exec_name <command>
+#
+# True when <command> is on EXEC_NAME_ALLOWLIST below.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/hook-configs.sh is sourced-only\n' >&2
@@ -100,6 +104,60 @@ HOOK_CONFIGS_JQ_MANIFEST="${HOOK_CONFIGS_JQ_DEFS}"'
           else empty end
       else empty end
 '
+
+# Bare exec-form `command` names admitted despite carrying no path separator,
+# read by scripts/check-hook-exec-form.sh and
+# scripts/check-exec-form-windows-probe.sh.
+#
+# Admission criterion is mechanical, not a judgment call about "real
+# executables": a name qualifies only when NO Windows shim, relay, or App
+# Execution Alias stub shadows it on PATH ahead of the real interpreter.
+#   * `bash`, `sh`            -> shadowed by the WSL relay System32\bash.exe
+#   * `python`, `python3`, `py` -> shadowed by zero-length WindowsApps stubs
+#   * `node`                 -> no such shim exists; node.exe is the only
+#                               resolution, which is why both
+#                               docs/plugin-philosophy.md (Hooks row) and the
+#                               harness-config audit checklist name
+#                               `"command": "node", "args": [...]` as THE
+#                               Windows-correct exec-form spelling.
+# That criterion is NECESSARY but not SUFFICIENT, and the list is deliberately
+# shorter than it allows: an entry must also answer a real, in-repo need that
+# this repo's own docs sanction. `pwsh` and `deno` are unshimmed too and are
+# still absent, because nothing here needs them — allowlist entries are
+# demand-driven, never pre-emptive, since an unused entry is a hole nobody is
+# watching. Adding a name is a reviewed change to this array plus its pinning
+# test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
+#
+# `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
+# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds a real bash
+# and never the WSL relay. Option gates are `--require-true` and
+# `--run-if-unset-or-true` on that launcher, not a shell command line.
+#   Claim: exec form offers no portable `command` that names Git Bash. `command`
+#     is resolved on PATH (bare `bash` finds the WSL relay); `shell` is "Ignored
+#     when `args` is set"; a `.sh` path as `command` is not a real executable
+#     there (libuv EFTYPE); and the only placeholders are CLAUDE_PROJECT_DIR,
+#     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
+#     which names a shell. The gate-legal route is the `node` launcher above,
+#     not an allowlist entry for `bash`.
+#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields", the
+#     `shell` row, verbatim: "Ignored when `args` is set". "Exec form and shell
+#     form" resolves `command` on PATH and, on Windows, to a real executable.
+#     https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form
+#     `args` dropped, the hook still routed through bash.exe): open, last
+#     updated 2026-08-29.
+#   As of: 2026-09-29.
+#   Recheck: the hooks reference adds a shell or interpreter placeholder for
+#     exec form, or stops ignoring `shell` when `args` is set; or #90495 closes.
+EXEC_NAME_ALLOWLIST=(node)
+
+# hook_configs::allowed_exec_name <command>
+hook_configs::allowed_exec_name() {
+  local name
+  for name in "${EXEC_NAME_ALLOWLIST[@]}"; do
+    [[ "$1" == "$name" ]] && return 0
+  done
+  return 1
+}
 
 # hook_configs::_need_jq <gate>
 hook_configs::_need_jq() {

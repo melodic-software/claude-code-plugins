@@ -26,7 +26,7 @@
 #
 # The rule: exec form (an `args` key on the hook object) whose `command`
 # contains NO path separator (`/` or `\`) fails, unless the name is on
-# EXEC_NAME_ALLOWLIST below. Deliberately broader than a denylist of the names
+# EXEC_NAME_ALLOWLIST in scripts/lib/hook-configs.sh. Deliberately broader than a denylist of the names
 # that have already burned us: a denylist can only ever hold the spellings
 # someone was burned by, which is exactly how a {bash, sh} list would have waved
 # `python3` through. `${CLAUDE_PLUGIN_ROOT}`-rooted and absolute paths carry a
@@ -63,49 +63,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 # shellcheck source=lib/hook-configs.sh
 . scripts/lib/hook-configs.sh || exit 2
 
-# Bare exec-form `command` names admitted despite carrying no path separator.
-#
-# Admission criterion is mechanical, not a judgment call about "real
-# executables": a name qualifies only when NO Windows shim, relay, or App
-# Execution Alias stub shadows it on PATH ahead of the real interpreter.
-#   * `bash`, `sh`            -> shadowed by the WSL relay System32\bash.exe
-#   * `python`, `python3`, `py` -> shadowed by zero-length WindowsApps stubs
-#   * `node`                 -> no such shim exists; node.exe is the only
-#                               resolution, which is why both
-#                               docs/plugin-philosophy.md (Hooks row) and the
-#                               harness-config audit checklist name
-#                               `"command": "node", "args": [...]` as THE
-#                               Windows-correct exec-form spelling.
-# That criterion is NECESSARY but not SUFFICIENT, and the list is deliberately
-# shorter than it allows: an entry must also answer a real, in-repo need that
-# this repo's own docs sanction. `pwsh` and `deno` are unshimmed too and are
-# still absent, because nothing here needs them — allowlist entries are
-# demand-driven, never pre-emptive, since an unused entry is a hole nobody is
-# watching. Adding a name is a reviewed change to this array plus its pinning
-# test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
-#
-# `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
-# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds a real bash
-# and never the WSL relay. Option gates are `--require-true` and
-# `--run-if-unset-or-true` on that launcher, not a shell command line.
-#   Claim: exec form offers no portable `command` that names Git Bash. `command`
-#     is resolved on PATH (bare `bash` finds the WSL relay); `shell` is "Ignored
-#     when `args` is set"; a `.sh` path as `command` is not a real executable
-#     there (libuv EFTYPE); and the only placeholders are CLAUDE_PROJECT_DIR,
-#     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
-#     which names a shell. The gate-legal route is the `node` launcher above,
-#     not an allowlist entry for `bash`.
-#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields", the
-#     `shell` row, verbatim: "Ignored when `args` is set". "Exec form and shell
-#     form" resolves `command` on PATH and, on Windows, to a real executable.
-#     https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form
-#     `args` dropped, the hook still routed through bash.exe): open, last
-#     updated 2026-08-29.
-#   As of: 2026-09-29.
-#   Recheck: the hooks reference adds a shell or interpreter placeholder for
-#     exec form, or stops ignoring `shell` when `args` is set; or #90495 closes.
-EXEC_NAME_ALLOWLIST=(node)
-
 errors=0
 execform_errors=0
 
@@ -116,17 +73,6 @@ is_bare() {
   */* | *\\*) return 1 ;;
   *) return 0 ;;
   esac
-}
-
-# allowed_name <command>
-allowed_name() {
-  local name
-  for name in "${EXEC_NAME_ALLOWLIST[@]}"; do
-    if [[ "$1" == "$name" ]]; then
-      return 0
-    fi
-  done
-  return 1
 }
 
 # flag <file> <where> <command>
@@ -140,12 +86,12 @@ flag() {
 # consider <file> <where> <command> — apply the rule to one exec-form hook.
 consider() {
   local file="$1" where="$2" cmd="$3"
-  # shellcheck disable=SC2310  # is_bare/allowed_name are pure case/loop tests; neither can fail unexpectedly
+  # shellcheck disable=SC2310  # is_bare/allowed_exec_name are pure case/loop tests; neither can fail unexpectedly
   if ! is_bare "$cmd"; then
     return 0
   fi
   # shellcheck disable=SC2310  # see above
-  if allowed_name "$cmd"; then
+  if hook_configs::allowed_exec_name "$cmd"; then
     return 0
   fi
   flag "$file" "$where" "$cmd"

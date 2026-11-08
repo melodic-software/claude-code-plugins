@@ -134,7 +134,7 @@ else
 fi
 rm -rf "$f"
 
-# --- a bare name passes only when the gate's allowlist carries it -----------
+# --- a bare name passes only when the allowlist carries it ------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":[]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
@@ -173,28 +173,33 @@ for name in node node.exe bash sh python3 pwsh powershell.exe; do
   rm -rf "$f"
 done
 
-# --- a probe that cannot read the gate's allowlist stops at exit 2 ----------
+# --- the probe reads the library's allowlist, not the gate's source ----------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 rm "$f/scripts/check-hook-exec-form.sh"
-rc=0
-out="$(run_check "$f" 2>&1)" || rc=$?
-if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
-  ok "a missing gate file exits 2"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "the probe runs without the gate's source"
 else
-  fail "a missing gate file should exit 2 (rc=$rc): $out"
+  fail "the probe should not need scripts/check-hook-exec-form.sh, got: $out"
 fi
 rm -rf "$f"
 
 new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-printf '%s\n' 'EXEC_NAME_ALLOWLIST=(node)' 'EXEC_NAME_ALLOWLIST=(node bash)' >"$f/scripts/check-hook-exec-form.sh"
-rc=0
-out="$(run_check "$f" 2>&1)" || rc=$?
-if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
-  ok "two allowlist lines in the gate exit 2"
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"pwsh","args":[]}]}]}'
+sed -i.bak 's/^EXEC_NAME_ALLOWLIST=(node)$/EXEC_NAME_ALLOWLIST=(node pwsh)/' "$f/scripts/lib/hook-configs.sh"
+if out="$(run_check "$f" 2>&1)" && grep -q '1 exec-form row(s) name a real Windows executable.' <<<"$out"; then
+  ok "a name added to the library allowlist passes the probe"
 else
-  fail "two allowlist lines should exit 2 (rc=$rc): $out"
+  fail "the probe should follow the library allowlist, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"pwsh","args":[]}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a bare name the library does not list should fail, got: $out"
+else
+  assert_fail "a bare name off the library allowlist fails" "$out" 'exec-form command "pwsh" is not a real Windows executable'
 fi
 rm -rf "$f"
 
