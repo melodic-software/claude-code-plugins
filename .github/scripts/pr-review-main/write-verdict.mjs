@@ -248,7 +248,8 @@ export function main(env = process.env) {
       throw new Error(`${label}: ${error.message}`);
     }
   });
-  const rest = {
+  const verdict = buildChunkedVerdict({
+    outputs: chunks.map((c) => c.output),
     maxLineBytes: longestLine(chunks.flatMap((c) => c.texts)),
     lane: env.LANE,
     pr: env.PR_NUMBER,
@@ -256,15 +257,15 @@ export function main(env = process.env) {
     baseSha: env.BASE_SHA,
     tree: env.TREE_SHA,
     runId: env.GITHUB_RUN_ID,
-  };
-  const verdict = buildChunkedVerdict({ ...rest, outputs: chunks.map((c) => c.output) });
+  });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict.lane, verdict.pr, verdict.tree);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nfindings=${verdict.findings}\ncritical=${verdict.critical}\n`);
+  // buildChunkedVerdict has validated each output, so its counts need no second pass.
   chunks.forEach((c, i) => {
-    const one = buildVerdict({ ...rest, output: c.output });
-    console.log(`::notice title=pr-review-main chunk::lane=${verdict.lane} chunk=${i + 1}/${count} bytes=${c.bytes} findings=${one.findings} critical=${one.critical}`);
+    const critical = c.output.findings.filter((f) => f.severity === "CRITICAL").length;
+    console.log(`::notice title=pr-review-main chunk::lane=${verdict.lane} chunk=${i + 1}/${count} bytes=${c.bytes} findings=${c.output.findings.length} critical=${critical}`);
   });
   console.log(`write-verdict: ${name} findings=${verdict.findings} critical=${verdict.critical}`);
 }

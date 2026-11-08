@@ -18,7 +18,7 @@ import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { createGitHubApi, need, ownerAdoption, ownerAuthored, positive } from "./address-feedback.mjs";
+import { createGitHubApi, need, ownerAdoption, ownerAuthored, positive, SHA } from "./address-feedback.mjs";
 import { commentItems, gateSource, prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -27,7 +27,7 @@ export async function main(env, { api, adoption, log = (line) => console.log(lin
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "HEAD_SHA", "APP_SENDER_ID", "LABEL", "ACTIVITY"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
-  if (!/^[0-9a-f]{40}$/.test(env.HEAD_SHA)) {
+  if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit SHA");
   }
   if (!ACTIVITY.test(env.ACTIVITY)) {
