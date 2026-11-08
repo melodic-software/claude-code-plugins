@@ -4384,7 +4384,7 @@ const SECURITY_REASON = "area: security was added after it was deferred, so the 
 const EDITED_REASON = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
 const staleWrites = (reason, status, code = null) => [
   `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: code === null ? `${ADMIT_MARKER}\n${refusalText(reason)}` : heldBody(reason, code) })}`,
-  `SET 25 ${status === "status: needs-decision" ? "needs-owner-decision" : "confirmed"}`,
+  `SET 25 ${status === "needs-owner-decision" ? "needs-owner-decision" : "confirmed"}`,
 ];
 
 test("the sweep keeps a deferred issue deferred while do-not-merge, needs-human or the untrusted-provenance hold is on it", async (t) => {
@@ -4416,13 +4416,13 @@ test("a deferred issue already agent-ready only loses admission-deferred, whatev
   assert.deepEqual(writes(running.calls), [undeferred(25)]);
 });
 
-test("the sweep refuses a deferred issue that gained area: security since its deferral, at status: needs-decision, marked security", async (t) => {
+test("the sweep refuses a deferred issue that gained area: security since its deferral, at needs-owner-decision, marked security", async (t) => {
   t.mock.method(console, "log", () => {});
   const labels = ["admission-deferred", "status: ready", "area: security"];
   const added = (at) => ({ event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: at });
   const after = deferredWorld({ labels, events: [deferredAdd(LANES_BOT), added("2026-10-16T09:00:00Z")] });
   assert.equal(await sweep({ github: after.github, writer: after.writer }, PAUSING), 0);
-  assert.deepEqual(writes(after.calls), staleWrites(SECURITY_REASON, "status: needs-decision", "security"));
+  assert.deepEqual(writes(after.calls), staleWrites(SECURITY_REASON, "needs-owner-decision", "security"));
   // On it before the deferral, the admission it was deferred from judged it.
   const before = deferredWorld({ labels, events: [added("2026-10-16T07:00:00Z"), deferredAdd(LANES_BOT)] });
   assert.equal(await sweep({ github: before.github }, PAUSING), 0);
@@ -4467,12 +4467,12 @@ test("the sweep never rewrites admission's marked comment on a deferred issue a 
 });
 
 // The one Work status field write replaces a parked confirmed; no label moves.
-test("a deferred issue refused at status: needs-decision takes a parked status: confirmed off; one refused at status: confirmed keeps it", async (t) => {
+test("a deferred issue refused at needs-owner-decision takes a parked status: confirmed off; one refused at status: confirmed keeps it", async (t) => {
   t.mock.method(console, "log", () => {});
   const added = { event: "labeled", label: { name: "area: security" }, actor: OWNER, created_at: "2026-10-16T09:00:00Z" };
   const hold = deferredWorld({ labels: ["admission-deferred", "status: ready", "area: security", "status: confirmed"], events: [deferredAdd(LANES_BOT), added] });
   assert.equal(await sweep({ github: hold.github, writer: hold.writer }, PAUSING), 0);
-  assert.deepEqual(writes(hold.calls), staleWrites(SECURITY_REASON, "status: needs-decision", "security"));
+  assert.deepEqual(writes(hold.calls), staleWrites(SECURITY_REASON, "needs-owner-decision", "security"));
   const edited = deferredWorld({ labels: ["admission-deferred", "status: ready", "status: confirmed"], specs: { 25: editedSpec("2026-10-16T09:00:00Z") } });
   assert.equal(await sweep({ github: edited.github, writer: edited.writer }, PAUSING), 0);
   assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: confirmed"));
@@ -5238,11 +5238,11 @@ test("a person's mark on an issue whose body was edited or that gained area: sec
   assert.deepEqual(writes(edited.calls), staleWrites(EDITED_REASON, "status: confirmed"));
   const security = markedWorld({ labels: [...MARKED, "area: security"], extraEvents: [labelAdd("area: security", OWNER, "2026-10-16T09:00:00Z")] });
   assert.equal(await sweep({ github: security.github, writer: security.writer, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(security.calls), staleWrites(SECURITY_REASON, "status: needs-decision", DECIDE_SECURITY));
+  assert.deepEqual(writes(security.calls), staleWrites(SECURITY_REASON, "needs-owner-decision", DECIDE_SECURITY));
   // A hold decide refuses on gets the person the admission comment, with its reason.
   const held = markedWorld({ labels: [...MARKED, "do-not-merge"] });
   assert.equal(await sweep({ github: held.github, writer: held.writer, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(held.calls), staleWrites("it carries do-not-merge", "status: needs-decision", "intent"));
+  assert.deepEqual(writes(held.calls), staleWrites("it carries do-not-merge", "needs-owner-decision", "intent"));
 });
 
 // A stranded agent-ready issue: no hold, no open lane PR, no marker since its
@@ -6089,10 +6089,10 @@ test("a status: ready issue already agent-ready or deferred is not run through a
   assert.equal(fieldReadsOf(calls, 32), 0);
 });
 
-test("a status: ready issue in no queue that admission refuses parks at status: confirmed, or at status: needs-decision for a person", async (t) => {
+test("a status: ready issue in no queue that admission refuses parks at status: confirmed, or at needs-owner-decision for a person", async (t) => {
   t.mock.method(console, "log", () => {});
   const refused = (n, status, reasons, code = null) => [
-    `SET ${n} ${status === "status: needs-decision" ? "needs-owner-decision" : "confirmed"}`,
+    `SET ${n} ${status === "needs-owner-decision" ? "needs-owner-decision" : "confirmed"}`,
     `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: code === null ? `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` : heldBody(reasons.join("; "), code) })}`,
   ];
   // Field values no listed human or App set are unset: a mechanical refusal.
@@ -6102,7 +6102,7 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   // An author who is not listed is a refusal a person settles.
   const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
   assert.equal(await sweep({ github: stranger.github, writer: stranger.writer, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"], DECIDE_SECURITY));
+  assert.deepEqual(writes(stranger.calls), refused(26, "needs-owner-decision", ["the author is neither a listed human nor the lanes App"], DECIDE_SECURITY));
 });
 
 // A born-triaged issue (check-born-triaged notBornTriaged) whose filer has not
@@ -6112,7 +6112,7 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
 const BORN = `${readyIssue(26).body}\n\n<!-- work-items:born-triaged -->\n`;
 const UNSET_REASONS = ["Size unset is not one of small, medium", "Uncertainty unset is not one of known, knowable"];
 const parkedFor = (n, status, reasons, code = null) => [
-  `SET ${n} ${status === "status: needs-decision" ? "needs-owner-decision" : "confirmed"}`,
+  `SET ${n} ${status === "needs-owner-decision" ? "needs-owner-decision" : "confirmed"}`,
   `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: code === null ? `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` : heldBody(reasons.join("; "), code) })}`,
 ];
 
@@ -6137,7 +6137,7 @@ test("an issue with unset fields is still refused when it is not born triaged, o
     // The marker quoted mid-body, not the body's last line.
     [readyIssue(26, { body: `<!-- work-items:born-triaged -->\n\n${readyIssue(26).body}` }), "status: confirmed", UNSET_REASONS],
     // An author who is not listed.
-    [readyIssue(26, { body: BORN, user: stranger }), "status: needs-decision", ["the author is neither a listed human nor the lanes App", ...UNSET_REASONS], DECIDE_SECURITY],
+    [readyIssue(26, { body: BORN, user: stranger }), "needs-owner-decision", ["the author is neither a listed human nor the lanes App", ...UNSET_REASONS], DECIDE_SECURITY],
   ];
   for (const [item, status, reasons, code] of cases) {
     const { github, calls, writer } = readyWorld({ items: [item], fields: [] });

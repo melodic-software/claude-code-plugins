@@ -103,7 +103,7 @@
 //   (admissionsSince); otherwise, or when that read fails, it stays deferred.
 //
 // A refusal a person must settle swaps `status: ready` for
-// `status: needs-decision`; a blocker, an open pull request or an open
+// `needs-owner-decision`; a blocker, an open pull request or an open
 // sub-issue (a size split's, owner Q93) keeps `status: ready`. Either way one App comment carrying ADMIT_MARKER says why;
 // a hold's also names its owner reason, security, cost or intent, as the
 // stop-reason marker and line (heldRefusalText).
@@ -208,7 +208,7 @@ export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
 // Opens the body of each sub-issue that split files.
 export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
 export const READY = "status: ready";
-export const NEEDS_DECISION = "status: needs-decision";
+export const NEEDS_DECISION = "needs-owner-decision";
 export const CONFIRMED = "status: confirmed";
 // The owner-present label (owner decision 2026-10-28): only a listed human
 // removes it.
@@ -1826,7 +1826,7 @@ export function earlierFlags(comments, appId) {
   ];
 }
 
-// Why the lanes App may not lift `status: needs-decision` on the issue at
+// Why the lanes App may not lift `needs-owner-decision` on the issue at
 // `base`, or null: someone else set it, or the App's verdict comment lists a
 // flag other than the intent a refinement resolves, or records that an
 // earlier flag is unknown (earlierFlags null). Once lifted, a re-triage sees

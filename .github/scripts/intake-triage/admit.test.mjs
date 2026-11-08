@@ -145,10 +145,10 @@ describe("decide", () => {
       }
     });
 
-    test("admit() reads the authors and parks an App-only spec at status: needs-decision for a person", async () => {
+    test("admit() reads the authors and parks an App-only spec at needs-owner-decision for a person", async () => {
       const fake = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
       const result = await admit({ ...goArgs(fake), status: async () => assert.fail("a refusal reads no status") });
-      assert.deepEqual(result, { outcome: "refused", reasons: [APP_FILED, NO_SPEC], status: NEEDS_DECISION });
+      assert.deepEqual(result, { outcome: "refused", reasons: [APP_FILED, NO_SPEC], status: "needs-owner-decision" });
       const writes = fake.calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}${call.method === "STATUS" ? ` ${call.body}` : ""}`);
       assert.deepEqual(writes, ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"]);
     });
@@ -3406,7 +3406,7 @@ describe("size split sub-issues", () => {
     // issue holds for a person (owner decision on #10735).
     const orphan = fakeGitHub({ issue: child, spec });
     const refused = await go(orphan);
-    assert.equal(refused.status, NEEDS_DECISION);
+    assert.equal(refused.status, "needs-owner-decision");
     assert.deepEqual(refused.reasons, [
       "the lanes App filed it and it is not a trusted size-split sub-issue (splitChildBody), so a listed human files it as their own",
       NO_SPEC,

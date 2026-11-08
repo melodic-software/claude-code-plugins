@@ -184,7 +184,7 @@
             "hold_labels": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Labels that keep an item off the autonomous frontier. Absent or empty: the owner-decision role label, status: needs-info, needs-spec."
+              "description": "Labels that keep an item off the autonomous frontier. Absent or empty: status: needs-decision, the owner-decision role label, status: needs-info, needs-spec."
             },
             "hold_states": {
               "type": "array",
@@ -194,7 +194,7 @@
             "hold_state_labels": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Labels of the hold states: an item carrying one has its hold decided by its labels, so its Work status adds none. Absent or empty: needs-human, the owner-decision role label, needs-owner-decision, status: needs-info, needs-spec."
+              "description": "Labels of the hold states: an item carrying one has its hold decided by its labels, so its Work status adds none. Absent or empty: needs-human, status: needs-decision, the owner-decision role label, status: needs-info, needs-spec."
             },
             "wayfind_label_prefix": { "type": "string", "description": "The label prefix that marks /planning:wayfind map items, which no frontier lists. Absent or empty: wayfind:." },
             "github": { "type": "object" },

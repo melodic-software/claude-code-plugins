@@ -853,7 +853,7 @@ test("intake-triage.yml: the model may apply duplicate, which admission refuses,
   const text = intake.with.instructions.replace(/\s+/g, " ");
   assert.match(text, /DUPLICATE\. When an open issue asks for the same thing, apply the `duplicate` label/);
   assert.match(text, /name the candidate by number/);
-  assert.match(text, /apply no `status: needs-decision`/);
+  assert.match(text, /apply no `needs-owner-decision`/);
 });
 
 test("pr-unblock.yml: report-stop-status runs when report-escalation does, or after an attempt that did not stop, with a gated head and never on a cancelled run", () => {

@@ -8,7 +8,7 @@
 // verdict's `Flags:` line names `intent` (no exact outcome), or the body has
 // no unquoted task list line (no checkable criteria). Splits: not thin, the
 // verdict raised no flag, the lanes App's admission parked it at `status:
-// confirmed` (or held it, before, at its own `status: needs-decision`), and
+// confirmed` (or held it, before, at its own `needs-owner-decision`), and
 // some of its done-when items are ones a lane run cannot perform
 // (admit.mjs unrunnableCriteria, the check that refused it) while at least one
 // item stays once they move; the context then carries those items as `split`. It refines only an open
@@ -32,7 +32,7 @@
 // counted as posted, holds a task list (admit.mjs hasTrustedCriteria) does it
 // ask for one more triage, which runs
 // admission again: it sets the Work status field to needs-triage, takes the
-// lanes App's `status: needs-decision` off when the issue carries it, and
+// lanes App's `needs-owner-decision` off when the issue carries it, and
 // sets the job's `redispatch` output. The issue's status is its label names
 // as the field decides them (read-status.mjs). Otherwise the status
 // stays and the comment asks a listed human to post the confirmed criteria as
@@ -102,7 +102,7 @@ import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
-const NEEDS_DECISION = "status: needs-decision";
+const NEEDS_DECISION = "needs-owner-decision";
 const READY = "status: ready";
 const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
@@ -162,7 +162,7 @@ export function isThin({ body, laneBody }) {
 
 // The split a refused issue gets, or null: it is parked at `status:
 // confirmed` alone (admission parks a split there) or, as admission held one
-// before, at `status: needs-decision`, the verdict raised no flag, some done-when items are ones a lane run cannot
+// before, at `needs-owner-decision`, the verdict raised no flag, some done-when items are ones a lane run cannot
 // perform, every task-list line they own is one too, at least one item lies
 // outside them, and `admission`, the lanes App's admission comment, refused
 // it for those items and nothing else. {count, items:
@@ -188,7 +188,7 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
 
 // Why the split may not lift the issue's status, or null: admission parks a
 // split at `status: confirmed` (admit.mjs admissionParked), and an issue it
-// held before at the lanes App's own `status: needs-decision` lifts as
+// held before at the lanes App's own `needs-owner-decision` lifts as
 // decisionStays judges over `events`. Any other status stays.
 async function splitStays(github, base, labels, comments, appId, events) {
   if (carried(labels, DECISION_LABELS)) {
