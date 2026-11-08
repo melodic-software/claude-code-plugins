@@ -19,18 +19,13 @@ const MODEL = /^claude-[a-z0-9.-]{1,56}(?:\[1m\])?$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX16 = /^[0-9a-f]{16}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);
-const CLASSES = new Set([
-  "auth", "credit-stop", "rate-limit", "overloaded", "max-turns", "timeout", "install-failed",
-  "no-execution", "sandbox-unavailable", "skipped-validation", "incomplete", "review-unposted", "shell-failed",
-  "no-credential", "no-outcome", "other",
-]);
-// A class this reader does not know is ignored, not a reason to drop the
-// record (docs/lane-outcome.md, Compatibility: "A reader ignores fields and
-// class values it does not know"), as long as it is the closed kebab shape an
-// enum value has; free text in it still makes the record unreadable.
-const CLASS_SHAPE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const DROP = Symbol("drop");
-const klass = (value) => CLASSES.has(value) || (typeof value === "string" && value.length <= 40 && CLASS_SHAPE.test(value) ? DROP : false);
+// `class` is any token in the enum's kebab shape: the known classes are
+// docs/lane-outcome.md's Failure classes, and a reader ignores a class value it
+// does not know rather than dropping the record (Compatibility: "A reader
+// ignores fields and class values it does not know"), so an unknown one is
+// kept as written and simply matches no class a reader acts on. Free text in it
+// still makes the record unreadable.
+const CLASS = /^(?=.{1,40}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const REASONS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
 const STATUSES = new Set(["allowed", "allowed_warning", "rejected"]);
 
@@ -52,9 +47,6 @@ const shape = (fields, required = []) => (value) => {
       continue;
     }
     const result = check(value[key]);
-    if (result === DROP) {
-      continue;
-    }
     if (result === false) {
       return false;
     }
@@ -82,7 +74,7 @@ const RECORD = shape(
     lane: matches(NAME),
     activity: matches(ACTIVITY),
     outcome: oneOf(OUTCOMES),
-    class: klass,
+    class: matches(CLASS),
     credential,
     handoff: (value) => typeof value === "boolean",
     shellFailed: (value) => typeof value === "boolean",
@@ -116,8 +108,7 @@ const RECORD = shape(
 // characters.
 export function validRecord(value) {
   const kept = RECORD(value);
-  // A failure must name a class, known or not.
-  if (!kept || (kept.outcome !== "success" && !Object.hasOwn(value, "class"))) {
+  if (!kept || (kept.outcome !== "success" && !Object.hasOwn(kept, "class"))) {
     return null;
   }
   const { activity, ...record } = kept;

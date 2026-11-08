@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
+import { readRecord } from "../../scripts/lib/lane-outcome.mjs";
 import { main } from "./report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -169,11 +170,13 @@ test("a shell-failed success record and a review-unposted record reach the check
   assert.equal(JSON.parse(second.calls[0].body.output.text.slice("lane-outcome ".length)).class, "review-unposted");
 });
 
-test("a class this reader does not know is left out and the record still written", async () => {
+test("a class this reader does not know is written as given, and the posted record reads back", async () => {
   const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, class: "later-class" }) });
   const written = JSON.parse(calls[0].body.output.text.slice("lane-outcome ".length));
-  assert.equal(Object.hasOwn(written, "class"), false);
-  assert.equal(written.lane, "pr-refine");
+  assert.equal(written.class, "later-class");
+  assert.deepEqual(readRecord(calls[0].body.output.text), written, "limit-stop reads the posted record whole");
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), null, "an unknown class is no limit stop");
 });
 
 test("the record drops keys it does not know", async () => {
