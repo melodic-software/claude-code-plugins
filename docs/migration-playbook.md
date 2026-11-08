@@ -39,9 +39,10 @@ project's `settings.json`, on 2026-06-29, against the discover-plugins "Configur
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate". Recheck a section when a
-Claude Code release note changes the plugin schema, skill-listing, or marketplace-settings behavior
-it states.
+Re-verify fresh before acting, per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority). Recheck a
+section when a Claude Code release note changes the plugin schema, skill-listing, or
+marketplace-settings behavior it states.
 
 ## Organization: one plugin per cohesive concern
 
@@ -507,7 +508,8 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 - **A new `version` in `plugin.json` is the only delivery vehicle for copied installs.** A consumer
   who installed from a Git-hosted marketplace receives a change only after the plugin's semver
   `version` increases. The version is the update cache key, so an unreleased change never delivers,
-  even when its files changed (see "Shared code across plugins" below).
+  even when its files changed (see
+  [ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)).
 - **A pull request records the release in a changelog fragment, not in the version.** For a plugin
   listed in `scripts/fragment-plugins.txt`, a pull request adds
   `.changes/<plugin>/<branch-slug>-<8 hex>.md` with `scripts/new-changelog-fragment.sh <plugin>
@@ -817,7 +819,8 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 
 For each skill/hook/agent being migrated:
 
-1. **Research fresh.** WebFetch the official docs for every component involved (see `CLAUDE.md`).
+1. **Research fresh.** Read the official docs for every component involved, by the
+   [fetch route](contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 2. **Scope one capability.** One cohesive plugin; no grab-bags. If the source is oversized, run
    "Decompose an oversized skill before packaging it" and retain its trigger-migration evidence.
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
@@ -850,7 +853,8 @@ For each skill/hook/agent being migrated:
 ## Migration order, PRs & parallelization
 
 **Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
-conventions in this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and
+conventions in this playbook, the shared `lib/` source of truth
+([ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)), and
 the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
 downstream builds on those seams.
 
@@ -889,7 +893,8 @@ A plugin runs code on the consumer's machine and can wire Claude to external sys
 here, whether new or a version bump that adds a trust surface, passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
-plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
+plugins-reference, and hooks pages 2026-07-17; re-verify per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority).
 Recheck when a Claude Code release note changes hook command substitution, `userConfig`
 interpolation, or what a plugin may bundle.
 
