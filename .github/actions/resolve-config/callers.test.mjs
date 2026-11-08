@@ -2065,15 +2065,11 @@ const workflowFiles = () => readdirSync(new URL("../../workflows/", import.meta.
 
 // A workflow's `name:` is what a workflow_run filter matches, so one that drifts from this rule
 // silently stops a trigger. babysit_review_evidence.py's workflow_display_name holds the same rule.
-const NAME_ACRONYMS = new Set(["pr", "ci", "api", "wip"]);
-const displayName = (stem) => stem.split("-").map((word) => (NAME_ACRONYMS.has(word) ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1))).join(" ");
-// Sync-managed from melodic-software/standards, byte-exact with a source that names them by stem,
-// until that source is renamed.
-const SYNC_MANAGED_NAMES = new Set(["maintenance-check-links-online-claude-code-plugins.yml", "pr-check-managed-files-hosted.yml"]);
+const { displayWords } = JSON.parse(readFileSync(new URL("../../standards/github-actions-conventions/vocabulary.json", import.meta.url), "utf8"));
+const displayName = (stem) => stem.split("-").map((word) => displayWords[word] ?? word[0].toUpperCase() + word.slice(1)).join(" ");
 test("every workflow and action name is its file or directory stem in Title Case", () => {
   const actions = readdirSync(new URL("..", import.meta.url)).filter((dir) => existsSync(new URL(`../${dir}/action.yml`, import.meta.url)));
-  const workflows = workflowFiles().filter((name) => !SYNC_MANAGED_NAMES.has(name));
-  for (const [file, stem] of [...workflows.map((name) => [new URL(`../../workflows/${name}`, import.meta.url), name.replace(/\.ya?ml$/, "")]), ...actions.map((dir) => [new URL(`../${dir}/action.yml`, import.meta.url), dir])]) {
+  for (const [file, stem] of [...workflowFiles().map((name) => [new URL(`../../workflows/${name}`, import.meta.url), name.replace(/\.ya?ml$/, "")]), ...actions.map((dir) => [new URL(`../${dir}/action.yml`, import.meta.url), dir])]) {
     assert.equal(parse(readFileSync(file, "utf8")).name, displayName(stem), String(file));
   }
 });
