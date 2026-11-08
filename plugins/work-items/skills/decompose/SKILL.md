@@ -147,7 +147,7 @@ runs them onto it. Do not change `/work-items:work` to target the integration br
 
 Show the user the draft items, numbered. **work the frontier** (unblocked items first). For each item:
 
-- **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
+- **Title**: short descriptive name; read the house style ([`${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md)) before drafting these titles and hold them to it
 - **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the item HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
 - **Blocked by**: which other items (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
@@ -189,7 +189,7 @@ Iterate one question at a time until the user approves, never publish an unappro
 
 ### 4. Publish items
 
-For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path), applying the house style read at Step 3 to the container and every item. When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # Call 1: print a fresh temp path. Write the composed item body to that path with the Write

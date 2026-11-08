@@ -349,6 +349,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   if (!target) {
     const created = await call("POST", `/repos/${repo}/issues`, {
       title: "Red-main revert decisions (dry-run log)",
+      type: "Task",
       body: `${LOG_MARKER}\n\nOne comment per confirmed red full run on main: the culprit post-merge-demotion-alert.yml's report job pinned, the evidence runs, and the revert it would open. A run that reports nothing notes any unreported reds here. docs/conventions/pr-pipeline/README.md, "Red main", states the rule. The job writes nothing else while \`red-main.dry-run\` is true.`,
     });
     target = created.number;

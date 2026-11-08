@@ -22,7 +22,7 @@ const row = (over = {}) => ({
 
 // A GitHub stand-in: open issues the list endpoint pages through 100 at a
 // time, the labels that exist, and a POST that adds the filed issue to the list.
-function fakeApi({ issues = [], labels = ["recurring", "cadence: monthly", "cadence: quarterly"], failPost = false } = {}) {
+function fakeApi({ issues = [], labels = ["recurring", "cadence: monthly", "cadence: quarterly"], failPost = false, dropType = false } = {}) {
   const state = { issues: [...issues], posts: [], next: 900 };
   const call = async (method, path, body) => {
     const list = /^\/repos\/o\/r\/issues\?labels=recurring&state=open&per_page=100&page=(\d+)$/.exec(path);
@@ -37,20 +37,21 @@ function fakeApi({ issues = [], labels = ["recurring", "cadence: monthly", "cade
       state.next += 1;
       state.posts.push(body);
       state.issues.push({ number: state.next, body: body.body, labels: body.labels });
-      return { number: state.next };
+      return { number: state.next, ...(dropType ? {} : { type: { name: body.type } }) };
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
   return { call, state };
 }
 
-test("a due row with no open issue is filed with the convention's title, the row's context and the marker", async () => {
+test("a due row with no open issue is filed with the row's title, a type, the row's context and the marker", async () => {
   const api = fakeApi();
   const results = await fileDue({ schedule: { items: [row()] }, today: TODAY, call: api.call, repo: REPO, wait: noWait });
   assert.deepEqual(results, [{ id: "ci-pins", next_due: "2026-11-01", due: true, outcome: "filed", issue: 901 }]);
   assert.deepEqual(api.state.posts, [
     {
-      title: "chore: review CI pins",
+      title: "Review CI pins",
+      type: "Task",
       body: [
         "## Context",
         "",
@@ -65,10 +66,10 @@ test("a due row with no open issue is filed with the convention's title, the row
   ]);
 });
 
-test("a row with an area takes it as the title scope, and next_due equal to today is due", async () => {
+test("a row's area adds no title prefix, and next_due equal to today is due", async () => {
   const api = fakeApi();
   await fileDue({ schedule: { items: [row({ area: ["work-items", "ci"], next_due: TODAY })] }, today: TODAY, call: api.call, repo: REPO, wait: noWait });
-  assert.equal(api.state.posts[0].title, "chore(work-items): review CI pins");
+  assert.equal(api.state.posts[0].title, "Review CI pins");
 });
 
 test("a precondition prompt that needs no confirmation is in the body", async () => {
@@ -95,7 +96,7 @@ test("a held row beside a fileable row files only the fileable one", async () =>
   const held = row({ id: "ablation", precondition: { id: "p", prompt: "x", requires_operator_confirmation: true } });
   const results = await fileDue({ schedule: { items: [held, row()] }, today: TODAY, call: api.call, repo: REPO, wait: noWait });
   assert.deepEqual(results.map((r) => [r.id, r.outcome]), [["ablation", "held"], ["ci-pins", "filed"]]);
-  assert.deepEqual(api.state.posts.map((p) => p.title), ["chore: review CI pins"]);
+  assert.deepEqual(api.state.posts.map((p) => p.title), ["Review CI pins"]);
 });
 
 test("an open recurring issue whose body marker names the row covers it, and nothing is filed", async () => {

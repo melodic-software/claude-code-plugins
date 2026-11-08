@@ -87,6 +87,10 @@ import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+// Whether `value` reads as a full commit SHA, or as an `owner/name` repository.
+const isSha = (value) => /^[0-9a-f]{40}$/.test(String(value));
+const isRepo = (value) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(value));
+
 // enable-auto-merge.test.mjs checks both agree with the gate's Python on every
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
@@ -269,6 +273,10 @@ export const fromRest = (row) => ({
 // enqueues. enable-auto-merge.mjs reads it from here.
 export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
 
+// How a trusted approval lifts a hold, in the hold messages.
+const APPROVAL_LIFTS = "an approving review of this head by a person on the trusted-actor list lifts it";
+const APPROVAL_CARRIES = `${APPROVAL_LIFTS}, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`;
+
 // Why the merge queue holds `head`, or null: the lanes App's newest pin among
 // `items` (fromRest's) names another head. GitHub checks expectedHeadOid only
 // when the arm is made, and turns auto-merge off only on a push by someone
@@ -283,8 +291,7 @@ export function pinHold(items, head) {
   if (pin === undefined) {
     return null;
   }
-  const again =
-    "enable-auto-merge judges and pins this head before it arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue";
+  const again = `enable-auto-merge judges and pins this head before it arms it again, or ${APPROVAL_LIFTS}, then re-queue`;
   if (!unedited(pin)) {
     return `the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
   }
@@ -706,7 +713,7 @@ export async function withActorContents(github, repo, changes, base, head) {
   };
   return Promise.all(
     changes.map(async (change) => {
-      if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !/^[0-9a-f]{40}$/.test(String(base))) {
+      if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !isSha(base)) {
         return change;
       }
       try {
@@ -800,7 +807,7 @@ export function unranHead(activity, ran, decided, at) {
   const moves = [];
   for (const move of activity) {
     const after = String(move?.after ?? "");
-    if (/^[0-9a-f]{40}$/.test(after) && !/^0{40}$/.test(after)) {
+    if (isSha(after) && !/^0{40}$/.test(after)) {
       const made = Date.parse(move.timestamp);
       if (!Number.isFinite(made)) {
         return "the branch's push history is unreadable";
@@ -816,22 +823,6 @@ export function unranHead(activity, ran, decided, at) {
   }
   const gap = before.find((m) => m.after !== decided && m.made >= last && !ran.every((heads) => heads.includes(m.after)));
   return gap ? `${gap.after} was pushed after the decided head with no run of every review lane before the decision` : null;
-}
-
-// Every item of the REST list at `path` whose answer holds it under `key`.
-async function listed(read, path, key) {
-  const rows = [];
-  for (let page = 1; ; page += 1) {
-    const answer = await read("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
-    const items = answer?.[key];
-    if (!Array.isArray(items)) {
-      throw new Error(`${path} has no ${key} list`);
-    }
-    rows.push(...items);
-    if (items.length < 100) {
-      return rows;
-    }
-  }
 }
 
 // The head a decision made at `at` decided, from the review lanes' check-run
@@ -854,7 +845,7 @@ async function noticedHead(read, repo, branch, base, at) {
   const vetted = new Set();
   const ran = [];
   for (const [file, checks] of REVIEW_LANES) {
-    const runs = await listed(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
+    const runs = await pages(read, `/repos/${repo}/actions/workflows/${file}/runs?event=pull_request&branch=${encodeURIComponent(branch)}`, "workflow_runs");
     const heads = [];
     ran.push(heads);
     for (const run of runs) {
@@ -862,7 +853,7 @@ async function noticedHead(read, repo, branch, base, at) {
         continue;
       }
       const head = String(run.head_sha ?? "");
-      if (!/^[0-9a-f]{40}$/.test(head)) {
+      if (!isSha(head)) {
         return null;
       }
       heads.push(head);
@@ -872,7 +863,7 @@ async function noticedHead(read, repo, branch, base, at) {
         }
         vetted.add(head);
       }
-      for (const job of await listed(read, `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs")) {
+      for (const job of await pages(read, `/repos/${repo}/actions/runs/${run.id}/jobs?filter=all`, "jobs")) {
         if (checks.includes(job?.name) && Date.parse(job.completed_at) < cutoff) {
           notices.push(...costNotices(await pages(read, `/repos/${repo}/check-runs/${job.id}/annotations`), head, job.completed_at));
         }
@@ -971,7 +962,7 @@ function newCommits(then, now) {
 // that is not a 40-hex sha is left out, so it is never in the base.
 export function mergedParents(then, now) {
   const parents = (newCommits(then, now) ?? []).flatMap((c) => (Array.isArray(c?.parents) ? c.parents.slice(1).map((p) => p?.sha) : []));
-  return [...new Set(parents.filter((sha) => /^[0-9a-f]{40}$/.test(String(sha))))];
+  return [...new Set(parents.filter(isSha))];
 }
 
 // Whether every commit `now` (base...H') lists beyond `then` (base...H) is a
@@ -1094,6 +1085,10 @@ export function ungatedSince(merges, holdPaths) {
   return Array.isArray(holdPaths) && pathHold(paths, holdPaths) === null && !paths.some((path) => loaded.some((glob) => matchesHoldPath(path, glob)));
 }
 
+// A review id as text, from a string or a safe integer (as JSON may give
+// either), else null (babysit_merge_policy._review_key).
+const reviewKey = (value) => (typeof value === "string" ? value : Number.isSafeInteger(value) ? String(value) : null);
+
 // The reviews GitHub dismissed as stale, from the pull request's issue
 // timeline `events`, as a Map of review id (a string) to the dismissal
 // commit: a review_dismissed event of an approval with a null message, by a
@@ -1104,10 +1099,6 @@ export function ungatedSince(merges, holdPaths) {
 // message as required), so the null message is a second filter, not the
 // one that tells GitHub's dismissal from an App's. A review with any other
 // dismissal event is left out.
-// A review id as text, from a string or a safe integer (as JSON may give
-// either), else null (babysit_merge_policy._review_key).
-const reviewKey = (value) => (typeof value === "string" ? value : Number.isSafeInteger(value) ? String(value) : null);
-
 export function autoDismissed(events) {
   const found = new Map();
   const revoked = new Set();
@@ -1116,7 +1107,7 @@ export function autoDismissed(events) {
     const d = e.dismissed_review;
     const id = reviewKey(d?.review_id);
     if (id === null) continue;
-    const stale = d?.state === "approved" && d.dismissal_message === null && e.actor?.type === "Bot" && /^[0-9a-f]{40}$/.test(String(d.dismissal_commit_id));
+    const stale = d?.state === "approved" && d.dismissal_message === null && e.actor?.type === "Bot" && isSha(d.dismissal_commit_id);
     if (stale && !found.has(id)) found.set(id, d.dismissal_commit_id);
     else revoked.add(id);
   }
@@ -1141,7 +1132,7 @@ export async function baseParents(compare, tip, then, now) {
 // not read as a commit SHA.
 export async function baseTip(github, repo, base) {
   const sha = (await github("GET", `/repos/${repo}/git/ref/heads/${base}`))?.object?.sha;
-  if (!/^[0-9a-f]{40}$/.test(String(sha))) throw new Error(`the base branch ${base} did not resolve`);
+  if (!isSha(sha)) throw new Error(`the base branch ${base} did not resolve`);
   return sha;
 }
 
@@ -1162,7 +1153,7 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
   return [...newest.values()].flatMap((r) => {
     const key = reviewKey(r.id);
     const restored = r.state === "DISMISSED" && key ? (dismissed.get(key) ?? null) : null;
-    if (!/^[0-9a-f]{40}$/.test(String(r.commitId)) || (r.state !== "APPROVED" && restored === null)) return [];
+    if (!isSha(r.commitId) ||(r.state !== "APPROVED" && restored === null)) return [];
     return [{ login: r.login, sha: r.commitId, dismissal: restored }];
   });
 }
@@ -1207,7 +1198,7 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
       if (!treeReads.has(sha)) treeReads.set(sha, await github("GET", `/repos/${repo}/git/trees/${sha}?recursive=1`));
       return treeReads.get(sha);
     };
-    const sha40 = (value) => (/^[0-9a-f]{40}$/.test(String(value)) ? value : null);
+    const sha40 = (value) => (isSha(value) ? value : null);
     const lifters = new Set();
     for (const { login, sha, dismissal } of lifts) {
       if (sha === head) {
@@ -1243,16 +1234,18 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
   }
 }
 
-// Every page of the REST list at `path`.
-async function pages(github, path) {
+// Every page of the REST list at `path`: each answer itself, or the list it
+// holds under `key` when one is given.
+async function pages(github, path, key = null) {
   const rows = [];
   for (let page = 1; ; page += 1) {
-    const read = await github("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
-    if (!Array.isArray(read)) {
-      throw new Error(`${path} is not a list`);
+    const answer = await github("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
+    const items = key === null ? answer : answer?.[key];
+    if (!Array.isArray(items)) {
+      throw new Error(key === null ? `${path} is not a list` : `${path} has no ${key} list`);
     }
-    rows.push(...read);
-    if (read.length < 100) {
+    rows.push(...items);
+    if (items.length < 100) {
       return rows;
     }
   }
@@ -1431,16 +1424,12 @@ export function pathLifters(items, humans, head) {
 export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null, pathHolds = true) {
   const reasons = [];
   if (widened && !lifters.length) {
-    reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`);
+    reasons.push(`${widened}; ${APPROVAL_CARRIES}`);
   }
   const pathReason = pathHold(files, holdPaths, pathHolds);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
-    reasons.push(
-      readable
-        ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`
-        : pathReason,
-    );
+    reasons.push(readable ? `${pathReason}; ${APPROVAL_CARRIES}` : pathReason);
   }
   const cost = costHold(files, decision);
   if (cost) {
@@ -1471,7 +1460,7 @@ const PASSES = Object.freeze(["pass", "pass-notes"]);
 // read for the head alone, by exact name, so a record of another head never
 // reaches here.
 export function verdictHold(records, repo, branch = "main") {
-  if (!Array.isArray(records) || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repo))) {
+  if (!Array.isArray(records) || !isRepo(repo)) {
     return "its pr-verify verdicts could not be read";
   }
   const pass = records.find(
@@ -1521,7 +1510,6 @@ export function evidenceHold(report, head) {
   return `pr-verify's reader refuses this head (${refusal}${typeof detail === "string" && detail ? `: ${detail}` : ""})`;
 }
 
-// The evidence file's verdict, a file that does not read included.
 // The reader's refusal of this head's pass (one of PASS_REFUSALS), or null.
 // A refusal the workflow step got before reading any pass names leaves
 // verdictHold no pass to read, so the hold names that refusal, not a missing
@@ -1534,14 +1522,6 @@ export function passRefusalOf(evidence, head) {
 // changed after holds in the queue too, read or not, until pr-verify judges
 // the head again (the lost-run reconciler re-runs it) or an approval lifts it.
 const STALE = "verify:spec-changed";
-
-function evidenceOf(file, head) {
-  try {
-    return evidenceHold(JSON.parse(readFileSync(file, "utf8")), head);
-  } catch {
-    return "its pr-verify FAILs could not be read";
-  }
-}
 
 // A log line can carry a changed file's name: escape what would start a
 // workflow command on a new line.
@@ -1728,7 +1708,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       !filesFile ||
       !deniedFile ||
       !actorsFile ||
-      !/^[0-9a-f]{40}$/.test(String(head))
+      !isSha(head)
     ) {
       throw new Error(
         "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file> [<evidence-file>]]",
@@ -1750,8 +1730,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
-    const decision =
-      costHold(files, null) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await costDecision(github, repo, Number(number), body, humans, head) : null;
+    const decision = costHold(files, null) && isRepo(repo) ? await costDecision(github, repo, Number(number), body, humans, head) : null;
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
@@ -1765,7 +1744,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     const held = pathHold(files, holdPaths, pathHolds);
     let lifted = { lifters: [] };
-    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && isRepo(repo)) {
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
@@ -1788,14 +1767,17 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
-      let refused = null;
+      // The reader's report; undefined when no evidence file is given or it
+      // does not read, which evidenceHold holds as unreadable.
+      let evidence;
       if (evidenceFile) {
         try {
-          refused = passRefusalOf(JSON.parse(readFileSync(evidenceFile, "utf8")), head);
+          evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
         } catch {
-          refused = null;
+          evidence = undefined;
         }
       }
+      const refused = passRefusalOf(evidence, head);
       if (refused === STALE) {
         unverified = `pr-verify's pass on this head is stale (${STALE}): its linked issue changed after pr-verify judged it`;
       } else if (unverified && records.length === 0 && refused) {
@@ -1808,22 +1790,20 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       } else if (!unverified && approved.length === 0) {
         // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
         // so only a new head or an approval recovers it.
-        verifier.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
+        verifier.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       } else if (approved.length) {
         console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
-        verifier.push(
-          `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
-        );
+        verifier.push(`${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       }
-      const failed = evidenceFile ? evidenceOf(evidenceFile, head) : "its pr-verify FAILs could not be read";
+      const failed = evidenceHold(evidence, head);
       if (!failed) {
-        const refusal = JSON.parse(readFileSync(evidenceFile, "utf8")).refusal;
+        const { refusal } = evidence;
         console.log(`#${number}: no pr-verify FAIL hold: ${refusal ? `the reader refuses this head only on its pass (${refusal})` : "the reader allows this head"}.`);
       } else if (approved.length) {
         console.log(`#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
       } else {
-        verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
+        verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       }
     }
     // In the merge queue only, where a moved head would merge: an approval of

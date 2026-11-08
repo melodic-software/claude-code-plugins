@@ -52,13 +52,15 @@ export function fragmentOf(plugin, skill, branch, patch) {
   };
 }
 
+// The change lines of a `git diff --raw` output.
+const rawLines = (raw) => raw.split("\n").filter((line) => line.startsWith(":"));
+
 // Why the net raw diff may not be pushed, or null: only regular-file edits to the skill's markdown
 // outside evals/, the one fragment added, and no hold path.
 export function diffRefusal(raw, { plugin, skill, fragment }, holdPath = changesHoldPath) {
-  const lines = raw.split("\n").filter((line) => line.startsWith(":"));
   let skillFiles = 0;
   let fragments = 0;
-  for (const line of lines) {
+  for (const line of rawLines(raw)) {
     const [meta, ...paths] = line.split("\t");
     const [srcMode, dstMode] = meta.slice(1).split(" ");
     if (paths.length !== 1) return "a rename or copy";
@@ -193,7 +195,7 @@ async function push(env) {
   git(repo, ["-c", "user.name=maintenance-measure-skill-edit", "-c", "user.email=maintenance-measure-skill-edit@users.noreply.github.com", "-c", "core.hooksPath=/dev/null", "commit", "--quiet", "--no-verify", "-m", title]);
   const commit = git(repo, ["rev-parse", "HEAD"]);
   const raw = netRawDiff(repo, baseSha, commit);
-  const skillPaths = raw.split("\n").filter((line) => line.startsWith(":")).map((line) => line.split("\t")[1]).filter((path) => path !== fragment.path);
+  const skillPaths = rawLines(raw).map((line) => line.split("\t")[1]).filter((path) => path !== fragment.path);
   const show = (ref, path) => git(repo, ["show", `${ref}:${path}`]);
   const refusal = diffRefusal(raw, { plugin, skill, fragment: fragment.path }) ?? frontmatterRefusal(skillPaths, show, baseSha, commit);
   if (refusal) throw new Error(`the edit is refused: ${refusal}`);

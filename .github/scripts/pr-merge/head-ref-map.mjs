@@ -172,14 +172,15 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
         console.log("no saved artifact listing and no head-ref map to carry");
         return 0;
       }
-      let refs = previous;
-      if (listing !== undefined) {
-        const runCache = existsSync(env.BABYSIT_RUN_CACHE ?? "") ? JSON.parse(readFileSync(env.BABYSIT_RUN_CACHE, "utf8")) : {};
-        refs = nextMap({ previous, runCache, listing, repo });
+      if (listing === undefined) {
+        writeAtomic(env.HEAD_REFS_OUT, serialize(repo, previous));
+        console.log(`no saved artifact listing; the head-ref map is carried as it is: ${Object.keys(previous).length} artifacts`);
+        return 0;
       }
+      const runCache = existsSync(env.BABYSIT_RUN_CACHE ?? "") ? JSON.parse(readFileSync(env.BABYSIT_RUN_CACHE, "utf8")) : {};
+      const refs = nextMap({ previous, runCache, listing, repo });
       writeAtomic(env.HEAD_REFS_OUT, serialize(repo, refs));
-      const count = Object.keys(refs).length;
-      console.log(listing === undefined ? `no saved artifact listing; the head-ref map is carried as it is: ${count} artifacts` : `head-ref map for the next run: ${count} artifacts`);
+      console.log(`head-ref map for the next run: ${Object.keys(refs).length} artifacts`);
     } else {
       throw new Error("the mode is read or write");
     }

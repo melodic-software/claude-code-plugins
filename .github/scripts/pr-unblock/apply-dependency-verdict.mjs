@@ -265,9 +265,12 @@ async function findIgnoreIssue(api, { pr, head, appId }) {
   );
 }
 
+const IGNORE_ISSUE_TYPE = "Task";
+
 function ignoreIssue({ pr, head, title, reasons }) {
   return {
-    title: `chore(deps): decide whether dependabot.yml ignores the update closed in #${pr}`,
+    title: `Decide whether dependabot.yml ignores the update closed in #${pr}`,
+    type: IGNORE_ISSUE_TYPE,
     body: [
       ignoreLine(pr, head),
       `The pr-unblock lane closed Dependabot pull request #${pr} (${JSON.stringify(String(title).slice(0, 200))}) on its review-dependency verdict.`,
@@ -459,6 +462,10 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     const existing = await findIgnoreIssue(api, { pr, head: run.head_sha, appId });
     const issue = existing ?? (await api.createIssue(ignoreIssue({ pr, head: run.head_sha, title: pull.title ?? "", reasons })));
     log(`#${pr}: ${existing ? "found" : "filed"} #${issue.number} for the ignore entry`);
+    // GitHub drops a type the token may not set without an error.
+    if (!existing && issue.type?.name !== IGNORE_ISSUE_TYPE) {
+      log(`::warning::#${issue.number} came back without Issue Type ${IGNORE_ISSUE_TYPE}`);
+    }
     await record("close", { reasons, evidence });
     if (pull.state === "open") {
       await api.closePull(pr);

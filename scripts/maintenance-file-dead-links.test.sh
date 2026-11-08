@@ -218,6 +218,7 @@ issues '[{number: 4, state: "open", state_reason: null, body: ("intro\n" + $m)},
   {number: 5, state: "open", state_reason: null, body: $m, pull_request: {url: "x"}}]'
 run_file "$two"
 if ((FILE_STATUS == 0)) && [[ "$GH_WRITES" == "POST repos/o/r/issues
+F type=Task
 F title=Dead links found by the online link check
 F body=$MARKER
 POST repos/o/r/issues/9/issue-field-values

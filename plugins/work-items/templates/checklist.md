@@ -13,6 +13,7 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 ## Action: add
 
 - [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`). Pivot if an open/closed match exists (skip if `--force`)
+- [ ] Read the house style: `${CLAUDE_PLUGIN_ROOT}/reference/issue-house-style.md`; apply it to the title, type, parent and blocked-by edges
 - [ ] Resolve issue type from `--type` (default `task`): native GitHub Issue Type on org repos (passed via `--type`, not a label); coarse `type: bug`/`type: feature`/`type: task` label on personal/non-org repos
 - [ ] Build labels list; build body (default template, or agent-brief template if `--agent-ready`); write the body to a temp file with the Write tool (argv-safe, never inline generated text)
 - [ ] `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item --title '{title}' --body-file '<temp path>' --type '{type}' --labels '...'` (`--type` on org repos only; when `--recurring`, the body opens with the row's `<!-- recurring-schedule id=<id> -->` line)
