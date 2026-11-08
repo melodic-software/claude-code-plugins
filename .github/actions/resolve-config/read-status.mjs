@@ -115,21 +115,38 @@ export async function fieldStatus(read) {
   return (await fieldStatusSetter(read)).state;
 }
 
+// How long fieldStatusSetter waits before it reads a disagreeing field again.
+export const DISAGREEMENT_WAIT_MS = 3000;
+
 // fieldStatus's `{state, setter}`: the trusted state and the account id whose
-// event decided it (issue-status.mjs issueStatusSetter).
-export async function fieldStatusSetter({ github, repository, number, config, trustedActors, issueStatusSetter, fieldEvents }) {
+// event decided it (issue-status.mjs issueStatusSetter). When the two reads
+// disagree (StatusDisagreement), it waits once and reads both again, asking
+// `fieldEvents` for a fresh read (`{ again: true }`); a second disagreement
+// throws.
+export async function fieldStatusSetter({ github, repository, number, config, trustedActors, issueStatusSetter, fieldEvents, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   const status = issueStatusSetter ?? (await import("./issue-status.mjs")).issueStatusSetter;
   const events = fieldEvents ?? (await import("./resolve-config.mjs")).fieldEvents;
-  const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
-  if (!Array.isArray(rows)) {
-    throw new Error("its field values answered something other than a list");
-  }
-  const facts = {
-    fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
-    fieldEvents: await events(github, repository, number),
+  const readOnce = async (options) => {
+    const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
+    if (!Array.isArray(rows)) {
+      throw new Error("its field values answered something other than a list");
+    }
+    const facts = {
+      fieldValues: rows.map((row) => ({ field: row?.issue_field_id, option: row?.single_select_option?.id ?? null })),
+      fieldEvents: await events(github, repository, number, options),
+    };
+    facts.fieldEventsFull = facts.fieldEvents.full === true;
+    return status(facts, config, trustedActors);
   };
-  facts.fieldEventsFull = facts.fieldEvents.full === true;
-  return status(facts, config, trustedActors);
+  try {
+    return await readOnce();
+  } catch (error) {
+    if (error?.name !== "StatusDisagreement") {
+      throw error;
+    }
+    await sleep(DISAGREEMENT_WAIT_MS);
+    return readOnce({ again: true });
+  }
 }
 
 // What a reader's entry point hands its run: `labels(number, names)`, the
@@ -195,7 +212,18 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     states.delete(issue);
     overLimit(issue);
     try {
-      const state = await fieldStatus({ github, repository, number: issue, ...setup, fieldEvents: () => fieldEventsOf(issue) });
+      const state = await fieldStatus({
+        github,
+        repository,
+        number: issue,
+        ...setup,
+        fieldEvents: (_github, _repository, _number, options) => {
+          if (options?.again) {
+            read.delete(issue);
+          }
+          return fieldEventsOf(issue);
+        },
+      });
       states.set(issue, state);
       return statusLabels(state, names, setup.config);
     } catch (error) {
