@@ -733,6 +733,12 @@ class ReadOnlyWorkflowTests(Base):
         )
 
     @NEEDS_YAML
+    def test_a_workflow_named_by_its_stem_still_binds(self) -> None:
+        # A repository on the name-equals-stem convention still clears.
+        text = READ_ONLY.replace("name: Lint Docs", "name: lint-docs", 1)
+        self.assertBinds(self.bound({WORKFLOW: text}))
+
+    @NEEDS_YAML
     def test_read_all_and_empty_permissions_bind(self) -> None:
         for perms in ("permissions: read-all", "permissions: {}"):
             with self.subTest(perms):
