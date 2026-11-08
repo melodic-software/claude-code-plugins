@@ -603,7 +603,7 @@ test("signal 13: work-resolve-issue's WIP cap hold parses to a fixed reason per 
   // check-wip-cap.mjs's notice template and its causes, read from the script,
   // so producer and parser are one contract.
   const script = readFileSync(new URL("../../actions/check-wip-cap/check-wip-cap.mjs", import.meta.url), "utf8");
-  const template = /const line = `(WIP cap hold: \$\{unread\}[^`]*)`/.exec(script)[1];
+  const template = /`(WIP cap hold: \$\{unread\}[^`]*)`/.exec(script)[1];
   for (const [unread, reason] of [
     ["the base config could not be read", "WIP cap base config unread"],
     ["the open lane PRs could not be listed", "WIP cap open listing failed"],
