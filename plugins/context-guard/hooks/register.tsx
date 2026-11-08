@@ -485,13 +485,36 @@ type Fire = { event: string; startMs: number; toolUseId?: unknown; agentId?: unk
 const PLAIN_ID = /^[A-Za-z0-9._-]+$/
 const RANK_WORD = ['smart', 'acceptable', 'dumb'] as const
 
-// Sends one envelope to HOOK_TELEMETRY_SINK, fire-and-forget; no sink set, nothing is sent. A
-// relative sink path is joined onto the session's project root, else skipped.
+// The launcher harness-ops keeps in its plugin data directory, <config dir>/plugins/data/<id>,
+// for the reserved sink value: the first harness-ops-* directory in name order that holds one.
+// CLAUDE_CONFIG_DIR, default ~/.claude, holds the plugins (https://code.claude.com/docs/en/env-vars).
+async function harnessOpsSink($: EngineInterface) {
+  const home = await homeDir($)
+  const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || (home && `${home}/.claude`)
+  if (!config) return undefined
+  const base = `${config.replace(/[\\/]+$/, '')}/plugins/data`
+  const entries = await $.fs.list(base).catch(() => [])
+  const names = entries.filter(e => e.kind === 'dir' && e.name.startsWith('harness-ops-')).map(e => e.name)
+  for (const name of names.sort()) {
+    const launcher = `${base}/${name}/hook-telemetry-sink.sh`
+    if (await $.fs.exists(launcher).catch(() => false)) return launcher
+  }
+  return undefined
+}
+
+// Sends one envelope to HOOK_TELEMETRY_SINK, fire-and-forget; no sink set, nothing is sent.
+// `@harness-ops` names harness-ops' launcher, skipped when none is installed, and any other `@`
+// value is reserved and skipped; a relative sink path
+// is joined onto the session's project root, else skipped.
 async function emitTelemetry($: EngineInterface, hook: string, status: string, data: Record<string, unknown>, fire: Fire) {
   const sink = await $.env.get('HOOK_TELEMETRY_SINK')
   if (!sink) return
   let path = sink
-  if (!/^(\/|[A-Za-z]:[\\/])/.test(sink)) {
+  if (sink.startsWith('@')) {
+    const launcher = sink === '@harness-ops' ? await harnessOpsSink($) : undefined
+    if (!launcher) return
+    path = launcher
+  } else if (!/^(\/|[A-Za-z]:[\\/])/.test(sink)) {
     const root = (await $.session.root().catch(() => undefined)) || (await $.env.get('CLAUDE_PROJECT_DIR'))
     if (!root) return
     path = `${root.replace(/[\\/]+$/, '')}/${sink}`

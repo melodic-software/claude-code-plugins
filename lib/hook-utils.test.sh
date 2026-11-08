@@ -340,6 +340,97 @@ else
 fi
 rm -f "$ABS10" "$OUT10"
 
+# --- Test 10b: HOOK_TELEMETRY_SINK=@harness-ops resolves to the launcher -------
+# harness-ops keeps <plugin data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh.
+# A repository hook has no CLAUDE_PLUGIN_DATA, so the producer finds the data
+# root under CLAUDE_CONFIG_DIR, else $HOME/.claude; a plugin hook finds it
+# beside its own data directory.
+# put_launcher <data-dir> <capture-file> → an executable launcher stub there.
+put_launcher() {
+  mkdir -p "$1"
+  printf '#!/usr/bin/env bash\ncat >%q\n' "$2" >"$1/hook-telemetry-sink.sh"
+  chmod +x "$1/hook-telemetry-sink.sh"
+}
+# emit_reserved <capture-file> [env assignments...] → emit once with the
+# reserved value, in a subshell whose CLAUDE_PLUGIN_DATA and CLAUDE_CONFIG_DIR
+# are only the assignments given. Every case but the HOME one sets one of the
+# two, so the real ~/.claude is never consulted.
+emit_reserved() {
+  local out="$1"
+  shift
+  (
+    unset CLAUDE_PLUGIN_DATA CLAUDE_CONFIG_DIR
+    for kv in "$@"; do export "${kv?}"; done
+    HOOK_TELEMETRY_SINK=@harness-ops hook::emit_telemetry "sample-hook" "PostToolUse" "ok" \
+      "$EPOCHREALTIME" '{"tool":"Write","file":"x.py"}' "$WORK/repo10b" 2>/dev/null
+  )
+  wait_for_sink "$out" "${EMIT_POLLS:-$SINK_POLLS}"
+}
+mkdir -p "$WORK/repo10b"
+
+CFG10b="$WORK/cfg10b"
+OUT10b1="$WORK/out10b1"
+put_launcher "$CFG10b/plugins/data/harness-ops-mkt" "$OUT10b1"
+if emit_reserved "$OUT10b1" "CLAUDE_CONFIG_DIR=$CFG10b"; then
+  ok "@harness-ops: a repository hook finds the launcher under CLAUDE_CONFIG_DIR"
+else
+  fail "@harness-ops: no envelope through the CLAUDE_CONFIG_DIR launcher"
+fi
+
+HOME10b="$WORK/home10b"
+OUT10b2="$WORK/out10b2"
+put_launcher "$HOME10b/.claude/plugins/data/harness-ops-mkt" "$OUT10b2"
+if emit_reserved "$OUT10b2" "HOME=$HOME10b"; then
+  ok "@harness-ops: with no CLAUDE_CONFIG_DIR the launcher is found under \$HOME/.claude"
+else
+  fail "@harness-ops: no envelope through the \$HOME/.claude launcher"
+fi
+
+DATA10b="$WORK/data10b/plugins/data"
+OUT10b3="$WORK/out10b3"
+mkdir -p "$DATA10b/harness-ops-a" "$DATA10b/guardrails-mkt"
+put_launcher "$DATA10b/harness-ops-b" "$OUT10b3"
+if emit_reserved "$OUT10b3" "CLAUDE_PLUGIN_DATA=$DATA10b/guardrails-mkt/" "CLAUDE_CONFIG_DIR=$WORK/elsewhere"; then
+  ok "@harness-ops: a plugin hook finds the first launcher beside its own data dir, past a sibling with none"
+else
+  fail "@harness-ops: no envelope through the sibling launcher"
+fi
+
+OUT10b4="$WORK/out10b4"
+OUT10b4_other="$WORK/out10b4-other"
+put_launcher "$DATA10b/harness-ops-a" "$OUT10b4_other"
+put_launcher "$DATA10b/harness-ops-z" "$OUT10b4"
+if emit_reserved "$OUT10b4" "CLAUDE_PLUGIN_DATA=$DATA10b/harness-ops-z"; then
+  ok "@harness-ops: harness-ops' own hooks use their own launcher"
+else
+  fail "@harness-ops: own launcher not preferred"
+fi
+if [[ -e "$OUT10b4_other" ]]; then
+  fail "@harness-ops: the sibling launcher ran"
+else
+  ok "@harness-ops: the sibling launcher was not run"
+fi
+
+OUT10b5="$WORK/out10b5"
+printf '#!/usr/bin/env bash\ncat >%q\n' "$OUT10b5" >"$WORK/repo10b/@harness-ops"
+chmod +x "$WORK/repo10b/@harness-ops"
+if EMIT_POLLS=25 emit_reserved "$OUT10b5" "CLAUDE_CONFIG_DIR=$WORK/empty-cfg"; then
+  fail "@harness-ops: with no launcher the value was joined onto the repo root and run"
+else
+  ok "@harness-ops: with no launcher nothing is sent (fail-open)"
+fi
+
+OUT10b6="$WORK/out10b6"
+printf '#!/usr/bin/env bash\ncat >%q\n' "$OUT10b6" >"$WORK/repo10b/@other"
+chmod +x "$WORK/repo10b/@other"
+(HOOK_TELEMETRY_SINK=@other hook::emit_telemetry "sample-hook" "PostToolUse" "ok" \
+  "$EPOCHREALTIME" '{}' "$WORK/repo10b" 2>/dev/null)
+if wait_for_sink "$OUT10b6" 25; then
+  fail "an unknown @ value was joined onto the repo root and run"
+else
+  ok "an unknown @ value is reserved: nothing is sent"
+fi
+
 # --- Test 11: hook::normalize_path_to is host-gated on OSTYPE -----------------
 # The drive-letter fold is for Windows/MSYS only (case-insensitive FS). On a
 # case-sensitive POSIX host a real single-letter top dir like /c/Repo must pass

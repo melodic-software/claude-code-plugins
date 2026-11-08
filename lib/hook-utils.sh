@@ -3248,6 +3248,39 @@ hook::telemetry_enabled() {
   [[ -n "${HOOK_TELEMETRY_SINK:-}" ]]
 }
 
+# hook::harness_ops_sink_to <var> → the launcher harness-ops keeps for its
+# installed sink, <plugin data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh,
+# rewritten at each SessionStart. Plugin data directories sit at
+# <config dir>/plugins/data/<id>, kept across plugin updates
+# (https://code.claude.com/docs/en/plugins-reference#environment-variables), and
+# CLAUDE_CONFIG_DIR, default ~/.claude, holds the plugins
+# (https://code.claude.com/docs/en/env-vars). A plugin hook has its own
+# CLAUDE_PLUGIN_DATA, so the root is that directory's parent; a repository hook
+# has none and falls back to the config dir. Order: the caller's own data dir
+# (harness-ops' hooks), then each harness-ops-* in name order, first executable
+# wins. Returns 1 when none is found. Builtins and a glob only.
+hook::harness_ops_sink_to() {
+  local __hu_hos_data="${CLAUDE_PLUGIN_DATA:-}" __hu_hos_root __hu_hos_c
+  __hu_hos_data="${__hu_hos_data%/}"
+  if [[ -n "$__hu_hos_data" ]]; then
+    if [[ -x "$__hu_hos_data/hook-telemetry-sink.sh" ]]; then
+      printf -v "$1" '%s' "$__hu_hos_data/hook-telemetry-sink.sh"
+      return 0
+    fi
+    __hu_hos_root="${__hu_hos_data%/*}"
+  else
+    __hu_hos_root="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+    __hu_hos_root="${__hu_hos_root%/}/plugins/data"
+  fi
+  for __hu_hos_c in "$__hu_hos_root"/harness-ops-*/hook-telemetry-sink.sh; do
+    if [[ -x "$__hu_hos_c" ]]; then
+      printf -v "$1" '%s' "$__hu_hos_c"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Emit one telemetry envelope per hook run to the consumer-set sink.
 # Fire-and-forget: sink is dispatched in the background; the hook never waits
 # on it and its failure never affects the hook's own exit code or stdout.
@@ -3276,13 +3309,14 @@ hook::telemetry_enabled() {
 #               HOOK_TELEMETRY_SINK. The caller passes the root it already
 #               resolved for data.file; ignored when the sink is absolute.
 #
-# Sink path resolution: HOOK_TELEMETRY_SINK may be absolute OR relative to the
-# consuming repo root. Absolute (POSIX /… or Windows X:\ / X:/) is used as-is; a
-# relative value is joined onto <repo_root> (or $CLAUDE_PROJECT_DIR when no root
-# is passed), and skipped fail-open if neither is available. Relative is the
-# portable, team-shared wiring form: CC injects settings.json env values
-# literally (no ${VAR} expansion), so a relative path tracked in settings.json is
-# the only clone-portable, worktree-safe option.
+# Sink path resolution: HOOK_TELEMETRY_SINK is the reserved value @harness-ops
+# (hook::harness_ops_sink_to; any other @ value is reserved and skipped), or a
+# path absolute OR relative to the consuming repo root. Absolute (POSIX /… or
+# Windows X:\ / X:/) is used as-is; a relative value is joined onto <repo_root>
+# (or $CLAUDE_PROJECT_DIR when no root is passed), and skipped fail-open if
+# neither is available. CC injects settings.json env values literally (no ${VAR}
+# expansion), so @harness-ops and a relative path are the clone-portable,
+# worktree-safe forms to track in settings.json.
 #
 # NEVER writes to fd1 (the hook's stdout / additionalContext channel).
 hook::emit_telemetry() {
@@ -3481,6 +3515,10 @@ hook::emit_telemetry() {
   # drifted hook CWD would resolve incorrectly.
   local sink="$HOOK_TELEMETRY_SINK"
   case "$sink" in
+  @harness-ops)
+    hook::harness_ops_sink_to sink || return 0
+    ;;
+  @*) return 0 ;;
   /* | [A-Za-z]:[/\\]*) ;;
   *)
     local root="${repo_root:-${CLAUDE_PROJECT_DIR:-}}"

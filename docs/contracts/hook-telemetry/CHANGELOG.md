@@ -5,6 +5,16 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Sink path resolution, envelope unchanged at 1.1 - 2026-11-08
+
+Not an envelope field, so no `schema_version` change (README "Versioning"), as with the 1.0 rule.
+
+- `HOOK_TELEMETRY_SINK` gains one reserved value, `@harness-ops`: the producer resolves it to the
+  launcher harness-ops keeps in its plugin data directory and skips the event when none is
+  installed (#14227). Any other value starting with `@` is reserved and skipped, never joined onto
+  the repo root as a relative path.
+- Producers: `hook::emit_telemetry` in `lib/hook-utils.sh` and context-guard's mod.
+
 ## Data schemas, envelope unchanged at 1.1 - 2026-10-11
 
 - `zone-gate` is retired: context-guard no longer denies tool calls, so nothing emits it, and
