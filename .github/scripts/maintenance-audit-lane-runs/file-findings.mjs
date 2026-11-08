@@ -238,7 +238,7 @@ export async function writeDigest({ plan, call, repo, labels, runUrl, leaveAgent
       done.filed.push(issue.number);
       // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== DIGEST_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${DIGEST_TYPE}`);
-      await setFields(issue.number, DIGEST_FIELDS);
+      await setFields(issue.number, DIGEST_FIELDS).catch((error) => console.log(`::warning::#${issue.number}'s field values were not set: ${error.message}`));
     } catch (error) {
       done.failed.push({ target: "digest", error: error.message });
     }

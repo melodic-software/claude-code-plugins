@@ -595,6 +595,18 @@ test("a rewrite whose Work status write fails reports it and leaves the old stat
   assert.equal(next, "update");
 });
 
+test("a filed digest whose field write fails stays filed, with a warning", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const s = store();
+  const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: s.issues, openNumbers: new Set() });
+  const setFields = async () => {
+    throw new Error("HTTP 403");
+  };
+  const result = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", setFields, wait: async () => {} });
+  assert.deepEqual(result, { ...nothing, filed: [100] });
+  assert.ok(log.mock.calls.some((c) => /#100's field values were not set: HTTP 403/.test(c.arguments[0])));
+});
+
 test("a failed filing is recorded", async () => {
   const call = async (method, path) => {
     throw new Error(`${method} ${path}: HTTP 422`);
