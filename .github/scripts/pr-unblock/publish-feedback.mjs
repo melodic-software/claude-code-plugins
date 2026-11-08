@@ -162,6 +162,9 @@ function check(condition, why) {
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+// An evidence entry (`path:line`) as [path, line].
+const citation = (ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))];
+
 // The check runs a ci snapshot may cite: a github-actions job page.
 const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
 const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
@@ -261,7 +264,7 @@ export function parseReplies(text, run, fileExists) {
     );
     check(!["VALID", "INCORRECT", ALREADY_ADDRESSED].includes(disposition) || evidence.length > 0, "a VALID, INCORRECT or already-addressed reply cites no evidence");
     check(
-      evidence.every((ev) => fileExists(ev.slice(0, ev.lastIndexOf(":")))),
+      evidence.every((ev) => fileExists(citation(ev)[0])),
       "a reply's evidence names a file not in the checkout",
     );
     // The model job commits nothing: this job finds the fix commit itself.
@@ -313,7 +316,7 @@ export function lineChanged(patch, line) {
 function citedFiles(evidence, patches, thread, prPaths = new Set(), copyPaths = new Set()) {
   return new Set(
     evidence
-      .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
+      .map(citation)
       .filter(([path, line]) => (prPaths.has(path) || inThreadScope(path, new Set([thread.path]), [thread], { prPaths, copyPaths })) && lineChanged(patches.get(path), line))
       .map(([path]) => path),
   );
@@ -354,7 +357,7 @@ const isLaneFix = (commit, appId) =>
 // head's line numbers are still that commit's; null for none. `filesOf`
 // reads a commit's files, each {filename, patch}.
 export async function earlierFixOf({ commits, appId, after, thread, evidence, claimed, filesOf }) {
-  const cites = evidence.map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))]);
+  const cites = evidence.map(citation);
   for (let i = commits.length - 1; i >= 0; i -= 1) {
     const commit = commits[i];
     if (
@@ -712,8 +715,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
         throw error;
       }
       log(`no reply is posted: ${error instanceof Invalid ? error.message : "the artifact is missing"}`);
-      escalationReason = "feedback-invalid";
-      return { escalationReason, posted: [] };
+      return { escalationReason: "feedback-invalid", posted: [] };
     }
     // Every kept thread needs its disposition: one left out would stay open
     // with no reply, and the head's check run stops another dispatch. The
@@ -725,8 +727,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       const disposed = new Set(replies.map((reply) => reply.thread));
       const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));
       log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
-      escalationReason = "feedback-incomplete";
-      return { escalationReason, posted: [], undisposed };
+      return { escalationReason: "feedback-incomplete", posted: [], undisposed };
     }
     // The threads are judged on the heads the select job kept them on: the
     // review lane re-marks its one marker on this round's fix push. A run.json
@@ -759,8 +760,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     });
     if (landed === null) {
       log("no reply is posted: no one fix commit naming each VALID thread reached the PR branch, or the branch changed another path");
-      escalationReason = "feedback-not-landed";
-      return { escalationReason, posted: [] };
+      return { escalationReason: "feedback-not-landed", posted: [] };
     }
     replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
     // GitHub lets only a PR's author or a writer resolve its threads, and the
@@ -849,6 +849,9 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
   }
 }
 
+// Whether `text` hashes to `recorded`, a SHA-256 an earlier job passed out.
+const matchesSha256 = (text, recorded) => /^[0-9a-f]{64}$/.test(recorded ?? "") && createHash("sha256").update(text).digest("hex") === recorded;
+
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
   need(env, [
     "GH_TOKEN",
@@ -898,7 +901,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   // passed out.
   const readRun = () => {
     const text = read("run.json", LIMITS.runBytes);
-    if (!/^[0-9a-f]{64}$/.test(env.RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.RUN_SHA256) {
+    if (!matchesSha256(text, env.RUN_SHA256)) {
       throw new Invalid("run.json does not match the SHA-256 the select job recorded");
     }
     return text;
@@ -915,7 +918,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       }
       throw error;
     }
-    if (!/^[0-9a-f]{64}$/.test(env.REPLIES_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.REPLIES_SHA256) {
+    if (!matchesSha256(text, env.REPLIES_SHA256)) {
       throw new Invalid("replies.jsonl does not match the SHA-256 the scan job recorded");
     }
     return text;
@@ -929,8 +932,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       return null;
     }
     const text = readFileSync(path, "utf8");
-    const recorded = /^[0-9a-f]{64}$/.test(env.ADJUDICATION_SHA256 ?? "") && createHash("sha256").update(text).digest("hex") === env.ADJUDICATION_SHA256;
-    return recorded ? text : null;
+    return matchesSha256(text, env.ADJUDICATION_SHA256) ? text : null;
   };
   const { escalationReason, skipReason } = await publish({
     api:
