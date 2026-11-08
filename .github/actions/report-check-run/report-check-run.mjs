@@ -78,11 +78,12 @@ export async function main({
   log = console.log,
   latch,
 } = {}) {
+  const isShaOrEmpty = (value) => !value || SHA.test(value);
   if (
     !REPOSITORY.test(env.GITHUB_REPOSITORY ?? "") ||
     !SHA.test(env.HEAD_SHA_FALLBACK ?? "") ||
-    !(!env.HEAD_SHA || SHA.test(env.HEAD_SHA)) ||
-    !(!env.PR_HEAD_SHA || SHA.test(env.PR_HEAD_SHA))
+    !isShaOrEmpty(env.HEAD_SHA) ||
+    !isShaOrEmpty(env.PR_HEAD_SHA)
   ) {
     log(
       "::error::report-check-run: repository, head-sha, head-sha-fallback or pr-head-sha is malformed",
@@ -114,10 +115,10 @@ export async function main({
     log(`::error::report-check-run: refused (${decision.why})`);
     return 1;
   }
-  const body = { ...decision.report };
+  const body = decision.report;
   const outcome = laneOutcomeLine(env.LANE_OUTCOME, env.LANE, env.ACTIVITY);
   if (outcome) {
-    body.output = { ...body.output, text: body.output.text ? `${outcome}\n\n${body.output.text}` : outcome };
+    body.output.text = body.output.text ? `${outcome}\n\n${body.output.text}` : outcome;
   }
   const externalId = externalIdOf({
     lane: env.LANE,

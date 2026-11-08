@@ -296,6 +296,38 @@ else
   fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
 fi
 
+# --- manifest-declared configs are discovered --------------------------------
+# A manifest may point at a hooks file outside hooks/, or declare the event map
+# inline; Claude Code loads both with hooks/hooks.json. Script tokens still
+# resolve under the plugin's hooks/ directory.
+new_fixture f
+guard "$f" demo "demo-guard.sh" "$REVERSED"
+mkdir -p "$f/plugins/demo/.claude-plugin" "$f/plugins/demo/config"
+printf '%s\n' '{"name":"demo","hooks":"./config/extra.json"}' >"$f/plugins/demo/.claude-plugin/plugin.json"
+jq -n --arg c '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh' \
+  '{hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}}' >"$f/plugins/demo/config/extra.json"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"plugins/demo/hooks/demo-guard.sh — kill switch at line"*"BELOW the source"* ]]; then
+  ok "a guard registered in a manifest-pointed config outside hooks/ is checked"
+else
+  fail "a guard registered in a manifest-pointed config should be checked (rc=$rc): $out"
+fi
+
+new_fixture f
+guard "$f" demo "demo-guard.sh" "$REVERSED"
+mkdir -p "$f/plugins/demo/.claude-plugin"
+jq -n --arg c '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh' \
+  '{name:"demo",hooks:["./config/none.json",{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:$c}]}]}]}' \
+  >"$f/plugins/demo/.claude-plugin/plugin.json"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"plugins/demo/hooks/demo-guard.sh — kill switch at line"* ]]; then
+  ok "a guard registered in an inline manifest map is checked"
+else
+  fail "a guard registered in an inline manifest map should be checked (rc=$rc): $out"
+fi
+
 # --- rule 2: every blocking event, first early exit before the first source --
 
 # stop_hook <fixture> <event> <body> [<async>]

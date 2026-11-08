@@ -2005,7 +2005,7 @@ const faultComment = (body) => {
 };
 
 // Whether a retry past its cap holds rather than taking retry-spent's route
-// (docs/outage-posture-audit.md, element 4): a fault is no evidence about the
+// (docs/conventions/pr-pipeline/README.md#outage-posture, element 4): a fault is no evidence about the
 // issue, so while this stop and every counted retry were faults, the lane stops
 // nothing. It posts no marker, so work-unblock's sweep restarts the issue on the
 // stranded backoff, past its cap on retry markers. That needs this run to have
@@ -2110,7 +2110,7 @@ export const staleComment = (branch) =>
 
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. A failed read, or an answer of the wrong shape, holds
-// (docs/outage-posture-audit.md, element 2): green with a notice and
+// (docs/conventions/pr-pipeline/README.md#outage-posture, element 2): green with a notice and
 // proceed=false, so no model runs and no mint follows, with no branch to reuse
 // or prune. agent-ready stays and no marker goes up, so work-unblock's sweep
 // starts the issue again. The re-derive fails instead: its job continues on the
@@ -2762,7 +2762,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       return 0;
     }
     // Whether a person merges this PR is unknown, so it holds
-    // (docs/outage-posture-audit.md, element 2): no PR, and no marker, so the
+    // (docs/conventions/pr-pipeline/README.md#outage-posture, element 2): no PR, and no marker, so the
     // branch stays unreported, work-unblock's sweep starts the issue again, and
     // that run opens the PR from it.
     if (plan.action === "open-pr" && humanMerge === null) {
@@ -2808,7 +2808,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           } catch (error) {
             // A create that failed on the network may have opened the PR, so
             // it is read back. A create is a non-idempotent write, which the
-            // outage posture never sends twice (docs/outage-posture-audit.md,
+            // outage posture never sends twice (docs/conventions/pr-pipeline/README.md#outage-posture,
             // element 1): when the read finds none, the run fails, and a
             // rerun's findOpen reuses the PR or opens it.
             if (!networkError(error)) {

@@ -786,6 +786,15 @@ class ReadOnlyWorkflowTests(Base):
             with self.subTest(path):
                 self.assertHeld(self.bound({path: text}))
 
+    def test_workflow_name_words_equal_the_standards_display_words(self) -> None:
+        vocabulary = json.loads(
+            (
+                pathlib.Path(__file__).resolve().parents[6]
+                / ".github/standards/github-actions-conventions/vocabulary.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(ev.WORKFLOW_NAME_WORDS, vocabulary["displayWords"])
+
     @NEEDS_YAML
     def test_each_unsafe_workflow_stays_a_lane_source(self) -> None:
         top = "permissions:\n  contents: read\njobs:"

@@ -35,10 +35,8 @@ name: Maintenance File Dead Links
 on:
   # Runs this file from the default branch and executes no code from the
   # link-check run: the artifact is data, checked before use.
-  # Both names, because the link-check caller is sync-managed from standards
-  # and takes the Title Case name only when its source is renamed.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [maintenance-check-links-online-claude-code-plugins, Maintenance Check Links Online Claude Code Plugins]
+    workflows: [Maintenance Check Links Online Claude Code Plugins]
     types: [completed]
     branches: [main]
 

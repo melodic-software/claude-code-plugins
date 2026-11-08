@@ -45,9 +45,8 @@ if [[ ${event:-} == pull_request_target ]]; then
 fi
 [[ ${path:-} =~ ^\.github/workflows/[A-Za-z0-9._-]+\.ya?ml$ && ${head:-} =~ ^[0-9a-f]{40}$ ]] ||
   leave "dispatcher run $DISPATCHER_RUN_ID names no workflow file and head"
-blob=$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$head" --jq .sha) ||
+blob=$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$head" --jq .sha) && [[ $blob =~ ^[0-9a-f]{40}$ ]] ||
   leave "cannot read $path at $head"
-[[ $blob =~ ^[0-9a-f]{40}$ ]] || leave "cannot read $path at $head"
 if [[ $blob != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]]; then
   echo "::warning::dispatcher-stale: $path at dispatcher run $DISPATCHER_RUN_ID's head $head differs from the default branch tip, so the broker would refuse this run's tokens; no model ran, and a dispatcher on the tip's file sends this PR again"
   echo "stale=true" >>"$GITHUB_OUTPUT"

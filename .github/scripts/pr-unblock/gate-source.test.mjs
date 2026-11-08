@@ -373,7 +373,7 @@ test("prHold's review reader asks for the review comments since a second before 
   ]);
 });
 
-// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
 // serial, so the reviews read starts only after the comments read ends, and a
 // failed comments read sends no reviews read.
 test("the review reader sends its two reads one after the other, and stops after a failed first read", async () => {

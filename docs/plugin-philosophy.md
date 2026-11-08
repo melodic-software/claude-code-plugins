@@ -817,16 +817,19 @@ the fleet does not converge onto one spelling (#3574).
 Four sanctioned shapes, picked by what the write installs and where it lands. The name follows the
 write and stays locally informative; the shape does not follow the name.
 
-| Shape | When | Live subactions: command and scope |
-|---|---|---|
-| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
-| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
-| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide), `install-model` (speech: `assets.py fetch` downloads the Kokoro model, tokenizer and English voices pinned in `kokoro-assets.json` into `${CLAUDE_PLUGIN_DATA}/models/`, each kept only when its sha256 matches) |
-| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer | `install-git-hooks` (typos-format, guardrails: `lib/git-hooks/install.mjs` copies each `git-hooks/entries.json` entry, its check lib and assets) |
+| Shape | When |
+|---|---|
+| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it |
+| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix |
+| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction |
+| Hook file | the write copies the plugin's git-hook entry scripts into the clone's hooks directory (local) or a committed `.githooks/<plugin>/` (shared), through the check-placement convention's installer |
 
 A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
 does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
 install one named tool, while `install-deps` and `install-build-deps` name a class.
+
+A write that installs nothing, such as a config file or a settings rule, is not an install
+subaction and carries no `install-` prefix: guardrails `identity-domains` and `read-deny`.
 
 **Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
 install path recorded in the consumer's repo, declines to install. It uses this shape, not a
@@ -851,17 +854,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 - **Decision:** install subactions fall into four shapes by what they install (consumer-repo
   dependency, machine-global CLI, plugin-owned dependencies, hook file); names are not converged;
   a refusal names the reasons that apply from the list and never excludes a sanctioned subaction.
-- **Pointer:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
-  (`install-ruff`), `plugins/biome-format/skills/setup/SKILL.md` (`install-biome`),
-  `plugins/markdown-format/skills/setup/SKILL.md` (`install-lint`),
-  `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
-  (`install-cli`, the two `npm install -g` commands above),
-  `plugins/knowledge/skills/setup/SKILL.md` (`install-deps`),
-  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
-  branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
-  `plugins/speech/skills/setup/SKILL.md` (`install-model`),
-  `plugins/typos-format/skills/setup/SKILL.md` and `plugins/guardrails/skills/setup/SKILL.md`
-  (`install-git-hooks`, hook files). The
+- **Pointer:** #3574. What each live subaction installs, and where, is stated in the setup skill
+  that declares it: each `plugins/*/skills/setup/SKILL.md` naming an `install-*` subaction. The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
@@ -918,7 +912,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/contracts/setup-lifecycle/`](contracts/setup-lifecycle/README.md) |
 | Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
 | Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/contracts/plugin-reconfiguration/`](contracts/plugin-reconfiguration/README.md) |
-| Commit-convention enforcement seam | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
+| Commit-convention enforcement boundary | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
@@ -962,8 +956,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Tracker reference form inside a code comment | [`docs/contracts/tracker-reference-form/`](contracts/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/contracts/untrusted-content/`](contracts/untrusted-content/README.md) |
 | Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/contracts/record-bundle/`](contracts/record-bundle/README.md) |
-| Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
-| Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
+| Reply affordance on decision-collecting artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#reply-affordance-rule) |
+| Export button on interactive HTML artifacts | [`docs/contracts/rendered-views/README.md`](contracts/rendered-views/README.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/contracts/retired-conventions/`](contracts/retired-conventions/README.md) |
 | Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/contracts/recommendation-basis/`](contracts/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/contracts/authoring-formats/`](contracts/authoring-formats/README.md) |
@@ -1053,8 +1047,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions encode an earlier model's weaknesses as a cap on
-  what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
+  which limits what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1159,7 +1153,7 @@ collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
 plugin external to this marketplace is never a manifest dependency. Invocation mechanics such as
 synchronous waiting, diff-base selection, and which artifacts a surface can judge are the advisor
-plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+plugin's own documentation's concern. A checkpoint site names the capability and the fallback,
 never the advisor's command flags, which drift against the surface their owner evolves.
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
@@ -1876,9 +1870,9 @@ cannot assume a plugin layout.
 
 ## Authoritative references
 
-The complete categorized index of plugin-relevant official pages is
-[`docs/official-docs.md`](official-docs.md); `https://code.claude.com/docs/llms.txt` is the
-authoritative self-updating master list. Each list below names the pages this document rests on
+`https://code.claude.com/docs/llms.txt` is the authoritative self-updating list of official
+pages, and [`docs/official-docs.md`](official-docs.md) holds this repository's rules for citing
+them. Each list below names the pages this document rests on
 and the topics we read each one for. Recheck trigger for both lists: a page moves, or stops
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):

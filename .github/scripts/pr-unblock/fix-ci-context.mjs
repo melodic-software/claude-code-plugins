@@ -194,7 +194,7 @@ async function contextOf(api, run, notes) {
 
 // Each kept thread's opening comment: where it points and what it says.
 async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
-  // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const issueComments = await api.listIssueComments(pr);
   const reviews = await api.listReviews(pr);
   const reviewComments = await api.listReviewComments(pr);

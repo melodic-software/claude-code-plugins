@@ -1729,7 +1729,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1750,6 +1750,10 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns }}
           # dontAsk unless the activity sets permission-mode: auto.
           permission-mode: ${{ steps.config.outputs.permission-mode }}
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
+          # (collect-base-activity) and may run npm ci or a test suite that
+          # reaches hosts beyond GitHub.
+          sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
@@ -1789,7 +1793,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1806,6 +1810,10 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
+          # (collect-base-activity) and may run npm ci or a test suite that
+          # reaches hosts beyond GitHub.
+          sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
@@ -1835,7 +1843,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1852,6 +1860,10 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
+          # (collect-base-activity) and may run npm ci or a test suite that
+          # reaches hosts beyond GitHub.
+          sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
@@ -3598,7 +3610,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3624,7 +3636,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != '' && inputs.fallback != 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3650,7 +3662,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == 'fallback'
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:

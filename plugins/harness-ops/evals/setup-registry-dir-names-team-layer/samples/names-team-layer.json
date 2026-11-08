@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `registry_dir` | PASS | `tools/registry`, layer team (`docs/conventions/harness-ops.yaml`) |\n| `node` | PASS | /usr/bin/node |"
+    },
+    {
+      "answer": "registry_dir: PASS. It comes from docs/conventions/harness-ops.yaml and resolves to /work/tools/registry.",
+      "why": "names the file, not the word team"
+    },
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Team layer `registry_dir` | PASS | /work/tools/registry |",
+      "why": "layer before the value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `registry_dir` | INFO | default `${CLAUDE_PLUGIN_DATA}` |",
+      "why": "reports the default, no layer"
+    },
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `registry_dir` | INFO | default `${CLAUDE_PLUGIN_DATA}` |\n| Personal-vs-project | INFO | every option is personal; `registry_dir` alone can also be set for everyone in the repository by its team file |\n\nFor a shared registry, commit `registry_dir: <path>` in `docs/conventions/harness-ops.yaml`.",
+      "why": "default probe 1 row; only probe 4 and the guidance name the team file"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| `registry_dir` | PASS, tools/registry |\n| Team conventions | none |",
+      "why": "the layer is on another line"
+    }
+  ]
+}

@@ -3776,7 +3776,7 @@ test("an owner PR's Codex thread answering an untrusted or missing @codex reques
   }
 });
 
-// Element 6 of the outage posture (docs/outage-posture-audit.md): reads are
+// Element 6 of the outage posture (docs/conventions/pr-pipeline/README.md#outage-posture): reads are
 // serial, so each review workflow's run listing starts after the last ends.
 test("reviewRunAt lists each review workflow's runs one after the other and picks the newest", async () => {
   const events = [];

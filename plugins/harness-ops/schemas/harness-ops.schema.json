@@ -2,11 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/harness-ops/schemas/harness-ops.schema.json",
   "title": "Harness-ops team config",
-  "description": "Schema for harness-ops.yaml in a repository's convention home (default docs/conventions): the team layer of the harness-ops plugin's settings. Keys are read by /harness-ops:audit-install-state and /harness-ops:changelog and listed in plugins/harness-ops/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for harness-ops.yaml in a repository's convention home (default docs/conventions): the team layer of the harness-ops plugin's settings, and of harness-ops.local.yaml, the personal override, for registry_dir. Keys are read by /harness-ops:audit-install-state, /harness-ops:changelog, /harness-ops:known-issues and /harness-ops:setup and listed in plugins/harness-ops/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
+    "registry_dir": {
+      "type": "string",
+      "description": "Project-relative directory holding the known-issues registry (registry.json). Beats the registry_dir userConfig option; the personal override beats it. Absolute, drive, UNC, traversal and escaping-symlink paths are invalid, and an invalid value resolves to the plugin data directory. Resolved by scripts/registry-dir.mjs."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "standard",

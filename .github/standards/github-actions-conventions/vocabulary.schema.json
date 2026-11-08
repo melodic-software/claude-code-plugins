@@ -14,6 +14,7 @@
     "engines",
     "reservedJobIds",
     "activityGrammar",
+    "displayWords",
     "exemptions",
     "apps"
   ],
@@ -101,6 +102,12 @@
         }
       }
     },
+    "displayWords": {
+      "description": "Stem words whose Title Case display form is not the word capitalized: acronyms and product spellings.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9]*$" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
     "exemptions": {
       "description": "The complete exemption list. Nothing else is exempt.",
       "type": "array",
@@ -126,7 +133,7 @@
             "items": { "enum": ["*", "workflow-filename", "workflow-name"] }
           },
           "expectedName": {
-            "description": "For a workflow-name exemption, the one `name:` value accepted instead of the stem.",
+            "description": "For a workflow-name exemption, the one `name:` value accepted instead of the stem or its Title Case form.",
             "type": "string",
             "minLength": 1
           },

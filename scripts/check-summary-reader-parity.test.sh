@@ -58,7 +58,7 @@ command -v node >/dev/null 2>&1 || {
 }
 
 # --- PyYAML resolution -------------------------------------------------------
-# Same ladder scripts/check-hook-exec-form.sh uses. This gate does NOT skip when
+# Same ladder scripts/lib/hook-configs.sh uses. This gate does NOT skip when
 # PyYAML is unavailable: the oracle is the only thing here that proves the
 # shared verdict is correct rather than merely shared, so clearing without it
 # would report green while proving the weaker half of the claim.

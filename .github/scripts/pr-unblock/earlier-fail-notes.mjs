@@ -67,6 +67,8 @@ export function unzipVerdict(zip, { dir = process.env.RUNNER_TEMP || tmpdir() } 
 // under the API root. Returns [{ id, head, path, body }], in the heads' order.
 export async function earlierFailNotes({ actions, repository, pr, heads, files, base = "main", unzip = unzipVerdict }) {
   const repo = `/repos/${repository}`;
+  // countedBy's client: reads only.
+  const github = (method, path) => (method === "GET" ? actions.read(path) : Promise.reject(new Error(`${method} is not a read`)));
   const items = [];
   for (const head of heads) {
     const index = await listing(actions, `${repo}/actions/artifacts?name=${encodeURIComponent(`${INDEX_PREFIX}sha-${head}`)}`);
@@ -82,7 +84,6 @@ export async function earlierFailNotes({ actions, repository, pr, heads, files, 
       }
       // A run the gate would not count (another workflow's, or one whose
       // read fails) is passed over, as the gate's reader passes it over.
-      const github = (method, path) => (method === "GET" ? actions.read(path) : Promise.reject(new Error(`${method} is not a read`)));
       if (!(await countedBy({ github, repository, runId, verdict: "fail", base }))) {
         continue;
       }
