@@ -128,6 +128,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
@@ -135,6 +136,7 @@ import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-
 import { writeAdmissionRecord } from "../lib/admission-record.mjs";
 import { stopLine, subIssueLeftOpen } from "../lib/done-evidence.mjs";
 import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
+import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export { ADMIT_MARKER, refusalText };
 
@@ -155,8 +157,6 @@ export function heldRefusalText(reasons, code) {
   const [marker, line] = personReasonLines(INTAKE_LANE, code);
   return `${refusalText(reasons)}\n\n${line}\n${marker}`;
 }
-import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
-import { readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
@@ -307,6 +307,8 @@ const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
+// Whether a GraphQL `nameWithOwner` is `repository`, in any case.
+const sameRepository = (nameWithOwner, repository) => String(nameWithOwner ?? "").toLowerCase() === repository.toLowerCase();
 
 const BLOCKER_NUMBER = /^[1-9][0-9]{0,9}$/;
 
@@ -366,9 +368,7 @@ export function openPullsNaming(timeline, repository, number, closing = []) {
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
     .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository) && refsNames(source.body, number))
     .map((source) => source.number);
-  const closes = closing
-    .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
-    .map((node) => node.number);
+  const closes = closing.filter((node) => sameRepository(node?.repository?.nameWithOwner, repository)).map((node) => node.number);
   return [...new Set([...closes, ...linked])];
 }
 
@@ -381,7 +381,7 @@ export function openPullsNaming(timeline, repository, number, closing = []) {
 export function mergedRefsAfter(node, number, repository, humans, appId) {
   const at = (text) => {
     const time = Date.parse(text);
-    return Number.isFinite(time) ? time : null;
+    return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
   };
   const decision = (comment) =>
     comment?.author?.__typename === "User" &&
@@ -391,18 +391,15 @@ export function mergedRefsAfter(node, number, repository, humans, appId) {
     );
   const refinement = (comment) =>
     appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
-  const since = Math.max(
-    at(node?.createdAt) ?? Number.NEGATIVE_INFINITY,
-    ...(node?.comments?.nodes ?? []).filter((comment) => decision(comment) || refinement(comment)).map((comment) => at(comment.createdAt) ?? Number.NEGATIVE_INFINITY),
-  );
+  const since = Math.max(at(node?.createdAt), ...(node?.comments?.nodes ?? []).filter((comment) => decision(comment) || refinement(comment)).map((comment) => at(comment.createdAt)));
   const pulls = (node?.timelineItems?.nodes ?? [])
     .map((event) => event?.source)
     .filter(
       (source) =>
         Number.isSafeInteger(source?.number) &&
         source.merged === true &&
-        String(source.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase() &&
-        (at(source.mergedAt) ?? Number.NEGATIVE_INFINITY) > since &&
+        sameRepository(source.repository?.nameWithOwner, repository) &&
+        at(source.mergedAt) > since &&
         refsNames(source.body, number),
     )
     .map((source) => source.number);
@@ -1031,7 +1028,7 @@ export function workflowFiles() {
 const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
 const isRootName = (token, quoted) => (quoted ? ROOT_NAMES.has(token.toLowerCase()) : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules");
 const pathTokens = (text, workflows) => {
-  const workflowNames = new Set([...workflows].map((name) => name.toLowerCase()));
+  const lowerWorkflows = new Set([...workflows].map((name) => name.toLowerCase()));
   return [
     ...[...text.matchAll(/`([^`]+)`/g)].map((m) => ({ token: m[1], quoted: true })),
     ...text
@@ -1039,14 +1036,13 @@ const pathTokens = (text, workflows) => {
       .split(/\s+/)
       .map((token) => ({ token, quoted: false })),
   ]
-    .map(({ token, quoted }) => ({
-      token: token
+    .map(({ token, quoted }) => {
+      const bare = token
         .replace(/^["'(\[]+/, "")
         .replace(/[.,;:!?"')\]]+$/, "")
-        .replace(/:\d+(-\d+)?$/, ""),
-      quoted,
-    }))
-    .map(({ token, quoted }) => ({ token: workflowNames.has(token.toLowerCase()) ? `.github/workflows/${token}` : token, quoted }))
+        .replace(/:\d+(-\d+)?$/, "");
+      return { token: lowerWorkflows.has(bare.toLowerCase()) ? `.github/workflows/${bare}` : bare, quoted };
+    })
     .filter(({ token, quoted }) => isRootName(token, quoted) || (token.includes("/") && !/^[/~]/.test(token) && !token.includes("://")))
     .map(({ token }) => token);
 };
@@ -1112,6 +1108,13 @@ const NEGATED = new RegExp(
 );
 const withoutNegated = (text) => text.replace(NEGATED, " ");
 
+// The paths `texts` name (pathTokens), outside a shape that leaves them
+// unmodified (NEGATED), that apply-patch refuses under `names`, read with a
+// dot-led name's dot left off (DOTLESS), in order, each once. Pure.
+const refusedPaths = (texts, names, workflows) => [
+  ...new Set(texts.flatMap((text) => pathTokens(withoutNegated(text), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))))),
+];
+
 // The paths the task-list items in `body`, with the wrapped text below each up
 // to its first nested bullet outside a code fence, read as plainText, name
 // that apply-patch refuses under `names` (issuePushRefusals) in any case or
@@ -1126,10 +1129,11 @@ export function unpushablePaths(body, taskList, names, workflows) {
     const end = more.findIndex((index) => blocks[index] === 0 && BULLET.test(lines[index]));
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
-  const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens(withoutNegated(plainText([text, ...wrapped(more)].join("\n"))), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+  return refusedPaths(
+    taskItems(body, taskList).map(({ text, more }) => plainText([text, ...wrapped(more)].join("\n"))),
+    names,
+    workflows,
   );
-  return [...new Set(paths)];
 }
 
 // A body line that cites evidence ("Basis: ...", "See ..."), and a path cited
@@ -1190,10 +1194,11 @@ export function bodyUnpushablePaths(body, taskList, names, workflows) {
     }
     open = !hash;
   });
-  const paths = paragraphs.flatMap(({ text, cites }) =>
-    pathTokens(withoutNegated(cites ? text : text.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+  return refusedPaths(
+    paragraphs.map(({ text, cites }) => (cites ? text : text.replace(CITED_AT, " "))),
+    names,
+    workflows,
   );
-  return [...new Set(paths)];
 }
 
 // The refusal reason for unrunnableCriteria's result, with the split it
@@ -1215,6 +1220,13 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// Whether the newest `labeled` or `unlabeled` event of `label` in `events` is
+// a removal by an actor `trusted(actor)` does not accept. Pure.
+const removedByUntrusted = (events, label, trusted) => {
+  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === label).at(-1);
+  return newest?.event === "unlabeled" && !trusted(newest.actor);
+};
+
 // Whether untrusted provenance holds the issue: one of UNTRUSTED_LABELS is on
 // it, or, for one of them, its newest add or removal is a removal by neither
 // a listed human (`humans`, ids) nor the lanes App (`isApp(actor)`). Each name
@@ -1222,10 +1234,7 @@ const names = (labels) => (labels ?? []).map((label) => (typeof label === "strin
 // a stranger's removal of the other. Admission and the issue lane's gate both
 // judge provenance here. Pure.
 export function untrustedHold({ labels, events, humans, isApp }) {
-  const removedByOther = UNTRUSTED_LABELS.some((label) => {
-    const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === label).at(-1);
-    return newest?.event === "unlabeled" && !humans.has(newest.actor?.id) && !isApp(newest.actor);
-  });
+  const removedByOther = UNTRUSTED_LABELS.some((label) => removedByUntrusted(events, label, (actor) => humans.has(actor?.id) || isApp(actor)));
   return names(labels).some((name) => UNTRUSTED_LABELS.includes(name)) || removedByOther;
 }
 
@@ -1324,8 +1333,7 @@ export function deferralLapsed({ labels, events, editedAt, humans, appId }) {
 // event is a removal by anyone but a listed human (`humans`, ids), the lanes
 // App included. Only a listed human lifts it. Pure.
 export function attendedHold(events, humans) {
-  const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === ATTENDED).at(-1);
-  return newest?.event === "unlabeled" && !humans.has(newest.actor?.id);
+  return removedByUntrusted(events, ATTENDED, (actor) => humans.has(actor?.id));
 }
 
 // The External state the counted refinement on `spec` records: {state,
