@@ -66,7 +66,7 @@
 # with the `yaml` package installed by
 # `npm ci --prefix .github/standards/runner-policy`.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path:line: finding` per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any offender, 2 usage or environment
 # (no node, or the yaml package not installed).

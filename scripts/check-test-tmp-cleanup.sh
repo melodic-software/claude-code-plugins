@@ -23,7 +23,7 @@
 # by name, so that shape offends whatever else the file does. Both are lexical:
 # a file with a hook still has to remove every folder in it.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one finding per line on stderr, the clean-run statement on
 # stdout. Exit: 0 clean, 1 any offender, 2 environment or usage (git or awk
 # missing, bad argument).

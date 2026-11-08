@@ -34,7 +34,7 @@
 # steps run. CHECK_JSONSCHEMA_BIN overrides the command (a path or a name on
 # PATH).
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one finding per file on stderr, with the validator's own report
 # under it, and the clean-run statement on stdout. Exit: 0 clean, 1 any finding,
 # 2 environment or usage (git, awk, the parser or the validator missing, bad
