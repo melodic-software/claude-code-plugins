@@ -69,6 +69,21 @@ else
 fi
 assert_file_absent "old .claude/observability path is no longer written" "$P/.claude/observability/hook-events.jsonl"
 
+# --- a {tool, file} envelope maps subject from data.file ----------------------
+# guardrails and the formatters build data with hook::data_json_to, which sends
+# `file` and no `subject`.
+P1F="$TEST_TMPDIR/p1f"
+mkdir -p "$P1F"
+run_sink "$P1F" "$(jq -nc '{schema_version:"1.1", timestamp:"2026-07-12T00:00:00Z",
+  hook:"bash-format", hook_event:"PostToolUse", status:"ok", duration_ms:7,
+  data:{tool:"Write", file:"scripts/a.sh"}}')"
+LOG1F="$P1F/$ROOT_REL/hook-events.jsonl"
+assert_eq "{tool, file}: subject from data.file" "scripts/a.sh" "$(jq -r '.subject' "$LOG1F")"
+assert_eq "{tool, file}: tool carried" "Write" "$(jq -r '.tool' "$LOG1F")"
+assert_record "{tool, file}: the line satisfies the record schema" "$LOG1F"
+run_sink "$P1F" "$(envelope cli-flag-verify PostToolUse ok 3 from-subject Write '"file":"from-file"')"
+assert_eq "data.subject wins over data.file" "from-subject" "$(tail -1 "$LOG1F" | jq -r '.subject')"
+
 # --- error → status error, exit_code 2 -------------------------------------
 P2="$TEST_TMPDIR/p2"
 mkdir -p "$P2"

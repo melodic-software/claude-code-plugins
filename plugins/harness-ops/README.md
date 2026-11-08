@@ -252,27 +252,44 @@ what the `observability` skill reads. The root carries a self-ignoring
 `.claude/observability/hook-events.jsonl` location are detected by setup as
 retirement `harness-ops-r001` and migrated on request.
 
-Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
-resolution time**. A *relative* value resolves against the **consuming repo
-root**, not the plugin cache, so the marketplace-installed copy under
-`${CLAUDE_PLUGIN_ROOT}` is **not** reachable by a relative path (and Claude Code
-injects `settings.json` `env` values literally, with no `${CLAUDE_PLUGIN_ROOT}`
-expansion). Two workable forms:
+Wire it by pointing `HOOK_TELEMETRY_SINK` at an executable. A relative value
+resolves against the consuming repository's root, not the plugin cache, and
+Claude Code copies `settings.json` `env` values as written, with no
+`${CLAUDE_PLUGIN_ROOT}` expansion, so a relative path cannot name the installed
+sink directly. Three forms work:
 
-- **Copy the reference sink into your repo** (e.g. `.claude/hooks/hook-telemetry-sink.sh`)
-  and wire that repo-relative path, the portable, team-shared, clone-safe form:
+- **The launcher, with no copy in your repository.** The launcher is a short
+  script that runs the installed sink. At each session start,
+  `hooks/hook-telemetry-launcher.sh` writes it to `hook-telemetry-sink.sh` under
+  the log root, when `HOOK_TELEMETRY_SINK` names that path. Set the value in
+  your project `settings.json`:
 
   ```json
-  { "env": { "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh" } }
+  { "env": { "HOOK_TELEMETRY_SINK": ".observability/claude/hook-telemetry-sink.sh" } }
   ```
 
-  The sink `source`s `hook-utils.sh` from its own directory, so a bare copy
-  fails at startup: either copy `hook-utils.sh` alongside it, or edit the copy's
-  `source` line to point at a `hook-utils.sh` your repo already carries.
+  After a plugin update moves the install, the next session start rewrites the
+  launcher. The hook runs through `node`, like this plugin's other hooks;
+  without it no launcher is written, and the session-start node notice says
+  so. The launcher goes under the repository root even when a session starts
+  in a subdirectory. The file sits
+  under the log root's self-ignoring `.gitignore`, so nothing is committed, and
+  the path in `settings.json` works in every clone. With `session_event_log_dir`
+  set, wire `<that dir>/hook-telemetry-sink.sh` instead; the launcher also
+  carries that option and `hook_events_max_bytes` to producers in other
+  plugins, which run without this plugin's options. A repository that wires any
+  other value gets no launcher.
 
-- **Or** point at an **absolute** path to the installed sink under your plugin
-  cache. It is per-machine, and it moves on each plugin update, so it is not
-  clone-portable.
+- **Copy the reference sink into your repository** (for example
+  `.claude/hooks/hook-telemetry-sink.sh`) and wire that repository-relative
+  path. The sink sources two files from its own directory, so copy all three
+  side by side: `hook-telemetry-sink.sh`, `hook-utils.sh` (for
+  `hook::repo_root_to`) and `session-log-lib.sh` (the log root, the guard and
+  the record formatter). A copy does not follow plugin updates.
+
+- **An absolute path** to the installed sink under your plugin cache. It is
+  per-machine and moves on each plugin update, so it does not work across
+  clones.
 
 Any envelope producer (this plugin's hooks, guardrails, the formatters) then
 flows into the same store. The sink is fire-and-forget and best-effort, a slow
