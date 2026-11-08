@@ -544,17 +544,18 @@ jobs:
           test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
             .github/actions/run-claude-cli/lane.cjs
+            .github/actions/run-claude-cli/managed-settings.cjs
             .github/actions/report-lane-outcome/classify.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
@@ -1374,17 +1375,18 @@ jobs:
           test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
             .github/actions/run-claude-cli/lane.cjs
+            .github/actions/run-claude-cli/managed-settings.cjs
             .github/actions/report-lane-outcome/classify.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
@@ -2157,17 +2159,18 @@ jobs:
           test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the two files it loads, nothing run here.
+      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
+          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
             .github/actions/run-claude-cli/lane.cjs
+            .github/actions/run-claude-cli/managed-settings.cjs
             .github/actions/report-lane-outcome/classify.cjs
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
