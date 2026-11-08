@@ -134,6 +134,22 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
+// Each field's options in reading order, the order a problem lists them in.
+// An options map is keyed by numeric option id, and JavaScript lists such keys
+// ascending, which would read Size backwards (large, medium, small). A name
+// not listed here follows the listed ones.
+const OPTION_ORDER = Object.freeze({
+  size: ["small", "medium", "large"],
+  complexity: ["low", "medium", "high"],
+  uncertainty: ["known", "knowable", "unknown"],
+});
+const inReadingOrder = (key, names) => {
+  const rank = (name) => {
+    const index = OPTION_ORDER[key].indexOf(name.toLowerCase());
+    return index === -1 ? OPTION_ORDER[key].length : index;
+  };
+  return names.toSorted((a, b) => rank(a) - rank(b));
+};
 // The reusable's second line; only its legacy untrusted proposal is read.
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
@@ -228,7 +244,7 @@ export function parseVerdict(body, dimensionsConfig) {
     const options = Object.values(dimensionsConfig?.fields?.[key]?.options ?? {});
     const option = options.find((name) => name.toLowerCase() === value?.toLowerCase());
     if (value !== null && option === undefined) {
-      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${options.join(", ")}`);
+      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${inReadingOrder(key, options).join(", ")}`);
     }
     dimensions[key] = option ?? null;
   }
