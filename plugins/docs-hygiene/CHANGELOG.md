@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.8.0] - 2026-11-08
+
+### Changed
+
+- `/docs-hygiene:audit-encapsulation file-issues` reads the repository's house style before filing and applies it.
+
 ## [2.7.1] - 2026-11-06
 
 ### Fixed

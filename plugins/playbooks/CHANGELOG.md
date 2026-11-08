@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.29.0] - 2026-11-08
+
+### Changed
+
+- `/playbooks:repo-sweep review` reads the repository's house style before drafting the issues it files and applies it.
+
 ## [0.28.11] - 2026-11-06
 
 ### Changed

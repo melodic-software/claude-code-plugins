@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-11-08
+
+### Changed
+
+- `/bugs:write` reads the repository's house style before filing a report by any path other than `/work-items:track add`, which reads it itself.
+
 ## [0.20.1] - 2026-11-07
 
 ### Changed
