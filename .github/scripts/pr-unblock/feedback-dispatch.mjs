@@ -257,6 +257,17 @@ export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
 export const SWEEP_HEAD_CAP = 3;
 
 const startOf = (run) => Date.parse(run.started_at ?? "");
+const newestStarted = (runs) => runs.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), runs[0]);
+// An ISO time to the second, as the API's `created` filter takes it.
+const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const heldLabels = (pull, settings) => (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
+const slotEnabled = (resolved, name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
+// The first listed run of the activity for PR `number` created at or after
+// `since` (ms); a run with no readable creation time counts.
+const runSince = async ({ api, settings }, number, since) =>
+  (await api.listWorkflowRuns(settings.workflow)).find(
+    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < since),
+  );
 // The reply check skips that leave the head for another round: a lane stop
 // (a stop escalation-routes.json routes to a failing status) is retried on
 // the same head, a fresh model session, under SWEEP_HEAD_CAP with the rest,
@@ -583,7 +594,7 @@ export async function dispatchFeedback({
       return skip(`#${number}: ${settings.workflow} run ${run.id} for ${settings.activity} is not done yet (recorded)`);
     }
   }
-  const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
+  const held = heldLabels(pull, settings);
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
@@ -680,8 +691,7 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
   const resolved = await resolveSlot({ number, head });
-  const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
-  if (resolved?.lane.enabled !== true || !enabled(settings.activity) || !enabled(settings.replyActivity)) {
+  if (resolved?.lane.enabled !== true || !slotEnabled(resolved, settings.activity) || !slotEnabled(resolved, settings.replyActivity)) {
     return skip(`the ${settings.lane} lane has no enabled ${settings.activity} and ${settings.replyActivity} slots`);
   }
   if (resolved.selected?.applies !== true) {
@@ -707,7 +717,7 @@ export async function dispatchFeedback({
     const selectStopped = existing.some(laneStop);
     if (anyHandles(existing, { now, limits: resolved.limits })) {
       replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
-      const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+      const newest = newestStarted(replies);
       if (releases(newest) && !selectStopped) {
         const cut = startOf(newest);
         existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
@@ -804,8 +814,7 @@ export async function dispatchFeedback({
       // listing above would. This run never sends an HTTP error answer again;
       // the run fails, and recoverLost may send it within
       // FAILED_RUN_WINDOW_HOURS.
-      const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
-      const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
+      const started = (await api.listRecentRuns(settings.workflow, isoSeconds(now - 60_000))).find((run) => holds(run, number));
       log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
       ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
     }
@@ -978,11 +987,11 @@ async function openPulls({ api, repository, appSenderId, settings, rest }) {
   );
 }
 
-// The recovery's walk: each of `pulls` (default: the open lanes App PRs),
-// decided by `decide` in listing order until one dispatches.
-async function sweepPulls(context, decide, pulls = null) {
+// The recovery's walk: each open lanes App PR, decided by `decide` in listing
+// order until one dispatches.
+async function sweepPulls(context, decide) {
   const { log } = context;
-  for (const pull of pulls ?? (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
+  for (const pull of (await openPulls(context)).filter((row) => row.user?.id === context.appSenderId)) {
     let dispatched = null;
     try {
       dispatched = await decide(pull);
@@ -1026,7 +1035,7 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
       return null;
     }
   }
-  const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
+  const held = heldLabels(pull, settings);
   if (held.length > 0) {
     log(`skip: #${number} is labeled ${held.join(", ")}`);
     return null;
@@ -1034,17 +1043,13 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   if ((await api.listReviewThreads(number)).some((thread) => thread.isResolved === false)) {
     return null;
   }
-  const stoppedAt = Date.parse(status.created_at ?? "");
-  const since = (await api.listWorkflowRuns(settings.workflow)).find(
-    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < stoppedAt),
-  );
+  const since = await runSince({ api, settings }, number, Date.parse(status.created_at ?? ""));
   if (since) {
     log(`skip: #${number}: ${settings.workflow} run ${since.id} for ${settings.activity} started after the stop on head ${head}`);
     return null;
   }
   const resolved = await rest.resolveSlot({ number, head });
-  const enabled = (name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
-  if (resolved?.lane.enabled !== true || !enabled(settings.activity) || resolved.selected?.applies !== true) {
+  if (resolved?.lane.enabled !== true || !slotEnabled(resolved, settings.activity) || resolved.selected?.applies !== true) {
     log(`skip: #${number}: ${settings.activity} is not enabled or does not apply`);
     return null;
   }
@@ -1117,10 +1122,7 @@ async function sweepUnsent(context) {
     return null;
   }
   // A round that ended before posting its check is sent once.
-  const reviewStarted = Date.parse(upstream.run_started_at ?? upstream.created_at ?? "");
-  const sent = (await api.listWorkflowRuns(settings.workflow)).find(
-    (run) => run.display_title === runTitle(settings.activity, pull.number) && !(Date.parse(run.created_at ?? "") < reviewStarted),
-  );
+  const sent = await runSince(context, pull.number, Date.parse(upstream.run_started_at ?? upstream.created_at ?? ""));
   if (sent) {
     log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after head ${head}'s review`);
     return null;
@@ -1134,13 +1136,13 @@ async function sweepUnsent(context) {
 async function releaseState({ api, pull, log, settings }) {
   const head = pull.head.sha;
   const replies = roundReplies(await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId }));
-  const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+  const released = releases(newestStarted(replies));
   const skips = replies.filter(releases).length;
-  const capped = releases(newest) && skips >= SWEEP_HEAD_CAP;
+  const capped = released && skips >= SWEEP_HEAD_CAP;
   if (capped) {
     log(`skip: #${pull.number}: head ${head} was released ${skips} times, the sweep's cap`);
   }
-  return { released: releases(newest), capped };
+  return { released, capped };
 }
 
 async function sweepOne(context) {
@@ -1174,9 +1176,7 @@ async function sweepFixRequest(context) {
     log(`skip: #${number}: head ${head} reached the sweep's cap, so its fix request waits for a push`);
     return null;
   }
-  const sent = (await api.listWorkflowRuns(settings.workflow)).find(
-    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < requestSince),
-  );
+  const sent = await runSince(context, number, requestSince);
   if (sent) {
     log(`skip: #${number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after its newest fix request`);
     return null;
@@ -1280,7 +1280,7 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   const failedSince = now - FAILED_RUN_WINDOW_HOURS * 3_600_000;
   let runs;
   try {
-    runs = await api.listRecentRuns(DISPATCH_WORKFLOW, new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z"));
+    runs = await api.listRecentRuns(DISPATCH_WORKFLOW, isoSeconds(since));
   } catch (error) {
     log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
     return null;
@@ -1386,7 +1386,8 @@ export async function recoverDeferred({ api, repository, appSenderId, log, setti
   } catch (error) {
     log(`::warning::the ${DEFERRAL_MARKER} listing failed (${error.message}); every head's deferred records are read`);
   }
-  const pulls =(await openPulls({ api, repository, appSenderId, settings, rest })).filter((pull) => pull.user?.id === appSenderId);
+  const context = { api, repository, appSenderId, log, settings, rest };
+  const pulls = (await openPulls(context)).filter((pull) => pull.user?.id === appSenderId);
   for (const pull of pulls) {
     const head = pull.head.sha;
     for (const verdict of ["fail", "pass"]) {
@@ -1404,23 +1405,16 @@ export async function recoverDeferred({ api, repository, appSenderId, log, setti
           continue;
         }
         const recorded = Date.parse(artifact.created_at ?? "");
-        const sent = (await api.listWorkflowRuns(settings.workflow)).find(
-          (row) => row.display_title === runTitle(settings.activity, pull.number) && !(Date.parse(row.created_at ?? "") < recorded),
-        );
+        const sent = await runSince(context, pull.number, recorded);
         if (sent) {
           log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} started after the deferred ${verdict} at ${head}`);
           continue;
         }
-        const upstream = await reviewRunAt({ api, head, repository, settings });
-        if (upstream === null) {
-          log(`skip: #${pull.number}: head ${head} has no completed review run`);
-          continue;
-        }
         const passOnly = verdict === "pass";
-        const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream, notesSince: passOnly ? null : recorded, passOnly });
+        const dispatched = await dispatchAtHead({ ...context, pull }, { notesSince: passOnly ? null : recorded, passOnly });
         if (dispatched !== null) {
           log(`recover: sent the ${verdict} verdict deferred at ${head} (run ${run.id})`);
-          return { ...dispatched, upstreamRunId: upstream.id };
+          return dispatched;
         }
       } catch (error) {
         log(`::warning::#${pull.number}: the deferred ${verdict} at ${head} could not be decided (${error.message}); the next tick reads it again`);
@@ -1492,18 +1486,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     return response.status === 204 ? {} : response.json();
   }
 
-  // Every page of a REST listing, at most 50.
-  async function pages(url) {
+  // Every page of a REST listing of 100 rows a page, at most `max` pages;
+  // `rowsOf` picks the rows out of a page's answer.
+  async function pages(url, max = 50, tooMany = `${url} has more than ${max} pages`, rowsOf = (body) => body) {
     const rows = [];
-    for (let page = 1; page <= 50; page += 1) {
-      const batch = await request(`${url}&page=${page}`);
+    for (let page = 1; page <= max; page += 1) {
+      const batch = rowsOf(await request(`${url}&page=${page}`));
       rows.push(...batch);
       if (batch.length < 100) {
         return rows;
       }
     }
-    throw new Error(`${url} has more than 50 pages`);
+    throw new Error(tooMany);
   }
+
+  // A workflow file's runs matching `query`, one page.
+  const workflowRuns = async (path, query) => (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
 
   async function graphql(query, variables, signal) {
     const result = await request(graphqlUrl, "POST", { query, variables }, signal);
@@ -1534,17 +1532,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return (await response.json()).permission;
     },
-    async listIssueComments(number) {
-      const comments = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const batch = await request(`${repo}/issues/${number}/comments?per_page=100&page=${page}`);
-        comments.push(...batch);
-        if (batch.length < 100) {
-          return comments;
-        }
-      }
-      throw new Error(`#${number} has more than 5000 comments`);
-    },
+    listIssueComments: async (number) => pages(`${repo}/issues/${number}/comments?per_page=100`, 50, `#${number} has more than 5000 comments`),
     listLabelEvents: (number) => listLabelEvents({ graphql, repository, number }),
     // prHold's review reads (gate-source.mjs reviewReader), on an owner PR
     // carrying the human-gated label only.
@@ -1584,55 +1572,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
     // A commit's committer date, the time it was made.
     headCommittedAt: async (sha) => (await request(`${repo}/commits/${sha}`)).commit?.committer?.date ?? "",
-    async listOpenPulls(base) {
-      const pulls = [];
-      for (let page = 1; page <= 10; page += 1) {
-        const batch = await request(`${repo}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100&page=${page}`);
-        pulls.push(...batch);
-        if (batch.length < 100) {
-          return pulls;
-        }
-      }
-      throw new Error(`more than 1000 open PRs into ${base}`);
-    },
+    listOpenPulls: async (base) => pages(`${repo}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100`, 10, `more than 1000 open PRs into ${base}`),
     // Every status on a commit, newest first across pages.
-    async listStatuses(sha) {
-      const statuses = [];
-      for (let page = 1; page <= 10; page += 1) {
-        const batch = await request(`${repo}/commits/${sha}/statuses?per_page=100&page=${page}`);
-        statuses.push(...batch);
-        if (batch.length < 100) {
-          return statuses;
-        }
-      }
-      throw new Error(`commit ${sha} has more than 1000 statuses`);
-    },
+    listStatuses: async (sha) => pages(`${repo}/commits/${sha}/statuses?per_page=100`, 10, `commit ${sha} has more than 1000 statuses`),
     // The newest completed pull_request runs of a workflow file at a head.
-    async listCompletedRuns(path, head, event = "pull_request") {
-      const query = new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" });
-      return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
-    },
+    listCompletedRuns: async (path, head, event = "pull_request") =>
+      workflowRuns(path, new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" })),
     // A workflow file's newest 100 runs created since `since`: many ticks'
     // worth, so a run the window holds is listed again by a later tick.
-    async listRecentRuns(path, since) {
-      const query = new URLSearchParams({ created: `>=${since}`, per_page: "100" });
-      return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
-    },
+    listRecentRuns: async (path, since) => workflowRuns(path, new URLSearchParams({ created: `>=${since}`, per_page: "100" })),
     // Every finished workflow_dispatch run of a workflow created since `since`,
     // newest first. The API returns at most 1,000 for a filtered listing
     // (https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow),
     // so a window past that is an error, not a shorter answer.
     async listFinishedRunsSince(workflow, since) {
       const query = new URLSearchParams({ event: "workflow_dispatch", status: "completed", created: `>=${since}`, per_page: "100" });
-      const runs = [];
-      for (let page = 1; page <= 10; page += 1) {
-        const batch = (await request(`${repo}/actions/workflows/${workflow}/runs?${query}&page=${page}`)).workflow_runs ?? [];
-        runs.push(...batch);
-        if (batch.length < 100) {
-          return runs;
-        }
-      }
-      throw new Error(`${workflow} has more than 1000 finished runs since ${since}`);
+      return pages(`${repo}/actions/workflows/${workflow}/runs?${query}`, 10, `${workflow} has more than 1000 finished runs since ${since}`, (body) => body.workflow_runs ?? []);
     },
     // The repository's artifacts with exactly this name
     // (https://docs.github.com/en/rest/actions/artifacts#list-artifacts-for-a-repository),

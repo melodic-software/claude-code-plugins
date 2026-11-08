@@ -327,7 +327,7 @@ const MARKER = "<!-- recurring-schedule id=weekly-x -->";
 const filed = (body, author = ACTIONS_BOT) => ({ ...ISSUE, author, body });
 // The text file-due.mjs files for ROW, written out by hand.
 const ROW_SPEC = [
-  "# chore(ops): run the weekly X audit",
+  "# Run the weekly X audit",
   "",
   "## Context",
   "",

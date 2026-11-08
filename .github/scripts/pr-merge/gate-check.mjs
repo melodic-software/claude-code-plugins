@@ -84,21 +84,17 @@ export function render(row) {
   if (row.merged || row.enqueued) {
     conclusion = "success";
     title = row.merged ? "merged" : "in the merge queue at this head";
-  } else if (row.ready) {
-    title =
-      row.reportOnly === true
-        ? "ready; report-only, so not enqueued"
-        : flat(row.reason ?? blockers[0] ?? "", TITLE_CHARS) || "ready, not enqueued this run";
+  } else if (row.ready && row.reportOnly === true) {
+    title = "ready; report-only, so not enqueued";
   } else {
-    title = flat(row.reason ?? blockers[0] ?? "not ready", TITLE_CHARS) || "not ready";
+    title = flat(row.reason ?? blockers[0] ?? "", TITLE_CHARS) || (row.ready ? "ready, not enqueued this run" : "not ready");
   }
   const listed = blockers.slice(0, BLOCKERS).map((blocker) => flat(blocker, BLOCKER_CHARS));
   const more = blockers.length > BLOCKERS ? [`(${blockers.length - BLOCKERS} more)`] : [];
   const summary = [
     `pr-merge's gate on \`${row.head}\`: ${conclusion === "success" ? "" : "not merging: "}\`${title}\``,
     "",
-    listed.length === 0 ? "No blockers." : "Blockers when the gate set this title:",
-    ...(listed.length === 0 ? [] : ["", "```text", ...listed, ...more, "```"]),
+    ...(listed.length === 0 ? ["No blockers."] : ["Blockers when the gate set this title:", "", "```text", ...listed, ...more, "```"]),
     "",
     "Informational: never required, and not part of `ci-status`.",
   ].join("\n");

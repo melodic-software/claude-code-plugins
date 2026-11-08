@@ -183,6 +183,24 @@
       "default": "dossier/",
       "description": "The prefix of an owning work item's dossier branch, <prefix><key>-<slug>, where <key> is the bound tracker adapter's branch_ref for the item. The branch holds the item's docs, exploration notes and draft plan. One dossier per owning item: a parent or spec container gets its own, and a child item adds its own only when it needs one. Unset means dossier/."
     },
+    "worktree_branch_naming": {
+      "enum": ["verbatim", "conventional-commits"],
+      "default": "verbatim",
+      "description": "How the source-control worktree helper, the WorktreeCreate hook included, names a new worktree's branch from the worktree name. verbatim uses the name itself. conventional-commits derives <type>/<description>: only a slash marks a type, and a first segment that is a Conventional Commits type, an alias of one (feature, bugfix, hotfix, documentation, doc, tests, performance), or a worktree_branch_extra_prefixes entry is the type, matched in any case; any other name goes whole under worktree_branch_default_type. Each part is made ref-safe. An unknown value keeps the name verbatim."
+    },
+    "worktree_branch_default_type": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "default": "chore",
+      "description": "The type a conventional-commits branch takes when the worktree name names none, as in chore/agent-<id> for an isolated Agent spawn. One lowercase segment; an invalid value uses chore."
+    },
+    "worktree_branch_extra_prefixes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "description": "First segments beyond the Conventional Commits types that a conventional-commits branch keeps as its type, such as claude, codex or dependabot, written as listed. One lowercase segment each; an invalid entry is skipped."
+    },
     "pre_ready": {
       "type": "array",
       "maxItems": 5,

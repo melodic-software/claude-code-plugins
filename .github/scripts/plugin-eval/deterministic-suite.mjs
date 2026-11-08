@@ -128,20 +128,9 @@ export function stripCaseYaml(text) {
     }
     return { text, names: [], left: shape?.items.length ?? null };
   }
-  const cut = new Set();
-  shape.items.forEach(([start, end], index) => {
-    if (paid[index]) {
-      for (let line = start; line < end; line++) {
-        cut.add(line);
-      }
-    }
-  });
-  if (!paid.includes(false)) {
-    for (let line = shape.header; line < shape.items.at(-1)[1]; line++) {
-      cut.add(line);
-    }
-  }
-  const stripped = lines.filter((_, index) => !cut.has(index)).join("\n");
+  // With every item paid, the cut takes the header and the whole list.
+  const cuts = paid.includes(false) ? shape.items.filter((_, index) => paid[index]) : [[shape.header, shape.items.at(-1)[1]]];
+  const stripped = lines.filter((_, index) => !cuts.some(([start, end]) => index >= start && index < end)).join("\n");
   if (PAID.test(stripped)) {
     throw new Error("a paid line is left after the cut");
   }
@@ -240,12 +229,13 @@ export function main(argv = process.argv.slice(2)) {
     console.error("usage: deterministic-suite.mjs <plugin-dir> <out-name>");
     return 2;
   }
-  const evalDir = join(pluginDir, evalDirOf(pluginDir));
+  const name = evalDirOf(pluginDir);
+  const evalDir = join(pluginDir, name);
   if (!existsSync(evalDir) || !statSync(evalDir).isDirectory()) {
     console.error(`deterministic-suite: ${evalDir} is not a directory`);
     return 2;
   }
-  if (evalDirOf(pluginDir) === outName) {
+  if (name === outName) {
     console.error("deterministic-suite: the output would replace the eval dir");
     return 2;
   }

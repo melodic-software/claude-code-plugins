@@ -1387,4 +1387,279 @@ bash "$HELPER" --name feat/keep-inputs --fallback-root-file "$inputs/worktree-ro
   --data-root-file "$inputs/data-root" --repo-dir "$repo" >/dev/null 2>&1
 assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
+# --- Branch naming: worktree_branch_naming and its two companion keys -----------
+# conventionrepo <yaml> — a fixture repo whose tracked
+# docs/conventions/source-control.yaml holds <yaml>. Echoes the repo path.
+conventionrepo() {
+  local repo
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  mkdir -p "$repo/docs/conventions"
+  printf '%s\n' "$1" >"$repo/docs/conventions/source-control.yaml"
+  {
+    git -C "$repo" add docs/conventions/source-control.yaml
+    git -C "$repo" commit -qm "add the source-control convention"
+  } >/dev/null 2>&1
+  printf '%s' "$repo"
+}
+
+# branch_for <repo> <name> — create a worktree for <name> and echo its branch;
+# empty when creation failed. Each call takes a root of its own: it runs in a
+# command-substitution subshell, so a counter would not persist.
+branch_for() {
+  local out
+  out=$(bash "$HELPER" --name "$2" --root "$(mktemp -d "$TEST_TMPDIR/wtbranchXXXXXX")/wt" --repo-dir "$1" 2>/dev/null) || return 0
+  git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+CONVENTIONAL='worktree_branch_naming: conventional-commits'
+AGENT_PREFIXES="$CONVENTIONAL
+worktree_branch_extra_prefixes:
+  - claude
+  - codex
+  - cursor
+  - copilot
+  - dependabot"
+
+# Unset keeps today's behavior: the branch is the name.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+assert_eq "no convention file: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo 'pr_open_state: ready')
+assert_eq "a convention file without the key: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo 'worktree_branch_naming: verbatim')
+assert_eq "verbatim: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+code=0
+bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtbranch-verbatim-bad" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "verbatim: a git-invalid name is still refused (exit 2)" 2 "$code"
+
+# conventional-commits: the derivation, case by case.
+repo=$(conventionrepo "$CONVENTIONAL")
+assert_eq "a name without a slash takes the default type" "chore/agent-abc123" "$(branch_for "$repo" agent-abc123)"
+assert_eq "a dash-delimited agent word is not a type" "chore/claude-code-updates" "$(branch_for "$repo" claude-code-updates)"
+assert_eq "a known type passes through" "feat/login-form" "$(branch_for "$repo" feat/login-form)"
+assert_eq "an unknown type falls back to the default type over the whole name" "chore/wip-spike" "$(branch_for "$repo" wip/spike)"
+assert_eq "an agent prefix outside the extra list is not a type" "chore/codex-fix-thing" "$(branch_for "$repo" codex/fix-thing)"
+assert_eq "a type matches in any case; the description keeps its case" "feat/Upper-Case" "$(branch_for "$repo" FEAT/Upper-Case)"
+assert_eq "hotfix is a fix alias" "fix/urgent" "$(branch_for "$repo" hotfix/urgent)"
+assert_eq "documentation is a docs alias" "docs/guide" "$(branch_for "$repo" documentation/guide)"
+assert_eq "repeated dots in the description collapse" "feat/a.b" "$(branch_for "$repo" feat/a..b)"
+assert_eq "a trailing .lock is stripped" "feat/x" "$(branch_for "$repo" feat/x.lock)"
+out=$(bash "$HELPER" --name "feat/-" --root "$TEST_TMPDIR/wtbranch-nodesc" --repo-dir "$repo" 2>"$TEST_TMPDIR/nodesc.err")
+assert_eq "a known type with no description falls back to the default type" "chore/feat" \
+  "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "a dropped known type is named on stderr" "$(cat "$TEST_TMPDIR/nodesc.err")" "no description"
+code=0
+out=$(bash "$HELPER" --name "_" --root "$TEST_TMPDIR/wtbranch-empty" --repo-dir "$repo" 2>"$TEST_TMPDIR/empty.err") || code=$?
+assert_exit "a name that sanitizes to nothing still creates (exit 0)" 0 "$code"
+assert_eq "a name that sanitizes to nothing keeps the raw name" "_" \
+  "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "the verbatim fallback is named on stderr" "$(cat "$TEST_TMPDIR/empty.err")" "empty description"
+bash "$HELPER" --name "wip/quiet" --root "$TEST_TMPDIR/wtbranch-quiet" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/quiet.err"
+assert_not_contains "an unknown type falls back without that note" "$(cat "$TEST_TMPDIR/quiet.err")" "no description"
+assert_contains "the derived branch is named on stderr" "$(cat "$TEST_TMPDIR/quiet.err")" "chore/wip-quiet"
+
+# The directory slug still comes from the raw name; stdout stays the sole path
+# line. A second name that derives a branch already checked out is refused
+# (see "Reuse" below).
+repo=$(conventionrepo "$CONVENTIONAL")
+root="$TEST_TMPDIR/wtbranch-slug"
+out=$(bash "$HELPER" --name feature/login-form --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_eq "the directory slug comes from the raw name" "$root/acme-widget-feature-login-form" "$out"
+assert_eq "feature is a feat alias" "feat/login-form" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
+# worktree_branch_extra_prefixes passes the listed first segments through.
+repo=$(conventionrepo "$AGENT_PREFIXES")
+assert_eq "an extra prefix passes through" "codex/fix-thing" "$(branch_for "$repo" codex/fix-thing)"
+assert_eq "an extra prefix matches in any case and is written as listed" "claude/task" "$(branch_for "$repo" Claude/task)"
+assert_eq "later slashes in the description become dashes" "dependabot/nuget-Foo.Bar" \
+  "$(branch_for "$repo" dependabot/nuget/Foo.Bar)"
+assert_eq "an extra prefix list leaves the no-slash default alone" "chore/claude-code-updates" \
+  "$(branch_for "$repo" claude-code-updates)"
+
+# worktree_branch_default_type replaces chore.
+repo=$(conventionrepo "$CONVENTIONAL
+worktree_branch_default_type: build")
+assert_eq "worktree_branch_default_type replaces chore" "build/agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo "$CONVENTIONAL
+worktree_branch_default_type: 'Not/A Type'")
+bash "$HELPER" --name agent-def --root "$TEST_TMPDIR/wtbranch-badtype" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/badtype.err"
+assert_eq "an invalid default type falls back to chore" "chore/agent-def" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-badtype/acme-widget-agent-def" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "an invalid default type is named on stderr" "$(cat "$TEST_TMPDIR/badtype.err")" "worktree_branch_default_type"
+
+# A value the helper cannot use, an untracked file, or a YAML the parser
+# rejects keeps the raw name: a worktree is never refused over naming.
+repo=$(conventionrepo 'worktree_branch_naming: kebab')
+bash "$HELPER" --name agent-ghi --root "$TEST_TMPDIR/wtbranch-unknown" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/unknown.err"
+assert_exit "an unknown worktree_branch_naming value still creates (exit 0)" 0 "$?"
+assert_eq "an unknown worktree_branch_naming value keeps the raw name" "agent-ghi" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-unknown/acme-widget-agent-ghi" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "an unknown value is named on stderr" "$(cat "$TEST_TMPDIR/unknown.err")" "worktree_branch_naming"
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+mkdir -p "$repo/docs/conventions"
+printf '%s\n' "$CONVENTIONAL" >"$repo/docs/conventions/source-control.yaml"
+assert_eq "an untracked convention file is not read" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
+repo=$(conventionrepo "$CONVENTIONAL
+$CONVENTIONAL")
+bash "$HELPER" --name agent-jkl --root "$TEST_TMPDIR/wtbranch-rejected" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/rejected.err"
+assert_eq "a rejected YAML keeps the raw name" "agent-jkl" \
+  "$(git -C "$TEST_TMPDIR/wtbranch-rejected/acme-widget-agent-jkl" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+assert_contains "a rejected YAML is named on stderr" "$(cat "$TEST_TMPDIR/rejected.err")" "source-control.yaml"
+
+# --existing-branch checks out the named branch; no derivation applies.
+repo=$(conventionrepo "$CONVENTIONAL")
+git -C "$repo" branch parked-work >/dev/null 2>&1
+out=$(bash "$HELPER" --name parked-work --existing-branch --root "$TEST_TMPDIR/wtbranch-existing" --repo-dir "$repo" 2>/dev/null)
+assert_eq "--existing-branch keeps the named branch" "parked-work" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
+# --- Reuse: an existing worktree at the target, or an existing branch -----------
+# A relaunched `claude -w <name>` and two names that derive one branch both meet
+# a worktree or branch an earlier run left. The claim rules decide whether this
+# session may take it. Each case uses its own CLAUDE_CONFIG_DIR: a session with
+# a transcript there changed just now is live, one without a transcript is stale.
+lock_reason_of() { tr -d '\r\n' <"$(git -C "$1" rev-parse --absolute-git-dir)/locked" 2>/dev/null; }
+reuse_cfg="$TEST_TMPDIR/reuse-config"
+mkdir -p "$reuse_cfg/projects/p"
+
+# Same session, same name: the same path comes back and the tree is left alone.
+# The .worktreeinclude copy is not redone over the tree's own edits.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+printf '*.env\n' >"$repo/.gitignore"
+printf '*.env\n' >"$repo/.worktreeinclude"
+git -C "$repo" add .gitignore .worktreeinclude >/dev/null 2>&1
+git -C "$repo" commit -qm "ignore + include" >/dev/null 2>&1
+printf 'from-main\n' >"$repo/local.env"
+root="$TEST_TMPDIR/wtreuse-own"
+first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/again --root "$root" --session-id s-own --repo-dir "$repo" 2>/dev/null)
+printf 'edited-in-tree\n' >"$first/local.env"
+reason_before="$(lock_reason_of "$first")"
+code=0
+second=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/again --root "$root" --session-id s-own \
+  --repo-dir "$repo" 2>"$TEST_TMPDIR/reuse-own.err") || code=$?
+assert_exit "same session, same name: reuse exits 0" 0 "$code"
+assert_eq "same session, same name: the same path on stdout" "$first" "$second"
+assert_eq "reuse does not copy .worktreeinclude files over the tree's edits" "edited-in-tree" "$(cat "$first/local.env")"
+assert_eq "reuse keeps the session's lock as it was" "$reason_before" "$(lock_reason_of "$first")"
+assert_contains "reuse is named on stderr" "$(cat "$TEST_TMPDIR/reuse-own.err")" "reusing"
+
+# Another session whose transcript changed just now holds it: refuse, untouched.
+: >"$reuse_cfg/projects/p/s-live.jsonl"
+root="$TEST_TMPDIR/wtreuse-live"
+first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/held --root "$root" --session-id s-live --repo-dir "$repo" 2>/dev/null)
+code=0
+err=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/held --root "$root" --session-id s-new \
+  --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a live foreign session's worktree refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the live session's claim" "$err" "session s-live since"
+assert_contains "the live session's lock is kept" "$(lock_reason_of "$first")" "session s-live since"
+
+# A foreign session lock that worktree-claim.sh stale proves stale is handed over.
+root="$TEST_TMPDIR/wtreuse-stale"
+first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
+code=0
+second=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch --root "$root" --session-id s-next \
+  --repo-dir "$repo" 2>"$TEST_TMPDIR/reuse-stale.err") || code=$?
+assert_exit "a stale foreign session's worktree is taken over (exit 0)" 0 "$code"
+assert_eq "a stale takeover prints the same path" "$first" "$second"
+bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/null 2>&1
+assert_exit "after the takeover check-enter treats the tree as this session's" 0 "$?"
+assert_contains "the takeover keeps the creating helper in the reason" "$(lock_reason_of "$first")" "worktree-create.sh:"
+
+# A lock that names no session, a reasonless lock, or no --session-id on this
+# run proves no ownership: refuse.
+root="$TEST_TMPDIR/wtreuse-anon"
+first=$(bash "$HELPER" --name feat/anon --root "$root" --repo-dir "$repo" 2>/dev/null)
+code=0
+err=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/anon --root "$root" --session-id s-any \
+  --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a lock naming no session refuses (exit 4)" 4 "$code"
+assert_contains "the refusal says the lock names no session" "$err" "names no session"
+root="$TEST_TMPDIR/wtreuse-reasonless"
+first=$(bash "$HELPER" --name feat/bare-lock --root "$root" --session-id s-hand --repo-dir "$repo" 2>/dev/null)
+git -C "$repo" worktree unlock "$first" >/dev/null 2>&1
+git -C "$repo" worktree lock "$first" >/dev/null 2>&1
+code=0
+bash "$HELPER" --name feat/bare-lock --root "$root" --session-id s-hand --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "a lock with no reason refuses (exit 4)" 4 "$code"
+root="$TEST_TMPDIR/wtreuse-nosid"
+first=$(bash "$HELPER" --name feat/nosid-again --root "$root" --session-id s-a --repo-dir "$repo" 2>/dev/null)
+code=0
+err=$(bash "$HELPER" --name feat/nosid-again --root "$root" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "reuse without --session-id refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names --session-id as the remedy" "$err" "--session-id"
+
+# An unlocked worktree at the target (what a plain `git worktree add` or
+# medley's own hook leaves) is claimed for this session and returned.
+root="$TEST_TMPDIR/wtreuse-unlocked"
+mkdir -p "$root"
+git -C "$repo" worktree add -q -b feat/plain "$root/acme-widget-feat-plain" >/dev/null 2>&1
+code=0
+bash "$HELPER" --name feat/plain --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "an unlocked worktree without --session-id refuses (exit 4)" 4 "$code"
+code=0
+out=$(bash "$HELPER" --name feat/plain --root "$root" --session-id s-adopt --repo-dir "$repo" 2>/dev/null) || code=$?
+assert_exit "an unlocked worktree is claimed and reused (exit 0)" 0 "$code"
+assert_eq "the claimed worktree's path is printed" "$root/acme-widget-feat-plain" "$out"
+assert_contains "the claim names this session" "$(lock_reason_of "$out")" "session s-adopt since"
+
+# A worktree at the target on another branch, the main worktree, or a plain
+# directory is never returned.
+root="$TEST_TMPDIR/wtreuse-mismatch"
+mkdir -p "$root"
+git -C "$repo" worktree add -q -b other-branch "$root/acme-widget-feat-mismatch" >/dev/null 2>&1
+code=0
+err=$(bash "$HELPER" --name feat/mismatch --root "$root" --session-id s-m --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a worktree at the target on another branch refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the branch it holds" "$err" "other-branch"
+mkdir -p "$TEST_TMPDIR/wtreuse-dir/acme-widget-feat-dir"
+code=0
+err=$(bash "$HELPER" --name feat/dir --root "$TEST_TMPDIR/wtreuse-dir" --session-id s-d --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a plain directory at the target refuses (exit 4)" 4 "$code"
+assert_contains "the refusal says the path is not a worktree" "$err" "not a worktree of this repository"
+
+# medley case 5: the branch outlives its worktree. The rerun checks the branch
+# out again without -b, so its commits are kept, and claims the new tree.
+root="$TEST_TMPDIR/wtreuse-branch"
+first=$(bash "$HELPER" --name feat/reentry --root "$root" --session-id s-1 --repo-dir "$repo" 2>/dev/null)
+commitfile "$first" kept.txt
+git -C "$repo" worktree unlock "$first" >/dev/null 2>&1
+git -C "$repo" worktree remove --force "$first" >/dev/null 2>&1
+code=0
+second=$(bash "$HELPER" --name feat/reentry --root "$root" --session-id s-2 --repo-dir "$repo" 2>"$TEST_TMPDIR/reuse-branch.err") || code=$?
+assert_exit "an existing branch with no worktree is checked out again (exit 0)" 0 "$code"
+assert_eq "the re-entry lands at the same path" "$first" "$second"
+assert_eq "the re-entry is on the existing branch" "feat/reentry" "$(git -C "$second" branch --show-current 2>/dev/null)"
+assert_file_exists "the existing branch's commits are kept" "$second/kept.txt"
+assert_contains "the re-entry's lock names this session" "$(lock_reason_of "$second")" "session s-2 since"
+assert_contains "stderr says the existing branch was used" "$(cat "$TEST_TMPDIR/reuse-branch.err")" "existing branch"
+
+# A branch checked out in another worktree refuses and names that worktree:
+# two names that derive one branch, and a branch held by the main checkout.
+repo=$(conventionrepo "$CONVENTIONAL")
+root="$TEST_TMPDIR/wtreuse-derived"
+first=$(bash "$HELPER" --name feat/x --root "$root" --session-id s-x --repo-dir "$repo" 2>/dev/null)
+code=0
+err=$(bash "$HELPER" --name feature/x --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a derived branch held by another worktree refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the worktree holding the branch" "$err" "$first"
+assert_file_absent "the second name's directory is not created" "$root/acme-widget-feature-x/README.md"
+git -C "$repo" switch -q -c fix/main-held >/dev/null 2>&1
+code=0
+err=$(bash "$HELPER" --name fix/main-held --root "$root" --session-id s-x --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a branch checked out in the main worktree refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the main worktree" "$err" "$repo"
+code=0
+bash "$HELPER" --name fix/main-held --existing-branch --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "--existing-branch on a branch held elsewhere refuses (exit 4)" 4 "$code"
+
+# medley case 19: a registered worktree whose directory name extends the
+# target's is a different worktree. The shorter name is created, not reused.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtreuse-prefix"
+bash "$HELPER" --name feat-login-form --root "$root" --session-id s-p --repo-dir "$repo" >/dev/null 2>&1
+code=0
+out=$(bash "$HELPER" --name feat-login --root "$root" --session-id s-p --repo-dir "$repo" 2>/dev/null) || code=$?
+assert_exit "a prefix of a registered worktree's name is created (exit 0)" 0 "$code"
+assert_eq "the prefix name gets its own path" "$root/acme-widget-feat-login" "$out"
+assert_eq "the prefix name gets its own branch" "feat-login" "$(git -C "$out" branch --show-current 2>/dev/null)"
+
 [[ $FAILED -eq 0 ]] || exit 1

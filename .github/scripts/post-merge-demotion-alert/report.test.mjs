@@ -118,6 +118,7 @@ test("a single-merge range of a lane merge: the bot would auto-revert it, and on
     w.writes.map((x) => `${x.method} ${x.path}`),
     [`POST /repos/${REPO}/issues`, `POST /repos/${REPO}/issues/900/comments`],
   );
+  assert.equal(w.writes[0].body.type, "Task");
   assert.match(result.body, /git revert --no-edit f{40}/);
 });
 

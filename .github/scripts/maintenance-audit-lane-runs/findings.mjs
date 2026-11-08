@@ -96,7 +96,7 @@ const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: 
 // scripts that skip the sweep's issues by that line still skip it, and holds
 // the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
-export const DIGEST_TITLE = "Lane sweep: open findings";
+export const DIGEST_TITLE = "Review the open findings from the lane sweep";
 // slice and wf ride on the marker so a tracked or cut entry keeps them; a
 // marker without them is an older entry, read from its Where block.
 const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))?(?: slice=([ACD]))?(?: wf=(\S+))? -->$/;

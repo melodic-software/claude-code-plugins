@@ -255,6 +255,7 @@ test("the publish text holds every pull request and issue string publish can pos
   await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, api: f.api });
   const posted = f.writes()[0].body;
   assert.deepEqual(posted, releaseIssue("2.1.300", v.handoffs));
+  assert.equal(posted.type, "Task");
   assert.ok(text.includes(posted.title) && text.includes(posted.body));
   assert.ok(posted.body.includes("truncated proportionally"));
   assert.ok(text.includes(renderItems(v.handoffs, Number.POSITIVE_INFINITY)));
