@@ -1440,27 +1440,26 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
+  const isApp = appActor(appId);
+  const trustedActor = (actor) => humans.has(actor?.id) || isApp(actor);
   // Only the App's or a listed human's status: ready or hold lift lifts a
   // removal: the App's agent-ready starts a credentialed run.
-  const settled = admissionSettled(labels, events, (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId), fieldState);
+  const settled = admissionSettled(labels, events, (event) => trustedActor(event.actor), fieldState);
   if (settled) {
     return { verdict: "skip", reasons: [settled] };
   }
+  const taskList = rules["task-list"];
 
   const refuse = [];
   // Refusals a host or builder session takes (stop-routes.json routes the
   // run's own patch-protected-path stop to host-run the same way).
   const hostWork = new Set();
-  let hold = false;
   // The owner reason each hold is for; the strongest names the stop.
   const holdCodes = new Set();
-  const holdFor = (code) => {
-    hold = true;
-    holdCodes.add(code);
-  };
+  const holdFor = (code) => holdCodes.add(code);
   // A trusted size-split sub-issue never splits again, so Size Large neither
   // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
-  const splitChild = splitChildBody(spec, humans, rules["task-list"]) !== null;
+  const splitChild = splitChildBody(spec, humans, taskList) !== null;
   if (splitChild && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
@@ -1484,7 +1483,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
     }
   }
-  if (verdict.untrusted || untrustedHold({ labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
+  if (verdict.untrusted || untrustedHold({ labels, events, humans, isApp })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
     holdFor("security");
   }
@@ -1537,16 +1536,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // The body's checks a person runs (personChecks) leave the checks below.
   // personChecks counts a refinement only on a body a listed human wrote, so
   // that body is the first trusted text.
-  const texts = trustedSpecTexts(spec, humans, appId, rules["task-list"]);
-  const moved = personChecks(spec, humans, appId, rules["task-list"], webHosts);
+  const texts = trustedSpecTexts(spec, humans, appId, taskList);
+  const moved = personChecks(spec, humans, appId, taskList, webHosts);
   if (moved.length > 0) {
-    texts[0] = withoutItems(texts[0], rules["task-list"], moved);
+    texts[0] = withoutItems(texts[0], taskList, moved);
   }
-  const lines = texts.flatMap((text) => text.split("\n"));
-  if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
-    refuse.push(noTrustedSpec(rules["task-list"]));
+  if (!hasTrustedCriteria(spec, humans, taskList, appId)) {
+    refuse.push(noTrustedSpec(taskList));
   }
-  const criteria = unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts);
+  const criteria = unrunnableCriteria(texts.join("\n"), taskList, webHosts);
   const unrunnable = unrunnableReason(criteria);
   // An issue a listed human or the App put in the host queue parks at
   // status: confirmed. A paid eval names a billing account and can bill the
@@ -1576,8 +1574,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const body = String(spec?.body ?? issue.body ?? "");
   const unpushable = [
     ...new Set([
-      ...texts.flatMap((text) => unpushablePaths(text, rules["task-list"], pushRefusals, workflows)),
-      ...bodyUnpushablePaths(moved.length > 0 ? withoutItems(body, rules["task-list"], moved) : body, rules["task-list"], pushRefusals, workflows),
+      ...texts.flatMap((text) => unpushablePaths(text, taskList, pushRefusals, workflows)),
+      ...bodyUnpushablePaths(moved.length > 0 ? withoutItems(body, taskList, moved) : body, taskList, pushRefusals, workflows),
     ]),
   ];
   if (unpushable.length > 0) {
@@ -1588,7 +1586,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // A metered or renewing charge needs the owner's decision, whatever the
   // verdict flagged. A word an edit moved into code leaves this read, so that
   // edit needs the same decision; a history that fails to read does not.
-  const charged = workCharges({ title: issue.title, body: issue.body }, charges, isPublic, rules["task-list"]);
+  const charged = workCharges(issue, charges, isPublic, taskList);
   if (charged.length > 0) {
     refuse.push(`its title or stated work names a charge (${charged.join(", ")}), which needs an owner decision`);
     holdFor("cost");
@@ -1647,9 +1645,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (doneBy.length > 0 && !finished) {
     refuse.push(doneReason(doneBy));
   }
+  const hold = holdCodes.size > 0;
   const wait = [];
   const retriage = [];
-  const after = Math.max(judgedSince(events, (actor) => humans.has(actor?.id) || (appId !== undefined && actor?.id === appId)), Date.parse(verdict.writtenAt) || Number.NEGATIVE_INFINITY);
+  const after = Math.max(judgedSince(events, trustedActor), Date.parse(verdict.writtenAt) || Number.NEGATIVE_INFINITY);
   for (const blocker of blockers) {
     if (!blockerDone(blocker, repository, (b) => trustedCloses.has(blockerKey(b, repository)))) {
       const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
@@ -1682,8 +1681,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // refinement (refineDue) may supply them, so the issue waits at status:
   // ready, and refine.mjs asks triage again once its refinement holds them.
   // The criteria gate itself stands: only the refusal becomes a wait.
-  const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(rules["task-list"]);
-  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, rules["task-list"])) {
+  const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(taskList);
+  if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, taskList)) {
     return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
   }
   if (refuse.length > 0) {
@@ -1784,7 +1783,7 @@ export const blockerKey = (blocker, repository) =>
 // blocking.
 export async function trustedElsewhere(github, blocker, humans) {
   const repo = repoOf(blocker.repository_url);
-  if (repo === null || !/^[1-9][0-9]{0,9}$/.test(String(blocker.number))) {
+  if (repo === null || !BLOCKER_NUMBER.test(String(blocker.number))) {
     return false;
   }
   try {
@@ -1809,6 +1808,10 @@ export async function parentOf(github, base) {
 // Whether an account id (a REST number, a GraphQL databaseId, or a string
 // either way) is the lanes App's; never for an unknown id or App.
 export const isAppId = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
+
+// Whether a REST actor is the lanes App (`appId`, compared strictly); never
+// for an unknown App.
+const appActor = (appId) => (actor) => appId !== undefined && actor?.id === appId;
 
 // The lanes App's own earlier verdict comment, if any.
 export const ownVerdict = (comments, appId) =>
@@ -1949,9 +1952,7 @@ export function refineDue(spec, humans, appId, taskList) {
     return false;
   }
   const version = bodyVersion(body);
-  return !(spec.comments ?? []).some(
-    (comment) => comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER) && String(comment.body).split("\n")[1] === version,
-  );
+  return !(spec.comments ?? []).some((comment) => appRefinement(comment, appId) && String(comment.body).split("\n")[1] === version);
 }
 
 export const noTrustedSpec = (taskList) =>
@@ -1991,19 +1992,21 @@ export async function trustedSplitChild(github, repository, number, humans, appI
 // wrote; resolve-pr.mjs linkedIssues shares this rule and also requires the
 // comment to predate the pull request. Pure.
 export function refinementSpec(comments, appId) {
-  const newest = (comments ?? []).findLast(
-    (comment) =>
-      appId !== undefined &&
-      comment?.author?.__typename === "Bot" &&
-      comment.author.databaseId === appId &&
-      String(comment.body ?? "").startsWith(REFINE_MARKER),
-  );
+  const newest = (comments ?? []).findLast((comment) => appRefinement(comment, appId));
   return newest?.lastEditedAt == null ? newest : undefined;
 }
 
+// Whether a GraphQL comment is a refinement of the lanes App's (a Bot whose
+// id is `appId`): it opens with REFINE_MARKER. Pure.
+const appRefinement = (comment, appId) =>
+  appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+
+// Whether a GraphQL actor is a User among `humans`.
+const humanActor = (humans) => (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+
 // Whether a User among `humans` wrote the item, and last edited it if ever.
 const writtenBy = (humans) => {
-  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const trusted = humanActor(humans);
   return (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
 };
 
@@ -2184,7 +2187,7 @@ export function splitChildBody(spec, humans, taskList) {
   if (typeof taskList !== "string" || taskList === "" || parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
     return null;
   }
-  const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const human = humanActor(humans);
   const edited = spec.lastEditedAt != null;
   if (!human(parent.spec?.author) || (edited && !human(spec.editor))) {
     return null;
@@ -2247,7 +2250,7 @@ export function splitScope(body) {
 // The targets a Scope line names, or null when one is no scopeTarget over
 // `texts` or repeats. Pure.
 function scopeTargets(line, texts) {
-  const names = line.slice(SCOPE_PREFIX.length).split(", ");
+  const names = splitScope(line);
   return new Set(names).size === names.length && names.every((name) => scopeTarget(name, texts)) ? names : null;
 }
 
@@ -2259,8 +2262,7 @@ const tickedForms = (line, taskList) => {
     return [];
   }
   const indent = line.slice(0, line.length - line.trimStart().length);
-  const text = line.trimStart().slice(taskList.length);
-  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + text);
+  return ["[x]", "[X]"].map((box) => indent + taskList.replace("[ ]", box) + taskText(line, taskList));
 };
 
 // The split record on the second line of the lanes App's SIZE_SPLIT_MARKER
@@ -2296,9 +2298,9 @@ export function splitRecord(body) {
   return {
     items: match[1],
     parts: match[2].split(";").map((part) => numbers(part, ",")),
-    order: numbers(match[3], ",").length === 0 ? [] : match[3].split(",").map((pair) => pair.split(">").map(Number)),
+    order: match[3] === "" ? [] : match[3].split(",").map((pair) => pair.split(">").map(Number)),
     filed: numbers(match[4], ","),
-    ...(match[5] === undefined ? {} : { groups: decodeGroups(match[5]) }),
+    ...(match[5] !== undefined && { groups: decodeGroups(match[5]) }),
   };
 }
 
@@ -2446,7 +2448,7 @@ export async function finishedParent({ github, repository, issue, trusted }) {
 // that still holds (isTrustedClose), or is a split parent the lanes App
 // closed (splitParentClosed), read fresh.
 export const closedByTrusted = ({ github, repository, humans, appId }) => {
-  const isApp = (actor) => appId !== undefined && actor?.id === appId;
+  const isApp = appActor(appId);
   const trusted = async (number) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
     return (await isTrustedClose(github, repository, issue, humans, isApp)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
@@ -2502,14 +2504,12 @@ export const ADMISSION_STATUS_READS = 2;
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
+  const isApp = appActor(appId);
   // Anyone may close their own issue, so a blocking issue counts only with a
   // trusted close, read fresh from the issue; one closed as not planned or a
   // duplicate counts too, since nothing is left to wait for. `isTrusted`
   // answers for this repository's blockers only.
-  const trusted =
-    isTrusted ??
-    (async (blocker) =>
-      isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, (actor) => appId !== undefined && actor?.id === appId));
+  const trusted = isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, isApp));
   const trustedCloses = new Set();
   // A blocker here the lanes App closed report-delivered (decide's
   // `reported`); a close kind that does not read leaves it waiting as before.
@@ -2521,7 +2521,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
       if (ok) {
         trustedCloses.add(blockerKey(blocker, repository));
       } else if (local && appId !== undefined) {
-        const close = await currentAppClose(github, repository, blocker.number, (actor) => actor?.id === appId);
+        const close = await currentAppClose(github, repository, blocker.number, isApp);
         if (close?.stop === "report-delivered" && close.at) {
           reported.set(blockerKey(blocker, repository), { stop: close.stop, at: close.at, url: close.url, reason: close.reason });
         }
@@ -2530,7 +2530,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   // A throw here stops the caller before decide(), so nothing is written.
   const spec = await specOf(github, repository, number);
-  const child = appId !== undefined && issue.user?.id === appId && String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
+  const child = isApp(issue.user) && String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
   const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
   const parent = child || typed ? await parentOf(github, base) : null;
   // A size split's sub-issue counts as its parent's text (splitChildBody).
@@ -2674,34 +2674,16 @@ export function admissionsAhead(entered, number) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, listing, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const own = names(issue.labels);
-  const facts = await admissionFacts({
-    github,
-    repository,
-    number,
-    issue,
-    rules,
-    humans,
-    appId,
-    isTrusted: closedByTrusted({ github, repository, humans, appId }),
-    doneBy: mergedRefsReader({ github, repository, humans, appId, log }),
-    statusOf,
-  });
+  const isTrusted = closedByTrusted({ github, repository, humans, appId });
+  const doneBy = mergedRefsReader({ github, repository, humans, appId, log });
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted, doneBy, statusOf });
   const { comments } = facts;
-  const decision = decide({
-    ...facts,
-    verdict,
-    rules,
-    humans,
-    appId,
-    repository,
-    webHosts,
-  });
+  const decision = decide({ ...facts, verdict, rules, humans, appId, repository, webHosts });
   const reasons = decision.reasons.join("; ");
   // A state the issue already reads is not written again: a second write
   // would name the lanes App as the setter of a person's hold, or read as a
   // fresh status: ready that lifts an agent-ready removal (admissionSettled).
-  const lower = names(facts.holdLabels ?? own);
+  const lower = names(facts.holdLabels ?? issue.labels);
   // A state that is no hold is written only over no hold a person set since
   // the read (write-status.mjs keepHold); `held` ends admission there.
   const move = (state) => setStatus(number, state, { keepHold: true });
