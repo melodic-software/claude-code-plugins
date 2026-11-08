@@ -69,6 +69,13 @@ inputs:
       `token` mode only.
     required: false
     default: ""
+  pushed-commit:
+    description: >-
+      With `expected-upstream-head`, the commit this run's push job pushed
+      onto that head; sent as `pushed_commit`, the one other head the broker
+      accepts. Empty, when nothing was pushed, sends no key. `token` mode only.
+    required: false
+    default: ""
   effect:
     description: The effect resolve-config resolved for this activity. Required in `token` mode, empty in `check` mode.
     required: false
@@ -189,6 +196,7 @@ runs:
         RELEASE: ${{ inputs.release }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
+        PUSHED_COMMIT: ${{ inputs.pushed-commit }}
         EFFECT: ${{ inputs.effect }}
         CONTENTS: ${{ inputs.contents }}
         PULL_REQUESTS: ${{ inputs.pull-requests }}
@@ -256,11 +264,13 @@ runs:
             fail "the dispatcher run id is malformed"
           [[ -z ${EXPECTED_UPSTREAM_HEAD:-} || ($EXPECTED_UPSTREAM_HEAD =~ ^[0-9a-f]{40}$ && -n $DISPATCHER_RUN_ID) ]] ||
             fail "the expected upstream head must be a commit SHA and ride with a dispatcher run id"
+          [[ -z ${PUSHED_COMMIT:-} || ($PUSHED_COMMIT =~ ^[0-9a-f]{40}$ && -n ${EXPECTED_UPSTREAM_HEAD:-}) ]] ||
+            fail "the pushed commit must be a commit SHA and ride with an expected upstream head"
           ;;
         check)
           # The check job resolves no grant and gates no PR, and the broker's
           # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}$PR_NUMBER$ISSUE_NUMBER${RELEASE:-}$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-} ]] ||
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}$PR_NUMBER$ISSUE_NUMBER${RELEASE:-}$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-}${PUSHED_COMMIT:-} ]] ||
             fail "check mode takes no effect, grant, PR or issue number, release, or dispatcher run id"
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
@@ -294,12 +304,14 @@ runs:
 
         body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
           --arg issue "$ISSUE_NUMBER" --arg release "${RELEASE:-}" --arg dispatcher "$DISPATCHER_RUN_ID" --arg upstream "${EXPECTED_UPSTREAM_HEAD:-}" \
+          --arg pushed "${PUSHED_COMMIT:-}" \
           '{lane: $lane, activity: $activity}
             + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)
             + (if $issue == "" then {} else {issue_number: ($issue | tonumber)} end)
             + (if $release == "" then {} else {release: $release} end)
             + (if $dispatcher == "" then {} else {dispatcher_run_id: ($dispatcher | tonumber)} end)
-            + (if $upstream == "" then {} else {expected_upstream_head: $upstream} end)')
+            + (if $upstream == "" then {} else {expected_upstream_head: $upstream} end)
+            + (if $pushed == "" then {} else {pushed_commit: $pushed} end)')
 
         reason_of() { jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null || true; }
         detail_of() { jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line || true; }

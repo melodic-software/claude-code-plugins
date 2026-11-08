@@ -6303,16 +6303,19 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(pushedHead("fix-ci", "39000000001"), "", "another activity passes none");
 });
 
-test("pr-run-activity-write.yml: pushed-commit leaves only from the base script step and reaches only the trigger gate", () => {
+test("pr-run-activity-write.yml: pushed-commit leaves only from the base script step and reaches only the trigger gate and the broker request", () => {
   const write = workflow("pr-run-activity-write.yml");
   assert.equal(write.on.workflow_call.outputs["pushed-commit"].value, "${{ jobs.run.outputs.pushed-commit }}");
   assert.equal(write.jobs.run.outputs["pushed-commit"], "${{ steps.act-script.outputs.commit }}");
   const steps = write.jobs.run.steps;
-  const gate = steps.find((step) => step.id === "gate");
-  assert.equal(gate.with["pushed-commit"], "${{ inputs.pushed-commit }}");
-  assert.equal(gate.with["expected-upstream-head"], "${{ inputs.expected-upstream-head }}");
+  for (const id of ["gate", "lane-token"]) {
+    const step = steps.find((s) => s.id === id);
+    assert.equal(step.with["pushed-commit"], "${{ inputs.pushed-commit }}", `${id} gets the caller's pushed commit`);
+    assert.equal(step.with["expected-upstream-head"], "${{ inputs.expected-upstream-head }}", `${id} gets the gated head beside it`);
+  }
+  assert.equal(steps.find((s) => s.id === "lane-token").uses, "./.base/.github/actions/request-lane-token");
   const readers = steps.filter((step) => JSON.stringify(step).includes("inputs.pushed-commit")).map((step) => step.id);
-  assert.deepEqual(readers, ["gate"], "the broker request does not send it until the broker takes it");
+  assert.deepEqual(readers, ["gate", "lane-token"], "no other step reads the pushed commit");
 });
 
 test("pr-unblock.yml: the select job runs only base code with a read-only token and uploads the context only on proceed", () => {
