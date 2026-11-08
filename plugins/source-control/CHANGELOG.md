@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.5.4] - 2026-11-08
+
+### Fixed
+
+- The merge gate, the review evidence and the cost-decision reads accept the review lanes' status jobs as ci-workflows' pr-review-cli.yml names them (`pr-review / review-status` and `pr-review-security / review-status`) beside the earlier names, and match each by its whole caller-qualified name, so a security job is never read as the code lane's.
+
 ## [8.5.3] - 2026-11-07
 
 ### Fixed
