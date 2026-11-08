@@ -43,7 +43,7 @@ Every issue meets one rule, whether a person, an agent session or a bot workflow
 - a parent issue when the work belongs to a larger one;
 - a blocked-by edge when it waits on other work or a decision (see "The status axis" below).
 
-The title and Issue Type are set at filing, always. The filer sets the other values it knows at filing; triage sets the rest before the issue is worked, and no value is ever a placeholder. A bot that files the same record repeatedly (a monitoring signal, a post-merge alert) knows these values and sets them at filing. A running log of observations is a Discussion, not an issue.
+The title and Issue Type are set at filing, always. The filer sets the other values it knows at filing; triage sets the rest before the issue is worked, and no value is ever a placeholder. A bot that files the same kind of record repeatedly (a post-merge alert, a monitoring incident) knows these values and sets them at filing. An issue tracks work with an owner, so a bot's current status belongs in its run's job summary; it files an issue only for an incident that needs action, one per incident.
 
 ## The type axis
 
