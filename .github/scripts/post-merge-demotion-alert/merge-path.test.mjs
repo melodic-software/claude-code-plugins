@@ -63,18 +63,26 @@ test("only well-formed record paths resolve", () => {
   );
 });
 
-test("the label plan: the path label on a record-path merge, post-merge:reverted on its revert, nothing on lanes", () => {
+test("the label plan: the path label on a record-path merge, post-merge: reverted on its revert, nothing on lanes", () => {
   const prs = [
     pr(10),
-    pr(11, { labels: ["merge-path:owner-agent"] }),
-    pr(12, { labels: ["merge-path:owner-agent"] }),
+    pr(11, { labels: ["merge-path: owner-agent"] }),
+    pr(12, { labels: ["merge-path: owner-agent"] }),
     pr(13, { by: lanesBot }),
     pr(14, { body: "Closes #1" }),
   ];
   assert.deepEqual(labelPlan(prs, { identity: IDENTITY, paths: PATHS, reverted: new Set([12, 13]) }), [
-    { number: 10, labels: ["merge-path:owner-agent"] },
-    { number: 12, labels: ["post-merge:reverted"] },
+    { number: 10, labels: ["merge-path: owner-agent"] },
+    { number: 12, labels: ["post-merge: reverted"] },
   ]);
+});
+
+test("the label plan and rollup read the pre-grammar names merge-path:<path> and post-merge:reverted", () => {
+  const prs = [pr(15, { labels: ["merge-path:owner-agent"] }), pr(16, { labels: ["merge-path:owner-agent", "post-merge:reverted"] })];
+  assert.deepEqual(labelPlan(prs, { identity: IDENTITY, paths: PATHS, reverted: new Set([16]) }), []);
+  const at = "2026-10-18T12:00:00Z";
+  const result = rollup({ repo: REPO, since: "2026-10-17", until: "2026-10-19", merged: prs.map((p) => ({ ...p, mergedAt: at })), revertRecords: [], identity: IDENTITY });
+  assert.deepEqual(result.paths, { "owner-agent": { merges: 2, reverts: 1, escapes: 0 } });
 });
 
 // A fake gh: answers the pull-request query from `nodes`, 404s each label in
@@ -104,17 +112,17 @@ const node = (number, { login = "kyle-sexton", typename = "User", body = SESSION
   timelineItems: { nodes: [{ actor: { __typename: typename, login }, enqueuer: { __typename: typename, login } }] },
 });
 
-test("label: an owner-login agent merge gets its path label, its revert post-merge:reverted, and a lane PR nothing", () => {
+test("label: an owner-login agent merge gets its path label, its revert post-merge: reverted, and a lane PR nothing", () => {
   const { gh, writes } = fakeGh({
-    nodes: [node(20), node(21, { labels: ["merge-path:owner-agent"] }), node(22, { login: "melodic-automation-lanes", typename: "Bot" })],
-    missing: ["post-merge:reverted"],
+    nodes: [node(20), node(21, { labels: ["merge-path: owner-agent"] }), node(22, { login: "melodic-automation-lanes", typename: "Bot" })],
+    missing: ["post-merge: reverted"],
   });
   const result = label({ repo: REPO, merged: [20], reverted: [21, 22], config: CONFIG, gh, log: () => {} });
   assert.equal(result.failed, 0);
   assert.deepEqual(writes, [
-    [`repos/${REPO}/issues/20/labels`, "-f", "labels[]=merge-path:owner-agent"],
-    [`repos/${REPO}/labels`, "-f", "name=post-merge:reverted", "-f", "color=c5def5", "-f", "description=Post-merge accounting record (README.md, Merge paths)"],
-    [`repos/${REPO}/issues/21/labels`, "-f", "labels[]=post-merge:reverted"],
+    [`repos/${REPO}/issues/20/labels`, "-f", "labels[]=merge-path: owner-agent"],
+    [`repos/${REPO}/labels`, "-f", "name=post-merge: reverted", "-f", "color=c5def5", "-f", "description=Post-merge accounting record (README.md, Merge paths)"],
+    [`repos/${REPO}/issues/21/labels`, "-f", "labels[]=post-merge: reverted"],
   ]);
   assert.ok(!writes.some((w) => w[0].includes("/issues/22")), "the lane PR is not labeled");
   assert.ok(!writes.some((w) => w[0] === `repos/${REPO}/issues` || w[0].endsWith("/comments")), "no issue and no comment");
@@ -123,7 +131,7 @@ test("label: an owner-login agent merge gets its path label, its revert post-mer
 test("label: a revert of an unlabeled owner-agent PR adds both labels in one write", () => {
   const { gh, writes } = fakeGh({ nodes: [node(30)] });
   label({ repo: REPO, merged: [], reverted: [30], config: CONFIG, gh, log: () => {} });
-  assert.deepEqual(writes, [[`repos/${REPO}/issues/30/labels`, "-f", "labels[]=merge-path:owner-agent", "-f", "labels[]=post-merge:reverted"]]);
+  assert.deepEqual(writes, [[`repos/${REPO}/issues/30/labels`, "-f", "labels[]=merge-path: owner-agent", "-f", "labels[]=post-merge: reverted"]]);
 });
 
 test("label: a failed label write is counted, the rest still go", () => {
@@ -131,7 +139,7 @@ test("label: a failed label write is counted, the rest still go", () => {
   const lines = [];
   const result = label({ repo: REPO, merged: [40, 41], reverted: [], config: CONFIG, gh, log: (l) => lines.push(l) });
   assert.equal(result.failed, 1);
-  assert.ok(lines.includes("::error::could not label #40 merge-path:owner-agent: gh: Resource not accessible by integration (HTTP 403)"), "the error names gh's stderr reason, as execFileSync reports it");
+  assert.ok(lines.includes("::error::could not label #40 merge-path: owner-agent: gh: Resource not accessible by integration (HTTP 403)"), "the error names gh's stderr reason, as execFileSync reports it");
   assert.equal(writes.at(-1)[0], `repos/${REPO}/issues/41/labels`);
 });
 
@@ -145,12 +153,12 @@ test("label: with no record path configured nothing is read or written", () => {
 test("rollup: merges, reverts and escapes per path for merges in the window", () => {
   const at = (d) => `2026-10-${d}T12:00:00Z`;
   const merged = [
-    pr(100, { labels: ["merge-path:owner-agent"], mergedAt: at(17) }),
-    pr(101, { labels: ["merge-path:owner-agent", "post-merge:reverted"], mergedAt: at(18) }),
+    pr(100, { labels: ["merge-path: owner-agent"], mergedAt: at(17) }),
+    pr(101, { labels: ["merge-path: owner-agent", "post-merge: reverted"], mergedAt: at(18) }),
     pr(102, { by: lanesBot, mergedAt: at(18) }),
     pr(103, { by: lanesBot, mergedAt: at(19) }),
     pr(104, { by: user("alice"), mergedAt: at(19) }),
-    pr(105, { labels: ["merge-path:owner-agent"], mergedAt: at(25) }),
+    pr(105, { labels: ["merge-path: owner-agent"], mergedAt: at(25) }),
     pr(106, { title: "fix(ci): repair the gate", body: "Refs: #100, https://github.com/o/r/pull/103", by: user("alice"), mergedAt: at(26) }),
     pr(107, { title: "docs: mention #104", body: "Refs: #104", by: user("alice"), mergedAt: at(26) }),
     pr(108, { title: "fix: earlier", body: "Refs: #105", by: user("alice"), mergedAt: at(16) }),

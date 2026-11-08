@@ -1287,7 +1287,7 @@ red-main:
 # on #7531, 2026-11-05). A merge whose merge-queue actor or enqueuer is one of
 # a path's enqueuers, and whose pull request an agent session wrote, takes
 # that path: post-merge-demotion-alert.yml's canary pass labels it
-# `merge-path:<path>`, and a revert of it `post-merge:reverted`. record: the
+# `merge-path: <path>`, and a revert of it `post-merge: reverted`. record: the
 # labels only, never a demotion, a breaker trip or a hold (README.md, "Merge
 # paths").
 post-merge:

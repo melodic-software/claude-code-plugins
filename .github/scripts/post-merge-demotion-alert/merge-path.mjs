@@ -7,8 +7,8 @@
 // alert's `classify` applies. It is on a configured path (`post-merge.paths`
 // in pr-pipeline.yaml) when one of that path's enqueuers is, and an agent
 // session wrote the pull request (isAgentAuthored). A record-mode path's
-// merges get `merge-path:<path>`, and its reverted pull requests
-// `post-merge:reverted` too; nothing here demotes, trips the revert breaker or
+// merges get `merge-path: <path>`, and its reverted pull requests
+// `post-merge: reverted` too; nothing here demotes, trips the revert breaker or
 // holds a pull request, and the lanes path gets no label.
 //
 //   merge-path.mjs label --merged "<n>..." --reverted "<n>..."
@@ -23,8 +23,16 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const PATH_LABEL_PREFIX = "merge-path:";
-export const REVERTED_LABEL = "post-merge:reverted";
+export const PATH_LABEL_PREFIX = "merge-path: ";
+export const REVERTED_LABEL = "post-merge: reverted";
+// Older pull requests carry the names from before the org label grammar
+// (`axis: value`): `merge-path:<path>` and `post-merge:reverted`.
+const PATH_LABEL_STEM = "merge-path:"; // both forms start with it
+const LEGACY_REVERTED_LABEL = "post-merge:reverted";
+const isReverted = (labels) => labels.includes(REVERTED_LABEL) || labels.includes(LEGACY_REVERTED_LABEL);
+// The path a label names, for either the current or the legacy prefix; null for any other label.
+export const labelPath = (label) =>
+  label.startsWith(PATH_LABEL_STEM) ? label.slice(PATH_LABEL_STEM.length).trim() || null : null;
 export const LANES = "lanes";
 const OTHER = "other";
 const LABEL_COLOR = "c5def5";
@@ -72,15 +80,16 @@ export function pathOf(pr, { identity, paths }) {
 }
 
 // The labels each pull request still needs: its record path's label, and
-// post-merge:reverted when the push reverted it. [{ number, labels }].
+// post-merge: reverted when the push reverted it. A legacy name already on the
+// pull request counts as present. [{ number, labels }].
 export function labelPlan(prs, { identity, paths, reverted }) {
   const plan = [];
   for (const pr of prs) {
     const path = pathOf(pr, { identity, paths });
     if (!path || path === LANES) continue;
-    const want = [`${PATH_LABEL_PREFIX}${path}`];
-    if (reverted.has(pr.number)) want.push(REVERTED_LABEL);
-    const labels = want.filter((l) => !pr.labels.includes(l));
+    const labels = [];
+    if (!pr.labels.some((l) => labelPath(l) === path)) labels.push(`${PATH_LABEL_PREFIX}${path}`);
+    if (reverted.has(pr.number) && !isReverted(pr.labels)) labels.push(REVERTED_LABEL);
     if (labels.length) plan.push({ number: pr.number, labels });
   }
   return plan;
@@ -223,11 +232,10 @@ export function rollup({ repo, since, until, merged, revertRecords, identity }) 
   }
   const rows = {};
   for (const pr of inWindow) {
-    const label = pr.labels.find((l) => l.startsWith(PATH_LABEL_PREFIX));
-    const path = label ? label.slice(PATH_LABEL_PREFIX.length) : pathOf(pr, { identity, paths: {} }) ?? OTHER;
+    const path = pr.labels.map(labelPath).find(Boolean) ?? pathOf(pr, { identity, paths: {} }) ?? OTHER;
     const row = (rows[path] ??= { merges: 0, reverts: 0, escapes: 0 });
     row.merges += 1;
-    if (pr.labels.includes(REVERTED_LABEL) || revertedByRecord.has(pr.number)) row.reverts += 1;
+    if (isReverted(pr.labels) || revertedByRecord.has(pr.number)) row.reverts += 1;
     if ((cited.get(pr.number) ?? []).some((fix) => Date.parse(fix.mergedAt) > Date.parse(pr.mergedAt))) row.escapes += 1;
   }
   return { repo, since, until, paths: rows };

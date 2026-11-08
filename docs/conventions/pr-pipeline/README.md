@@ -4079,14 +4079,14 @@ repository sets one, `owner-agent`, for agent sessions merging through the owner
 | `paths.<name>.enqueuers` | none | Logins (at least one) whose merge-queue actor or enqueuer puts an agent-authored merge on the path. |
 
 On every canary push run, the alert workflow's `label-paths` job (`issues: write`, after the
-alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path:<name>` and
-each reverted one also `post-merge:reverted`, creating a label that is missing. It files no issue
+alert job) reads the push's merges and the pull requests it reverts, and labels each one on a record path `merge-path: <name>` and
+each reverted one also `post-merge: reverted`, creating a label that is missing. It files no issue
 and posts no comment, and its `GITHUB_TOKEN` writes start no workflow run. A lane merge gets no
 label; a push that reverts a lane pull request still files the revert demotion record, and
 labels any record-path pull request it also reverts. A failed label write fails the job.
 
 The rollup counts, per path, the merges in a window, how many were reverted (labeled
-`post-merge:reverted` or named on a lane revert record) and how many escaped (a pull request with a
+`post-merge: reverted` (or the older `post-merge:reverted`) or named on a lane revert record) and how many escaped (a pull request with a
 `fix:` title merged later cites it as `#N` or by URL). That escape count is an upper bound, since
 a fix also cites pull requests it did not repair. A merge with no path label is `lanes` by
 its enqueuer, else `other`, so record-path merges before the labels count as `other`:
