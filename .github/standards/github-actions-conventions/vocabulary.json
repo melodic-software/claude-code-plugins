@@ -90,7 +90,6 @@
       { "name": "deploy", "status": "in-use" },
       { "name": "publish-binaries", "status": "in-use" },
       { "name": "publish-image", "status": "in-use" },
-      { "name": "publish-packages", "status": "in-use" },
       {
         "name": "publish-plugins",
         "status": "reserved",
@@ -244,7 +243,29 @@
       "fix-docs#report"
     ]
   },
+  "displayWords": {
+    "acl": "ACL",
+    "api": "API",
+    "ci": "CI",
+    "cli": "CLI",
+    "dotnet": ".NET",
+    "editorconfig": "EditorConfig",
+    "markdownlint": "markdownlint",
+    "nuget": "NuGet",
+    "oidc": "OIDC",
+    "pr": "PR",
+    "psscriptanalyzer": "PSScriptAnalyzer",
+    "wip": "WIP",
+    "yq": "yq"
+  },
   "exemptions": [
+    {
+      "path": ".github/workflows/release-deploy.yml",
+      "repository": "melodic-software/github-iac",
+      "rules": ["workflow-name"],
+      "expectedName": "release-deploy",
+      "reason": "The Pulumi issuer policy trusts this exact workflow name in the OIDC `workflow` claim, so renaming it would fail production deploys."
+    },
     {
       "path": ".github/workflows/release-deploy-oidc-negative-test.yml",
       "repository": "melodic-software/github-iac",
