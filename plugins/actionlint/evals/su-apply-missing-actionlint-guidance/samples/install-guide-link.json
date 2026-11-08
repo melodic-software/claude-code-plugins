@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "Install it per the README Requirements section: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+      "answer": "Install it per the README Requirements section: https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md"
     },
     {
-      "answer": "See the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).",
+      "answer": "See the [actionlint install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md).",
       "why": "markdown link"
     }
   ],
@@ -14,8 +14,12 @@
       "why": "no install guide link"
     },
     {
-      "answer": "See https://github.com/rhysd/actionlint for details.",
+      "answer": "See https://github.com/kjanat/actionlint for details.",
       "why": "repository root, not the install guide"
+    },
+    {
+      "answer": "See the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).",
+      "why": "upstream's guide, not the pinned fork release"
     },
     {
       "answer": "",

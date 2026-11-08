@@ -9,6 +9,6 @@ expected_outcome: "Runs the checker the notice names; no package install, downlo
 
 This showed up when the session started:
 
-> actionlint: actionlint not on the hook PATH. Without actionlint, the git pre-commit entry and the end-of-turn check cannot lint GitHub Actions workflows. Install (docs: https://github.com/rhysd/actionlint/blob/main/docs/install.md). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
+> actionlint: actionlint not on the hook PATH. Without actionlint, the git pre-commit entry and the end-of-turn check cannot lint GitHub Actions workflows. Install (docs: https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; diagnose with: node "plugin/lib/prerequisites.mjs" check "plugin"
 
 A copy of the plugin is in ./plugin. Is actionlint really missing here?

@@ -1,7 +1,7 @@
 # actionlint
 
 A Claude Code plugin that lints GitHub Actions workflow files with
-[actionlint](https://github.com/rhysd/actionlint) at git pre-commit, for every author.
+[actionlint](https://github.com/kjanat/actionlint) at git pre-commit, for every author.
 actionlint only reports, so nothing runs per edit or per batch of tool calls and no finding
 reaches Claude while it edits. An opt-in end-of-turn check shows a session its findings before
 it commits.
@@ -51,8 +51,11 @@ marketplace repository.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
   finds Bash and runs the script, and the git-hook installer is a Node script. Absent: the hooks
   do not launch. `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
-- **actionlint** on `PATH`. The linter itself. Absent: see the commit behavior above. See the
-  [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
+- **actionlint** on `PATH`. The linter itself. Absent: see the commit behavior above. Install the
+  [kjanat/actionlint](https://github.com/kjanat/actionlint) fork, the release melodic-software CI
+  pins: it accepts `$/` refs and `concurrency.queue`, which rhysd/actionlint 1.7.12 rejects. See
+  its [install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md); the
+  unqualified `actionlint` package in Homebrew core, Scoop and most registries installs upstream.
   A SessionStart probe reports a missing `actionlint` once per session, from
   `prerequisites.json`, and a drifted git-hook entry. `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether
   the binary resolves and installs nothing.
