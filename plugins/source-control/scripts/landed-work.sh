@@ -364,18 +364,59 @@ resolve_base() {
 # equals the squash commit's, and still matches after the base advances. Both
 # verified in a fixture rather than assumed.
 patch_ids() {
-  local p="$1" range="$2" out="$3" commits_out="${4:-}" patches="$WORKDIR/patches.$$" pairs="$WORKDIR/pairs.$$" rc=0
+  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" pairs="$WORKDIR/pairs.$$" rc=0
   : >"$out"
-  [[ -n "$commits_out" ]] && : >"$commits_out"
   git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || rc=1
   # An empty stream is a legitimate empty range, so only a non-empty one is fed
   # to patch-id; $out stays truncated either way.
   if ((rc == 0)) && [[ -s "$patches" ]]; then
     git patch-id --verbatim <"$patches" >"$pairs" || rc=1
     cut -d' ' -f1 "$pairs" | sort >"$out"
-    [[ -n "$commits_out" ]] && cut -d' ' -f2 "$pairs" | sort >"$commits_out"
   fi
   rm -f "$patches" "$pairs"
+  return "$rc"
+}
+
+# extend_base_window <path> <sorted-commits>: make sure every commit listed in
+# <sorted-commits> has been through `git log -p | git patch-id --verbatim` once
+# in this run. Every worktree's base range ends at the same base tip, so the
+# ranges overlap almost entirely, and hashing each range separately would
+# recompute the same commits once per worktree.
+#
+# The window is two files: base-window.pairs holds `<patch-id> <commit>` lines,
+# and base-window.seen holds every commit already rendered, sorted, including the
+# ones that produced no patch (an empty commit), so those are not rendered again
+# for each worktree either. Keyed by commit alone: a commit SHA fixes its
+# parent and tree, so it fixes the diff, and the id holds for every worktree
+# that renders diffs alike. The rendered text also follows the rendering
+# worktree's attributes and diff config (a `-diff` or textconv attribute,
+# `diff.algorithm`), so a worktree that renders differently can miss a base
+# match it would otherwise find. A missed match only falls through to the
+# two-dot check, the fail-closed direction; it never adds a match.
+#
+# Only a fully successful render is added. A failed `log` or `patch-id` adds
+# nothing, so the commits stay unseen and the caller reports the failure.
+extend_base_window() {
+  local p="$1" needed="$2" seen="$WORKDIR/base-window.seen" pairs="$WORKDIR/base-window.pairs"
+  local missing="$WORKDIR/base-window.missing" patches="$WORKDIR/base-window.patches"
+  local new="$WORKDIR/base-window.new" rc=0
+  [[ -f "$seen" ]] || : >"$seen"
+  [[ -f "$pairs" ]] || : >"$pairs"
+  : >"$new"
+  comm -23 "$needed" "$seen" >"$missing" 2>/dev/null || rc=1
+  if ((rc == 0)) && [[ -s "$missing" ]]; then
+    git -C "$p" log -p --no-merges --no-color --no-walk --stdin <"$missing" >"$patches" 2>/dev/null || rc=1
+    if ((rc == 0)) && [[ -s "$patches" ]]; then
+      git patch-id --verbatim <"$patches" >"$new" || rc=1
+    fi
+    # A commit marked seen whose pair failed to append is a short base set,
+    # which the caller's count check names; the reverse order could hash a
+    # commit twice.
+    if ((rc == 0)); then
+      { sort -m "$seen" "$missing" >"$seen.next" && mv "$seen.next" "$seen" && cat "$new" >>"$pairs"; } || rc=1
+    fi
+  fi
+  rm -f "$missing" "$patches" "$new" "$seen.next"
   return "$rc"
 }
 
@@ -442,38 +483,38 @@ classify_landed() {
     return 0
   fi
 
-  # Base side. Memoized per (merge-base, base-tip): every sibling worktree of the
-  # same repository sharing that pair reuses the set, and it is the step that
-  # dominates the run.
-  base_ids="$WORKDIR/base.$mb.$base_sha"
-  if [[ ! -f "$base_ids" ]]; then
-    local base_expected
-    base_expected=$(git -C "$p" rev-list --count --no-merges "$mb..$base_sha" 2>/dev/null) || base_expected=""
-    if [[ -z "$base_expected" ]]; then
-      L_REASON="base-range-unreadable"
-      return 0
-    fi
-    if ! patch_ids "$p" "$mb..$base_sha" "$base_ids" "$base_ids.commits"; then
-      rm -f "$base_ids" "$base_ids.commits"
-      L_REASON="base-patchid-failed"
-      return 0
-    fi
-    # Count parity, the same check the branch side makes. An under-complete base
-    # set can only make a match LESS likely, so this cannot be the difference
-    # between `yes` and `no` today — it is here so the two sides cannot silently
-    # diverge if either is ever refactored, and so a base range that failed to
-    # render is named rather than quietly narrowing the id set it is compared
-    # against. An empty commit on the base (an empty squash merge) has no patch,
-    # so it is excused only after diff-tree shows its diff really is empty.
-    local base_count
-    base_count=$(wc -l <"$base_ids" | tr -d '[:space:]')
-    if [[ "$base_count" -ne "$base_expected" ]] &&
-      ! only_empty_commits_unhashed "$p" "$mb..$base_sha" "$base_ids.commits"; then
-      rm -f "$base_ids" "$base_ids.commits"
-      L_REASON="base-patchid-incomplete-$base_count-of-$base_expected-commits"
-      return 0
-    fi
-    rm -f "$base_ids.commits"
+  # Base side, the step that dominates the run: a worktree far behind the base
+  # has thousands of commits in mb..base. Each commit is hashed once per run into
+  # the shared window (extend_base_window), and this worktree's set is the
+  # window's entries whose commit is in its own mb..base.
+  local base_commits="$WORKDIR/base.range" base_pairs="$WORKDIR/base.pairs" base_expected base_count
+  base_ids="$WORKDIR/base.ids"
+  if ! git -C "$p" rev-list --no-merges "$mb..$base_sha" >"$base_commits.raw" 2>/dev/null ||
+    ! sort "$base_commits.raw" >"$base_commits"; then
+    L_REASON="base-range-unreadable"
+    return 0
+  fi
+  base_expected=$(wc -l <"$base_commits" | tr -d '[:space:]')
+  if ! extend_base_window "$p" "$base_commits" ||
+    ! awk 'FILENAME == ARGV[1] { want[$1] = 1; next } ($2 in want)' \
+      "$base_commits" "$WORKDIR/base-window.pairs" >"$base_pairs"; then
+    L_REASON="base-patchid-failed"
+    return 0
+  fi
+  cut -d' ' -f1 "$base_pairs" | sort >"$base_ids"
+  cut -d' ' -f2 "$base_pairs" | sort >"$base_ids.commits"
+  # Count parity, the same check the branch side makes. An under-complete base
+  # set can only make a match LESS likely, so this cannot be the difference
+  # between `yes` and `no` today — it is here so the two sides cannot silently
+  # diverge if either is ever refactored, and so a base range that failed to
+  # render is named rather than quietly narrowing the id set it is compared
+  # against. An empty commit on the base (an empty squash merge) has no patch,
+  # so it is excused only after diff-tree shows its diff really is empty.
+  base_count=$(wc -l <"$base_ids" | tr -d '[:space:]')
+  if [[ "$base_count" -ne "$base_expected" ]] &&
+    ! only_empty_commits_unhashed "$p" "$mb..$base_sha" "$base_ids.commits"; then
+    L_REASON="base-patchid-incomplete-$base_count-of-$base_expected-commits"
+    return 0
   fi
 
   # Branch side. The COMPLETENESS check runs before any verdict, because both
