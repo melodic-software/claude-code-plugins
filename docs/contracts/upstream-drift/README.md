@@ -25,8 +25,8 @@ observable event that obliges re-deriving the record. The upstream text itself i
 The fleet previously practiced this in five-plus places under four names: "recheck triggers"
 ([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
 ([ecosystem-commands](../ecosystem-commands/README.md), the
-[migration playbook](../../migration-playbook.md)), "re-trigger" (the migration playbook again, on a
-plugin-acceptance review record), "re-derivation triggers"
+[migration playbook](../../migration-playbook.md)), "re-trigger" (the plugin-acceptance review
+records, [ADR 0093](../../adr/0093-record-plugin-acceptance-security-reviews.md)), "re-derivation triggers"
 ([loop-lane](../loop-lane/README.md)), with no shared definition of what a trigger must contain
 and no statement of what makes one checkable. Under the
 [convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule
@@ -578,7 +578,7 @@ on touch.
 | [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row decision, linked section, and as-of date; the re-read-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a read diverging from the row. |
 | [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, a pointer to the upstream section it rests on, and a trigger written per row rather than the generic divergence-at-read. A verdict is re-derived when its own trigger fires, not on any read that differs. |
 | [official-docs](../../official-docs.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-read as the stated trigger. |
-| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Named triggers only: the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record states "no recheck trigger" by design, decided out, so nothing fires. The dated component-decision records keep the 1.x shape and are tracked in #5684. |
+| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review records ([ADR 0093](../../adr/0093-record-plugin-acceptance-security-reviews.md)) | Named triggers only: the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record states "no recheck trigger" by design, decided out, so nothing fires. The dated component-decision records keep the 1.x shape and are tracked in #5684. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
