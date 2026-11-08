@@ -69,8 +69,9 @@ Detection semantics per kind: `file` is present when a regular file exists at `p
 `content_match`, or it matches); `dir` when a directory exists; `line` when the file exists and some
 line matches `match` (and, when `heading` is set, that line sits in the named heading's section
 body); `block` when the file exists and some line matches `match`. That line starts a block that
-also holds every following blank line or line indented deeper than it, up to the next non-blank
-line indented no deeper. Unset `heading` preserves the whole-file 1.0 line rule. A trailing carriage return is
+also holds every following blank line, line indented deeper than it, or `-` sequence item at its
+own indent (YAML lets a key's sequence sit there), up to the next other non-blank line indented no
+deeper. Unset `heading` preserves the whole-file 1.0 line rule. A trailing carriage return is
 stripped from every line before matching, so a `$`-anchored pattern matches a CRLF-authored
 consumer file.
 
@@ -320,7 +321,7 @@ the row states the manifest as it exists on `main`.
 | `docs-naming` | 2 | 2026-10-01 |
 | `guardrails` | 4 | 2026-10-16 |
 | `attribution` | 4 | 2026-09-27 |
-| `harness-ops` | 5 | 2026-09-05 |
+| `harness-ops` | 3 | 2026-09-05 |
 
 Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The convention-doc
 expression-form pilot was `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018), retired by that

@@ -11,8 +11,8 @@ own detection rule is a minor bump.
 ## [2.1] - 2026-11-08
 
 New `kind: block`: one YAML key and its value. It requires `match`; the line that matches starts a
-block that also holds every following blank line or line indented deeper than it, up to the next
-non-blank line indented no deeper. Detection is the `line` rule. The only action is `migrate`, and
+block that also holds every following blank line, line indented deeper than it, or `-` sequence
+item at its own indent, up to the next other non-blank line indented no deeper. Detection is the `line` rule. The only action is `migrate`, and
 its `--clean` rewrites the file without each block, the way `remove-line` keeps the other bytes,
 then removes the file if nothing but whitespace is left. A `kind: file` record with
 `content_match` deletes the whole file, which is wrong for a config file whose other keys are still

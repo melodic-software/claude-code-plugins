@@ -731,6 +731,11 @@ printf 'old_key_extra: kept\n' >"$TEST_TMPDIR/block-expected"
 run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
 assert_file_eq "case 24: the next column-0 key ends the block" "$TEST_TMPDIR/block-expected" "$r/conf.yaml"
 
+printf 'a: 1\nold_key:\n- x\n-\n  - y\nb: 2\n' >"$r/conf.yaml"
+printf 'a: 1\nb: 2\n' >"$TEST_TMPDIR/block-expected"
+run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
+assert_file_eq "case 24: a sequence at the key's own indent belongs to the block" "$TEST_TMPDIR/block-expected" "$r/conf.yaml"
+
 printf 'old_key:\n  budget: 5\n\n' >"$r/conf.yaml"
 run --manifest "$m" --root "$r" --clean fx-r001 --i-migrated
 assert_exit "case 24: a file holding only the block cleans" 0 "$RC"

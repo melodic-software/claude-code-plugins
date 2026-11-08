@@ -46,9 +46,9 @@
 # exists AND some line matches `match` (and, when `heading` is set, that line
 # sits in the body of a markdown section whose heading line equals `heading`);
 # block = the file exists AND some line matches `match`, that line starting a
-# block that also holds every following blank line or line indented deeper
-# than it, up to the next non-blank line indented no deeper (a YAML key and
-# its value). A section runs from the line after that heading through the line before the
+# block that also holds every following blank line, line indented deeper than
+# it, or `-` sequence item at its own indent, up to the next other non-blank
+# line indented no deeper (a YAML key and its value). A section runs from the line after that heading through the line before the
 # next ATX heading of the same or higher level, or EOF; every such section is
 # searched. A trailing carriage return is stripped from every line before
 # matching, so a `$`-anchored pattern matches a CRLF-authored file. One TSV
@@ -522,14 +522,19 @@ matching_line_nrs() {
 
 # block_line_nrs <file> <start nrs> — space-separated line numbers of every
 # block that starts at one of <start nrs>: the start line, then each following
-# line (CR stripped) that is blank or indented deeper than the start line,
-# ending before the first non-blank line indented no deeper.
+# line (CR stripped) that is blank, indented deeper than the start line, or a
+# `-` sequence item at the start line's own indent (YAML lets a key's sequence
+# sit there), ending before the first other non-blank line indented no deeper.
 block_line_nrs() {
   awk -v starts=" $2" '
     { sub(/\r$/, "") }
     index(starts, " " NR " ") > 0 { match($0, /^[ \t]*/); indent = RLENGTH; inside = 1; printf "%d ", NR; next }
     inside && $0 ~ /^[ \t]*$/ { printf "%d ", NR; next }
-    inside { match($0, /^[ \t]*/); if (RLENGTH > indent) { printf "%d ", NR; next }; inside = 0 }
+    inside {
+      match($0, /^[ \t]*/)
+      if (RLENGTH > indent || (RLENGTH == indent && substr($0, indent + 1) ~ /^-([ \t]|$)/)) { printf "%d ", NR; next }
+      inside = 0
+    }
   ' "$1"
 }
 
