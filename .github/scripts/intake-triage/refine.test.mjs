@@ -400,6 +400,15 @@ describe("applyRefinement", () => {
     );
   });
 
+  test("an exact refinement removes the renamed hold label the issue carries, not the label the field implies", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "needs-owner-decision" }] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields: onField(APP, "needs-owner-decision") });
+    assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`).slice(0, 2),
+      ["STATUS #7", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision"],
+    );
+  });
+
   test("a person's needs-human set after the read stops the lift at the field write: nothing written, no re-triage", async () => {
     const fields = onField(APP, "needs-owner-decision");
     const fake = fakeGitHub({ issue: issueOf({ labels: [] }), comments: [laneComment()], events: [], spec: CONFIRMED, fields });
