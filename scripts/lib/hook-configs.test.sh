@@ -90,10 +90,10 @@ expect "inline maps (object and array element) and a pointed file are all walked
   "H|plugins/a/.claude-plugin/plugin.json|.hooks.Stop[0].hooks[0]|exec|array|node|node
 H|plugins/b/.claude-plugin/plugin.json|.hooks[1].Stop[0].hooks[0]|exec|array|sh|sh
 H|plugins/b/config/h.json|$W|exec|array|python3|python3 g.py"
-expect "sources names each JSON config and the jq path of its event map" "$(rows "$f" sources 2>&1)" \
-  "S|plugins/a/.claude-plugin/plugin.json	.hooks
-S|plugins/b/.claude-plugin/plugin.json	.hooks[1]
-S|plugins/b/config/h.json	.hooks"
+expect "sources names each JSON config and the path of its event map" "$(rows "$f" sources 2>&1)" \
+  "S|plugins/a/.claude-plugin/plugin.json	[\"hooks\"]
+S|plugins/b/.claude-plugin/plugin.json	[\"hooks\",1]
+S|plugins/b/config/h.json	[\"hooks\"]"
 rm -rf "$f"
 
 # --- a manifest pointing at the default file does not scan it twice ------------
@@ -102,7 +102,7 @@ put "$f" plugins/a/.claude-plugin/plugin.json '{"name":"a","hooks":["./hooks/hoo
 put "$f" plugins/a/hooks/hooks.json "$(event '{"type":"command","command":"node","args":[]}')"
 expect "the default file named by its manifest is one source" "$(rows "$f" 2>&1)" \
   "H|plugins/a/hooks/hooks.json|$W|exec|array|node|node"
-expect "and one entry in sources" "$(rows "$f" sources 2>&1)" "S|plugins/a/hooks/hooks.json	.hooks"
+expect "and one entry in sources" "$(rows "$f" sources 2>&1)" "S|plugins/a/hooks/hooks.json	[\"hooks\"]"
 rm -rf "$f"
 
 # --- a pointed path outside the plugin is refused, visibly ---------------------
@@ -123,8 +123,8 @@ expect "an unparsable hooks.json and manifest are reported, the rest still walke
 H|plugins/b/hooks/hooks.json|$W|exec|array|node|node
 X|manifest|plugins/c/.claude-plugin/plugin.json||not parseable as JSON"
 expect "sources skips an unparsable manifest" "$(rows "$f" sources 2>&1)" \
-  "S|plugins/a/hooks/hooks.json	.hooks
-S|plugins/b/hooks/hooks.json	.hooks"
+  "S|plugins/a/hooks/hooks.json	[\"hooks\"]
+S|plugins/b/hooks/hooks.json	[\"hooks\"]"
 rm -rf "$f"
 
 # --- frontmatter: exec with a sequence, exec without one, shell, unreadable ----

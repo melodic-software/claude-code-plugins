@@ -42,10 +42,11 @@
 #
 #   hook_configs::sources <gate>
 #
-# Fills HOOK_CONFIG_SOURCES with one `<file><TAB><event-map jq path>` entry per
-# JSON hook config: `.hooks` for a hooks.json or pointed file, `.hooks` or
-# `.hooks[N]` for an inline map in a manifest. For gates that walk events
-# rather than every hook object. An unreadable manifest is skipped here.
+# Fills HOOK_CONFIG_SOURCES with one `<file><TAB><event-map path>` entry per
+# JSON hook config, the path a JSON array for jq's getpath: `["hooks"]` for a
+# hooks.json or pointed file, `["hooks"]` or `["hooks",N]` for an inline map in
+# a manifest. For gates that walk events rather than every hook object. An
+# unreadable manifest is skipped here.
 #
 #   hook_configs::allowed_exec_name <command>
 #
@@ -92,15 +93,16 @@ HOOK_CONFIGS_JQ_FILE="${HOOK_CONFIGS_JQ_DEFS}"'input_filename as $file | hook_ro
 HOOK_CONFIGS_JQ_MANIFEST="${HOOK_CONFIGS_JQ_DEFS}"'
   input_filename as $file
   | def inline($doc; $at):
-      if $mode == "rows" then hook_rows($file; $doc; $at) else ["I", $file, $at] | join("\u001f") end;
+      if $mode == "rows" then hook_rows($file; $doc; $at | render)
+      else ["I", $file, ($at | tojson)] | join("\u001f") end;
     def pointed($rel): ["P", $file, ($rel | flat)] | join("\u001f");
     .hooks as $h
-    | if ($h | type) == "object" then inline($h; ".hooks")
+    | if ($h | type) == "object" then inline($h; ["hooks"])
       elif ($h | type) == "string" then pointed($h)
       elif ($h | type) == "array" then
         $h | to_entries[]
         | if (.value | type) == "string" then pointed(.value)
-          elif (.value | type) == "object" then inline(.value; ".hooks[" + (.key | tostring) + "]")
+          elif (.value | type) == "object" then inline(.value; ["hooks", .key])
           else empty end
       else empty end
 '
@@ -323,7 +325,7 @@ hook_configs::sources() {
   for file in ${_HC_HOOK_JSONS[@]+"${_HC_HOOK_JSONS[@]}"}; do
     # shellcheck disable=SC2034  # read by hook_configs::_pointed through a nameref
     seen["$file"]=1
-    HOOK_CONFIG_SOURCES+=("$file"$'\t'".hooks")
+    HOOK_CONFIG_SOURCES+=("$file"$'\t''["hooks"]')
   done
   hook_configs::_manifest_out out sources "" ${_HC_MANIFESTS[@]+"${_HC_MANIFESTS[@]}"}
   while IFS="$HOOK_CONFIGS_SEP" read -r kind file rest; do
@@ -334,7 +336,7 @@ hook_configs::sources() {
     esac
   done <<<"$out"
   for file in ${pointed[@]+"${pointed[@]}"}; do
-    HOOK_CONFIG_SOURCES+=("$file"$'\t'".hooks")
+    HOOK_CONFIG_SOURCES+=("$file"$'\t''["hooks"]')
   done
   return 0
 }
