@@ -8,31 +8,28 @@
 //           review threads the reviewer bot or a listed review bot opened
 //           in a review on a head a review lane's marker confirms, when
 //           every comment is the bot's (a listed bot's only behind a trusted
-//           person's `@codex` request, requestSkip),
-//           a trusted person with write access asked the lane to fix it, or
-//           a trusted person answered the lane's escalation, then decides
-//           skip (no such thread), escalate (the PR changes
-//           .github/workflows/**; or the configured number of rounds already
-//           ran, no write-access fix request came after the newest one, and
-//           a person gated the PR or a kept thread is one only a person
-//           decides, needsPerson, or
-//           the fresh fixer's round past the cap already ran) or proceed,
-//           writing the thread file
-//           the skill's review-thread tool reads, with the same-plugin files
-//           a write-access fix request names (namedPaths) and the files the
-//           PR already changes (pr_paths, prPathsOf) and the shared copies
-//           of the canonicals it changes (copy_paths, copyPathsFor), and run.json, the
-//           record the reply job checks the replies against, with the
-//           reviewed heads the threads were kept on (runRecord). On a PR carrying the
-//           human-gated label it keeps only threads a trusted person with
-//           write access asked it to fix (isFixRequest), and skips
-//           awaiting-human when there are none, unless a lane escalation put
-//           the label on and no review lane holds the PR (gate-source.mjs),
-//           and on an adopted owner PR only as prHold lets fix-ci work it.
-//           On an adopted owner PR a body line starting `Hold:` skips
-//           awaiting-human. An untaken thread whose stop on this head is
-//           already in the session-builder queue (sessionQueued) skips
-//           awaiting-session instead of escalating again.
+//           person's `@codex` request, requestSkip), a trusted person with
+//           write access asked the lane to fix it, or a trusted person answered
+//           the lane's escalation, then decides skip (no such thread), escalate
+//           (the PR changes .github/workflows/**; or the configured number of
+//           rounds already ran, no write-access fix request came after the
+//           newest one, and a person gated the PR or a kept thread is one only
+//           a person decides, needsPerson, or the fresh fixer's round past the
+//           cap already ran) or proceed, writing the thread file the skill's
+//           review-thread tool reads, with the same-plugin files a write-access
+//           fix request names (namedPaths) and the files the PR already changes
+//           (pr_paths, prPathsOf) and the shared copies of the canonicals it
+//           changes (copy_paths, copyPathsFor), and run.json, the record the
+//           reply job checks the replies against, with the reviewed heads the
+//           threads were kept on (runRecord). On a PR carrying the human-gated
+//           label it keeps only threads a trusted person with write access
+//           asked it to fix (isFixRequest), and skips awaiting-human when there
+//           are none, unless a lane escalation put the label on and no review
+//           lane holds the PR (gate-source.mjs), and on an adopted owner PR
+//           only as prHold lets fix-ci work it. On an adopted owner PR a body
+//           line starting `Hold:` skips awaiting-human. An untaken thread whose
+//           stop on this head is already in the session-builder queue
+//           (sessionQueued) skips awaiting-session instead of escalating again.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -270,27 +267,20 @@ const FENCE = /^[ \t]*(```|~~~)/;
 // the pull request (fenced, indented, `>`-quoted or mid-body) never supplies
 // it, and any second rating-shaped line voids it.
 export function severityOf(body) {
-  const lines = String(body ?? "")
-    .split("\n")
-    .map((line) => line.replace(/\r$/, ""));
-  const content = [];
   let fence = null;
-  for (const line of lines) {
-    const open = FENCE.exec(line)?.[1];
-    if (fence === null && open) {
-      fence = open;
-      content.push({ line, fenced: true });
-      continue;
-    }
-    if (fence !== null) {
-      if (open === fence) {
+  const content = String(body ?? "")
+    .split("\n")
+    .map((raw) => {
+      const line = raw.replace(/\r$/, "");
+      const open = FENCE.exec(line)?.[1];
+      const fenced = fence !== null || open !== undefined;
+      if (fence === null) {
+        fence = open ?? null;
+      } else if (open === fence) {
         fence = null;
       }
-      content.push({ line, fenced: true });
-      continue;
-    }
-    content.push({ line, fenced: false });
-  }
+      return { line, fenced };
+    });
   const shaped = content.filter(({ line }) => SEVERITY_SHAPED.test(line));
   if (shaped.length !== 1 || shaped[0].fenced) {
     return null;
@@ -415,11 +405,13 @@ export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
 // lane=claude-security-review and the critical-security criterion; laneHold
 // checks the author and footer), each with when it was posted.
 const SECURITY_HOLD = /^<!-- claude-lane-hold lane=claude-security-review sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->$/;
+// A review lane's reviewed-head marker match (lane, sha), or null.
+const reviewedHeadMarker = (comment) => (comment.user?.id === MARKER_AUTHOR_ID ? REVIEWED_HEAD.exec(firstLine(comment.body)) : null);
 export function securitySignals(issueComments) {
   const reviewed = new Set();
   const holds = [];
   for (const comment of issueComments) {
-    const marker = comment.user?.id === MARKER_AUTHOR_ID ? REVIEWED_HEAD.exec(firstLine(comment.body)) : null;
+    const marker = reviewedHeadMarker(comment);
     if (marker?.[1] === "claude-security-review") {
       reviewed.add(marker[2]);
     }
@@ -444,17 +436,7 @@ export function securityState({ reviewed, holds }, review) {
 }
 
 export function reviewedHeads(issueComments) {
-  const heads = new Set();
-  for (const comment of issueComments) {
-    if (comment.user?.id !== MARKER_AUTHOR_ID) {
-      continue;
-    }
-    const match = REVIEWED_HEAD.exec(firstLine(comment.body));
-    if (match) {
-      heads.add(match[2]);
-    }
-  }
-  return heads;
+  return new Set(issueComments.map((comment) => reviewedHeadMarker(comment)?.[2]).filter(Boolean));
 }
 
 // The first line of the reply publish-feedback.mjs posts on a thread it
@@ -803,7 +785,7 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
       continue;
     }
     if (!trustedHumans.has(event.actorId) && event.actorId !== appId) {
-      return { reason: "codex-request-untrusted", requester: event.actorId, via: event.via };
+      return untrusted(event.actorId, event.via);
     }
     trusted = true;
   }
@@ -1422,9 +1404,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }
+  const requestData = async (...args) => (await request(...args)).data;
+  const repo = `${apiUrl}/repos/${owner}/${name}`;
   async function paginate(path) {
     const rows = [];
-    let url = `${apiUrl}/repos/${owner}/${name}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
+    let url = `${repo}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
     while (url) {
       const { data, link } = await request(url);
       rows.push(...data);
@@ -1439,12 +1423,12 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     }
     return data.data;
   }
-  const repo = `${apiUrl}/repos/${owner}/${name}`;
+  const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
   return {
-    getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    getPull: async (pr) => requestData(`${repo}/pulls/${pr}`),
     // A GraphQL answer whole, errors kept for the caller to judge
     // (fix-ci-context.mjs, for pr-verify's linkedIssues).
-    graphqlAnswer: async (body) => (await request(graphqlUrl, "POST", body)).data,
+    graphqlAnswer: (body) => requestData(graphqlUrl, "POST", body),
     listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
@@ -1458,8 +1442,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return (await response.json()).permission;
     },
-    closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" }, true)).data,
-    createIssue: async (fields) => (await request(`${repo}/issues`, "POST", fields)).data,
+    closePull: async (pr) => requestData(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" }, true),
+    createIssue: (fields) => requestData(`${repo}/issues`, "POST", fields),
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
     listIssueComments: (pr) => paginate(`issues/${pr}/comments`),
@@ -1484,7 +1468,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
-      return (await request(url)).data.check_runs ?? [];
+      return (await requestData(url)).check_runs ?? [];
     },
     // Every check run on a commit, re-runs and a contract-only run's skips
     // included (failingChecks prefers a real result over a skip), up to 300
@@ -1493,7 +1477,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const runs = [];
       let total = Infinity;
       for (let page = 1; page <= 3; page += 1) {
-        const { data } = await request(`${repo}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
+        const data = await requestData(`${repo}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         total = data.total_count ?? Infinity;
         if ((data.check_runs ?? []).length < 100) {
@@ -1503,8 +1487,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       // complete: the listing holds every check run, not the first 300.
       return Object.assign(runs, { complete: runs.length >= total });
     },
-    listAnnotations: async (id) => (await request(`${repo}/check-runs/${id}/annotations?per_page=50`)).data,
-    getJob: async (id) => (await request(`${repo}/actions/jobs/${id}`)).data,
+    listAnnotations: async (id) => requestData(`${repo}/check-runs/${id}/annotations?per_page=50`),
+    getJob: async (id) => requestData(`${repo}/actions/jobs/${id}`),
     // The job log redirects to a short-lived download URL; fetch follows it.
     async getJobLog(id) {
       const response = await fetch(`${repo}/actions/jobs/${id}/logs`, { headers });
@@ -1513,12 +1497,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return response.text();
     },
-    async getCommit(sha) {
-      return (await request(`${repo}/commits/${sha}`)).data;
-    },
+    getCommit: async (sha) => requestData(`${repo}/commits/${sha}`),
     // A GET of `path` under the API root, for earlier-fail-notes.mjs (actions
     // and contents read).
-    readPath: async (path) => (await request(`${apiUrl}${path}`)).data,
+    readPath: async (path) => requestData(`${apiUrl}${path}`),
     // An artifact's zip, which redirects to a short-lived download URL; fetch
     // follows it.
     async downloadArtifact(id) {
@@ -1533,7 +1515,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // as of 2026-10-21; recheck when that section changes its size limits);
     // null when the path is absent.
     async getText(path, ref) {
-      const url = `${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const url = `${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`;
       const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
       if (response.status === 404) {
         return null;
@@ -1576,20 +1558,12 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     // From git/ref, which GET /pulls can lag behind after a push.
     async readBranch(ref) {
-      return (await request(`${repo}/git/ref/heads/${ref.split("/").map(encodeURIComponent).join("/")}`)).data.object.sha;
+      return (await requestData(`${repo}/git/ref/heads/${encodePath(ref)}`)).object.sha;
     },
-    async compare(base, head) {
-      return (await request(`${repo}/compare/${base}...${head}`)).data;
-    },
-    async getRun(id) {
-      return (await request(`${repo}/actions/runs/${id}`)).data;
-    },
-    async createReviewComment(pr, fields) {
-      return (await request(`${repo}/pulls/${pr}/comments`, "POST", fields)).data;
-    },
-    async replyToComment(pr, commentId, body) {
-      return (await request(`${repo}/pulls/${pr}/comments/${commentId}/replies`, "POST", { body })).data;
-    },
+    compare: async (base, head) => requestData(`${repo}/compare/${base}...${head}`),
+    getRun: async (id) => requestData(`${repo}/actions/runs/${id}`),
+    createReviewComment: async (pr, fields) => requestData(`${repo}/pulls/${pr}/comments`, "POST", fields),
+    replyToComment: async (pr, commentId, body) => requestData(`${repo}/pulls/${pr}/comments/${commentId}/replies`, "POST", { body }),
     async resolveThread(id) {
       return (await graphql(RESOLVE_MUTATION, { id })).resolveReviewThread.thread.isResolved;
     },
@@ -1623,11 +1597,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     },
     // The Git Data API: GitHub signs a commit made with no author or
     // committer as the App.
-    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" }, true)).data.sha,
-    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree }, true)).data.sha,
-    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents }, true)).data.sha,
+    createBlob: async (content) => (await requestData(`${repo}/git/blobs`, "POST", { content, encoding: "base64" }, true)).sha,
+    createTree: async (baseTree, tree) => (await requestData(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree }, true)).sha,
+    createCommit: async (message, tree, parents) => (await requestData(`${repo}/git/commits`, "POST", { message, tree, parents }, true)).sha,
     async updateRef(ref, sha, force) {
-      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force }, true);
+      await request(`${repo}/git/refs/${encodePath(ref)}`, "PATCH", { sha, force }, true);
     },
   };
 }
