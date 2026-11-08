@@ -863,7 +863,7 @@ interpolation, or what a plugin may bundle.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review. Each record is a dated section amending
-[ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), which holds every record so far.
+[ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md).
 
 ## Marketplace schema positions
 
@@ -1105,5 +1105,5 @@ playbook:
   ratification and the shared-identity limitation (2026-07-23).
 - [ADR 0092](adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md), the MCP carry verdicts for
   medley's servers (2026-07-12).
-- [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), every plugin-acceptance
-  security review record (2026-07-12 onward).
+- [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), the plugin-acceptance
+  security review records (2026-07-12 onward).
