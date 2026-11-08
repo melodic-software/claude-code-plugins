@@ -37,11 +37,11 @@ All schema and behavior claims below were verified against the official docs on 
 "Reintegration" section's marketplace-settings claims, `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json`, on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
-Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
-2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate". Recheck a section when a
-Claude Code release note changes the plugin schema, skill-listing, or marketplace-settings behavior
-it states.
+Code 2.1.207; the Organization section's skill-listing claims on 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
+Re-verify fresh before acting, per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority). Recheck a
+section when a Claude Code release note changes the plugin schema, skill-listing, or
+marketplace-settings behavior it states.
 
 ## Organization: one plugin per cohesive concern
 
@@ -123,78 +123,9 @@ that way ("current state is evidence, never justification", `melodic-software/st
 
 ## Naming
 
-Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
-
-1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
-   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
-2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
-   `name` (not the marketplace name); mirror established Claude Code patterns.
-3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
-   no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit from a sibling
-   that would otherwise share its name; names track their semantic scope.
-
-Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`:
-
-- **The namespace (plugin `name`) is a noun, kebab-case, never a bare verb.** A **gerund** for an
-  activity domain (`planning`, `debugging`, `testing`); a **plain noun** for a subject domain
-  (`source-control`, `architecture`, `work-items`). Semantic accuracy binds the whole namespace:
-  the noun must be true of *every* skill under it.
-- **Skill name follows its KIND.** An action / user-invoked skill is an **action verb**
-  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill may be a **noun-phrase**
-  (`principles`, `methodology`). The verb heuristic scopes to action skills only. A `noun:noun`
-  invocation is correct for a knowledge skill.
-- **`/name:name` doubling is a naming defect, not idiomatic.** A stutter means one of the two names
-  is failing at its job: the namespace is not naming the domain, or the skill is not naming its
-  action. Fix it by, in preference order: rename the skill to its real action verb; rename the
-  plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
-  intents (per the Organization section's split rule above). Two exemptions:
-  **root-echo**, where the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`), and
-  **wrapper-echo**, a single-skill vendor-CLI wrapper whose one router skill repeats the tool
-  name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
-  Both are honest naming, not true doubling, and are accepted.
-- **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
-  first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
-  sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
-  A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
-  runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
-  (the `Workflow` tool): the base skill's main-context half chooses the tier
-  before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
-  `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
-  why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why
-  `discipline` folded `do-your-research-deep` and `recheck-against-upstream-deep` into their base
-  skills. Only a tier no entry point of the base skill can reach earns a sibling, and none does
-  today.
-- **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
-  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary:
-  `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
-  `scrape` / `crawl` / `map` per `firecrawl-cli`. The consumer already knows the vendor's verbs.
-  While it remains a single-skill router, the wrapper-echo exemption above applies instead.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `update`). The overloaded-term
-  caution governs plugin *identity*, not a namespaced skill leaf.
-- **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
-  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope,
-  so do not formalize such a split.
-
-**Built-in collisions never force a plugin skill's name.** "Plugin skills use a
-`plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
-changes the plugin-namespace sentence). A shadow-dodge name is never
-*required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
-`batch-simplify`) stand or evolve on their own merits, not out of collision fear.
-The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
-(auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
-
-**That namespace guarantee covers invocation, and the listing now carries it too.** The picker
-labels a row with the namespaced command it resolves, so a leaf name shared across plugins is told
-apart by its prefix rather than read identically; the plugin name reaches the reader a second time
-through the description, which renders as `(<plugin-name>) <description>`. See the philosophy's
-Naming section for the full display contract. Two consequences
-for this playbook: prefix typeahead groups a family by its **leaf** name, which is what the
-base-concept-first rule above is buying; and a deliberately shared leaf name (`setup` across every
-plugin that ships one) still asks the reader to scan prefixes, so each description's first clause
-has to name its object.
+Naming policy, from plugin and namespace names through skill families and built-in collisions, is
+[plugin philosophy § Naming](plugin-philosophy.md#naming). Apply it when choosing a migrated
+plugin's name and skill directories.
 
 ## Extensibility model: what works today
 
@@ -205,7 +136,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies: the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}`; hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`, and a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Which fields substitute or reject it, where values are stored, and which settings files are read: [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope) | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
@@ -232,9 +163,9 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array, since there is no
    `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
    storage, never `settings.json`.
-   Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
-   user settings, `--settings`, or managed settings only; project and local entries are ignored since
-   Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
+   Storage and the settings files read are in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
+   Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
    `file` type is a UI hint, not a validator: a `--config` value is stored verbatim with no existence
    check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
@@ -507,7 +438,8 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 - **A new `version` in `plugin.json` is the only delivery vehicle for copied installs.** A consumer
   who installed from a Git-hosted marketplace receives a change only after the plugin's semver
   `version` increases. The version is the update cache key, so an unreleased change never delivers,
-  even when its files changed (see "Shared code across plugins" below).
+  even when its files changed (see
+  [ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)).
 - **A pull request records the release in a changelog fragment, not in the version.** For a plugin
   listed in `scripts/fragment-plugins.txt`, a pull request adds
   `.changes/<plugin>/<branch-slug>-<8 hex>.md` with `scripts/new-changelog-fragment.sh <plugin>
@@ -817,7 +749,8 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 
 For each skill/hook/agent being migrated:
 
-1. **Research fresh.** WebFetch the official docs for every component involved (see `CLAUDE.md`).
+1. **Research fresh.** Read the official docs for every component involved, by the
+   [fetch route](contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 2. **Scope one capability.** One cohesive plugin; no grab-bags. If the source is oversized, run
    "Decompose an oversized skill before packaging it" and retain its trigger-migration evidence.
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
@@ -849,8 +782,9 @@ For each skill/hook/agent being migrated:
 
 ## Migration order, PRs & parallelization
 
-**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
-conventions in this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and
+**Foundations first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
+conventions in this playbook, the shared `lib/` source of truth
+([ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)), and
 the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
 downstream builds on those seams.
 
@@ -877,7 +811,7 @@ one effort, each unit is a **swim lane**: a dedicated worktree (created under th
 identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies,
 never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
 that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
-cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
+cleanup (delete the branch, remove the worktree). A **foundations-first** unit whose contract binds
 downstream lanes lands and merges **before** the dependent lanes open, so they build on the merged
 contract rather than rediscovering it. Independent lanes run concurrently; lanes sharing a
 contract-blocking dependency wait on its merge. The shared-file conflicts above are still resolved by
@@ -889,14 +823,15 @@ A plugin runs code on the consumer's machine and can wire Claude to external sys
 here, whether new or a version bump that adds a trust surface, passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
-plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
+plugins-reference, and hooks pages 2026-07-17; re-verify per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority).
 Recheck when a Claude Code release note changes hook command substitution, `userConfig`
 interpolation, or what a plugin may bundle.
 
 1. **Code execution: hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
-   interpolated in. An exec-form hook may also use `${user_config.*}` in its arguments. A shell-form hook
-   rejects that substitution and must read `CLAUDE_PLUGIN_OPTION_*` from the hook process environment.
+   interpolated in. Which hook forms take `${user_config.*}`, and why ours use none, is in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
    Check: which binaries it spawns; whether it mutates files in place and is
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
@@ -925,11 +860,10 @@ interpolation, or what a plugin may bundle.
    capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
    explicit recorded trust decision naming the vendor, the data egress, and the token scope.
 3. **Consumer config: `userConfig`.** Any credential/token option MUST set `"sensitive": true`, which masks
-   input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
-   `~/.claude/.credentials.json`, and **not** `settings.json`.
-   Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable, so
-   never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
-   not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
+   input and keeps the value out of `settings.json`. Non-sensitive values are readable, so never put a
+   secret there; storage and read scope are in
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md#configuration-ownership-and-scope).
+   Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation: no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
@@ -1356,7 +1290,7 @@ operated by others, so surfaces 5 and 6 carry the weight here.
   A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
   been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
   Quotes there become part of the filename, so every successful fetch would have failed to open its
-  own spool. Escaped at the shell sites, raw at `Read`: one path, two renderings.
+  own spool. The path is escaped at the shell sites and raw at `Read`, so one path has two renderings.
 
   Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is

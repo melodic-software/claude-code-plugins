@@ -901,7 +901,6 @@ it overlapped other load on the host and is not a baseline). `audit-fleet.test.s
 | `scripts/selection-audit.test.sh` | 1 | |
 | `scripts/setup-env.test.sh` | 1 | |
 | `scripts/setup-pinned-node.test.sh` | 0 | |
-| `scripts/skill-rewrite-measure.test.sh` | 1 | |
 | `scripts/sync-config-cascade-semantics.test.sh` | 0 | |
 | `scripts/sync-shared-copies.test.sh` | 3 | |
 | `scripts/test-git-helpers.test.sh` | 0 | |

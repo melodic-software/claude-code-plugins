@@ -128,16 +128,14 @@ export async function main({ env = process.env, actions } = {}) {
     if (!Object.hasOwn(ranks, event)) {
       throw new Error(`event ${event} has no rank`);
     }
-    if (!REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
+    const repo = env.GITHUB_REPOSITORY ?? "";
+    if (!REPOSITORY.test(repo)) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     // The group holds at most 100 pending runs, so one page lists them all.
-    const listing = await actions(
-      "GET",
-      `/repos/${env.GITHUB_REPOSITORY}/actions/workflows/pr-merge.yml/runs?status=pending&exclude_pull_requests=true&per_page=100`,
-    );
+    const listing = await actions("GET", `/repos/${repo}/actions/workflows/pr-merge.yml/runs?status=pending&exclude_pull_requests=true&per_page=100`);
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error("the pending run listing has an unexpected shape");
     }
@@ -146,7 +144,7 @@ export async function main({ env = process.env, actions } = {}) {
     const scope = event === "workflow_dispatch" && env.DISPATCH_PR ? (NUMBER.test(env.DISPATCH_PR) ? env.DISPATCH_PR : "") : null;
     const runs = eligible(listing.workflow_runs, { runId: String(env.GITHUB_RUN_ID), event, trusted, ranks, scope });
     for (const run of runs.slice(0, MAX_JOB_READS)) {
-      const read = await actions("GET", `/repos/${env.GITHUB_REPOSITORY}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+      const read = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
       if (!Array.isArray(read?.jobs)) {
         throw new Error(`the jobs of run ${run.id} have an unexpected shape`);
       }

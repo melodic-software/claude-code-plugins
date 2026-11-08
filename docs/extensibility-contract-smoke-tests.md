@@ -5,8 +5,8 @@ These tests resolve behavior the official docs leave unspecified for the extensi
 playbook](migration-playbook.md)). Each records the commands used and the observed result, so the
 contract rests on verified behavior rather than inference.
 
-Run 2026-07-12 against Claude Code 2.1.207 on Windows. Re-verify fresh before relying on a result.
-See `CLAUDE.md` "Fresh-docs mandate". The rig was a throwaway `smoketest` plugin declaring five
+Run 2026-07-12 against Claude Code 2.1.207 on Windows. Re-verify fresh before relying on a result, per
+[a date is never authority](contracts/upstream-drift/README.md#a-date-is-never-authority). The rig was a throwaway `smoketest` plugin declaring five
 `userConfig` options: a plain `string`, a `sensitive` `string`, a `directory`, a `file`, and a
 `required` `string`. It was published through a throwaway local marketplace and installed into a
 scratch consumer repo. All rig artifacts were removed after the run.
