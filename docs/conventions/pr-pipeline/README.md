@@ -3386,7 +3386,7 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   missing or unreadable, or a findings file is unreadable. A digest closed as not planned or
   duplicate is muted.
   Each field is cut at 2,000 characters, and past 60,000 characters an entry keeps only its title
-  and fingerprint. The digest is labeled `source: lane-sweep` where that label exists, never
+  and fingerprint. The digest is never labeled
   `needs-triage`; writes run 1 s apart and stop at 50 calls.
 
 CI logs can carry text written to steer the judge, so every model-written field renders inside a
@@ -3469,7 +3469,7 @@ issue, since a person vetted the earlier text. Issues of every age are read, pag
 short page; a run that spends its call
 budget there stops before writing. An open issue with an earlier marker (`key=family:<signal>` or a
 per-key form) is retired: closed as not planned with a comment pointing at the job summary, its
-history left in place. Filed issues are labeled `source: factory-monitor` where that label exists. It
+history left in place. It
 writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after

@@ -91,7 +91,6 @@ export function readIncidentRules({ path = CONFIG, run = execFileSync } = {}) {
   }
 }
 
-const LABELS = ["source: factory-monitor"];
 const WORK_STATUS_FIELD = 48484079;
 const PRIORITY_FIELD = 49622037;
 const INCIDENT_TYPE = "Bug";
@@ -111,12 +110,12 @@ export const incidentFields = (signal) => [
 // call before it leaves the old state recorded and the write is retried on the
 // next run. A failed filing is planned again next run; a failed field write
 // only warns, and triage sets what is missing.
-export async function writePlan({ plan, call, repo, labels = [], runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
+export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = async () => {}, setFields = async () => {}, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
   for (const { family } of plan.file) {
     try {
       await wait();
-      const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl), labels });
+      const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl) });
       done.filed.push(issue.number);
       // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== INCIDENT_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${INCIDENT_TYPE}`);
@@ -231,26 +230,20 @@ async function main(env = process.env) {
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
   let done = { filed: [], updated: [], closed: [], retired: [], failed: [] };
-  const labels = [];
   if (!env.DRY_RUN) {
-    if (plan.file.length > 0) {
-      for (const name of LABELS) {
-        if (await get(`/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
-      }
-    }
     // The field write sends its own API version, which `call` cannot, so it
     // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
     const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);
-    done = await writePlan({ plan, call, repo, labels, runUrl, leaveAgentReady, setFields });
+    done = await writePlan({ plan, call, repo, runUrl, leaveAgentReady, setFields });
   }
 
   const list = (numbers) => numbers.map((n) => `#${n}`).join(", ") || "none";
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Labels: ${labels.join(", ") || "none"}. Calls: ${call.used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${list(done.filed)}. Updated: ${list(done.updated)}. Closed: ${list(done.closed)}. Rolling issues retired: ${list(done.retired)}. Calls: ${call.used()}.`,
     "",
     ...statusLines(plan),
     ...plan.logged.map((f) => `- logged, not filed: ${f.title} (${f.summary})`),
