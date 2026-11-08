@@ -165,19 +165,28 @@ export function validatePolicy(value) {
 
   const approvedReusableWorkflowContracts = new Map();
   for (const [reference, contract] of Object.entries(value.approvedReusableWorkflowContracts)) {
-    // A list of exact maps lets a permission change land expand/contract: the
-    // old and new maps both pass until every caller has moved to the new one.
-    const callerPermissionMaps = callerPermissionMapEntries(
+    // A list of exact maps lets a permission or secret change land
+    // expand/contract: the old and new maps both pass until every caller has
+    // moved to the new one.
+    const callerPermissionMaps = exactMapEntries(
       contract.allowedCallerPermissions,
       `reusable workflow contract ${reference}.allowedCallerPermissions`,
     );
+    const secretMaps = exactMapEntries(
+      contract.allowedSecrets,
+      `reusable workflow contract ${reference}.allowedSecrets`,
+    );
+    const switchovers = [
+      switchoverDeadline(contract, reference, "allowedSecrets", secretMaps),
+      switchoverDeadline(contract, reference, "allowedCallerPermissions", callerPermissionMaps),
+    ].filter((switchover) => switchover !== undefined);
     if (contract.routing === "runner-input") {
       if (!contract.allowedInputs.includes(contract.runnerInput)) {
         throw new ConfigurationError(
           `reusable workflow contract ${reference}.allowedInputs must include ${contract.runnerInput}`,
         );
       }
-      for (const { permissions, location } of callerPermissionMaps) {
+      for (const { map: permissions, location } of callerPermissionMaps) {
         if (!Object.values(permissions).includes("write")) {
           throw new ConfigurationError(`${location} must include at least one write permission`);
         }
@@ -209,7 +218,7 @@ export function validatePolicy(value) {
       // present only an exact waiver map, so every listed map must clear the
       // floor or it admits nothing at all.
       if (Object.hasOwn(contract, "minimumCallerPermissions")) {
-        for (const { permissions, location } of callerPermissionMaps) {
+        for (const { map: permissions, location } of callerPermissionMaps) {
           const shortfall = minimumPermissionShortfall(
             permissions,
             contract.minimumCallerPermissions,
@@ -232,16 +241,18 @@ export function validatePolicy(value) {
         // funding role, to that role's prefixed name: several roles can then
         // share one repository, and the role is a reviewed literal.
         const prefix = contract.role ? `${contract.role.toUpperCase().replaceAll("-", "_")}_` : "";
-        for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
-          const expected = `\${{ secrets.${name} }}`;
-          const roleNamed = prefix ? `\${{ secrets.${prefix}${name} }}` : expected;
-          if (
-            !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) ||
-            (expression !== expected && expression !== roleNamed)
-          ) {
-            throw new ConfigurationError(
-              `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly ${JSON.stringify(expected)}${prefix ? ` or ${JSON.stringify(roleNamed)}` : ""} when allowedCallerPermissions is present`,
-            );
+        for (const { map: secrets, location } of secretMaps) {
+          for (const [name, expression] of Object.entries(secrets)) {
+            const expected = `\${{ secrets.${name} }}`;
+            const roleNamed = prefix ? `\${{ secrets.${prefix}${name} }}` : expected;
+            if (
+              !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) ||
+              (expression !== expected && expression !== roleNamed)
+            ) {
+              throw new ConfigurationError(
+                `${location}.${name} must be exactly ${JSON.stringify(expected)}${prefix ? ` or ${JSON.stringify(roleNamed)}` : ""} when allowedCallerPermissions is present`,
+              );
+            }
           }
         }
       }
@@ -251,11 +262,13 @@ export function validatePolicy(value) {
       // expression (the workflow_call input name may differ from the
       // repository secret name) — a transformed or indirect expression would
       // ride the reviewed boundary onto the fleet.
-      for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
-        if (typeof expression !== "string" || !EXACT_NAMED_SECRET_EXPRESSION.test(expression)) {
-          throw new ConfigurationError(
-            `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly one whole \${{ secrets.<NAME> }} expression`,
-          );
+      for (const { map: secrets, location } of secretMaps) {
+        for (const [name, expression] of Object.entries(secrets)) {
+          if (typeof expression !== "string" || !EXACT_NAMED_SECRET_EXPRESSION.test(expression)) {
+            throw new ConfigurationError(
+              `${location}.${name} must be exactly one whole \${{ secrets.<NAME> }} expression`,
+            );
+          }
         }
       }
     }
@@ -272,12 +285,11 @@ export function validatePolicy(value) {
       ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
       ...(contract.role ? { role: contract.role } : {}),
       allowedInputs: new Set(contract.allowedInputs),
-      allowedSecrets: contract.allowedSecrets,
-      allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
+      allowedSecrets: Object.freeze(secretMaps.map(({ map }) => Object.freeze({ ...map }))),
       ...(contract.allowedCallerPermissions
         ? {
             allowedCallerPermissions: Object.freeze(
-              callerPermissionMaps.map(({ permissions }) => Object.freeze({ ...permissions })),
+              callerPermissionMaps.map(({ map }) => Object.freeze({ ...map })),
             ),
           }
         : {}),
@@ -290,6 +302,7 @@ export function validatePolicy(value) {
         : {}),
       ...(contract.fixedRunsOn ? { fixedRunsOn: new Set(contract.fixedRunsOn) } : {}),
       approvedShas: new Set(contract.approvedShas ?? []),
+      switchovers: Object.freeze(switchovers),
     });
   }
 
@@ -891,25 +904,21 @@ function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   return undefined;
 }
 
-function callerPermissionMapEntries(allowed, location) {
+function exactMapEntries(allowed, location) {
   if (allowed === undefined) {
     return [];
   }
   if (!Array.isArray(allowed)) {
-    return [{ permissions: allowed, location }];
+    return [{ map: allowed, location }];
   }
-  return allowed.map((permissions, index) => ({
-    permissions,
-    location: `${location}[${index}]`,
-  }));
+  return allowed.map((map, index) => ({ map, location: `${location}[${index}]` }));
 }
 
-// Each reviewed map is matched exactly, so the ceiling stays exact; a caller
-// passes when its permissions equal any one of them.
-function exactCallerPermissionsError(actual, allowedMaps) {
-  const location = "reusable workflow caller permissions";
-  const errors = allowedMaps.map((permissions) =>
-    exactCanonicalMap(actual, permissions, {}, new Set(Object.keys(permissions)), location),
+// Each reviewed map is matched exactly, so the boundary stays exact; a caller
+// passes when its mapping equals any one of them.
+function exactMapsError(actual, allowedMaps, location) {
+  const errors = allowedMaps.map((map) =>
+    exactCanonicalMap(actual, map, {}, new Set(Object.keys(map)), location),
   );
   if (errors.includes(undefined)) {
     return undefined;
@@ -917,7 +926,86 @@ function exactCallerPermissionsError(actual, allowedMaps) {
   if (errors.length === 1 || !isMapping(actual)) {
     return errors[0];
   }
-  return `${location} must be exactly one of ${allowedMaps.map((permissions) => JSON.stringify(permissions)).join(", ")}`;
+  return `${location} must be exactly one of ${allowedMaps.map((map) => JSON.stringify(map)).join(", ")}`;
+}
+
+// A listed map is fleet-wide, so no one repository can see that callers have
+// stopped sending the old one; the date is what forces the contract step.
+const SWITCHOVER_MAX_DAYS = 90;
+const DAY_MILLISECONDS = 86_400_000;
+
+// Days since the epoch for a real YYYY-MM-DD calendar date, else undefined.
+function utcDay(text) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
+  if (match === null) {
+    return undefined;
+  }
+  const milliseconds = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return new Date(milliseconds).toISOString().slice(0, 10) === text
+    ? milliseconds / DAY_MILLISECONDS
+    : undefined;
+}
+
+function switchoverDeadline(contract, reference, field, maps) {
+  const dateField = `${field}Until`;
+  const location = `reusable workflow contract ${reference}.${dateField}`;
+  if (maps.length < 2) {
+    if (Object.hasOwn(contract, dateField)) {
+      throw new ConfigurationError(
+        `${location} is allowed only while ${field} lists more than one map; remove it with the old map`,
+      );
+    }
+    return undefined;
+  }
+  if (!Object.hasOwn(contract, dateField)) {
+    throw new ConfigurationError(
+      `${location} is required while ${field} lists more than one map: the date the old map is removed, at most ${SWITCHOVER_MAX_DAYS} days out`,
+    );
+  }
+  const day = utcDay(contract[dateField]);
+  if (day === undefined) {
+    throw new ConfigurationError(`${location} must be a real calendar date (YYYY-MM-DD)`);
+  }
+  return Object.freeze({ field, dateField, date: contract[dateField], day });
+}
+
+// One finding per rule names every affected contract, because findings are
+// deduplicated by file, job, and rule.
+function switchoverFindings(contracts, today, policyFile) {
+  const todayDay = utcDay(today);
+  const expired = [];
+  const tooFar = [];
+  for (const [reference, contract] of contracts) {
+    for (const { field, dateField, date, day } of contract.switchovers) {
+      if (todayDay > day) {
+        expired.push(`${reference}.${field} (${dateField} ${date})`);
+      } else if (day - todayDay > SWITCHOVER_MAX_DAYS) {
+        tooFar.push(`${reference}.${dateField} ${date}`);
+      }
+    }
+  }
+  const findings = [];
+  if (expired.length > 0) {
+    findings.push(
+      finding(
+        "contract-switchover-expired",
+        policyFile,
+        undefined,
+        `today (${today} UTC) is past the switchover date while more than one map is still listed; remove the old map and its date field: ${expired.join(", ")}`,
+      ),
+    );
+  }
+  if (tooFar.length > 0) {
+    findings.push(
+      finding(
+        "contract-switchover-window",
+        policyFile,
+        undefined,
+        `a switchover date may be at most ${SWITCHOVER_MAX_DAYS} days after today (${today} UTC): ${tooFar.join(", ")}`,
+      ),
+    );
+  }
+  return findings;
 }
 
 const PERMISSION_ACCESS_RANK = { none: 0, read: 1, write: 2 };
@@ -975,13 +1063,7 @@ function reusableWorkflowStatus(job, policy, workflow) {
     };
   }
   const secrets = job.secrets === undefined ? {} : job.secrets;
-  const secretError = exactCanonicalMap(
-    secrets,
-    contract.allowedSecrets,
-    {},
-    contract.allowedSecretNames,
-    "reusable workflow secrets",
-  );
+  const secretError = exactMapsError(secrets, contract.allowedSecrets, "reusable workflow secrets");
   if (secretError) {
     return { isReusable: true, approved: false, reason: secretError };
   }
@@ -1019,9 +1101,10 @@ function reusableWorkflowStatus(job, policy, workflow) {
     };
   }
   if (contract.allowedCallerPermissions) {
-    const permissionError = exactCallerPermissionsError(
+    const permissionError = exactMapsError(
       effectivePermissions(workflow, job),
       contract.allowedCallerPermissions,
+      "reusable workflow caller permissions",
     );
     if (permissionError) {
       return { isReusable: true, approved: false, reason: permissionError };
@@ -1823,12 +1906,13 @@ function visibilityScopedReusableContractFindings(
     const denylistedInputs = [...contract.allowedInputs].filter((name) =>
       PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_INPUTS.has(name),
     );
-    const denylistedSecrets = new Set(
-      [...contract.allowedSecretNames].filter((name) =>
-        PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(name),
-      ),
-    );
-    for (const expression of Object.values(contract.allowedSecrets)) {
+    // Any listed map a caller may send counts, so a denylisted secret in the
+    // new map of an expand/contract pair is found before callers move to it.
+    const denylistedSecrets = new Set();
+    for (const [name, expression] of contract.allowedSecrets.flatMap(Object.entries)) {
+      if (PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(name)) {
+        denylistedSecrets.add(name);
+      }
       const match = EXACT_NAMED_SECRET_EXPRESSION.exec(expression);
       if (match !== null && PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS.has(match[1])) {
         denylistedSecrets.add(match[1]);
@@ -2024,7 +2108,11 @@ export async function auditRepository({
   policyPath = DEFAULT_POLICY_PATH,
   repositoryVisibility,
   githubRepository,
+  today = new Date().toISOString().slice(0, 10),
 } = {}) {
+  if (utcDay(today) === undefined) {
+    throw new ConfigurationError("today must be a real calendar date (YYYY-MM-DD)");
+  }
   const resolvedRoot = path.resolve(root);
   const resolvedConfig = path.isAbsolute(configPath)
     ? configPath
@@ -2054,12 +2142,14 @@ export async function auditRepository({
   const consumedLocalRoutingGrants = new Set();
   const consumedRequiredReusableCallInputs = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
+  const policyFile = path.relative(resolvedRoot, resolvedPolicy) || path.basename(resolvedPolicy);
   findings.push(
     ...visibilityScopedReusableContractFindings(policy.approvedReusableWorkflowContracts, {
       visibility: config.visibility,
       repositoryVisibility,
-      policyFile: path.relative(resolvedRoot, resolvedPolicy) || path.basename(resolvedPolicy),
+      policyFile,
     }),
+    ...switchoverFindings(policy.approvedReusableWorkflowContracts, today, policyFile),
   );
   const localPermissionVisits = new Set();
   const localIncomingFiles = new Set();

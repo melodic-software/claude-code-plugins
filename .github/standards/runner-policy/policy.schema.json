@@ -78,6 +78,18 @@
       "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
       "additionalProperties": { "$ref": "#/$defs/nonWhitespaceString" }
     },
+    "secretMaps": {
+      "oneOf": [
+        { "$ref": "#/$defs/stringMap" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stringMap" }
+        }
+      ]
+    },
+    "switchoverDate": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
     "uniqueStringArray": {
       "type": "array",
       "uniqueItems": true,
@@ -134,7 +146,8 @@
         "runnerInput": { "$ref": "#/$defs/inputName" },
         "role": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
-        "allowedSecrets": { "$ref": "#/$defs/stringMap" },
+        "allowedSecrets": { "$ref": "#/$defs/secretMaps" },
+        "allowedSecretsUntil": { "$ref": "#/$defs/switchoverDate" },
         "allowedCallerPermissions": {
           "oneOf": [
             { "$ref": "#/$defs/githubPermissionMap" },
@@ -146,6 +159,7 @@
             }
           ]
         },
+        "allowedCallerPermissionsUntil": { "$ref": "#/$defs/switchoverDate" },
         "minimumCallerPermissions": { "$ref": "#/$defs/githubMinimumPermissionMap" },
         "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
         "approvedShas": { "$ref": "#/$defs/approvedShas" },
@@ -159,7 +173,8 @@
       "properties": {
         "routing": { "const": "hosted-only" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
-        "allowedSecrets": { "$ref": "#/$defs/stringMap" },
+        "allowedSecrets": { "$ref": "#/$defs/secretMaps" },
+        "allowedSecretsUntil": { "$ref": "#/$defs/switchoverDate" },
         "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
         "approvedShas": { "$ref": "#/$defs/approvedShas" },
         "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
