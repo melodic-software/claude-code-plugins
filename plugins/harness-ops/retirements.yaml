@@ -37,7 +37,7 @@ status: report-only
 ---
 id: harness-ops-r004
 retired: 2026-11-08
-plugin_version: 8.10.0
+plugin_version: 8.10.1
 kind: block
 path: docs/conventions/harness-ops.yaml
 match: '^morning[_]brief:'
@@ -47,7 +47,7 @@ note: "the morning-brief Cost settings moved from harness-ops.yaml to work-items
 ---
 id: harness-ops-r005
 retired: 2026-11-08
-plugin_version: 8.10.0
+plugin_version: 8.10.1
 kind: block
 path: docs/conventions/harness-ops.local.yaml
 match: '^morning[_]brief:'
