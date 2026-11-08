@@ -65,6 +65,7 @@ cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/l
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\npkg/other\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
+printf '# fixture\npkg/sub pkg/sub/\n' >"$repo/scripts/node-subprojects.txt"
 : >"$repo/_typos.toml"
 # The workflow typos reads its exclusions from: its typos step's `exclude:` line.
 mkdir -p "$repo/.github/workflows"
