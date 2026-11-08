@@ -150,20 +150,32 @@ test("label: with no record path configured nothing is read or written", () => {
   assert.equal(calls, 0);
 });
 
-test("rollup: a merge whose path label was deleted still counts on its path through the label event", () => {
+test("rollup: a deleted path label still counts through its label event; a label taken off does not", () => {
   const node = (number, labels, events) => ({
     number,
     title: "feat: x",
     body: "",
     mergedAt: "2026-11-07T12:00:00Z",
     labels: { nodes: labels.map((name) => ({ name })) },
-    labelEvents: { nodes: events.map((name) => ({ label: { name } })) },
+    labelEvents: { nodes: events.map((e) => (typeof e === "string" ? { __typename: "LabeledEvent", label: { name: e } } : e)) },
     timelineItems: { nodes: [] },
   });
-  const merged = [node(200, [], ["merge-path:owner-agent"]), node(201, ["merge-path: owner-agent"], ["merge-path: owner-agent"]), node(202, [], [])].map(toPr);
+  const removed = [
+    "merge-path: owner-agent",
+    { __typename: "UnlabeledEvent", label: { name: "merge-path: owner-agent" } },
+    "post-merge: reverted",
+    { __typename: "UnlabeledEvent", label: { name: "post-merge: reverted" } },
+  ];
+  const merged = [
+    node(200, [], ["merge-path:owner-agent"]),
+    node(201, ["merge-path: owner-agent"], ["merge-path: owner-agent"]),
+    node(202, [], []),
+    node(203, [], removed),
+  ].map(toPr);
   const result = rollup({ repo: REPO, since: "2026-11-07", until: "2026-11-07", merged, revertRecords: [], identity: IDENTITY });
   assert.equal(result.paths["owner-agent"].merges, 2);
-  assert.equal(result.paths.other.merges, 1);
+  // #203's labels were taken off on purpose: it counts as other, and as no revert.
+  assert.deepEqual(result.paths.other, { merges: 2, reverts: 0, escapes: 0 });
 });
 
 test("rollup: merges, reverts and escapes per path for merges in the window", () => {
