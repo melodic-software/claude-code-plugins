@@ -1,4 +1,4 @@
-name: Open lane output
+name: Open Lane Output
 description: >
   Open a bundle seal-lane-output made in an earlier job of the same run, with
   the recipient's X25519 private key, into files under a directory the caller

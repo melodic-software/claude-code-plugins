@@ -1,4 +1,4 @@
-name: pr-rate-merge-risk
+name: PR Rate Merge Risk
 
 # The report-only merge-risk rating (#13657, owner decision Q57): for each
 # lanes App head that passes pr-require-checks, /review:merge-risk rates the
@@ -39,7 +39,7 @@ name: pr-rate-merge-risk
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks]
+    workflows: [PR Require Checks]
     types: [completed]
     branches-ignore: [main, 'gh-readonly-queue/**']
 

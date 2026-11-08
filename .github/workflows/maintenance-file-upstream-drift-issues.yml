@@ -1,4 +1,4 @@
-name: maintenance-file-upstream-drift-issues
+name: Maintenance File Upstream Drift Issues
 
 # Monthly drift issues for the docs/upstream pages pinned to a git commit: runs
 # scripts/check-upstream-drift.sh --report, puts the report in the job summary,

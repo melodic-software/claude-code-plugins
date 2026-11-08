@@ -2513,7 +2513,7 @@ chmod +x "$TMP_ROOT/bin-read/gh"
 
 # attempt_run [jq-update] -> attempt 1 of run 4242, a failed per-merge full run
 attempt_run() {
-  jq -n --arg sha "$SHA" --arg url "$RUN_URL" '{id: 4242, run_attempt: 1, name: "pr-require-checks",
+  jq -n --arg sha "$SHA" --arg url "$RUN_URL" '{id: 4242, run_attempt: 1, name: "PR Require Checks",
     path: ".github/workflows/pr-require-checks.yml", event: "workflow_dispatch",
     actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"},
     head_branch: "main", repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"},
@@ -2599,7 +2599,7 @@ refused "an unlisted sender cannot send a run" workflow_dispatch 4242 555 someon
 refused "a listed bot that is not github-actions[bot] cannot send a run" workflow_dispatch 4242 200 a-bot
 refused "an unlisted re-runner cannot send a run" workflow_dispatch 4242 41898282 someone
 refused "a run of another workflow is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
-  "$(attempt_run '.path = ".github/workflows/post-merge-detect-silent-revert.yml" | .name = "pr-require-checks"')"
+  "$(attempt_run '.path = ".github/workflows/post-merge-detect-silent-revert.yml" | .name = "PR Require Checks"')"
 refused "a run on another branch is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.head_branch = "feature"')"
 refused "a run of another repository's head is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \

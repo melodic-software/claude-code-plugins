@@ -1,4 +1,4 @@
-name: pr-review-approved
+name: PR Review Approved
 
 # Relays an approving review to pr-feedback-dispatch.yml's rerun-ci-status
 # job, which re-runs the head's ci-status when the reviewer is a person on the

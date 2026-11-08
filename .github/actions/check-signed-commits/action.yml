@@ -1,4 +1,4 @@
-name: Check signed commits
+name: Check Signed Commits
 description: >
   After a lane's model step, check that every commit added to the PR since
   the recorded head is GitHub-verified. On any unverified commit, add the

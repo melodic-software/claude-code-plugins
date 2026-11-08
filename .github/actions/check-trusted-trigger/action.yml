@@ -1,4 +1,4 @@
-name: Check trusted trigger
+name: Check Trusted Trigger
 description: >
   Gate a CI lane on its trigger: the PR must come from this repository, and
   the event actor, the PR author and the re-runner must be on the

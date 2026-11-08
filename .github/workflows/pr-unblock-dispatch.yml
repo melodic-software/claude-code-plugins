@@ -1,4 +1,4 @@
-name: pr-unblock-dispatch
+name: PR Unblock Dispatch
 
 # GitHub runs no pull_request workflow on a PR with a merge conflict, so the
 # pr-unblock lane is started from here instead: each push to main lists the

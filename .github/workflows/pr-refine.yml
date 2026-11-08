@@ -1,4 +1,4 @@
-name: pr-refine
+name: PR Refine
 
 # Lane caller for pr-refine: its file stem is the lane, so the lanes token
 # broker accepts its write activities. No App key; each run job's OIDC token is

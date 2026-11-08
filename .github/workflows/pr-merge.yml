@@ -1,4 +1,4 @@
-name: pr-merge
+name: PR Merge
 # A PR-scoped dispatch's marker (rotation.mjs WAKE_TITLE); every other run
 # keeps GitHub's own name, which a whitespace-only run-name leaves.
 run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"

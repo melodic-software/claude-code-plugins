@@ -1,4 +1,4 @@
-name: Scan an upload for credentials
+name: Scan Upload
 description: >
   Run lib/publish-gate.mjs scanLeak over every file an actions/upload-artifact
   step is about to send, with the same `path` input. A credential, a hidden

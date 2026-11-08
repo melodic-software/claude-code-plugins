@@ -1,4 +1,4 @@
-name: pr-review-main
+name: PR Review Main
 
 # Both AI review lanes, again, from the default branch, for a pull request
 # that changes a lane source (babysit_review_evidence.lane_source): a
@@ -71,7 +71,7 @@ name: pr-review-main
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks]
+    workflows: [PR Require Checks]
     types: [completed]
     # Only a pull_request run is reviewed, so a merge-queue or main run would
     # only start a run that skips.

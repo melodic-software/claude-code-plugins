@@ -1,4 +1,4 @@
-name: pr-verify
+name: PR Verify
 
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks, or fails it only on holds an approving review
@@ -85,7 +85,7 @@ name: pr-verify
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks]
+    workflows: [PR Require Checks]
     types: [completed]
     # Branches of the checks run. Only a pull_request run is judged, so a
     # merge-queue or main run would only start a run that skips.

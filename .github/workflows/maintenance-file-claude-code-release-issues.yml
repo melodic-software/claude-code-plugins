@@ -1,4 +1,4 @@
-name: maintenance-file-claude-code-release-issues
+name: Maintenance File Claude Code Release Issues
 
 # Daily: files one issue per Claude Code release newer than the read marker in
 # docs/upstream/claude-code.md, so a release is noticed without someone first

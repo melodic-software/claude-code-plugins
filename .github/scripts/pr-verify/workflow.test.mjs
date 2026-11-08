@@ -491,7 +491,7 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
 // reaches the gate.
 test("a same-repository pull_request run on a feature branch passes the trigger and the key job's gate", () => {
   const on = /^on:\n([\s\S]*?)\n(?=\S)/m.exec(text)?.[1] ?? "";
-  assert.match(on, /^ {4}workflows: \[pr-require-checks\]$/m);
+  assert.match(on, /^ {4}workflows: \[PR Require Checks\]$/m);
   assert.match(on, /^ {4}types: \[completed\]$/m);
   assert.doesNotMatch(on, /^ {4}branches:/m);
   const ignored =

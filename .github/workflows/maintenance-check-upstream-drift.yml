@@ -1,4 +1,4 @@
-name: maintenance-check-upstream-drift
+name: Maintenance Check Upstream Drift
 
 # Weekly drift check for every skill that vendors an upstream: runs each skill's
 # own update script in its read-only check mode and fails the run when one

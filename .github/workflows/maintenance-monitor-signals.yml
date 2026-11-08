@@ -1,4 +1,4 @@
-name: maintenance-monitor-signals
+name: Maintenance Monitor Signals
 
 # The monitoring lane: every hour, reads a fixed set of factory signals, writes
 # each signal's state and evidence to the job summary, and keeps at most one

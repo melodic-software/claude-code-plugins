@@ -1,4 +1,4 @@
-name: Log API budget
+name: Log API Budget
 description: >
   At the end of a job, write the hub collector's notices for each named
   token, from the rate-limit readings the job's own API responses left in

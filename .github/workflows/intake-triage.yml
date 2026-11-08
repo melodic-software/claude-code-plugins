@@ -1,4 +1,4 @@
-name: intake-triage
+name: Intake Triage
 
 # Triages each newly opened issue with the org intake-triage lane: a read-only
 # Claude run proposes labels and a comment, and a step with no model applies

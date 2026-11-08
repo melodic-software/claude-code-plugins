@@ -1,4 +1,4 @@
-name: Upload lane transcript
+name: Upload Lane Transcript
 description: >
   Gzip one lane leg's transcript (the launcher's execution file), seal it to
   the transcript public key as one seal-lane-output record bound to the run id

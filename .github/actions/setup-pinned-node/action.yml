@@ -1,4 +1,4 @@
-name: Set up pinned Node
+name: Setup Pinned Node
 description: >
   Put the exact Node version a version file pins on PATH without a GitHub API
   call. actions/setup-node reads the actions/node-versions manifest through
