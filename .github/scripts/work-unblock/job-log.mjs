@@ -11,20 +11,17 @@ const TIMEOUT_MS = 20_000;
 export function createJobLogReader({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, latch = rateLimitLatch, timeoutMs = TIMEOUT_MS }) {
   const send = latch.guard(fetchImpl);
   return async function jobLog(repo, jobId, { maxBytes }) {
-    const what = `GET /repos/${repo}/actions/jobs/${jobId}/logs`;
-    const response = await send(`${apiUrl}/repos/${repo}/actions/jobs/${jobId}/logs`, {
+    const path = `/repos/${repo}/actions/jobs/${jobId}/logs`;
+    const what = `GET ${path}`;
+    const response = await send(`${apiUrl}${path}`, {
       method: "GET",
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => {});
-      throw new GitHubError(response.status, what);
-    }
     const over = () => new Error(`${what} answered a body over ${maxBytes} bytes`);
-    if (Number(response.headers.get("content-length")) > maxBytes) {
+    if (!response.ok || Number(response.headers.get("content-length")) > maxBytes) {
       await response.body?.cancel().catch(() => {});
-      throw over();
+      throw response.ok ? over() : new GitHubError(response.status, what);
     }
     // Leaving the loop cancels the stream.
     const chunks = [];
