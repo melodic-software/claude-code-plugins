@@ -32,10 +32,10 @@
 # finding with the wrong file. Calls <on-unreadable> for input the walk could
 # not read:
 #
-#   <on-unreadable> <surface> <file> <where> <detail>
-#     surface  json (a hook config file) | manifest | frontmatter
+#   <on-unreadable> <kind> <file> <where> <detail>
+#     kind     json (a hook config file) | manifest | frontmatter
 #
-# Each gate decides what an unreadable surface means for it. scan itself exits
+# Each gate decides what an unreadable config means for it. scan itself exits
 # 2 when nothing could be inspected: no jq, no python with PyYAML (nor uv to
 # borrow the CI pin), or a frontmatter reader that did not complete. Call it as
 # a plain statement, never inside `if` or `||`, so the callbacks keep errexit.
