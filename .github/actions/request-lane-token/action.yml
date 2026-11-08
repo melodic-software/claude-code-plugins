@@ -1,4 +1,4 @@
-name: Request lane token
+name: Request Lane Token
 description: >
   Exchange this job's GitHub OIDC token at the lanes token broker. In `token`
   mode, the default, it gets one lane App installation token: it retries only

@@ -1,4 +1,4 @@
-name: post-merge-test-mutation
+name: Post Merge Test Mutation
 
 # The post-merge mutation lane: after a push to main that changes a source
 # file, runs /mutation-testing:audit on the lines that push changed and writes
@@ -44,7 +44,7 @@ on:
   # pushed head, which is on main, and runs main's code only. Each guard below
   # reads the event's fields.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [post-merge-select-mutation-range]
+    workflows: [Post Merge Select Mutation Range]
     types: [completed]
     branches: [main]
 

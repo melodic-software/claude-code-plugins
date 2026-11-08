@@ -1,4 +1,4 @@
-name: dependabot-fragments
+name: Dependabot Fragments
 
 # Changelog fragments for merged Dependabot updates (ADR 0048). A Dependabot pull
 # request gets no commit for a plugin in fragment mode: a commit made with

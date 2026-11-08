@@ -1,4 +1,4 @@
-name: Resolve pipeline config
+name: Resolve Config
 description: >
   Read the repository's pr-pipeline.yaml from the base-SHA checkout only,
   validate it against the convention schema, apply the lane rules and the

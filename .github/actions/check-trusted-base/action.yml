@@ -1,4 +1,4 @@
-name: Check trusted base
+name: Check Trusted Base
 description: >
   Fail unless the gated PR targets the default branch and its base SHA is on
   the default branch, then check out the trusted base in the base checkout:

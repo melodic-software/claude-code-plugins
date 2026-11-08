@@ -1,4 +1,4 @@
-name: work-unblock
+name: Work Unblock
 
 # What this does, in plain words:
 #
@@ -102,7 +102,7 @@ on:
   # admits the next deferred issue instead of waiting for the hour. It runs
   # main's code only, for a same-repository run, and reads no artifact.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [work-resolve-issue]
+    workflows: [Work Resolve Issue]
     types: [completed]
 
 permissions: {}

@@ -1,4 +1,4 @@
-name: Check born triaged
+name: Check Born Triaged
 description: >
   Decide whether an opened issue skips intake because /work-items:decompose
   published it already triaged. skip=true only when the issue carries the

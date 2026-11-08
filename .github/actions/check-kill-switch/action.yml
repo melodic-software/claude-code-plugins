@@ -1,4 +1,4 @@
-name: Check kill switch
+name: Check Kill Switch
 description: >
   Gate a CI lane on the org and repository kill switches. Emits proceed=true
   only when both values read exactly `false`; unset, empty and every other

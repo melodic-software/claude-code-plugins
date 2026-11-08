@@ -1404,7 +1404,7 @@ the rules that only tighten in
     secret: a top-level `.yml` other than the two review callers and the floor workflows
     (`babysit_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
-    `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
+    `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem in Title Case. A deleted
     workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
     `enable-auto-merge` jobs install the hash-pinned PyYAML from `.github/requirements-ci.txt` for
     that read; without it no workflow change clears. A comment by a lane author

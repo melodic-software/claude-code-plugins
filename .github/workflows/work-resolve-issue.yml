@@ -1,4 +1,4 @@
-name: work-resolve-issue
+name: Work Resolve Issue
 
 # Lane caller for work-resolve-issue: setting an issue's Work status field to
 # agent-ready (`field_added`, field 48484079, option 84879220,

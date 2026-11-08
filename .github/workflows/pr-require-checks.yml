@@ -1,4 +1,4 @@
-name: pr-require-checks
+name: PR Require Checks
 
 # API_BUDGET_HOLD (outage posture element 2): no step here sets it: ci-status is a gate, and a
 # hold would pass a check it could not read.

@@ -1,4 +1,4 @@
-name: Upload a FAIL's index artifacts
+name: Upload Fail Index
 description: >
   Upload one small artifact per name in `names` (write-verdict.mjs
   failIndexNames: the pull request, the head, the head branch's digest and each

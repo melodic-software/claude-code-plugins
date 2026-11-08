@@ -233,9 +233,9 @@ test("pr-feedback-dispatch.yml dispatches for a relayed review comment only from
 test("pr-review-comment-relay.yml is a workflow_run upstream and reaches no token, secret or event text in a step", () => {
   const relay = readFileSync(new URL("../../workflows/pr-review-comment-relay.yml", import.meta.url), "utf8");
   const dispatcher = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
-  assert.equal(/^name: (\S+)$/m.exec(relay)?.[1], "pr-review-comment-relay");
+  assert.equal(/^name: (.+)$/m.exec(relay)?.[1], "PR Review Comment Relay");
   const upstreams = dispatcher.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
-  assert.ok(upstreams.includes("pr-review-comment-relay"));
+  assert.ok(upstreams.includes("PR Review Comment Relay"));
   assert.match(relay, /\non:\n  pull_request_review_comment:\n    types: \[created\]\n\npermissions: \{\}\n/);
   const steps = relay.slice(relay.indexOf("    steps:"));
   assert.doesNotMatch(relay, /secrets\.|actions\/checkout|permissions: (?!\{\})/);
@@ -310,7 +310,7 @@ test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_r
     assert.equal(runs(overrides), false, label);
   }
   const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
-  assert.match(text, /\n    workflows: \[[^\]]*\bpr-merge\b[^\]]*\]\n/, "pr-merge is a workflow_run upstream");
+  assert.match(text, /\n    workflows: \[[^\]]*\bPR Merge\b[^\]]*\]\n/, "PR Merge is a workflow_run upstream");
 });
 
 test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
@@ -409,8 +409,8 @@ test("pr-feedback-dispatch.yml re-runs ci-status after a relayed review, not a p
   assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
   const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
   const upstreams = text.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
-  assert.ok(upstreams.includes("pr-review-approved"), "pr-review-approved is a workflow_run upstream");
-  assert.ok(!upstreams.includes("pr-unblock"), "pr-unblock is no workflow_run upstream");
+  assert.ok(upstreams.includes("PR Review Approved"), "PR Review Approved is a workflow_run upstream");
+  assert.ok(!upstreams.includes("PR Unblock"), "PR Unblock is no workflow_run upstream");
 });
 
 // The relay starts a runner only for an approval of a same-repository PR.

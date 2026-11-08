@@ -1,4 +1,4 @@
-name: maintenance-file-recurring-issues
+name: Maintenance File Recurring Issues
 
 # Daily: files one issue for each .github/recurring-schedule.json row whose
 # next_due has arrived and that no open `recurring` issue names by its

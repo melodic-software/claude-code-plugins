@@ -1,4 +1,4 @@
-name: pr-run-activity-read
+name: PR Run Activity Read
 
 # Runs one read activity of one PR pipeline lane and reports it as the check
 # run `<lane> / <activity>`. The broker-check job asks the lanes token broker's

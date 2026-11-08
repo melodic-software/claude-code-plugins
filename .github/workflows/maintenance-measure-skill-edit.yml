@@ -1,4 +1,4 @@
-name: maintenance-measure-skill-edit
+name: Maintenance Measure Skill Edit
 
 # Measures one proposed edit to one skill against the skill as merged, on a
 # listed human's dispatch, and opens a draft pull request when it wins (#12035;

@@ -1,4 +1,4 @@
-name: eval-hill-climb-pass
+name: Eval Hill Climb Pass
 
 # One measuring pass of maintenance-measure-skill-edit.yml: `claude plugin eval` on one
 # plugin's deterministic-only suite (deterministic-suite.mjs), filtered to one

@@ -1,4 +1,4 @@
-name: pr-review-security-hosted
+name: PR Review Security Hosted
 
 # Locally owned: the `claude-security-review-hosted-caller` component of
 # melodic-software/standards

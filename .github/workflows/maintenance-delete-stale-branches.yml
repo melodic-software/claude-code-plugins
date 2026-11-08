@@ -1,4 +1,4 @@
-name: maintenance-delete-stale-branches
+name: Maintenance Delete Stale Branches
 
 # Deletes the branches of this repository whose work is finished: a branch
 # lives as long as its issue is open (owner decisions W-7 and #8958). Daily the

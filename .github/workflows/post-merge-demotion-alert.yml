@@ -1,4 +1,4 @@
-name: post-merge-demotion-alert
+name: Post Merge Demotion Alert
 
 # Files the unattended-merge demotion issue when a post-merge signal fails on
 # main, so a human hears of it while no babysit lane runs. The signals are a
@@ -128,7 +128,7 @@ on:
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-require-checks, post-merge-detect-silent-revert]
+    workflows: [PR Require Checks, Post Merge Detect Silent Revert]
     types: [completed]
     branches: [main]
   # pr-merge.yml's post-merge-dispatch job, with GITHUB_TOKEN, or a listed
@@ -160,8 +160,8 @@ jobs:
       github.event_name == 'workflow_dispatch'
       || (github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && contains(fromJSON('["pr-require-checks:schedule", "pr-require-checks:workflow_dispatch", "post-merge-detect-silent-revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
-      && (github.event.workflow_run.name == 'post-merge-detect-silent-revert'
+      && contains(fromJSON('["PR Require Checks:schedule", "PR Require Checks:workflow_dispatch", "Post Merge Detect Silent Revert:push"]'), format('{0}:{1}', github.event.workflow_run.name, github.event.workflow_run.event))
+      && (github.event.workflow_run.name == 'Post Merge Detect Silent Revert'
       || contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
       || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
@@ -181,7 +181,7 @@ jobs:
     # pr-require-checks workflow_dispatch run and names its head SHA, which
     # the Read step checks against the run.
     concurrency:
-      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'PR Require Checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
       cancel-in-progress: false
     # The run as the step below and the report job read it.
     outputs:
@@ -401,9 +401,9 @@ jobs:
           fi
           trap '[[ -z "$handoff_failed" ]] || exit 1' EXIT
           case "$RUN_WORKFLOW:$RUN_EVENT" in
-            pr-require-checks:schedule) signal=schedule ;;
-            pr-require-checks:workflow_dispatch) signal=dispatch ;;
-            post-merge-detect-silent-revert:push) signal=canary ;;
+            "PR Require Checks:schedule") signal=schedule ;;
+            "PR Require Checks:workflow_dispatch") signal=dispatch ;;
+            "Post Merge Detect Silent Revert:push") signal=canary ;;
             *)
               echo "$RUN_WORKFLOW on $RUN_EVENT is not a post-merge signal"
               exit 0
@@ -1458,7 +1458,7 @@ jobs:
     needs: [alert]
     if: >-
       !cancelled()
-      && needs.alert.outputs.name == 'pr-require-checks'
+      && needs.alert.outputs.name == 'PR Require Checks'
       && contains(fromJSON('["schedule", "workflow_dispatch"]'), needs.alert.outputs.event)
       && needs.alert.outputs.conclusion == 'failure'
       && needs.alert.outputs.branch == 'main'
@@ -1570,7 +1570,7 @@ jobs:
     name: Close the records main cleared
     if: >-
       github.event_name == 'workflow_run'
-      && github.event.workflow_run.name == 'pr-require-checks'
+      && github.event.workflow_run.name == 'PR Require Checks'
       && github.event.workflow_run.event == 'schedule'
       && github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository

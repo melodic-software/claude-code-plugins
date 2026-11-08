@@ -1,4 +1,4 @@
-name: pr-feedback-dispatch
+name: PR Feedback Dispatch
 
 # Starts pr-unblock's address-feedback activity when a review lane finishes on
 # a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
@@ -97,7 +97,7 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge, pr-review-approved, pr-review-comment-relay]
+    workflows: [PR Review Hosted, PR Review Security Hosted, PR Verify, PR Unblock Dispatch, PR Merge, PR Review Approved, PR Review Comment Relay]
     types: [completed]
 
 permissions: {}

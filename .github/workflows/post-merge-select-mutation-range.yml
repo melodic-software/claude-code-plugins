@@ -1,4 +1,4 @@
-name: post-merge-select-mutation-range
+name: Post Merge Select Mutation Range
 
 # Starts the post-merge mutation lane (post-merge-test-mutation.yml) on a push
 # to main that changes a source file, and hands it the pushed range. It runs

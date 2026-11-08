@@ -1,4 +1,4 @@
-name: Select trusted text
+name: Select Trusted Text
 description: >
   Build a lane's prompt context from a PR (title, body, issue comments,
   reviews, review comments, and the issues it closes with their comments),

@@ -1,4 +1,4 @@
-name: pr-run-activity-write
+name: PR Run Activity Write
 
 # Runs one write activity (any effect but `read`) of one PR pipeline lane and
 # reports it as the check run `<lane> / <activity>`. The run job gates,

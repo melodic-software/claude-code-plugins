@@ -1,4 +1,4 @@
-name: maintenance-audit-lane-runs
+name: Maintenance Audit Lane Runs
 
 # The lane sweep: once a day, audits the last 24 hours of this repository's
 # lane runs and open pull requests and writes what it finds into one rolling
