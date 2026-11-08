@@ -3776,6 +3776,26 @@ def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
     )
 
 
+def _set_bug_type(owner: str, name: str, number: int) -> None:
+    """Set Issue Type Bug on an issue just filed. It is a separate write that
+    only warns on failure: a personal account has no Issue Types, and a
+    rejected type must not cost the issue."""
+    try:
+        _write(
+            [
+                "api",
+                "-X",
+                "PATCH",
+                f"repos/{owner}/{name}/issues/{number}",
+                "-f",
+                "type=Bug",
+            ],
+            f"set the Issue Type on #{number}",
+        )
+    except PostMergeWriteError as exc:
+        print(f"Issue Type not set: {exc}", file=sys.stderr)
+
+
 def file_quarantines(
     repo: str,
     quarantines: Iterable[Quarantine],
@@ -3814,8 +3834,6 @@ def file_quarantines(
                     f"title={quarantine_title(branch, q.suite)}",
                     "-f",
                     f"body={body}",
-                    "-f",
-                    "type=Bug",
                 ],
                 f"file the quarantine issue for {q.suite}",
             )
@@ -3824,6 +3842,7 @@ def file_quarantines(
                 raise PostMergeWriteError(
                     "the filed quarantine issue carried no number"
                 )
+            _set_bug_type(owner, name, number)
             report["issues"].append(number)
             open_issues[q.suite] = {"number": number, "body": body, "notes": []}
             continue
@@ -4056,8 +4075,6 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
-                        "-f",
-                        "type=Bug",
                         # The lanes App's issue starts intake triage on its
                         # own; the human-gated label, or the Work status
                         # field set to needs-human below and retried on a
@@ -4074,6 +4091,7 @@ def remediate(
                 report["issues"].append(filed)
                 if not isinstance(filed, int):
                     raise PostMergeWriteError("the filed issue carried no number")
+                _set_bug_type(owner, name, filed)
                 records[failure.marker] = {
                     "number": filed,
                     "state": "open",
