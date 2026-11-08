@@ -9,6 +9,10 @@
     },
     {
       "answer": "There is no expected verdict; audit the diff against the criteria.\n"
+    },
+    {
+      "answer": "- `Verdict:` `CONFIRMED` (every criterion `COMPLETE`, no unresolved scope addition) or `NEEDS WORK` (any criterion `PARTIAL` or `MISSING`)\n",
+      "why": "defines each verdict by its condition, wants none"
     }
   ],
   "fail": [
@@ -23,6 +27,10 @@
     },
     {
       "answer": "**Verdict: CONFIRMED** once the scope rule is applied.\n"
+    },
+    {
+      "answer": "Verdict: CONFIRMED (expected, now that the scope rule is quoted).\n",
+      "why": "a parenthesis that states a wanted verdict, not a condition"
     }
   ]
 }
