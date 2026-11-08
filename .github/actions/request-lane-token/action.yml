@@ -320,7 +320,7 @@ runs:
         # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
         # At most 3 requests, and at most 60 s of waiting in all (the outage
-        # posture's element 1 budget, docs/outage-posture-audit.md): a wait
+        # posture's element 1 budget, docs/conventions/pr-pipeline/README.md#outage-posture): a wait
         # past it is not taken, and the step fails as it does on any final
         # answer. github-rate-limited carries GitHub's wait as Retry-After: the
         # retry waits exactly that (a minute when absent) plus jitter cut to fit

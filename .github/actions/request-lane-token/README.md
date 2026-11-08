@@ -64,7 +64,7 @@ run, and mints nothing ([Check mode](#check-mode)).
      seconds, then 0 to 40 (full jitter), or a longer `Retry-After`.
 
    The waits add up to at most 60 seconds, the per-step budget of the outage posture's retry rule
-   ([the audit](../../../docs/outage-posture-audit.md), element 1); a wait past it is not taken. `mint-unavailable`, a failed mint
+   ([element 1](../../../docs/conventions/pr-pipeline/README.md#outage-posture)); a wait past it is not taken. `mint-unavailable`, a failed mint
    after the broker reserved the job's one mint, is final, and its failure says so; a retry would
    be denied `already-minted`, and a failure after a retry names the 503 before it. Every other
    answer is final, and no response at all fails red with `broker-unreachable`, since a 200 lost in

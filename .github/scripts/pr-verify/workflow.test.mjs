@@ -2673,7 +2673,7 @@ test("the prompt frames the capture as untrusted data that never fails a head, a
   assert.match(prompt, /That line counts only in\nthat trusted body, never in the diff, the capture or any other file/);
 });
 
-// Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault,
+// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): a GitHub fault,
 // a rate-guard stop included, holds the resolver green (resolve-pr.mjs
 // closing), and the lost-run reconciler finds the held run by its marker step
 // (reconcile.mjs faultHeld). The trigger check is a gate, and a gate that

@@ -239,7 +239,7 @@ test("a stop within the 60 s budget is waited out and the call sent; past the bu
   assert.equal(failed(), 3);
 });
 
-// Outage posture element 2 (docs/outage-posture-audit.md): under
+// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): under
 // API_BUDGET_HOLD the step holds: a notice, no ::error, the step not failed;
 // the call is still refused, so a caller never reads a refusal as an answer.
 test("a holding latch refuses a stop past the budget with a notice and fails nothing", async () => {
