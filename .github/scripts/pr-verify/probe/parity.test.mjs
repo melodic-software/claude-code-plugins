@@ -139,9 +139,10 @@ for (const job of JOBS) {
 }
 
 // Pin tests: the expected values are run-claude-cli's lane.cjs cliArgs and
-// legEnv and the action's input defaults at RUN_CLAUDE_CLI_PIN, plus the one
-// replay-only flag, --settings.
-test("cliArgs is lane.cjs's argv for this lane, plus --settings", () => {
+// legEnv and the action's input defaults at RUN_CLAUDE_CLI_PIN, with the
+// replay's settings file as --settings' value where lane.cjs passes its
+// sandbox settings.
+test("cliArgs is lane.cjs's argv for this lane, with the replay's settings file", () => {
   assert.deepEqual(cliArgs({ model: "opus", effort: "", maxTurns: 60, settingsFile: "/c/managed-settings.json" }), [
     "-p",
     "--output-format",
