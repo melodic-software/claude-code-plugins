@@ -51,13 +51,7 @@ export function secondaryWait(error) {
 
 // The read runner's fallback input to the leg named in the marker; the first
 // call's empty value is base.
-const LEGS = new Map([
-  ["", "base"],
-  ["handoff", "handoff"],
-  ["credit-stop", "credit-stop"],
-  ["no-key", "no-key"],
-  ["fallback", "fallback"],
-]);
+const LEGS = new Map([["", "base"], ...["handoff", "credit-stop", "no-key", "fallback"].map((leg) => [leg, leg])]);
 
 export const marker = ({ lane, activity, runId, rung = "0", leg = "base" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} leg=${leg} -->`;
 
@@ -65,7 +59,6 @@ export const marker = ({ lane, activity, runId, rung = "0", leg = "base" }) => `
 // The model shares RUNNER_TEMP, so any other segment could be planted text (a
 // key split across rows): it renders as *, and the owner/name pair after
 // repos as {repo}.
-const WORDS = REST_PATH_WORDS;
 export function templatePath(path) {
   const parts = path.split("/").slice(1);
   const out = [];
@@ -74,7 +67,7 @@ export function templatePath(path) {
       out.push("repos", "{repo}");
       i += 2;
     } else {
-      out.push(WORDS.has(parts[i]) ? parts[i] : "*");
+      out.push(REST_PATH_WORDS.has(parts[i]) ? parts[i] : "*");
     }
   }
   return `/${out.join("/")}`;
