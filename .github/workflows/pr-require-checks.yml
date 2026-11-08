@@ -1375,7 +1375,8 @@ jobs:
 
       # Actions security lint: zizmor from the hash-pinned wheel in
       # .github/requirements-ci.txt. The github format exits non-zero on any
-      # finding, the same threshold as the reusable's `fail-on-severity: low`.
+      # finding, so any finding blocks the lane (the fleet's
+      # `fail-on-severity: low` threshold).
       # GH_TOKEN comes from the job's read-only workflow token, for
       # the online audits. scripts/run-zizmor.sh runs the offline audits first,
       # then the online ones, where only a GitHub API network error (403, 429,
