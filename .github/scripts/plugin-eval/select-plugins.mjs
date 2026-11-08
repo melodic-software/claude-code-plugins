@@ -252,7 +252,7 @@ export function caseRefusal(path, base, head) {
   if (after === null) {
     return "is in a shape that cannot be checked";
   }
-  const before = (base === null ? new Map() : caseKeys(path, base)) ?? new Map();
+  const before = caseKeys(path, base) ?? new Map();
   const keys = [...new Set([...before.keys(), ...after.keys()])];
   const changed = keys.filter((key) => !CASE_SAFE_KEYS.has(key) && key !== "execution" && before.get(key) !== after.get(key));
   if (path.endsWith("case.yaml")) {
@@ -351,41 +351,25 @@ export function refusals(paths, plugins, read = () => undefined) {
       continue;
     }
     const rest = match[2];
+    const inspect = (check) => {
+      const head = read("head", path);
+      const base = read("base", path);
+      return head === undefined || base === undefined ? "cannot be read to inspect" : check(base, head);
+    };
+    let reason = null;
     if (!SUITE_PATH.test(path)) {
-      out.push(`${path}: outside skills/, agents/ and evals/`);
+      reason = "outside skills/, agents/ and evals/";
     } else if (rest.startsWith("evals/")) {
       if (!CASE_FILE.test(rest)) {
-        out.push(`${path}: not a case file (prompt.md, case.yaml, graders/*.md, samples/**/*.json)`);
-        continue;
-      }
-      if (!CASE_DEFINITION.test(rest)) {
-        continue;
-      }
-      const head = read("head", path);
-      const base = read("base", path);
-      if (head === undefined || base === undefined) {
-        out.push(`${path}: cannot be read to inspect`);
-        continue;
-      }
-      const reason = caseRefusal(path, base, head);
-      if (reason) {
-        out.push(`${path}: ${reason}`);
+        reason = "not a case file (prompt.md, case.yaml, graders/*.md, samples/**/*.json)";
+      } else if (CASE_DEFINITION.test(rest)) {
+        reason = inspect((base, head) => caseRefusal(path, base, head));
       }
     } else if (PROSE_PATH.test(rest)) {
-      if (!rest.endsWith(".md")) {
-        out.push(`${path}: not markdown`);
-        continue;
-      }
-      const head = read("head", path);
-      const base = read("base", path);
-      if (head === undefined || base === undefined) {
-        out.push(`${path}: cannot be read to inspect`);
-        continue;
-      }
-      const reason = proseRefusal(base, head);
-      if (reason) {
-        out.push(`${path}: ${reason}`);
-      }
+      reason = rest.endsWith(".md") ? inspect(proseRefusal) : "not markdown";
+    }
+    if (reason) {
+      out.push(`${path}: ${reason}`);
     }
   }
   return out;

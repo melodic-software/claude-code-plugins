@@ -151,7 +151,7 @@ export function loadLauncher(root) {
 function main(env) {
   const leg = LEGS[env.LEG];
   if (!leg) throw new Error(`LEG must be key, subscription or fallback, not ${JSON.stringify(env.LEG)}`);
-  const { judgeLeg, linesToMessages, isCreditStop } = loadLauncher(env.CI_WORKFLOWS ?? "");
+  const launcher = loadLauncher(env.CI_WORKFLOWS ?? "");
   const streams = [];
   if (env.PROBE && existsSync(env.PROBE)) {
     const exitCode = Number.parseInt(env.PROBE_EXIT ?? "", 10);
@@ -171,7 +171,7 @@ function main(env) {
     }
   }
   const options = { leg, fallbackReady: env.FALLBACK_READY === "true" };
-  const verdict = withPartials(judgeLegStreams(streams, options, { judgeLeg, linesToMessages, isCreditStop }), results, options);
+  const verdict = withPartials(judgeLegStreams(streams, options, launcher), results, options);
   if (env.LEG_RESULT) {
     const message = {
       type: "result",
