@@ -514,6 +514,9 @@ activities:
     # marker. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
+    # The hand-back routes import .base/.github/actions at run time, so the
+    # PR head checkout must not replace the workspace.
+    checkout: base
     gating: advisory
     reads-untrusted: false
     inputs: [issue]
