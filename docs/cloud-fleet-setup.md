@@ -135,7 +135,8 @@ than a separate named environment (see
   an edit reaches running sessions). **Full** removes that failure class outright, the .NET case
   included: the 2026-08-14 verification run
   ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), Blocker 1)
-  reproduced the .NET installer's redirect chain being `403`-blocked under *Trusted*, and that
+  reproduced the .NET installer's redirect chain being `403`-blocked under *Trusted* even with
+  NuGet and dotnet.microsoft.com reachable, and that
   blocker is moot under Full: no host list to keep current, and no narrower level left to choose
   between. The host list above is superseded history, not a recipe. The one exception that still
   needs a recipe: an account handling sensitive material drops back to **Custom**, and only a
@@ -370,10 +371,5 @@ session on this repo in the new environment and ask Claude to verify:
   there.
 - **Windows-shaped work stays local.** `provisioning` runbooks and `dotfiles` Windows content
   can be authored and linted in cloud sessions (Ubuntu VMs) but never executed.
-- **Known residual: Claude Code cloud sessions can still ship Ubuntu-archive `gh` 2.45
-  (#3169).** Checklist step 1 already expects 2.98.0 or newer from the `standards`
-  pinned-tarball. This repository will not rebuild that image. Operator workaround:
-  current stamp first, then force-rebuild if stale; if the stamp is current and `gh`
-  is still 2.45, treat it as a `standards` install failure and keep the seam's
-  per-verb floor (lease verbs work; native-hierarchy verbs do not). Recorded in
+- **Ubuntu-archive `gh` 2.45 (#3169)** is closed not planned; its status and reopen condition are in
   [cloud-sessions.md](cloud-sessions.md#known-gap-ubuntu-archive-gh-245-vs-the-seams-294-floor-3169).
