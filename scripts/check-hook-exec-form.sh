@@ -33,23 +33,16 @@
 # separator and pass untouched; so does shell form, which has no `args` at all
 # and is never inspected here.
 #
-# Scope: the same hook-declaration surfaces the sibling userconfig-argv gate
-# covers — the default `plugins/*/hooks/hooks.json`, any manifest-pointed hook
-# config file (`hooks` as a string or an array of paths), and an inline manifest
-# `hooks` object — PLUS skill/agent YAML frontmatter `hooks:` blocks, which that
-# gate does not cover and which is where the third instance of this defect lived
-# (#2568). A hooks/*.json file the manifest never references is not loaded by
-# Claude Code and is not scanned. `.claude/settings.json` is repo-local developer
-# config rather than shipped plugin surface and is out of scope; it declares no
-# hooks today.
-#
-# Two parsers, one rule. JSON hook configs are read with `jq`, which parses that
-# format completely. Frontmatter is read by
-# scripts/check-hook-exec-form-frontmatter.py, which uses a real YAML parser for
-# the reason its own doc-block records: a hand-rolled YAML walk lost three
-# rounds of review to spellings it had not anticipated, and a gate that
-# misparses is worse than no gate. Both readers only REPORT exec-form hooks; the
-# rule below decides, so one implementation governs both surfaces.
+# Scope: the plugin hook-config corpus scripts/lib/hook-configs.sh enumerates,
+# the same one the sibling userconfig-argv gate covers (the default
+# `plugins/*/hooks/hooks.json`, manifest-pointed hook config files and inline
+# manifest `hooks` maps) PLUS skill/agent YAML frontmatter `hooks:` blocks,
+# which that gate does not cover and which is where the third instance of this
+# defect lived (#2568). `.claude/settings.json` is repo-local developer config
+# rather than shipped plugin surface and is out of scope; it declares no hooks
+# today. The library reads JSON with `jq` and frontmatter with a real YAML
+# parser (scripts/check-hook-exec-form-frontmatter.py records why); both only
+# REPORT hooks, and the rule below decides.
 #
 # Relationship to scripts/check-hook-userconfig-argv.sh: complementary, not
 # overlapping. That gate constrains WHETHER a `${user_config.*}` token may
@@ -64,57 +57,11 @@
 # silent no-op the gate exists to catch. Exit 2 is reserved for the reader side
 # — no jq, no PyYAML, a frontmatter reader that did not complete — where nothing
 # was inspected at all.
-# shellcheck disable=SC2016  # the jq program below is literal source, never shell-expanded
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
-# shellcheck source=lib/manifest-path-guard.sh
-. scripts/lib/manifest-path-guard.sh || exit 2
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "check-hook-exec-form: jq is required but not installed" >&2
-  exit 2
-fi
-
-# How to run the frontmatter reader, resolved exactly the way scripts/run-ruff.sh
-# resolves its pinned tool — the repo already had this problem and settled it:
-#   1. a python on PATH that can already import yaml (the CI path, after the
-#      hash-locked install of .github/requirements-ci.txt)
-#   2. `uv run --with pyyaml==<pin>` when uv is available (cross-platform local
-#      path; no global install, no virtualenv ceremony, and the same version CI
-#      uses because the pin is read from that same file)
-#   3. exit 2 — fail closed, never a silent skip
-FRONTMATTER_READER="scripts/check-hook-exec-form-frontmatter.py"
-REQUIREMENTS=".github/requirements-ci.txt"
-
-# First `pyyaml==VERSION` line; ignore trailing backslashes / hash pins.
-pyyaml_pin="$(awk '/^pyyaml==/ {
-  sub(/^pyyaml==/, "")
-  sub(/[[:space:]\\].*$/, "")
-  print
-  exit
-}' "$REQUIREMENTS" 2>/dev/null || true)"
-
-reader_cmd=()
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import yaml' >/dev/null 2>&1; then
-    reader_cmd=("$candidate")
-    break
-  fi
-done
-if ((${#reader_cmd[@]} == 0)) && [[ -n "$pyyaml_pin" ]] && command -v uv >/dev/null 2>&1; then
-  reader_cmd=(uv run --quiet --no-project --with "pyyaml==$pyyaml_pin" python)
-fi
-if ((${#reader_cmd[@]} == 0)); then
-  {
-    echo "check-hook-exec-form: no python with PyYAML available, and no uv to borrow one."
-    echo "PyYAML reads the skill/agent frontmatter surface; without it this gate"
-    echo "would clear files it never parsed, so it stops instead. Either:"
-    echo "  * install the pin: pip install 'pyyaml==${pyyaml_pin:-<see $REQUIREMENTS>}'"
-    echo "  * or install uv, which this script will use without touching your python"
-  } >&2
-  exit 2
-fi
+# shellcheck source=lib/hook-configs.sh
+. scripts/lib/hook-configs.sh || exit 2
 
 # Bare exec-form `command` names admitted despite carrying no path separator.
 #
@@ -204,194 +151,30 @@ consider() {
   flag "$file" "$where" "$cmd"
 }
 
-# --- JSON hook configs ------------------------------------------------------
-
-# Emits `<file>\t<jq-path>\t<command>` for every exec-form hook object reachable
-# from __ROOT__. Recursive descent on purpose: `hooks` is an array in some
-# manifests and an event-keyed object in others (the pre-#2570 disk-hygiene
-# config was `.hooks.PreToolUse[0].hooks[0]`), and a shape-specific walk would
-# miss one of them. The root path is included explicitly because jq's `paths`
-# omits it. `input_filename` lets one jq process scan every file in the corpus
-# (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). CRLF is stripped in jq so
-# the separator test sees the real value without a `tr` exec per file.
-JQ_EXEC_FORM='
-  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  input_filename as $file
-  | (__ROOT__) as $doc
-  | ([[]] + [$doc | paths(objects)])[]
-  | . as $p
-  | ($doc | getpath($p)) as $o
-  | select(($o | type) == "object")
-  | select(($o | has("command")) and ($o | has("args")))
-  | select(($o.command | type) == "string")
-  | $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
-'
-
-# _consume_json_rows <path-prefix> <rows>: apply the rule to every
-# `<file>\t<jq-path>\t<command>` row the jq program emitted.
-_consume_json_rows() {
-  local prefix="$1" file path cmd
-  while IFS=$'\t' read -r file path cmd; do
-    [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
-    consider "$file" "${prefix}${path}" "$cmd"
-  done <<<"$2"
+# on_hook <file> <where> <form> <args> <command> <argv>: exec form only.
+on_hook() {
+  [[ "$3" == exec ]] || return 0
+  consider "$1" "$2" "$5"
 }
 
-# scan_json_files <jq-root> <path-prefix> <file...>
-#
-# One jq over the files, same rule as a per-file scan. Fail closed on an
-# unparsable hook config: a file this gate cannot read is a file this gate
-# cannot clear. A batched jq that fails (one unreadable file aborts the rest)
-# falls back to per-file so the diagnostic still names the offender; the live
-# tree is valid JSON, so CI pays one jq.
-scan_json_files() {
-  local root="$1" prefix="$2"
-  shift 2
-  (($#)) || return 0
-  local prog out f
-  prog="${JQ_EXEC_FORM//__ROOT__/$root}"
-  if out="$(jq -r "$prog" "$@" 2>/dev/null)"; then
-    _consume_json_rows "$prefix" "$out"
-    return 0
-  fi
-  for f in "$@"; do
-    [[ -f "$f" ]] || continue
-    if ! out="$(jq -r "$prog" "$f" 2>/dev/null)"; then
-      echo "UNREADABLE HOOK CONFIG: ${f}: not parseable as JSON — this gate cannot clear it" >&2
-      errors=$((errors + 1))
-      continue
-    fi
-    _consume_json_rows "$prefix" "$out"
-  done
+# on_unreadable <surface> <file> <where> <detail>. Fail closed on an unparsable
+# hook config or frontmatter: input this gate cannot read is input it cannot
+# clear. An unparsable manifest is skipped; manifest validity has its own gate.
+on_unreadable() {
+  case "$1" in
+  json)
+    echo "UNREADABLE HOOK CONFIG: ${2}: not parseable as JSON — this gate cannot clear it" >&2
+    errors=$((errors + 1))
+    ;;
+  frontmatter)
+    echo "UNREADABLE FRONTMATTER: ${2}:${3}: ${4}" >&2
+    errors=$((errors + 1))
+    ;;
+  *) ;;
+  esac
 }
 
-# Manifest `.hooks` shape, one jq over every plugin.json. Unreadable manifests
-# are skipped (manifest validity has its own gate); a batch failure falls back
-# per-file so that skip still applies. Rows:
-#   E<tab>file<tab>jq-path<tab>command  — inline object, already prefixed .hooks
-#   P<tab>file<tab>rel                  — string or array-of-string hooks path
-JQ_MANIFEST='
-  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  input_filename as $file
-  | (.hooks | type) as $t
-  | if $t == "object" then
-      (.hooks) as $doc
-      | ([[]] + [$doc | paths(objects)])[]
-      | . as $p
-      | ($doc | getpath($p)) as $o
-      | select(($o | type) == "object")
-      | select(($o | has("command")) and ($o | has("args")))
-      | select(($o.command | type) == "string")
-      | "E\t" + $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
-    elif $t == "string" then
-      "P\t" + $file + "\t" + (.hooks | gsub("\r"; ""))
-    elif $t == "array" then
-      .hooks[] | select(type == "string") | "P\t" + $file + "\t" + gsub("\r"; "")
-    else
-      empty
-    end
-'
-
-# Extra hook-config paths queued from manifest string/array `.hooks` values.
-# Global: bash 3.2 has no nameref, and a callee `eval` cannot append to a
-# caller's `local -a`.
-MANIFEST_EXTRA=()
-
-scan_manifests() {
-  (($#)) || return 0
-  local out f
-  MANIFEST_EXTRA=()
-  if out="$(jq -r "$JQ_MANIFEST" "$@" 2>/dev/null)"; then
-    _consume_manifest_rows "$out"
-  else
-    for f in "$@"; do
-      [[ -f "$f" ]] || continue
-      if out="$(jq -r "$JQ_MANIFEST" "$f" 2>/dev/null)"; then
-        _consume_manifest_rows "$out"
-      fi
-    done
-  fi
-  ((${#MANIFEST_EXTRA[@]})) || return 0
-  scan_json_files "." "" "${MANIFEST_EXTRA[@]}"
-}
-
-_consume_manifest_rows() {
-  local rows="$1" kind file rest path cmd rel plugin
-  while IFS=$'\t' read -r kind file rest; do
-    [[ -n "$kind" ]] || continue
-    case "$kind" in
-    E)
-      path="${rest%%$'\t'*}"
-      cmd="${rest#*$'\t'}"
-      consider "$file" ".hooks${path}" "$cmd"
-      ;;
-    P)
-      rel="$rest"
-      plugin="${file%/.claude-plugin/plugin.json}"
-      _queue_manifest_path "$plugin" "$file" "$rel"
-      ;;
-    *) ;;
-    esac
-  done <<<"$rows"
-}
-
-# Trust boundary, the same rule the sibling gate applies: scripts/lib/manifest-
-# path-guard.sh holds it, and hands back an empty path for a value that leaves
-# the plugin directory.
-_queue_manifest_path() {
-  local plugin="$1" manifest="$2" rel="$3" path
-  manifest_path_guard::resolve_to path check-hook-exec-form "$manifest" "$plugin" "$rel"
-  [[ -f "$path" ]] || return 0
-  MANIFEST_EXTRA+=("$path")
-}
-
-# --- YAML frontmatter hooks blocks ------------------------------------------
-
-# scan_frontmatter — one pass of the YAML reader over every markdown file under
-# plugins/. It reports; the rule above decides. A reader that did not complete
-# (exit 2: no PyYAML, bad usage) is an environment failure, not a clean tree, so
-# it stops the gate at exit 2 rather than clearing 997 files by accident. Per-
-# file parse failures are a different thing and come back as X records below:
-# those are findings about the tree and exit 1 with the rest.
-scan_frontmatter() {
-  local out kind file line detail
-  if ! out="$("${reader_cmd[@]}" "$FRONTMATTER_READER" plugins)"; then
-    echo "check-hook-exec-form: the frontmatter reader did not complete — this gate cannot clear plugins/" >&2
-    exit 2
-  fi
-  while IFS=$'\t' read -r kind file line detail; do
-    case "$kind" in
-    V) consider "$file" "$line" "$detail" ;;
-    X)
-      echo "UNREADABLE FRONTMATTER: ${file}:${line}: ${detail}" >&2
-      errors=$((errors + 1))
-      ;;
-    *) ;;
-    esac
-  done <<<"$out"
-}
-
-# --- walk -------------------------------------------------------------------
-# Default hooks.json and every plugin.json, each corpus in one jq. Manifest
-# string/array `.hooks` paths queue a third (usually empty) batch. The previous
-# walk paid one jq (and a `tr`) per hooks.json plus one-to-three jq per
-# manifest (~96 jq on this tree).
-
-hook_jsons=()
-manifests=()
-for plugin in plugins/*/; do
-  plugin="${plugin%/}"
-  [[ -f "$plugin/hooks/hooks.json" ]] && hook_jsons+=("$plugin/hooks/hooks.json")
-  [[ -f "$plugin/.claude-plugin/plugin.json" ]] && manifests+=("$plugin/.claude-plugin/plugin.json")
-done
-scan_json_files "." "" "${hook_jsons[@]}"
-scan_manifests "${manifests[@]}"
-
-# Skill and agent frontmatter. Every markdown file under plugins/ is read, and
-# only its frontmatter is interpreted, so a `hooks:` line in a prose body or a
-# fenced example is never taken for a declaration.
-scan_frontmatter
+hook_configs::scan check-hook-exec-form on_hook on_unreadable
 
 if ((errors > 0)); then
   if ((execform_errors == 0)); then

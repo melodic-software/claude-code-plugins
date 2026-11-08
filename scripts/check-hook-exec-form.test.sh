@@ -962,6 +962,66 @@ else
 fi
 rm -rf "$f"
 
+# --- a newline in a command stays on its row --------------------------------
+# A raw newline used to split the row: `"node\n"` cleared as `node`, and
+# `"/opt/x\nbash"` came back as a finding naming the file `bash`.
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"node\n","args":["x.mjs"]}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a command of node plus a newline is not node and should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"node "' <<<"$out"; then
+  ok "a trailing newline in a command is not the allowlisted name"
+else
+  fail "expected the node-plus-newline row flagged at its own path, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/opt/x\nbash","args":[]}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a path command with an embedded newline is one row, not a second bare one"
+else
+  fail "a command carrying a separator should pass as one row, got: $out"
+fi
+rm -rf "$f"
+
+# --- args that are not an array still make exec form -------------------------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a bare bash with string args should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"bash"' <<<"$out"; then
+  ok "a non-array args value is still exec form"
+else
+  fail "expected the string-args row flagged, got: $out"
+fi
+rm -rf "$f"
+
+# --- an inline map inside a manifest hooks array is scanned ------------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra-hooks.json",{"Stop":[{"hooks":[{"type":"command","command":"python3","args":["g.py"]}]}]}]}'
+plugin_file "$f" alpha config/extra-hooks.json "$SHELL_FORM_HOOKS"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an inline map in a manifest hooks array should be scanned, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/.claude-plugin/plugin.json:.hooks\[1\].Stop\[0\].hooks\[0\]: .*"python3"' <<<"$out"; then
+  ok "an inline map inside a manifest hooks array is scanned"
+else
+  fail "expected the array element's inline hook flagged with its path, got: $out"
+fi
+rm -rf "$f"
+
+# --- a manifest naming the default file does not double its findings ---------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./hooks/hooks.json"}'
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":[]}]}]}}'
+out="$(run_check "$f" 2>&1)"
+if [[ "$(grep -c '^EXEC-FORM HOOK:' <<<"$out")" == 1 ]]; then
+  ok "the default hooks.json named by its manifest is reported once"
+else
+  fail "expected exactly one finding, got: $out"
+fi
+rm -rf "$f"
+
 # --- a fully clean tree passes with a positive statement --------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
