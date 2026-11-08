@@ -241,9 +241,7 @@ export async function main({ env = process.env, github, log = console.log, write
       issueNumber: env.ISSUE_NUMBER,
       ids,
     });
-    dropped["lanes-app"] = 0;
-    dropped["after-admission"] = 0;
-    dropped["over-cap"] = 0;
+    Object.assign(dropped, { "lanes-app": 0, "after-admission": 0, "over-cap": 0, "stale-split": 0 });
 
     const admission = await readAdmission(client, repository, env.ISSUE_NUMBER, { lanesAppId, humans, sender: Number(senderText), triggerAt, env });
     const frozenAt = admission.at;
@@ -279,27 +277,27 @@ export async function main({ env = process.env, github, log = console.log, write
         scope = splitScope(spec.body);
       }
     }
-    dropped["stale-split"] = 0;
     // A finished parent's run verifies its own done-when and builds nothing.
     const finished = await finishedParent({ github: client, repository, issue: data, trusted: closedByTrusted({ github: client, repository, humans, appId: lanesAppId }) });
 
     const comments = [];
+    const entry = (comment, kind, decision) => ({
+      author_login: comment.user.login,
+      author_kind: kind,
+      created_at: comment.created_at,
+      url: comment.html_url,
+      body: comment.body ?? "",
+      decision,
+    });
     for (const { comment, lastEditedAt, lastEditorId } of kept) {
-      const refinement = comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(REFINE_MARKER);
-      const findings =
-        comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(CAPPED_CLOSE_MARKER) && (lastEditorId == null || lastEditorId === lanesAppId);
-      if (findings) {
-        comments.push({
-          author_login: comment.user.login,
-          author_kind: "verify-findings",
-          created_at: comment.created_at,
-          url: comment.html_url,
-          body: comment.body ?? "",
-          decision: false,
-        });
+      const fromApp = comment.user.id === lanesAppId;
+      const text = String(comment.body ?? "");
+      const refinement = fromApp && text.startsWith(REFINE_MARKER);
+      if (fromApp && text.startsWith(CAPPED_CLOSE_MARKER) && (lastEditorId == null || lastEditorId === lanesAppId)) {
+        comments.push(entry(comment, "verify-findings", false));
         continue;
       }
-      if (comment.user.id === lanesAppId && !refinement) {
+      if (fromApp && !refinement) {
         dropped["lanes-app"] += 1;
         continue;
       }
@@ -314,16 +312,10 @@ export async function main({ env = process.env, github, log = console.log, write
         dropped["after-admission"] += 1;
         continue;
       }
-      const human = humans.has(comment.user.id);
       const decision = !refinement && isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans);
       comments.push({
-        author_login: comment.user.login,
-        author_kind: refinement ? "refinement" : human ? "human" : "bot",
-        created_at: comment.created_at,
-        url: comment.html_url,
-        body: comment.body ?? "",
-        decision,
-        ...(decision ? { decided_at: new Date(Math.max(createdAt, editedAt)).toISOString() } : {}),
+        ...entry(comment, refinement ? "refinement" : humans.has(comment.user.id) ? "human" : "bot", decision),
+        ...(decision && { decided_at: new Date(Math.max(createdAt, editedAt)).toISOString() }),
       });
     }
     const others = comments.filter((comment) => !comment.decision);
