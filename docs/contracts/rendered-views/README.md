@@ -357,7 +357,7 @@ Accessibility is a standing reason to step back to a cheaper form; see Accessibi
 
 ## Reachability and the fallback chain
 
-Reachability constrains; preference selects; every fall is visible and names its cause. There is
+Reachability constrains the choice and preference selects within it. Every fall is visible and names its cause. There is
 one fallback chain, owned by the medium registry (`lib/view-registry.mjs`): **published artifact,
 then local file, then terminal**. A view that cannot be served on its preferred medium steps down
 that chain to the first reachable one. `hosted` is read as `artifact` except in a lane registered

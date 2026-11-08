@@ -289,7 +289,7 @@ from the two together (see
   (as of 2026-11-04; recheck when that section names plugins). Neither `/plugin`
   ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
   nor `--plugin-dir` exists in cloud sessions to force one. On an
-  ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
+  ephemeral VM this is a chicken-and-egg problem, because every fresh session re-installs after its registry is
   already built, so the hook alone can never produce a session with plugins loaded. What the
   hook still buys is correct on-disk state for any process start that happens *after* it: a
   resume (confirmed 2026-08-15: stopping and resuming the same session restarted the process,

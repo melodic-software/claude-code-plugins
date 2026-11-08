@@ -1159,7 +1159,7 @@ collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
 plugin external to this marketplace is never a manifest dependency. Invocation mechanics such as
 synchronous waiting, diff-base selection, and which artifacts a surface can judge are the advisor
-plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+plugin's own documentation's concern. A checkpoint site names the capability and the fallback,
 never the advisor's command flags, which drift against the surface their owner evolves.
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context, so prefer
