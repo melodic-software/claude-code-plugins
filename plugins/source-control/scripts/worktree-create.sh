@@ -2,8 +2,8 @@
 # worktree-create.sh — shared worktree-creation helper (Phase A).
 #
 # Single owner of worktree creation for this plugin: external-root path
-# computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
-# resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
+# computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, the branch name
+# (worktree_branch_naming), base-ref resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
 # `git worktree lock` liveness guard (#2257) with an optional --session-id
 # claim token, the `.worktreeinclude` local-file copy, and `npm ci` when the
 # new tree has a package-lock.json. The `.worktreeinclude` copy Claude Code
@@ -41,13 +41,15 @@
 # (machine-parseable); all diagnostics go to stderr.
 #
 # Exit codes:
-#   0  success — worktree created; path on stdout. A failed, skipped or timed-out
+#   0  success — worktree created, or an existing one this session may claim
+#      reused (see "Reuse" below); path on stdout. A failed, skipped or timed-out
 #      dependency install still exits 0 and names the failure on stderr
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
 #   3  refuse — no usable external root, root inside a repository, or a
 #      cross-drive root on Windows at any resolution rung including the
 #      unconfigured plugin-data-dir default (guidance on stderr); nothing created
-#   4  environment error: not a git repo, `git worktree add` failed, or the tree
+#   4  environment error: not a git repo, the target path or the branch is held
+#      by another worktree or session, `git worktree add` failed, or the tree
 #      was created and then left incomplete because a `.worktreeinclude` file
 #      failed to copy. That last case shares exit 5's shape, a tree on disk that
 #      is not what the caller asked for, so a caller treating 4 as "nothing was
@@ -188,7 +190,14 @@ Options:
                       character rules but is an illegal ref (feat/foo..bar,
                       foo.lock, HEAD) is refused (exit 2), not left to git later.
                       That grammar check runs after the repository is resolved,
-                      so exits 3 and 4 can precede it.
+                      so exits 3 and 4 can precede it. The branch is the name
+                      unless the repository's tracked
+                      docs/conventions/source-control.yaml sets
+                      worktree_branch_naming: conventional-commits, which
+                      derives <type>/<description> from it (the stderr note
+                      names the branch); the grammar check then applies to the
+                      derived branch. The directory slug always comes from the
+                      name.
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
                       re-quoting of the value happens on that path). Wins over
@@ -280,7 +289,15 @@ npm ci in it (output on stderr), capped at WORKTREE_CREATE_DEPS_CAP_SECONDS
 (default 45). A missing npm, a failed install or the cap only warns on stderr;
 the exit code is unchanged.
 
-On success the created worktree path is printed as the sole stdout line, for the
+Reuse: a worktree already at the target path, on the branch this run would use,
+is printed as it is (no copy, no npm ci) when its lock names --session-id, when
+it is unlocked (claimed first), or when worktree-claim.sh stale proves its
+session's claim stale (handed over). Anything else there, a live or
+session-less claim, or no --session-id, exits 4. An existing branch checked out
+nowhere is checked out without -b and --base-ref does not apply; one checked out
+in another worktree exits 4, naming it.
+
+On success the worktree path is printed as the sole stdout line, for the
 caller to feed to EnterWorktree(path:).
 
 Exit codes: 0 success · 2 usage · 3 refuse (no usable root) · 4 environment ·
@@ -480,8 +497,9 @@ fi
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
 # each '/'-separated segment contains only letters, digits, dots, underscores,
 # and dashes. Reject invalid names loudly (exit 2) here rather than let
-# `git worktree add` fail opaquely downstream. The branch is used verbatim; only
-# the directory slug transforms it.
+# `git worktree add` fail opaquely downstream. The directory slug always comes
+# from the name; the branch is the name unless worktree_branch_naming derives
+# one (see "Branch naming" below).
 if ((${#name} > 64)); then
   printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
   exit 2
@@ -685,6 +703,144 @@ EOF
   printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
 
+# --- Branch naming ---------------------------------------------------------------
+# worktree_branch_naming in the repository's tracked
+# docs/conventions/source-control.yaml picks how the new branch is named from
+# --name; reference/config-resolution.md "YAML keys" owns the values:
+#   verbatim (default)    the branch is --name itself;
+#   conventional-commits  <type>/<description>. Only a `/` marks a type: the first
+#                         segment, matched in any case, is a Conventional Commits
+#                         type, an alias of one, or an entry of
+#                         worktree_branch_extra_prefixes, and the rest is the
+#                         description. Any other name goes whole under
+#                         worktree_branch_default_type (default chore).
+# A value the helper cannot use, an untracked file, or a YAML the parser rejects
+# keeps the name verbatim with a note on stderr, and so does a name that
+# sanitizes to nothing. A configuration error never refuses a worktree: the
+# WorktreeCreate hook has no fallback, so a refusal would fail every isolated
+# spawn in the repository. The derivation is many-to-one (feat/x and feature/x),
+# so a second name can meet its branch checked out elsewhere; "Reuse" below
+# refuses that, naming the holder. --existing-branch names a branch that already
+# exists, so it is never derived.
+CONVENTION_YAML_REL="docs/conventions/source-control.yaml"
+branch_naming="verbatim"
+branch_default_type="chore"
+branch_extra_prefixes=()
+
+# branch_type_is_valid <value> — one lowercase segment, safe as a ref component.
+branch_type_is_valid() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
+
+# read_branch_naming — fill the three branch_* globals from the team YAML under
+# $toplevel. Loads the reader only when the file exists, so a repository without
+# one pays no process for this.
+read_branch_naming() {
+  local records key value naming="" default_type=""
+  [[ -f "$toplevel/$CONVENTION_YAML_REL" ]] || return 0
+  # shellcheck source=../lib/convention-key.sh
+  source "${BASH_SOURCE[0]%/*}/../lib/convention-key.sh" || {
+    printf '%s: cannot load lib/convention-key.sh; keeping the branch name verbatim\n' "$PROG" >&2
+    return 0
+  }
+  convention_key_tracked "$toplevel" "$CONVENTION_YAML_REL" || return 0
+  if ! records="$(convention_key_records "$toplevel")"; then
+    printf '%s: the YAML parser rejected %s; keeping the branch name verbatim\n' "$PROG" "$CONVENTION_YAML_REL" >&2
+    return 0
+  fi
+  while IFS=$'\t' read -r key value; do
+    case "$key" in
+    worktree_branch_naming) naming="$value" ;;
+    worktree_branch_default_type) default_type="$value" ;;
+    worktree_branch_extra_prefixes.[0-9]*)
+      if branch_type_is_valid "$value"; then
+        branch_extra_prefixes+=("$value")
+      else
+        printf '%s: worktree_branch_extra_prefixes entry %q is not one lowercase segment; skipping it\n' "$PROG" "$value" >&2
+      fi
+      ;;
+    *) ;;
+    esac
+  done <<<"$records"
+  case "$naming" in
+  "" | verbatim) ;;
+  conventional-commits) branch_naming="$naming" ;;
+  *) printf '%s: worktree_branch_naming %q in %s is not verbatim or conventional-commits; keeping the branch name verbatim\n' \
+    "$PROG" "$naming" "$CONVENTION_YAML_REL" >&2 ;;
+  esac
+  if [[ -n "$default_type" ]]; then
+    if branch_type_is_valid "$default_type"; then
+      branch_default_type="$default_type"
+    else
+      printf '%s: worktree_branch_default_type %q in %s is not one lowercase segment; using chore\n' \
+        "$PROG" "$default_type" "$CONVENTION_YAML_REL" >&2
+    fi
+  fi
+}
+
+# branch_ref_segment <text> — <text> as one ref-safe segment, into the global
+# BRANCH_SEGMENT (a global, so no subshell is forked): every character outside
+# [A-Za-z0-9._-], `/` included, becomes `-`; runs of `.` and of `-` collapse;
+# leading and trailing `-`, `.` and `_` go; then a trailing `.lock` goes.
+branch_ref_segment() {
+  local s="${1//[^A-Za-z0-9._-]/-}"
+  while [[ "$s" == *..* ]]; do s="${s//../.}"; done
+  while [[ "$s" == *--* ]]; do s="${s//--/-}"; done
+  while [[ "$s" == [-._]* ]]; do s="${s#?}"; done
+  while [[ "$s" == *[-._] ]]; do s="${s%?}"; done
+  BRANCH_SEGMENT="${s%.lock}"
+}
+
+# derive_conventional_branch <name> — the conventional-commits branch for
+# <name>, into the global `branch`.
+derive_conventional_branch() {
+  local name="$1" type canonical="" prefix
+  if [[ "$name" == */* ]]; then
+    type="${name%%/*}"
+    type="${type,,}"
+    case "$type" in
+    feat | feature) canonical="feat" ;;
+    fix | bugfix | hotfix) canonical="fix" ;;
+    docs | documentation | doc) canonical="docs" ;;
+    test | tests) canonical="test" ;;
+    perf | performance) canonical="perf" ;;
+    build | chore | ci | refactor | revert | style) canonical="$type" ;;
+    *)
+      for prefix in ${branch_extra_prefixes[@]+"${branch_extra_prefixes[@]}"}; do
+        if [[ "$type" == "$prefix" ]]; then
+          canonical="$prefix"
+          break
+        fi
+      done
+      ;;
+    esac
+    if [[ -n "$canonical" ]]; then
+      branch_ref_segment "${name#*/}"
+      if [[ -n "$BRANCH_SEGMENT" ]]; then
+        branch="$canonical/$BRANCH_SEGMENT"
+        return 0
+      fi
+      printf '%s: name %q has type %s but no description; using %s/ (pass %s/<description> to keep the type)\n' \
+        "$PROG" "$name" "$canonical" "$branch_default_type" "$canonical" >&2
+    fi
+  fi
+  branch_ref_segment "$name"
+  if [[ -z "$BRANCH_SEGMENT" ]]; then
+    printf '%s: name %q sanitizes to an empty description; keeping the branch name verbatim\n' "$PROG" "$name" >&2
+    branch="$name"
+    return 0
+  fi
+  branch="$branch_default_type/$BRANCH_SEGMENT"
+}
+
+branch="$name"
+if [[ "$existing_branch" -eq 0 ]]; then
+  read_branch_naming
+  if [[ "$branch_naming" == conventional-commits ]]; then
+    derive_conventional_branch "$name"
+    printf '%s: branch %s derived from name %s (worktree_branch_naming: conventional-commits)\n' \
+      "$PROG" "$branch" "$name" >&2
+  fi
+fi
+
 # Second half of name validation: the character class checked above is NOT a
 # subset of git's ref grammar, so it alone cannot uphold the exit-2-for-an-
 # invalid-name contract. `feat/foo..bar` (`..`), `.foo` and `feat/.` (component
@@ -704,9 +860,15 @@ fi
 # Both streams are discarded: on success `--branch` echoes the name to stdout,
 # which would corrupt the sole-stdout-line output contract, and on failure git's
 # message is superseded by ours. An option-shaped name is read as a ref because
-# git parses no further options after `--branch`.
-if ! git -C "$toplevel" check-ref-format --branch "$name" >/dev/null 2>&1; then
-  printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
+# git parses no further options after `--branch`. A derived branch is checked
+# instead of the name, since it is the one git will create.
+if ! git -C "$toplevel" check-ref-format --branch "$branch" >/dev/null 2>&1; then
+  if [[ "$branch" == "$name" ]]; then
+    printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
+  else
+    printf '%s: branch %q derived from --name %q is not a valid git branch name (see: git help check-ref-format)\n' \
+      "$PROG" "$branch" "$name" >&2
+  fi
   exit 2
 fi
 
@@ -863,9 +1025,95 @@ fi
 # the unconfigured plugin-data-dir default.
 check_same_drive "$toplevel" "$worktree_path" "$root_rung" || exit $?
 
-if [[ -e "$worktree_path" ]]; then
-  printf '%s: target path already exists: %s\n' "$PROG" "$worktree_path" >&2
+# --- Reuse: an existing worktree at the target, or an existing branch -----------
+# A relaunched `claude -w <name>`, and two names that derive one branch, meet a
+# worktree or branch an earlier run left. The claim rules worktree-claim.sh
+# enforces decide whether this session may take it:
+#   * a worktree at exactly the target path, on the branch this run would use, is
+#     returned as it is when its lock names --session-id, when it is unlocked (it
+#     is claimed first), or when its lock names another session that
+#     `worktree-claim.sh stale` proves stale (the claim is handed over). It is
+#     left alone: no .worktreeinclude copy over the tree's edits, no npm ci;
+#   * anything else at the target path, a live or session-less claim, or no
+#     --session-id to prove ownership with, refuses (exit 4);
+#   * an existing branch checked out in no worktree is checked out without -b,
+#     keeping its commits, and --base-ref does not apply; one checked out in
+#     another worktree refuses, naming that worktree.
+# Worktree facts are read once, only when the target or the branch exists.
+worktree_facts_read=0
+read_worktree_facts() {
+  ((worktree_facts_read)) && return 0
+  worktree_facts_read=1
+  worktree_facts_parse_z <(git -C "$toplevel" worktree list --porcelain -z 2>/dev/null)
+}
+
+# reuse_refuse <line>... — print each line on stderr and exit 4.
+reuse_refuse() {
+  local line
+  for line in "$@"; do printf '%s: %s\n' "$PROG" "$line" >&2; done
   exit 4
+}
+
+# reuse_existing_target — return the worktree at $worktree_path when this
+# session may claim it, else refuse. Never returns.
+reuse_existing_target() {
+  local top i idx=-1 reason held_branch old_sid claim="${BASH_SOURCE[0]%/*}/worktree-claim.sh"
+  # git's own spelling of the target's top level is the one `worktree list`
+  # prints, on every platform. Whole-path equality, never a prefix test: a
+  # registered feat-login-form must not answer for feat-login.
+  top="$(git -C "$worktree_path" rev-parse --show-toplevel 2>/dev/null)" || top=""
+  if [[ -n "$top" ]]; then
+    read_worktree_facts
+    for i in "${!WT_FACT_PATH[@]}"; do
+      [[ "${WT_FACT_PATH[i]}" == "$top" ]] && idx=$i && break
+    done
+  fi
+  ((idx >= 0)) || reuse_refuse "target path already exists and is not a worktree of this repository: $worktree_path" \
+    "move it aside or choose another name"
+  [[ "${WT_FACT_LINKED[idx]}" == yes ]] || reuse_refuse "target path is the repository's main worktree: $worktree_path"
+  held_branch="${WT_FACT_BRANCH[idx]}"
+  [[ "$held_branch" == "$branch" ]] || reuse_refuse \
+    "the worktree at $worktree_path holds branch ${held_branch:-(none)}, not $branch; choose another name"
+  [[ -n "$session_id" ]] || reuse_refuse \
+    "a worktree already exists at $worktree_path; pass --session-id so the helper can prove this session may reuse it"
+  reason="${WT_FACT_LOCKED[idx]}"
+  if [[ "${WT_FACT_IS_LOCKED[idx]}" == no ]]; then
+    git -C "$toplevel" worktree lock --reason "$(worktree_lock_reason worktree-create.sh "$session_id")" "$top" >&2 ||
+      reuse_refuse "could not claim the unlocked worktree at $worktree_path; another process may have claimed it first"
+    printf '%s: claimed the unlocked worktree at %s for session %s\n' "$PROG" "$worktree_path" "$session_id" >&2
+  elif worktree_reason_is_ours "$reason" "$session_id"; then
+    :
+  elif [[ -z "$reason" ]]; then
+    reuse_refuse "the worktree at $worktree_path is locked with no reason, so it names no session; unlock it by hand if it is free"
+  elif ! worktree_reason_lane "$reason" >/dev/null; then
+    reuse_refuse "the worktree at $worktree_path is locked by a claim that names no session: $reason" \
+      "unlock it by hand (git worktree unlock) if no session is working there"
+  else
+    old_sid="${BASH_REMATCH[2]}"
+    if ! bash "$claim" stale "$top" --repo-dir "$toplevel" >&2; then
+      reuse_refuse "another session holds a live claim on the worktree at $worktree_path: $reason" \
+        "finish in that session, or hand it over: worktree-claim.sh handover $worktree_path --session-id $old_sid --to $session_id"
+    fi
+    bash "$claim" handover "$top" --repo-dir "$toplevel" --session-id "$old_sid" --to "$session_id" >&2 ||
+      reuse_refuse "could not hand the stale claim on $worktree_path over to session $session_id"
+    printf '%s: took over the stale claim of session %s on %s\n' "$PROG" "$old_sid" "$worktree_path" >&2
+  fi
+  printf '%s: reusing the existing worktree at %s (branch %s)\n' "$PROG" "$worktree_path" "$branch" >&2
+  printf '%s\n' "$worktree_path"
+  exit 0
+}
+
+[[ -e "$worktree_path" ]] && reuse_existing_target
+
+branch_exists=0
+if git -C "$toplevel" show-ref --verify --quiet "refs/heads/$branch"; then
+  branch_exists=1
+  read_worktree_facts
+  for i in "${!WT_FACT_PATH[@]}"; do
+    [[ "${WT_FACT_BRANCH[i]}" == "$branch" ]] &&
+      reuse_refuse "branch $branch is already checked out in the worktree at ${WT_FACT_PATH[i]}" \
+        "work there, or choose a name that does not resolve to $branch"
+  done
 fi
 
 # Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
@@ -879,9 +1127,14 @@ if [[ "$existing_branch" -eq 1 ]]; then
     printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
     exit 2
   fi
-  if ! git -C "$toplevel" show-ref --verify --quiet "refs/heads/$name"; then
+  if ((!branch_exists)); then
     printf '%s: --existing-branch requires a local branch named %q\n' "$PROG" "$name" >&2
     exit 2
+  fi
+elif ((branch_exists)); then
+  if [[ -n "$base_ref" ]]; then
+    printf '%s: branch %s already exists, so --base-ref %s does not apply; checking it out as it is\n' \
+      "$PROG" "$branch" "$base_ref" >&2
   fi
 else
 [[ -z "$base_ref" ]] && base_ref="fresh"
@@ -1040,25 +1293,27 @@ fresh)
 esac
 fi
 
-if [[ "$existing_branch" -eq 1 ]]; then
-  if ! git -C "$toplevel" worktree add "$worktree_path" "$name" >&2; then
-    printf '%s: git worktree add failed for existing branch %q\n' "$PROG" "$name" >&2
-    exit 4
-  fi
+# --no-track on fresh: the base is <remote>/<default>, and git would otherwise
+# record it as the new branch's upstream, so a bare `git push` fails under
+# push.default=simple and push-branch.sh, which sets -u only when no upstream
+# exists, keeps the wrong one. head stays as it was.
+if ((branch_exists)); then
+  git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
+elif [[ "$base_ref" == fresh ]]; then
+  git -C "$toplevel" worktree add --no-track -b "$branch" "$worktree_path" "$base_commit" >&2
 else
-  # --no-track on fresh: the base is <remote>/<default>, and git would otherwise
-  # record it as the new branch's upstream, so a bare `git push` fails under
-  # push.default=simple and push-branch.sh, which sets -u only when no upstream
-  # exists, keeps the wrong one. head stays as it was.
-  if [[ "$base_ref" == fresh ]]; then
-    git -C "$toplevel" worktree add --no-track -b "$name" "$worktree_path" "$base_commit" >&2
+  git -C "$toplevel" worktree add -b "$branch" "$worktree_path" "$base_commit" >&2
+fi || {
+  # A concurrent run may have created the target or the branch since the checks
+  # above; that run's lock is its claim, so this one refuses rather than share.
+  if [[ -e "$worktree_path" ]]; then
+    printf '%s: another process created %s while this one was creating it; rerun to reuse it if this session may claim it\n' \
+      "$PROG" "$worktree_path" >&2
   else
-    git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2
-  fi || {
-    printf '%s: git worktree add failed (branch %q may already exist)\n' "$PROG" "$name" >&2
-    exit 4
-  }
-fi
+    printf '%s: git worktree add failed for branch %q (git'\''s error is above)\n' "$PROG" "$branch" >&2
+  fi
+  exit 4
+}
 
 # Arm the removal guard the moment the worktree exists: a locked worktree makes
 # `git worktree remove` refuse (a single --force included) and its record
@@ -1181,10 +1436,10 @@ if [[ -f "$worktree_path/package-lock.json" ]]; then
   fi
 fi
 
-if [[ "$existing_branch" -eq 1 ]]; then
-  printf '%s: created worktree on existing branch %q\n' "$PROG" "$name" >&2
+if ((branch_exists)); then
+  printf '%s: created worktree on existing branch %q\n' "$PROG" "$branch" >&2
 else
-  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2
+  printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$branch" "$base_ref" >&2
 fi
 printf '%s\n' "$worktree_path"
 if ((lock_failed)); then
