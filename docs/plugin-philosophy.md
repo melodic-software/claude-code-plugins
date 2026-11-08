@@ -1534,28 +1534,20 @@ same depth on two models):
     models, providers or versions keep the cache across one.
 
 **Pinned agents.** Every named agent in this repository that sets its own `model` pins its effort, so
-a session tuned down for cost does not silently cheapen a worker. The twelve `model: inherit` agents
-pin neither: `discovery` `docs-fetcher` and `sweep-worker`; `docs-hygiene` `compare-labeler`;
-`multi-agent` `docs-fetcher`, `drift-checker` and `drift-reader`; `review` `lane-verifier` and
-`stage-normalizer`; `testing` `green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each
-leaves the model to its dispatcher (a workflow's role map, a CI lane, or a per-call value), and so
-leaves the level to that dispatch or the session. Each other agent pins the level that model config's task rows give its
-kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
-`discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
-`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
-`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Eight pin
-`effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
-`planning` `upload-reader`, because it reads and summarizes one file it is handed;
-`implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
-at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
-it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
-`ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
-work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
-scope, and checking named areas of the development process. No pin goes below `medium`, because in this repository's judgment a low-effort executor stops
-detecting that it is stuck (the upstream pointers are under the [effort floor](#effort-floor)). A frontmatter pin is what holds a named agent's lane for any dispatch that
-passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
-writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
+a session tuned down for cost does not silently cheapen a worker. The `model: inherit` agents pin
+neither: `app-control` `source-reader`; `discovery` `docs-fetcher` and `sweep-worker`;
+`docs-hygiene` `compare-labeler`; `knowledge` `digest-worker`; `multi-agent` `docs-fetcher`,
+`drift-checker` and `drift-reader`; `review` `lane-verifier` and `stage-normalizer`; `testing`
+`green-fixer`, `green-runner`, `green-verifier` and `test-judge`. Each leaves the model to its
+dispatcher (a workflow's role map, a CI lane, or a per-call value), and so leaves the level to that
+dispatch or the session. Every other agent pins the level its lane rule above gives it. In
+`plugins/implementation`, `phase-verifier` pins `high`; `implementer` pins `medium`, because a phase
+brief is scoped feature work and its verifier runs at `high`; and `scoped-implementer` pins
+`medium`, because a plan routes only well-scoped work to it. The per-pin rows below give every other
+pin and its reason. No pin goes below `medium`, because in this repository's judgment a low-effort
+executor stops detecting that it is stuck (the upstream pointers are under the
+[effort floor](#effort-floor)). A pin holds for every dispatch that passes no `effort` of its own
+(see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`, and `git grep -L` for the agents with no
@@ -1587,6 +1579,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 
 | Agent | Model | Pin | Row | Why that row |
 |---|---|---|---|---|
+| `code-tidying` `comment-reviewer` | `sonnet` | `medium` | `medium` | Makes comment-only edits in one scope it is handed, each proven to leave code unchanged |
 | `discovery` `explorer` | `sonnet` | `medium` | `medium` | Reads and indexes a scope it is handed |
 | `discovery` `intent-tracer` | `opus` | `high` | `high` | Reconstructed rationale feeds decisions |
 | `discovery` `research-verifier` | `opus` | `high` | `high` | Verdict on a research artifact |
