@@ -289,6 +289,22 @@ function laneCause(kind, reason) {
   return codes.every((code) => LANE_CAUSES[kind].some((entry) => (entry.endsWith(":") ? code.startsWith(entry) : code === entry)));
 }
 
+// `head`'s check runs, CHECK_PAGES pages at most, or null when a page does
+// not read or the listing may be cut short.
+async function checkRuns(reader, repo, head) {
+  const all = [];
+  for (let page = 1; page <= CHECK_PAGES; page += 1) {
+    const batch = (await reader("GET", `/repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
+    if (!Array.isArray(batch)) {
+      return null;
+    }
+    all.push(...batch);
+    if (batch.length < 100) {
+      return all;
+    }
+  }
+  return null;
+}
 
 // The workflow whose lanes ci-status aggregates. An advisory lane's failure
 // (pr-test-platforms) leaves ci-status green once the label is off, so only
@@ -306,19 +322,9 @@ async function headFailing({ checks, repo, pull }) {
       return false;
     }
     const suites = new Set(required.map((run) => run.check_suite_id));
-    const runs = [];
-    for (let page = 1; ; page += 1) {
-      const listed = (await checks("GET", `/repos/${repo}/commits/${pull.head.sha}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
-      if (!Array.isArray(listed)) {
-        return false;
-      }
-      runs.push(...listed);
-      if (listed.length < 100) {
-        break;
-      }
-      if (page === CHECK_PAGES) {
-        return false;
-      }
+    const runs = await checkRuns(checks, repo, pull.head.sha);
+    if (runs === null) {
+      return false;
     }
     return failingChecks(runs.filter((run) => run.app?.slug === "github-actions" && suites.has(run.check_suite?.id))).length > 0;
   } catch {
@@ -327,6 +333,8 @@ async function headFailing({ checks, repo, pull }) {
 }
 
 const reasonOf = ({ body }) => REASON.exec(body.join("\n"))?.[1];
+// A comment's last write: its creation or its last edit, NaN when one does not parse.
+const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
@@ -347,7 +355,7 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 // reason that does not parse, or a time that does not parse, counts.
 function personEscalation({ appComments, lifted }) {
   return appComments
-    .filter((item) => !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted))
+    .filter((item) => !(lastWrite(item) < lifted))
     .flatMap((item) => {
       const body = lines(item.body);
       const unblock = body[0] === ESCALATION ? [reasonOf({ body }) ?? "an escalation whose reason does not parse"] : [];
@@ -463,20 +471,7 @@ async function ciPasses(context) {
 // ci-status is left out: the label fails it. `read` runs a read with a token
 // that holds checks: read and answers null when the read fails.
 async function checksHeld(read, repo, head) {
-  const runs = await read(async (reader) => {
-    const all = [];
-    for (let page = 1; page <= CHECK_PAGES; page += 1) {
-      const batch = (await reader("GET", `/repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
-      if (!Array.isArray(batch)) {
-        return null;
-      }
-      all.push(...batch);
-      if (batch.length < 100) {
-        return all;
-      }
-    }
-    return null;
-  });
+  const runs = await read((reader) => checkRuns(reader, repo, head));
   const others = (runs ?? []).filter((run) => run?.name !== AGGREGATE);
   const latest = new Map();
   for (const run of others) {
@@ -788,11 +783,10 @@ export const STALE_HOLD = "stale-review-hold";
 // Each review caller's lane id, as its notices and comments name it.
 const LANE_OF = Object.freeze({ "pr-review-hosted.yml": "claude-review", "pr-review-security-hosted.yml": "claude-security-review" });
 const SECURITY_LANE = "claude-security-review";
-// The security lane's per-finding and summary severity lines
-// (/review:security-review "Reporting"; babysit_review_evidence's SEVERITY_RE
-// and SUMMARY_CRITICAL_RE).
+// The security lane's per-finding severity line (/review:security-review
+// "Reporting"; babysit_review_evidence's SEVERITY_RE); its summary line is
+// CRITICAL_FINDINGS.
 const SEVERITY = /^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$/gm;
-const CRITICAL_COUNT = /^\s*`?critical-findings: (\d{1,6})`?\s*$/gm;
 const HOLD_LANE = /^<!-- claude-lane-hold lane=([a-z-]+) /;
 const HOLD_CRITERIA = / criteria=([a-z,-]+) -->$/;
 // The most files GitHub lists for a commit; a listing that long may be cut short.
@@ -906,7 +900,7 @@ async function laneReview({ checks, repo, head }, [file, names]) {
     }
     return { lane, findings: Number(reviewed[0][1]), inline: Number(reviewed[0][2]), whole: reviewed[0][3] === "whole" };
   } catch (error) {
-    return { held: `${lane}'s run on ${head} did not read: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}` };
+    return { held: `${lane}'s run on ${head} did not read: ${escapeCommand(error?.message ?? error)}` };
   }
 }
 
@@ -927,7 +921,7 @@ function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
   }
   const marker = `<!-- claude-lane-reviewed-head lane=${SECURITY_LANE} sha=${head} -->`;
   const summary = timeline.filter((item) => item.event === "commented" && isApp(item.user, "github-actions[bot]") && lines(item.body)[0] === marker);
-  const counts = summary.length === 1 ? [...String(summary[0].body).matchAll(CRITICAL_COUNT)].map((match) => match[1]) : [];
+  const counts = summary.length === 1 ? [...String(summary[0].body).matchAll(CRITICAL_FINDINGS)].map((match) => match[1]) : [];
   if (counts.length !== 1 || counts[0] !== "0") {
     return `the security lane's summary of ${head} does not read critical-findings: 0`;
   }
@@ -982,7 +976,7 @@ export async function trustedMove({ read, repo, pull, keys, since, trusted }) {
 // hold whose criteria include critical-security.
 export function holdsSince(timeline, lifted) {
   const holds = timeline
-    .filter((item) => laneHold(item) !== undefined && !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted))
+    .filter((item) => laneHold(item) !== undefined && !(lastWrite(item) < lifted))
     .map((item) => {
       const marker = laneHold(item);
       return { sha: HOLD_LINE.exec(marker)?.[1], lane: HOLD_LANE.exec(marker)?.[1], criteria: (HOLD_CRITERIA.exec(marker)?.[1] ?? "").split(",") };
@@ -1166,7 +1160,7 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
     const number = Number(env.PR_NUMBER);
     const label = env.HUMAN_GATED ?? "";
     const cleared = env.CLEARED_SHA ?? "";
-    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || !Number.isSafeInteger(number) || number < 1 || !SHA.test(env.HEAD_SHA ?? "") || !SHA.test(cleared) || label === "") {
+    if (!REPO.test(repo) || !Number.isSafeInteger(number) || number < 1 || !SHA.test(env.HEAD_SHA ?? "") || !SHA.test(cleared) || label === "") {
       throw new Error("GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, CLEARED_SHA or HUMAN_GATED is not set");
     }
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
@@ -1193,17 +1187,12 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
     const removal = timeline.find((item) => item.event === "unlabeled" && same(item.label?.name, label) && Date.parse(item.created_at) === until);
     const written = (item) => !(Date.parse(item?.created_at ?? item?.submitted_at ?? "") > until);
     const seen = timeline.filter(written);
-    const stop =
-      standingStop({ timeline: seen, lifted, since, bot: removal?.actor?.login ?? "", label }) ??
-      ((speaker) => (speaker === undefined ? null : spokeReason(speaker, label)))(
-        personSince(
-          reviewEntries({
-            comments: (await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`)).filter(written),
-            reviews: (await paginate(github, `/repos/${repo}/pulls/${number}/reviews`)).filter(written),
-          }),
-          since,
-        ),
-      );
+    let stop = standingStop({ timeline: seen, lifted, since, bot: removal?.actor?.login ?? "", label });
+    if (stop === null) {
+      const { comments, reviews } = await reviewActivity(github, repo, number, since);
+      const speaker = personSince(reviewEntries({ comments: comments.filter(written), reviews: reviews.filter(written) }), since);
+      stop = speaker === undefined ? null : spokeReason(speaker, label);
+    }
     if (stop !== null) {
       console.log(`stale-review-hold: the hold stands at ${cleared}: ${stop}`);
       return 1;
@@ -1216,27 +1205,43 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
     console.log(`stale-review-hold: the hold at ${evidence.held.join(", ")} no longer stands at ${cleared}: ${evidence.moved}`);
     return 0;
   } catch (error) {
-    console.log(`stale-review-hold: did not read: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    console.log(`stale-review-hold: did not read: ${escapeCommand(error?.message ?? error)}`);
     return 1;
   }
 }
 
 // The accounts a review lane's hold step adds the label as.
 const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
-// A label a review lane added: what to clear as STALE_HOLD, or { reason }
-// saying why nothing is.
-// Why something besides the review-lane holds keeps the label, from the
-// timeline, or null: check-signed-commits' hold, pr-verify's credential hold, a
-// lanes App (`bot`) marker
-// other than an address-feedback round's or a clear's since the label went
-// on, or a person who spoke since. clear-escalations and ci-status's recheck
-// both run it.
-function standingStop({ timeline, lifted, since, bot, label }) {
+
+// Why check-signed-commits' or pr-verify's credential hold since `lifted`
+// keeps the label, or null.
+function commitHold(timeline, lifted) {
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return "check-signed-commits holds it: a lane commit could not be verified";
   }
-  if (openCredentialHold(timeline, lifted) !== undefined) {
-    return CREDENTIAL_KEPT;
+  return openCredentialHold(timeline, lifted) !== undefined ? CREDENTIAL_KEPT : null;
+}
+
+// Why `pull` is not an open pull request into main that carries `label` and
+// no outside actor's hold, or null.
+function notOpenHeld(pull, label) {
+  if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
+    return "not an open pull request into main";
+  }
+  if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
+    return `${label} is no longer on it`;
+  }
+  return outsideActorHeld(pull.labels) ? OUTSIDE_ACTOR_KEPT : null;
+}
+
+// Why something besides the review-lane holds keeps the label, from the
+// timeline, or null: commitHold, a lanes App (`bot`) marker other than an
+// address-feedback round's or a clear's since the label went on, or a person
+// who spoke since. clear-escalations and ci-status's recheck both run it.
+function standingStop({ timeline, lifted, since, bot, label }) {
+  const hold = commitHold(timeline, lifted);
+  if (hold !== null) {
+    return hold;
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
   const foreign = foreignMarker(appComments, since, (line) => line === ROUND_MARKER);
@@ -1247,20 +1252,17 @@ function standingStop({ timeline, lifted, since, bot, label }) {
   return speaker === undefined ? null : spokeReason(speaker, label);
 }
 
+// A label a review lane added: what to clear as STALE_HOLD, or { reason }
+// saying why nothing is.
 async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
   const stop = standingStop({ timeline, lifted, since, bot, label });
   if (stop !== null) {
     return { reason: stop };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
-  if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
-    return { reason: "not an open pull request into main" };
-  }
-  if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
-    return { reason: `${label} is no longer on it` };
-  }
-  if (outsideActorHeld(pull.labels)) {
-    return { reason: OUTSIDE_ACTOR_KEPT };
+  const closed = notOpenHeld(pull, label);
+  if (closed !== null) {
+    return { reason: closed };
   }
   const evidence = await staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted });
   if (evidence.reason !== undefined) {
@@ -1269,10 +1271,10 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
   const head = pull.head.sha;
   return {
     ...cleared(timeline, bot, since, [STALE_HOLD], head, [
-    `it held \`${evidence.held.join("`, `")}\``,
-    evidence.moved,
-    "both review lanes passed on it with a whole review and no open CRITICAL finding",
-  ]),
+      `it held \`${evidence.held.join("`, `")}\``,
+      evidence.moved,
+      "both review lanes passed on it with a whole review and no open CRITICAL finding",
+    ]),
     holds: evidence.holds,
   };
 }
@@ -1312,11 +1314,9 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   if (held !== undefined) {
     return { reason: `a review lane holds it: ${holdText(held).slice(0, 120)}` };
   }
-  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
-    return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
-  }
-  if (openCredentialHold(timeline, lifted) !== undefined) {
-    return { reason: CREDENTIAL_KEPT };
+  const hold = commitHold(timeline, lifted);
+  if (hold !== null) {
+    return { reason: hold };
   }
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.
@@ -1356,14 +1356,9 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
     return { reason: spokeReason(speaker, label) };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
-  if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
-    return { reason: "not an open pull request into main" };
-  }
-  if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
-    return { reason: `${label} is no longer on it` };
-  }
-  if (outsideActorHeld(pull.labels)) {
-    return { reason: OUTSIDE_ACTOR_KEPT };
+  const closed = notOpenHeld(pull, label);
+  if (closed !== null) {
+    return { reason: closed };
   }
   const why = [];
   if (merged.length > 0) {
@@ -1554,7 +1549,7 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
   }
   const routed = [];
   for (const [activity, item] of stops) {
-    const stoppedAt = Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+    const stoppedAt = lastWrite(item);
     if (stoppedAt < since) {
       continue;
     }
@@ -1629,6 +1624,13 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
   return { reason: null, why: why.join("; ") };
 }
 
+// The open pull requests carrying `label`.
+async function labeledPulls(github, repo, label) {
+  return (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
+    (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
+  );
+}
+
 // Takes each session label off where sessionVerdict finds its stop cleared,
 // reading at most SESSION_CHECKS_PER_RUN pull requests a label a run. No
 // comment: the label queues a session and holds nothing a person must see
@@ -1636,10 +1638,7 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
 async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
-    const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
-      (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
-    );
-    for (const [index, { number }] of rotated(held, runNumber).entries()) {
+    for (const [index, { number }] of rotated(await labeledPulls(github, repo, label), runNumber).entries()) {
       if (index >= SESSION_CHECKS_PER_RUN) {
         console.log(`clear-escalations: #${number} ${label} not checked: ${SESSION_CHECKS_PER_RUN} read this run`);
         continue;
@@ -1687,26 +1686,24 @@ export async function main({ env = process.env, github, checks, verify, reader }
     const repo = env.GITHUB_REPOSITORY;
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
     const label = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    checks ??= createGitHub({ token: env.CHECKS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const client = (token) => createGitHub({ token, apiUrl: env.GITHUB_API_URL || undefined });
+    github ??= client(env.GH_TOKEN);
+    checks ??= client(env.CHECKS_TOKEN);
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
     // The job's own token reads branch activity, check runs and main's
     // history; without it, or without the trusted list, no stop clears on a
     // trusted move.
-    reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? createGitHub({ token: env.BABYSIT_VERIFY_GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined })) : null;
+    reader = env.BABYSIT_VERIFY_GH_TOKEN ? (reader ?? client(env.BABYSIT_VERIFY_GH_TOKEN)) : null;
     const trusted = trustedIds(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
     const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
     const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
     if (!SHA.test(String(mainSha))) {
       throw new Error("main's tip has no commit SHA");
     }
-    const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
-      (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
-    );
     let failed = 0;
     let cleared = 0;
-    for (const { number, labels } of rotated(held, Number(env.GITHUB_RUN_NUMBER))) {
+    for (const { number, labels } of rotated(await labeledPulls(github, repo, label), Number(env.GITHUB_RUN_NUMBER))) {
       if (outsideActorHeld(labels)) {
         console.log(`clear-escalations: #${number} kept: ${OUTSIDE_ACTOR_KEPT}`);
         continue;
