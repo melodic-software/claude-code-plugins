@@ -2433,12 +2433,12 @@ print_landed() {
 # Section 6 — lane runs: failures by class, limit stops, restarts, turn headroom
 # =============================================================================
 # One row per lane workflow over the last LANE_DAYS days. A failed run's class
-# comes from its jobs' check-run annotations: the lane record's `class=` field
-# (ci-workflows classify), except that a run the action stopped for exceeding
-# its turn cap is max-turns even where classify still writes class=other. Turns
-# and the cap come from the record's `turns=` and `max-turns=` fields, else from
-# the SDK result's num_turns or the action's "after N turns, exceeding the
-# configured maximum of M" annotation. A restart is a run of a lane on an item
+# comes from its jobs' check-run annotations: the `class` of the lane-outcome
+# records they carry (ci-workflows docs/lane-outcome.md), except that a run the
+# action stopped for exceeding its turn cap is max-turns even where a record
+# says other. Turns and the cap come from the records' `turns` and `maxTurns`,
+# else from the SDK result's num_turns or the action's "after N turns,
+# exceeding the configured maximum of M" annotation. A restart is a run of a lane on an item
 # whose previous run of that lane was a limit stop. An item is the head commit
 # for a pull_request or workflow_run run. Any other run carries no head or
 # issue number, so its item is the event and the `#N` that ends its title
@@ -2447,13 +2447,18 @@ print_landed() {
 LANE_DEFS='
   def num(re): [match(re; "i") | .captures[0].string | tonumber] | first;
   def tok($k): [match("(?:^|[^A-Za-z0-9_-])" + $k + "=([A-Za-z0-9._:/,\\[\\]-]+)") | .captures[0].string | sub("[.,]+$"; "")] | first;
-  def turns_of: num("(?:^|[^a-z-])turns=([0-9]+)") // num("\"num_turns\":([0-9]+)") // num("after ([0-9]+) turns, exceeding");
-  def cap_of: num("max-turns=([0-9]+)") // num("configured maximum of ([0-9]+)");
-  def klass:
-    if test("class=rate-limit(?![a-z-])") then "rate-limit"
-    elif test("class=auth(?![a-z-])") then "auth"
-    elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
-    else "other" end;
+  def count: if type == "number" and . >= 0 and . == floor then . else null end;
+  # Turns and the cap from the records of the run ($recs), else from the SDK
+  # result and the turn-cap text of the action.
+  def turns_of($recs): ($recs | map(.turns | count) | first) // num("\"num_turns\":([0-9]+)") // num("after ([0-9]+) turns, exceeding");
+  def cap_of($recs): ($recs | map(.maxTurns | count) | first) // num("configured maximum of ([0-9]+)");
+  def klass($recs):
+    ($recs | map(.class)) as $c
+    | if $c | index("rate-limit") then "rate-limit"
+      elif $c | index("auth") then "auth"
+      elif ($c | index("max-turns")) or test("error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
+      elif $c | index("review-unposted") then "review-unposted"
+      else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
   def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
   # The v1 lane-outcome records in a run text, at most 8: after each marker,
@@ -2470,28 +2475,33 @@ LANE_DEFS='
       | select(.status == "completed" and .conclusion != "skipped" and .conclusion != null)
       | select((.created_at | fromdateiso8601) >= $since)
       # A leg that handed off leaves its own record, a notice with handoff
-      # true; its class and turns are not those of the run, so its line is
-      # dropped.
+      # true; its class and turns are not those of the run, so its record and
+      # line are dropped.
       | ($texts[(.id | tostring)] | if . == null then null else split("\n") | map(select(test("\"handoff\":true") | not)) | join("\n") end) as $t
+      | (if $t != null then ($t | records | map(select(.handoff != true))) else [] end) as $recs
       | (if $t != null then ($t | tok("activity")) else null end) as $act
       | . + {
           read: ($t != null),
-          record: ($t != null and ($t | test("(?:^|[^A-Za-z0-9_-])(?:class|turns|max-turns|models|profile)="))),
+          record: ($recs | length > 0),
+          # A run with no working shell: a success record with shellFailed
+          # true, or an older record of class shell-failed.
+          shell: ($recs | any(.shellFailed == true or .class == "shell-failed")),
           failed: (.conclusion | IN("failure", "timed_out", "startup_failure")),
-          turns: (if $t != null then ($t | turns_of) else null end),
-          cap: (if $t != null then ($t | cap_of) else null end),
+          turns: (if $t != null then ($t | turns_of($recs)) else null end),
+          cap: (if $t != null then ($t | cap_of($recs)) else null end),
           head: (((.event // "") | startswith("pull_request")) or .event == "workflow_run"),
           number: ([(.display_title // "") | capture(" #(?<n>[0-9]+)$") | .n] | first),
           name: (if $act != null and $act != $lane then "\($lane) / \($act)" else $lane end),
-          profile: ((if $t != null then ($t | tok("profile")) else null end) // "unknown"),
-          models: (if $t != null then (($t | tok("models")) // "" | split(",") | map(select(. != ""))) else [] end)
+          # The record carries no models profile.
+          profile: "unknown",
+          models: ([$recs[] | .models // [] | .[] | strings] | unique)
         }
       | . + {
           key: (if .head then "head \(.head_sha)" elif .number then "\(.event) #\(.number)" else "title \(.display_title)" end)
         }
       | . + {class: (if .failed | not then null
                      elif .conclusion != "failure" then "other"
-                     elif .read then ($t | klass)
+                     elif .read then ($t | klass($recs))
                      else "unread" end)}
     ];
 '
@@ -2510,7 +2520,7 @@ LANES_JQ="$LANE_DEFS"'
   | ($r | sort_by(.created_at) | map(.cap | numbers) | last) as $cap
   | (if ($ts | length) > 0 then $ts[((($ts | length) * 0.9) | ceil) - 1] else null end) as $p90
   | ($f | map(select(.class == "max-turns")) | length) as $maxturns
-  | "  \($wf)  runs=\($r | length)  failed=\($f | length) [rate-limit \($stops), max-turns \($maxturns), auth \($f | map(select(.class == "auth")) | length), other \($f | map(select(.class == "other")) | length)\(($f | map(select(.class == "unread")) | length) as $u | if $u > 0 then ", unread \($u)" else "" end)]  limit-stops=\($stops)  restarts=\($restarts)",
+  | "  \($wf)  runs=\($r | length)  failed=\($f | length) [rate-limit \($stops), max-turns \($maxturns), auth \($f | map(select(.class == "auth")) | length), other \($f | map(select(.class == "other")) | length)\(($f | map(select(.class == "review-unposted")) | length) as $n | if $n > 0 then ", review-unposted \($n)" else "" end)\(($f | map(select(.class == "unread")) | length) as $u | if $u > 0 then ", unread \($u)" else "" end)]  limit-stops=\($stops)  restarts=\($restarts)\(($r | map(select(.shell)) | length) as $sh | if $sh > 0 then "  shell-failed=\($sh)" else "" end)",
     (if ($ts | length) > 0 then
        "    turns: max=\($ts | last) p90=\($p90) cap=\($cap // "?") (\($ts | length) runs)"
        + (if $maxturns > 0 or ($p90 | hot($cap)) then "  CHECK: " + ([ (if $maxturns > 0 then "\($maxturns) max-turns failure(s)" else empty end), (if ($p90 | hot($cap)) then "p90 at or above 80% of the cap" else empty end) ] | join("; ")) + "; raise the cap or inspect the runs" else "" end)
@@ -2520,10 +2530,10 @@ LANES_JQ="$LANE_DEFS"'
     ($repeat[] | "    \(.n) limit stops on one \(if .head then "head" else "item" end): \(.title)\(if .head and .sha != "" then " @ \(.sha)" else "" end)")
 '
 # The model-usage baseline: one row per activity and profile over the same
-# runs, from the record tokens of the runs whose annotations carry a lane
-# record; a run read with none (cancelled, stopped at a gate) is left out. An
-# activity is the record's `activity=` (a pipeline lane's), else the lane; a
-# profile is the record's `profile=`, else unknown. A pass is a run that
+# runs, from the lane-outcome records of the runs whose annotations carry one;
+# a run read with none (cancelled, stopped at a gate) is left out. An
+# activity is the caller job's name (a pipeline lane's), else the lane; the
+# record names no profile, so it is unknown. A pass is a run that
 # concluded success; a max-turns hit is a failed run of class max-turns.
 # shellcheck disable=SC2016  # jq variables, as above
 MODELS_JQ="$LANE_DEFS"'

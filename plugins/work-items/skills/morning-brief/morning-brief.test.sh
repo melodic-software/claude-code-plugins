@@ -1351,7 +1351,7 @@ cat >"$REST/$(rest_key "$R/check-runs/881/annotations?per_page=100").json" <<'EO
 []
 EOF
 cat >"$REST/$(rest_key "$R/check-runs/880/annotations?per_page=100").json" <<'EOF'
-[{"message": "pr-unblock completed: turns=7 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments."}]
+[{"message": "pr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":7,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]} Findings (if any) are in the PR comments."}]
 EOF
 cat >"$REST/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json" <<'EOF'
 {"total_count": 1, "workflow_runs": [{"id": 77, "html_url": "http://x/runs/77", "event": "issues", "display_title": "Issue R", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T00:00:00Z"}]}
@@ -1360,7 +1360,7 @@ cat >"$REST/$(rest_key "$R/actions/runs/77/jobs?per_page=100").json" <<'EOF'
 {"total_count": 1, "jobs": [{"id": 770}]}
 EOF
 cat >"$REST/$(rest_key "$R/check-runs/770/annotations?per_page=100").json" <<'EOF'
-[{"message": "Process completed with exit code 1."}, {"message": "failure class=rate-limit"}]
+[{"message": "Process completed with exit code 1."}, {"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]
 EOF
 
 OUT_REST="$(run_stub rest)"
@@ -1835,18 +1835,18 @@ cat >"$TMP/lane-runs.json" <<'EOF'
 EOF
 cat >"$TMP/lane-annotations.json" <<'EOF'
 {
-  "1": "lane outcome class=success turns=10 max-turns=15",
+  "1": "intake-triage completed. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":10,\"maxTurns\":15}",
   "2": "failure-class=other job=success; read the job log.\nClaude intake triage exited with: failure class=other (infrastructure error, not a code-quality signal — e.g. usage limit, OIDC failure, SDK crash, is_error result, or max-turns exhaustion). Last SDK result: {\"subtype\":\"success\",\"is_error\":false,\"num_turns\":16,\"class\":\"other\"}\nClaude reported a successful result after 16 turns, exceeding the configured maximum of 15",
-  "3": "turns=12 max-turns=15",
-  "4": "class=rate-limit",
-  "10": "failure class=rate-limit resets=2026-07-15T05:00:00Z",
-  "11": "failure class=rate-limit",
-  "12": "failure class=rate-limit",
-  "13": "turns=4 max-turns=50",
-  "14": "failure class=auth",
-  "20": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5",
-  "21": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5",
-  "22": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5"
+  "3": "intake-triage completed. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":12,\"maxTurns\":15}",
+  "4": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}",
+  "10": "work-resolve-issue exited with: failure. lane-outcome {\"v\":1,\"lane\":\"work-resolve-issue\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\",\"resets\":{\"at\":\"2026-07-15T05:00:00Z\",\"window\":\"five_hour\"}}",
+  "11": "work-resolve-issue exited with: failure. lane-outcome {\"v\":1,\"lane\":\"work-resolve-issue\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}",
+  "12": "work-resolve-issue exited with: failure. lane-outcome {\"v\":1,\"lane\":\"work-resolve-issue\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}",
+  "13": "work-resolve-issue completed. lane-outcome {\"v\":1,\"lane\":\"work-resolve-issue\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":4,\"maxTurns\":50}",
+  "14": "work-resolve-issue exited with: failure. lane-outcome {\"v\":1,\"lane\":\"work-resolve-issue\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"auth\"}",
+  "20": "pr-verify exited with: failure. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\",\"models\":[\"claude-opus-5-5\"]}",
+  "21": "pr-verify exited with: failure. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\",\"models\":[\"claude-opus-5-5\"]}",
+  "22": "pr-verify exited with: failure. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\",\"models\":[\"claude-opus-5-5\"]}"
 }
 EOF
 OUT_LANES="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
@@ -1892,6 +1892,51 @@ assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HAND
 # still names its key.
 assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
 assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
+# The legacy key=value tokens alone (ADR 0087 slice 3 retires them) carry no
+# class, turns, cap or models: the run is read, with no record.
+cat >"$TMP/lane-runs-legacy.json" <<'EOF'
+{
+  "pr-verify.yml": [
+    {"id": 95, "html_url": "http://x/runs/95", "event": "workflow_run", "display_title": "PR L", "head_sha": "beef1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T00:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations-legacy.json" <<'EOF'
+{
+  "95": "pr-verify exited with: failure class=rate-limit turns=3 max-turns=30 models=claude-opus-5-5 profile=standard"
+}
+EOF
+LANES_LEGACY="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-legacy.json" --lane-annotations-json "$TMP/lane-annotations-legacy.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "lanes: legacy tokens alone class no run" "$LANES_LEGACY" \
+  "pr-verify.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
+assert_not_contains "lanes: legacy tokens alone give no turns" "$LANES_LEGACY" "turns: max="
+assert_contains "lanes: legacy tokens alone are no lane record" "$LANES_LEGACY" "    1 run(s) left out: no lane record was read"
+# review-unposted is its own failure class; a run with no working shell (a
+# success record with shellFailed true, or an older shell-failed record) is
+# counted beside the row.
+cat >"$TMP/lane-runs-classes.json" <<'EOF'
+{
+  "pr-review-main.yml": [
+    {"id": 96, "html_url": "http://x/runs/96", "event": "workflow_run", "display_title": "PR U", "head_sha": "c0de1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T00:00:00Z"},
+    {"id": 97, "html_url": "http://x/runs/97", "event": "workflow_run", "display_title": "PR V", "head_sha": "c0de5678", "status": "completed", "conclusion": "success", "created_at": "2026-07-18T01:00:00Z"},
+    {"id": 98, "html_url": "http://x/runs/98", "event": "workflow_run", "display_title": "PR W", "head_sha": "c0de9abc", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T02:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations-classes.json" <<'EOF'
+{
+  "96": "pr-review concluded: failure. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"failure\",\"class\":\"review-unposted\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}",
+  "97": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"shellFailed\":true,\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}",
+  "98": "pr-review exited with: failure. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"failure\",\"class\":\"shell-failed\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"}}"
+}
+EOF
+LANES_CLASSES="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-classes.json" --lane-annotations-json "$TMP/lane-annotations-classes.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "lanes: review-unposted is shown as its own class, and shell-failed runs are counted" "$LANES_CLASSES" \
+  "pr-review-main.yml  runs=3  failed=2 [rate-limit 0, max-turns 0, auth 0, other 1, review-unposted 1]  limit-stops=0  restarts=0  shell-failed=2"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
@@ -1903,9 +1948,9 @@ OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --p
   --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
   --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
 assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
-assert_contains "models: a pr-verify record with models= and no profile= gets its row" "$LANES" \
+assert_contains "models: a pr-verify record with models and no profile gets its row" "$LANES" \
   "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=claude-opus-5-5"
-assert_contains "models: a lane whose records carry no models= still gets a row" "$LANES" \
+assert_contains "models: a lane whose records carry no models still gets a row" "$LANES" \
   "    work-resolve-issue  profile=unknown  runs=5  pass=1/5  median-turns=4  max-turns-hits=0  models=none recorded"
 assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "$LANES" "KEY:"
 
@@ -2007,7 +2052,7 @@ printf '{"total_count": 0, "workflow_runs": []}\n' \
 for key_run in $(seq 1000 1199); do
   printf '{"total_count": 1, "jobs": [{"id": 5555}]}\n' >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
 done
-printf '[{"message": "failure class=rate-limit"}]\n' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
+printf '%s\n' '[{"message": "intake-triage exited with: failure. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"rate-limit\"}"}]' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
 for key_run in 901 902 903; do
   printf '{"total_count": 1, "jobs": [{"id": %s0, "name": "fix-ci / run"}]}\n' "$key_run" \
     >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
@@ -2089,9 +2134,10 @@ assert_not_contains "spend: the section stays readable" "$SPEND" "UNREADABLE"
 assert_contains "spend: legs without costUsd elsewhere print cost not recorded" "$KEYS" "  SPEND: INTAKE cost not recorded (n=1)"
 
 # --- Lanes: model usage by activity and profile ---------------------------------
-# pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and
-# 36 (two pass, two max-turns failures, turns 8, 40, 40, 10, so the median is
-# (10 + 40) / 2 = 25); run 32 carries profile=standard; run 33 is
+# pr-unblock runs 30-36, each with a lane-outcome record: resolve-conflicts
+# runs 30, 31, 34 and 36 (two pass, two max-turns failures, turns 8, 40, 40,
+# 10, so the median is (10 + 40) / 2 = 25); run 32 is fix-docs, with a
+# profile= token in its free text that is not read; run 33 is
 # address-feedback; run 35 has no annotations read, and cancelled run 37's
 # annotations carry no lane record. intake-triage run 40 has no
 # activity= and so is its own activity.
@@ -2114,14 +2160,14 @@ cat >"$TMP/model-runs.json" <<'EOF'
 EOF
 cat >"$TMP/model-annotations.json" <<'EOF'
 {
-  "30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
-  "31": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5,claude-haiku-5 (infrastructure error)\nactivity=resolve-conflicts",
-  "32": "pr-unblock completed: turns=12 max-turns=40 profile=standard models=claude-opus-5. Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
-  "33": "activity=address-feedback\npr-unblock completed: turns=5 max-turns=40 models=claude-sonnet-5.",
-  "34": "pr-unblock exited with: failure class=max-turns turns=40 max-turns=40 models=claude-sonnet-5\nactivity=resolve-conflicts",
-  "36": "pr-unblock completed: turns=10 max-turns=40 models=claude-sonnet-5.\nactivity=resolve-conflicts",
+  "30": "pr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":8,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]} Findings (if any) are in the PR comments.\nactivity=resolve-conflicts",
+  "31": "pr-unblock exited with: failure. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"max-turns\",\"turns\":40,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\",\"claude-haiku-5\"]} (infrastructure error)\nactivity=resolve-conflicts",
+  "32": "pr-unblock completed: profile=standard. lane-outcome {\"v\":1,\"lane\":\"fix-docs\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":12,\"maxTurns\":40,\"models\":[\"claude-opus-5\"]} Findings (if any) are in the PR comments.\nactivity=fix-docs",
+  "33": "activity=address-feedback\npr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"address-feedback\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":5,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]}",
+  "34": "pr-unblock exited with: failure. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"failure\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"class\":\"max-turns\",\"turns\":40,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]}\nactivity=resolve-conflicts",
+  "36": "pr-unblock completed. lane-outcome {\"v\":1,\"lane\":\"resolve-conflicts\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":10,\"maxTurns\":40,\"models\":[\"claude-sonnet-5\"]}\nactivity=resolve-conflicts",
   "37": "The run was canceled by @someone.\nactivity=resolve-conflicts",
-  "40": "Claude intake triage completed: turns=3 max-turns=10 models=claude-sonnet-5. Findings (if any) are in the PR comments."
+  "40": "Claude intake triage completed. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"success\",\"credential\":{\"secret\":\"CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\"},\"turns\":3,\"maxTurns\":10,\"models\":[\"claude-sonnet-5\"]} Findings (if any) are in the PR comments."
 }
 EOF
 models_brief() {
@@ -2134,8 +2180,9 @@ assert_contains "models: a lane with no activity= is its own activity" "$MODELS"
   "    intake-triage  profile=unknown  runs=1  pass=1/1  median-turns=3  max-turns-hits=0  models=claude-sonnet-5"
 assert_contains "models: a pipeline activity gets its own row" "$MODELS" \
   "    pr-unblock / address-feedback  profile=unknown  runs=1  pass=1/1  median-turns=5  max-turns-hits=0  models=claude-sonnet-5"
-assert_contains "models: a profile= token splits the activity's row" "$MODELS" \
-  "    pr-unblock / resolve-conflicts  profile=standard  runs=1  pass=1/1  median-turns=12  max-turns-hits=0  models=claude-opus-5"
+assert_contains "models: each pipeline activity gets its own row" "$MODELS" \
+  "    pr-unblock / fix-docs  profile=unknown  runs=1  pass=1/1  median-turns=12  max-turns-hits=0  models=claude-opus-5"
+assert_not_contains "models: a profile= token in free text is not read" "$MODELS" "profile=standard"
 assert_contains "models: pass count, even-count median, max-turns hits and the union of models" "$MODELS" \
   "    pr-unblock / resolve-conflicts  profile=unknown  runs=4  pass=2/4  median-turns=25  max-turns-hits=2  models=claude-haiku-5,claude-sonnet-5"
 assert_contains "models: runs with no lane record read, unread or recordless, are left out and counted" "$MODELS" \

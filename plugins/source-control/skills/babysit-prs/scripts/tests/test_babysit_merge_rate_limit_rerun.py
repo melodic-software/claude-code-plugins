@@ -3,7 +3,7 @@
 or on its runner install.
 
 The re-run fires only for a failure annotation the review evidence accepts a
-re-run after and the gate re-runs (`class=rate-limit` or this lane's publish
+re-run after and the gate re-runs (a `rate-limit` lane-outcome record or this lane's publish
 failure on GitHub's API rate limit, five hours after the failure; this lane's
 `install-failed` failure at once), only on the pinned live head, and only on a
 run's first attempt. Network is stubbed through `babysit_merge`'s gh seams.
@@ -46,9 +46,13 @@ CHECK = {
     "effective_state": "FAILURE",
     "details_url": f"https://github.com/{REPO}/actions/runs/{RUN_ID}/job/{JOB_ID}",
 }
+# report-lane-outcome's rate-limit error, whose lane-outcome record names the
+# class (ci-workflows docs/lane-outcome.md).
 RATE_LIMITED = (
-    "Claude review exited with: failure class=rate-limit -- an infrastructure "
-    "failure, not a code-quality signal"
+    "AI review skipped: usage limit reached; re-run after it resets "
+    "(Claude review exited with: failure). lane-outcome "
+    '{"v":1,"lane":"pr-review","outcome":"failure","class":"rate-limit",'
+    '"credential":{"secret":"CLAUDE_CODE_OAUTH_TOKEN","kind":"oauth-token"}}'
 )
 INSTALL_FAILED = evidence_tests.INSTALL_FAILURE["message"]
 SECURITY_CHECK = {

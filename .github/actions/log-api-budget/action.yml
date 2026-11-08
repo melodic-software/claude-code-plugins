@@ -62,6 +62,13 @@ runs:
         # the counting lines go first: each token's api-calls, then their
         # api-routes, then the content-creation line, and the per-reading
         # api-budget lines last, which the log and summary keep in full.
+        # emit <lines> <title> <summary prefix>: the notice lines to the log, and
+        # to the summary with ::notice title=<title>:: replaced; nothing when empty.
+        emit() {
+          [[ -n $1 ]] || return 0
+          printf '%s\n' "$1"
+          sed "s/^::notice title=$2::/$3/" <<<"$1" >>"$GITHUB_STEP_SUMMARY"
+        }
         costs=() counts=() names=() budget=()
         for name in $TOKENS; do
           [[ $name =~ ^[a-z][a-z0-9-]{0,39}$ ]] || { echo "::warning::api-budget: skipped a token name that is not lower-case kebab case"; continue; }
@@ -88,23 +95,11 @@ runs:
           [[ $step =~ ^[A-Za-z0-9._/:-]{1,80}$ ]] || { echo "::warning::api-budget: skipped an outside step name with other characters"; continue; }
           outside+=("$step")
         done
-        if ((${#outside[@]} > 0)); then
-          echo "::notice title=api-uncounted::github-token ${outside[*]}"
-          echo "api-uncounted github-token ${outside[*]}" >>"$GITHUB_STEP_SUMMARY"
-        fi
-        lines=$(api_budget_emit_routes "${names[@]}")
-        if [[ -n $lines ]]; then
-          printf '%s\n' "$lines"
-          sed 's/^::notice title=api-routes::/api-routes /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
-        fi
-        lines=$(api_budget_emit_content)
-        if [[ -n $lines ]]; then
-          printf '%s\n' "$lines"
-          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
-        fi
+        ((${#outside[@]} == 0)) || emit "::notice title=api-uncounted::github-token ${outside[*]}" api-uncounted 'api-uncounted '
+        emit "$(api_budget_emit_routes "${names[@]}")" api-routes 'api-routes '
+        emit "$(api_budget_emit_content)" api-budget 'api-budget: '
         for lines in "${budget[@]}"; do
-          printf '%s\n' "$lines"
-          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+          emit "$lines" api-budget 'api-budget: '
         done
         ((${#counts[@]} == 0)) || echo "calls=${counts[*]}" >>"$GITHUB_OUTPUT"
         if ((${#costs[@]} > 0)); then

@@ -83,6 +83,17 @@ RATE_LIMIT = {
     "message": "AI review skipped: usage limit reached; re-run after it resets"
     " (failure-class=rate-limit)",
 }
+# report-lane-outcome's rate-limit error (ci-workflows docs/lane-outcome.md's
+# example), whose lane-outcome record names the class.
+RATE_LIMIT_RECORD = dict(
+    RATE_LIMIT,
+    message="AI review skipped: usage limit reached; re-run after it resets"
+    " (pr-review exited with: failure). lane-outcome"
+    ' {"v":1,"lane":"pr-review","outcome":"failure","class":"rate-limit",'
+    '"credential":{"secret":"CLAUDE_CODE_OAUTH_TOKEN","kind":"oauth-token"},'
+    '"resets":{"at":"2026-10-22T05:00:00Z","window":"five_hour"}}'
+    " Last SDK result: {}",
+)
 OTHER_FAILURE = {
     "path": ".github",
     "annotation_level": "failure",
@@ -1601,6 +1612,32 @@ class AttemptRuleTests(Base):
         first = attempt("claude-review", S, 1, [RATE_LIMIT], "failure")
         result = self.bind([self.lane_run(first, self.ok(2))])
         self.assertTrue(result["claude-review"].bound)
+
+    def test_second_attempt_after_a_rate_limit_lane_outcome_record(self) -> None:
+        first = attempt("claude-review", S, 1, [RATE_LIMIT_RECORD], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_the_legacy_class_token_alone_does_not_bind(self) -> None:
+        # ADR 0087 slice 3: the `class=rate-limit` token report-lane-outcome
+        # writes beside the record is retired; only the record, or the lane's
+        # own failure-class line, marks a usage limit.
+        legacy = dict(RATE_LIMIT_RECORD, message="pr-review exited with: failure class=rate-limit")
+        first = attempt("claude-review", S, 1, [legacy], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_record_class_reads_only_the_first_v1_record(self) -> None:
+        self.assertEqual(ev.record_class(RATE_LIMIT_RECORD["message"]), "rate-limit")
+        for message in (
+            "no record here",
+            'lane-outcome {"v":2,"class":"rate-limit"}',
+            "lane-outcome {not json",
+            'lane-outcome ["rate-limit"]',
+            'lane-outcome {"v":1,"class":"other"} lane-outcome {"v":1,"class":"rate-limit"}',
+        ):
+            with self.subTest(message):
+                self.assertNotEqual(ev.record_class(message), "rate-limit")
 
     def test_second_attempt_after_a_credential_failure(self) -> None:
         first = attempt("claude-review", S, 1, [AUTH_FAILURE], "failure")
