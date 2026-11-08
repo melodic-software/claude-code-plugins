@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.2] - 2026-11-08
+
+### Changed
+
+- Shared `check-retirements.sh` synced where this plugin carries it ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)): it accepts a `block` record kind, which cleans one YAML key and its indented value instead of the whole file. No other change to this plugin.
+
 ## [0.18.1] - 2026-11-07
 
 ### Changed
