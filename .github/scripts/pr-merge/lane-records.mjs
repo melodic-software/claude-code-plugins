@@ -25,15 +25,13 @@
 // LANE_RECORDS_OUT for actions/upload-artifact. With no listing file (no
 // candidates, or a listing the run could not read), unexpired records are
 // carried as they are and pruned on the next run that saves a listing: the
-// listing only prunes, and is no trust check.
+// listing only prunes, and is no trust check. A listing file that cannot be
+// parsed writes nothing, and the next run reads an older file.
 //
 // The file is `{"version": 1, "repo": "<owner/repo>", "records": {"<record
 // name>": {"created_at", "artifact", "expires_at", "sender"}}}`. A file of
 // any other shape is no file. Any failure writes nothing and warns: the
 // check then reads every record, which costs requests, never a decision.
-//
-// A listing file that exists but cannot be parsed writes nothing, and the
-// next run reads an older file.
 //
 // Environment:
 //   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
