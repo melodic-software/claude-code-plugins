@@ -16,9 +16,10 @@ printf '%s\n' \
   "plugins/machine-health/skills/audit/tests/windows/lib/ConvertFrom-Jsonc.Tests.ps1" \
   "plugins/knowledge/skills/video-digest/extraction/watch/run-watch.test.js" \
   "plugins/attribution/skills/audit/scripts/fingerprint.test.mjs" \
+  ".github/actions/resolve-config/self-checks.test.mjs" \
   >"$list"
 
-out="$(bash "$RUNNER" --paths "$list")"
+out="$(bash "$RUNNER" --paths "$list" 2>&1)" || true
 if grep -q "EXCLUDED: plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js.test.js" <<<"$out"; then
   ok "eval fixtures are excluded"
 else
@@ -30,9 +31,14 @@ else
   fail "Pester path was not classified: $out"
 fi
 if grep -q "OWNED: plugins/knowledge/skills/video-digest/extraction/watch/run-watch.test.js" <<<"$out"; then
-  ok "the four sub-projects stay on their own steps"
+  ok "a sub-project suite stays on its own step"
 else
   fail "sub-project suite was not owned: $out"
+fi
+if grep -q "OWNED: .github/actions/resolve-config/self-checks.test.mjs" <<<"$out"; then
+  ok "every scripts/node-subprojects.txt sub-project stays on its own step"
+else
+  fail "resolve-config suite was not owned: $out"
 fi
 if grep -q "OWNED: plugins/attribution/skills/audit/scripts/fingerprint.test.mjs" <<<"$out"; then
   ok "a sibling .test.sh wrapper is owned by the shell runner"
@@ -50,6 +56,7 @@ mkdir -p "$fixture/pkgs/pass" "$fixture/pkgs/fail"
 printf '{"private":true,"scripts":{"test":"exit 0"}}\n' >"$fixture/pkgs/pass/package.json"
 printf '{"private":true,"scripts":{"test":"exit 3"}}\n' >"$fixture/pkgs/fail/package.json"
 : >"$fixture/scripts/outside-node-exclusions.txt"
+: >"$fixture/scripts/node-subprojects.txt"
 printf 'pkgs/pass\n' >"$fixture/scripts/outside-node-packages.txt"
 if out="$(bash "$fixture/$RUNNER" 2>&1)" && grep -q "npm test in pkgs/pass" <<<"$out"; then
   ok "with no arguments every registered package runs its own npm test"
@@ -84,9 +91,10 @@ else
 fi
 
 # A missing list file fails the run instead of reading as zero packages.
-for missing in outside-node-packages.txt outside-node-exclusions.txt; do
+for missing in outside-node-packages.txt outside-node-exclusions.txt node-subprojects.txt; do
   printf 'pkgs/pass\n' >"$fixture/scripts/outside-node-packages.txt"
   : >"$fixture/scripts/outside-node-exclusions.txt"
+  : >"$fixture/scripts/node-subprojects.txt"
   rm -f "$fixture/scripts/$missing"
   rc=0
   out="$(bash "$fixture/$RUNNER" 2>&1)" || rc=$?

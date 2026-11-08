@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run Node suites that sit outside the four sub-projects CI already runs.
+# Run Node suites that sit outside the sub-projects CI already runs
+# (scripts/node-subprojects.txt).
 #
 #   scripts/run-outside-node-suites.sh
 #   scripts/run-outside-node-suites.sh --paths FILE
@@ -16,7 +17,7 @@
 #   * under scripts/outside-node-exclusions.txt: recorded and not run
 #   * under a registered package: that package's npm test runs once
 #   * *.Tests.ps1: owned by the test-windows Pester lane
-#   * under the four sub-projects: owned by their existing CI steps
+#   * under a sub-project owner directory: owned by its existing CI step
 #   * a sibling *.test.sh wrapper: owned by run-plugin-tests.sh
 #   * anything else: exit 1, so a new suite cannot pass having run nothing
 #
@@ -34,6 +35,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
 PACKAGES_FILE="scripts/outside-node-packages.txt"
 EXCLUSIONS_FILE="scripts/outside-node-exclusions.txt"
+SUBPROJECTS_FILE="scripts/node-subprojects.txt"
 paths_file=""
 
 while [[ $# -gt 0 ]]; do
@@ -50,16 +52,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Assigned through a nameref, which shellcheck cannot follow (SC2154).
-packages=() exclusions=()
+packages=() exclusions=() subprojects=() subproject_owners=()
 read_list::into packages "$PACKAGES_FILE" --comments inline || exit 2
 read_list::into exclusions "$EXCLUSIONS_FILE" --comments inline || exit 2
-
-four_prefixes=(
-  "plugins/miro/"
-  "plugins/ai-briefing/skills/generate/"
-  "plugins/knowledge/skills/video-digest/"
-  "plugins/knowledge/skills/course-digest/"
-)
+read_list::into subprojects "$SUBPROJECTS_FILE" --comments inline || exit 2
+# Each row is `<package> <owner> [<trigger>...]`; only the owner directory matters here.
+for row in ${subprojects[@]+"${subprojects[@]}"}; do
+  owner=""
+  read -r _ owner _ <<<"$row"
+  [[ -n "$owner" ]] || {
+    echo "outside-node: $SUBPROJECTS_FILE row has no owner directory: $row" >&2
+    exit 2
+  }
+  subproject_owners+=("$owner")
+done
 
 under_prefix() {
   local path="$1" prefix
@@ -146,7 +152,7 @@ else
     *.test.cjs) sh_wrapper="${path%.test.cjs}.test.sh" ;;
     *) sh_wrapper="" ;;
     esac
-    if under_prefix "$path" "${four_prefixes[@]}"; then
+    if under_prefix "$path" ${subproject_owners[@]+"${subproject_owners[@]}"}; then
       echo "OWNED: $path is run by its sub-project CI step"
       continue
     fi

@@ -24,7 +24,7 @@ fixture_tree::build repo --sut plan-test-lanes.sh --sut affected-tests.sh --sut 
 fixture_tree::build scratch --label plan-test-lanes-err || exit 1
 ERR="$scratch/plan.err"
 
-cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$repo/scripts/"
+cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$REPO_ROOT/scripts/node-subprojects.txt" "$repo/scripts/"
 : >"$repo/scripts/run-plugin-tests-serial.txt"
 printf '%s\n' plugins/knowledge/vendor/repo-analysis .github/actions/check-signed-commits .github/actions/check-wip-cap \
   .github/actions/log-api-budget .github/scripts/lib .github/scripts/pr-merge .github/scripts/pr-verify \
