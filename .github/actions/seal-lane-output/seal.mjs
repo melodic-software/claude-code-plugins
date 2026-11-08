@@ -109,12 +109,10 @@ export function main(env = process.env) {
   }
   const recipient = parsePublicKey(keyText);
   const payloads = readPayloads(env.PAYLOADS ?? "", cwd);
-  const lines = [];
-  if (payloads.length > 0) {
-    const { length, parts } = chunks(sealBundle(recipient, payloads, env.GITHUB_RUN_ID, env.JOB_ID ?? ""), maxChunks);
-    lines.push(`sealed-length=${length}`, ...parts.map((part, i) => `sealed-${i + 1}=${part}`));
-  }
-  if (lines.length > 0) appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
+  if (payloads.length === 0) return;
+  const { length, parts } = chunks(sealBundle(recipient, payloads, env.GITHUB_RUN_ID, env.JOB_ID ?? ""), maxChunks);
+  const lines = [`sealed-length=${length}`, ...parts.map((part, i) => `sealed-${i + 1}=${part}`)];
+  appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -37,6 +37,7 @@ export class Rejection extends Error {
 
 const isObject = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const own = (object, key) => (Object.hasOwn(object, key) ? object[key] : undefined);
 
 export function checkConfigPath(configPath) {
   const fail = (why) => {
@@ -57,7 +58,6 @@ export function checkConfigPath(configPath) {
   if (posix.normalize(configPath).startsWith(".github/actions/")) {
     fail("is under .github/actions/");
   }
-  return undefined;
 }
 
 function parseConfig(text, configPath) {
@@ -227,9 +227,7 @@ function checkLeaves(activities, activityRules) {
           : `activity \`${name}\` sets prepare with effect read and no applied-by.patch; prepare needs a skill that can write or hands on a patch`,
       );
     }
-    const rule = Object.hasOwn(activityRules, name)
-      ? activityRules[name]
-      : undefined;
+    const rule = own(activityRules, name);
     if ((rule?.["forbidden-effects"] ?? []).includes(activity.effect)) {
       throw new Rejection(
         "forbidden-by-activity",
@@ -252,7 +250,7 @@ function checkAppliedBy(doc) {
   const handsOn = (activity) => !isComposite(activity) && isObject(activity["applied-by"]);
   for (const [name, activity] of Object.entries(doc.activities)) {
     for (const [key, target] of Object.entries(handsOn(activity) ? activity["applied-by"] : {})) {
-      const applier = Object.hasOwn(doc.activities, target) ? doc.activities[target] : undefined;
+      const applier = own(doc.activities, target);
       if (typeof applier?.script !== "string") {
         reject(`activity \`${name}\` applied-by.${key} names \`${target}\`, which is not a script activity`);
       }
@@ -318,8 +316,7 @@ function checkModels(models, activities) {
     }
   }
   for (const route of Object.keys(models.routes ?? {})) {
-    const activity = Object.hasOwn(activities, route) ? activities[route] : undefined;
-    if (!RUN_ROUTES.has(route) && typeof activity?.skill !== "string") {
+    if (!RUN_ROUTES.has(route) && typeof own(activities, route)?.skill !== "string") {
       throw new Rejection(
         "undefined-route",
         `models.routes names \`${route}\`, which is neither a skill activity nor ${[...RUN_ROUTES].join(", ")}`,
@@ -369,16 +366,12 @@ export function loadConfig(files, { configPath }) {
     }
   }
   checkVocabularyShape(files.vocabulary);
-  for (const name of Object.keys(doc.lanes)) {
-    const problem = checkLaneName(name, files.vocabulary);
-    if (problem) {
-      throw new Rejection("vocabulary", problem);
-    }
-  }
-  for (const name of Object.keys(doc.activities)) {
-    const problem = checkActivityName(name, files.vocabulary);
-    if (problem) {
-      throw new Rejection("vocabulary", problem);
+  for (const [names, check] of [[Object.keys(doc.lanes), checkLaneName], [Object.keys(doc.activities), checkActivityName]]) {
+    for (const name of names) {
+      const problem = check(name, files.vocabulary);
+      if (problem) {
+        throw new Rejection("vocabulary", problem);
+      }
     }
   }
   checkComposites(doc.activities);
@@ -389,9 +382,7 @@ export function loadConfig(files, { configPath }) {
   );
 
   for (const [laneName, lane] of Object.entries(doc.lanes)) {
-    const rule = Object.hasOwn(files.laneRules, laneName)
-      ? files.laneRules[laneName]
-      : undefined;
+    const rule = own(files.laneRules, laneName);
     if (rule === undefined) {
       throw new Rejection(
         "lane-stage",
@@ -404,8 +395,9 @@ export function loadConfig(files, { configPath }) {
         `lane \`${laneName}\` has stage \`${lane.stage}\`; lane-rules.json says \`${rule.stage}\``,
       );
     }
-    const inLane = new Set((lane.slots ?? []).map((slot) => slot.activity));
-    for (const slot of lane.slots ?? []) {
+    const slots = lane.slots ?? [];
+    const inLane = new Set(slots.map((slot) => slot.activity));
+    for (const slot of slots) {
       if (!Object.hasOwn(doc.activities, slot.activity)) {
         throw new Rejection(
           "undefined-activity",
@@ -421,9 +413,7 @@ export function loadConfig(files, { configPath }) {
         }
       }
     }
-    const leaves = expand(doc, lane.slots ?? [], ROOT).map(
-      (entry) => entry.name,
-    );
+    const leaves = expand(doc, slots, ROOT).map((entry) => entry.name);
     const repeated = leaves.find(
       (name, index) => leaves.indexOf(name) !== index,
     );
@@ -828,6 +818,11 @@ export function slotTargets({ activity, predicate, predicates }, changedTargets,
   });
 }
 
+// The activity keys a resolved slot carries as set, in this order, only when set.
+const PASSED_THROUGH = [
+  "args", "prepare", "checks", "self-checks", "verify-scripts", "web-access", "tidy", "permission-mode", "checkout", "applied-by",
+];
+
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
   { effectGrants, codeowners, trustedActors, roleMap },
@@ -893,16 +888,9 @@ function resolveSlot(
     name,
     kind,
     [kind]: activity[kind],
-    ...(activity.args === undefined ? {} : { args: activity.args }),
-    ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
-    ...(activity.checks === undefined ? {} : { checks: activity.checks }),
-    ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
-    ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
-    ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
-    ...(activity.tidy === undefined ? {} : { tidy: activity.tidy }),
-    ...(activity["permission-mode"] === undefined ? {} : { "permission-mode": activity["permission-mode"] }),
-    ...(activity.checkout === undefined ? {} : { checkout: activity.checkout }),
-    ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
+    ...Object.fromEntries(
+      PASSED_THROUGH.filter((key) => activity[key] !== undefined).map((key) => [key, activity[key]]),
+    ),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],
