@@ -5,7 +5,7 @@
   "maxOpenPullRequests": 5,
   "requireGroups": true,
   "autoMerge": {
-    "ecosystems": ["github-actions", "npm", "pip", "nuget"],
+    "ecosystems": ["github-actions", "npm", "pip", "uv", "nuget"],
     "publishers": {
       "actions/*": {
         "tier": "auto",
