@@ -1,5 +1,5 @@
 # Shell suites that scripts/run-plugin-tests.sh lets run past the default
-# per-suite ceiling. README.md "Per-suite time budget in CI" holds the
+# per-suite ceiling. scripts/README.md "Per-suite time budget in CI" holds the
 # threshold, the ceiling and their basis. A suite listed here still warns
 # above the threshold.
 #

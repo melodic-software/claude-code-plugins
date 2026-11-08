@@ -36,7 +36,7 @@
 #     handoff then /clear starts a new session id). Re-locks only when the
 #     reason names OLD, the proof release uses, and writes NEW's reason through
 #     worktree_lock_reason, keeping the creator script it named. Both ids are
-#     explicit: CLAUDE_SESSION_ID is never read for OLD.
+#     explicit: the environment is never read for OLD.
 #   stale <path> [--repo-dir DIR] [--idle-minutes N]
 #     Read-only. Exit 0 only when the lock is provably stale: a linked worktree
 #     whose reason reads `lane active on <host> session <sid> since`, <host> is
@@ -79,13 +79,14 @@
 #
 # Session identity (claim / check-enter / release):
 #   1. --session-id
-#   2. CLAUDE_SESSION_ID when set and not the unexpanded `${CLAUDE_SESSION_ID}`
-#      token
-#   3. claim only: a generated host+pid+random token so two concurrent
+#   2. CLAUDE_CODE_SESSION_ID, the id Claude Code exports to Bash, when set and
+#      not the unexpanded `${CLAUDE_CODE_SESSION_ID}` token
+#   3. CLAUDE_SESSION_ID, under the same rule
+#   4. claim only: a generated host+pid+random token so two concurrent
 #      invocations on one host still produce different reasons
 #   check-enter without a session id cannot prove ownership: any lock reason
 #   is treated as foreign. release without one exits 2. handover reads only
-#   --session-id and --to, never CLAUDE_SESSION_ID.
+#   --session-id and --to, never the environment.
 set -uo pipefail
 
 PROG=${0##*/}
@@ -198,20 +199,22 @@ canonicalize_path_to() {
   printf -v "$__var" '%s' "$p"
 }
 
-# Resolve --session-id / CLAUDE_SESSION_ID. Echoes empty when neither is usable.
+# Resolve --session-id, else CLAUDE_CODE_SESSION_ID, else CLAUDE_SESSION_ID.
+# Echoes empty when none is usable.
 resolve_session_id() {
-  local sid="${1:-}"
+  local sid="${1:-}" name
   if [[ -n "$sid" ]]; then
     printf '%s' "$sid"
     return 0
   fi
-  sid="${CLAUDE_SESSION_ID:-}"
-  # SC2016: the unexpanded token is what we must reject.
-  # shellcheck disable=SC2016
-  if [[ -z "$sid" || "$sid" == '${CLAUDE_SESSION_ID}' ]]; then
-    return 0
-  fi
-  printf '%s' "$sid"
+  for name in CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID; do
+    sid="${!name:-}"
+    # The unexpanded `${NAME}` token is not an id.
+    if [[ -n "$sid" && "$sid" != "\${$name}" ]]; then
+      printf '%s' "$sid"
+      return 0
+    fi
+  done
 }
 
 # Reject a session id that would break the reason-string match or the lock
@@ -390,7 +393,7 @@ if [[ "$cmd" == "release" && -z "$path" ]]; then
   exit "$EX_USAGE"
 fi
 if [[ "$cmd" == "release" && -z "$session_id" ]]; then
-  printf '%s: release needs --session-id or CLAUDE_SESSION_ID to prove ownership\n' "$PROG" >&2
+  printf '%s: release needs --session-id or CLAUDE_CODE_SESSION_ID to prove ownership\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
 if [[ "$cmd" == "handover" ]]; then

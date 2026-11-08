@@ -871,7 +871,8 @@ PR, or of a stack layer below it that the gate evaluated; the Actions job its `d
 emitted that check (the job's own check-run id, name and workflow match the check, and the check's
 id when the rollup carries one); its check run carries a failure annotation the review evidence
 accepts a second attempt after and the gate reruns (`GATE_RERUN_CLASSES` in
-`babysit_review_evidence.py`): `class=rate-limit`, that lane's publish-review
+`babysit_review_evidence.py`): a lane-outcome record of class `rate-limit` or the lane's
+`failure-class=rate-limit` line, that lane's publish-review
 `failure-class=publish-failed` line on GitHub's API rate limit, or that lane's publish-review
 `failure-class=install-failed` line (the runner isolation or the Claude Code CLI install failed
 before the review ran); for a rate limit, its job finished at least five hours ago, while an
@@ -912,8 +913,8 @@ after a lost first attempt, of any `LOST_CONCLUSIONS`, by the same rule, between
 starts and reading the lane's review threads too; a lane job that ended on its own judged the head,
 so it binds none. The lost-run reconciler still reruns no review run.
 
-- **Pointer**: the `class=<token>` contract in ci-workflows
-  [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
+- **Pointer**: the lane-outcome record contract in ci-workflows
+  [`docs/lane-outcome.md`](https://github.com/melodic-software/ci-workflows/blob/main/docs/lane-outcome.md),
   the publish-review failure line (`fail`) in ci-workflows
   [`.github/actions/publish-review/publish.cjs`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/publish-review/publish.cjs),
   the `install-failed` class a failed `Isolate the runner` step reports in ci-workflows

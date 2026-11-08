@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.3] - 2026-11-08
+
+### Changed
+
+- The `--merge` gate's review evidence reads a usage-limit failure from the lane-outcome record in a review check's failure annotation (its `class` is `rate-limit`) or from the lane's own `failure-class=rate-limit` line, and no longer from the legacy `class=rate-limit` token alone.
+
 ## [8.8.2] - 2026-11-08
 
 ### Fixed

@@ -35,6 +35,8 @@ fi
 . "$script_dir/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/changelog-fragments.sh
 . "$script_dir/lib/changelog-fragments.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$script_dir/lib/read-list.sh" || exit 2
 
 registry="scripts/shared-copies.txt"
 self="scripts/sync-shared-copies.sh"
@@ -56,16 +58,16 @@ inside_root() {
 }
 
 load_registry() {
-  local line src copy extra path
+  local line src copy extra path entries=()
   # shellcheck disable=SC2310  # the non-zero return IS the answer
   if ! inside_root "$registry" || [[ ! -f "$registry" ]]; then
     echo "error: $registry is not a regular file inside the checkout (no symbolic link)." >&2
     exit 2
   fi
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%#*}"
+  # shellcheck disable=SC2310  # the non-zero return IS the answer
+  read_list::into entries "$registry" --comments inline || exit 2
+  for line in ${entries[@]+"${entries[@]}"}; do
     read -r src copy extra <<<"$line" || true
-    [[ -z "$src" ]] && continue
     if [[ -z "$copy" || -n "$extra" ]]; then
       echo "error: $registry: want '<canonical> <copy>', got: $line" >&2
       exit 2
@@ -92,7 +94,7 @@ load_registry() {
     src_of["$copy"]="$src"
     [[ -n "${copies_of[$src]+set}" ]] || srcs+=("$src")
     copies_of["$src"]+="$copy"$'\n'
-  done <"$registry"
+  done
 }
 
 # render <canonical>: the generated copy's bytes, on stdout. A shell, Python or

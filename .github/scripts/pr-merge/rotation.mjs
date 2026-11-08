@@ -80,7 +80,6 @@ export function countedGh(args, { token, env = process.env, stdout = "ignore", t
   });
 }
 
-// `gh run download` of the artifact `name`'s file `file` from a run.
 // A run's artifact `name`, downloaded once per run id, as the text of `file`
 // (another file of the same artifact when the caller names one).
 export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json", env }) {
@@ -157,11 +156,11 @@ async function artifactsNamed({ repo, actions, runId, name }) {
   return Array.isArray(found?.artifacts) ? found.artifacts : [];
 }
 
+const runOrder = (run) => (Number.isSafeInteger(run?.id) ? run.id : -1);
+
 // The id of the newest trusted run of `workflow` (pr-merge.yml unless named),
 // this one aside, holding an unexpired artifact named `name` and passing
 // `accept`, or undefined when there is none.
-const runOrder = (run) => (Number.isSafeInteger(run?.id) ? run.id : -1);
-
 export async function newestTrustedRun(options) {
   return (await newestTrustedArtifact(options))?.runId;
 }

@@ -88,16 +88,7 @@ WINDOWS_INERT="scripts/test-windows-inert-paths.txt"
 PACKAGES_LIST="scripts/outside-node-packages.txt"
 EXCLUSIONS_LIST="scripts/outside-node-exclusions.txt"
 DEFAULT_SECONDS=5
-# The five Node sub-projects with CI steps of their own in test-node:
-# <package> <owner directory of its suites> [<trigger>...], where a trigger is
-# a test facade, a file or, ending in `/`, a directory its suites read. The packages in
-# scripts/outside-node-packages.txt follow, each its own owner.
-SUBPROJECTS="\
-plugins/miro/server plugins/miro/
-plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
-plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh plugins/knowledge/vendor/node-launcher/ plugins/knowledge/scripts/
-plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh plugins/knowledge/vendor/node-launcher/ plugins/knowledge/scripts/
-.github/actions/resolve-config .github/actions/resolve-config/ .github/actions/seal-lane-output/ .github/actions/open-lane-output/ .github/lane-keys/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs .github/workflows/"
+SUBPROJECTS_LIST="scripts/node-subprojects.txt"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
@@ -218,9 +209,10 @@ cat "$WORK/win-selection" "$WORK/inert-selection" >"$WORK/selection"
 WIN_SELECTION="$WORK/win-selection"
 
 # Assigned through a nameref, which shellcheck cannot follow (SC2154).
-exclusions=() outside=() rows=()
+exclusions=() outside=() subprojects=() rows=()
 read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
+read_list::into subprojects "$SUBPROJECTS_LIST" --comments inline || exit 2
 
 # Triggers beyond its own directory for a package in the outside list: the
 # workflows and shared files its tests read. A suite that lists
@@ -248,8 +240,23 @@ declare -A OUTSIDE_TRIGGERS=(
   [scripts/lane-transcripts]=".github/workflows/"
 )
 
-# Every Node package as `<package> <owner> [<trigger>]`.
-packages="$SUBPROJECTS"
+# Every Node package as `<package> <owner> [<trigger>]`: the sub-project rows,
+# then each outside package as its own owner.
+# A row with no owner would match every suite, so an empty list or an
+# owner-less row stops the plan.
+((${#subprojects[@]})) || {
+  echo "plan-test-lanes: $SUBPROJECTS_LIST has no rows" >&2
+  exit 2
+}
+packages=""
+for row in "${subprojects[@]}"; do
+  read -r pkg owner _ <<<"$row"
+  [[ -n "$owner" ]] || {
+    echo "plan-test-lanes: $SUBPROJECTS_LIST row '$pkg' has no owner directory" >&2
+    exit 2
+  }
+  packages+="${packages:+$'\n'}$row"
+done
 for p in "${outside[@]}"; do packages+=$'\n'"$p $p/${OUTSIDE_TRIGGERS[$p]:+ ${OUTSIDE_TRIGGERS[$p]}}"; done
 
 # owner_package <suite>: the package whose owner directory holds <suite>.

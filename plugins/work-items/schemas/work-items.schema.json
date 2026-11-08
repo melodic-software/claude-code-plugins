@@ -71,11 +71,11 @@
     },
     "work_priority_order": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^priority:" },
+      "items": { "type": "string", "minLength": 1 },
       "minItems": 1,
       "uniqueItems": true,
       "default": ["priority: critical", "priority: high", "priority: medium", "priority: low"],
-      "description": "The priority: label names, highest first, that /work-items:work ranks candidates by within each selection tier before the tier's own order (next_due, the guardrails preference, or oldest-first) breaks ties; the work-loop lane ranks its admitted items the same way. A candidate with no priority: label, or one this list does not name, ranks below every listed label. Quote each item (- \"priority: high\"): an unquoted item parses as a mapping and drops out of the list. Absent: the default list."
+      "description": "The priorities, highest first, that /work-items:work ranks candidates by within each selection tier before the tier's own order (next_due, the guardrails preference, or oldest-first) breaks ties; the work-loop lane ranks its admitted items the same way. An entry names an org Priority issue field option or a priority: label, compared case-insensitively with any leading priority: ignored, so high and priority: high are one rank. A candidate's priority is its Priority field value, else its priority: label; a candidate with neither, or one this list does not name, ranks below every listed entry. Quote each item (- \"priority: high\"): an unquoted item parses as a mapping and drops out of the list. Absent: the default list."
     },
     "bug_path": {
       "type": "object",

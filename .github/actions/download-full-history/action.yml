@@ -3,10 +3,9 @@ description: >
   Deepen a just-checked-out worktree to full history and fetch
   origin/$BASE_REF on pull_request events. A same-repo composite cannot
   be the first step of a job (GitHub has not fetched the tree yet), so
-  callers still run a pinned actions/checkout first; this action owns
-  the depth and the explicit base fetch that used to be copied beside
-  that checkout. It does not write GITHUB_ENV — callers already pass
-  BASE_REF from github.base_ref, and zizmor flags GITHUB_ENV writes.
+  callers run a pinned actions/checkout first and this action after it.
+  It does not write GITHUB_ENV: callers pass BASE_REF from
+  github.base_ref, and zizmor flags GITHUB_ENV writes.
 
 inputs:
   fetch-base:

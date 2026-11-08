@@ -45,7 +45,7 @@
 # scripts/check-pipefail-grep-q.test.sh pins this as a known gap.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in README.md, "The check-script
+# the whole family's contract, stated once in scripts/README.md, "The check-script
 # contract", and held by scripts/check-script-contract.test.sh.
 
 set -euo pipefail

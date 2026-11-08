@@ -41,10 +41,7 @@ import { pathToFileURL } from "node:url";
 const BLOCKER_CHARS = 300;
 
 export function normalizeReason(reason) {
-  const raw =
-    reason === null || reason === undefined || reason === false
-      ? "not ready"
-      : String(reason);
+  const raw = reason == null || reason === false ? "not ready" : String(reason);
   const [first, ...rest] = raw.split(";")[0].split(":");
   const kept = [first.trim()];
   for (const segment of rest) {

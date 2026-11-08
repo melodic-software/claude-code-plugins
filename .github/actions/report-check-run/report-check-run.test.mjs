@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
+import { readRecord } from "../../scripts/lib/lane-outcome.mjs";
 import { main } from "./report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -112,60 +113,6 @@ test("a valid verdict POSTs one completed check run with the contract body", asy
   );
 });
 
-const LIMIT = {
-  ACT_OUTCOME: "failure",
-  LANE_CLASS: "rate-limit",
-  LANE_RESETS: "2026-10-17T15:30:00Z",
-  LANE_TURNS: "3",
-  LANE_MAX_TURNS: "30",
-};
-
-test("a lane record from env opens the summary and fills output.text and external_id, with no annotation", async () => {
-  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "2" });
-  const { body } = calls[0];
-  assert.equal(body.conclusion, "failure");
-  const [line, blank, ...rest] = body.output.summary.split("\n");
-  assert.equal(line, "lane=pr-refine activity=simplify class=rate-limit resets=2026-10-17T15:30:00Z turns=3 max-turns=30");
-  assert.equal(blank, "");
-  assert.equal(rest.join("\n"), "The activity step failed.");
-  const json = /^```json\n(.*)\n```$/.exec(body.output.text);
-  assert.deepEqual(JSON.parse(json[1]), {
-    lane: "pr-refine",
-    activity: "simplify",
-    class: "rate-limit",
-    resets: "2026-10-17T15:30:00Z",
-    turns: 3,
-    "max-turns": 30,
-  });
-  assert.equal(body.external_id, "pr-refine:simplify:123:2");
-  assert.equal(body.output.annotations, undefined);
-});
-
-test("the posted limit stop is the one limit-stop.mjs reads from the summary", async () => {
-  const { calls } = await run({ ...LIMIT, LANE_MODELS: "claude-opus-5-5", LANE_PROFILE: "standard" });
-  assert.match(calls[0].body.output.summary, / max-turns=30 models=claude-opus-5-5 profile=standard\n/);
-  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
-  assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T15:30:00Z"));
-  const ids = [1, 2, 3].map((id) => ({ ...posted, id }));
-  const now = Date.parse("2026-10-17T16:00:00Z");
-  assert.equal(anyHandles(ids.slice(0, 2), { now }), false);
-  assert.equal(anyHandles(ids, { now }), true);
-  assert.equal(anyHandles(ids.slice(0, 1), { now: Date.parse("2026-10-17T15:00:00Z") }), true);
-});
-
-test("another posted failure class is a record limit-stop.mjs reads as no limit stop", async () => {
-  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_CLASS: "max-turns", LANE_TURNS: "31", LANE_MAX_TURNS: "30" });
-  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
-  assert.equal(limitResetsAt(posted), null);
-  assert.equal(anyHandles([posted], { now: Date.parse("2026-10-20T00:00:00Z") }), true);
-});
-
-test("a malformed run attempt posts the record without an external_id", async () => {
-  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "1:x" });
-  assert.equal("external_id" in calls[0].body, false);
-  assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
-});
-
 // A record shaped as docs/lane-outcome.md's rate-limit example, for the lane
 // this harness posts (pr-refine / simplify).
 const OUTCOME = {
@@ -177,24 +124,72 @@ const OUTCOME = {
   resets: { at: "2026-10-17T16:00:00Z", window: "five_hour" },
   turns: 3,
 };
+const LIMIT = { ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify(OUTCOME) };
 
-test("a valid lane-outcome record opens output.text with activity added, ahead of the legacy record", async () => {
-  const { calls } = await run({ ...LIMIT, LANE_OUTCOME: JSON.stringify(OUTCOME) });
-  const [first, blank, ...rest] = calls[0].body.output.text.split("\n");
-  assert.equal(first.startsWith("lane-outcome {"), true);
-  assert.deepEqual(JSON.parse(first.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
-  assert.equal(blank, "");
-  assert.match(rest.join("\n"), /^```json\n\{"lane":"pr-refine"/);
-  assert.match(calls[0].body.output.summary, /^lane=pr-refine activity=simplify class=rate-limit /);
-  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
-  assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T16:00:00Z"), "limit-stop reads the record's reset, not the summary's");
+test("a valid lane-outcome record is output.text with activity added, and the summary is left as decided", async () => {
+  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "2" });
+  const { body } = calls[0];
+  assert.equal(body.conclusion, "failure");
+  assert.equal(body.output.text.startsWith("lane-outcome {"), true);
+  assert.deepEqual(JSON.parse(body.output.text.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
+  assert.equal(body.output.summary, "The activity step failed.");
+  assert.equal(body.external_id, "pr-refine:simplify:123:2");
+  assert.equal(body.output.annotations, undefined);
 });
 
-test("the record line is written with no legacy record, and drops keys it does not know", async () => {
+test("the posted limit stop is the one limit-stop.mjs reads from the record", async () => {
+  const { calls } = await run(LIMIT);
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), Date.parse("2026-10-17T16:00:00Z"));
+  const ids = [1, 2, 3].map((id) => ({ ...posted, id }));
+  const now = Date.parse("2026-10-17T16:30:00Z");
+  assert.equal(anyHandles(ids.slice(0, 2), { now }), false);
+  assert.equal(anyHandles(ids, { now }), true);
+  assert.equal(anyHandles(ids.slice(0, 1), { now: Date.parse("2026-10-17T15:00:00Z") }), true);
+});
+
+test("another posted failure class is a record limit-stop.mjs reads as no limit stop", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, class: "max-turns", resets: undefined, turns: 31, maxTurns: 30 }) });
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), null);
+  assert.equal(anyHandles([posted], { now: Date.parse("2026-10-20T00:00:00Z") }), true);
+});
+
+test("a malformed run attempt posts the record without an external_id", async () => {
+  const { calls } = await run({ ...LIMIT, GITHUB_RUN_ATTEMPT: "1:x" });
+  assert.equal("external_id" in calls[0].body, false);
+  assert.match(calls[0].body.output.text, /^lane-outcome \{/);
+});
+
+test("a shell-failed success record and a review-unposted record reach the check run whole", async () => {
+  const shell = { ...OUTCOME, outcome: "success", class: undefined, resets: undefined, shellFailed: true };
+  const { calls } = await run({ LANE_OUTCOME: JSON.stringify(shell) });
+  assert.deepEqual(JSON.parse(calls[0].body.output.text.slice("lane-outcome ".length)), { ...JSON.parse(JSON.stringify(shell)), activity: "simplify" });
+  const unposted = { ...OUTCOME, class: "review-unposted", resets: undefined };
+  const second = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify(unposted) });
+  assert.equal(JSON.parse(second.calls[0].body.output.text.slice("lane-outcome ".length)).class, "review-unposted");
+});
+
+test("a class this reader does not know is written as given, and the posted record reads back", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, class: "later-class" }) });
+  const written = JSON.parse(calls[0].body.output.text.slice("lane-outcome ".length));
+  assert.equal(written.class, "later-class");
+  assert.deepEqual(readRecord(calls[0].body.output.text), written, "limit-stop reads the posted record whole");
+  const posted = { ...calls[0].body, id: 1, completed_at: "2026-10-17T12:00:00Z" };
+  assert.equal(limitResetsAt(posted), null, "an unknown class is no limit stop");
+});
+
+test("the record drops keys it does not know", async () => {
   const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: JSON.stringify({ ...OUTCOME, host: "runner-7", resets: { ...OUTCOME.resets, path: "/var/tmp/x" } }) });
   const { output } = calls[0].body;
-  assert.equal(output.text.startsWith("lane-outcome {"), true);
   assert.deepEqual(JSON.parse(output.text.slice("lane-outcome ".length)), { ...OUTCOME, activity: "simplify" });
+});
+
+// The env the retired key=value summary line was built from writes nothing now.
+test("the retired lane-* env writes no summary line and no text", async () => {
+  const { calls } = await run({ ACT_OUTCOME: "failure", LANE_CLASS: "rate-limit", LANE_RESETS: "2026-10-17T15:30:00Z", LANE_TURNS: "3", LANE_MAX_TURNS: "30" });
+  const { output } = calls[0].body;
+  assert.equal(output.text, undefined);
   assert.doesNotMatch(output.summary, /lane=/);
 });
 
@@ -206,19 +201,17 @@ test("a record out of shape, of another lane, or not JSON writes no record line"
     ["not JSON", "lane-outcome {"],
     ["an array", "[]"],
   ]) {
-    const { calls } = await run({ ...LIMIT, LANE_OUTCOME: raw });
-    assert.match(calls[0].body.output.text, /^```json\n/, label);
-    assert.doesNotMatch(calls[0].body.output.text, /lane-outcome /, label);
+    const { calls } = await run({ ACT_OUTCOME: "failure", LANE_OUTCOME: raw });
+    assert.equal(calls[0].body.output.text, undefined, label);
   }
 });
 
-test("no lane record POSTs no annotations, text or record line, and still names its run in external_id", async () => {
+test("no lane record POSTs no annotations or text, and still names its run in external_id", async () => {
   const { calls } = await run();
   const { output } = calls[0].body;
   assert.equal(output.annotations, undefined);
   assert.equal(output.text, undefined);
   assert.equal(calls[0].body.external_id, "pr-refine:simplify:123:1");
-  assert.doesNotMatch(output.summary, /lane=/);
 });
 
 // The check run 122864732692 on #10583 posted: a run job the broker refused,

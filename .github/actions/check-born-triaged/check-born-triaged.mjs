@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
-import { statusReader } from "../resolve-config/read-status.mjs";
+import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
@@ -63,7 +63,7 @@ export function notBornTriaged(issue, trusted, names = labelNames(issue)) {
   if (!issue.type?.name) {
     return "no-type";
   }
-  if (!names.some((name) => STATUS_LABELS.has(name) || name.startsWith("status:"))) {
+  if (!names.some((name) => STATUS_LABELS.has(name) || isStatusLabel(name))) {
     return "no-status";
   }
   return null;

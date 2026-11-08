@@ -36,6 +36,7 @@ The record format is the lane producer's (ci-workflows
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -194,8 +195,36 @@ RECORD_RE = re.compile(
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # The reconciler re-runs any failed lane run once; attempt 2 binds only when
-# attempt 1 failed on a usage limit.
-RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+# attempt 1 failed on a usage limit: the message's lane-outcome record
+# (ci-workflows docs/lane-outcome.md) has class `rate-limit`, or it carries the
+# review lane's own `failure-class=rate-limit` line (ci-workflows pr-review.yml).
+# The legacy `class=rate-limit` token alone is not read (ADR 0087 slice 3).
+LANE_OUTCOME_MARKER = "lane-outcome "
+# The record's own cap, with room for its whitespace.
+LANE_OUTCOME_MAX = 1224
+RATE_LIMIT_FAILURE_RE = re.compile(r"(?<![\w-])failure-class=rate-limit(?![\w-])")
+
+
+def record_class(message: str) -> str | None:
+    """The `class` of the first v1 lane-outcome record in `message`, or None
+    when it has none, the JSON after the marker does not parse, or `v` is not 1.
+    """
+    at = message.find(LANE_OUTCOME_MARKER)
+    if at < 0:
+        return None
+    start = at + len(LANE_OUTCOME_MARKER)
+    try:
+        value, _ = json.JSONDecoder().raw_decode(message[start : start + LANE_OUTCOME_MAX])
+    except ValueError:
+        return None
+    if not isinstance(value, dict) or value.get("v") != 1:
+        return None
+    found = value.get("class")
+    return found if isinstance(found, str) else None
+
+
+def _rate_limited(message: str) -> bool:
+    return record_class(message) == "rate-limit" or RATE_LIMIT_FAILURE_RE.search(message) is not None
 # Or on a rejected Claude credential: this lane's publish-review failure line
 # (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
 # attempt 1 then left no verdict, so a re-run cannot trade one review for
@@ -1155,7 +1184,7 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
 # (`rerun_binds`), each with its test of one failure annotation's message.
 # `NO_OUTCOME` binds too, but only after the posted check, so it is not here.
 RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
-    "rate-limit": lambda lane, m: RATE_LIMIT_CLASS_RE.search(m) is not None,
+    "rate-limit": lambda lane, m: _rate_limited(m),
     "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
     "auth": lambda lane, m: _lane_line(AUTH_FAILURE_RE, lane, m),
     INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),

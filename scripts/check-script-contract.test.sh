@@ -4,7 +4,7 @@
 #
 #   bash scripts/check-script-contract.test.sh
 #
-# The contract itself is stated once, in README.md, "The check-script contract":
+# The contract itself is stated once, in scripts/README.md, "The check-script contract":
 # exit 0 clean, 1 findings, 2 environment or usage, findings on stderr. Each
 # script's header points at that statement rather than restating it; this suite
 # is what makes the statement true rather than aspirational. Nothing here judges

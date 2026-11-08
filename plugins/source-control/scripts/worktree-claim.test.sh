@@ -20,6 +20,10 @@ TEST_TMPDIR="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 
+# A run inside a Claude Code session exports the session id; each case sets the
+# variables it means to test.
+unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID
+
 mkrepo() {
   local repo
   repo="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
@@ -360,6 +364,49 @@ run_claim check-enter "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new --
 assert_exit "--to outside handover is usage (exit 2)" 2 "$?"
 run_claim handover "$REPO" --repo-dir "$REPO" --session-id hand-old --to hand-new
 assert_exit "handover of the main worktree is usage (exit 2)" 2 "$?"
+
+# --- session id from the environment -----------------------------------------
+
+# Claude Code exports CLAUDE_CODE_SESSION_ID to Bash; a bare call must act as
+# that session, so its own claim reads as its own.
+git -C "$REPO" worktree add -q "$EXT/wt-env" -b feat/env
+CLAUDE_CODE_SESSION_ID=env-own run_claim claim "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "claim with only CLAUDE_CODE_SESSION_ID set succeeds" 0 "$?"
+assert_contains "claim names the session from CLAUDE_CODE_SESSION_ID" "$OUT" "session env-own since"
+CLAUDE_CODE_SESSION_ID=env-own run_claim check-enter "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "check-enter with only CLAUDE_CODE_SESSION_ID reads the claim as its own (exit 0)" 0 "$?"
+run_claim check-enter "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "check-enter with no session id reads that claim as foreign (exit 4)" 4 "$?"
+CLAUDE_CODE_SESSION_ID=env-other run_claim check-enter "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "check-enter as another CLAUDE_CODE_SESSION_ID is foreign (exit 4)" 4 "$?"
+CLAUDE_CODE_SESSION_ID=env-other run_claim release "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "release as another CLAUDE_CODE_SESSION_ID is refused (exit 4)" 4 "$?"
+assert_contains "the refused release left the lock in place" "$(stanza_for wt-env)" "session env-own since"
+CLAUDE_CODE_SESSION_ID=env-own run_claim release "$EXT/wt-env" --repo-dir "$REPO"
+assert_exit "release with only CLAUDE_CODE_SESSION_ID unlocks its own claim" 0 "$?"
+assert_not_contains "own claim is gone after the env-only release" "$(stanza_for wt-env)" "locked"
+
+# Precedence: --session-id, then CLAUDE_CODE_SESSION_ID, then CLAUDE_SESSION_ID.
+git -C "$REPO" worktree add -q "$EXT/wt-env-order" -b feat/env-order
+CLAUDE_CODE_SESSION_ID=env-new CLAUDE_SESSION_ID=env-legacy run_claim claim "$EXT/wt-env-order" --repo-dir "$REPO"
+assert_contains "CLAUDE_CODE_SESSION_ID wins over CLAUDE_SESSION_ID" "$OUT" "session env-new since"
+CLAUDE_CODE_SESSION_ID=env-new run_claim release "$EXT/wt-env-order" --repo-dir "$REPO" --session-id env-new
+CLAUDE_CODE_SESSION_ID=env-new run_claim claim "$EXT/wt-env-order" --repo-dir "$REPO" --session-id env-flag
+assert_contains "--session-id wins over CLAUDE_CODE_SESSION_ID" "$OUT" "session env-flag since"
+CLAUDE_CODE_SESSION_ID=env-new run_claim release "$EXT/wt-env-order" --repo-dir "$REPO" --session-id env-flag
+CLAUDE_SESSION_ID=env-legacy run_claim claim "$EXT/wt-env-order" --repo-dir "$REPO"
+assert_contains "CLAUDE_SESSION_ID is the fallback when CLAUDE_CODE_SESSION_ID is unset" "$OUT" "session env-legacy since"
+CLAUDE_SESSION_ID=env-legacy run_claim release "$EXT/wt-env-order" --repo-dir "$REPO"
+# shellcheck disable=SC2016  # the unexpanded token is the literal under test.
+CLAUDE_CODE_SESSION_ID='${CLAUDE_CODE_SESSION_ID}' CLAUDE_SESSION_ID=env-legacy run_claim claim "$EXT/wt-env-order" --repo-dir "$REPO"
+assert_contains "an unexpanded CLAUDE_CODE_SESSION_ID token falls through to CLAUDE_SESSION_ID" "$OUT" "session env-legacy since"
+CLAUDE_SESSION_ID=env-legacy run_claim release "$EXT/wt-env-order" --repo-dir "$REPO"
+
+# handover names both ids explicitly; the environment never supplies OLD.
+git -C "$REPO" worktree add -q "$EXT/wt-env-hand" -b feat/env-hand
+run_claim claim "$EXT/wt-env-hand" --repo-dir "$REPO" --session-id env-hand-old
+CLAUDE_CODE_SESSION_ID=env-hand-old run_claim handover "$EXT/wt-env-hand" --repo-dir "$REPO" --to env-hand-new
+assert_exit "handover without --session-id is usage, whatever CLAUDE_CODE_SESSION_ID holds (exit 2)" 2 "$?"
 
 # --- stale: read-only stale-lock detector -------------------------------------
 

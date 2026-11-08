@@ -263,13 +263,15 @@ requests beside the issues. When it is `false`, the view lists only issues. A
 pull request named explicitly, as `/work-items:triage <number>`, is triaged
 either way.
 
-`work_priority_order` lives only in the repository file: a list of `priority:`
-label names, highest first, defaulting to `priority: critical`,
-`priority: high`, `priority: medium`, `priority: low`. `/work-items:work` ranks
-the candidates in each selection tier by it, and the tier's own order
-(`next_due`, the guardrails preference, or oldest-first) breaks ties. The
-work-loop lane ranks its admitted items the same way before its `created_at`
-order. An item with no listed `priority:` label ranks last in its tier. Quote
+`work_priority_order` lives only in the repository file: a list of priorities,
+highest first, each an org `Priority` issue field option or a `priority:` label
+name (`high` and `priority: high` are one rank), defaulting to
+`priority: critical`, `priority: high`, `priority: medium`, `priority: low`.
+`/work-items:work` ranks the candidates in each selection tier by it, reading
+each item's `Priority` field and falling back to its `priority:` label, and the
+tier's own order (`next_due`, the guardrails preference, or oldest-first) breaks
+ties. The work-loop lane ranks its admitted items the same way before its
+`created_at` order. An item with no listed priority ranks last in its tier. Quote
 each item, since an unquoted `- priority: high` parses as a mapping and drops
 out of the list:
 
