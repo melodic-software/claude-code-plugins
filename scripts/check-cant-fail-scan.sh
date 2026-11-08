@@ -4,7 +4,7 @@
 #   scripts/check-cant-fail-scan.sh           scan the whole tree
 #   scripts/check-cant-fail-scan.sh <base>    scan only the files changed since <base>
 #
-# Exit codes and streams follow README.md, "The check-script contract".
+# Exit codes and streams follow scripts/README.md, "The check-script contract".
 #
 # With a base, every added, copied, modified or renamed file goes through the
 # scanner's `--check --file`. The scanner decides what a test file is: a file it

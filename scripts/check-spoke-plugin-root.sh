@@ -21,7 +21,7 @@
 # its spokes cite <skill-dir>/scripts/... (plugins/harness-memory is the working
 # pattern).
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one finding per offending file on stderr, the clean-run statement
 # on stdout. Exit: 0 clean, 1 any offender, 2 environment or usage (bad
 # argument, unreadable baseline, malformed entry, failed search).

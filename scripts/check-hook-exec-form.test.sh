@@ -949,7 +949,7 @@ rm -rf "$f"
 # The two unreadable classes are graded apart on purpose: a file the reader
 # PARSED and rejected is a finding about the tree (exit 1, above), while a reader
 # that never ran to completion means nothing was inspected at all. Under
-# README.md, "The check-script contract", that is exit 2.
+# scripts/README.md, "The check-script contract", that is exit 2.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 printf '%s\n' 'import sys' 'sys.exit(2)' >"$f/scripts/check-hook-exec-form-frontmatter.py"

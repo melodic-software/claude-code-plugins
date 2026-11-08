@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.3.0] - 2026-11-08
+
+Minor: additive guidance.
+
+- **Lane permission modes move here from root `AGENTS.md` (§5, "Permission modes").** Which mode
+  local and CI lanes run in, the read-runner `dontAsk` rule, and the `--permission-prompts none`
+  probe record now sit with the launch surfaces. `AGENTS.md` keeps the two rules every session
+  loads (no bypass mode, no hook `ask` in a lane) and points here.
+
 ## [19.2.0] - 2026-11-06
 
 Minor: additive guidance.

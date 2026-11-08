@@ -55,7 +55,7 @@
 # with the `yaml` package and validates the table with `ajv`, both installed by
 # `npm ci --prefix .github/standards/runner-policy`.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `path:line: finding` per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any finding, 2 usage or environment
 # (no node, the packages not installed, or the table or its schema unreadable).

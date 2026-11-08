@@ -8,15 +8,14 @@
 // too: the next run on the same credential fails the same way, so the head
 // waits `fallback-reset` hours instead of spending its stops at once.
 //
-// A limit stop is read only from a failed run's lane record, which
-// report-check-run writes from runner-computed outputs. The record is the first
-// line of the run's output.summary, matched whole: `lane=<lane>
-// activity=<activity>` naming the run itself, then class, resets, turns,
-// max-turns, models and profile in that order, each optional. A failed run with no such line is
-// no limit stop.
+// A limit stop is read only from a failed run's lane-outcome record
+// (ci-workflows docs/lane-outcome.md), which report-check-run validates and
+// writes into output.text from the run job's report-lane-outcome output. Its
+// lane and activity must name the run itself. A failed run with no such record
+// is no limit stop.
 
 // `limits` is pr-pipeline.yaml's resolved limits leaf. When a limit stop names
-// no `resets=` time, it is taken to reset `fallback-reset` hours after the run
+// no `resets.at` time, it is taken to reset `fallback-reset` hours after the run
 // ended: the shortest plan limit is a five-hour session window
 // (https://support.claude.com/en/articles/11145838). After
 // `limit-stops-per-head` stops the dispatchers stop re-dispatching the head;
@@ -27,36 +26,17 @@ import { laneStop } from "./escalation-routes.mjs";
 
 export { ACTIONS_APP_ID, LANE_STOP, laneStop, retryRung } from "./escalation-routes.mjs";
 
-const ISO = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z`;
-const NAME = "[a-z][a-z0-9]*(?:-[a-z0-9]+)*";
-const MODEL = String.raw`[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}`;
-const SUMMARY_RECORD = new RegExp(
-  `^lane=(${NAME}) activity=(${NAME})(?: class=([a-z-]+))?(?: resets=(${ISO}))?` +
-    "(?: turns=(?:0|[1-9][0-9]{0,5}))?(?: max-turns=(?:0|[1-9][0-9]{0,5}))?" +
-    `(?: models=${MODEL}(?:,${MODEL}){0,7})?(?: profile=${NAME})?$`,
-);
-
 // The run's lane-outcome record from output.text, or null when it has none,
 // names another check run, or is a leg that handed off (its class is not the
-// run's). Without one the legacy summary line is read.
+// run's).
 function laneRecord(run) {
   const record = readRecord(run.output?.text);
   if (!record || record.handoff === true || run.name !== `${record.lane} / ${record.activity}`) {
-    return summaryRecord(run);
-  }
-  // Only a usage limit states when it resets, as lane-record.mjs writes it; an
-  // auth stop always waits fallback-reset.
-  return { failureClass: record.class ?? "", resets: record.class === "rate-limit" ? (record.resets?.at ?? "") : "" };
-}
-
-// The lane record on the first line of `run`'s output.summary, or null when
-// that line is not one or names another check run.
-function summaryRecord(run) {
-  const match = SUMMARY_RECORD.exec(String(run.output?.summary ?? "").split("\n")[0]);
-  if (!match || run.name !== `${match[1]} / ${match[2]}`) {
     return null;
   }
-  return { failureClass: match[3] ?? "", resets: match[4] ?? "" };
+  // Only a usage limit's reset is read; an auth stop always waits
+  // fallback-reset.
+  return { failureClass: record.class ?? "", resets: record.class === "rate-limit" ? (record.resets?.at ?? "") : "" };
 }
 
 // The lane record classes that stop a run until a reset. A credit stop is not
@@ -73,13 +53,13 @@ export function limitStop(run, limits = LIMIT_DEFAULTS) {
   if (!Number.isFinite(ended) || run.conclusion !== "failure") {
     return null;
   }
-  const summary = laneRecord(run);
-  if (!STOP_CLASSES.has(summary?.failureClass)) {
+  const record = laneRecord(run);
+  if (!STOP_CLASSES.has(record?.failureClass)) {
     return null;
   }
   // An impossible date (month 13) parses to NaN: treat it as no stated reset.
-  const stated = summary.resets ? Date.parse(summary.resets) : Number.NaN;
-  return { failureClass: summary.failureClass, resetsAt: clampReset(Number.isFinite(stated) ? stated : null, ended, limits) };
+  const stated = record.resets ? Date.parse(record.resets) : Number.NaN;
+  return { failureClass: record.failureClass, resetsAt: clampReset(Number.isFinite(stated) ? stated : null, ended, limits) };
 }
 
 // When the limit that stopped the failed `run` resets (epoch ms), or null when

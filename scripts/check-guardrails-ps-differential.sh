@@ -45,7 +45,7 @@
 # a temp copy of the working tree whose hook-utils.sh records every PowerShell
 # payload, and prints the unique commands as JSONL on stdout.
 #
-# Exit codes follow the check-script contract (README.md): 0 clean, 1 a
+# Exit codes follow the check-script contract (scripts/README.md): 0 clean, 1 a
 # base-refused command the branch allows, 2 environment or usage.
 set -uo pipefail
 

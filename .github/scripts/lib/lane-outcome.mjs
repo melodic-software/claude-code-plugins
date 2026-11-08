@@ -2,9 +2,8 @@
 // with every known field a closed enum, a fixed pattern or a count, so no
 // value, hostname, path or email can pass. Unknown keys are dropped, as the
 // contract's Compatibility rules let v1 add fields. A record whose known field
-// breaks its rule, or that names another `v`, is no record and the reader
-// falls back to the legacy summary line. `activity` is the hub's own addition,
-// written by report-check-run from its runner input.
+// breaks its rule, or that names another `v`, is no record. `activity` is the
+// hub's own addition, written by report-check-run from its runner input.
 
 export const MARKER = "lane-outcome ";
 const MAX_LENGTH = 1024;
@@ -20,10 +19,13 @@ const MODEL = /^claude-[a-z0-9.-]{1,56}(?:\[1m\])?$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX16 = /^[0-9a-f]{16}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);
-const CLASSES = new Set([
-  "auth", "credit-stop", "rate-limit", "overloaded", "max-turns", "timeout", "install-failed",
-  "no-execution", "sandbox-unavailable", "skipped-validation", "incomplete", "no-credential", "no-outcome", "other",
-]);
+// `class` is any token in the enum's kebab shape: the known classes are
+// docs/lane-outcome.md's Failure classes, and a reader ignores a class value it
+// does not know rather than dropping the record (Compatibility: "A reader
+// ignores fields and class values it does not know"), so an unknown one is
+// kept as written and simply matches no class a reader acts on. Free text in it
+// still makes the record unreadable.
+const CLASS = /^(?=.{1,40}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const REASONS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
 const STATUSES = new Set(["allowed", "allowed_warning", "rejected"]);
 
@@ -72,9 +74,10 @@ const RECORD = shape(
     lane: matches(NAME),
     activity: matches(ACTIVITY),
     outcome: oneOf(OUTCOMES),
-    class: oneOf(CLASSES),
+    class: matches(CLASS),
     credential,
     handoff: (value) => typeof value === "boolean",
+    shellFailed: (value) => typeof value === "boolean",
     fallback: shape({ reason: oneOf(REASONS) }),
     resets: shape({ at: matches(ISO), window: matches(WINDOW) }),
     error: shape({

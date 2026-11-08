@@ -2,11 +2,11 @@ name: Check Trusted Trigger
 description: >
   Gate a CI lane on its trigger: the PR must come from this repository, and
   the event actor, the PR author and the re-runner must be on the
-  trusted-actor list, matched by numeric user id. Handles pull_request, workflow_dispatch (with a
-  PR number) and workflow_run. A workflow_dispatch sent by
-  github-actions[bot] proceeds only through a checked dispatcher run. With
-  require-pr false it checks the actors only and reads no PR. Always exits 0
-  with proceed and reason; any read, parse or API failure emits
+  trusted-actor list, matched by numeric user id. Handles pull_request,
+  workflow_dispatch (with a PR number) and workflow_run. A workflow_dispatch
+  sent by github-actions[bot] proceeds only through a checked dispatcher run.
+  With require-pr false it checks the actors only and reads no PR. Always
+  exits 0 with proceed and reason; any read, parse or API failure emits
   proceed=false.
 
 inputs:
