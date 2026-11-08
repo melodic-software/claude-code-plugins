@@ -77,7 +77,8 @@
 //
 // `--check` decides, before any token is requested, whether the broker would
 // mint: the actor is a listed human, or github-actions[bot] on a dispatch; a
-// re-run's triggering actor is a listed human.
+// re-run's triggering actor is a listed human; and the issue is still an open
+// issue, read live with the job token (the broker refuses any other target).
 //
 // Environment:
 //   GH_TOKEN              the lanes App token: issues write
@@ -165,6 +166,32 @@ export function checkActors(env, humans, logins) {
   }
   const rerunner = logins.get(String(env.TRIGGERING_ACTOR ?? "").toLowerCase());
   return rerunner !== undefined && humans.has(rerunner);
+}
+
+// The whole --check answer: checkActors, then the issue read live, since it
+// can close while triage runs. A failed read keeps the actors' answer: the
+// write's own open-issue read (run) still guards it.
+export async function checkRun({ env, humans, logins, github, log = console.log }) {
+  if (!checkActors(env, humans, logins)) {
+    log("apply-verdict: the broker would not mint for this run's actors");
+    return false;
+  }
+  if (!NUMBER.test(env.ISSUE_NUMBER ?? "")) {
+    throw new Error(`ISSUE_NUMBER must be a positive number, not '${env.ISSUE_NUMBER}'`);
+  }
+  let issue;
+  try {
+    issue = await github("GET", `/repos/${env.GITHUB_REPOSITORY}/issues/${env.ISSUE_NUMBER}`);
+  } catch (error) {
+    log(`::warning::apply-verdict: #${env.ISSUE_NUMBER} could not be read (${error.name} ${error.status ?? ""}); the write step reads it again`);
+    return true;
+  }
+  if (issue?.pull_request || issue?.state !== "open") {
+    log(`::notice::apply-verdict: #${env.ISSUE_NUMBER} is not an open issue; no token requested, nothing written`);
+    return false;
+  }
+  log("apply-verdict: the broker would mint for this run's actors");
+  return true;
 }
 
 // The verdict the lane comment carries: {escalated, untrusted, dimensions,
@@ -966,9 +993,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const env = process.env;
   if (process.argv[2] === "--check") {
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-    const proceed = checkActors(env, humans, logins);
+    const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
+    const proceed = await checkRun({ env, humans, logins, github });
     writeOutputs({ proceed: String(proceed) });
-    console.log(`apply-verdict: the broker ${proceed ? "would" : "would not"} mint for this run's actors`);
   } else {
     let closed;
     try {
