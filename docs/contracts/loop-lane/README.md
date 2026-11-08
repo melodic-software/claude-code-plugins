@@ -1031,13 +1031,13 @@ state block carries `lane_instance`, a
 per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten every cycle, and
 `paused_until`. At cycle start, after reading its own block:
 
-- `writer_nonce` matches mine → ordinary continuation.
+- `writer_nonce` matches mine: this is ordinary continuation.
 - `writer_nonce` differs **and** the block is stale (`heartbeat_at` older than **2 hours**, and past
-  `paused_until` when set) → a previous session of this same instance restarted or died. Adopt the
+  `paused_until` when set): a previous session of this same instance restarted or died. Adopt the
   block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the
   one-hour `ScheduleWakeup` ceiling above, so a healthy lane at maximum idle backoff can never look
   stale.
-- `writer_nonce` differs **and** the block is fresh → **another live lane is using my instance id.**
+- `writer_nonce` differs **and** the block is fresh: **another live lane is using my instance id.**
   Write nothing to the block, escalate per §2 (role label + machine-marked comment), and stop the
   loop cleanly.
 
