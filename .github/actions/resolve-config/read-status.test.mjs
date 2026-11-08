@@ -398,3 +398,18 @@ test("fieldStatusSetter does not read again for any other failure", async () => 
   await assert.rejects(fieldStatusSetter(read), /unmapped/);
   assert.equal(calls.filter((call) => call.startsWith("sleep")).length, 0);
 });
+
+test("a reader's re-read of a disagreeing field is not counted against its limit", async () => {
+  const fields = { 7: { state: "ready", named: "needs-triage" }, 8: { state: "ready" } };
+  const fielded = withFields(unexpected, fields);
+  const github = async (method, path, body, headers) => {
+    const answer = await fielded(method, path, body, headers);
+    if (method === "POST" && body?.variables?.number === 7) {
+      fields[7] = { state: "ready" };
+    }
+    return answer;
+  };
+  const labels = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {}, limit: 2, sleep: async () => {} });
+  assert.deepEqual(await labels(7, []), ["status: ready"]);
+  assert.deepEqual(await labels(8, []), ["status: ready"]);
+});

@@ -162,7 +162,7 @@ export async function fieldStatusSetter({ github, repository, number, config, tr
 // unset config reads nothing: labels and REST events come back as they are; a
 // config or trusted-actor list that cannot be loaded makes every call throw. `github(method, path, body,
 // headers)` is check-trusted-trigger.mjs createGitHub's.
-export function statusReader({ env = {}, github, repository, log = console.log, limit = Infinity, config, trustedActors }) {
+export function statusReader({ env = {}, github, repository, log = console.log, limit = Infinity, config, trustedActors, sleep }) {
   let setup;
   const prepare = async () => {
     try {
@@ -217,9 +217,11 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
         repository,
         number: issue,
         ...setup,
+        ...(sleep ? { sleep } : {}),
         fieldEvents: (_github, _repository, _number, options) => {
+          // The same logical read: replaced, not counted against `limit`.
           if (options?.again) {
-            read.delete(issue);
+            read.set(issue, setup.fieldEvents(github, repository, issue));
           }
           return fieldEventsOf(issue);
         },
