@@ -14,7 +14,7 @@ Contract enforced here (encoded as code, not convention):
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - A `--merge` run held on a failed AI review check re-runs that check's
   workflow run when its check run carries a failure annotation the review
-  evidence binds a re-run after and the gate re-runs (`class=rate-limit` or
+  evidence binds a re-run after and the gate re-runs (a `rate-limit` lane-outcome record or
   the lane's publish failure on GitHub's API rate limit, five hours after the
   failure; the lane's `install-failed` failure at once), or that an outage lost
   (cancelled, timed out) before its lane posted on the head, at once; once per
@@ -332,7 +332,7 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
 
 
 # An AI review check that failed on the Claude usage limit carries a
-# `class=rate-limit` annotation on its check run (ci-workflows
+# lane-outcome record of class `rate-limit` on its check run (ci-workflows
 # `.github/actions/report-lane-outcome`); one whose review post hit GitHub's
 # API rate limit, or whose runner isolation or CLI install failed, carries the
 # lane's publish failure line. Under `--merge` the gate re-runs that check's
