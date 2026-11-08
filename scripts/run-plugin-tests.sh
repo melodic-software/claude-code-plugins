@@ -66,7 +66,7 @@
 # against a per-suite threshold and ceiling: over the threshold it prints
 # `SLOW:` and a warning annotation and the run still passes; over the ceiling
 # it fails by name. PLUGIN_TEST_SUITE_BUDGET=1 turns the check on anywhere, 0
-# off. The numbers and their basis are in README.md "Per-suite time budget in
+# off. The numbers and their basis are in scripts/README.md "Per-suite time budget in
 # CI"; PLUGIN_TEST_SUITE_WARN and PLUGIN_TEST_SUITE_CEILING override them. A
 # suite with a row in scripts/suite-budget-exceptions.txt
 # ($PLUGIN_TEST_SUITE_EXCEPTIONS overrides it) has that row's ceiling instead;
@@ -605,11 +605,11 @@ for i in "${!tests[@]}"; do
     if ((secs > ceiling)); then
       # `FAIL: <suite>` alone on its line, the shape log readers attribute.
       printf 'FAIL: %s\n  took %ss, over its %ss per-suite ceiling\n' "$t" "$secs" "$ceiling" >&2
-      suite_annotate error "$t" "$t took ${secs}s, over its ${ceiling}s per-suite ceiling (README.md, Per-suite time budget in CI)"
+      suite_annotate error "$t" "$t took ${secs}s, over its ${ceiling}s per-suite ceiling (scripts/README.md, Per-suite time budget in CI)"
       failed=1
     elif ((secs > suite_warn)); then
       echo "SLOW: $t took ${secs}s, over the ${suite_warn}s per-suite threshold"
-      suite_annotate warning "$t" "$t took ${secs}s, over the ${suite_warn}s per-suite threshold (README.md, Per-suite time budget in CI)"
+      suite_annotate warning "$t" "$t took ${secs}s, over the ${suite_warn}s per-suite threshold (scripts/README.md, Per-suite time budget in CI)"
     fi
   fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"

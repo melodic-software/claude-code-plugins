@@ -477,9 +477,9 @@ test("a filed digest sets its field values in one write; a rewrite sets none", a
       [
         { field_id: 48484079, value: "needs-triage" },
         { field_id: 49622037, value: "medium" },
-        { field_id: 15462270, value: "Small" },
-        { field_id: 48625720, value: "Low" },
-        { field_id: 48625721, value: "Known" },
+        { field_id: 15462270, value: "small" },
+        { field_id: 48625720, value: "low" },
+        { field_id: 48625721, value: "known" },
       ],
     ],
   ]);

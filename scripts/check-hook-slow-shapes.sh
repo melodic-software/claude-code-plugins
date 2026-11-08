@@ -44,7 +44,7 @@
 # resolves to a file: `${CLAUDE_PLUGIN_ROOT}` paths, and bare names under the
 # declaring plugin's hooks/ directory (launcher arguments).
 #
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr (README.md,
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr (scripts/README.md,
 # "The check-script contract"). An unparsable hook config is a finding (1), as in
 # the exec-form gate: a file this gate cannot read is one it cannot clear.
 # shellcheck disable=SC2016  # jq programs and messages are literal text, never shell-expanded

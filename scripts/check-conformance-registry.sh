@@ -20,7 +20,7 @@
 #     every scripts/ path in `checks`;
 #   - `scope` is plugin or fleet.
 #
-# Output follows the check-script contract (README.md, "The check-script
+# Output follows the check-script contract (scripts/README.md, "The check-script
 # contract"): one `registry: id: reason` finding per line on stderr, the
 # clean-run statement on stdout. Exit: 0 clean, 1 any finding, 2 environment
 # or usage (registry missing, bad argument).
