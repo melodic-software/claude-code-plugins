@@ -5,6 +5,12 @@
 // still import FIELD_API; its writer then throws on every call.
 export const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 
+// The wait between a restart's clear and its set. GitHub can stamp the removal
+// after an add sent right behind it; the newest event then reads as a removal
+// while the field holds a value, and every status listing that could match the
+// issue fails until the field is written again.
+export const RESTART_GAP_MS = 3000;
+
 // A Work status write that did not land, for a writer whose field write must
 // fail its run.
 export class StatusWriteError extends Error {
@@ -79,7 +85,7 @@ export async function writeState({ github, repository, number, state, config, cu
 //   agent-ready label off.
 // A config that cannot be read makes every call throw StatusWriteError; a
 // trusted-actor list that cannot be read, every call that reads the field.
-export async function statusWriter({ env, github, repository }) {
+export async function statusWriter({ env, github, repository, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   let config;
   let trustedActors;
   let failure;
@@ -149,6 +155,7 @@ export async function statusWriter({ env, github, repository }) {
     }
     try {
       await github("DELETE", `/repos/${repository}/issues/${number}/issue-field-values/${config["field-id"]}`, undefined, FIELD_API);
+      await sleep(RESTART_GAP_MS);
     } catch (error) {
       if (!/\bstatus 404\b/.test(String(error?.message ?? error))) {
         throw new StatusWriteError(`#${number}'s Work status field was not cleared for a restart: ${error?.message ?? error}`, { cause: error });
