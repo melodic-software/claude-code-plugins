@@ -242,6 +242,40 @@ else
 fi
 rm -rf "$f"
 
+# --- a newline after node is not node -----------------------------------------
+# The probe used to trim trailing whitespace, so `"node\n"` passed as node.
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node\n","args":[]}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "node plus a newline is not a real executable name and should fail, got: $out"
+else
+  assert_fail "a trailing newline after node fails" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/hooks/hooks.json:.hooks\[0\].hooks\[0\]: exec-form command "node "'
+fi
+rm -rf "$f"
+
+# --- manifest-pointed and inline manifest configs are probed -----------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra.json",{"Stop":[{"hooks":[{"type":"command","command":"x.cmd","args":[]}]}]}]}'
+plugin_file "$f" alpha config/extra.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "manifest-pointed and inline rows should be probed, got: $out"
+else
+  assert_fail "a manifest-pointed config is probed" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/config/extra.json:.hooks\[0\].hooks\[0\]: .* not an array'
+  assert_fail "an inline map in a manifest hooks array is probed" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/.claude-plugin/plugin.json:.hooks\[1\].Stop\[0\].hooks\[0\]: exec-form command "x.cmd"'
+fi
+rm -rf "$f"
+
+# --- an unparsable manifest is left to the manifest gate ----------------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
+plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "an unparsable manifest is skipped, as in the exec-form gate"
+else
+  fail "an unparsable manifest should not fail this probe, got: $out"
+fi
+rm -rf "$f"
+
 # --- forced spawn delivers the args array when node is present --------------
 if command -v node >/dev/null 2>&1; then
   new_fixture f

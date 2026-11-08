@@ -49,40 +49,12 @@
 # (scripts/README.md, "The check-script contract"). An unparsable hook config is a
 # finding (1), as in scripts/check-hook-exec-form.sh.
 # shellcheck disable=SC2016
+# shellcheck disable=SC2329  # on_hook and on_unreadable, and the helpers they call, run by name from hook_configs::scan
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
-# shellcheck source=lib/manifest-path-guard.sh
-. scripts/lib/manifest-path-guard.sh || exit 2
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "check-exec-form-windows-probe: jq is required but not installed" >&2
-  exit 2
-fi
-
-FRONTMATTER_READER="scripts/check-hook-exec-form-frontmatter.py"
-REQUIREMENTS=".github/requirements-ci.txt"
-pyyaml_pin="$(awk '/^pyyaml==/ {
-  sub(/^pyyaml==/, "")
-  sub(/[[:space:]\\].*$/, "")
-  print
-  exit
-}' "$REQUIREMENTS" 2>/dev/null || true)"
-
-reader_cmd=()
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import yaml' >/dev/null 2>&1; then
-    reader_cmd=("$candidate")
-    break
-  fi
-done
-if ((${#reader_cmd[@]} == 0)) && [[ -n "$pyyaml_pin" ]] && command -v uv >/dev/null 2>&1; then
-  reader_cmd=(uv run --quiet --no-project --with "pyyaml==$pyyaml_pin" python)
-fi
-if ((${#reader_cmd[@]} == 0)); then
-  echo "check-exec-form-windows-probe: no python with PyYAML and no uv; the frontmatter surface cannot be read" >&2
-  exit 2
-fi
+# shellcheck source=lib/hook-configs.sh
+. scripts/lib/hook-configs.sh || exit 2
 
 # One allowlist for bare names: the gate's own EXEC_NAME_ALLOWLIST line. A probe
 # that cannot read it exits 2 rather than guess a second list.
@@ -145,10 +117,6 @@ NOT_EXE_HINT='is not a real Windows executable (no shell and no shebang). Use "c
 # consider <file> <where> <command>
 consider() {
   local file="$1" where="$2" cmd="$3" base low
-  # Git bash on Windows keeps a CR on jq's last TSV field, so "node" would
-  # miss the exact match below and every real node row would be flagged.
-  cmd="${cmd//$'\r'/}"
-  cmd="${cmd%"${cmd##*[![:space:]]}"}"
   case "$cmd" in
   */* | *\\*)
     base="${cmd##*/}"
@@ -177,159 +145,33 @@ consider() {
   esac
 }
 
-JQ_EXEC_FORM='
-  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  input_filename as $file
-  | (__ROOT__) as $doc
-  | ([[]] + [$doc | paths(objects)])[]
-  | . as $p
-  | ($doc | getpath($p)) as $o
-  | select(($o | type) == "object")
-  | select(($o | has("command")) and ($o | has("args")))
-  | select(($o.command | type) == "string")
-  | $file + "\t" + ($p | render) + "\t"
-    + (if ($o.args | type) == "array" then "ROW" else "NOT-ARRAY" end)
-    + "\t" + ($o.command | gsub("[\r\n\t]"; " "))
-'
-
-_consume_json_rows() {
-  local prefix="$1" file path kind cmd
-  while IFS=$'\t' read -r file path kind cmd; do
-    [[ -n "$file" || -n "$path" || -n "$cmd" ]] || continue
-    if [[ "$kind" == "NOT-ARRAY" ]]; then
-      flag "$file" "${prefix}${path}" "$cmd" "has an args value that is not an array."
-      continue
-    fi
-    consider "$file" "${prefix}${path}" "$cmd"
-  done <<<"$2"
-}
-
-scan_json_files() {
-  local root="$1" prefix="$2"
-  shift 2
-  (($#)) || return 0
-  local prog out f
-  prog="${JQ_EXEC_FORM//__ROOT__/$root}"
-  if out="$(jq -r "$prog" "$@" 2>/dev/null)"; then
-    _consume_json_rows "$prefix" "$out"
+# on_hook <file> <where> <form> <args> <command> <argv>: exec form only.
+on_hook() {
+  [[ "$3" == exec ]] || return 0
+  if [[ "$4" == other ]]; then
+    flag "$1" "$2" "$5" "has an args value that is not an array."
     return 0
   fi
-  for f in "$@"; do
-    [[ -f "$f" ]] || continue
-    if ! out="$(jq -r "$prog" "$f" 2>/dev/null)"; then
-      echo "UNREADABLE HOOK CONFIG: ${f}: not parseable as JSON; this gate cannot clear it" >&2
-      errors=$((errors + 1))
-      continue
-    fi
-    _consume_json_rows "$prefix" "$out"
-  done
+  consider "$1" "$2" "$5"
 }
 
-JQ_MANIFEST='
-  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  input_filename as $file
-  | (.hooks | type) as $t
-  | if $t == "object" then
-      (.hooks) as $doc
-      | ([[]] + [$doc | paths(objects)])[]
-      | . as $p
-      | ($doc | getpath($p)) as $o
-      | select(($o | type) == "object")
-      | select(($o | has("command")) and ($o | has("args")))
-      | select(($o.command | type) == "string")
-      | "E\t" + $file + "\t" + ($p | render) + "\t"
-        + (if ($o.args | type) == "array" then "ROW" else "NOT-ARRAY" end)
-        + "\t" + ($o.command | gsub("[\r\n\t]"; " "))
-    elif $t == "string" then
-      "P\t" + $file + "\t" + (.hooks | gsub("[\r\n\t]"; " "))
-    elif $t == "array" then
-      .hooks[] | select(type == "string") | "P\t" + $file + "\t" + gsub("[\r\n\t]"; " ")
-    else
-      empty
-    end
-'
-
-MANIFEST_EXTRA=()
-
-_queue_manifest_path() {
-  local plugin="$1" manifest="$2" rel="$3" path
-  manifest_path_guard::resolve_to path check-exec-form-windows-probe "$manifest" "$plugin" "$rel"
-  [[ -f "$path" ]] || return 0
-  MANIFEST_EXTRA+=("$path")
+# on_unreadable <surface> <file> <where> <detail>: an unparsable hook config or
+# frontmatter is a finding; an unparsable manifest is left to its own gate.
+on_unreadable() {
+  case "$1" in
+  json)
+    echo "UNREADABLE HOOK CONFIG: ${2}: not parseable as JSON; this gate cannot clear it" >&2
+    errors=$((errors + 1))
+    ;;
+  frontmatter)
+    echo "UNREADABLE FRONTMATTER: ${2}:${3}: ${4}" >&2
+    errors=$((errors + 1))
+    ;;
+  *) ;;
+  esac
 }
 
-_consume_manifest_rows() {
-  local rows="$1" kind file rest path form cmd rel plugin
-  while IFS=$'\t' read -r kind file rest; do
-    [[ -n "$kind" ]] || continue
-    case "$kind" in
-    E)
-      path="${rest%%$'\t'*}"
-      rest="${rest#*$'\t'}"
-      form="${rest%%$'\t'*}"
-      cmd="${rest#*$'\t'}"
-      if [[ "$form" == "NOT-ARRAY" ]]; then
-        flag "$file" ".hooks${path}" "$cmd" "has an args value that is not an array."
-      else
-        consider "$file" ".hooks${path}" "$cmd"
-      fi
-      ;;
-    P)
-      rel="$rest"
-      plugin="${file%/.claude-plugin/plugin.json}"
-      _queue_manifest_path "$plugin" "$file" "$rel"
-      ;;
-    *) ;;
-    esac
-  done <<<"$rows"
-}
-
-scan_manifests() {
-  (($#)) || return 0
-  local out f
-  MANIFEST_EXTRA=()
-  if out="$(jq -r "$JQ_MANIFEST" "$@" 2>/dev/null)"; then
-    _consume_manifest_rows "$out"
-  else
-    for f in "$@"; do
-      [[ -f "$f" ]] || continue
-      if out="$(jq -r "$JQ_MANIFEST" "$f" 2>/dev/null)"; then
-        _consume_manifest_rows "$out"
-      fi
-    done
-  fi
-  ((${#MANIFEST_EXTRA[@]})) || return 0
-  scan_json_files "." "" "${MANIFEST_EXTRA[@]}"
-}
-
-scan_frontmatter() {
-  local out kind file line detail
-  if ! out="$("${reader_cmd[@]}" "$FRONTMATTER_READER" plugins)"; then
-    echo "check-exec-form-windows-probe: the frontmatter reader did not complete; this gate cannot clear plugins/" >&2
-    exit 2
-  fi
-  while IFS=$'\t' read -r kind file line detail; do
-    case "$kind" in
-    V) consider "$file" "$line" "$detail" ;;
-    X)
-      echo "UNREADABLE FRONTMATTER: ${file}:${line}: ${detail}" >&2
-      errors=$((errors + 1))
-      ;;
-    *) ;;
-    esac
-  done <<<"$out"
-}
-
-hook_jsons=()
-manifests=()
-for plugin in plugins/*/; do
-  plugin="${plugin%/}"
-  [[ -f "$plugin/hooks/hooks.json" ]] && hook_jsons+=("$plugin/hooks/hooks.json")
-  [[ -f "$plugin/.claude-plugin/plugin.json" ]] && manifests+=("$plugin/.claude-plugin/plugin.json")
-done
-scan_json_files "." "" "${hook_jsons[@]}"
-scan_manifests "${manifests[@]}"
-scan_frontmatter
+hook_configs::scan check-exec-form-windows-probe on_hook on_unreadable
 
 # --- spawn half -------------------------------------------------------------
 
