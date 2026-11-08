@@ -35,14 +35,12 @@
 #     opt-in row's `exec "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` counts too. Exec
 #     form (`args` present) is out of scope.
 #
-# Scope: the hook-declaration surfaces scripts/check-hook-exec-form.sh reads,
-# read the same way: `plugins/*/hooks/hooks.json`, manifest-pointed hook configs
-# (through scripts/lib/manifest-path-guard.sh), an inline manifest `hooks`
-# object, and skill/agent frontmatter `hooks:` (through
-# scripts/check-hook-exec-form-frontmatter.py, whose S records are the
-# shell-form rows). Shape (a) scans every `.sh` word of every command that
-# resolves to a file: `${CLAUDE_PLUGIN_ROOT}` paths, and bare names under the
-# declaring plugin's hooks/ directory (launcher arguments).
+# Scope: the plugin hook-config corpus scripts/lib/hook-configs.sh enumerates
+# (hooks.json, manifest-pointed and inline manifest configs, skill/agent
+# frontmatter `hooks:`), the same one scripts/check-hook-exec-form.sh reads.
+# Shape (a) scans every `.sh` word of every command that resolves to a file:
+# `${CLAUDE_PLUGIN_ROOT}` paths, and bare names under the declaring plugin's
+# hooks/ directory (launcher arguments).
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr (scripts/README.md,
 # "The check-script contract"). An unparsable hook config is a finding (1), as in
@@ -51,33 +49,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
-# shellcheck source=lib/manifest-path-guard.sh
-. scripts/lib/manifest-path-guard.sh || exit 2
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "check-hook-slow-shapes: jq is required but not installed" >&2
-  exit 2
-fi
-
-# The frontmatter reader needs PyYAML, resolved the way check-hook-exec-form.sh
-# resolves it: a python that imports yaml, else `uv run --with` the CI pin.
-READER="scripts/check-hook-exec-form-frontmatter.py"
-pyyaml_pin="$(awk '/^pyyaml==/ { sub(/^pyyaml==/, ""); sub(/[[:space:]\\].*$/, ""); print; exit }' \
-  .github/requirements-ci.txt 2>/dev/null || true)"
-reader_cmd=()
-for candidate in python3 python; do
-  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import yaml' >/dev/null 2>&1; then
-    reader_cmd=("$candidate")
-    break
-  fi
-done
-if ((${#reader_cmd[@]} == 0)) && [[ -n "$pyyaml_pin" ]] && command -v uv >/dev/null 2>&1; then
-  reader_cmd=(uv run --quiet --no-project --with "pyyaml==$pyyaml_pin" python)
-fi
-if ((${#reader_cmd[@]} == 0)); then
-  echo "check-hook-slow-shapes: no python with PyYAML and no uv; the frontmatter surface cannot be read" >&2
-  exit 2
-fi
+# shellcheck source=lib/hook-configs.sh
+. scripts/lib/hook-configs.sh || exit 2
 
 commands=0
 # Findings are buffered and printed once, sorted under LC_ALL=C, so the order
@@ -141,82 +114,27 @@ consider() {
   return 0
 }
 
-# Emits `<file>\t<jq-path>\t<shell|exec>\t<command [args...]>` for every object
-# carrying a string `command` reachable from __ROOT__ (recursive descent, as in
-# check-hook-exec-form.sh, because `hooks` is an array in some configs and an
-# event-keyed object in others).
-JQ_COMMANDS='
-  def render: map(if type == "number" then "[" + tostring + "]" else "." + . end) | join("");
-  input_filename as $file
-  | (__ROOT__) as $doc
-  | ([[]] + [$doc | paths(objects)])[] as $p
-  | ($doc | getpath($p)) as $o
-  | select(($o | type) == "object")
-  | select(($o.command | type) == "string")
-  | $file + "\t" + ($p | render) + "\t" + (if $o | has("args") then "exec" else "shell" end)
-    + "\t" + ([$o.command] + (($o.args // []) | map(tostring)) | join(" ") | gsub("[\r\n\t]"; " "))
-'
-
-consume_rows() { # <prefix> <rows>
-  local file path form cmd
-  while IFS=$'\t' read -r file path form cmd; do
-    [[ -n "$file" ]] || continue
-    consider "$file" "$1$path" "$form" "${cmd%$'\r'}"
-  done <<<"$2"
-}
-
-scan_json_files() { # <jq-root> <path-prefix> <file...>
-  local prog="${JQ_COMMANDS//__ROOT__/$1}" prefix="$2" out f
-  shift 2
-  for f in "$@"; do
-    if ! out="$(jq -r "$prog" "$f" 2>/dev/null)"; then
-      finding "UNREADABLE HOOK CONFIG: ${f}: not parseable as JSON; this gate cannot clear it"
-      continue
-    fi
-    consume_rows "$prefix" "$out"
-  done
-}
-
-hook_jsons=()
-resolved="" # written by manifest_path_guard::resolve_to through a nameref
-for plugin in plugins/*/; do
-  plugin="${plugin%/}"
-  [[ -f "$plugin/hooks/hooks.json" ]] && hook_jsons+=("$plugin/hooks/hooks.json")
-  manifest="$plugin/.claude-plugin/plugin.json"
-  [[ -f "$manifest" ]] || continue
-  # A native Windows jq ends lines with CRLF; every jq line read here drops the CR.
-  if ! kind="$(jq -r '.hooks | type' "$manifest" 2>/dev/null)"; then
-    finding "UNREADABLE HOOK CONFIG: ${manifest}: not parseable as JSON; this gate cannot clear it"
-    continue
+# on_hook <file> <where> <form> <args> <command> <argv>. A non-array `args`
+# leaves the command line unreadable, so it is a finding as well as a command.
+# shellcheck disable=SC2329  # called by hook_configs::scan by name
+on_hook() {
+  if [[ "$4" == other ]]; then
+    finding "UNREADABLE HOOK CONFIG: ${1}:${2}: args is not an array; this gate cannot clear it"
   fi
-  case "${kind%$'\r'}" in
-  object) scan_json_files ".hooks" ".hooks" "$manifest" ;;
-  string | array)
-    while IFS= read -r rel; do
-      rel="${rel%$'\r'}"
-      [[ -n "$rel" ]] || continue
-      manifest_path_guard::resolve_to resolved check-hook-slow-shapes "$manifest" "$plugin" "$rel"
-      [[ -f "$resolved" ]] && hook_jsons+=("$resolved")
-    done < <(jq -r '.hooks | if type == "string" then . else .[] | select(type == "string") end' "$manifest")
-    ;;
-  *) ;;
-  esac
-done
-((${#hook_jsons[@]} == 0)) || scan_json_files "." "" "${hook_jsons[@]}"
+  consider "$1" "$2" "$3" "$6"
+}
 
-if ! fm="$("${reader_cmd[@]}" "$READER" plugins)"; then
-  echo "check-hook-slow-shapes: the frontmatter reader did not complete; this gate cannot clear plugins/" >&2
-  exit 2
-fi
-while IFS=$'\t' read -r kind file line detail; do
-  detail="${detail%$'\r'}"
-  case "$kind" in
-  S) consider "$file" "$line" shell "$detail" ;;
-  V) consider "$file" "$line" exec "$detail" ;;
-  X) finding "UNREADABLE FRONTMATTER: ${file}:${line}: ${detail}" ;;
-  *) ;;
+# on_unreadable <surface> <file> <where> <detail>: every unreadable surface,
+# an unparsable manifest included, is a finding.
+# shellcheck disable=SC2329  # called by hook_configs::scan by name
+on_unreadable() {
+  case "$1" in
+  frontmatter) finding "UNREADABLE FRONTMATTER: ${2}:${3}: ${4}" ;;
+  *) finding "UNREADABLE HOOK CONFIG: ${2}: not parseable as JSON; this gate cannot clear it" ;;
   esac
-done <<<"$fm"
+}
+
+hook_configs::scan check-hook-slow-shapes on_hook on_unreadable
 
 if ((commands == 0)); then
   ((${#FINDINGS[@]} == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2

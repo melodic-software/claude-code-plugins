@@ -140,6 +140,13 @@ mkdir -p "$f/plugins/demo/config"
 row_json "$ROOTED" >"$f/plugins/demo/config/extra.json"
 expect "(b) a manifest-pointed hook config is scanned" "$f" 1 "ENV SHEBANG: plugins/demo/config/extra.json"
 
+new_fixture f
+plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
+mkdir -p "$f/plugins/demo/.claude-plugin"
+printf '%s' "$ROOTED" | jq -Rs '{name:"demo",hooks:["./config/none.json",{Stop:[{hooks:[{type:"command",command:.}]}]}]}' \
+  >"$f/plugins/demo/.claude-plugin/plugin.json"
+expect "(b) an inline map inside a manifest hooks array is scanned" "$f" 1 "ENV SHEBANG: plugins/demo/.claude-plugin/plugin.json:.hooks[1].Stop[0].hooks[0]"
+
 # --- shape (a): a whole-file read of the transcript -------------------------
 
 # transcript_hook <body-after-assignment>
@@ -244,6 +251,11 @@ new_fixture f
 mkdir -p "$f/plugins/demo/.claude-plugin"
 printf '{not json\n' >"$f/plugins/demo/.claude-plugin/plugin.json"
 expect "an unparsable plugin.json is a finding, not a clean run" "$f" 1 "UNREADABLE HOOK CONFIG: plugins/demo/.claude-plugin/plugin.json"
+
+new_fixture f
+plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
+row_json "bash" '{"args":"x.sh"}' >"$f/plugins/demo/hooks/hooks.json"
+expect "an args value that is not an array is a finding, named at its row" "$f" 1 "UNREADABLE HOOK CONFIG: plugins/demo/hooks/hooks.json:.hooks.Stop[0].hooks[0]: args is not an array"
 
 new_fixture f
 mkdir -p "$f/plugins/demo/hooks"
