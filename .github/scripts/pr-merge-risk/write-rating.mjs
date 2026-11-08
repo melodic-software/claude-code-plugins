@@ -28,6 +28,8 @@ import { checkResult, modelsOf, RATING_FILE } from "../pr-merge/merge-risk-line.
 
 const VERSION = /^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$/;
 
+const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
+
 // Tools the blind checker's agent file declares (review:brief-reviewer) that
 // the cage withholds: a denial of one reached nothing. A denial of any other
 // tool, a Read outside the data directory above all, refuses the rating.
@@ -46,7 +48,6 @@ export function buildRating({ output, messages, pr, head, rubric, cliVersion, st
     throw new Error("the CLI version is malformed");
   }
   const checked = checkResult(output, { pr, head });
-  const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
   return { ...checked, rubric, ...modelsOf(messages), cli_version: cliVersion, started_at: iso(startedAt), ended_at: iso(endedAt) };
 }
 
