@@ -12,6 +12,7 @@ import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-t
 import { parseReason } from "../lib/stop-reason.mjs";
 import {
   checkActors,
+  checkRun,
   closing,
   earlierFlags,
   finish,
@@ -888,6 +889,46 @@ describe("checkActors", () => {
       assert.equal(checkActors(input, humans, logins), expected);
     });
   }
+});
+
+describe("checkRun", () => {
+  const env = {
+    EVENT_NAME: "workflow_dispatch",
+    ACTOR_ID: "41898282",
+    TRIGGERING_ACTOR: "github-actions[bot]",
+    RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "o/r",
+    ISSUE_NUMBER: "7",
+  };
+  const answering = (answer) => {
+    const calls = [];
+    const github = async (method, apiPath) => {
+      calls.push(`${method} ${apiPath}`);
+      if (answer instanceof Error) {
+        throw answer;
+      }
+      return answer;
+    };
+    return { calls, github };
+  };
+  const cases = [
+    ["the issue is open", { state: "open" }, true],
+    ["the issue closed while triage ran", { state: "closed" }, false],
+    ["the number is a pull request", { state: "open", pull_request: {} }, false],
+    ["the read fails, so the write step's own read decides", new GitHubError(502, "GET"), true],
+  ];
+  for (const [name, answer, expected] of cases) {
+    test(`${expected ? "proceeds" : "stops"} when ${name}`, async () => {
+      const { calls, github } = answering(answer);
+      assert.equal(await checkRun({ env, humans, logins, github, log: () => {} }), expected);
+      assert.deepEqual(calls, ["GET /repos/o/r/issues/7"]);
+    });
+  }
+  test("stops on the actors without reading the issue", async () => {
+    const { calls, github } = answering({ state: "open" });
+    assert.equal(await checkRun({ env: { ...env, EVENT_NAME: "issues" }, humans, logins, github, log: () => {} }), false);
+    assert.deepEqual(calls, []);
+  });
 });
 
 // A fake GitHub: the issue, its comments and field values, recording every call.
