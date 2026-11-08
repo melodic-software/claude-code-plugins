@@ -53,6 +53,18 @@ playwright-cli -s=<flow> goto https://github.com/<owner>/<repo>
 
 Never run `state-save` for a shared login, and never read, print, or copy the file, into a repo, a brief, or context: it is the owner's login. To answer "is my saved login still good", load the file in a session and look at the page: a sign-in page means it expired. Never inspect the file for that, cookie names or expiry included. The owner saves and refreshes it with the commands in [reference/storage-and-auth.md](reference/storage-and-auth.md#shared-login-state).
 
+## Secret fills
+
+`playwright-cli` prints the code each command ran, and a `fill` or `type` prints the text it typed. A command that carries a password, token or other secret therefore runs with its output discarded, and a failure is reported from its exit status, never from that output. Never put a secret inline in a command you run or print; read it from an environment variable the owner set. For `fill`, use the helper:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/fill-secret.sh" <flow> e2 E2E_TEST_PASSWORD   # add --submit to press Enter
+```
+
+It reads the named variable, refuses an unset or empty one, discards `playwright-cli`'s output, and passes its exit status through. After a failure, take a `snapshot` to see the page. A `type` or `run-code` that carries a secret gets the same treatment by hand: redirect its stdout and stderr to `/dev/null`.
+
+- **Pointer**: what the CLI prints for each command, in upstream's [test-generation reference, "0. How generation works"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/test-generation.md#0-how-generation-works). **As of**: 2026-11-08. **Recheck trigger**: the frontmatter `upstream-version` moves, or that section starts masking typed text.
+
 ## Conventions
 
 - **Always use named sessions** (`-s=<flow>`) for multi-step work, with a name unique to this run. Default (unnamed) sessions are hard to isolate when things go sideways, and a shared name collides with another agent driving the same machine
