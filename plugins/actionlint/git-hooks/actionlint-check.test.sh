@@ -203,7 +203,7 @@ mkdir -p "$NOLINT"
 for t in git bash sed awk cat mktemp rm dirname grep tr; do
   ln -s "$(command -v "$t")" "$NOLINT/$t"
 done
-INSTALL_HINT='brew install actionlint, or another method at https://github.com/rhysd/actionlint/blob/main/docs/install.md'
+INSTALL_HINT='brew install --cask kjanat/tap/actionlint, or another method at https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md'
 new_repo
 printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
 git -C "$REPO" add "$WF/ci.yml"

@@ -7,10 +7,10 @@
       "answer": "Everything is already in place, so apply changed nothing."
     },
     {
-      "answer": "actionlint is missing. Install it with a method from https://github.com/rhysd/actionlint/blob/main/docs/install.md, then rerun the check."
+      "answer": "actionlint is missing. Install it with a method from https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md, then rerun the check."
     },
     {
-      "answer": "FAIL: actionlint. See github.com/rhysd/actionlint for install options."
+      "answer": "FAIL: actionlint. See github.com/kjanat/actionlint for install options."
     },
     {
       "answer": "I ran `/actionlint:setup apply`. Everything it needs is installed. The one problem is that the git pre-commit check isn't registered in this repository. `apply` only gives guidance, so I didn't install or change anything.\n\n| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.3.9; the minimum is 3.2 |\n| 2 | `node` | PASS | Node 24.21.0 is installed |\n| 3 | `actionlint` | PASS | 1.7.12 is installed |\n| 4 | actionlint config | INFO | There is no `.github/actionlint.yaml` or `.yml` at the repository root (`/tmp/proj`). It's optional. |\n| 5a | `actionlint_enabled` | INFO | `true` (not set, so the default applies) |\n| 5b | `actionlint_end_of_turn` | INFO | `false` (not set, so the default applies) |\n| 6 | Hook registration | INFO | To confirm the plugin is enabled for this project, open `/plugin` and look under Installed. |\n| 7 | Git pre-commit check | **FAIL** | `verify` reports `missing\tactionlint-check\tnot installed` |\n\n**Fix for #7:** run `/actionlint:setup apply install-git-hooks`. Add `scope=local` to install it for this clone only, with nothing committed. Add `scope=shared` to commit it under `.githooks/actionlint/`. If you'd rather not have the check in this clone, run `node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs decline --entry actionlint-check`.\n\nI ran `verify` again during this session and it still reports `missing`, so this isn't fixed yet.",
@@ -21,7 +21,7 @@
       "why": "already configured"
     },
     {
-      "answer": "See https://github.com/rhysd/actionlint/blob/main/docs/install.md for install options.",
+      "answer": "See https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md for install options.",
       "why": "guide url"
     },
     {

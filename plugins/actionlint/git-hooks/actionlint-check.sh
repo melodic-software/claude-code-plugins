@@ -33,7 +33,7 @@ lib="$here/check-lib.sh"
 set -uo pipefail
 
 checks_init pre-commit "$@" || exit 0
-checks_require_tool actionlint "brew install actionlint, or another method at https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+checks_require_tool actionlint "brew install --cask kjanat/tap/actionlint, or another method at https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md"
 
 # staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
 # the index holds it as a regular file, not a symlink (mode 120000) or a submodule.

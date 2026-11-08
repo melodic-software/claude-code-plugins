@@ -3,7 +3,7 @@ name: su-apply-missing-actionlint-guidance
 graders:
   - name: 'install-guide-link'
     type: 'regex'
-    pattern: 'github\.com/rhysd/actionlint/blob/main/docs/install\.md'
+    pattern: 'github\.com/kjanat/actionlint/blob/v1\.17\.0/docs/install\.md'
     target: 'last_message'
   - name: 'names-consequence'
     type: 'llm'

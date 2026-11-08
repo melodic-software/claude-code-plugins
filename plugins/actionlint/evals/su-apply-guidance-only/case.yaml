@@ -43,6 +43,6 @@ graders:
     arm: 'both'
   - name: 'apply-outcome'
     type: 'regex'
-    pattern: 'already (?:configured|set up|in place)|github\.com/rhysd/actionlint|rhysd/actionlint/blob/main/docs/install\.md|/actionlint:setup apply install-git-hooks\b'
+    pattern: 'already (?:configured|set up|in place)|github\.com/kjanat/actionlint|kjanat/actionlint/blob/v1\.17\.0/docs/install\.md|/actionlint:setup apply install-git-hooks\b'
     flags: 'i'
     target: 'last_message'

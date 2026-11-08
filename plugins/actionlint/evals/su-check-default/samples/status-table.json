@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| `node` | PASS | /usr/local/bin/node |\n| `actionlint` | FAIL | not on PATH; install: https://github.com/rhysd/actionlint/blob/main/docs/install.md |\n| Git pre-commit entry | INFO | not a git repository |"
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| `node` | PASS | /usr/local/bin/node |\n| `actionlint` | FAIL | not on PATH; install: https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md |\n| Git pre-commit entry | INFO | not a git repository |"
     },
     {
       "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | Bash | PASS |\n| 2 | node | PASS |\n| 3 | actionlint | PASS |",

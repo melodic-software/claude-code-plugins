@@ -136,7 +136,7 @@ path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/con
 Run `check`, then for each FAIL point at the resolution. This skill installs nothing:
 
 - missing `actionlint`: platform install guidance from the README Requirements section
-  (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
+  (the [kjanat/actionlint install guide](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md)).
 - missing `node` / Bash: platform install instructions from the README Requirements section.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention

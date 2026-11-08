@@ -17,7 +17,7 @@
       },
       "degrade": "Without actionlint, the git pre-commit entry and the end-of-turn check cannot lint GitHub Actions workflows.",
       "install": {
-        "docs": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+        "docs": "https://github.com/kjanat/actionlint/blob/v1.17.0/docs/install.md"
       }
     },
     {
