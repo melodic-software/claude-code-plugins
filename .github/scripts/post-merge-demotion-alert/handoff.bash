@@ -178,15 +178,9 @@ retry_undelivered() {
     return 0
   }
   while IFS=$'\t' read -r n kind count first failing; do
-    if [[ -z "$n" ]]; then
-      continue
-    fi
-    if [[ "$kind" != record ]]; then
-      sendable[$n]=1
-    fi
-    if ((count == 0)); then
-      continue
-    fi
+    [[ -n "$n" ]] || continue
+    [[ "$kind" == record ]] || sendable[$n]=1
+    ((count > 0)) || continue
     marks="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$n/comments?per_page=100" \
       --jq '.[] | select(.user.login == "github-actions[bot]")
         | [.id, ((.body // "") | split("\n")[0] // "" | sub("\\s+$"; ""))]
@@ -195,9 +189,7 @@ retry_undelivered() {
       continue
     }
     while IFS=$'\t' read -r id mark; do
-      if [[ ! "$id" =~ ^[1-9][0-9]*$ ]]; then
-        continue
-      fi
+      [[ "$id" =~ ^[1-9][0-9]*$ ]] || continue
       if [[ "$mark" =~ ^\<!--\ post-merge-undelivered\ issue=([1-9][0-9]*)\ --\>$ ]]; then
         t="${BASH_REMATCH[1]}"
         if [[ "$kind" == record || "$t" == "$n" ]]; then
@@ -269,19 +261,11 @@ retry_undelivered() {
     fi
     if [[ -n "$fix_missed" ]]; then
       failed=1
-      if [[ -z "$fix_missed_issue" ]]; then
-        continue
-      fi
+      [[ -n "$fix_missed_issue" ]] || continue
       moved=''
-      if mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue"; then
-        moved=1
-      fi
-      if mark_undelivered "$r" "issue=$fix_missed_issue"; then
-        moved=1
-      fi
-      if [[ -z "$moved" ]]; then
-        continue
-      fi
+      mark_undelivered "$fix_missed_issue" "issue=$fix_missed_issue" && moved=1
+      mark_undelivered "$r" "issue=$fix_missed_issue" && moved=1
+      [[ -n "$moved" ]] || continue
     fi
     clear_marks "$id"
   done
