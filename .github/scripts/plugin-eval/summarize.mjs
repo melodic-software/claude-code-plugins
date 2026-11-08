@@ -88,15 +88,15 @@ export function health(runs, { plugin, base, invoked = null }) {
       continue;
     }
     kept += 1;
-    const init = trace.find((line) => line.type === "system" && line.subtype === "init");
-    if (Array.isArray(init?.skills)) {
-      loaded = loaded === true || init.skills.some(own);
+    const skills = trace.find((line) => line.type === "system" && line.subtype === "init")?.skills;
+    if (Array.isArray(skills)) {
+      loaded = loaded === true || skills.some(own);
     }
     const calls = trace
       .filter((line) => line.type === "assistant")
       .flatMap((line) => list(line.message?.content))
       .filter((part) => part?.type === "tool_use");
-    const slashed = invoked !== null && own(invoked) && Array.isArray(init?.skills) && init.skills.includes(invoked);
+    const slashed = invoked !== null && own(invoked) && Array.isArray(skills) && skills.includes(invoked);
     const called = calls.some((part) => (part.name === "Skill" ? own(part.input?.skill) : part.name === "Agent" && own(part.input?.subagent_type)));
     if (slashed || called) {
       fired += 1;
@@ -228,15 +228,15 @@ export function summarize(result, { plugin, base, redact = false, caseYaml = cas
     }),
     "",
   ];
-  const result_ = rows.length === 0 || rows.some((r) => r.verdict === NOT_COMPARABLE) ? NOT_COMPARABLE : rows.some((r) => r.verdict === FAIL) ? FAIL : PASS;
+  const overall = rows.length === 0 || rows.some((r) => r.verdict === NOT_COMPARABLE) ? NOT_COMPARABLE : rows.some((r) => r.verdict === FAIL) ? FAIL : PASS;
   if (rows.length === 0) {
     lines.push("The result holds no case.", "");
   }
-  lines.push(`Result: ${result_}`);
+  lines.push(`Result: ${overall}`);
   const failing = rows.filter((r) => r.verdict !== PASS).map((r) => `${r.verdict}: ${r.name} (${r.reason})`);
   const message = rows.length === 0 ? "the result holds no case" : failing.join("; ");
-  const annotation = result_ === PASS ? "" : `::error title=${property(`Plugin eval verdict: ${owner || "unknown plugin"}`)}::${data(`${result_}. ${message}`)}`;
-  return { text: lines.join("\n"), result: result_, annotation };
+  const annotation = overall === PASS ? "" : `::error title=${property(`Plugin eval verdict: ${owner || "unknown plugin"}`)}::${data(`${overall}. ${message}`)}`;
+  return { text: lines.join("\n"), result: overall, annotation };
 }
 
 // Workflow-command escaping (GitHub's toolkit command.ts): data escapes %, CR
