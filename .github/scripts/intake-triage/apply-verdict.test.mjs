@@ -151,20 +151,27 @@ describe("parseVerdict", () => {
     assert.match(verdict.problems.join(), /more than one `Size:`/);
   });
 
-  for (const [name, line] of [
-    ["a lowercase option", "Size: small"],
-    ["an option the config does not map", "Size: Huge"],
-  ]) {
-    test(`${name} writes no fields`, () => {
-      const verdict = parseVerdict(
-        laneBody({
-          lines: [line, "Complexity: Low", "Uncertainty: Known", "Flags: none"],
-        }),
-        DIMS,
-      );
-      assert.equal(verdict.dimensions, null);
-    });
-  }
+  test("an option the config does not map writes no fields", () => {
+    const verdict = parseVerdict(
+      laneBody({
+        lines: ["Size: Huge", "Complexity: Low", "Uncertainty: Known", "Flags: none"],
+      }),
+      DIMS,
+    );
+    assert.equal(verdict.dimensions, null);
+    assert.match(verdict.problems.join(), /`Size: Huge` is not one of small, medium, large/);
+  });
+
+  test("reads an option name in any case", () => {
+    const verdict = parseVerdict(
+      laneBody({
+        lines: ["Size: small", "Complexity: HIGH", "Uncertainty: Knowable", "Flags: none"],
+      }),
+      DIMS,
+    );
+    assert.deepEqual(verdict.dimensions, { size: "small", complexity: "high", uncertainty: "knowable" });
+    assert.deepEqual(verdict.problems, []);
+  });
 
   for (const flags of ["Flags: intent, intent", "Flags: urgent", "Flags: none, cost"]) {
     test(`${flags} is unreadable`, () => {
@@ -214,9 +221,9 @@ describe("planWrites", () => {
     assert.deepEqual(
       result.fieldWrites.map(({ fieldId, optionId, name }) => [fieldId, optionId, name]),
       [
-        [15462270, 27053568, "Small"],
-        [48625720, 85127651, "Low"],
-        [48625721, 85127654, "Known"],
+        [15462270, 27053568, "small"],
+        [48625720, 85127651, "low"],
+        [48625721, 85127654, "known"],
       ],
     );
   });
@@ -932,7 +939,8 @@ describe("checkRun", () => {
 });
 
 // A fake GitHub: the issue, its comments and field values, recording every call.
-function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {} } = {}) {
+// A field-value write naming a value `refuse` matches is answered `refuseStatus`.
+function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events = [], blockers = {}, refuse = () => false, refuseStatus = 422 } = {}) {
   const calls = [];
   const github = async (method, path, body, headers, options) => {
     calls.push({ method, path, body, ...(options ? { options } : {}) });
@@ -969,6 +977,9 @@ function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows, events =
       return fieldRows;
     }
     if (method === "POST" && path === "/repos/o/r/issues/7/issue-field-values") {
+      if (body.issue_field_values.some(({ value }) => refuse(value))) {
+        throw new GitHubError(refuseStatus, path);
+      }
       return (
         answerRows ??
         body.issue_field_values.map(({ field_id, value }) => {
@@ -1045,12 +1056,34 @@ describe("run", () => {
       ["POST /repos/o/r/issues/7/issue-field-values", "STATUS #7"],
     );
     assert.deepEqual(done[0].body.issue_field_values, [
-      { field_id: 15462270, value: "Small" },
-      { field_id: 48625720, value: "Low" },
-      { field_id: 48625721, value: "Known" },
+      { field_id: 15462270, value: "small" },
+      { field_id: 48625720, value: "low" },
+      { field_id: 48625721, value: "known" },
     ]);
     assert.equal(done[1].body, "ready", "the Work status field takes the place of the status: ready label");
     assert.ok(!fake.calls.some(({ path }) => path.startsWith("/repos/o/r/labels")), "no repository label read");
+  });
+
+  for (const status of [400, 422]) {
+    test(`field names GitHub refuses with ${status} are sent once more Title-cased`, async () => {
+      const lowercase = (value) => value === value.toLowerCase();
+      const fake = fakeGitHub({ comments: [laneComment()], refuse: lowercase, refuseStatus: status });
+      assert.equal((await go(fake)).outcome, "ready");
+      const posts = fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/issue-field-values"));
+      assert.deepEqual(
+        posts.map(({ body }) => body.issue_field_values.map(({ value }) => value)),
+        [
+          ["small", "low", "known"],
+          ["Small", "Low", "Known"],
+        ],
+      );
+    });
+  }
+
+  test("a field write refused for another reason is not sent again", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()], refuse: () => true, refuseStatus: 403 });
+    await assert.rejects(go(fake), /status 403/);
+    assert.equal(fake.calls.filter(({ method, path }) => method === "POST" && path.endsWith("/issue-field-values")).length, 1);
   });
 
   test("a ready write a person's late hold answers held stops the run: no late label removal, no admission comment, no admission", async () => {
@@ -1208,7 +1241,7 @@ describe("run", () => {
     const post = done.find(({ path }) => path.endsWith("/issue-field-values"));
     assert.deepEqual(post.body.issue_field_values[0], {
       field_id: 15462270,
-      value: "Small",
+      value: "small",
     });
   });
 

@@ -151,8 +151,9 @@ async function fullRuns(call, repo, env) {
   );
 }
 
-const lastGreen = (runs, sha) =>
-  runs.filter((r) => r.conclusion === "success" && r.head_sha !== sha).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+const newest = (runs) => [...runs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+
+const lastGreen = (runs, sha) => newest(runs.filter((r) => r.conclusion === "success" && r.head_sha !== sha));
 
 // github-actions[bot]'s issues.
 async function botIssues(call, repo) {
@@ -251,9 +252,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   for (const sha of range ?? []) {
     const commit = commits.find((c) => c.sha === sha);
     const number = Number(/\(#(\d+)\)$/.exec(firstLine(commit.message))?.[1]) || null;
-    const own = runs
-      .filter((r) => r.head_sha === sha)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const own = newest(runs.filter((r) => r.head_sha === sha));
     if (sha !== env.RUN_SHA) {
       statuses[sha] = commitStatus(own && { conclusion: own.conclusion, ...(await attempts(call, repo, own)) }, verdict.checks);
     }

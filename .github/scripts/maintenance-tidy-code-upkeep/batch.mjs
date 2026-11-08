@@ -263,10 +263,15 @@ function scan(env) {
   console.log(`${kept.length} branches to publish, ${recorded.length} areas recorded as swept`);
 }
 
-async function push(env) {
-  const { DATE: date, BASE_SHA: baseSha, PLAN_FILE, BUNDLE_FILE, REPO_DIR: repo, GITHUB_REPOSITORY: repository } = env;
+// The gate's areas, and the scanned plan's sweeps checked against them.
+function readPlan(env) {
   const areas = parseAreas(env.AREAS);
-  const sweeps = validatePlan(readFileSync(PLAN_FILE, "utf8"), { areas, date, baseSha });
+  return { areas, sweeps: validatePlan(readFileSync(env.PLAN_FILE, "utf8"), { areas, date: env.DATE, baseSha: env.BASE_SHA }) };
+}
+
+async function push(env) {
+  const { BASE_SHA: baseSha, BUNDLE_FILE, REPO_DIR: repo, GITHUB_REPOSITORY: repository } = env;
+  const { areas, sweeps } = readPlan(env);
   const synthetic = readSynthetic(env.SYNTHETIC, sweeps.length);
   const writer = createGitHubApi({ token: env.GH_TOKEN, repository, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
   const heads = {};
@@ -302,10 +307,8 @@ async function push(env) {
 }
 
 async function publish(env) {
-  const { DATE: date, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repository } = env;
-  const areas = parseAreas(env.AREAS);
-  const sweeps = validatePlan(readFileSync(PLAN_FILE, "utf8"), { areas, date, baseSha });
-  const opened = await openPulls(api, repository, sweeps, JSON.parse(env.HEADS || "{}"), env.SPEC_ISSUE);
+  const { sweeps } = readPlan(env);
+  const opened = await openPulls(api, env.GITHUB_REPOSITORY, sweeps, JSON.parse(env.HEADS || "{}"), env.SPEC_ISSUE);
   console.log(`opened ${opened} pull requests`);
 }
 

@@ -19,7 +19,8 @@ name: Eval Browser Dispatch
 # or the job fails. Each result goes through .github/scripts/plugin-eval/
 # summarize.mjs into the job summary: a with-versus-without table with PASS,
 # FAIL or NOT COMPARABLE per case and one health line per case, and the job
-# fails unless every case passes. Every run carries --max-cost-usd.
+# fails unless every case passes. Every run carries --max-cost-usd: 5 dollars
+# unless a dispatch sets the max-cost-usd input, at most 12.
 #
 # Lane hardening follows ADR 0049
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
@@ -80,6 +81,11 @@ on:
         required: true
         type: number
         default: 1
+      max-cost-usd:
+        description: Per-run cost ceiling in whole US dollars, 1 to 12. Above 12 a run leaves too little of the job's 60-minute timeout for setup and upload.
+        required: false
+        type: number
+        default: 5
       deterministic-only:
         description: Run only the cases whose graders are all deterministic (no llm or baseline judge).
         required: false
@@ -691,6 +697,7 @@ jobs:
           CASE: ${{ inputs.case }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
+          MAX_COST: ${{ inputs.max-cost-usd || 5 }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
@@ -701,12 +708,16 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           args=(
             --trust-plugin
             --no-publish
             --model claude-sonnet-5-5
             --judge-model claude-opus-5-5
-            --max-cost-usd 5
+            --max-cost-usd "$MAX_COST"
             --keep-temp
           )
           if [ "$DISPATCH" = true ]; then
@@ -1516,6 +1527,7 @@ jobs:
           CASE: ${{ inputs.case }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
+          MAX_COST: ${{ inputs.max-cost-usd || 5 }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
@@ -1526,12 +1538,16 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           args=(
             --trust-plugin
             --no-publish
             --model claude-sonnet-5-5
             --judge-model claude-opus-5-5
-            --max-cost-usd 5
+            --max-cost-usd "$MAX_COST"
             --keep-temp
           )
           if [ "$DISPATCH" = true ]; then
@@ -2294,6 +2310,7 @@ jobs:
           CASE: ${{ inputs.case }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
+          MAX_COST: ${{ inputs.max-cost-usd || 5 }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           REAL_SERVERS: ${{ inputs.allow-real-servers }}
           OUT: ${{ runner.temp }}/eval-results
@@ -2304,12 +2321,16 @@ jobs:
           fi
           export TMPDIR="$HOME/.ev"
           mkdir -p "$TMPDIR"
+          if ! [[ $MAX_COST =~ ^[1-9][0-9]*$ ]] || ((MAX_COST > 12)); then
+            echo "::error::max-cost-usd must be a whole number from 1 to 12"
+            exit 1
+          fi
           args=(
             --trust-plugin
             --no-publish
             --model claude-sonnet-5-5
             --judge-model claude-opus-5-5
-            --max-cost-usd 5
+            --max-cost-usd "$MAX_COST"
             --keep-temp
           )
           if [ "$DISPATCH" = true ]; then

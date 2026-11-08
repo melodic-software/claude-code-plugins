@@ -39,18 +39,11 @@ const dayOf = (ms) => Math.floor(ms / DAY_MS);
 export function areaOf(path) {
   const parts = path.split("/");
   if (parts[0].startsWith(".")) return null;
-  let found;
-  if (parts.length === 1) {
-    found = { area: "root", glob: "*" };
-  } else if ((parts[0] === "plugins" || parts[0] === "docs") && parts.length > 2) {
-    const area = `${parts[0]}/${parts[1]}`;
-    found = { area, glob: `${area}/**` };
-  } else if (parts[0] === "plugins" || parts[0] === "docs") {
-    found = { area: parts[0], glob: `${parts[0]}/*` };
-  } else {
-    found = { area: parts[0], glob: `${parts[0]}/**` };
-  }
-  return SAFE_AREA.test(found.area) ? found : null;
+  if (parts.length === 1) return { area: "root", glob: "*" };
+  const nested = parts[0] === "plugins" || parts[0] === "docs";
+  const area = nested && parts.length > 2 ? `${parts[0]}/${parts[1]}` : parts[0];
+  const glob = nested && parts.length === 2 ? `${area}/*` : `${area}/**`;
+  return SAFE_AREA.test(area) ? { area, glob } : null;
 }
 
 // The <slug> tidy's ad hoc branch carries: the glob's literal directory prefix in kebab case.
@@ -105,8 +98,7 @@ export function plan({ paths, commits, pulls, cleanSweeps = [], cadence, backsto
     const found = areaOf(path);
     if (!found || rows.has(found.area)) continue;
     const slug = slugOf(found.area);
-    const swept = last.get(slug) ?? 0;
-    rows.set(found.area, { ...found, slug, swept, unswept: Infinity });
+    rows.set(found.area, { ...found, slug, swept: last.get(slug) ?? 0, unswept: Infinity });
   }
   for (const commit of commits) {
     if (merges.has(commit.sha)) continue;

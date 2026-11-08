@@ -120,6 +120,14 @@ function cover(harness, path, ms, root) {
 
 const git = (root, ...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
 
+const readText = (file) => {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+};
+
 export function execute(generation, { root, harness, config, run = cover }) {
   const shape = violations(generation, GENERATE_SCHEMA);
   if (shape.length) return { outcome: "refused", detail: `the generation does not match its schema (${shape[0]})`, mutants: [] };
@@ -130,13 +138,9 @@ export function execute(generation, { root, harness, config, run = cover }) {
   const baselines = new Map();
   let invalid = 0;
   for (const [index, mutant] of out.entries()) {
+    const file = join(root, mutant.path);
     const tracked = git(root, "ls-files", "--error-unmatch", "--", mutant.path).status === 0;
-    let text = null;
-    try {
-      text = tracked ? readFileSync(join(root, mutant.path), "utf8") : null;
-    } catch {
-      text = null;
-    }
+    const text = tracked ? readText(file) : null;
     if (applyProblem(mutant, { globs, text, tracked })) {
       mutant.state = "invalid";
       invalid++;
@@ -149,7 +153,6 @@ export function execute(generation, { root, harness, config, run = cover }) {
       mutant.state = "no-coverage";
       continue;
     }
-    const file = join(root, mutant.path);
     const original = readFileSync(file);
     writeFileSync(file, text.replace(mutant.old_string, () => mutant.new_string));
     try {
