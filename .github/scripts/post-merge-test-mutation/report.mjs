@@ -209,14 +209,16 @@ export async function main(env = process.env, { github } = {}) {
     : env.RANGE_MODE === "range" && SHA.test(env.BEFORE ?? "")
       ? await rangePulls({ github: client, repository: env.REPOSITORY, before: env.BEFORE, after: env.AFTER })
       : await mergedPulls({ github: client, repository: env.REPOSITORY, sha: env.AFTER });
-  const summary = render({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY });
-  appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
+  const context = { before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY };
+  appendFileSync(env.GITHUB_STEP_SUMMARY, render({ ...parsed, ...context }));
+  // `result` is set only when no error or stop came first.
+  const { result } = parsed;
   // A comment is posted only when a survivor or an uncovered mutant needs action,
   // and only on the one pull request that merged the audited range. Every other
   // outcome is in the summary; an earlier comment from the same head stays as it is.
   let actionable = false;
-  if (!parsed.error && !parsed.stop) {
-    const { count } = scores(parsed.result.mutants);
+  if (result) {
+    const { count } = scores(result.mutants);
     actionable = count.survived + count["no-coverage"] > 0;
   }
   if (!actionable) {
@@ -224,11 +226,11 @@ export async function main(env = process.env, { github } = {}) {
   } else if (pulls?.length !== 1) {
     console.log(`::notice::no pull request comment: ${pulls === null ? "the merged pull request lookup failed" : `${pulls.length} pull requests merged the ${env.RANGE_MODE === "range" ? "range" : "head"}`}`);
   } else if (env.COMMENT_PATH && env.GITHUB_OUTPUT) {
-    writeFileSync(env.COMMENT_PATH, commentBody({ ...parsed, before: env.BEFORE, after: env.AFTER, mode: env.RANGE_MODE, pulls, repository: env.REPOSITORY, runId: env.GITHUB_RUN_ID }));
+    writeFileSync(env.COMMENT_PATH, commentBody({ ...parsed, ...context, runId: env.GITHUB_RUN_ID }));
     appendFileSync(env.GITHUB_OUTPUT, `pull=${pulls[0]}\n`);
   }
-  if (!parsed.error && !parsed.stop) {
-    const { outcome, mutants } = parsed.result;
+  if (result) {
+    const { outcome, mutants } = result;
     if (outcome === "refused") console.log("::warning::the audit refused to run (a Phase 0 check stopped it); the run's summary has the report");
     else if (mutants.length && mutants.every((m) => m.state === "not-run")) console.log("::warning::the audit reported no mutant run; every mutant is not-run");
   }
@@ -240,7 +242,7 @@ export async function main(env = process.env, { github } = {}) {
     console.log(`::notice::the audit stopped on class ${parsed.stop}; no defect`);
     return 0;
   }
-  if (parsed.result.outcome === "restore-failed") {
+  if (result.outcome === "restore-failed") {
     if (env.RESTORED !== "true") {
       console.log("::error::the audit could not restore the checkout after a mutant; its result describes an edited tree");
       return 1;
