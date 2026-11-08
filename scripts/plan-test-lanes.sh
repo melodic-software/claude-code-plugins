@@ -242,7 +242,21 @@ declare -A OUTSIDE_TRIGGERS=(
 
 # Every Node package as `<package> <owner> [<trigger>]`: the sub-project rows,
 # then each outside package as its own owner.
-packages="$(printf '%s\n' "${subprojects[@]}")"
+# A row with no owner would match every suite, so an empty list or an
+# owner-less row stops the plan.
+((${#subprojects[@]})) || {
+  echo "plan-test-lanes: $SUBPROJECTS_LIST has no rows" >&2
+  exit 2
+}
+packages=""
+for row in "${subprojects[@]}"; do
+  read -r pkg owner _ <<<"$row"
+  [[ -n "$owner" ]] || {
+    echo "plan-test-lanes: $SUBPROJECTS_LIST row '$pkg' has no owner directory" >&2
+    exit 2
+  }
+  packages+="${packages:+$'\n'}$row"
+done
 for p in "${outside[@]}"; do packages+=$'\n'"$p $p/${OUTSIDE_TRIGGERS[$p]:+ ${OUTSIDE_TRIGGERS[$p]}}"; done
 
 # owner_package <suite>: the package whose owner directory holds <suite>.
