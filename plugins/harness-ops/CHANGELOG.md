@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.9.3] - 2026-11-07
+
+### Fixed
+
+- `inventory` finds the Claude Code binary of the session it runs in, through `CLAUDE_PID`, before searching `PATH` and the usual install roots. A CI lane that installs the CLI outside both (the release lane's native-drift pass) no longer reads no binary, reports version `unknown`, and files an `inventory-broken` item.
+
 ## [8.9.2] - 2026-11-07
 
 ### Fixed
