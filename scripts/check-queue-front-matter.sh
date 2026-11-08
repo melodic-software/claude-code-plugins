@@ -9,7 +9,7 @@
 # when an agent decides whether work is present.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in README.md, "The check-script
+# the whole family's contract, stated once in scripts/README.md, "The check-script
 # contract", and held by scripts/check-script-contract.test.sh. The one line on
 # stdout is the reconciliation count, which is the report this script is invoked
 # for and is printed on a clean run and a failing one alike.
