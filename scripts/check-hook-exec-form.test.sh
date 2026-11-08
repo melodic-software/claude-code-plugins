@@ -170,7 +170,8 @@ done
 # --- allowlist contents are pinned ------------------------------------------
 # Growing the allowlist must be a visible, reviewed diff that also edits this
 # assertion -- never a quiet one-word change.
-if grep -q '^EXEC_NAME_ALLOWLIST=(node)$' "$SCRIPT"; then
+if [[ "$(grep -c '^EXEC_NAME_ALLOWLIST=' "$SELF_DIR/lib/hook-configs.sh")" == 1 ]] &&
+  grep -q '^EXEC_NAME_ALLOWLIST=(node)$' "$SELF_DIR/lib/hook-configs.sh"; then
   ok "allowlist is pinned to exactly (node)"
 else
   fail "EXEC_NAME_ALLOWLIST changed; review the admission criterion and update this test deliberately"
@@ -959,6 +960,80 @@ if ((rc == 2)) && grep -q 'the frontmatter reader did not complete' <<<"$out"; t
   ok "a frontmatter reader that did not complete exits 2, never clearing plugins/"
 else
   fail "expected exit 2 and the reader-did-not-complete line (rc=$rc): $out"
+fi
+rm -rf "$f"
+
+# --- a newline in a command stays on its row --------------------------------
+# A raw newline used to split the row: `"node\n"` cleared as `node`, and
+# `"/opt/x\nbash"` came back as a finding naming the file `bash`.
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"node\n","args":["x.mjs"]}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a command of node plus a newline is not node and should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"node "' <<<"$out"; then
+  ok "a trailing newline in a command is not the allowlisted name"
+else
+  fail "expected the node-plus-newline row flagged at its own path, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/opt/x\nbash","args":[]}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a path command with an embedded newline is one row, not a second bare one"
+else
+  fail "a command carrying a separator should pass as one row, got: $out"
+fi
+rm -rf "$f"
+
+# --- args that are not an array still make exec form -------------------------
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a bare bash with string args should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/hooks/hooks.json:.hooks.Stop\[0\].hooks\[0\]: .*"bash"' <<<"$out"; then
+  ok "a non-array args value is still exec form"
+else
+  fail "expected the string-args row flagged, got: $out"
+fi
+rm -rf "$f"
+
+# --- an inline map inside a manifest hooks array is scanned ------------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra-hooks.json",{"Stop":[{"hooks":[{"type":"command","command":"python3","args":["g.py"]}]}]}]}'
+plugin_file "$f" alpha config/extra-hooks.json "$SHELL_FORM_HOOKS"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "an inline map in a manifest hooks array should be scanned, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/.claude-plugin/plugin.json:.hooks\[1\].Stop\[0\].hooks\[0\]: .*"python3"' <<<"$out"; then
+  ok "an inline map inside a manifest hooks array is scanned"
+else
+  fail "expected the array element's inline hook flagged with its path, got: $out"
+fi
+rm -rf "$f"
+
+# --- a manifest naming the default file does not double its findings ---------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./hooks/hooks.json"}'
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash","args":[]}]}]}}'
+out="$(run_check "$f" 2>&1)"
+if [[ "$(grep -c '^EXEC-FORM HOOK:' <<<"$out")" == 1 ]]; then
+  ok "the default hooks.json named by its manifest is reported once"
+else
+  fail "expected exactly one finding, got: $out"
+fi
+rm -rf "$f"
+
+# --- frontmatter: a scalar args value is still exec form ---------------------
+new_fixture f
+mkdir -p "$f/plugins/alpha/skills/demo"
+printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
+  '          command: bash' '          args: x.sh' '---' >"$f/plugins/alpha/skills/demo/SKILL.md"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a frontmatter bare bash with scalar args should fail, got success: $out"
+elif grep -q 'EXEC-FORM HOOK: plugins/alpha/skills/demo/SKILL.md:7: .*"bash"' <<<"$out"; then
+  ok "a frontmatter scalar args value is still exec form"
+else
+  fail "expected the frontmatter row flagged at line 7, got: $out"
 fi
 rm -rf "$f"
 

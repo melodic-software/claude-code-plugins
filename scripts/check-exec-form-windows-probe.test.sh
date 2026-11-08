@@ -134,7 +134,7 @@ else
 fi
 rm -rf "$f"
 
-# --- a bare name passes only when the gate's allowlist carries it -----------
+# --- a bare name passes only when the allowlist carries it ------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":[]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
@@ -173,28 +173,33 @@ for name in node node.exe bash sh python3 pwsh powershell.exe; do
   rm -rf "$f"
 done
 
-# --- a probe that cannot read the gate's allowlist stops at exit 2 ----------
+# --- the probe reads the library's allowlist, not the gate's source ----------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
 rm "$f/scripts/check-hook-exec-form.sh"
-rc=0
-out="$(run_check "$f" 2>&1)" || rc=$?
-if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
-  ok "a missing gate file exits 2"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "the probe runs without the gate's source"
 else
-  fail "a missing gate file should exit 2 (rc=$rc): $out"
+  fail "the probe should not need scripts/check-hook-exec-form.sh, got: $out"
 fi
 rm -rf "$f"
 
 new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-printf '%s\n' 'EXEC_NAME_ALLOWLIST=(node)' 'EXEC_NAME_ALLOWLIST=(node bash)' >"$f/scripts/check-hook-exec-form.sh"
-rc=0
-out="$(run_check "$f" 2>&1)" || rc=$?
-if [[ "$rc" -eq 2 ]] && grep -q 'cannot read exactly one EXEC_NAME_ALLOWLIST' <<<"$out"; then
-  ok "two allowlist lines in the gate exit 2"
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"pwsh","args":[]}]}]}'
+sed -i.bak 's/^EXEC_NAME_ALLOWLIST=(node)$/EXEC_NAME_ALLOWLIST=(node pwsh)/' "$f/scripts/lib/hook-configs.sh"
+if out="$(run_check "$f" 2>&1)" && grep -q '1 exec-form row(s) name a real Windows executable.' <<<"$out"; then
+  ok "a name added to the library allowlist passes the probe"
 else
-  fail "two allowlist lines should exit 2 (rc=$rc): $out"
+  fail "the probe should follow the library allowlist, got: $out"
+fi
+rm -rf "$f"
+
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"pwsh","args":[]}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a bare name the library does not list should fail, got: $out"
+else
+  assert_fail "a bare name off the library allowlist fails" "$out" 'exec-form command "pwsh" is not a real Windows executable'
 fi
 rm -rf "$f"
 
@@ -232,6 +237,18 @@ else
 fi
 rm -rf "$f"
 
+# --- frontmatter args must be a sequence too ---------------------------------
+new_fixture f
+mkdir -p "$f/plugins/alpha/skills/demo"
+printf '%s\n' '---' 'name: demo' 'hooks:' '  Stop:' '    - hooks:' '        - type: command' \
+  '          command: node' '          args: x.mjs' '---' >"$f/plugins/alpha/skills/demo/SKILL.md"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "a frontmatter scalar args value should fail, got: $out"
+else
+  assert_fail "frontmatter non-sequence args fails" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/skills/demo/SKILL.md:7: .* not an array'
+fi
+rm -rf "$f"
+
 # --- unreadable hooks.json is a finding, not a pass -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{not json'
@@ -239,6 +256,40 @@ if out="$(run_check "$f" 2>&1)"; then
   fail "unreadable hooks.json should fail, got: $out"
 else
   assert_fail "unreadable hooks.json fails" "$out" 'UNREADABLE HOOK CONFIG:'
+fi
+rm -rf "$f"
+
+# --- a newline after node is not node -----------------------------------------
+# The probe used to trim trailing whitespace, so `"node\n"` passed as node.
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node\n","args":[]}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "node plus a newline is not a real executable name and should fail, got: $out"
+else
+  assert_fail "a trailing newline after node fails" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/hooks/hooks.json:.hooks\[0\].hooks\[0\]: exec-form command "node "'
+fi
+rm -rf "$f"
+
+# --- manifest-pointed and inline manifest configs are probed -----------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./config/extra.json",{"Stop":[{"hooks":[{"type":"command","command":"x.cmd","args":[]}]}]}]}'
+plugin_file "$f" alpha config/extra.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":"x.sh"}]}]}'
+if out="$(run_check "$f" 2>&1)"; then
+  fail "manifest-pointed and inline rows should be probed, got: $out"
+else
+  assert_fail "a manifest-pointed config is probed" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/config/extra.json:.hooks\[0\].hooks\[0\]: .* not an array'
+  assert_fail "an inline map in a manifest hooks array is probed" "$out" 'EXEC-FORM WINDOWS: plugins/alpha/.claude-plugin/plugin.json:.hooks\[1\].Stop\[0\].hooks\[0\]: exec-form command "x.cmd"'
+fi
+rm -rf "$f"
+
+# --- an unparsable manifest is left to the manifest gate ----------------------
+new_fixture f
+plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
+plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "an unparsable manifest is skipped, as in the exec-form gate"
+else
+  fail "an unparsable manifest should not fail this probe, got: $out"
 fi
 rm -rf "$f"
 

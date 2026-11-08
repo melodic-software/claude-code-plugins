@@ -51,8 +51,10 @@
 # fourteen copies get revisited rather than silently diverging. That pin is the
 # price of inlining, and it is why inlining is acceptable here at all.
 #
-# Scope of rule 1: hooks registered on PreToolUse or PostToolUse in
-# `plugins/*/hooks/hooks.json` and implemented as shell scripts. Rule 2 covers
+# Scope of rule 1: hooks registered on PreToolUse or PostToolUse in any plugin
+# JSON hook config (`plugins/*/hooks/hooks.json`, a manifest-pointed file, or an
+# inline manifest map) and implemented as shell scripts. Skill and agent
+# frontmatter hooks are out of scope. Rule 2 covers
 # every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
 # `source` line to sit above, and is reported as NOT SCANNED rather than passed
 # silently — today that is disk-hygiene's destructive_guard.py, context-budget's
@@ -67,11 +69,13 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+# shellcheck source=lib/hook-configs.sh
+. scripts/lib/hook-configs.sh || exit 2
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "check-killswitch-hoist: jq is required but not installed" >&2
-  exit 2
-fi
+# Every JSON hook config and the jq path of its event map: hooks.json,
+# manifest-pointed files and inline manifest maps (scripts/lib/hook-configs.sh).
+# Exits 2 without jq.
+hook_configs::sources check-killswitch-hoist
 
 HOOK_UTILS="lib/hook-utils.sh"
 
@@ -134,11 +138,19 @@ is_launcher() {
   return 1
 }
 
+# hooks_dir_of <config>: the declaring plugin's hooks/ directory, where a
+# script token's base name resolves.
+hooks_dir_of() {
+  local rest="${1#plugins/}"
+  printf 'plugins/%s/hooks' "${rest%%/*}"
+}
+
 guards=()
 unscanned=()
-for hooks_json in plugins/*/hooks/hooks.json; do
-  [[ -f "$hooks_json" ]] || continue
-  hooks_dir="$(dirname "$hooks_json")"
+for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
+  hooks_json="${source%%$'\t'*}"
+  map="${source#*$'\t'}"
+  hooks_dir="$(hooks_dir_of "$hooks_json")"
   while IFS= read -r command; do
     [[ -n "$command" ]] || continue
     saw_guard=0
@@ -172,8 +184,8 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     ((saw_guard)) || unscanned+=("$hooks_json")
     # Exec form keeps the script path in `args`, not in `command` (`command` is
     # `node`). Join both so a converted row is still scanned.
-  done < <(jq -r '
-    (.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?
+  done < <(jq -r --argjson m "$map" '
+    (getpath($m) // {}) | (.PreToolUse[]?, .PostToolUse[]?) | .hooks[]?
     | select(.command | type == "string")
     | [.command] + ((.args // []) | map(tostring)) | join(" ")
   ' "$hooks_json")
@@ -196,13 +208,14 @@ done
 SYNC_ONLY_EVENTS=" UserPromptSubmit UserPromptExpansion PreModelSwitch MessageDisplay "
 blocking=()
 unreadable=()
-for hooks_json in plugins/*/hooks/hooks.json; do
-  [[ -f "$hooks_json" ]] || continue
-  hooks_dir="$(dirname "$hooks_json")"
+for source in ${HOOK_CONFIG_SOURCES[@]+"${HOOK_CONFIG_SOURCES[@]}"}; do
+  hooks_json="${source%%$'\t'*}"
+  map="${source#*$'\t'}"
+  hooks_dir="$(hooks_dir_of "$hooks_json")"
   # Captured, not streamed: a jq that stops part-way (a non-object hook entry,
   # invalid JSON) must fail the gate rather than hand back a truncated row list.
   # A modules-only hooks.json (a mod with no settings hooks) has no rows.
-  if ! rows="$(jq -r '(.hooks // {}) | to_entries[] | .key as $e | .value[]? | .hooks[]?
+  if ! rows="$(jq -r --argjson m "$map" '(getpath($m) // {}) | to_entries[] | .key as $e | .value[]? | .hooks[]?
     | select(.command | type == "string")
     | [$e, (.async == true | tostring),
         ([.command] + ((.args // []) | map(tostring)) | join(" "))] | @tsv' "$hooks_json" 2>/dev/null)"; then

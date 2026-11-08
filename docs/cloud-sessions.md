@@ -151,11 +151,9 @@ sensitive material and therefore has to run narrower than Full, on a
 A repo needing a toolchain missing from
 [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) means
 adding its install to a setup script. Extend Default, or create a dedicated environment and
-select it when starting sessions on that repo. Reaching NuGet and dotnet.microsoft.com is not
-what settles .NET: in this fleet's 2026-08-14 verification run, with both hosts reachable under
-Trusted, the installer's redirect chain still came back `403` (#2654 Blocker 1). That is why the
-toolchain question and the network-access question are separate, and why the fleet answers the
-second with Full.
+select it when starting sessions on that repo. The toolchain question and the network-access
+question are separate; the .NET `403` that settled the second as Full is recorded under
+[Network access](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time).
 
 ## How this repository is set up
 
@@ -291,7 +289,7 @@ from the two together (see
   (as of 2026-11-04; recheck when that section names plugins). Neither `/plugin`
   ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
   nor `--plugin-dir` exists in cloud sessions to force one. On an
-  ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
+  ephemeral VM this is a chicken-and-egg problem, because every fresh session re-installs after its registry is
   already built, so the hook alone can never produce a session with plugins loaded. What the
   hook still buys is correct on-disk state for any process start that happens *after* it: a
   resume (confirmed 2026-08-15: stopping and resuming the same session restarted the process,
@@ -497,66 +495,13 @@ Both exist in cloud sessions and don't conflict, because they serve different ca
 
 ### Known gap: Ubuntu-archive `gh` 2.45 vs the seam's 2.94 floor (#3169)
 
-**Claim:** Claude Code cloud sessions in this fleet can still boot with Ubuntu-archive
-`gh` 2.45.0. The work-item-tracker seam's native sub-issue and dependency verbs need
-`gh` >= 2.94. This repository does not rebuild the cloud image to close that. Lease
-verbs already run on 2.45; native-hierarchy verbs stay refused until an operator-side
-pin lands.
-
-**Basis:** [#3169](https://github.com/melodic-software/claude-code-plugins/issues/3169)
-(filed 2026-08-23; cloud session `gh version 2.45.0 (2025-07-18 Ubuntu 2.45.0-1ubuntu0.3)`).
-Per-verb floor shipped in #3175 / work-items 0.39.14 (`CONTRACT.md` "Prerequisites":
-below 2.94, only native-surface paths are refused; the lease verbs (`claim`,
-`renew-lease`, `release`, `reclaim`) and `get-item` still run, and a plain `create-item`
-passes the version gate). 2026-09-05 triage on the same 2.45 binary confirmed
-`capabilities` and race-safe `claim`. A cloud session on the same binary (the owner's
-2026-09-11 comment on the issue) showed `create-item` still failing after the gate: it runs
-`gh issue create`, which is GraphQL-backed and returns `HTTP 403: GitHub GraphQL is not
-available from Claude Code sessions`, and the below-2.94 `--type` fallback applies a
-`type:` label that this repository does not define. The fleet checklist in
-[cloud-fleet-setup.md](cloud-fleet-setup.md#verification-checklist) already expects
-**2.98.0 or newer** via the `standards` `cloud-environment` pinned-tarball step; a
-2.45.x reading after a current `/opt/melodic-env-setup.done` stamp means that step
-failed, not that this repo should `apt install` a newer `gh`.
-
-**As of:** 2026-09-29.
-
-**Recheck:** a Claude Code cloud session on this environment reports `gh --version`
-2.94 or newer, or `melodic-software/standards` `components/cloud-environment/setup.sh`
-changes the `gh` install path.
-
-**Operator pin / workaround (do not rebuild the image from this checkout):**
-
-1. Read `/opt/melodic-env-setup.done` first (checklist step 0). A stamp older than the
-   pinned-tarball change is a stale cache: the operator force-rebuilds the environment
-   (any trivial setup-script field edit). That is an environment-UI action, not a
-   change in this repository.
-2. After a current stamp, stay on 2.45 if the tarball step still failed. Use the
-   shipped per-verb floor: `claim` / `renew-lease` / `release` / `reclaim` /
-   `get-item`. File new items through GitHub MCP tools, because `create-item` hits the
-   GraphQL 403 above. For `--parent` / `--blocked-by`, use the backfill ritual in
-   `CONTRACT.md` "Degradation without `gh`". For `list-frontier` / `list-items`, take an
-   operator-named item or a list through GitHub MCP tools (same section). Do not add a
-   `gh` tarball install to `.claude/cloud-bootstrap.sh`; the proxy blocks
-   `/releases/latest`, and the pin belongs in `standards`.
+[#3169](https://github.com/melodic-software/claude-code-plugins/issues/3169) closed not planned by the
+owner's 2026-10-21 decision (no cloud sessions planned); reopen it when cloud sessions are in use.
 
 ### Known gap: no fleet permission floor (#3172)
 
-**Claim:** Cloud sessions compose no `claude-permissions` allow/deny floor. This repository
-does not add the compose step. Recommended path: `standards`
-`components/cloud-environment/setup.sh` does a best-effort `jq` union of the full floor
-into `~/.claude/settings.json`.
-
-**Basis:** [#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172).
-Tracked `.claude/settings.json` has secret-material `deny` only, not the fleet grants.
-Preflight GAP (b) for `git add` / `commit` / `push`, `gh pr create`, `gh issue comment`
-is the standing cloud-session report.
-
-**As of:** 2026-09-28.
-
-**Recheck:** a cloud session's `~/.claude/settings.json` carries the fleet `allow` grants
-and destructive-git `deny` rules, or `standards` `cloud-environment/setup.sh` gains that
-compose step.
+[#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172) closed not planned by the
+owner's 2026-10-21 decision (no cloud sessions planned); reopen it when cloud sessions are in use.
 
 ### Maintenance caveats
 

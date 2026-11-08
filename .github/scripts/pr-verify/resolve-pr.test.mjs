@@ -549,7 +549,7 @@ test("a refused upstream-run read's annotation carries the status, the rate-limi
   }
 });
 
-// Outage posture element 2 (docs/outage-posture-audit.md): a GitHub fault (a
+// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): a GitHub fault (a
 // 5xx, a 429, a rate-guard stop, no answer) or a 200 whose completeness check
 // fails makes the verdict unknown, so the step holds green with a `held: `
 // notice and judges nothing; any other error is red, as before.
