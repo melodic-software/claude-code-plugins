@@ -31,6 +31,14 @@
     {
       "answer": "Verdict: CONFIRMED (expected, now that the scope rule is quoted).\n",
       "why": "a parenthesis that states a wanted verdict, not a condition"
+    },
+    {
+      "answer": "This should now be CONFIRMED (every criterion is COMPLETE).\n",
+      "why": "a wanted verdict with a condition after it, and no alternative verdict"
+    },
+    {
+      "answer": "**Verdict: CONFIRMED** (all criteria are now COMPLETE).\n",
+      "why": "a wanted verdict with a condition after it, and no alternative verdict"
     }
   ]
 }
