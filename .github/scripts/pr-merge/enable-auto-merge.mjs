@@ -357,6 +357,7 @@ export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
 }`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+const firstLine = (body) => bodyLines(body)[0];
 
 // A network failure, with no answer from GitHub: undici's "fetch failed"
 // TypeError, which every failure of Node's fetch is whatever its cause, or any
@@ -379,7 +380,7 @@ export function describe(error, { label = false } = {}) {
   const cause = error?.cause;
   const message = String(error?.message ?? error);
   const named = label && errorLabel(error) !== message ? `${message} (${errorLabel(error)})` : message;
-  const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : named;
+  const text = cause ? `${message} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : named;
   return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
 // `github` with every request on a connection of its own, and a GraphQL
@@ -583,10 +584,18 @@ export const vetoNote = (vetoes) =>
   ].join("\n");
 
 // Whether `pull` (a PULLS_QUERY node, its labels read whole) carries `label`.
-const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === label.toLowerCase());
+const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
+
+// The lanes App's newest comment in `comments` (DETAIL_QUERY's) that `test`
+// accepts, or undefined.
+const newestAppComment = (comments, bot, test) =>
+  (comments ?? [])
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && test(c))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .at(-1);
 
 // Whether the lanes App's VETO_MARKER comment is in `comments` (DETAIL_QUERY's).
-const vetoNoted = (comments, bot) => (comments ?? []).some((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === VETO_MARKER);
+const vetoNoted = (comments, bot) => newestAppComment(comments, bot, (c) => firstLine(c.body) === VETO_MARKER) !== undefined;
 
 // Whether VETO_LABEL on the REST issue `timeline` is the lanes App's for a
 // member veto: see VETO_MARKER. A second hold placed while the label is on
@@ -610,7 +619,7 @@ export function vetoLabelOwned(timeline, login, body = "") {
   }
   return timeline.some((item) => {
     const at = Date.parse(item.created_at);
-    return item.event === "commented" && isApp(item.user, login) && String(item.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === VETO_MARKER && at >= since && at - since <= PAIRED_MS;
+    return item.event === "commented" && isApp(item.user, login) && firstLine(item.body) === VETO_MARKER && at >= since && at - since <= PAIRED_MS;
   });
 }
 
@@ -769,7 +778,7 @@ const laneSince = (head, at) => `<!-- pr-merge-unarmed-since head=${head} at=${a
 // When the lane comment `body` says its refusal at `head` began; else
 // undefined.
 function sinceAt(body, head) {
-  const match = LANE_SINCE.exec(String(body ?? "").split("\n").at(-1).replace(/\r$/, ""));
+  const match = LANE_SINCE.exec(bodyLines(body).at(-1));
   return match && match[1] === head ? match[2] : undefined;
 }
 
@@ -954,16 +963,13 @@ export const WHOLE_REVIEW_RECORD = /^Whole review requested at head `[0-9a-f]{40
 // path holding a newline plants no record.
 export const recordLines = (body) => {
   let fenced = false;
-  return String(body ?? "")
-    .split("\n")
-    .map((line) => line.replace(/\r$/, ""))
-    .filter((line) => {
-      if (line.startsWith("```")) {
-        fenced = !fenced;
-        return false;
-      }
-      return !fenced && WHOLE_REVIEW_RECORD.test(line);
-    });
+  return bodyLines(body).filter((line) => {
+    if (line.startsWith("```")) {
+      fenced = !fenced;
+      return false;
+    }
+    return !fenced && WHOLE_REVIEW_RECORD.test(line);
+  });
 };
 
 // `records`: the comment's whole-review record lines, before its last.
@@ -998,13 +1004,8 @@ export { PIN_RE };
 export const pinBody = (sha, rung) =>
   `<!-- babysit-merge-pin sha=${sha}${rung === "C2" || rung === "C3" ? ` rung=${rung}` : ""} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`, the head its arming checks judged.`;
 
-const pinLine = (comment) => String(comment?.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
 // The lanes App's newest pin in `comments` (DETAIL_QUERY's), or undefined.
-const newestPin = (comments, bot) =>
-  (comments ?? [])
-    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && PIN_RE.test(pinLine(c)))
-    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-    .at(-1);
+const newestPin = (comments, bot) => newestAppComment(comments, bot, (c) => PIN_RE.test(firstLine(c.body)));
 
 // Whether the read-back would already read `head` from `comments`
 // (DETAIL_QUERY's) with `rung`: the lanes App's newest pin names both and is
@@ -1013,7 +1014,7 @@ const newestPin = (comments, bot) =>
 export function pinned(comments, bot, head, rung) {
   const pin = newestPin(comments, bot);
   if (pin === undefined || pin.lastEditedAt) return false;
-  const [, sha, pinRung = null] = PIN_RE.exec(pinLine(pin));
+  const [, sha, pinRung = null] = PIN_RE.exec(firstLine(pin.body));
   return sha === head && pinRung === (rung === "C2" || rung === "C3" ? rung : null);
 }
 
@@ -1029,17 +1030,14 @@ export function pinMoved(comments, bot, head) {
   const pin = newestPin(comments, bot);
   if (pin === undefined) return null;
   if (pin.lastEditedAt) return "its newest pin comment was edited, so the head its arm judged does not read";
-  const [, sha] = PIN_RE.exec(pinLine(pin));
+  const [, sha] = PIN_RE.exec(firstLine(pin.body));
   return sha === head ? null : `its head moved from ${sha}, the head its arm judged, to ${head}`;
 }
 
 // The lanes App's newest comment in `comments` (DETAIL_QUERY's) whose first
 // or second line is `marker`, the refusal comment's by default.
 function priorRefusal(comments, bot, marker = REFUSAL_MARKER) {
-  return (comments ?? [])
-    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && String(c.body ?? "").split("\n", 2).map((line) => line.replace(/\r$/, "")).includes(marker))
-    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-    .at(-1);
+  return newestAppComment(comments, bot, (c) => bodyLines(c.body).slice(0, 2).includes(marker));
 }
 
 // The comment and label write for a refusal `clears` (verifyClears, or
@@ -1065,31 +1063,31 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
   const prior = priorRefusal(comments, bot);
   const since = sinceAt(prior?.body, pull.headRefOid) ?? new Date(now).toISOString();
   const records = [...recordLines(prior?.body), ...(record === null ? [] : [record])];
-  const lane = refusalBody(false, reason, pull.headRefOid, label, since, false, records);
-  const person = refusalBody(true, reason, pull.headRefOid, label, null, partial && !answered, records);
-  const body = clears === "person" ? person : lane;
+  const toPerson = clears === "person";
+  const render = (fence) =>
+    toPerson
+      ? renderRefusal(fence, true, reason, pull.headRefOid, label, null, partial && !answered, records)
+      : renderRefusal(fence, false, reason, pull.headRefOid, label, since, false, records);
+  const body = render(wrappedFence);
   // The same comment as written before reasons wrapped, which says this too.
-  const unwrapped =
-    clears === "person"
-      ? renderRefusal(unwrappedFence, true, reason, pull.headRefOid, label, null, partial && !answered, records)
-      : renderRefusal(unwrappedFence, false, reason, pull.headRefOid, label, since, false, records);
-  const carried = (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
+  const unwrapped = render(unwrappedFence);
+  const carried = carries(pull, label);
   // The verifier's answer adding nothing to a partial refusal at the head:
   // its mark comes off in place, notifying no one of what it already said.
-  if (body === person && !isPartial(body, pull.headRefOid) && isPartial(prior?.body, pull.headRefOid) && personReasons(prior.body, pull.headRefOid, label)?.join("\n") === fenced(reason)) {
+  if (toPerson && !isPartial(body, pull.headRefOid) && isPartial(prior?.body, pull.headRefOid) && personReasons(prior.body, pull.headRefOid, label)?.join("\n") === fenced(reason)) {
     return { body, commentId: prior.databaseId ?? null, label: null };
   }
   // A person's comment already standing while the label is off (a pull
   // request carrying it gets here only to widen a partial one): the label
   // goes back on unless a person removed it after the comment last changed,
   // which the caller reads from the timeline (`liftedSince`).
-  const standing = partial && body === person ? personReasons(prior?.body, pull.headRefOid, label) : null;
+  const standing = partial && toPerson ? personReasons(prior?.body, pull.headRefOid, label) : null;
   if (prior?.body === body || (prior !== undefined && prior.body === unwrapped) || (standing !== null && fenced(reason).split("\n").every((line) => standing.includes(line)))) {
-    return body === person && !carried ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
+    return toPerson && !carried ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
   }
   // An escalation to a person posts a new comment: an edit notifies no one
   // and keeps the old date, so the label would stand unexplained.
-  return body === person ? { body, commentId: null, label: carried ? null : label } : { body, commentId: prior?.databaseId ?? null, label: null };
+  return toPerson ? { body, commentId: null, label: carried ? null : label } : { body, commentId: prior?.databaseId ?? null, label: null };
 }
 
 // The commit status context the status job posts (pr-merge.yml
@@ -1170,10 +1168,7 @@ export class ReaderRateLimited extends Error {
 // each of which made one request per page. Null when there is no such line.
 export const GH_CALLS_PREFIX = "babysit-gh-calls ";
 function ghCallsPayload(stderr) {
-  const line = String(stderr ?? "")
-    .split("\n")
-    .map((text) => text.replace(/\r$/, ""))
-    .findLast((text) => text.startsWith(GH_CALLS_PREFIX));
+  const line = bodyLines(stderr).findLast((text) => text.startsWith(GH_CALLS_PREFIX));
   try {
     return line === undefined ? null : JSON.parse(line.slice(GH_CALLS_PREFIX.length));
   } catch {
@@ -1195,10 +1190,7 @@ export function ghCallsLine(stderr) {
 // back to the full listing. Empty when there are none.
 export const LISTING_MISS_PREFIX = "babysit-listing-miss ";
 export function listingMissLines(stderr) {
-  return String(stderr ?? "")
-    .split("\n")
-    .map((text) => text.replace(/\r$/, ""))
-    .filter((text) => text.startsWith(LISTING_MISS_PREFIX));
+  return bodyLines(stderr).filter((text) => text.startsWith(LISTING_MISS_PREFIX));
 }
 
 export function ghCalls(stderr) {
