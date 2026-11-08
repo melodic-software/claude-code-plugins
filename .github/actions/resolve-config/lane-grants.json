@@ -18,7 +18,7 @@
   "1404052094": {
     "repository": "melodic-software/pr-pipeline-sandbox",
     "lanes": {
-      "pr-merge": { "merge-pr": "merge" },
+      "pr-merge": { "merge-pr": "merge", "enable-auto-merge": "merge" },
       "work-resolve-issue": { "resolve-issue": "read", "apply-issue-patch": "mutate-branch", "report-outcome": "publish-artifact" },
       "pr-unblock": { "resolve-conflicts": "read", "apply-conflict-patch": "mutate-branch", "address-feedback": "read", "apply-feedback-patch": "mutate-branch", "publish-feedback": "publish-artifact", "review-dependency": "read", "apply-dependency-patch": "mutate-branch", "apply-dependency-verdict": "publish-artifact", "fix-ci": "read", "apply-patch": "mutate-branch", "report-escalation": "publish-artifact" },
       "pr-run-checks": { "check-sandbox": "read", "check-token": "read", "check-hardening": "read", "check-trusted-text": "read", "check-read-token": "read" },
