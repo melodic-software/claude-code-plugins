@@ -35,7 +35,7 @@ imposes no rules of its own.
 - **Gitignored is a no-op.** A file the repository gitignores and does not track is
   left alone, since a rewrite of an ignored file has no git checkout to undo it.
   A tracked file matching an ignore pattern stays in scope. Any failure to decide
-  (git absent, no repo, `check-ignore` error) acts as before. Set
+  (git absent, no repo, `check-ignore` error) treats the file as not ignored. Set
   `eol_normalizer_lint_gitignored=true` to act on ignored files (see the Options
   reference).
 - **Reads are never rewritten.** A file that only a `Read` or a shell command
@@ -52,7 +52,7 @@ imposes no rules of its own.
 ## Requirements
 
 - **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, which then
-  starts Bash. We do not assume a Claude Code install brings Node, so without `node` the
+  starts Bash. The plugin does not assume a Claude Code install brings Node, so without `node` the
   hook does not launch and nothing is normalized. Pointer: when deciding whether an install
   brings Node, fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
   live. As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
