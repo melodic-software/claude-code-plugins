@@ -168,7 +168,7 @@ cites #13671's head, the change that made `gh_read` the one retry layer.
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | met | `.github/workflows/pr-require-checks.yml:4887`, `.github/workflows/pr-require-checks.yml:4909` | `gh_read` is the job's one retry layer: 3 sends at most. A 4xx that is no rate limit, such as a 404 or a 403 the token lacks, fails at once (`:4904`). A 5xx, a network error or a failure with no HTTP status is sent again after a full-jitter wait of up to 5, then 10 s (`:4921`), unless that wait would end past the job's deadline. A rate limit waits once, to a second past a reset a header gave, inside the deadline; a guessed stop, such as a secondary limit with no `retry-after`, fails at once (`:4931`). A third send rate limited with a header reset names that reset in its error (`:4910`). Its callers read once and fail closed with their own error (`:5074`, `:5741`, `:5817`, `:5826`, `:6000`, `:6456`, `:7020`, `:7041`). The cost-hold loop takes no rate wait on purpose (`:5397`). The `mark-lanes` status POST (`:916`) posts the same pending status each time, so a resend changes nothing. The composites' own reads, in `melodic-software/ci-workflows`, retry the same way since ci-workflows#1026 (Remaining). |
+| 1 | gap | `.github/workflows/pr-require-checks.yml:4887`, `.github/workflows/pr-require-checks.yml:4909` | `gh_read` is the job's one retry layer: 3 sends at most. A 4xx that is no rate limit, such as a 404 or a 403 the token lacks, fails at once (`:4904`). A 5xx, a network error or a failure with no HTTP status is sent again after a full-jitter wait of up to 5, then 10 s (`:4921`), unless that wait would end past the job's deadline. A rate limit waits once, to a second past a reset a header gave, inside the deadline; a guessed stop, such as a secondary limit with no `retry-after`, fails at once (`:4931`). A third send rate limited with a header reset names that reset in its error (`:4910`). Its callers read once and fail closed with their own error (`:5074`, `:5741`, `:5817`, `:5826`, `:6000`, `:6456`, `:7020`, `:7041`). The cost-hold loop takes no rate wait on purpose (`:5397`). The `mark-lanes` status POST (`:916`) posts the same pending status each time, so a resend changes nothing. The gap left is the pinned composites' own reads: ci-workflows#1026 fixed them, but the pins (`:5044`, `:6908`) predate it (Remaining). |
 | 2 | gap | `.github/workflows/pr-require-checks.yml:3`, `.github/workflows/pr-require-checks.yml:4865`, `.github/actions/resolve-config/callers.test.mjs:3137` | Kept: a read that fails ends red, never neutral, and no step sets `API_BUDGET_HOLD`, which `callers.test.mjs` keeps off every gate step. Holding green would pass what the gate could not read. |
 | 3 | gap | `.github/workflows/pr-require-checks.yml:4868`, `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:67` | The workflow keeps no breaker: the `ci-lanes` status is the last full run's verdict, marked pending by each full run (`:916`) and written again at its end. A red `ci-status` recovers on the next push or label event, on `rerun-ci-status` when a review completes, or on the reconciler's one-time recorded re-run (its Switch and Pending kinds), the re-arm the owner kept (still-open table). The cron at `:35` is the whole-tree run, not the probe. |
 | 4 | met | `.github/workflows/pr-require-checks.yml:7354`, `.github/workflows/pr-require-checks.yml:7340` | `ci-status` files and demotes nothing. A review lane with no run on the head, one still running past the wait, or one a stop ended fails the check on a complete read of the head's runs, since the gate passes only on positive evidence of a review. The next `ci-status` run replaces that red, and `rerun-ci-status` and the reconciler's Pending kind start it once the review completes. |
@@ -781,7 +781,7 @@ The other script rows below are still open.
 | pr-merge | 2, 6 | kept | `.github/workflows/pr-merge.yml` keeps its rate-limit stops red (the red skips the rest of the job, and signal 3 reads it), the failed cover read's uncapped dispatch (a verification run, bounded by pr-require-checks' main-dispatch group) and its three `queue: max` groups (a cancelled run leaves a CANCELLED check) (see above) |
 | pr-require-checks, pr-merge | 6 | kept | the review wait's run poll (`.github/workflows/pr-require-checks.yml:7337`) and the re-run read-back (`.github/workflows/pr-merge.yml:699`) send no `etag`: not worth a conditional read in a gate's one retry layer (see above) |
 
-Outside this repository, both gaps are fixed in `melodic-software/ci-workflows` (lines at commit
+Outside this repository, `melodic-software/ci-workflows` fixed both gaps (lines at commit
 `96ea8d4c` there):
 
 - **pr-require-checks, elements 1 and 6.**
@@ -791,7 +791,10 @@ Outside this repository, both gaps are fixed in `melodic-software/ci-workflows` 
   (`.github/actions/pr-require-checks/gh-api.sh:234`) sends a call at most 3 times. It waits out a
   rate limit once, within `rate-limit-wait-seconds`. It resends a 5xx or a network error after a
   full-jitter wait, but never a GraphQL mutation (`:222`), a comment create or a
-  `rerun-failed-jobs`. A repeated GET sends `If-None-Match` (`:123`).
+  `rerun-failed-jobs`. A repeated GET sends `If-None-Match` (`:123`). This repository pins both
+  composites to commits from before that change (`check-contract@2476d5dd`,
+  `aggregate-results@226dad32`), so the fix reaches `ci-status` only when the pins move to a commit
+  that contains `03d2e3dc`.
 - **pr-review and pr-review-security, elements 1, 2 and 6.**
   [ci-workflows#1033](https://github.com/melodic-software/ci-workflows/pull/1033) changed
   `pr-review-cli.yml`. Each read in the hosted leg goes out at most 3 times: the scope step's
