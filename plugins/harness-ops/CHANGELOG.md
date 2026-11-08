@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.10.1] - 2026-11-08
+
+### Changed
+
+- Shared `check-retirements.sh` synced where this plugin carries it ([#14251](https://github.com/melodic-software/claude-code-plugins/issues/14251)): it accepts a `block` record kind, which cleans one YAML key and its indented value instead of the whole file. No other change to this plugin yet; the records that use it follow.
+
 ## [8.10.0] - 2026-11-08
 
 ### Added
