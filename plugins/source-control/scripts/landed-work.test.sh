@@ -628,11 +628,14 @@ assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
 # --------------------------------------------------------------------------
 
 # The stub prints the file named by GH_STUB_OUT in the format the engine's --jq
-# produces (`head <oid>` / `commit <oid>` lines), or fails when GH_STUB_FAIL is set.
+# produces (`pr <head-ref> <base-ref>` / `head <oid>` / `commit <oid>` lines), or
+# fails when GH_STUB_FAIL is set. With GH_STUB_LOG set it appends one line of
+# arguments per invocation, so a test counts the calls.
 PR_BIN="$TEST_TMPDIR/pr-bin"
 mkdir -p "$PR_BIN"
 cat >"$PR_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
+[[ -n "${GH_STUB_LOG:-}" ]] && printf '%s\n' "$*" >>"$GH_STUB_LOG"
 [[ -n "${GH_STUB_FAIL:-}" ]] && { printf 'gh stub:\tforced; failure\nsecond line\n' >&2; exit 1; }
 cat "${GH_STUB_OUT:-/dev/null}"
 STUB
@@ -660,8 +663,10 @@ run_pr() {
     bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof
 }
 
-printf 'pr main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-head-equal"
-printf 'pr feat-stack-base\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-stacked"
+printf 'pr feat-pr main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-head-equal"
+printf 'pr feat-pr feat-stack-base\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-stacked"
+# Another branch's PR in the same listing proves nothing for this one.
+printf 'pr feat-other main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-other-branch"
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-head-equal")" "wt-pr")"
 assert_eq "pr proof: HEAD equal to the merged PR head is landed" "yes" "$(col "$R" $C_LANDED)"
 assert_eq "pr proof: method names the PR head" "merged-pr-head" "$(col "$R" $C_METHOD)"
@@ -672,7 +677,17 @@ assert_not_contains "pr proof: the reason carries no stale not-landed text" "$(c
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-stacked")" "wt-pr")"
 assert_eq "pr proof: a PR merged into a non-base branch is not landed" "no" "$(col "$R" $C_LANDED)"
 
-printf 'pr main\nhead %s\ncommit %s\ncommit %s\n' "0000000000000000000000000000000000000001" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-commits-only"
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-other-branch")" "wt-pr")"
+assert_eq "pr proof: another branch's merged PR is not landed" "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the reason names the missing PR" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch"
+assert_not_contains "pr proof: a short listing is not called full" "$(col "$R" $C_REASON)" "in-newest-"
+
+# A listing that filled --merged-pr-limit may have cut off this branch's PR.
+R="$(row "$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-other-branch" \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof --merged-pr-limit 1)" "wt-pr")"
+assert_contains "pr proof: a full listing says so" "$(col "$R" $C_REASON)" "no-merged-pr-into-main-for-branch-in-newest-1"
+
+printf 'pr feat-pr main\nhead %s\ncommit %s\ncommit %s\n' "0000000000000000000000000000000000000001" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-commits-only"
 R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
 assert_eq "pr proof: every local commit in the PR commit list is landed" "yes" "$(col "$R" $C_LANDED)"
 assert_eq "pr proof: method names the commit list" "merged-pr-commits" "$(col "$R" $C_METHOD)"
@@ -699,6 +714,65 @@ OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 # Bare-name invocation from the scripts directory still loads the library.
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"
+
+# --------------------------------------------------------------------------
+# Merged-PR proof lists merged PRs once per repository, not once per worktree
+# --------------------------------------------------------------------------
+
+W="$(mkfixture)"
+for n in 1 2 3; do
+  git -C "$W" worktree add -q -b "feat-many-$n" "$TEST_TMPDIR/wt-many-$n" main >/dev/null 2>&1
+  commit_in "$TEST_TMPDIR/wt-many-$n" "many$n.txt" "many $n" "many $n"
+done
+commit_in "$W" many-main.txt "main moves" "unrelated on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+MANY1="$(git -C "$TEST_TMPDIR/wt-many-1" rev-parse HEAD)"
+MANY2="$(git -C "$TEST_TMPDIR/wt-many-2" rev-parse HEAD)"
+printf 'pr feat-many-1 main\nhead %s\ncommit %s\npr feat-many-2 main\nhead %s\ncommit %s\n' \
+  "$MANY1" "$MANY1" "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-many"
+GH_LOG="$TEST_TMPDIR/gh-calls"
+MANY_ERR="$TEST_TMPDIR/many.err"
+
+: >"$GH_LOG"
+OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_LOG" \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
+assert_eq "pr listing: three unlanded worktrees make one gh call" "1" "$(grep -c . "$GH_LOG")"
+assert_contains "pr listing: the call lists merged PRs into the base" "$(cat "$GH_LOG")" "pr list --state merged --base main"
+assert_not_contains "pr listing: the call is not scoped to one branch" "$(cat "$GH_LOG")" "--head"
+assert_contains "pr listing: the run reports its gh call count" "$(cat "$MANY_ERR")" "merged-pr-proof made 1 gh call(s)"
+assert_eq "pr listing: the first branch is proven from the shared listing" \
+  "yes" "$(col "$(row "$OUT" "wt-many-1")" $C_LANDED)"
+assert_eq "pr listing: the second branch is proven from the shared listing" \
+  "yes" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
+assert_eq "pr listing: a branch with no PR in the listing is not landed" \
+  "no" "$(col "$(row "$OUT" "wt-many-3")" $C_LANDED)"
+
+# A failed listing is cached too: a rate-limited read is not retried per worktree.
+: >"$GH_LOG"
+OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_LOG" GH_STUB_FAIL=1 \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
+assert_eq "pr listing: a failed listing is read once" "1" "$(grep -c . "$GH_LOG")"
+assert_contains "pr listing: a later row still names the failed read" \
+  "$(col "$(row "$OUT" "wt-many-3")" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
+
+# Each repository gets its own listing: a worktree of a second repository never
+# reads the first one's PRs.
+W2="$(mkfixture)"
+git -C "$W2" worktree add -q -b feat-many-1 "$TEST_TMPDIR/wt-other-repo" main >/dev/null 2>&1
+commit_in "$TEST_TMPDIR/wt-other-repo" other1.txt "other repo" "other repo commit"
+: >"$GH_LOG"
+OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-many" GH_STUB_LOG="$GH_LOG" \
+  bash "$ENGINE" --no-peers --merged-pr-proof \
+  --worktree "$TEST_TMPDIR/wt-many-1" --worktree "$TEST_TMPDIR/wt-many-2" \
+  --worktree "$TEST_TMPDIR/wt-other-repo" 2>"$MANY_ERR")"
+assert_eq "pr listing: two repositories make two gh calls" "2" "$(grep -c . "$GH_LOG")"
+assert_contains "pr listing: the count covers both repositories" "$(cat "$MANY_ERR")" "merged-pr-proof made 2 gh call(s)"
+
+for BAD_LIMIT in 0 x; do
+  bash "$ENGINE" --repo-dir "$W" --merged-pr-limit "$BAD_LIMIT" >/dev/null 2>&1
+  rc=$?
+  assert_eq "pr listing: --merged-pr-limit $BAD_LIMIT is a usage error" "2" "$rc"
+done
 
 # --------------------------------------------------------------------------
 # Base-side window: several worktrees at different merge-bases share one
