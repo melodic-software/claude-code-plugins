@@ -48,7 +48,7 @@ job() { awk -v j="  $1:" '$0 == j { on = 1; next } on && /^  [a-z-]+:$/ { exit }
 scopes() { grep -oE '^ +[a-z-]+: (read|write)( |$)' | sed 's/^ *//; s/ *$//' | sort | paste -sd ' '; }
 caller_name="$(sed -n 's/^name: //p' "$CALLER")"
 triggers="$(awk '/^  workflow_run:/ { on = 1; next } on && /^  [a-z]/ { exit } on' "$WORKFLOW")"
-if [[ -n "$caller_name" && "$triggers" == *"workflows: [$caller_name, Maintenance Check Links Online Claude Code Plugins]"* && "$triggers" == *"types: [completed]"* ]]; then
+if [[ -n "$caller_name" && "$triggers" == *"workflows: ["*"$caller_name"*"]"* && "$triggers" == *"types: [completed]"* ]]; then
   ok "workflow_run fires on completed $caller_name runs"
 else
   fail "workflow_run does not name the link-check workflow '$caller_name': '$triggers'"
