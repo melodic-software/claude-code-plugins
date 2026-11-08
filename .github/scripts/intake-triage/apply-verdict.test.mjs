@@ -2351,6 +2351,24 @@ describe("run", () => {
   });
 });
 
+// checkRun reads the issue, so every --check step must pass its number and a token.
+describe("the workflow's --check steps", () => {
+  const steps = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
+    .split(/\n {6}- name: /)
+    .filter((step) => step.includes("apply-verdict.mjs --check"));
+
+  test("there is a --check step in each job that runs one", () => {
+    assert.ok(steps.length >= 3, `found ${steps.length}`);
+  });
+
+  for (const [index, step] of steps.entries()) {
+    test(`--check step ${index + 1} sets ISSUE_NUMBER and GH_TOKEN`, () => {
+      assert.match(step, /\n\s+ISSUE_NUMBER: \$\{\{ github\.event\.issue\.number \|\| inputs\.issue-number \}\}/);
+      assert.match(step, /\n\s+GH_TOKEN: \$\{\{ github\.token \}\}/);
+    });
+  }
+});
+
 // The prompt's paragraphs as flowing text, keyed by their capitalized lead.
 const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
   .split("\n")
