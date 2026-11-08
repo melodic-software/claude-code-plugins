@@ -39,12 +39,13 @@ const closesIssue = (text, number) =>
 // issue are tried, so a duplicate cited before the closing pull request is no
 // cover. `repo` is the API path prefix, `/repos/<owner>/<name>`.
 export async function doneEvidence(github, repo, reason, issueNumber) {
-  const prs = [...new Set([...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]))]
+  const text = String(reason ?? "");
+  const prs = [...new Set([...text.matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]))]
     .filter((number) => Number(number) !== issueNumber)
     .slice(0, 3);
   // A SHA holds a letter, so a run id or other number is never read as one;
   // the first three such words are tried, so a hex-looking word is no cover.
-  const shas = [...String(reason ?? "").matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
+  const shas = [...text.matchAll(/\b[0-9a-f]{7,40}\b/g)].map((match) => match[0]).filter((word) => /[a-f]/.test(word)).slice(0, 3);
   if (prs.length === 0 && shas.length === 0) {
     return false;
   }

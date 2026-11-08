@@ -65,8 +65,10 @@ cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/test-git-env.sh" "$repo/scripts/l
 cp "$SELF_DIR/run-outside-node-suites.sh" "$repo/scripts/"
 printf '# fixture\npkg/demo\npkg/other\n' >"$repo/scripts/outside-node-packages.txt"
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
+printf '# fixture\npkg/sub pkg/sub/\n' >"$repo/scripts/node-subprojects.txt"
 : >"$repo/_typos.toml"
-# The workflow typos reads its exclusions from: its typos step's `exclude:` line.
+# The workflow typos and machine-specific-paths read their exclusions from: the
+# `exclude:` input of their steps, on the key's line or as a folded block.
 mkdir -p "$repo/.github/workflows"
 cat >"$repo/.github/workflows/pr-require-checks.yml" <<'YAML'
 jobs:
@@ -81,7 +83,8 @@ jobs:
         id: machine_paths
         with:
           exclude: >-
-            other/**
+            :(exclude)vendor/**
+            :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
 YAML
 chmod +x "$repo"/scripts/*.sh
 # A typos stand-in on every run's PATH, so a typos on the machine never sees the
@@ -221,9 +224,9 @@ sed -i.bak 's|config: _typos.toml|&\
           exclude: >-\
             folded/**|' "$workflow" && rm -f "$workflow.bak"
 git_test_config "$repo" commit -q -am typos-folded
-run -- --base base
-check "a folded typos exclude is refused with a message" \
-  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"block scalar"* && $ERR != *"typos ran"* ]]'
+run STUB_TYPOS=1 -- --base base
+check "a folded typos exclude is read, as the composite splits it" \
+  '[[ $ERR == *"typos ran: --config "*" --force-exclude --exclude folded/** -- "* ]]'
 git_test_config "$repo" rm -q .github/workflows/pr-require-checks.yml
 git_test_config "$repo" commit -q -m typos-no-workflow
 run -- --base base
@@ -292,6 +295,38 @@ git_test_config "$repo" commit -q -m excluded-paths
 run -- --base base
 check "a home path in a file the workflow step excludes, a placeholder, or an allow-marked line passes" \
   '[[ $RC == 0 && $ERR != *"FAIL machine-specific-paths"* && $ERR != *"SKIP machine-specific-paths"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+# The exclusions and types are the checked tree's workflow's, read at run time.
+paths_workflow="$repo/.github/workflows/pr-require-checks.yml"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+sed -i.bak 's|^\( *\):(exclude)vendor/\*\*$|&\
+\1:(exclude)settings.json|' "$paths_workflow" && rm -f "$paths_workflow.bak"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m paths-exclude
+run -- --base base
+check "machine-specific-paths takes an exclusion the branch adds to the workflow" \
+  '[[ $RC == 0 && $ERR != *"FAIL machine-specific-paths"* && $ERR != *"SKIP machine-specific-paths"* ]]'
+sed -i.bak 's|:(exclude)settings.json|settings.json|' "$paths_workflow" && rm -f "$paths_workflow.bak"
+git_test_config "$repo" commit -q -am paths-positive
+run -- --base base
+check "a machine-paths pathspec that is not an exclusion fails closed" \
+  '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"not an exclusion pathspec"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+printf '/%s/alice/project\n' home >"$repo/notes.txt"
+sed -i.bak 's|^\( *\)exclude: >-$|\1extensions: "*.txt"\
+&|' "$paths_workflow" && rm -f "$paths_workflow.bak"
+git_test_config "$repo" commit -q -am paths-extensions
+run -- --base base
+check "an extensions: input on the machine-paths step sets the types scanned" \
+  '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"Linux user path: notes.txt:1:"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_paths"
+printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
+git_test_config "$repo" add settings.json
+git_test_config "$repo" rm -q .github/workflows/pr-require-checks.yml
+git_test_config "$repo" commit -q -m paths-no-workflow
+run -- --base base
+check "a missing workflow fails machine-specific-paths closed" \
+  '[[ $RC == 1 && $ERR == *"FAIL machine-specific-paths"* && $ERR == *"exclude pathspecs cannot be read"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_paths"
 
 run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base

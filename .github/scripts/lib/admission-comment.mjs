@@ -16,14 +16,9 @@ export const refusalText = (reasons) =>
 export async function sayWhy(github, repository, base, comments, text, login) {
   const body = `${ADMIT_MARKER}\n${text}`;
   const own = comments.find((comment) => comment.user?.login === login && String(comment.body ?? "").startsWith(ADMIT_MARKER));
-  if (own?.body === body) {
-    return;
-  }
-  if (own) {
-    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, {
-      body,
-    });
-  } else {
+  if (!own) {
     await github("POST", `${base}/comments`, { body });
+  } else if (own.body !== body) {
+    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, { body });
   }
 }

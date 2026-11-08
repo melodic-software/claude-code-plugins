@@ -544,6 +544,9 @@ const UNGUARDED = {
   // A test helper no lane runs: the credential-legs tests' read of ci-workflows
   // files at a pinned SHA from raw.githubusercontent.com, not the API.
   ".github/scripts/lib/model-credential.mjs": "test helper reading raw.githubusercontent.com, not the API",
+  // Its API calls go through lib/github-rest.mjs, which imports the guard; the
+  // one raw fetch is getStatus, reading www.githubstatus.com, not the API.
+  ".github/scripts/maintenance-monitor-signals/monitor.mjs": "githubstatus.com reads; API calls via lib/github-rest.mjs",
 };
 
 test("every lane script that calls fetch goes through the rate guard, or is listed with its reason", () => {

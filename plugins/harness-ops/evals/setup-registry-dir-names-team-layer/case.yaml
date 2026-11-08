@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: 'setup-registry-dir-names-team-layer'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-team-layer'
+    type: 'regex'
+    pattern: '^[^\n]*tools/registry\b[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*$|^[^\n]*(?:\b[Tt]eam\b|harness-ops\.yaml)[^\n]*tools/registry\b[^\n]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'ran-registry-resolver'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?registry-dir\.mjs'
+    arm: 'with-only'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
