@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.8.2] - 2026-11-08
+
+### Fixed
+
+- The babysit post-merge check now sets Issue Type Bug on the demotion and quarantine issues it files.
+
 ## [8.8.1] - 2026-11-08
 
 ### Changed
