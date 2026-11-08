@@ -725,16 +725,32 @@ def readonly_workflow(
     return isinstance(text, str) and _readonly_workflow_text(text, stem)
 
 
-WORKFLOW_NAME_ACRONYMS = frozenset({"pr", "ci", "api", "wip"})
+# The standards vocabulary's displayWords: this script runs outside the
+# repository that holds it, so a test asserts the two stay equal.
+WORKFLOW_NAME_WORDS = {
+    "acl": "ACL",
+    "api": "API",
+    "ci": "CI",
+    "cli": "CLI",
+    "dotnet": ".NET",
+    "editorconfig": "EditorConfig",
+    "markdownlint": "markdownlint",
+    "nuget": "NuGet",
+    "oidc": "OIDC",
+    "pr": "PR",
+    "psscriptanalyzer": "PSScriptAnalyzer",
+    "wip": "WIP",
+    "yq": "yq",
+}
 
 
 def workflow_display_name(stem: str) -> str:
     """A lowercase file stem's workflow `name:`: hyphens to spaces, Title
-    Case, acronyms upper case. `.github/actions/resolve-config/callers.test.mjs`
-    holds the same rule over this repository's workflow files."""
+    Case, listed words as `WORKFLOW_NAME_WORDS` spells them.
+    `.github/actions/resolve-config/callers.test.mjs` holds the same rule over
+    this repository's workflow files."""
     return " ".join(
-        word.upper() if word in WORKFLOW_NAME_ACRONYMS else word.capitalize()
-        for word in stem.split("-")
+        WORKFLOW_NAME_WORDS.get(word, word.capitalize()) for word in stem.split("-")
     )
 
 
