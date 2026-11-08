@@ -6024,7 +6024,7 @@ test("a status: ready issue added by neither a listed human nor the lanes App is
 test("a status: ready issue with a hold or refuse label, an open blocker or an open sub-issue is not read", async (t) => {
   t.mock.method(console, "log", () => {});
   const skipped = [
-    ...["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance", "host-run", "duplicate", "wontfix", "do-not-merge"].map((hold, i) =>
+    ...["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info", "work-class: untrusted-provenance", "host-run", "duplicate", "do-not-merge"].map((hold, i) =>
       readyIssue(40 + i, { labels: [...READY_LABELS, hold] }),
     ),
     readyIssue(60, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } }),

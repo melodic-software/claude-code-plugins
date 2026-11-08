@@ -77,7 +77,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { HOLD_STATES, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ownComment } from "../lib/upsert-comment.mjs";
 
@@ -129,14 +129,14 @@ export async function classify({ github, repository, issue, comment, humans, ids
   };
   // With no status on the issue, only a listed human's decision answers, and
   // only where nothing else holds or moves the issue.
-  if (!labels.some((name) => name?.startsWith("status:"))) {
+  if (!labels.some((name) => isStatusLabel(name))) {
     if (!humans.has(user.id) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => labels.includes(name))) {
       return null;
     }
     const item = await kept();
     return item && isDecisionComment(item, humans) ? "statusless" : null;
   }
-  if (labels.includes(NEEDS_DECISION) && humans.has(user.id)) {
+  if (carried(labels, DECISION_LABELS) && humans.has(user.id)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "decision";
@@ -150,7 +150,7 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "parked";
     }
   }
-  if (labels.includes(NEEDS_INFO)) {
+  if (carried(labels, INFO_LABELS)) {
     if (user.id === issue.user?.id) {
       return "info";
     }
@@ -181,7 +181,7 @@ async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
   if (!openIssue(issue)) {
     return false;
   }
-  const parked = labels.some((name) => name?.startsWith("status:") && name !== NEEDS_DECISION);
+  const parked = labels.some((name) => isStatusLabel(name) && !DECISION_LABELS.includes(name));
   if (parked || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY].some((name) => labels.includes(name))) {
     return false;
   }
@@ -345,10 +345,10 @@ async function restore({ set, client, base, number, state, label, log, next = ";
 // Each answer's status: the label it takes off when the issue carries it, and
 // the Work status state a failed run sets back. A statusless answer has neither.
 const ANSWERED = {
-  decision: [NEEDS_DECISION, "needs-owner-decision"],
-  parked: [CONFIRMED, "confirmed"],
-  info: [NEEDS_INFO, "needs-reporter-info"],
-  statusless: [null, null],
+  decision: [DECISION_LABELS, "needs-owner-decision"],
+  parked: [[CONFIRMED], "confirmed"],
+  info: [INFO_LABELS, "needs-reporter-info"],
+  statusless: [[], null],
 };
 
 export async function main({ env = process.env, github, log = console.log, statusOf } = {}) {
@@ -385,7 +385,7 @@ export async function main({ env = process.env, github, log = console.log, statu
         log(`intake-reenter: not a removal of ${NEEDS_HUMAN} that sends an issue to intake; nothing changed`);
         return 0;
       }
-      kind = labels.includes(NEEDS_DECISION) ? "decision" : "statusless";
+      kind = carried(labels, DECISION_LABELS) ? "decision" : "statusless";
     } else {
       const comment = await client("GET", `/repos/${repository}/issues/comments/${env.COMMENT_ID}`);
       if (comment.issue_url !== undefined && !String(comment.issue_url).endsWith(base)) {
@@ -412,7 +412,8 @@ export async function main({ env = process.env, github, log = console.log, statu
         return 0;
       }
     }
-    const [status, prior] = ANSWERED[kind];
+    const [names, prior] = ANSWERED[kind];
+    const status = carried(own, names) ?? names[0] ?? null;
     const took = status !== null && own.includes(status);
     if (took && !(await removeLabel(client, base, status))) {
       log(`intake-reenter: ${status} is already gone; nothing dispatched`);

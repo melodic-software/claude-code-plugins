@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.8.1] - 2026-11-08
+
+### Fixed
+
+- `rename-references` Form 3 and Form 14 examples cite `docs/catalog.md` lines that hold the plugin link and the `Testing` heading, in place of root `README.md` lines that no longer do.
+
 ## [2.8.0] - 2026-11-08
 
 ### Changed

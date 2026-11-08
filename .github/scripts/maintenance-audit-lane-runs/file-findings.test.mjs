@@ -413,7 +413,7 @@ const store = (issues = []) => {
   const call = async (method, path, body) => {
     calls.push([method, path, body]);
     if (method === "POST" && path.endsWith("/issues")) {
-      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...body.labels] };
+      const issue = { number: 100 + issues.length, state: "open", state_reason: null, ...body, labels: [...(body.labels ?? [])] };
       issues.push(issue);
       return issue;
     }
@@ -453,7 +453,7 @@ function workStatus(state, setter, postError) {
 }
 const run = async (s, items, extra = {}) => {
   const plan = planDigest({ items, existing: s.issues, openNumbers: new Set(), ...extra });
-  return writeDigest({ plan, call: s.call, repo: "o/r", labels: ["source: lane-sweep"], runUrl: "https://run/1", wait: async () => {} });
+  return writeDigest({ plan, call: s.call, repo: "o/r", runUrl: "https://run/1", wait: async () => {} });
 };
 const nothing = { filed: [], updated: [], reopened: [], failed: [] };
 
@@ -492,7 +492,6 @@ test("the sweep files one digest, rewrites it in place on a change, and closes i
   const a = { fingerprint: FP, finding: finding() };
   const b = { fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) };
   assert.deepEqual(await run(s, [a]), { ...nothing, filed: [100] });
-  assert.deepEqual(s.issues[0].labels, ["source: lane-sweep"]);
   assert.equal(s.issues[0].title, "Review the open findings from the lane sweep");
   assert.equal(s.issues[0].type, "Task");
 
@@ -526,7 +525,7 @@ test("a rewrite takes agent-ready off through the Work status field before the P
   const call = async (method) => (log.push(method), {});
   const leaveAgentReady = async (number, state, options) => log.push(["FIELD", number, state, options]);
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
-  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
+  const done = await writeDigest({ plan, call, repo: "o/r", runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, [100]);
   assert.deepEqual(log, ["POST", ["FIELD", 100, "needs-triage", { orUnset: true }], "PATCH"]);
 });
@@ -538,7 +537,7 @@ test("a rewrite whose Work status write fails leaves the PATCH for the next run"
     throw new Error("#100's Work status field could not be read: HTTP 502");
   };
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
-  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
+  const done = await writeDigest({ plan, call, repo: "o/r", runUrl: "https://run/1", leaveAgentReady, wait: async () => {} });
   assert.deepEqual(done.updated, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "#100's Work status field could not be read: HTTP 502" }]);
   assert.deepEqual(log, ["POST"]);
@@ -560,7 +559,7 @@ test("a sweep missing a unit's findings carries the earlier entries over", async
 const rewriteWith = async (s, leaveAgentReady) => {
   const items = [{ fingerprint: "fedcba9876543210", finding: finding() }];
   const plan = planDigest({ items, existing: s.issues, openNumbers: new Set() });
-  const done = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", leaveAgentReady, wait: async () => {} });
+  const done = await writeDigest({ plan, call: s.call, repo: "o/r", runUrl: "u", leaveAgentReady, wait: async () => {} });
   return { done, next: planDigest({ items, existing: s.issues, openNumbers: new Set() }).action };
 };
 
@@ -602,7 +601,7 @@ test("a filed digest whose field write fails stays filed, with a warning", async
   const setFields = async () => {
     throw new Error("HTTP 403");
   };
-  const result = await writeDigest({ plan, call: s.call, repo: "o/r", labels: [], runUrl: "u", setFields, wait: async () => {} });
+  const result = await writeDigest({ plan, call: s.call, repo: "o/r", runUrl: "u", setFields, wait: async () => {} });
   assert.deepEqual(result, { ...nothing, filed: [100] });
   assert.ok(log.mock.calls.some((c) => /#100's field values were not set: HTTP 403/.test(c.arguments[0])));
 });
@@ -612,7 +611,7 @@ test("a failed filing is recorded", async () => {
     throw new Error(`${method} ${path}: HTTP 422`);
   };
   const plan = planDigest({ items: [{ fingerprint: FP, finding: finding() }], existing: [], openNumbers: new Set() });
-  const result = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  const result = await writeDigest({ plan, call, repo: "o/r", runUrl: "u", wait: async () => {} });
   assert.deepEqual(result, { ...nothing, failed: [{ target: "digest", error: "POST /repos/o/r/issues: HTTP 422" }] });
 });
 
@@ -641,7 +640,7 @@ test("a budget spent mid-rewrite stops before the PATCH and reports the failure"
     return s.call(...args);
   };
   const plan = { action: "update", number: 100, entries: [{ fingerprint: FP, tracked: null, title: "t", text: "x" }], added: [], dropped: [] };
-  const done = await writeDigest({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
+  const done = await writeDigest({ plan, call, repo: "o/r", runUrl: "https://run/1", wait: async () => {} });
   assert.deepEqual(done.failed, [{ target: "#100", error: "call budget of 1 reached" }]);
   assert.deepEqual(s.calls.map(([m]) => m), ["POST"], "no PATCH");
 });
