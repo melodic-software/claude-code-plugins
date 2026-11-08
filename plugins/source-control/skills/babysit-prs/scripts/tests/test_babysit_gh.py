@@ -1476,7 +1476,7 @@ class CollectLaneRunsTests(unittest.TestCase):
     from a fresh run read, annotations on the lane job only."""
 
     REPO = "owner/repo"
-    LANES = [(".github/workflows/pr-review-hosted.yml", "claude-review-status")]
+    LANES = [(".github/workflows/pr-review-hosted.yml", ("pr-review / claude-review-status",))]
 
     def answers(self, *, fresh_attempts: int = 2) -> dict[str, Any]:
         base = f"repos/{self.REPO}/actions/runs/7"
@@ -1528,6 +1528,24 @@ class CollectLaneRunsTests(unittest.TestCase):
             jobs[0]["annotations"], [{"title": "claude-lane-review-complete"}]
         )
         self.assertNotIn("annotations", jobs[1])
+
+    def test_the_lane_job_is_matched_by_its_whole_name(self) -> None:
+        names = ("pr-review / review-status", "pr-review / claude-review-status")
+        for name, read in (
+            ("pr-review / review-status", True),
+            ("pr-review / claude-review-status", True),
+            ("other / review-status", False),
+            ("review-status", False),
+        ):
+            with self.subTest(job=name):
+                answers = self.answers(fresh_attempts=1)
+                page = answers[f"repos/{self.REPO}/actions/runs/7/attempts/1/jobs?per_page=100"]
+                page[0]["jobs"][0]["name"] = name
+                with mock.patch.object(
+                    self, "LANES", [(self.LANES[0][0], names)]
+                ):
+                    jobs = self.collect(answers)[0]["attempts"][0]["jobs"]
+                self.assertEqual("annotations" in jobs[0], read)
 
     def test_the_listing_is_bounded_to_runs_since_the_pull_request_opened(self) -> None:
         answers = self.answers(fresh_attempts=1)

@@ -308,17 +308,19 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # claude-review-status`). A name holding ` / ` must match the whole check
 # name: the security job is named `security-review`, generic enough that
 # another workflow's job could carry it, so it counts only under its own
-# caller prefix. `pr-review-security / security-review` is the current caller,
-# `security-review / security-review` the previous one, and
-# `claude-security-review-status` the job of a pin that predates the fold. Old
-# and new callers run side by side while repos migrate. Every matching check
-# must succeed.
+# caller prefix, as does pr-review-cli.yml's `review-status`, which both lanes
+# share. `pr-review-security / security-review` is the current caller of
+# pr-review-security.yml, `security-review / security-review` the previous one,
+# and `claude-security-review-status` the job of a pin that predates the fold.
+# Old and new callers run side by side while repos migrate. Every matching
+# check must succeed.
 AI_REVIEW_CHECKS = {
-    "claude-review-status": ("claude-review-status",),
+    "claude-review-status": ("claude-review-status", "pr-review / review-status"),
     "claude-security-review-status": (
         "claude-security-review-status",
         "security-review / security-review",
         "pr-review-security / security-review",
+        "pr-review-security / review-status",
     ),
 }
 
@@ -437,15 +439,7 @@ def rerun_rate_limited_review(
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["reason"] = f"could not read the job: {type(exc).__name__}: {exc}"
         return report
-    segment = str(job.get("name") or "").rsplit(" / ", 1)[-1]
-    lane = next(
-        (
-            lane
-            for lane, (_, suffix) in review_evidence.LANES.items()
-            if suffix == segment
-        ),
-        "",
-    )
+    lane = review_evidence.lane_of_job(job.get("name"))
     if lost:
         classes = frozenset({review_evidence.LOST})
         if not lane:

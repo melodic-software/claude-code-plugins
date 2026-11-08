@@ -261,8 +261,8 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 HEAD=0123456789abcdef0123456789abcdef01234567
 CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
-CODE_CHECK='pr-review / claude-review-status'
-SEC_CHECK='pr-review-security / security-review'
+CODE_CHECK='pr-review / review-status'
+SEC_CHECK='pr-review-security / review-status'
 # run <id> <file> [status] [sha] [event] [head repository] [pull request number]
 run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
   --argjson pr "${7:-77}" '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
@@ -310,6 +310,17 @@ if grep -qxF "api repos/o/r/actions/workflows/$CODE/runs?head_sha=$HEAD&event=pu
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
 fi
+
+# pr-review-cli.yml named its status jobs these before ci-workflows#866.
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(status 'pr-review / claude-review-status' completed success)")"
+JOBS_20="$(jobs "$(kill_job success skipped)" "$(status 'pr-review-security / security-review' completed success)")"
+expect "status jobs under their earlier names count" 0 "'$SEC_CHECK' passed on $HEAD" "::error::"
+# A status job counts only under its own lane's caller job.
+for name in 'other / review-status' 'review-status' "$CODE_CHECK"; do
+  JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"
+  expect "a security run whose status job is named '$name' does not count" 1 "::error::'$SEC_CHECK' did not run on $HEAD"
+done
+JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
 # The newest run decides, whatever the list order.
 RUNS_CODE="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"

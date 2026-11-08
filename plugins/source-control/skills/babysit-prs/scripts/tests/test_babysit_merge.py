@@ -1435,6 +1435,60 @@ class AutoMergeArming(unittest.TestCase):
             result["autoMerge"]["blockers"],
         )
 
+    def test_pr_review_cli_review_status_checks_satisfy_both_lanes(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("pr-review / review-status", "SUCCESS"),
+                _check("pr-review-security / review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_a_failing_review_status_check_holds_only_its_own_lane(self) -> None:
+        for failing, held, other in (
+            (
+                "pr-review / review-status",
+                "claude-review-status",
+                "claude-security-review-status",
+            ),
+            (
+                "pr-review-security / review-status",
+                "claude-security-review-status",
+                "claude-review-status",
+            ),
+        ):
+            with self.subTest(failing=failing):
+                result = self._evaluate(
+                    [
+                        _check("ci-status", None),
+                        *(
+                            _check(name, "FAILURE" if name == failing else "SUCCESS")
+                            for name in (
+                                "pr-review / review-status",
+                                "pr-review-security / review-status",
+                            )
+                        ),
+                    ],
+                    mergeStateStatus="BLOCKED",
+                )
+                blockers = result["autoMerge"]["blockers"]
+                hold = "AI review check {!r} has not succeeded on the live head"
+                self.assertIn(hold.format(held), blockers)
+                self.assertNotIn(hold.format(other), blockers)
+
+    def test_another_callers_review_status_job_satisfies_no_lane(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("other / review-status", "SUCCESS"),
+                _check("review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertEqual(len(result["autoMerge"]["blockers"]), 2, result["autoMerge"])
+
     def test_other_callers_security_review_job_does_not_satisfy_renamed_lane(
         self,
     ) -> None:

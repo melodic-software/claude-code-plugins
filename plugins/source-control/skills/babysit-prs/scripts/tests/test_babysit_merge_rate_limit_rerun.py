@@ -56,6 +56,9 @@ SECURITY_CHECK = {
     "name": "pr-review-security / security-review",
     "workflow_name": "pr-review-security-hosted",
 }
+# pr-review-cli.yml's status jobs, which share the name `review-status`.
+CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}
+CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "pr-review-security / review-status"}
 
 
 def _job(**overrides: Any) -> dict[str, Any]:
@@ -270,6 +273,8 @@ class RerunRateLimitedReview(unittest.TestCase):
             (CHECK, primary),
             (CHECK, secondary),
             (SECURITY_CHECK, security),
+            (CLI_CHECK, primary),
+            (CLI_SECURITY_CHECK, security),
         ):
             report, posts = self._run(
                 job=self._publish_check(check), annotations=[text], check=check
@@ -282,6 +287,11 @@ class RerunRateLimitedReview(unittest.TestCase):
         for check, text in (
             # Another lane's publish line.
             (SECURITY_CHECK, primary),
+            (CLI_SECURITY_CHECK, primary),
+            (
+                CLI_CHECK,
+                primary.replace("claude-review:", "claude-security-review:", 1),
+            ),
             # A publish failure that is not GitHub's rate limit.
             (
                 CHECK,

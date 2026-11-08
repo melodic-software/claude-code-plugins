@@ -44,15 +44,26 @@ from typing import Any
 
 from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
-# Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
-# weaker table could only come from a file a pull request can edit.
-LANES: dict[str, tuple[str, str]] = {
-    "claude-review": (".github/workflows/pr-review-hosted.yml", "claude-review-status"),
+# Lane id -> (caller workflow path, status job names). Fixed in code: a
+# weaker table could only come from a file a pull request can edit. Each name
+# is the whole caller-qualified job name: pr-review-cli.yml names both lanes'
+# status jobs `review-status`; the second is the name ci-workflows'
+# pr-review.yml and pr-review-security.yml give it.
+LANES: dict[str, tuple[str, tuple[str, ...]]] = {
+    "claude-review": (
+        ".github/workflows/pr-review-hosted.yml",
+        ("pr-review / review-status", "pr-review / claude-review-status"),
+    ),
     "claude-security-review": (
         ".github/workflows/pr-review-security-hosted.yml",
-        "security-review",
+        ("pr-review-security / review-status", "pr-review-security / security-review"),
     ),
 }
+
+
+def lane_of_job(name: Any) -> str:
+    """The lane whose status job `name` is, else ''."""
+    return next((lane for lane, (_, jobs) in LANES.items() if name in jobs), "")
 
 # What a pull request's own checkout can feed or forge for its own review:
 # its workflows (a pull_request event runs the head's copy of the callers, and
@@ -1086,16 +1097,13 @@ def _attempts(item: Mapping[str, Any]) -> dict[int, Mapping[str, Any]]:
 
 
 def _lane_job(lane: str, run_id: int, attempt: Mapping[str, Any]) -> Mapping[str, Any]:
-    suffix = LANES[lane][1]
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple):
         raise Unbound("evidence-missing")
     matches = [
         job
         for job in jobs
-        if isinstance(job, Mapping)
-        and isinstance(job.get("name"), str)
-        and job["name"].rsplit(" / ", 1)[-1] == suffix
+        if isinstance(job, Mapping) and lane_of_job(job.get("name")) == lane
     ]
     if not matches:
         raise Unbound("no-lane-job" if jobs else "evidence-missing")
@@ -1335,10 +1343,8 @@ def _marker_rewritten(
 
 
 def _has_lane_job(lane: str, jobs: Sequence[Any]) -> bool:
-    suffix = LANES[lane][1]
     return any(
-        isinstance(job, Mapping)
-        and str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix
+        isinstance(job, Mapping) and lane_of_job(job.get("name")) == lane
         for job in jobs
     )
 
@@ -1388,8 +1394,7 @@ def _gate_stopped(
         isinstance(job, Mapping) for job in jobs
     ):
         raise Unbound("evidence-missing")
-    suffix = LANES[lane][1]
-    if any(str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix for job in jobs):
+    if _has_lane_job(lane, jobs):
         return False
     kills = [job for job in jobs if job.get("name") == KILL_SWITCH_JOB]
     if len(kills) != 1 or kills[0].get("conclusion") != conclusion:

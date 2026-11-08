@@ -2750,13 +2750,14 @@ def collect_lane_runs(
     repo: str,
     number: int,
     head_ref: str,
-    lanes: Iterable[tuple[str, str]],
+    lanes: Iterable[tuple[str, tuple[str, ...]]],
     created_at: str = "",
     env_overrides: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """The `runs` input of `babysit_review_evidence.bind()` for one pull request.
 
-    `lanes` gives each lane's (caller workflow path, lane job name suffix).
+    `lanes` gives each lane's (caller workflow path, status job names), as
+    `babysit_review_evidence.LANES` holds them.
     Each workflow's `pull_request` runs are listed by `head_ref` with no
     `head_sha` filter and kept when their `pull_requests` name `number`, so
     earlier heads' reviews are included. `created_at`, the pull request's
@@ -2808,7 +2809,10 @@ def collect_lane_runs(
         if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", created_at)
         else ""
     )
-    for path, job_suffix in lanes:
+    for path, job_names in lanes:
+        # The cache key carries one slash-free name: carry-run-cache.mjs keeps
+        # only such a key.
+        job_suffix = job_names[0].rsplit(" / ", 1)[-1]
         workflow = quote(path.rsplit("/", 1)[-1], safe="")
         payload = read_all(
             f"repos/{repo}/actions/workflows/{workflow}/runs"
@@ -2859,11 +2863,7 @@ def collect_lane_runs(
                 # differ only in `jobs_url` and `logs_url`, which nothing reads.
                 attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
-                lane_jobs = [
-                    job
-                    for job in jobs
-                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix
-                ]
+                lane_jobs = [job for job in jobs if job.get("name") in job_names]
                 for job in jobs:
                     # With no lane job, the kill-switch notice, or the
                     # upstream-status error that failed the job, shows the

@@ -49,6 +49,12 @@ FILES = {
     "claude-security-review": ".github/workflows/pr-review-security-hosted.yml",
 }
 JOBS = {
+    "claude-review": "pr-review / review-status",
+    "claude-security-review": "pr-review-security / review-status",
+}
+# The status job names ci-workflows' pr-review.yml and pr-review-security.yml
+# give, which pr-review-cli.yml gave before ci-workflows#866.
+EARLIER_JOBS = {
     "claude-review": "pr-review / claude-review-status",
     "claude-security-review": "pr-review-security / security-review",
 }
@@ -349,6 +355,51 @@ class Base(unittest.TestCase):
         self.assertFalse(item.bound)
         self.assertEqual(item.unbound_reason, reason)
         self.assertIsNone(item.open_findings)
+
+
+def named(item: dict[str, Any], name: str) -> dict[str, Any]:
+    """`item`, a lane run, with every attempt's lane job named `name`."""
+    for each in item["attempts"]:
+        for job in each["jobs"]:
+            job["name"] = name
+    return item
+
+
+class StatusJobNameTests(Base):
+    """A lane's status job counts only under its whole caller-qualified name:
+    both lanes' status jobs share the name `review-status`."""
+
+    def test_each_lane_binds_under_either_status_job_name(self) -> None:
+        for names in (JOBS, EARLIER_JOBS):
+            runs = [named(whole(lane, S), names[lane]) for lane in LANES]
+            result = self.bind(runs)
+            for lane in LANES:
+                with self.subTest(job=names[lane]):
+                    self.assertTrue(result[lane].bound)
+
+    def test_a_status_job_under_another_caller_is_no_lane_job(self) -> None:
+        for name in (
+            "other / review-status",
+            "review-status",
+            JOBS["claude-security-review"],
+            EARLIER_JOBS["claude-security-review"],
+        ):
+            with self.subTest(job=name):
+                result = self.bind([named(whole("claude-review", S), name)])
+                self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_a_job_name_maps_to_its_own_lane(self) -> None:
+        for name, lane in {
+            "pr-review / review-status": "claude-review",
+            "pr-review / claude-review-status": "claude-review",
+            "pr-review-security / review-status": "claude-security-review",
+            "pr-review-security / security-review": "claude-security-review",
+            "other / review-status": "",
+            "review-status": "",
+            None: "",
+        }.items():
+            with self.subTest(job=name):
+                self.assertEqual(ev.lane_of_job(name), lane)
 
 
 class LostEvidenceTests(Base):

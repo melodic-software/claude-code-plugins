@@ -1236,13 +1236,18 @@ test("a lanes App push is not a trusted move: the App never lifts its own stop w
 
 // feedback-not-landed after a push no trusted person made: the review lanes'
 // runs, status jobs and completion records at the head, read with the job
-// token (`scopes` names each lane's record scope; a lane left out has no run),
-// and the security lane's reviewed-head marker carrying its summary.
-const REVIEW_FILES = { "claude-review": ["pr-review-hosted.yml", "pr-review / claude-review-status"], "claude-security-review": ["pr-review-security-hosted.yml", "pr-review-security / security-review"] };
-function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed" } = {}) {
+// token (`scopes` names each lane's record scope; a lane left out has no run;
+// `jobs` names each lane's status job), and the security lane's reviewed-head
+// marker carrying its summary.
+const REVIEW_FILES = { "claude-review": "pr-review-hosted.yml", "claude-security-review": "pr-review-security-hosted.yml" };
+const STATUS_JOBS = { "claude-review": "pr-review / review-status", "claude-security-review": "pr-review-security / review-status" };
+// pr-review-cli.yml's status job names before ci-workflows#866.
+const EARLIER_STATUS_JOBS = { "claude-review": "pr-review / claude-review-status", "claude-security-review": "pr-review-security / security-review" };
+function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed", jobs = STATUS_JOBS } = {}) {
   const fallback = readerFor({ pushes });
   return async (method, path) => {
-    for (const [index, [lane, [file, job]]] of Object.entries(REVIEW_FILES).entries()) {
+    for (const [index, [lane, file]] of Object.entries(REVIEW_FILES).entries()) {
+      const job = jobs[lane];
       const runId = 800 + index;
       const jobId = 900 + index;
       if (path === `/repos/${REPO}/actions/workflows/${file}/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
@@ -1269,14 +1274,19 @@ const WAITING = `a push no trusted person made moved the head; waiting for clean
 // An open SUGGESTION or IMPORTANT finding is reported, not held: only a
 // CRITICAL one holds (owner decision on #11020).
 test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean, an open SUGGESTION or IMPORTANT thread included", async () => {
-  for (const severity of ["severity: SUGGESTION", "severity: IMPORTANT"]) {
-    const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread(severity)]) });
+  for (const [severity, jobs] of [
+    ["severity: SUGGESTION", STATUS_JOBS],
+    ["severity: IMPORTANT", STATUS_JOBS],
+    ["severity: SUGGESTION", EARLIER_STATUS_JOBS],
+  ]) {
+    const label = `${severity} ${jobs["claude-review"]}`;
+    const w = world({ timeline: notLandedTimeline(), reader: laneReader({ jobs }), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread(severity)]) });
     const { code } = await run(w, TRUST_ENV);
-    assert.equal(code, 0, severity);
+    assert.equal(code, 0, label);
     const [comment, removal] = w.writes();
-    assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`, severity);
+    assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`, label);
     assert.match(comment.body.body, /both review lanes completed a review of it/);
-    assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, severity);
+    assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, label);
   }
 });
 
@@ -1285,6 +1295,8 @@ test("feedback-not-landed stays after a lanes App push while the review lanes ha
     ["no lane run", laneReader({ scopes: {} }), notLandedTimeline()],
     ["only one lane ran", laneReader({ scopes: { "claude-security-review": "whole" } }), notLandedTimeline()],
     ["runs still in progress", laneReader({ runStatus: "in_progress" }), notLandedTimeline()],
+    ["a status job under another caller job", laneReader({ jobs: { ...STATUS_JOBS, "claude-review": "other / review-status" } }), notLandedTimeline()],
+    ["the other lane's status job name", laneReader({ jobs: { ...STATUS_JOBS, "claude-security-review": "pr-review / review-status" } }), notLandedTimeline()],
     ["an incremental security review", laneReader({ scopes: { "claude-review": "whole", "claude-security-review": `incremental since=${KEY}` } }), notLandedTimeline()],
     ["no security summary", laneReader(), notLandedTimeline(commented(ACTIONS_BOT, "CI summary.", "2026-10-18T11:30:00Z"))],
     ["a summary of an earlier head", laneReader(), notLandedTimeline(securitySummary(0, KEY))],

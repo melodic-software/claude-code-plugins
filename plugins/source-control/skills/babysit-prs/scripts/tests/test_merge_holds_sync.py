@@ -863,7 +863,10 @@ DECISIONS = {
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
-CHECKS = dict(policy.REVIEW_LANES)
+CHECKS = {
+    "pr-review-hosted.yml": "pr-review / review-status",
+    "pr-review-security-hosted.yml": "pr-review-security / review-status",
+}
 
 
 def _run(
@@ -977,6 +980,12 @@ CARRIES = {
     },
     "a job other than the status job": {
         "runs": [_run(HEAD, job="pr-review / review-key")]
+    },
+    "a status job named as pr-review.yml names it": {
+        "runs": [_run(HEAD, job="pr-review / claude-review-status")]
+    },
+    "a status job under another caller job": {
+        "runs": [_run(HEAD, job="other / review-status")]
     },
     "a notice naming another head than its run's": {"runs": [_run(OLD, notice=HEAD)]},
     "a notice without cost": {"runs": [_run(HEAD, criteria="trust-gate")]},
@@ -1294,6 +1303,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a notice at the head",
             "a base merge since the decided head",
             "a notice from the security lane",
+            "a status job named as pr-review.yml names it",
             "a newer head pushed before it with a run of every lane",
         }
         for case in carried:

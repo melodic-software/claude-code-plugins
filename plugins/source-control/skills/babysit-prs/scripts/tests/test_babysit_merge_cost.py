@@ -26,7 +26,10 @@ PR_CREATED = "2026-10-22T10:00:00Z"
 HEAD = "0123456789abcdef0123456789abcdef01234567"
 BASE = "main"
 OLD = "fedcba9876543210fedcba9876543210fedcba98"
-CHECKS = dict(policy.REVIEW_LANES)
+CHECKS = {
+    "pr-review-hosted.yml": "pr-review / review-status",
+    "pr-review-security-hosted.yml": "pr-review-security / review-status",
+}
 PULL = {
     "number": 99,
     "created_at": PR_CREATED,
@@ -514,6 +517,15 @@ class CostDecision(unittest.TestCase):
             "with cost among its criteria": _run(
                 HEAD, late, criteria="cost,trust-gate"
             ),
+            "from a status job named as pr-review.yml names it": _run(
+                HEAD, late, job="pr-review / claude-review-status"
+            ),
+            "from a status job named as pr-review-security.yml names it": _run(
+                HEAD,
+                late,
+                lane="pr-review-security-hosted.yml",
+                job="pr-review-security / security-review",
+            ),
         }.items():
             with self.subTest(name):
                 self.assertEqual(
@@ -527,6 +539,12 @@ class CostDecision(unittest.TestCase):
             ),
             "the other lane's status job name": _run(
                 HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]
+            ),
+            "the other lane's pr-review-security.yml status job name": _run(
+                HEAD, late, job="pr-review-security / security-review"
+            ),
+            "the status job's name under another caller job": _run(
+                HEAD, late, job="other / review-status"
             ),
             "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
             "a notice without cost": _run(HEAD, late, criteria="trust-gate"),

@@ -3514,12 +3514,16 @@ def _after(value: Any, opened: datetime | None) -> bool:
 
 
 # The review lanes whose status job records a `claude-lane-hold` notice, as
-# (workflow file, status job name) (merge-holds.mjs `REVIEW_LANES`, and
-# ci-status's cost-hold step). The notice's head and criteria, and the base
-# branch name a compare takes, as the hold step reads it.
+# (workflow file, status job names) (merge-holds.mjs `REVIEW_LANES`, and
+# ci-status's cost-hold step): pr-review-cli.yml's name, then the one
+# pr-review.yml and pr-review-security.yml give it. The notice's head and
+# criteria, and the base branch name a compare takes, as the hold step reads it.
 REVIEW_LANES = (
-    ("pr-review-hosted.yml", "pr-review / claude-review-status"),
-    ("pr-review-security-hosted.yml", "pr-review-security / security-review"),
+    ("pr-review-hosted.yml", ("pr-review / review-status", "pr-review / claude-review-status")),
+    (
+        "pr-review-security-hosted.yml",
+        ("pr-review-security / review-status", "pr-review-security / security-review"),
+    ),
 )
 HOLD_NOTICE = re.compile(
     r"claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label="
@@ -3653,7 +3657,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     notices: list[tuple[str, Any]] = []
     vetted: set[str] = set()
     ran: list[list[str]] = []
-    for file, check in REVIEW_LANES:
+    for file, checks in REVIEW_LANES:
         heads: list[str] = []
         ran.append(heads)
         runs = _paginated(
@@ -3687,7 +3691,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
             )
             for job in jobs:
                 done = parse_timestamp(job.get("completed_at"))
-                if job.get("name") != check or done is None or done >= cutoff:
+                if job.get("name") not in checks or done is None or done >= cutoff:
                     continue
                 notices += cost_notices(
                     _paginated(
