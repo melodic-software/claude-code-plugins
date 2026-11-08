@@ -782,7 +782,7 @@ For each skill/hook/agent being migrated:
 
 ## Migration order, PRs & parallelization
 
-**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
+**Foundations first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
 conventions in this playbook, the shared `lib/` source of truth
 ([ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)), and
 the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
@@ -811,7 +811,7 @@ one effort, each unit is a **swim lane**: a dedicated worktree (created under th
 identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies,
 never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
 that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
-cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
+cleanup (delete the branch, remove the worktree). A **foundations-first** unit whose contract binds
 downstream lanes lands and merges **before** the dependent lanes open, so they build on the merged
 contract rather than rediscovering it. Independent lanes run concurrently; lanes sharing a
 contract-blocking dependency wait on its merge. The shared-file conflicts above are still resolved by
@@ -1290,7 +1290,7 @@ operated by others, so surfaces 5 and 6 carry the weight here.
   A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
   been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
   Quotes there become part of the filename, so every successful fetch would have failed to open its
-  own spool. Escaped at the shell sites, raw at `Read`: one path, two renderings.
+  own spool. The path is escaped at the shell sites and raw at `Read`, so one path has two renderings.
 
   Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
