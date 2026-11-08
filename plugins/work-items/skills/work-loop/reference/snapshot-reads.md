@@ -19,6 +19,9 @@ when the reads behind it were complete.
   open ids, per the tracker seam's "Reading an item's status"
   ([`tracker-seam.md`](../../../reference/tracker-seam.md)). The drain-terminal test reads holds
   from it ([mode-drain.md](mode-drain.md)). It has no `truncated` field and is complete on exit `0`.
+- **Priority**, when more than one item was admitted: `get-statuses --field Priority` over the
+  admitted ids, for the sort in `SKILL.md` step 4. A failed or unsupported read does not abort the
+  cycle; the sort falls back to the `priority:` labels.
 
 With `--scope <label>`, both reads take `--label <label>`. Where the bound adapter filters by label
 in its provider query, the ceiling counts only scoped items, so a small scope on a large tracker

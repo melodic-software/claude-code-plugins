@@ -24,10 +24,10 @@ For each tier, emit the corresponding query:
   ```
 
   where `<where_expr>` is `<=` (current/overdue) or `>` (not-yet-due) per the tier's `where` field.
-  A schedule row carries no labels: a recurring candidate's `priority:` label is the one on its
-  open recurring item, which Step 2's cross-reference reads. Rank tiers 1 and 4 by that label
-  after Step 2, keeping this `next_due` order between equal ranks; a row with no open item has no
-  label and ranks below every labeled one.
+  A schedule row carries no priority: a recurring candidate's priority is its open recurring
+  item's, which Step 2's cross-reference reads. Rank tiers 1 and 4 by that priority after Step 2,
+  keeping this `next_due` order between equal ranks; a row with no open item has no priority and
+  ranks below every candidate with one.
 
 - **Frontier tiers (2, 3):** the seam derives the frontier (open ∧ `blocked_by_count == 0` ∧ unassigned); filter its output by the tier's category/recurring criteria core-side:
 

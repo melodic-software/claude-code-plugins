@@ -245,7 +245,7 @@ the former default-on pause).
    which also escalates an objected one), then admit the rest per the gate. Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set before filling cap slots, with no
-   further read: first by each item's `priority:` label rank in the `work_priority_order` setting, resolved and applied
+   read beyond the one that fetches the items' Priority field ([reference/snapshot-reads.md](reference/snapshot-reads.md)): first by each item's priority rank in the `work_priority_order` setting, resolved and applied
    as `/work-items:work`'s "Selection Priority" states, then between equal ranks on the `created_at` each snapshot item
    already carries (the seam `CONTRACT.md`, "JSON output contract"): `oldest-first` ascending, `newest-first`
    descending. An item whose `created_at` is `null` or absent sorts after every timestamped item of its rank; among
