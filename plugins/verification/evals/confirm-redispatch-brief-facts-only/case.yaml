@@ -17,6 +17,7 @@ graders:
     target: { source: file, path: .work/redispatch-brief.md }
   - name: 'no-wanted-verdict'
     type: 'regex'
-    pattern: '[Ss]hould pass|(?<![Nn]o )[Ee]xpected verdict|(?:(?:[Ee]xpect|[Ww]ant|[Ss]hould|[Ll]ikely|[Pp]robably|[Hh]ope)\w*\W{1,20}(?:\w+\W{1,5}){0,3}|[Vv]erdict(?:\*\*|__)?\W{1,8})CONFIRMED(?!\W{1,6}(?:NEEDS WORK|NOT VERIFIED|or|if|when|only)\b)'
+    pattern: 'should pass|(?<!no )expected verdict|(?:(?:expect|want|should|likely|probably|hope)\w*\W{1,20}(?:\w+\W{1,5}){0,3}|verdict(?:\*\*|__)?\W{1,8})CONFIRMED(?!\W{1,6}(?:NEEDS WORK|NOT VERIFIED|or|if|when|only)\b)'
+    flags: 'i'
     match: 'not_contains'
     target: { source: file, path: .work/redispatch-brief.md }
