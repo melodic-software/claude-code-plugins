@@ -111,7 +111,7 @@ test("fetch is read at call time, so a stub set after the client is built answer
 // A call answering `total` numbered items 100 a page, recording each path.
 function lister(total, key) {
   const paths = [];
-  const call = async (method, path) => {
+  const call = async (_method, path) => {
     paths.push(path);
     const page = Number(new URL(path, "https://x").searchParams.get("page"));
     const items = Array.from({ length: Math.max(0, Math.min(100, total - (page - 1) * 100)) }, (_, i) => (page - 1) * 100 + i);
