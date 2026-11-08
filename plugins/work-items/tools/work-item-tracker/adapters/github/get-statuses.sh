@@ -39,9 +39,7 @@ wit_gh_load_status_trust
 # value and no counted event may have pushed the counted setter out. Either fails the read.
 readonly FIELD_VALUE_PAGE=25
 readonly FIELD_EVENT_WINDOW=100
-# The one state a bot-setters account's value never counts for, and the job token's bot, the
-# one bot-setters entry the trust list need not hold.
-readonly PERSON_ONLY_STATE="agent-ready"
+# The job token's bot, the one bot-setters entry the trust list need not hold.
 readonly ACTIONS_BOT_ID=41898282 ACTIONS_BOT_LOGIN="github-actions[bot]"
 
 TRUST_TMP=""
@@ -67,10 +65,12 @@ fetch_repo_file() {
   fi
 }
 
-# trust_context <repo>: set CONTEXT to {field, states, people, bots} from <repo>'s trust list
-# and model: field the Work status field id, states the mapped option names, people the ids
-# that count for every state (kind human, or the lanes App's login), bots the bot-setters ids
-# that count for every state but PERSON_ONLY_STATE. Exits 3 when either file is invalid.
+# trust_context <repo>: set CONTEXT to {field, states, ready, people, bots} from <repo>'s
+# trust list and model: field the Work status field id, states the mapped option names, ready
+# the one state a bot-setters value never counts for (the model's ready-state, else
+# WIT_DEFAULT_READY_STATE), people the ids that count for every state (kind human, or the
+# lanes App's login), bots the bot-setters ids that count for every state but ready. Exits 3
+# when either file is invalid.
 trust_context() {
   local repo="$1" actors_path model_path lanes actors records
   actors_path="$(jq -r '.trusted_actors' <<<"$WIT_GH_STATUS_TRUST")"
@@ -84,12 +84,16 @@ trust_context() {
     trust_fail "$EX_CONFIG" "status_trust: $actors_path on $repo is not version 1 with a positive whole id per actor"
   records="$(wit_yaml_records "$TRUST_TMP/model.yaml" 2>&1)" ||
     trust_fail "$EX_CONFIG" "status_trust: $model_path on $repo does not parse: $(tail -n 1 <<<"$records")"
+  # shellcheck disable=SC2154  # WIT_DEFAULT_READY_STATE: lib/labels.sh, sourced through common.sh
   CONTEXT="$(jq -R -n -c --argjson actors "$actors" --arg lanes "$lanes" \
-    --argjson bot_id "$ACTIONS_BOT_ID" --arg bot_login "$ACTIONS_BOT_LOGIN" '
+    --argjson bot_id "$ACTIONS_BOT_ID" --arg bot_login "$ACTIONS_BOT_LOGIN" \
+    --arg default_ready "$WIT_DEFAULT_READY_STATE" '
     def ident: test("^[1-9][0-9]*$");
     [inputs | select(startswith("models.issue-status.")) | split("\t")
       | {key: (.[0] | ltrimstr("models.issue-status.")), value: (.[1:] | join("\t"))}] as $rows
     | ([$rows[] | select(.key == "field-id") | .value] | first // "") as $field
+    | ([$rows[] | select(.key == "ready-state") | .value] | first // "") as $ready_set
+    | (if $ready_set == "" then $default_ready else $ready_set end) as $ready
     | [$rows[] | select(.key | startswith("options.")) | {id: (.key | ltrimstr("options.")), state: .value}] as $options
     | [$rows[] | select(.key | startswith("bot-setters.")) | .key |= ltrimstr("bot-setters.")] as $setter_rows
     | (($setter_rows | length) / 2 | floor) as $count
@@ -103,9 +107,12 @@ trust_context() {
       elif ($setter_rows | map(.key) | sort) != ([range($count) | "\(.).id", "\(.).login"] | sort)
         or ($setters | length) != $count or any($setters[]; .login == "" or (.id | ident | not))
       then {error: "bot-setters is not a list of {id, login}"}
+      elif $ready_set != "" and ([$options[].state] | index($ready_set) | not)
+      then {error: "ready-state names a state no option maps"}
       else {
         field: $field,
         states: ($options | map(.state)),
+        ready: $ready,
         people: [$actors[] | select(.kind == "human" or .login == $lanes) | .id],
         bots: [$setters[] | (.id | tonumber) as $id | .login as $login
           | select(($id == $bot_id and $login == $bot_login)
@@ -149,7 +156,7 @@ readonly TRUST_WALK_JQ='
                      elif .__typename == "IssueFieldChangedEvent" then .newValue else .value end)}
           | select((.setter | type) == "number"
               and ((.setter | listed($ctx.people))
-                or ((.setter | listed($ctx.bots)) and .state != $person_only)))] as $counted
+                or ((.setter | listed($ctx.bots)) and .state != $ctx.ready)))] as $counted
       | if ($counted | length) > 0 then
           $counted[0].state as $state
           | if $state != null and ($state | listed($ctx.states) | not)
@@ -199,8 +206,7 @@ while IFS= read -r group; do
         <<<"$WIT_GH_OUT")"
     else
       page="$(jq -c --argjson chunk "$chunk" --argjson ctx "$CONTEXT" --argjson page "$FIELD_VALUE_PAGE" \
-        --argjson window "$FIELD_EVENT_WINDOW" --arg person_only "$PERSON_ONLY_STATE" \
-        "$TRUST_WALK_JQ" <<<"$WIT_GH_OUT")"
+        --argjson window "$FIELD_EVENT_WINDOW" "$TRUST_WALK_JQ" <<<"$WIT_GH_OUT")"
     fi || {
       echo "get-statuses: the field value answer for $repo is not JSON" >&2
       exit "$EX_INTERNAL"

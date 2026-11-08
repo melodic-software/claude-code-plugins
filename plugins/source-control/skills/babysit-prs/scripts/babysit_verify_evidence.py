@@ -5065,13 +5065,15 @@ def capped_close_bodies(
     attempt: tuple[int, int] | None,
     parked: bool,
     held: str | None = None,
+    admission: str = AGENT_READY,
 ) -> tuple[str, str | None]:
     """The comment on the closed pull request and, with an issue, the one on
     that issue: the marker first, then what happened and every FAIL's
     findings. For `NOT_CONVERGING`, `detail` is the lane-stopped comment's
     URL, which lists the open review threads the fresh attempt starts from.
-    `held` is the Work status hold a re-read found right before the park.
-    A function of its arguments only, so a rerun renders the same."""
+    `held` is the Work status hold a re-read found right before the park;
+    `admission` is the tracker's admission label. A function of its
+    arguments only, so a rerun renders the same."""
     heads = sorted({str(e["head"]) for e in findings})
     why = f" ({_inert(detail)})" if detail else ""
     stop = (
@@ -5092,12 +5094,12 @@ def capped_close_bodies(
     elif held is not None:
         next_step = (
             f"Issue #{issue} is held at Work status `{held}`, so it is not parked; it has "
-            f"used its fresh attempts, so `{AGENT_READY}` comes off and no new attempt "
+            f"used its fresh attempts, so `{admission}` comes off and no new attempt "
             "starts: whoever set the hold decides what comes next."
         )
     elif attempt is None:
         next_step = (
-            f"Issue #{issue} did not carry `{AGENT_READY}` when the lane read it, so "
+            f"Issue #{issue} did not carry `{admission}` when the lane read it, so "
             "no fresh attempt starts: whoever took it off decides what comes next."
         )
     elif parked:
@@ -5108,7 +5110,7 @@ def capped_close_bodies(
         )
     else:
         next_step = (
-            f"Issue #{issue} goes back to `{AGENT_READY}` for fresh attempt "
+            f"Issue #{issue} goes back to `{admission}` for fresh attempt "
             f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
             + (
                 f"which starts from {stop}."
@@ -5176,10 +5178,13 @@ def _capped_record(
 
 
 def _lane_removals(
-    events: list[dict[str, Any]], identity: str, since: datetime
+    events: list[dict[str, Any]],
+    identity: str,
+    since: datetime,
+    admission: str = AGENT_READY,
 ) -> tuple[bool, bool]:
     """Among the issue's REST `events`, whether the lanes App removed
-    `agent-ready` at or after its record (`since`; times have one-second
+    the `admission` label at or after its record (`since`; times have one-second
     resolution, and the record and the removal land in the same second), and
     whether the newest removal is such a one: the removal an earlier run made
     for the fresh attempt and could not undo."""
@@ -5189,7 +5194,7 @@ def _lane_removals(
             for e in map(json_object, events)
             if e.get("event") == "unlabeled"
             and str(json_object(e.get("label")).get("name") or "").lower()
-            == AGENT_READY
+            == admission.lower()
         ),
         key=lambda e: postmerge._time(e.get("created_at")),
     )
@@ -5251,10 +5256,13 @@ def capped_close(
     issue_holds: tuple[str, ...] = (),
     issue_status: merge_policy.IssueStatusConfig | None = None,
     reason: str = CLOSE_VERIFY,
+    admission: str = AGENT_READY,
 ) -> dict[str, Any]:
     """Close a lanes App pull request the verifier refuses for good
     (`VERIFY_FINAL`) at `head`, judged again here, for a fresh attempt at its
-    issue (owner decision 2026-10-29; no person's label on this path). With
+    issue (owner decision 2026-10-29; no person's label on this path).
+    `agent-ready` below is `admission`, the tracker's admission label, and the
+    Work status agent-ready is `issue_status.ready_state`. With
     `reason` `NOT_CONVERGING` it closes instead one whose review rounds the
     pr-unblock lane stopped as not converging at `head`, judged again here
     from the lanes App's lane-stopped comment (`not_converging_stop`), the
@@ -5336,6 +5344,9 @@ def capped_close(
     read_status = issue_status and merge_policy.issue_status_reader(
         reader.repo, issue_status, reader.branch
     )
+    hold_states = (
+        issue_status.hold_states if issue_status else merge_policy.HOLD_STATES
+    )
 
     # Each issue's Work status from the hold read, for the park below.
     states: dict[int, str | None] = {}
@@ -5350,7 +5361,7 @@ def capped_close(
     for node in live.values():
         if (
             refused := merge_policy.issue_hold_refusal(
-                node, issue_holds, read_status and status
+                node, issue_holds, read_status and status, hold_states
             )
         ) is not None:
             return {"closed": False, "reason": refused}
@@ -5395,7 +5406,7 @@ def capped_close(
             f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
         )
         found = _capped_record(comments, identity, number)
-        carried = AGENT_READY in (
+        carried = admission.lower() in (
             label.lower() for label in merge_policy._label_names(live[issue]) or []
         )
         if found is not None and found[0][3] is not None:
@@ -5416,7 +5427,7 @@ def capped_close(
                     states.get(issue) == STATUS_FIELD_CONFIRMED
                     if issue_status is not None
                     else STATUS_CONFIRMED in names
-                    and not names & {STATUS_READY, AGENT_READY}
+                    and not names & {STATUS_READY, admission.lower()}
                 )
                 labels = "none" if done else "park"
             elif issue_status is not None:
@@ -5430,7 +5441,7 @@ def capped_close(
                         issue,
                         issue_status,
                         identity,
-                        merge_policy.AGENT_READY_STATE,
+                        issue_status.ready_state,
                         since,
                     )
                 except merge_policy.PolicyReadError as exc:
@@ -5438,7 +5449,7 @@ def capped_close(
                 labels = (
                     "none"
                     if restarted
-                    or states.get(issue) not in (None, merge_policy.AGENT_READY_STATE)
+                    or states.get(issue) not in (None, issue_status.ready_state)
                     else "toggle"
                 )
             else:
@@ -5449,6 +5460,7 @@ def capped_close(
                     ),
                     identity,
                     since,
+                    admission,
                 )
                 if carried:
                     # No removal since the record: the run stopped before it,
@@ -5477,7 +5489,7 @@ def capped_close(
     held: dict[int, str] = {}
     for i, (issue, comments, _, _, labels) in enumerate(plan):
         if labels == "park" and read_status:
-            if (state := status(issue)) in merge_policy.HOLD_STATES:
+            if (state := status(issue)) in hold_states:
                 held[issue] = str(state)
                 plan[i] = (issue, comments, None, False, "none")
     first = plan[0] if plan else None
@@ -5491,7 +5503,9 @@ def capped_close(
         first[2] if first else None,
         first[3] if first else False,
         held.get(first[0]) if first else None,
+        admission,
     )
+    admission_path = urllib.parse.quote(admission, safe="")
     if pr_record is None:
         _gh_write(
             [
@@ -5515,14 +5529,15 @@ def capped_close(
             attempt,
             parked,
             held.get(issue),
+            admission,
         )
         base = f"repos/{repo}/issues/{issue}/labels"
         if issue in held and issue_status is None:
             # At the cap: no attempt restarts when the hold clears. Before the
             # record, since a rerun that finds the record writes no labels.
             _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
-                f"#{issue} {AGENT_READY}",
+                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
+                f"#{issue} {admission}",
                 missing_ok=True,
             )
         if _marked(comments, identity, number) is None:
@@ -5572,24 +5587,24 @@ def capped_close(
                 missing_ok=True,
             )
             postmerge.set_issue_status(
-                repo, issue, issue_status, merge_policy.AGENT_READY_STATE
+                repo, issue, issue_status, issue_status.ready_state
             )
             continue
         if labels != "add":
             _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{AGENT_READY}"],
-                f"#{issue} {AGENT_READY}",
+                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
+                f"#{issue} {admission}",
                 missing_ok=True,
             )
         if parked:
             continue
-        args = ["api", "-X", "POST", base, "-f", f"labels[]={AGENT_READY}"]
+        args = ["api", "-X", "POST", base, "-f", f"labels[]={admission}"]
         try:
-            _gh_write(args, f"#{issue} {AGENT_READY}")
+            _gh_write(args, f"#{issue} {admission}")
         except RuntimeError:
             _gh_write(
                 args,
-                f"#{issue} {AGENT_READY} was removed for a fresh attempt but not added back",
+                f"#{issue} {admission} was removed for a fresh attempt but not added back",
             )
     _gh_write(
         ["api", "-X", "PATCH", f"repos/{repo}/pulls/{number}", "-f", "state=closed"],
@@ -5632,6 +5647,15 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
             if config.issue_holds
             else postmerge._role_label(owner, name, strict=True),
         )
+        # The label a fresh attempt restarts with: the tracker's admission
+        # role label (`merge_policy.admission_label`), passed when remapped.
+        admission = postmerge._role_label(
+            owner,
+            name,
+            strict=True,
+            role=merge_policy.ADMISSION_ROLE,
+            default=AGENT_READY,
+        )
         result = capped_close(
             reader,
             args.number,
@@ -5647,6 +5671,7 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
                 )
                 else {}
             ),
+            **({"admission": admission} if admission != AGENT_READY else {}),
         )
     except (
         RuntimeError,

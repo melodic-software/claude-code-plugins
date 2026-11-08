@@ -579,6 +579,19 @@ class LeavesItAlone(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
 
+def role_label(
+    owner: str,
+    name: str,
+    *,
+    strict: bool = False,
+    role: str = "human-gated",
+    default: str = "needs-human",
+) -> str:
+    """`postmerge._role_label` for a binding that maps only the human-gated
+    role, to needs-human: every other role reads its default."""
+    return "needs-human" if role == "human-gated" else default
+
+
 class TheCommand(unittest.TestCase):
     """`capped-close`, which enable-auto-merge.mjs pythonClose runs."""
 
@@ -612,7 +625,7 @@ class TheCommand(unittest.TestCase):
             mock.patch.object(
                 ve.merge_policy, "with_default_branch", return_value=config
             ),
-            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(ve.postmerge, "_role_label", side_effect=role_label),
             mock.patch.object(
                 ve, "capped_close", return_value={"closed": True}
             ) as close,
@@ -637,13 +650,41 @@ class TheCommand(unittest.TestCase):
             mock.patch.object(
                 ve.merge_policy, "with_default_branch", return_value=config
             ),
-            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(ve.postmerge, "_role_label", side_effect=role_label),
             mock.patch.object(
                 ve, "capped_close", return_value={"closed": True}
             ) as close,
         ):
             self.main("--reason", ve.NOT_CONVERGING)
         self.assertEqual(close.call_args.kwargs["reason"], ve.NOT_CONVERGING)
+
+    def test_a_remapped_admission_label_reaches_the_close(self) -> None:
+        config = mock.Mock(
+            error=None,
+            max_verify_fails=3,
+            agent_identity=BOT,
+            verify_cap_attempts=2,
+            issue_holds=("needs-human",),
+            issue_status=None,
+        )
+        with (
+            mock.patch.object(ve.merge_policy, "config_at", return_value=config),
+            mock.patch.object(
+                ve.merge_policy, "with_default_branch", return_value=config
+            ),
+            mock.patch.object(
+                ve.postmerge,
+                "_role_label",
+                side_effect=lambda *_, role="human-gated", **__: (
+                    "go" if role == ve.merge_policy.ADMISSION_ROLE else "needs-human"
+                ),
+            ),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": True}
+            ) as close,
+        ):
+            self.main()
+        self.assertEqual(close.call_args.kwargs["admission"], "go")
 
     def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
         with mock.patch.object(

@@ -6011,8 +6011,14 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
-        # The tracker binding's human-gated role label (`babysit_tracker_binding`).
-        self.role_label = mock.Mock(return_value="needs-human")
+        # The tracker binding's human-gated role label (`babysit_tracker_binding`);
+        # every other role reads its default.
+        self.human_gated = "needs-human"
+        self.role_label = mock.Mock(
+            side_effect=lambda *_, role="human-gated", default="needs-human", **__: (
+                self.human_gated if role == "human-gated" else default
+            )
+        )
         patcher = mock.patch.object(postmerge, "_role_label", self.role_label)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -6129,7 +6135,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.assertEqual(call.kwargs.get("max_fails"), 5)
 
     def test_the_label_is_the_trackers_human_gated_role(self) -> None:
-        self.role_label.return_value = "status: needs-decision"
+        self.human_gated = "status: needs-decision"
         self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.lane()
         self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])

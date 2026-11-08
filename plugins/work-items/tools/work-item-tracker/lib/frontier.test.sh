@@ -230,6 +230,20 @@ MIRRORED='{"schema_version":"1.0","items":[
 assert_eq "a mirroring field changes no frontier answer" \
   "$(jq -c '.items |= map(del(.status))' <<<"$MIRRORED" | frontier_ids true)" "$(frontier_ids true <<<"$MIRRORED")"
 
+# --- the binding's hold lists and wayfind prefix replace the defaults ---
+CONFIGURED='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["status: needs-decision"],"blocked_by_count":0},
+  {"id":"github:o/r#2","state":"open","assignees":[],"labels":["on hold"],"blocked_by_count":0},
+  {"id":"github:o/r#3","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"needs-human"},
+  {"id":"github:o/r#4","state":"open","assignees":[],"labels":[],"blocked_by_count":0,"status":"parked"},
+  {"id":"github:o/r#5","state":"open","assignees":[],"labels":["parked"],"blocked_by_count":0,"status":"parked"},
+  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["wayfind: task"],"blocked_by_count":0},
+  {"id":"github:o/r#7","state":"open","assignees":[],"labels":["map: task"],"blocked_by_count":0}]}'
+assert_eq "configured hold lists and wayfind prefix decide the autonomous frontier" \
+  "github:o/r#1,github:o/r#3,github:o/r#5,github:o/r#6" \
+  "$(WIT_HOLD_LABELS_JSON='["on hold"]' WIT_HOLD_STATES_JSON='["parked"]' \
+    WIT_HOLD_STATE_LABELS_JSON='["parked"]' WIT_WAYFIND_PREFIX='map:' frontier_ids true <<<"$CONFIGURED")"
+
 # --- wit_filter_label: exact label match, envelope keys untouched ---
 LABELED='{"schema_version":"1.0","truncated":true,"items":[
   {"id":"github:o/r#1","labels":["area: ci"]},

@@ -186,7 +186,8 @@ value (named by file, key and value; the personal override when it set the value
   `config.gitea.auth_env` (auth identity is per-account, and each of those adapters reads its
   credential from the merged view), and the self-describing `docs`
   pointer. Everything else is shared coordination state and team-layer-only: `provider`,
-  `config.role_labels`, `config.container_label`, `config.storage_dir`,
+  `config.role_labels`, `config.container_label`, the hold lists (`config.hold_labels`,
+  `config.hold_states`, `config.hold_state_labels`), `config.wayfind_label_prefix`, `config.storage_dir`,
   `config.jira.site`/`project_keys`, the JQL-shaping keys, and the won't-do classifiers
   `config.jira.resolutions` and `config.github.wont_do_labels`. A personal override value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge, including a
@@ -378,17 +379,20 @@ ceiling stays truncated after the filter, because a labeled item may sit past th
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
 blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
-"Containers and state") AND no label starting `wayfind:` (a wayfind map item belongs to
+"Containers and state") AND no label starting with the wayfind prefix (`config.wayfind_label_prefix`,
+default `wayfind:`; a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
 `needs-human` are additionally excluded, as are items carrying the **human-floor class**
 label `provenance: untrusted` (C5; its legacy name is in [`work-class-labels.md`](../../reference/work-class-labels.md)) or the
-`provenance: signal` label, which are human-gated regardless of any other signal, and items labeled `status: needs-decision`,
-`status: needs-info` or `needs-spec`, which wait on a person. When `status-storage` reports
+`provenance: signal` label, which are human-gated regardless of any other signal, and items carrying a hold label
+(`config.hold_labels`, default the `owner-decision` role label, `status: needs-info` and `needs-spec`),
+which wait on a person. When `status-storage` reports
 `field` and the adapter declares `get-statuses`, core reads the `Work status` of each open,
 unblocked, unassigned item and puts it on the item as `status`. The field can only add a hold:
-an item whose `status` is `needs-human`, `needs-owner-decision`, `needs-reporter-info` or
-`needs-spec`, and that carries none of those states' labels (`needs-human`,
-`status: needs-decision`, `needs-owner-decision`, `status: needs-info`, `needs-spec`), is held
+an item whose `status` is a hold state (`config.hold_states`, default `needs-human`,
+`needs-owner-decision`, `needs-reporter-info` and `needs-spec`), and that carries none of those
+states' labels (the `human-gated` role label plus `config.hold_state_labels`, default `needs-human`,
+the `owner-decision` role label, `needs-owner-decision`, `status: needs-info` and `needs-spec`), is held
 too, and the labels decide everything else, since labels are written first
 and reach the field afterwards. Core checks no setter; it takes each value `get-statuses` answers,
 which counts only trusted setters when the binding configures that (`get-statuses` above). A `get-statuses` read that fails, or a `status-storage`

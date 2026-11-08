@@ -179,8 +179,24 @@
             "role_labels": {
               "type": "object",
               "additionalProperties": { "type": "string" },
-              "description": "Canonical role to label remaps (human-gated, autonomous-eligible, recurring-maintenance); an absent or empty value keeps the default label."
+              "description": "Canonical role to label remaps (human-gated, autonomous-eligible, recurring-maintenance, owner-decision); an absent or empty value keeps the default label."
             },
+            "hold_labels": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Labels that keep an item off the autonomous frontier. Absent or empty: the owner-decision role label, status: needs-info, needs-spec."
+            },
+            "hold_states": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Work status field states that keep an item off the autonomous frontier. Absent or empty: needs-human, needs-owner-decision, needs-reporter-info, needs-spec."
+            },
+            "hold_state_labels": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Labels of the hold states: an item carrying one has its hold decided by its labels, so its Work status adds none. Absent or empty: needs-human, the owner-decision role label, needs-owner-decision, status: needs-info, needs-spec."
+            },
+            "wayfind_label_prefix": { "type": "string", "description": "The label prefix that marks /planning:wayfind map items, which no frontier lists. Absent or empty: wayfind:." },
             "github": { "type": "object" },
             "jira": { "type": "object" },
             "linear": { "type": "object" },

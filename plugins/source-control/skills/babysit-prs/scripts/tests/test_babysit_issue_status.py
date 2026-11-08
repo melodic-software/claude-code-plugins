@@ -484,6 +484,55 @@ class TheConfigBlock(unittest.TestCase):
             small,
         )
 
+    def test_the_block_names_its_hold_and_ready_states_else_the_defaults(self) -> None:
+        self.assertEqual(
+            (live_config().hold_states, live_config().ready_state),
+            (policy.HOLD_STATES, policy.READY_STATE),
+        )
+        rows = {
+            "field-id": "7",
+            "options.1": "a",
+            "options.2": "b",
+            "options.3": "c",
+            "labels.a.0": "x",
+            "labels.b.0": "y",
+            "labels.c.0": "z",
+            "order.0": "a",
+            "order.1": "b",
+            "order.2": "c",
+            "hold-states.0": "a",
+            "ready-state": "b",
+        }
+        status = policy._issue_status_rows(rows)
+        self.assertIsNone(status.error)
+        self.assertEqual((status.hold_states, status.ready_state), (("a",), "b"))
+        self.assertEqual(
+            policy.status_label_names("c", ["x", "y", "w"], status), ["x", "y", "w", "z"]
+        )
+        issue = issue_node(labels=[])
+        reader = policy.IssueStatusReader(REPO, status)
+        for state, want in (("a", "closing-issue-held:a"), ("needs-human", None)):
+            with (
+                self.subTest(state),
+                mock.patch.object(
+                    policy,
+                    "_default_branch_config",
+                    return_value=mock.Mock(base_sha=MAIN),
+                ),
+                mock.patch.object(policy, "issue_status", return_value=state),
+            ):
+                self.assertEqual(
+                    policy.issue_hold_refusal(issue, ISSUE_HOLDS, reader), want
+                )
+        for bad in (
+            {"hold-states": "a"},
+            {"ready-state.0": "b"},
+            {"hold-states.1": "unmapped"},
+            {"ready-state": "unmapped"},
+        ):
+            with self.subTest(bad):
+                self.assertTrue(policy._issue_status_rows({**rows, **bad}).error)
+
     def test_a_saved_config_round_trips_the_block_and_rejects_a_bad_one(self) -> None:
         config = policy.PipelineConfig(
             SHA, "C2", "pr-merge", IDENTITY, None, (), None, issue_status=live_config()

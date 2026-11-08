@@ -2852,6 +2852,15 @@ EOF
   OUT_ESC_KEY="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
   assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "work-items.yaml could not be parsed"
   assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
+  # The tracker binding's owner-decision role label is the decision label; the flag beats it.
+  mkdir -p "$TMP/cfg-decision"
+  printf 'tracker:\n  config:\n    role_labels:\n      owner-decision: needs-owner-decision\n' >"$TMP/cfg-decision/work-items.yaml"
+  assert_contains "decision label: the binding's owner-decision role label names it" \
+    "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-decision" 2>&1)" \
+    "== Parked decisions (needs-owner-decision) with RECOMMENDED lines =="
+  assert_contains "decision label: the flag beats the binding" \
+    "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-decision" --decision-label decide 2>&1)" \
+    "== Parked decisions (decide) with RECOMMENDED lines =="
 fi
 
 # --- Work status: the field value places an issue, else its labels ------------

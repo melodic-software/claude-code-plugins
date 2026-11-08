@@ -1020,6 +1020,17 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/name" },
           "description": "Every state once, first match first; the last is needs-triage, what an issue with no state label collapses to."
+        },
+        "hold-states": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/name" },
+          "description": "The states that hold an issue for a person, as the source-control babysit scripts and /work-items:morning-brief read them. Unset: needs-human, needs-owner-decision, needs-reporter-info and needs-spec. This repository's lane config reader does not read it."
+        },
+        "ready-state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The state that admits an issue to an autonomous lane, the one a bot-setters value never counts for, as the babysit scripts, the work-items GitHub adapter's Work status trust and /work-items:morning-brief read it. Unset: agent-ready. This repository's lane config reader does not read it."
         }
       }
     },

@@ -229,6 +229,36 @@ wit_role_label() {
   printf '%s\n' "${configured:-$3}"
 }
 
+# wit_config_list <binding-json> <key> <default-json>: config.<key> as one JSON array,
+# or <default-json> (an array) when it is absent or empty. Fails on a present value that
+# is not a list of non-empty strings.
+wit_config_list() {
+  jq -c -e --arg k "$2" --argjson default "$3" '.config[$k]
+    | if . == null or . == [] then $default
+      elif type == "array" and all(.[]; type == "string" and length > 0) then .
+      else false end' <<<"$1" 2>/dev/null
+}
+
+# wit_config_text <binding-json> <key> <default>: config.<key>, or <default> when it is
+# absent or empty. Fails on a present value that is not a string.
+wit_config_text() {
+  local value
+  value="$(jq -r -e --arg k "$2" '.config[$k]
+    | if . == null then "" elif type == "string" then . else error("not a string") end' <<<"$1" 2>/dev/null)" ||
+    return 1
+  printf '%s\n' "${value:-$3}"
+}
+
+# wit_with_owner_decision <label> <default>...: the defaults as one JSON array, with the
+# shipped owner-decision label replaced by <label>, so a role remap reaches the hold
+# label defaults.
+wit_with_owner_decision() {
+  local label="$1"
+  shift
+  jq -n -c --arg from "$WIT_DEFAULT_OWNER_DECISION_LABEL" --arg to "$label" \
+    '$ARGS.positional | map(if . == $from then $to else . end)' --args "$@"
+}
+
 # wit_invalid <path> <key> <value>: name the file (the personal override when it sets
 # the key), key and value of a rejected binding value on stderr (ADR 0075 "The
 # invalid-value rule"), and fail.
@@ -260,6 +290,7 @@ wit_storage_root() {
 # lease_ttl_hours is REQUIRED: defaults live in the binding, never in code.
 wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container container_type minutes
+  local owner_decision hold_labels hold_states hold_state_labels wayfind
   json="$(wit_effective_binding_json "$path")" || return 1
   if [[ "$path" == */"$WIT_LEGACY_BINDING" && "$path" != "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
     printf 'work-item-tracker: notice: read the legacy binding %s; move it under tracker: in <home>/work-items.yaml (CONTRACT.md "Setup (binding file)")\n' "$path" >&2
@@ -295,6 +326,20 @@ wit_read_binding() {
     { wit_invalid "$path" config.container_label "$(jq -c '.config.container_label' <<<"$json")"; return 1; }
   container="$(jq -r '.config.container_label // empty' <<<"$json")"
   container="${container:-$WIT_DEFAULT_CONTAINER_LABEL}"
+  owner_decision="$(wit_role_label "$json" "owner-decision" "$WIT_DEFAULT_OWNER_DECISION_LABEL")"
+  # The hold lists and the wayfind prefix: absent or empty keeps the lib/labels.sh
+  # default; a present value of the wrong shape is a config error, never a fallback.
+  hold_labels="$(wit_config_list "$json" hold_labels \
+    "$(wit_with_owner_decision "$owner_decision" "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")")" ||
+    { wit_invalid "$path" config.hold_labels "$(jq -c '.config.hold_labels' <<<"$json")"; return 1; }
+  hold_states="$(wit_config_list "$json" hold_states \
+    "$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_STATUS_STATES[@]}")")" ||
+    { wit_invalid "$path" config.hold_states "$(jq -c '.config.hold_states' <<<"$json")"; return 1; }
+  hold_state_labels="$(wit_config_list "$json" hold_state_labels \
+    "$(wit_with_owner_decision "$owner_decision" "${WIT_HOLD_STATE_LABELS[@]}")")" ||
+    { wit_invalid "$path" config.hold_state_labels "$(jq -c '.config.hold_state_labels' <<<"$json")"; return 1; }
+  wayfind="$(wit_config_text "$json" wayfind_label_prefix "$WIT_WAYFIND_LABEL_PREFIX")" ||
+    { wit_invalid "$path" config.wayfind_label_prefix "$(jq -c '.config.wayfind_label_prefix' <<<"$json")"; return 1; }
   WIT_PROVIDER="$provider"
   WIT_LEASE_TTL_HOURS="$ttl"
   WIT_LEASE_TTL_MINUTES="$minutes"
@@ -303,6 +348,13 @@ wit_read_binding() {
   WIT_AUTONOMOUS_ELIGIBLE_LABEL="$autonomous_eligible"
   WIT_RECURRING_MAINTENANCE_LABEL="$recurring_maintenance"
   WIT_CONTAINER_LABEL="$container"
+  WIT_OWNER_DECISION_LABEL="$owner_decision"
+  WIT_HOLD_LABELS_JSON="$hold_labels"
+  WIT_HOLD_STATES_JSON="$hold_states"
+  WIT_HOLD_STATE_LABELS_JSON="$hold_state_labels"
+  WIT_WAYFIND_PREFIX="$wayfind"
   export WIT_PROVIDER WIT_LEASE_TTL_HOURS WIT_LEASE_TTL_MINUTES WIT_STORAGE_DIR WIT_HUMAN_GATED_LABEL \
-    WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL WIT_CONTAINER_LABEL
+    WIT_AUTONOMOUS_ELIGIBLE_LABEL WIT_RECURRING_MAINTENANCE_LABEL WIT_CONTAINER_LABEL \
+    WIT_OWNER_DECISION_LABEL WIT_HOLD_LABELS_JSON WIT_HOLD_STATES_JSON WIT_HOLD_STATE_LABELS_JSON \
+    WIT_WAYFIND_PREFIX
 }

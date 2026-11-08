@@ -4058,6 +4058,14 @@ def close_capped(
         return {"closed": False, "reason": f"held: {hold}"}
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     label = human_gated_label(repo)
+    owner, _, name = repo.partition("/")
+    admission = postmerge._role_label(
+        owner,
+        name,
+        strict=True,
+        role=merge_policy.ADMISSION_ROLE,
+        default=verify_evidence.AGENT_READY,
+    )
     reader = verify_evidence.Reader(
         repo,
         branch,
@@ -4072,6 +4080,11 @@ def close_capped(
         holds=("do-not-merge", label),
         issue_holds=merge_policy.issue_hold_labels(config, label),
         **({"issue_status": config.issue_status} if config.issue_status else {}),
+        **(
+            {"admission": admission}
+            if admission != verify_evidence.AGENT_READY
+            else {}
+        ),
     )
 
 
