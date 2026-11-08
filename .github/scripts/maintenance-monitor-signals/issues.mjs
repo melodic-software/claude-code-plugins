@@ -227,6 +227,7 @@ export function planIssues({ findings, existing, unread = new Set(), rules, epis
     } else if (
       match &&
       match.marker.fingerprint === stateFingerprint(family.findings) &&
+      Date.parse(onSince) <= Date.parse(match.issue.closed_at) &&
       !family.findings.some((f) => Date.parse(f.observedAt) > Date.parse(match.issue.closed_at))
     ) {
       skip("closed-unchanged", `on, unchanged since #${number} was closed`);

@@ -200,10 +200,21 @@ test("a later episode after the lane closed one files a new incident, and only o
 test("a person's completed close with the same keys holds until a finding is newer than the close", () => {
   const f = { ...findingFor([1]), observedAt: "2026-10-19T15:00:00Z" };
   const closed = [issueFrom([f], 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-19T16:00:00Z" })];
-  const same = plan({ findings: [f], existing: closed });
+  const episodes = { [THROTTLING]: { onSince: "2026-10-19T14:00:00Z", clearSince: null } };
+  const same = plan({ findings: [f], existing: closed, episodes });
   assert.deepEqual(same.file, []);
   assert.deepEqual(same.skip, [{ family: "throttling", number: 30, reason: "closed-unchanged" }]);
-  assert.equal(plan({ findings: [{ ...f, observedAt: "2026-10-19T16:30:00Z" }], existing: closed }).file.length, 1);
+  assert.equal(plan({ findings: [{ ...f, observedAt: "2026-10-19T16:30:00Z" }], existing: closed, episodes }).file.length, 1);
+});
+
+test("a person's completed close holds only for the episode it closed, when findings carry no time", () => {
+  const f = findingFor([1]);
+  assert.equal(f.observedAt, null);
+  const closed = [issueFrom([f], 30, { state: "closed", state_reason: "completed", closed_at: hoursAgo(10) })];
+  const held = plan({ findings: [f], existing: closed, episodes: { [THROTTLING]: { onSince: hoursAgo(12), clearSince: null } } });
+  assert.deepEqual(held.skip, [{ family: "throttling", number: 30, reason: "closed-unchanged" }]);
+  const later = plan({ findings: [f], existing: closed, episodes: { [THROTTLING]: { onSince: hoursAgo(2), clearSince: null } } });
+  assert.equal(later.file.length, 1);
 });
 
 test("closing as not planned or duplicate mutes the signal, and the newest incident decides", () => {
