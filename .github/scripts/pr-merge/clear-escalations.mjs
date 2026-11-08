@@ -498,15 +498,14 @@ async function checksHeld(read, repo, head) {
 
 // The review lanes reviewLanesClean reads, as pr-require-checks.yml's
 // `Require both review lanes on this head` step names them: the workflow, the
-// lane its completion record names, its status job's names (pr-review-cli.yml's,
-// then the one it gave before ci-workflows#866), and whether only a whole
-// review counts.
+// lane its completion record names, its status job's names (as pr-review-cli.yml
+// names it), and whether only a whole review counts.
 const LANE_RECORDS = Object.freeze([
-  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: ["pr-review / review-status", "pr-review / claude-review-status"], whole: false },
+  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: ["pr-review / review-status"], whole: false },
   {
     file: "pr-review-security-hosted.yml",
     lane: "claude-security-review",
-    jobs: ["pr-review-security / review-status", "pr-review-security / security-review"],
+    jobs: ["pr-review-security / review-status"],
     whole: true,
   },
 ]);
