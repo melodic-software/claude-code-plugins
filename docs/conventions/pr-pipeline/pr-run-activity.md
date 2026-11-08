@@ -391,7 +391,7 @@ Both files also output the lane record of a skill run: `record`, the lane-outcom
 execution file after the skill, naming the credential the leg ran on, or for a read leg that
 failed before the launcher named it (a CLI install), the secret the call was given. The report job
 passes it to `report-check-run`, which validates its known fields, adds `activity`, and writes it
-as the first line of the posted check run's `output.text` after the marker `lane-outcome `. Every
+as the first line of the posted check run's `output.text` after the `lane-outcome` marker. Every
 check it posts, with a record or without, carries `external_id`
 `<lane>:<activity>:<run id>:<run attempt>`, the one field that names the posting run: GitHub
 returns the check's `details_url` as the check run's own page. A failed run whose record's `class`
