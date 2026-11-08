@@ -230,6 +230,11 @@ function lanesStatus(node) {
 // The ci-lanes state when the GitHub Actions bot set it, else null: the
 // lanes' verdict alone. ci-status itself also fails on a hold label, a
 // pending or missing review and the PR contract, none of which a CI fix mends.
+function lanesState(node) {
+  const status = lanesStatus(node);
+  return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
+}
+
 // The pr-unblock/fix-ci status that still fails on a head with nothing left to
 // fix, else null: a lanes App PR, not a draft, held by no label, whose ci-lanes
 // passed and whose whole rollup lists every check run completed and none
@@ -262,12 +267,7 @@ export function staleStop(node, { base, appSenderId, holdLabels, gateLabel }) {
       context.creator?.__typename === "Bot" &&
       context.creator.databaseId === ACTIONS_BOT_ID,
   );
-  return stop?.state === "FAILURE" || stop?.state === "ERROR" ? stop : null;
-}
-
-function lanesState(node) {
-  const status = lanesStatus(node);
-  return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
+  return failedState(stop?.state) ? stop : null;
 }
 
 const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
@@ -524,8 +524,29 @@ export async function dispatchCiFixes({
     return { dispatched, failed };
   }
   // Every dispatch call counts against the cap: one that failed or returned no
-  // usable id may still have started a run.
+  // usable id may still have started a run. cause() names why, for the log.
   let sent = 0;
+  const send = async (node, cause) => {
+    sent += 1;
+    try {
+      const { workflowRunId } = await api.dispatchWorkflow({
+        workflow,
+        ref: `refs/heads/${base}`,
+        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+      });
+      const id = String(workflowRunId);
+      if (!RUN_ID.test(id)) {
+        failed += 1;
+        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
+        return;
+      }
+      dispatched.push({ number: node.number, workflowRunId: id });
+      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${cause()})`);
+    } catch (error) {
+      failed += 1;
+      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
+    }
+  };
   for (const node of candidates) {
     const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
     if (inFlight) {
@@ -659,26 +680,8 @@ export async function dispatchCiFixes({
     if (fixCiRuns.some((run) => run.conclusion === "NEUTRAL" && run.title === HEAD_LAG_STOP)) {
       log(`refire: #${node.number}: head ${node.headRefOid}'s ${checkName} was stopped head-lag; sending it again`);
     }
-    sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      const limit = timeLimited.length > 0 ? `, time limit in ${timeLimited.join(", ")}` : "";
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: ${failureCause(requiredRun, now)}${limit})`);
-    } catch (error) {
-      failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
-    }
+    const limit = timeLimited.length > 0 ? `, time limit in ${timeLimited.join(", ")}` : "";
+    await send(node, () => `${failureCause(requiredRun, now)}${limit}`);
   }
   // Once per stop: a fix-ci run for the PR created after the failing status
   // holds the head.
@@ -693,25 +696,7 @@ export async function dispatchCiFixes({
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
       continue;
     }
-    sent += 1;
-    try {
-      const { workflowRunId } = await api.dispatchWorkflow({
-        workflow,
-        ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
-      });
-      const id = String(workflowRunId);
-      if (!RUN_ID.test(id)) {
-        failed += 1;
-        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
-        continue;
-      }
-      dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id} (cause: a fix-ci stop with nothing left failing)`);
-    } catch (error) {
-      failed += 1;
-      log(`::error::#${node.number}: dispatch failed: ${error.message}`);
-    }
+    await send(node, () => "a fix-ci stop with nothing left failing");
   }
   return { dispatched, failed };
 }
