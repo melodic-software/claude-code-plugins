@@ -5,10 +5,11 @@ description: >
   born-triaged marker, its author is a listed human or the lanes App (by
   numeric id), and it has an Issue Type and a status (a Work status field a
   trusted account set, or a status label). Re-reads the issue for up to about
-  25 seconds while only the type or status is missing. Fails when resolve-config's dependencies do not install or the
-  Work status field cannot be read; any other read failure emits skip=false,
-  and a rate limit, from this read or a stop the job already holds, also
-  emits rate-limited=true.
+  25 seconds while only the type or status is missing. Fails when
+  resolve-config's dependencies do not install or the Work status field
+  cannot be read; any other read failure emits skip=false, and a rate limit,
+  from this read or a stop the job already holds, also emits
+  rate-limited=true.
 
 inputs:
   issue-number:
