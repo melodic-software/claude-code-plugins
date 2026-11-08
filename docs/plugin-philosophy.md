@@ -1867,9 +1867,9 @@ cannot assume a plugin layout.
 
 ## Authoritative references
 
-The complete categorized index of plugin-relevant official pages is
-[`docs/official-docs.md`](official-docs.md); `https://code.claude.com/docs/llms.txt` is the
-authoritative self-updating master list. Each list below names the pages this document rests on
+`https://code.claude.com/docs/llms.txt` is the authoritative self-updating list of official
+pages, and [`docs/official-docs.md`](official-docs.md) holds this repository's rules for citing
+them. Each list below names the pages this document rests on
 and the topics we read each one for. Recheck trigger for both lists: a page moves, or stops
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):
