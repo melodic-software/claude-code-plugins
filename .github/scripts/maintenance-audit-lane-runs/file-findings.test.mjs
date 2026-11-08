@@ -457,6 +457,36 @@ const run = async (s, items, extra = {}) => {
 };
 const nothing = { filed: [], updated: [], reopened: [], failed: [] };
 
+test("a filed digest sets its field values in one write; a rewrite sets none", async () => {
+  const s = store();
+  const sets = [];
+  const write = (entry) =>
+    writeDigest({
+      plan: planDigest({ items: [entry], existing: s.issues, openNumbers: new Set() }),
+      call: s.call,
+      repo: "o/r",
+      labels: [],
+      runUrl: "https://run/1",
+      setFields: async (number, values) => sets.push([number, values]),
+      wait: async () => {},
+    });
+  await write({ fingerprint: FP, finding: finding() });
+  assert.deepEqual(sets, [
+    [
+      100,
+      [
+        { field_id: 48484079, value: "needs-triage" },
+        { field_id: 49622037, value: "medium" },
+        { field_id: 15462270, value: "Small" },
+        { field_id: 48625720, value: "Low" },
+        { field_id: 48625721, value: "Known" },
+      ],
+    ],
+  ]);
+  await write({ fingerprint: "fedcba9876543210", finding: finding({ title: "fix(ci): another" }) });
+  assert.equal(sets.length, 1);
+});
+
 test("the sweep files one digest, rewrites it in place on a change, and closes it when no finding is left", async () => {
   const s = store();
   const a = { fingerprint: FP, finding: finding() };

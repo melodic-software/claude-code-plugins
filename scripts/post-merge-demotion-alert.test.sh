@@ -479,6 +479,12 @@ held_needs_human() {
   [[ -n "$n" ]] && grep -qxF 'input={"issue_field_values":[{"field_id":48484079,"value":"needs-human"},{"field_id":49622037,"value":"critical"}]}' "$TMP_ROOT/stub/post.$n"
 }
 post_fields() { cat "$TMP_ROOT/stub/post.$(grep -n '^POST ' <<<"$LOG" | head -1 | cut -d: -f1)"; }
+# field_input <issue>: the JSON of the first field write on that issue.
+field_input() {
+  local n
+  n="$(grep -nx "POST repos/o/r/issues/$1/issue-field-values" <<<"$LOG" | head -1 | cut -d: -f1)"
+  [[ -n "$n" ]] && sed -n 's/^input=//p' "$TMP_ROOT/stub/post.$n"
+}
 # fixes: the fix issues filed; dispatches: the intake dispatches sent.
 fixes() { grep -c '^POST repos/o/r/issues$' <<<"$LOG" | awk '{ print $1 - 1 < 0 ? 0 : $1 - 1 }'; }
 dispatches() { grep -c '^POST repos/o/r/actions/workflows/intake-triage.yml/dispatches$' <<<"$LOG"; }
@@ -1693,7 +1699,9 @@ Fix the check on main. Closing this issue changes nothing on demotion record #$r
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)" -eq 2 && "$(dispatches)" -eq 2 && "$(fix_post 1)" == "$expected" &&
   "$(fix_post 2)" == "type=Bug"$'\n'"title=Fix lint-shell on main, failing since 0123456789ab"$'\n'"body=<!-- post-merge-fix check=lint-shell -->"$'\n'* &&
   "$(dispatch_post 1)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 1)" &&
-  "$(dispatch_post 2)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 2)" ]]; then
+  "$(dispatch_post 2)" == "ref=main"$'\n'"inputs[issue-number]=$(fix_number 2)" &&
+  "$(field_input "$(fix_number 1)")" == '{"issue_field_values":[{"field_id":48484079,"value":"needs-triage"},{"field_id":49622037,"value":"critical"}]}' &&
+  "$(field_input "$r")" == '{"issue_field_values":[{"field_id":48484079,"value":"needs-triage"},{"field_id":49622037,"value":"critical"},{"field_id":15462270,"value":"Small"},{"field_id":48625720,"value":"Low"},{"field_id":48625721,"value":"Known"}]}' ]]; then
   ok "two newly failing checks file two fix issues in the fixed template, each sent to intake"
 else
   fail "two fix issues: rc=$RC log='$LOG' out='$OUT' fix1='$(fix_post 1 2>/dev/null)'"
