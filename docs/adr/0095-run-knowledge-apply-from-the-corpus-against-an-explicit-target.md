@@ -25,8 +25,8 @@ the repo that happens to be open.
 
 Scope boundary: the corpus holds ingest-pipeline material and its synthesized outputs: source media,
 transcripts, frame extractions, distilled reference files. It is not a general documentation home;
-repo-owned docs stay in their repos, and durable per-topic knowledge flows through the knowledge-vault
-seam, not this corpus.
+repo-owned docs stay in their repos, and durable per-topic knowledge flows through the knowledge
+vault, not this corpus.
 
 ## Decision
 
@@ -102,7 +102,7 @@ The human review gate sits between every stage. The skill frames edits in the ta
 ### Contract v2.1 fit
 
 - **Seam 1 (`userConfig`)**: no new knob. Corpus = CWD; target = per-invocation argument. `library_dir`
-  is left as the ingest landing seam it already is.
+  stays the ingest landing directory it already is.
 - **Seam 3 (consumer steering)**: the skill reads the *target's* `CLAUDE.md` / `.claude/rules` so
   proposals match the target's declared conventions with no plugin-side wiring.
 - **Convention-resolution ladder**: config present → use it; absent → infer from the target tree and

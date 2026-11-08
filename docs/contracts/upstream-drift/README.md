@@ -143,7 +143,7 @@ A trigger names an event whose firing a reader, human or agent, can decide from 
 release or changelog entry touching a named surface, an upstream issue changing state, a capability
 shipping or leaving an experimental key, a second consumer appearing, a recurring occasion such as
 each fleet audit. "Periodically", "when things change", or an unstated intention to revisit do not
-qualify: a trigger whose firing cannot be checked is a date with extra words.
+qualify: a trigger whose firing cannot be checked is only a date.
 
 ## When a trigger fires
 
@@ -250,8 +250,8 @@ The route is not new here; it is **hoisted from two surfaces that each derived i
 fetch"), and `/knowledge:docpage-digest`'s Anthropic publisher profile carried it claim-scoped,
 binding any absence-establishing fetch to the raw `.md` channel with `curl` plus a recorded length,
 on the asymmetry that "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE", after two
-of its runs asserted a false absence exactly this way. Two independent derivations of one rule is
-the signal that it wants an owner. Per the
+of its runs asserted a false absence exactly this way. Two independent derivations of one rule means
+it needs a single owner. Per the
 [convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule,
 the general form belongs in this doc and those surfaces keep their page-specific detail.
 

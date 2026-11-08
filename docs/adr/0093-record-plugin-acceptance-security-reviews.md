@@ -87,8 +87,8 @@ new trust surface re-triggers this review.
   consumer's pre-existing `gh` relationship.
 - **Main-thread / PATH (7).** No `settings.json` `agent`, no `bin/`.
 
-**Verdict: ACCEPT.** Surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
-with the layered gates above; 6 first-party.
+**Verdict: ACCEPT.** Surfaces 1, 2 and 7 are absent, 3 and 4 conform, surface 5's browser-automation channel is
+accepted with the layered gates above, and surface 6 is first-party.
 
 ### Review record: `dometrain` (ACCEPT, 2026-07-22)
 

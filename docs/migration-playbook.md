@@ -736,7 +736,7 @@ For each skill/hook/agent being migrated:
 conventions in this playbook, the shared `lib/` source of truth
 ([ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)), and
 the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
-downstream builds on those seams.
+downstream builds on those conventions.
 
 **Per-unit atomic PRs, authored in parallel.** One PR per cohesive migratable unit: small changesets
 review faster and more thoroughly, and the per-unit acceptance gate makes each one atomic and

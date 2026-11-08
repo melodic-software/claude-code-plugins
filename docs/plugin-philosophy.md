@@ -1044,8 +1044,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions encode an earlier model's weaknesses as a cap on
-  what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
+  which limits what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
