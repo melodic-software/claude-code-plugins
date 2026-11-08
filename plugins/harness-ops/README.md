@@ -395,7 +395,8 @@ sampling are pure `os.walk` + `stat` + regex and behave identically on every pla
 OS-specific code is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
 body (`OpenProcess`); a probe that cannot run reports `unverified`, never `dead`.
 
-Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
+Core flows need only `git`, `jq`, `gh` (authenticated), `python3`, and `node` (the hooks, and
+resolving the known-issues registry directory).
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
 `otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
 plugin observes them but does not start them. Every skill reports missing optional tooling
