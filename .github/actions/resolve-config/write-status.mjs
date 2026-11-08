@@ -11,6 +11,52 @@ export const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
 // issue fails until the field is written again.
 export const RESTART_GAP_MS = 3000;
 
+// The statuses GitHub answers a field value that names no option with.
+const NAME_REFUSED = new Set([400, 422]);
+const titleCased = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+
+// Writes `values` ({field_id, value}, each a lowercase option name) through
+// `post(values)` and returns the rows GitHub answered. The REST write takes an
+// option name, not an id, and the Size, Complexity and Uncertainty options
+// (`titled` holds their field ids) move from Title case to lowercase: the write
+// goes lowercase, then Title-cased when GitHub refuses it, then one field at a
+// time, each in either casing, while part of a rename has landed. Any other
+// failure throws.
+export async function postOptionNames(post, values, titled, log = console.log) {
+  const send = async (batch) => {
+    try {
+      return { rows: await post(batch) };
+    } catch (error) {
+      if (!NAME_REFUSED.has(error?.status)) {
+        throw error;
+      }
+      return { error };
+    }
+  };
+  const title = (value) => (titled.has(value.field_id) ? { ...value, value: titleCased(value.value) } : value);
+  let { rows, error } = await send(values);
+  if (error) {
+    log(`GitHub refused the lowercase field names (${error.status} ${error.detail}); sending them Title-cased`);
+    ({ rows, error } = await send(values.map(title)));
+  }
+  if (!error) {
+    return rows;
+  }
+  log(`GitHub refused the Title-cased field names too (${error.status} ${error.detail}); sending each field on its own`);
+  const answered = [];
+  for (const value of values) {
+    let write = await send([value]);
+    if (write.error) {
+      write = await send([title(value)]);
+    }
+    if (write.error) {
+      throw write.error;
+    }
+    answered.push(...(Array.isArray(write.rows) ? write.rows : []));
+  }
+  return answered;
+}
+
 // A Work status write that did not land, for a writer whose field write must
 // fail its run.
 export class StatusWriteError extends Error {
