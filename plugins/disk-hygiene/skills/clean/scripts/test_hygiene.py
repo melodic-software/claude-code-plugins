@@ -12030,6 +12030,16 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
             self.assertIsNone(self.run_guard_engine_gate(command))
+            scripts = SCRIPT_DIR.resolve().as_posix()
+            for other in (
+                'gate.sh run x -- gh issue create --title "Tidy hygiene.py (part 2)"'
+                f' --label "area: {scripts}"',
+                "gate.sh run x -- gh pr create"
+                ' --title "fix (disk-hygiene): hygiene.py guard"'
+                f" --body-file {scripts}/notes.md",
+            ):
+                with self.subTest(command=other):
+                    self.assertFalse(guard._engine_gate_relevant(other, "Bash"))
 
     def test_engine_gate_keeps_gating_real_runs_beside_quoted_parens(self) -> None:
         engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
@@ -12070,6 +12080,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_gates_an_engine_path_inside_a_larger_word(self) -> None:
         """A program handed the engine inside an operand or payload runs it."""
         engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        scripts = SCRIPT_DIR.resolve().as_posix()
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
                 f'awk -v c={engine} "BEGIN {{system (c)}}"',
@@ -12088,6 +12099,12 @@ class GuardTests(unittest.TestCase):
                 f'bash -c "exec {engine} scan"',
                 f'perl -e "exec substr shift,2" c={engine}',
                 f'zsh -c "repeat 1 {engine} scan"',
+                # A marker outside the quotes, or a quote that is the engine's
+                # name, keeps the quoted parens live.
+                f'perl -e "chdir (shift) and exec (shift)" {scripts} ./hygiene.py',
+                f'perl -e "chdir (shift) and exec (shift)" {scripts} "./hygiene.py"',
+                f'awk -v d={scripts}/ -v n=hygiene.py "BEGIN {{system (d n)}}"',
+                f'awk -v d={scripts} -v n=/hygiene.py "BEGIN {{system (d n)}}"',
             ):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))

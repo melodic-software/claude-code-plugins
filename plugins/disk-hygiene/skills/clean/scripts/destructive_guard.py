@@ -101,11 +101,25 @@ def _quoted_parens_are_text(command: str) -> bool:
     a syntax error in bash and zsh, but fish runs ``echo (cmd)`` as command
     substitution, so naming fish keeps every paren live. A backslash can move
     a quote boundary, so it keeps every paren live too.
+
+    The relaxation exists for a quoted argument that only mentions the engine,
+    so it applies only when every marker token sits inside prose: a marker
+    outside every whole-word quote (``perl -e "chdir (shift) and exec (shift)"
+    <scripts> ./hygiene.py``, ``awk -v n=hygiene.py``) or a quote that is the
+    engine's name by itself (``"./hygiene.py"``) keeps every paren live.
     """
     words = [word.strip("'\"") for word in command.split()]
     if "\\" in command or any(
         word in _BASH_RESERVED_WORDS or Path(word).name == "fish" for word in words
     ):
+        return False
+    if any(
+        _carries_marker(match.group()[1:-1])
+        for match in _WHOLE_WORD_QUOTED.finditer(command)
+    ):
+        return False
+    outside = _WHOLE_WORD_QUOTED.sub(lambda match: " " * len(match.group()), command)
+    if any(_carries_marker(token) for token in _marker_tokens(outside)):
         return False
     for match in _WHOLE_WORD_QUOTED.finditer(command):
         body = match.group()[1:-1]
