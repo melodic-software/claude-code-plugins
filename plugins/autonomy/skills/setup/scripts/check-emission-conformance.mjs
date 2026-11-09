@@ -20,6 +20,7 @@ const PINNED_SCHEMA_URL = "https://opentelemetry.io/schemas/1.43.0";
 const JOIN_ATTRIBUTE = "autonomy.work_item.url";
 
 const findings = [];
+let schemaUrlDeclared = 0;
 
 // Returns how many join-attribute occurrences this list carried.
 function checkAttributeList(attributes, where) {
@@ -37,9 +38,9 @@ function checkAttributeList(attributes, where) {
   return hits;
 }
 
-function checkSchemaUrl(declared, where, tally) {
+function checkSchemaUrl(declared, where) {
   if (!declared) return;
-  tally.schemaUrlDeclared += 1;
+  schemaUrlDeclared += 1;
   if (declared !== PINNED_SCHEMA_URL) {
     findings.push(`${where}: schemaUrl ${declared} != pinned ${PINNED_SCHEMA_URL}`);
   }
@@ -52,17 +53,17 @@ function checkSchemaUrl(declared, where, tally) {
 // checked set must declare it. The join attribute is required per resource
 // entry — an export batch can carry several entries on one line, and a joined
 // pipeline entry must not vouch for an unjoined session entry beside it.
-function checkResourceBlocks(blocks, file, line, tally) {
+function checkResourceBlocks(blocks, file, line) {
   const result = { hits: 0, entries: 0 };
   for (const [signalKey, block] of Object.entries(blocks)) {
     if (!Array.isArray(block)) continue;
     block.forEach((entry, entryIndex) => {
       result.entries += 1;
       const where = `${file}:${line} ${signalKey}[${entryIndex}]`;
-      checkSchemaUrl(entry.schemaUrl, where, tally);
+      checkSchemaUrl(entry.schemaUrl, where);
       let hits = checkAttributeList(entry.resource?.attributes, `${where} resource`);
       for (const scope of entry.scopeSpans ?? entry.scopeMetrics ?? entry.scopeLogs ?? []) {
-        checkSchemaUrl(scope.schemaUrl, `${where} scope`, tally);
+        checkSchemaUrl(scope.schemaUrl, `${where} scope`);
         for (const item of scope.spans ?? scope.metrics ?? scope.logRecords ?? []) {
           hits += checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`);
         }
@@ -93,24 +94,22 @@ if (targets.length === 0) {
 
 let joinAttributeHits = 0;
 let linesChecked = 0;
-const tally = { schemaUrlDeclared: 0 };
 for (const target of targets.flatMap(filesUnder)) {
   const lines = readFileSync(target, "utf8").split(/\r?\n/).filter(Boolean);
   lines.forEach((raw, index) => {
+    const where = `${target}:${index + 1}`;
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      findings.push(`${target}:${index + 1}: not valid JSON`);
+      findings.push(`${where}: not valid JSON`);
       return;
     }
     linesChecked += 1;
-    const { hits, entries } = checkResourceBlocks(parsed, target, index + 1, tally);
+    const { hits, entries } = checkResourceBlocks(parsed, target, index + 1);
     joinAttributeHits += hits;
-    // Per-entry join enforcement lives in checkResourceBlocks; a line with no
-    // recognizable OTLP resource entries at all is its own finding.
     if (entries === 0) {
-      findings.push(`${target}:${index + 1}: no OTLP resource entries found on this line`);
+      findings.push(`${where}: no OTLP resource entries found on this line`);
     }
   });
 }
@@ -118,7 +117,7 @@ for (const target of targets.flatMap(filesUnder)) {
 if (linesChecked === 0) {
   findings.push("no OTLP JSON lines found under the given targets");
 }
-if (tally.schemaUrlDeclared === 0 && linesChecked > 0) {
+if (schemaUrlDeclared === 0 && linesChecked > 0) {
   findings.push(
     `no emission in the set declares the pinned schemaUrl (${PINNED_SCHEMA_URL}) — contract-authored emissions must`,
   );
@@ -130,5 +129,5 @@ if (findings.length > 0) {
   process.exit(1);
 }
 console.log(
-  `Emission conformance OK: ${linesChecked} OTLP JSON lines, ${joinAttributeHits} join-attribute occurrence(s), ${tally.schemaUrlDeclared} pinned schemaUrl declaration(s).`,
+  `Emission conformance OK: ${linesChecked} OTLP JSON lines, ${joinAttributeHits} join-attribute occurrence(s), ${schemaUrlDeclared} pinned schemaUrl declaration(s).`,
 );
