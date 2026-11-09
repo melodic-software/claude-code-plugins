@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.11] - 2026-11-09
+
+### Fixed
+
+- The pre-push content check and the reference check no longer refuse a push when the working tree holds a file named like a pushed commit SHA: their `git rev-list` and `git diff` calls now separate revisions from paths with `--`.
+
 ## [3.0.10] - 2026-11-09
 
 ### Fixed

@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.7] - 2026-11-09
+
+### Changed
+
+- `/harness-ops:known-issues`' flag-fallback pointer is rechecked against the Claude Fable 5.2 release; no change.
+
 ## [8.12.6] - 2026-11-09
 
 ### Changed

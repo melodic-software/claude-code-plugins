@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: wr-glossary-absent
+context:
+  scaffold_script: scaffold.sh
+description: "Glossary reader, control. The same workspace and prompt as wr-glossary-root with no glossary anywhere, so canonical-term and no-rejected-term record what the run names the feature on the user's words alone. It has no glossary-read grader: there is no file to read. Read its pass rates beside wr-glossary-root's: the cross-case gap is the measurement, since the CLI's delta ablates the plugin, not the glossary. Expected to fail canonical-term and no-rejected-term in most runs, because the request says 'check out' throughout and nothing in the workspace says Loan; a high pass rate here means the suite has no headroom to show a glossary's effect. Source: the maintainers' own writing, an owner-approved measurement before the glossary capability is restructured. Routine: a control, not a difficulty probe. Needs --scaffold --allow-tools Bash Edit Write."
+tags: [testing, write, glossary, control, routine]
+runs: 3
+execution:
+  max_turns: 60
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill]
+expected_outcome: "Adds the feature to Library with unittest tests in tests/test_tool_library.py and runs the suite until it passes. With no glossary, naming it after the request (checkout) is the likely result, and the two term graders record how often it happens"
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: canonical-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    pattern: 'loan'
+  - name: no-rejected-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    match: not_contains
+    pattern: 'check(?:ed|s|ing)?[ _-]?outs?|rental|booking'
