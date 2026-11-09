@@ -190,8 +190,7 @@ dc_config() {
     for kv in "$@"; do
       [[ "${kv%%=*}" != "$k" || -z "${kv#*=}" ]] || v="${kv#*=}" layer=flag
     done
-    var="${k#cache_}"
-    var="DOCS_CACHE_$(printf '%s' "$var" | tr '[:lower:]' '[:upper:]')"
+    var="DOCS_CACHE_$(printf '%s' "${k#cache_}" | tr '[:lower:]' '[:upper:]')"
     if [[ -z "$layer" && -n "${!var:-}" ]]; then
       if dc_config_valid "$k" text "${!var}"; then
         v="${!var}" layer=env
@@ -268,7 +267,8 @@ dc_lower() {
 # epoch, as YYYY-MM-DDTHH:MM:SSZ or touch -t's YYYYMMDDhhmm.SS. Civil date from
 # day count: https://howardhinnant.github.io/date_algorithms.html#civil_from_days
 dc_utc() {
-  local s="$2" z era doe yoe doy mp y m d
+  local s="$2" z era doe yoe doy mp y m d fmt='%04d%02d%02d%02d%02d.%02d'
+  [[ "$3" != iso ]] || fmt='%04d-%02d-%02dT%02d:%02d:%02dZ'
   z=$((s / 86400 + 719468))
   era=$((z / 146097))
   doe=$((z - era * 146097))
@@ -279,11 +279,8 @@ dc_utc() {
   m=$((mp < 10 ? mp + 3 : mp - 9))
   y=$((yoe + era * 400 + (m <= 2)))
   s=$((s % 86400))
-  if [[ "$3" == iso ]]; then
-    printf -v "$1" '%04d-%02d-%02dT%02d:%02d:%02dZ' "$y" "$m" "$d" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
-  else
-    printf -v "$1" '%04d%02d%02d%02d%02d.%02d' "$y" "$m" "$d" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
-  fi
+  # shellcheck disable=SC2059 # fmt is one of the two literal formats above
+  printf -v "$1" "$fmt" "$y" "$m" "$d" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
 }
 
 # dc_now: set DC_NOW (epoch) and DC_NOW_ISO (UTC ISO) from the clock or DOCS_CACHE_NOW.
@@ -769,19 +766,26 @@ dc_section_checkable() {
   fi
 }
 
+# dc_skip_bad <summary|note>: copy stdin to stdout, turning each
+# "\x01bad<TAB><file>" line into a warning on stderr that the file was skipped.
+dc_skip_bad() {
+  local line
+  while IFS= read -r line; do
+    if [[ "$line" == $'\x01bad\t'* ]]; then
+      printf 'WARNING: docs-cache: skipped a %s file that is not one JSON %s: %s\n' "$1" "$1" "${line#*$'\t'}" >&2
+    else
+      printf '%s\n' "$line"
+    fi
+  done
+}
+
 # dc_summaries: print section-sha256<TAB>summary for the looked-up key. A
 # summary file that is not one JSON object on one line is skipped with a
 # warning on stderr.
 dc_summaries() {
-  local files=("$DC_DIR/summaries/${DC_KEY:0:16}"/*) line
+  local files=("$DC_DIR/summaries/${DC_KEY:0:16}"/*)
   [[ -f "${files[0]}" ]] || return 0
-  while IFS= read -r line; do
-    if [[ "$line" == $'\x01bad\t'* ]]; then
-      printf 'WARNING: docs-cache: skipped a summary file that is not one JSON summary: %s\n' "${line#*$'\t'}" >&2
-    else
-      printf '%s\n' "$line"
-    fi
-  done < <(jq -nrR --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" '
+  dc_skip_bad summary < <(jq -nrR --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" '
     inputs | (try fromjson catch null) as $j
     | if ($j | type) != "object" then "\u0001bad\t\(input_filename)"
       elif $j.store_version == $v and $j.key == $k then $j.section_sha256 + "\t" + $j.summary
@@ -805,7 +809,7 @@ dc_summary_lines() {
 # is not one JSON object on one line (as dc_write_json writes it) is skipped
 # with a warning on stderr.
 dc_notes() {
-  local files=("$DC_DIR/notes/${DC_KEY:0:16}"/*) out line
+  local files=("$DC_DIR/notes/${DC_KEY:0:16}"/*) out
   [[ -f "${files[0]}" ]] || return 0
   out="$(jq -nrR --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" --rawfile map "$DC_ENTRY/map.tsv" \
     --arg mode "$1" --arg q "$DC_QUARANTINED" '
@@ -831,13 +835,7 @@ dc_notes() {
         .text
       else empty end)' "${files[@]}" 2>/dev/null | tr -d '\r')"
   [[ -n "$out" ]] || return 0
-  while IFS= read -r line; do
-    if [[ "$line" == $'\x01bad\t'* ]]; then
-      printf 'WARNING: docs-cache: skipped a note file that is not one JSON note: %s\n' "${line#*$'\t'}" >&2
-    else
-      printf '%s\n' "$line"
-    fi
-  done <<<"$out"
+  dc_skip_bad note <<<"$out"
 }
 
 # dc_read <raw>: print the looked-up entry: the page when it is at most the
