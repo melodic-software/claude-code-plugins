@@ -713,6 +713,10 @@ load_session_registry() {
     REGISTRY_SCAN=ok
     return 0
   fi
+  if ! command -v jq >/dev/null 2>&1; then
+    REGISTRY_SCAN=nojq
+    return 0
+  fi
   local rows row count=0
   # shellcheck disable=SC2016  # jq program, not a shell expansion.
   if ! rows="$(jq -r '
@@ -764,6 +768,10 @@ session_is_free() {
   case "$REGISTRY_SCAN" in
   unreadable)
     STALE_NOTE="not provable: session registry $REGISTRY_DIR is missing or unreadable"
+    return 1
+    ;;
+  nojq)
+    STALE_NOTE="not provable: jq is not on PATH, so session registry $REGISTRY_DIR cannot be read"
     return 1
     ;;
   malformed)

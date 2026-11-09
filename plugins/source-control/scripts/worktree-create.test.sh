@@ -1518,7 +1518,7 @@ assert_eq "--existing-branch keeps the named branch" "parked-work" "$(git -C "$o
 # a transcript there changed just now is live, one without a transcript is stale.
 lock_reason_of() { tr -d '\r\n' <"$(git -C "$1" rev-parse --absolute-git-dir)/locked" 2>/dev/null; }
 reuse_cfg="$TEST_TMPDIR/reuse-config"
-mkdir -p "$reuse_cfg/projects/p"
+mkdir -p "$reuse_cfg/projects/p" "$reuse_cfg/sessions"
 
 # Same session, same name: the same path comes back and the tree is left alone.
 # The .worktreeinclude copy is not redone over the tree's own edits.
