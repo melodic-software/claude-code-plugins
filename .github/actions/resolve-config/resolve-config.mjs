@@ -313,7 +313,8 @@ async function gatherFacts(
   if (issue !== undefined) {
     // The issue's org field values: REST answers the integer field and
     // option ids the config maps (GraphQL answers only node ids). Each read
-    // once, shared by the dimensions and the Work status.
+    // once, shared by the dimensions and the Work status; a Work status
+    // disagreement reads both again for both.
     let values;
     let events;
     const readValues = async () => {
@@ -379,6 +380,13 @@ async function gatherFacts(
           values = undefined;
           events = undefined;
           state = await readState();
+          // The dimensions come from the read the status agreed on.
+          if (needed.includes("fieldValues")) {
+            facts.fieldValues = await readValues();
+          }
+          if (needed.includes("fieldSetters")) {
+            facts.fieldSetters = settersOf(await readEvents());
+          }
         }
         facts.labels = statusLabels(state, facts.labels, status.config);
       }

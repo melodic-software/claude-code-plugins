@@ -1104,9 +1104,12 @@ test("main on an issue reads a disagreeing Work status once more", async () => {
   ];
   const valueReads = (calls) => calls.filter((call) => call.path.endsWith("/issue-field-values")).length;
   let reads = 0;
-  const settles = await mainOnIssue(events, "false", () => (reads++ === 0 ? FIELD_ROWS : [...FIELD_ROWS, fieldRow(48484079, 84879220)]), []);
+  const firstRead = [fieldRow(15462270, 27053568), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
+  const settles = await mainOnIssue(events, "false", () => (reads++ === 0 ? firstRead : [...FIELD_ROWS, fieldRow(48484079, 84879220)]), []);
   assert.equal(settles.code, 0);
   assert.equal(settles.outputs.applies, "true");
+  // The dimensions come from the read the status agreed on, not the first.
+  assert.equal(settles.outputs["issue-dimensions"], "medium/high/known");
   assert.equal(valueReads(settles.calls), 2);
   const stays = await mainOnIssue(events, "false", FIELD_ROWS, []);
   assert.equal(stays.code, 1);
