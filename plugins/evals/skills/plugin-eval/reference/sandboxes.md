@@ -14,15 +14,13 @@ The `find` lines are the count, the `du` `total` line is the size, and `df` give
 unreadable path reports `unknown`, never `0`. A non-zero `du` exit or a permission error means a
 partial total: report the size as `unknown` or `at least <total>`.
 
-Preflight removes nothing and blocks on neither field. When the count is above zero, print this
-for the user to run. A kept sandbox can hold a mode-000 `sealed/` directory that a recursive
-`chmod -R u+w` cannot enter, so each sandbox and its `sealed/` are opened first:
-
-```bash
-for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done
-```
-
-A directory `chmod` cannot enter still needs `sudo rm -rf`.
+Preflight removes nothing, blocks on neither field, and prints no removal command. `<tmp>` can be
+shared: two sessions running with the same `TMPDIR` each keep their sandboxes there, and a glob
+over `<tmp>/claude-eval-*` deletes the other run's live or kept sandboxes too. Neither age nor the
+absence of a `claude plugin eval` process tells them apart, since a kept sandbox has no process by
+design while it waits for its `read`. When the count is above zero, print the count and size and
+point at [Removing a read's sandboxes](#removing-a-reads-sandboxes): each run's owner removes its
+own sandboxes by results file.
 
 ## Removing a read's sandboxes
 
@@ -64,7 +62,9 @@ no `claude-eval-*` directory on it. A run
 without `--keep-temp` has none left to remove; say so. When the removal is refused (a declined
 prompt, a denied command, a path left behind), print that command with the remaining paths for
 the user to run, and note that a directory `chmod` cannot enter still needs `sudo rm -rf`.
-Preflight's `leftover_sandboxes` count stays the backstop for a run that never reached a read.
+Preflight's `leftover_sandboxes` count stays the backstop for a run that never reached a read. A
+run that wrote no results file has no `tracePath`s to select by: its sandboxes stay until the
+session that owns them names them by literal path in the loop above. Preflight never picks them.
 
 A later read of the same file finds its traces gone: the gate's unresolved-trace INVALID then comes
 from this removal, not the run. Say so and report the earlier read's verdict if it is known; do not
@@ -175,7 +175,8 @@ as well. Why every link and not a list of names: [records.md](records.md#sandbox
   `sealed/` directories only `sudo` could remove come from an observation on a WSL2 host on
   2026-10-13 (569 directories after about an hour of runs, issue #7431), and match the sandbox
   paths in `plugins/testing/evals/sandbox-probe-plain/samples/echo-printed.json`. The mode-000
-  `sealed/` that refused `chmod -R u+w` and yielded to the per-sandbox loop above comes from a
+  `sealed/` that refused `chmod -R u+w` and yielded to a per-sandbox `chmod 700` (the loop in
+  [Removing a read's sandboxes](#removing-a-reads-sandboxes)) comes from a
   WSL2 host on Claude Code 2.1.309 on 2026-10-23 (issue #9414). A kept run's `tracePath` lies
   inside its `claude-eval-*` sandbox, as the `read` action's removal assumes; the validity gate
   reads it as the sandbox's `out/trace.jsonl` (`scripts/run-validity.py`).
