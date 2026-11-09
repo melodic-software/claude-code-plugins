@@ -266,18 +266,11 @@ QUALIFYING_ID_ERE='[A-Z][A-Za-z]*[0-9]+[A-Za-z0-9]*'
 
 # Argv is exact: ignoring trailing words (`--check extra`) reads as a mode the
 # gate accepted and did not run.
-if [[ "$#" -gt 1 ]]; then
+mode="${1:-discover}"
+if [[ "$#" -gt 1 || ("$mode" != discover && "$mode" != --check) ]]; then
   echo "usage: $(basename "$0") [--check]" >&2
   exit 2
 fi
-mode="${1:-discover}"
-case "$mode" in
-discover | --check) ;;
-*)
-  echo "usage: $(basename "$0") [--check]" >&2
-  exit 2
-  ;;
-esac
 
 # Read the eval suite through a JSON parser, not a grep: a suite that no longer
 # parses must be an environment answer, never a pass. jq is the prerequisite and
@@ -424,27 +417,14 @@ def hidden_wrapped_emit:
 JQ
 
 # scan_emits <file> <id-ere> <outfile>
-# Returns 1 when shfmt cannot parse the file or jq cannot read the tree.
+# Fails when shfmt cannot parse the file or jq cannot read the tree.
 # A registered detector turns that into exit 2. Discovery under-counts.
 scan_emits() {
   local file="$1" idre="$2" outfile="$3"
-  local json errf
-  json="$(mktemp)" || return 1
-  errf="$(mktemp)" || {
-    rm -f "$json"
-    return 1
-  }
-  # shellcheck disable=SC2094  # "$file" is only read; "$json" and "$errf" are separate temp files
-  if ! shfmt --language-dialect bash --filename "$(basename -- "$file")" --to-json <"$file" >"$json" 2>"$errf"; then
-    rm -f "$json" "$errf"
-    return 1
-  fi
-  if ! jq -r --arg idre "$idre" "$EMIT_SCAN_JQ" "$json" >"$outfile"; then
-    rm -f "$json" "$errf"
-    return 1
-  fi
-  rm -f "$json" "$errf"
-  return 0
+  # pipefail makes the pipeline fail when either shfmt or jq does.
+  # shellcheck disable=SC2094  # "$file" is only read; "$outfile" is a separate temp file
+  shfmt --language-dialect bash --filename "$(basename -- "$file")" --to-json <"$file" 2>/dev/null |
+    jq -r --arg idre "$idre" "$EMIT_SCAN_JQ" >"$outfile"
 }
 
 # --- the coverage-bearing-string reader --------------------------------------
@@ -510,20 +490,22 @@ if [[ "${#pairs[@]}" -eq 0 ]]; then
   exit 2
 fi
 
-emitted_tmp="$(mktemp)" || exit 2
-named_tmp="$(mktemp)" || exit 2
-covering_tmp="$(mktemp)" || exit 2
-disclaimed_tmp="$(mktemp)" || exit 2
-scan_tmp="$(mktemp)" || exit 2
-strings_tmp="$(mktemp)" || exit 2
+tmp_dir="$(mktemp -d)" || exit 2
+trap 'rm -rf "$tmp_dir"' EXIT
+emitted_tmp="$tmp_dir/emitted"
+named_tmp="$tmp_dir/named"
+covering_tmp="$tmp_dir/covering"
+disclaimed_tmp="$tmp_dir/disclaimed"
+scan_tmp="$tmp_dir/scan"
+strings_tmp="$tmp_dir/strings"
 # Discover-mode stdout is BUFFERED, not streamed: a per-row exit 2 must not
 # leave a partial report on stdout with no denominator trailer under it, and the
 # check-script contract says a run that inspected nothing says nothing there.
-report_tmp="$(mktemp)" || exit 2
-# Advisories are BUFFERED for the same reason the discover report is: a per-row
-# exit 2 must leave nothing on stdout.
-advisory_tmp="$(mktemp)" || exit 2
-trap 'rm -f "$emitted_tmp" "$named_tmp" "$covering_tmp" "$disclaimed_tmp" "$scan_tmp" "$strings_tmp" "$report_tmp" "$advisory_tmp"' EXIT
+# Advisories are BUFFERED for the same reason.
+report_tmp="$tmp_dir/report"
+advisory_tmp="$tmp_dir/advisory"
+: >"$report_tmp"
+: >"$advisory_tmp"
 
 errors=0
 total_emitted=0
@@ -547,13 +529,8 @@ qualifying_detectors() {
   for evals_path in plugins/*/skills/*/evals/evals.json; do
     [[ -f "$evals_path" ]] || continue
     skill="${evals_path%/evals/evals.json}"
-    [[ -d "$skill/scripts" ]] || continue
     for script in "$skill"/scripts/*.sh; do
-      [[ -f "$script" ]] || continue
-      case "$script" in
-      *.test.sh) continue ;;
-      *) ;;
-      esac
+      [[ -f "$script" && "$script" != *.test.sh ]] || continue
       if scan_emits "$script" "$QUALIFYING_ID_ERE" "$scan_tmp"; then
         count="$(sed -n 's/^ID //p' "$scan_tmp" | sort -u | grep -c .)" || count=0
       else
