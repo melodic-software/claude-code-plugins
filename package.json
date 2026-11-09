@@ -8,11 +8,11 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.318",
-    "@biomejs/biome": "2.6.4",
+    "@anthropic-ai/claude-code": "2.1.319",
+    "@biomejs/biome": "2.6.5",
     "@playwright/cli": "0.1.23",
     "@playwright/mcp": "0.0.84",
-    "graphql": "17.0.2",
+    "graphql": "17.1.0",
     "htmlhint": "1.9.2",
     "markdownlint-cli2": "0.24.0"
   },
