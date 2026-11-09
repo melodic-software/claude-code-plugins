@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.6.6] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.6.5] - 2026-11-09
 
 ### Changed
