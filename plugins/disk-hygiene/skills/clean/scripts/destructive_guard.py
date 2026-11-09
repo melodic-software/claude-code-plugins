@@ -73,62 +73,11 @@ _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
 # quote closing it, then a space or the end. Braces are inert inside one.
 _WHOLE_WORD_QUOTED = re.compile(r"(?<![^ ])(?P<q>['\"])[^'\"]*(?P=q)(?= |$)")
 _BRACES = str.maketrans("", "", "{}")
-_BRACES_AND_PARENS = str.maketrans("", "", "{}()")
 
 
-def _without_quoted_braces(
-    command: str, table: dict[int, int | None] = _BRACES
-) -> str:
-    """``command`` with ``table``'s characters dropped from inside whole-word quotes."""
-    return _WHOLE_WORD_QUOTED.sub(lambda m: m.group().translate(table), command)
-
-
-_BASH_RESERVED_WORDS = frozenset(
-    "! [[ ]] { } case coproc do done elif else esac fi for function if in select "
-    "then time until while always end foreach nocorrect noglob repeat".split()
-)
-
-
-def _quoted_parens_are_text(command: str) -> bool:
-    """Whether no ``(`` inside a whole-word quote of ``command`` can open a subshell.
-
-    A shell running the quoted string (``bash -c``, ``eval``) starts a subshell
-    at a ``(`` that opens the string, is glued to the character before it,
-    follows another paren or brace, or follows a reserved word (``time (``,
-    ``coproc NAME (``, ``eval if "(...)"``), so a reserved word anywhere in the
-    command keeps every paren live. The reserved words include zsh's
-    (``repeat 1 (...)``). After a space and an ordinary word a ``(`` is text or
-    a syntax error in bash and zsh, but fish runs ``echo (cmd)`` as command
-    substitution, so naming fish keeps every paren live. A backslash can move
-    a quote boundary, so it keeps every paren live too.
-
-    The relaxation exists for a quoted argument that only mentions the engine,
-    so it applies only when every marker token sits inside prose: a marker
-    outside every whole-word quote (``perl -e "chdir (shift) and exec (shift)"
-    <scripts> ./hygiene.py``, ``awk -v n=hygiene.py``) or a quote that is the
-    engine's name by itself (``"./hygiene.py"``) keeps every paren live.
-    """
-    words = [word.strip("'\"") for word in command.split()]
-    if "\\" in command or any(
-        word in _BASH_RESERVED_WORDS or Path(word).name == "fish" for word in words
-    ):
-        return False
-    if any(
-        _carries_marker(match.group()[1:-1])
-        for match in _WHOLE_WORD_QUOTED.finditer(command)
-    ):
-        return False
-    outside = _WHOLE_WORD_QUOTED.sub(lambda match: " " * len(match.group()), command)
-    if any(_carries_marker(token) for token in _marker_tokens(outside)):
-        return False
-    for match in _WHOLE_WORD_QUOTED.finditer(command):
-        body = match.group()[1:-1]
-        for index, char in enumerate(body):
-            if char == "(" and (
-                index < 2 or body[index - 1] != " " or body[index - 2] in " (){}"
-            ):
-                return False
-    return True
+def _without_quoted_braces(command: str) -> str:
+    """``command`` with ``{`` and ``}`` dropped from inside whole-word quotes."""
+    return _WHOLE_WORD_QUOTED.sub(lambda m: m.group().translate(_BRACES), command)
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -268,26 +217,19 @@ def _display_python() -> str:
 
 
 def _literal_shell_words(
-    command: str, *, allow_backslash: bool = False, quoted_parens: bool = False
+    command: str, *, allow_backslash: bool = False
 ) -> list[str] | None:
     """Parse only space-delimited literal words with optional whole-word quotes.
 
     ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
     path separator rather than an escape character (PowerShell commands); the
     Bash default keeps rejecting it. ``{`` and ``}`` are accepted only inside a
-    whole-word quote, where they are literal; ``quoted_parens`` accepts ``(``
-    and ``)`` there too when no quoted ``(`` can open a subshell
-    (``_quoted_parens_are_text``). Every other expansion or operator character
-    is rejected wherever it sits.
+    whole-word quote, where they are literal; every other expansion or operator
+    character is rejected wherever it sits.
     """
-    table = (
-        _BRACES_AND_PARENS
-        if quoted_parens and _quoted_parens_are_text(command)
-        else _BRACES
-    )
     if not command or any(
         value in _SHELL_EXPANSION_OR_OPERATOR_CHARS
-        for value in _without_quoted_braces(command, table)
+        for value in _without_quoted_braces(command)
     ):
         return None
     words: list[str] = []
@@ -1357,14 +1299,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             else list(words)
         )
         return any(_names_engine(candidate) for candidate in dict.fromkeys(candidates))
-    # On Bash a quoted parenthesis that cannot open a subshell is text, so a
-    # quoted argument such as an issue title is judged as one word below
-    # (`_reads_as_engine_payload`), not failed closed as unparsable.
-    # PowerShell keeps rejecting it: a typographic quote can close the string
-    # where this scanner sees it still open.
-    words = _literal_shell_words(
-        command, allow_backslash=allow_backslash, quoted_parens=not allow_backslash
-    )
+    words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).
         # Fail closed UNLESS every marker-carrying token is provably a

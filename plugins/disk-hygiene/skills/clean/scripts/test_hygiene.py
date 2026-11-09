@@ -12016,10 +12016,10 @@ class GuardTests(unittest.TestCase):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
 
-    def test_engine_gate_defers_the_engine_name_in_a_quoted_argument_with_parens(
+    def test_engine_gate_still_refuses_a_quoted_title_naming_the_engine_with_parens(
         self,
     ) -> None:
-        """A quoted issue title naming the engine beside "(" is a mention."""
+        """An unparsable command naming the engine fails closed, a title included."""
         command = (
             "/repo/.work/gh-monitor/gate.sh run simplify-planning -- gh issue create"
             " -R melodic-software/claude-code-plugins"
@@ -12028,18 +12028,8 @@ class GuardTests(unittest.TestCase):
             ' --type Task --label "status: ready"'
         )
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
-            self.assertFalse(guard._engine_gate_relevant(command, "Bash"))
-            self.assertIsNone(self.run_guard_engine_gate(command))
-            scripts = SCRIPT_DIR.resolve().as_posix()
-            for other in (
-                'gate.sh run x -- gh issue create --title "Tidy hygiene.py (part 2)"'
-                f' --label "area: {scripts}"',
-                "gate.sh run x -- gh pr create"
-                ' --title "fix (disk-hygiene): hygiene.py guard"'
-                f" --body-file {scripts}/notes.md",
-            ):
-                with self.subTest(command=other):
-                    self.assertFalse(guard._engine_gate_relevant(other, "Bash"))
+            self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+            self.assertIn("('(')", self._gated_reason(command))
 
     def test_engine_gate_keeps_gating_real_runs_beside_quoted_parens(self) -> None:
         engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
@@ -12054,11 +12044,8 @@ class GuardTests(unittest.TestCase):
                 'sh -c "(./hygiene.py apply)"',
                 'bash -c "python3 hygiene.py scan (x)"',
                 "foo hygiene.py (x)",
-                # Not a whole-word quote, so its paren stays an operator.
                 'tool --title="Simplify hygiene.py (x)"',
-                # A backslash can move the quote boundary, so parens stay live.
                 'tool "a\\b" "Simplify hygiene.py (x)"',
-                # A quoted paren that can open a subshell stays live.
                 f'bash -c "( {engine} apply --plan p --token t )"',
                 'bash -c "(py hygiene.py apply)"',
                 f'bash -c "{{ ( {engine} apply ) }}"',
@@ -12068,7 +12055,6 @@ class GuardTests(unittest.TestCase):
             ):
                 with self.subTest(command=command):
                     self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
-            # PowerShell keeps rejecting a paren inside a quote.
             self.assertTrue(
                 guard._engine_gate_relevant(
                     'pwsh -Command "Write-Output hygiene.py (y)"', "PowerShell"
@@ -12099,8 +12085,6 @@ class GuardTests(unittest.TestCase):
                 f'bash -c "exec {engine} scan"',
                 f'perl -e "exec substr shift,2" c={engine}',
                 f'zsh -c "repeat 1 {engine} scan"',
-                # A marker outside the quotes, or a quote that is the engine's
-                # name, keeps the quoted parens live.
                 f'perl -e "chdir (shift) and exec (shift)" {scripts} ./hygiene.py',
                 f'perl -e "chdir (shift) and exec (shift)" {scripts} "./hygiene.py"',
                 f'awk -v d={scripts}/ -v n=hygiene.py "BEGIN {{system (d n)}}"',
