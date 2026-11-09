@@ -53,14 +53,10 @@ WAIT_MAX = 120  # the longest /api/wait a watcher may ask for, in seconds
 WAIT_DEFAULT = 90
 QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
 BURST_SECONDS = 12.0  # never holding it longer than this in all
-LEASE_TIMEOUT = (
-    600  # seconds a silent watcher keeps its lease, unless the app says otherwise
-)
+LEASE_TIMEOUT = 600  # seconds a silent watcher keeps its lease, unless the app says otherwise
 PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
-READING_WINDOW = (
-    180  # seconds the session is shown as reading after a delivery, unless the app says otherwise
-)
+READING_WINDOW = 180  # seconds the session is shown as reading after a delivery, unless the app says otherwise
 MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 MAX_BODY = 64 * 1024
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
@@ -203,6 +199,30 @@ class Transport(abc.ABC):
         """Seconds after a delivery the session is shown as reading, once no watcher listens."""
         return READING_WINDOW
 
+    def _listener_view(self, waiters, lease):
+        """listener()'s answer from `waiters` in flight, `lease` and the adapter's last_wait and
+        last_deliver. idleFor: seconds since a watcher last polled (0 while one waits, None before
+        any)."""
+        now = time.time()
+        if waiters > 0 or now - self.last_wait < LISTEN_GRACE:
+            state = "listening"
+        elif now - self.last_deliver < self.reading_window():
+            state = "reading"
+        else:
+            state = "idle"
+        if waiters > 0:
+            idle = 0
+        else:
+            idle = round(now - self.last_wait, 1) if self.last_wait else None
+        return {
+            "state": state,
+            "waiters": waiters,
+            "idleFor": idle,
+            "lastWaitAt": self.last_wait or None,
+            "lastDeliverAt": self.last_deliver or None,
+            "lease": lease,
+        }
+
 
 class LoopbackWatcher(Transport):
     """The loopback adapter's shared state: token, watcher lease, liveness, long-poll delivery.
@@ -250,9 +270,7 @@ class LoopbackWatcher(Transport):
     def lease_view(self):
         """The lease as the page sees it, or None when none is held or it has expired."""
         lease = self.lease
-        if lease is None or not self.lease_live(
-            lease, time.time(), self.lease_timeout()
-        ):
+        if lease is None or not self.lease_live(lease, time.time(), self.lease_timeout()):
             return None
         return {
             "watcher": lease["watcher"],
@@ -288,12 +306,7 @@ class LoopbackWatcher(Transport):
                 )
             lease = None
         if lease is None:
-            lease = self.lease = {
-                "watcher": watcher,
-                "since": now,
-                "last": now,
-                "inflight": 0,
-            }
+            lease = self.lease = {"watcher": watcher, "since": now, "last": now, "inflight": 0}
         lease["inflight"] += 1
         lease["last"] = now
         # Each arm is a new process, so the newest poll names the watcher that stop must end.
@@ -306,26 +319,7 @@ class LoopbackWatcher(Transport):
             self.cond.notify_all()
 
     def listener(self):
-        """idleFor: seconds since a watcher last polled (0 while one waits, None before any)."""
-        now = time.time()
-        if self.waiters > 0 or now - self.last_wait < LISTEN_GRACE:
-            state = "listening"
-        elif now - self.last_deliver < self.reading_window():
-            state = "reading"
-        else:
-            state = "idle"
-        if self.waiters > 0:
-            idle = 0
-        else:
-            idle = round(now - self.last_wait, 1) if self.last_wait else None
-        return {
-            "state": state,
-            "waiters": self.waiters,
-            "idleFor": idle,
-            "lastWaitAt": self.last_wait or None,
-            "lastDeliverAt": self.last_deliver or None,
-            "lease": self.lease_view(),
-        }
+        return self._listener_view(self.waiters, self.lease_view())
 
     def settle(self, r, deadline=float("inf")):
         """Hold found events until the quiet window passes with no new one, at most the burst cap
@@ -453,11 +447,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         pass
 
     def send(self, code, body, ctype="application/json", csp=None):
-        raw = (
-            body
-            if isinstance(body, bytes)
-            else dumps_line(body).encode("utf-8")
-        )
+        raw = body if isinstance(body, bytes) else dumps_line(body).encode("utf-8")
         if code >= 400:
             # An unread request body must not become the next request.
             self.close_connection = True
@@ -497,15 +487,17 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         except (OSError, ValueError):
             return True
 
+    def _header_token_is(self, token):
+        given = self.headers.get(token_header(self.hub.name)) or ""
+        return secrets.compare_digest(given, token)
+
     def token_ok(self):
         """The token rides only in the X-<Name>-Token header, never in a URL."""
-        given = self.headers.get(token_header(self.hub.name)) or ""
-        return secrets.compare_digest(given, self.hub.token)
+        return self._header_token_is(self.hub.token)
 
     def watch_token_ok(self):
         """The watcher's token, which gates /api/wait and the lease release."""
-        given = self.headers.get(token_header(self.hub.name)) or ""
-        return secrets.compare_digest(given, self.hub.watch_token)
+        return self._header_token_is(self.hub.watch_token)
 
     def do_GET(self):
         if not self.origin_ok():
@@ -546,18 +538,13 @@ class LoopbackHandler(BaseHTTPRequestHandler):
             timeout = max(1, min(WAIT_MAX, asked))
         except ValueError:
             return self.send(
-                400,
-                {
-                    "error": "after is an integer or handled; replayed and timeout are integers"
-                },
+                400, {"error": "after is an integer or handled; replayed and timeout are integers"}
             )
         watcher = (query.get("watcher") or [None])[0]
         pid = (query.get("pid") or [""])[0]
         pid = int(pid) if pid.isdigit() else None
         try:
-            result = self.hub.wait(
-                after, timeout, self.client_gone, replayed, watcher, pid
-            )
+            result = self.hub.wait(after, timeout, self.client_gone, replayed, watcher, pid)
         except Conflict as e:
             return self.send(409, e.payload)
         if result is None:
@@ -630,11 +617,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         gate = self.watch_token_ok if url.path == "/api/lease" else self.token_ok
         if not gate():
             return self.send(403, {"error": "token required"})
-        if (
-            not self.headers.get("Content-Type", "")
-            .lower()
-            .startswith("application/json")
-        ):
+        if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.send(415, {"error": "application/json required"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -748,17 +731,12 @@ def ping(port, timeout=1.0):
 
 def read_session(d, name):
     """The data dir's session file when it records a port and a pid, else None."""
-    try:
-        s = json.loads((d / session_files(name)[0]).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return s if isinstance(s, dict) and s.get("port") and s.get("pid") else None
+    s = read_json(d / session_files(name)[0])
+    return s if s and s.get("port") and s.get("pid") else None
 
 
 def same_dir(a, b):
-    return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(
-        str(Path(b).resolve())
-    )
+    return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
 
 
 def running(d, s):
@@ -866,11 +844,7 @@ def wait_started(d, name, nonce, proc, seconds):
 
 def kept_port(d, name):
     """The port the session file records, running or not, else None."""
-    try:
-        path = d / session_files(name)[0]
-        port = json.loads(path.read_text(encoding="utf-8"))["port"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+    port = (read_json(d / session_files(name)[0]) or {}).get("port")
     ok = isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536
     return port if ok else None
 
@@ -1277,10 +1251,7 @@ def select_transport(entries, flags=READ, auth=READ, policy=READ, env=None):
         return loopback(
             "the session's launch flags cannot be read here, so its channel opt-in is unknown"
         )
-    named = {
-        f: [e for e in flags.get(f, []) if e in entries]
-        for f in (DEV_FLAG, CHANNELS_FLAG)
-    }
+    named = {f: [e for e in flags.get(f, []) if e in entries] for f in (DEV_FLAG, CHANNELS_FLAG)}
     flag = next((f for f, e in named.items() if e), None)
     if flag is None:
         return loopback(
@@ -1313,9 +1284,7 @@ def select_transport(entries, flags=READ, auth=READ, policy=READ, env=None):
             f"{entry} is not on the organization's allowedChannelPlugins, and {CHANNELS_FLAG} "
             f"registers only allowlisted plugins; {DEV_FLAG} {entry} loads it for development"
         )
-    org = (
-        f"the {source} enable channels" if source else "no organization policy applies"
-    )
+    org = f"the {source} enable channels" if source else "no organization policy applies"
     return {
         "transport": "channels",
         "reason": f"{entry} is opted in with {flag}, auth is {auth.get('authMethod')}, and {org}",
@@ -1334,9 +1303,7 @@ def read_conf(here):
         if "=" in line and not line.startswith("#")
     )
     name, control = conf.get("NAME", "").strip(), conf.get("CONTROL", "").strip()
-    if re.fullmatch(r"[a-z][a-z0-9-]*", name) and re.fullmatch(
-        r"[A-Za-z0-9._-]+", control
-    ):
+    if re.fullmatch(r"[a-z][a-z0-9-]*", name) and re.fullmatch(r"[A-Za-z0-9._-]+", control):
         return name, control
     return None
 
@@ -1351,9 +1318,7 @@ class ChannelRelay(Transport):
     def __init__(self, data_dir, name, control_cmd, ring, watcher):
         self.dir = Path(data_dir).resolve()
         self.name = name
-        self.control_cmd = (
-            control_cmd  # the apply command's argv head: [bash, <here>/<CONTROL>]
-        )
+        self.control_cmd = control_cmd  # the apply command's argv head: [bash, <here>/<CONTROL>]
         self.ring = ring
         self.watcher = watcher
         self.lock = threading.Lock()
@@ -1422,23 +1387,8 @@ class ChannelRelay(Transport):
                 pass
 
     def listener(self):
-        now = time.time()
-        if self.waiting or now - self.last_wait < LISTEN_GRACE:
-            state = "listening"
-        elif now - self.last_deliver < self.reading_window():
-            state = "reading"
-        else:
-            state = "idle"
-        return {
-            "state": state,
-            "waiters": int(self.waiting),
-            "idleFor": 0
-            if self.waiting
-            else (round(now - self.last_wait, 1) if self.last_wait else None),
-            "lastWaitAt": self.last_wait or None,
-            "lastDeliverAt": self.last_deliver or None,
-            "lease": {"watcher": self.watcher} if not self.stopped.is_set() else None,
-        }
+        lease = None if self.stopped.is_set() else {"watcher": self.watcher}
+        return self._listener_view(int(self.waiting), lease)
 
     def read_log(self):
         with self.lock:
@@ -1605,21 +1555,16 @@ class ChannelServer:
         """A channel event naming the data dir and counts only, never page text."""
         params = {
             "content": f"session-bridge: {text} in {relay.dir}",
-            "meta": {
-                "data_dir": str(relay.dir),
-                **{k: str(v) for k, v in meta.items()},
-            },
+            "meta": {"data_dir": str(relay.dir), **{k: str(v) for k, v in meta.items()}},
         }
-        self.send(
-            {
-                "jsonrpc": "2.0",
-                "method": "notifications/claude/channel",
-                "params": params,
-            }
-        )
+        self.send({"jsonrpc": "2.0", "method": "notifications/claude/channel", "params": params})
+
+    @staticmethod
+    def _data_dir(args):
+        return Path(str(args.get("data_dir") or "")).resolve()
 
     def relay_for(self, args):
-        d = Path(str(args.get("data_dir") or "")).resolve()
+        d = self._data_dir(args)
         relay = self.relays.get(d)
         if relay is None:
             raise ToolError(f"not watching {d}: call watch first")
@@ -1632,11 +1577,10 @@ class ChannelServer:
                 f"no valid NAME and CONTROL in {self.here / 'session-bridge.conf'}"
             )
         name, control = conf
-        d = Path(str(args.get("data_dir") or "")).resolve()
-        if not (d / session_files(name)[1]).is_file():
-            raise ToolError(
-                f"no {d / session_files(name)[1]}: run {control} ensure-running first"
-            )
+        d = self._data_dir(args)
+        env = d / session_files(name)[1]
+        if not env.is_file():
+            raise ToolError(f"no {env}: run {control} ensure-running first")
         current = self.relays.get(d)
         if current is not None and not current.stopped.is_set():
             return f"already watching {d}"
@@ -1679,20 +1623,15 @@ class ChannelServer:
                 "events": self.tool_events,
                 "unwatch": self.tool_unwatch,
             }.get(params.get("name"))
-            args = (
-                params.get("arguments")
-                if isinstance(params.get("arguments"), dict)
-                else {}
-            )
+            args = params.get("arguments")
+            if not isinstance(args, dict):
+                args = {}
             try:
                 if tool is None:
                     raise ToolError(f"unknown tool: {params.get('name')}")
                 result = {"content": [{"type": "text", "text": tool(args)}]}
             except ToolError as e:
-                result = {
-                    "content": [{"type": "text", "text": str(e)}],
-                    "isError": True,
-                }
+                result = {"content": [{"type": "text", "text": str(e)}], "isError": True}
         else:
             error = {"code": -32601, "message": f"method not found: {method}"}
             return self.send({"jsonrpc": "2.0", "id": mid, "error": error})
