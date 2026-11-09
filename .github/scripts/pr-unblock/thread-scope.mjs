@@ -52,6 +52,8 @@ const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
 // ASCII letters, digits and _@+.- in /-separated segments: no backslash,
 // space, control or non-ASCII character.
 const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
+// Plain and in normal form.
+const isPlainPath = (path) => PLAIN_PATH.test(path) && !BAD_SEGMENT.test(path);
 
 // Control-plane and agent-instruction surfaces outside plugins/<p>/: anything
 // under .github/ (which holds the pr-merge HIGH floor's trusted-actor list,
@@ -67,8 +69,7 @@ const isControlPath = (path) => pluginOf(path) === undefined && CONTROL_PATH.tes
 // such a path still reaches it through the thread's own scope.
 const prPathAllowed = (path) =>
   typeof path === "string" &&
-  PLAIN_PATH.test(path) &&
-  !BAD_SEGMENT.test(path) &&
+  isPlainPath(path) &&
   !isProtectedPath(path) &&
   !isInstructionPath(path) &&
   !isControlPath(path);
@@ -105,8 +106,7 @@ export const copyPathsOf = (files, pairs) => {
 export function namedInScope(path, threadPath) {
   const plugin = pluginOf(path);
   return (
-    PLAIN_PATH.test(path) &&
-    !BAD_SEGMENT.test(path) &&
+    isPlainPath(path) &&
     plugin !== undefined &&
     plugin === pluginOf(String(threadPath)) &&
     !isProtectedPath(path) &&
@@ -125,7 +125,7 @@ export function namedInScope(path, threadPath) {
 // path, as a new file or a rename's target). Never anything under
 // .github/workflows/, and never a path that is not plain and in normal form.
 export function inThreadScope(path, threadPaths, threads = [], { prPaths = new Set(), copyPaths = new Set(), added = false } = {}) {
-  if (isProtectedPath(path) || BAD_SEGMENT.test(path) || !PLAIN_PATH.test(path)) {
+  if (isProtectedPath(path) || !isPlainPath(path)) {
     return false;
   }
   if (threadPaths.has(path)) {

@@ -42,6 +42,7 @@ STALE = "b" * 40
 LANE = "lane-bot"
 APPROVER = "approver-bot"
 PR_NUMBER = 476
+MERGE_DECISION = {"method": "merge", "reason": "no row calls for a rewrite"}
 LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
@@ -1967,9 +1968,13 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         queue: bool = False,
         mergeable: str = "MERGEABLE",
         acting: str = "a-maintainer",
+        decide: Any = lambda *_: MERGE_DECISION,
+        armed: bool = False,
     ) -> dict[str, object]:
         self.writes: list[list[str]] = []
         self.leases: list[Any] = []
+        self.write_state = mock.Mock()
+        self.disarm = mock.Mock()
         pr = {
             "state": "OPEN",
             "author": {"login": author},
@@ -1984,7 +1989,8 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
             if args == ["api", f"repos/{self.REPO}/git/ref/heads/main"]:
                 return {"object": {"sha": self.TIP}}
             if args[:2] == ["api", f"repos/{self.REPO}/pulls/{PR_NUMBER}"]:
-                return {"auto_merge": None, "labels": []}
+                auto_merge = {"merge_method": "squash"} if armed else None
+                return {"auto_merge": auto_merge, "labels": []}
             if args[:2] == ["api", "graphql"]:
                 return {"data": {"viewer": {"login": acting}}}
             if args[0] == "api" and args[1] in STRAY_MERGE_COMPARES:
@@ -2027,7 +2033,9 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
                 "require_worker_lease",
                 side_effect=lambda *a, **k: self.leases.append(a),
             ),
-            mock.patch.object(refresh, "write_state"),
+            mock.patch.object(refresh, "write_state", self.write_state),
+            mock.patch.object(refresh, "run_gh", self.disarm),
+            mock.patch.object(refresh, "branch_update_decision", side_effect=decide),
             mock.patch.object(
                 refresh.repo_policy, "fallback_from_args", return_value={}
             ),
@@ -2146,6 +2154,110 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertIn(f"repos/{self.REPO}/pulls/{PR_NUMBER}/update-branch", update)
 
 
+class RefreshFollowsTheBranchUpdateDecision(unittest.TestCase):
+    """The refresh takes its method from the shared decision: a hold reaches no
+    update, no ledger write and no disarm."""
+
+    REPO = RefreshAsksDependabotToRebase.REPO
+    TIP = RefreshAsksDependabotToRebase.TIP
+    COMMENTS = RefreshAsksDependabotToRebase.COMMENTS
+    BODY = RefreshAsksDependabotToRebase.BODY
+    _run = RefreshAsksDependabotToRebase._run
+    FEATURE: dict[str, Any] = {"head_ref": "feature/x", "author": "octocat"}
+
+    def assert_held(self, result: dict[str, object], reason: str) -> None:
+        self.assertEqual(self.writes, [], "a hold makes no update call")
+        self.write_state.assert_not_called()
+        self.disarm.assert_not_called()
+        self.assertEqual(self.leases, [])
+        self.assertIs(result["eligible"], False)
+        self.assertEqual(result["held"], "branch-update-hold")
+        self.assertIn(reason, str(result["reason"]))
+
+    def assert_updated(self) -> None:
+        [update] = self.writes
+        self.assertIn(f"repos/{self.REPO}/pulls/{PR_NUMBER}/update-branch", update)
+        self.assertIn(f"expected_head_sha={HEAD}", update)
+
+    def test_a_hold_writes_nothing_and_leaves_auto_merge_armed(self) -> None:
+        hold = {"method": "hold", "reason": "a stack member cannot be rewritten"}
+        for apply in (True, False):
+            with self.subTest(apply=apply):
+                result = self._run(
+                    **self.FEATURE, apply=apply, armed=True, decide=lambda *_: hold
+                )
+                self.assert_held(result, "a stack member cannot be rewritten")
+
+    def test_no_usable_answer_from_the_script_holds(self) -> None:
+        answers = (
+            (subprocess.CompletedProcess([], 2, "", "bad signal"), "exit 2"),
+            (subprocess.CompletedProcess([], 0, "not json", ""), "no branch update"),
+            (
+                subprocess.CompletedProcess([], 0, '{"method":"rebase"}', ""),
+                "unexpected method 'rebase'",
+            ),
+        )
+        for answer, reason in answers:
+            with (
+                self.subTest(reason=reason),
+                mock.patch.object(merge, "pull_request_stack", return_value=None),
+                mock.patch.object(merge, "run_command", return_value=answer),
+            ):
+                result = self._run(
+                    **self.FEATURE, armed=True, decide=merge.branch_update_decision
+                )
+                self.assert_held(result, reason)
+
+    def test_merge_and_none_keep_todays_update_call(self) -> None:
+        for method in ("merge", "none"):
+            with self.subTest(method=method):
+                self._run(
+                    **self.FEATURE,
+                    decide=lambda *_: {"method": method, "reason": "r"},
+                )
+                self.assert_updated()
+                self.write_state.assert_called()
+
+    def test_an_update_disarms_an_armed_auto_merge(self) -> None:
+        self._run(**self.FEATURE, armed=True)
+        self.assert_updated()
+        self.disarm.assert_called_once()
+        self.assertIn("--disable-auto", self.disarm.call_args.args[0])
+
+    def test_delegate_asks_the_manager_and_updates_nothing(self) -> None:
+        result = self._run(
+            **self.FEATURE,
+            decide=lambda *_: {"method": "delegate", "reason": "r"},
+        )
+        self.assertEqual(
+            self.writes,
+            [["api", "-X", "POST", self.COMMENTS, "-f", f"body={self.BODY}"]],
+        )
+        self.assertEqual(result["held"], "dependabot-rebase-requested")
+        self.write_state.assert_not_called()
+
+    def test_a_native_stack_member_is_held_by_the_real_decision(self) -> None:
+        with mock.patch.object(merge, "pull_request_stack", return_value={"number": 9}):
+            result = self._run(
+                **self.FEATURE, armed=True, decide=merge.branch_update_decision
+            )
+        self.assert_held(result, "cannot be rewritten")
+
+    def test_an_unreadable_stack_is_held_by_the_real_decision(self) -> None:
+        with mock.patch.object(
+            merge, "pull_request_stack", side_effect=RuntimeError("gh: HTTP 502")
+        ):
+            result = self._run(
+                **self.FEATURE, armed=True, decide=merge.branch_update_decision
+            )
+        self.assert_held(result, "could not be read")
+
+    def test_a_head_in_no_stack_is_updated_by_the_real_decision(self) -> None:
+        with mock.patch.object(merge, "pull_request_stack", return_value=None):
+            self._run(**self.FEATURE, decide=merge.branch_update_decision)
+        self.assert_updated()
+
+
 class RefreshRefusesMergeQueueBases(unittest.TestCase):
     """A behind head on a merge-queue base is never refreshed, even when GitHub
     reports BEHIND; an unreadable rules answer refuses too."""
@@ -2245,6 +2357,9 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
             mock.patch.object(refresh, "begin_guarded_mutation", return_value=opened),
             mock.patch.object(refresh, "require_worker_lease"),
             mock.patch.object(refresh, "write_state"),
+            mock.patch.object(
+                refresh, "branch_update_decision", return_value=MERGE_DECISION
+            ),
             mock.patch.object(
                 refresh.repo_policy, "fallback_from_args", return_value={}
             ),

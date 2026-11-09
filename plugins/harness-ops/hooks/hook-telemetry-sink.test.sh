@@ -183,6 +183,16 @@ LOG11="$P11/$ROOT_REL/hook-events.jsonl"
 assert_record "a metacharacter subject still satisfies the schema" "$LOG11"
 assert_eq "a metacharacter subject round-trips verbatim" "$HOSTILE" "$(jq -r '.subject' "$LOG11")"
 
+# --- a {tool, file} payload (hook::data_json_to) maps file to subject ---------
+P14="$TEST_TMPDIR/p14"
+mkdir -p "$P14"
+run_sink "$P14" "$(envelope bash-format PostToolUse ok 7 '' Write | jq -c 'del(.data.subject) | .data.file = "scripts/a.sh"')"
+LOG14="$P14/$ROOT_REL/hook-events.jsonl"
+assert_record "a {tool, file} envelope satisfies the schema" "$LOG14"
+assert_eq "a {tool, file} envelope: subject from data.file" "scripts/a.sh" "$(jq -r '.subject' "$LOG14")"
+run_sink "$P14" "$(envelope bash-format PostToolUse ok 7 named Write '"file":"scripts/b.sh"')"
+assert_eq "data.subject wins over data.file" "named" "$(tail -1 "$LOG14" | jq -r '.subject')"
+
 # --- shared file rotates over the byte cap, whatever the event-log toggle -----
 P12="$TEST_TMPDIR/p12"
 mkdir -p "$P12/$ROOT_REL"

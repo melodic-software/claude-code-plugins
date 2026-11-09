@@ -52,6 +52,9 @@ const PATCH_CAP = 20_000;
 const PATCHES_TOTAL_CAP = 300_000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
+// The first line of each comment the lanes App posted.
+const appFirstLines = (issueComments, appId) => issueComments.filter((comment) => comment.user?.id === appId).map((comment) => firstLine(comment.body));
+const labelNames = (pull) => (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
 
 export function roundLine({ head, verdict, run }) {
   return `<!-- pr-unblock:review-dependency-round head=${head} verdict=${verdict} run=${run} -->`;
@@ -60,9 +63,8 @@ export function roundLine({ head, verdict, run }) {
 // The round markers the lanes App posted, oldest first; any other author's
 // copy is ignored.
 export function rounds(issueComments, appId) {
-  return issueComments
-    .filter((comment) => comment.user?.id === appId)
-    .map((comment) => ROUND_LINE.exec(firstLine(comment.body)))
+  return appFirstLines(issueComments, appId)
+    .map((line) => ROUND_LINE.exec(line))
     .filter(Boolean)
     .map((match) => ({ head: match[1], verdict: match[2], run: match[3] }));
 }
@@ -74,9 +76,7 @@ export function rounds(issueComments, appId) {
 // whole pull request), every marker counts.
 export function countRounds(issueComments, appId, shas = null) {
   const current = Array.isArray(shas) ? new Set(shas) : null;
-  return issueComments
-    .filter((comment) => comment.user?.id === appId)
-    .map((comment) => firstLine(comment.body))
+  return appFirstLines(issueComments, appId)
     .filter((line) => line.startsWith(ROUND_PREFIX))
     .filter((line) => {
       const head = ROUND_HEAD.exec(line)?.[1];
@@ -168,7 +168,7 @@ export async function classifyPull({ pull, ciStatus, commits, files, config, pol
     headRef: pull.head?.ref,
     title: pull.title ?? "",
     body: pull.body ?? "",
-    labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
+    labels: labelNames(pull),
     ciStatus,
     commits,
     totalCommits: pull.commits,
@@ -275,7 +275,7 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
       head_sha: headSha,
       head_ref: pull.head.ref,
       title: pull.title ?? "",
-      labels: (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
+      labels: labelNames(pull),
       classification,
       rounds: done,
       files_truncated: files.length >= FILES_CAP,
@@ -421,10 +421,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     log(`::warning::the ${PACKAGE} install-script pin was not moved (${result.pinError}); the model reviews the pull request as it stands`);
   }
   output("proceed", String(result.decision === "proceed"));
-  output(
-    "skip-reason",
-    result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : result.decision === "pin" ? "no-model-turn" : "",
-  );
+  output("skip-reason", { skip: result.skipReason, escalate: "awaiting-human", pin: "no-model-turn" }[result.decision] ?? "");
   output("escalation-reason", result.escalationReason ?? "");
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {

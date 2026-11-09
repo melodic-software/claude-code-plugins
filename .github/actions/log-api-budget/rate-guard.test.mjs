@@ -1,3 +1,4 @@
+// test-scope: .github/*.mjs .github/*.cjs  # the guard-coverage case scans every tracked script
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -139,8 +139,9 @@
 #                    A changed file matching a glob selects the suite and counts
 #                    as mapped. The globs use the dialect of the no-suite list:
 #                    matched against the repo-relative path, `*` crosses `/`;
-#                    a `#` after them starts a comment. Suites whose comments
-#                    start with `#` (shell, Python, Pester) can declare. A glob
+#                    a `#` after them starts a comment. Shell, Python and
+#                    Pester suites declare in `#` lines, .test.js and
+#                    .test.mjs suites in `// test-scope:` lines. A glob
 #                    matching no file fails the run that changes its suite.
 #   R9 wrapper       a selected <stem>.test.js or <stem>.test.mjs whose
 #                    directory holds <stem>.test.sh selects that wrapper too,
@@ -686,17 +687,20 @@ build_name_lines() {
 }
 
 # scope_declarations <file-list> -> one `<suite> <glob>...` line per
-# `# test-scope:` line in the leading comment block of each suite the list
+# `# test-scope:` (or, in a .test.js or .test.mjs suite, `// test-scope:`)
+# line in the leading comment block of each suite the list
 # names, read from the current directory (R8).
 scope_declarations() {
   awk '
-    { b = $0; sub(/.*\//, "", b) }
-    !(/\.test\.sh$|\.Tests\.ps1$/ || b ~ /^test_.*\.py$/) { next }
+    { b = $0; sub(/.*\//, "", b); c = b ~ /\.test\.m?js$/ ? "//" : "#" }
+    !(c == "//" || /\.test\.sh$|\.Tests\.ps1$/ || b ~ /^test_.*\.py$/) { next }
     {
+      n = 0
       while ((getline line < $0) > 0) {
         sub(/\r$/, "", line)
-        if (line !~ /^#/ && line !~ /^[ \t]*$/) break
-        if (sub(/^#[ \t]*test-scope:/, "", line)) print $0 " " line
+        if (++n == 1 && line ~ /^#!/) continue
+        if (index(line, c) != 1 && line !~ /^[ \t]*$/) break
+        if (sub("^" c "[ \t]*test-scope:", "", line)) print $0 " " line
       }
       close($0)
     }' "$1"

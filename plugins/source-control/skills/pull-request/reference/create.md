@@ -3,7 +3,7 @@
 ## Contents
 
 - [2.1 Pre-flight](#21-pre-flight)
-- [2.2 Rebase onto the latest default branch](#22-rebase-onto-the-latest-default-branch)
+- [2.2 Bring the branch current with the default branch](#22-bring-the-branch-current-with-the-default-branch)
 - [2.3 Stage and commit](#23-stage-and-commit)
 - [2.4 Push, create PR, and persist PR number](#24-push-create-pr-and-persist-pr-number)
 - [2.5 Record expected CI workflows](#25-record-expected-ci-workflows)
@@ -70,13 +70,11 @@
 
    **Skip conditions:** not in a worktree, no `.worktreeinclude` file exists, no differences found.
 
-## 2.2 Rebase onto the latest default branch
+## 2.2 Bring the branch current with the default branch
 
-Bring the branch current with the default branch before pushing, to prevent merge conflicts and stale-branch CI failures.
+Bring the branch current with the default branch before pushing, to prevent merge conflicts and stale-branch CI failures. Run [Decide and carry out the update](ready-for-review.md#decide-and-carry-out-the-update), its decision from `branch-update-method.sh` in branch-only mode, because no PR exists yet: `BRANCH` is the current branch and `BASE` the default branch.
 
-**This step keeps its rebase, and it is the last place one is allowed.** It runs before the first push, when no PR exists and no reviewer has read a commit, so rewriting SHAs costs nothing. Once the PR exists, every base refresh is a merge, per [ready-for-review.md](ready-for-review.md) §2.5.2: a rebase then needs a force-push and rewrites commits reviewers have read.
-
-**Ordering: rebase needs a clean tree.** `git rebase` refuses to run with unstaged changes (`error: cannot rebase: You have unstaged changes.`). On the normal `create` path the PR changes are still uncommitted here, so run 2.3 (classify unrelated changes + stage + commit) FIRST, then return and integrate before the 2.4 push. Run 2.2 in listed order only when the tree is already clean (all work committed).
+**Ordering: an update runs on a clean tree.** On the normal `create` path the PR changes are still uncommitted here, so run 2.3 (classify unrelated changes + stage + commit) FIRST, then return and integrate before the 2.4 push. Run 2.2 in listed order only when the tree is already clean (all work committed).
 
 First set `DEFAULT_BRANCH` to the repository's default branch ([GitHub](../../../reference/providers/github/README.md#identity-and-repository)), then:
 
@@ -96,21 +94,16 @@ First set `DEFAULT_BRANCH` to the repository's default branch ([GitHub](../../..
 REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1
 
 git fetch "$REMOTE" "$DEFAULT_BRANCH"
-MERGE_BASE=$(git merge-base HEAD "$REMOTE/$DEFAULT_BRANCH")
-REMOTE_DEFAULT=$(git rev-parse "$REMOTE/$DEFAULT_BRANCH")
-
-if [ "$MERGE_BASE" != "$REMOTE_DEFAULT" ]; then
-  BEHIND=$(git rev-list --count HEAD.."$REMOTE/$DEFAULT_BRANCH")
-  echo "Branch is $BEHIND commit(s) behind $REMOTE/$DEFAULT_BRANCH. Rebasing..."
-  git rebase "$REMOTE/$DEFAULT_BRANCH"
-fi
 ```
 
-**Prefer `git merge $REMOTE/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges $REMOTE/$DEFAULT_BRANCH..HEAD` non-empty): replaying pre-merge commits causes avoidable conflicts, and under squash-merge linear history buys nothing.
+The method's handling differs from the shared table in two ways:
 
-**If conflicts occur:** resolve conservatively: take both sides where independent, and pause and present to the user whenever intent is unclear. `git rebase --abort` / `git merge --abort` when resolution needs judgment you don't have.
+- **`merge`** merges here, since there is no pull request for the forge's update: `git merge --no-stat "$REMOTE/$DEFAULT_BRANCH"`. §2.4.1 pushes it.
+- **`rebase`** of a head never pushed runs in place, since nothing needs a force push: `git rebase --no-update-refs "$REMOTE/$DEFAULT_BRANCH"`, with the signing rule of [Carry out a rebase](ready-for-review.md#carry-out-a-rebase). A pushed head follows [Carry out a rebase](ready-for-review.md#carry-out-a-rebase).
 
-**Skip conditions:** zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
+**If conflicts occur:** a merge follows [Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge); a rebase aborts and stops, as [Carry out a rebase](ready-for-review.md#carry-out-a-rebase) says.
+
+**Skip conditions:** zero commits ahead (nothing to update).
 
 **Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query as its PR create, so this is the *first* step on the normal `create` path to fail with `HTTP 403` when the GitHub proxy refuses GraphQL. §2.4.0 has the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
 
@@ -253,14 +246,14 @@ pr-verify checks each named pull request's author, base and edits itself. Under 
 
 ### 2.4.1 Push and assemble PR body
 
-**Merge the base first when the PR will go ready.** Resolve §2.4.3's open state before the push
-(its `config-root.sh classify` call included); it reads nothing the push changes. When it is
+**Update from the base first when the PR will go ready.** Resolve §2.4.3's open state before the
+push (its `config-root.sh classify` call included); it reads nothing the push changes. When it is
 `ready` and `ready`'s `base-merge` step would run ([ready-for-review.md](ready-for-review.md),
-"Read which pre-flip steps run"), fetch `$REMOTE/$DEFAULT_BRANCH` again and, when the branch is
-behind it, merge it in the way §2.5.2's local fallback does: a merge, never a rebase, with
-conflicts resolved per §2.5.2 ([Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge)), and stop as `ready` does. The draft then
-opens on a head containing the base, so §2.5.2 pushes nothing and the PR saves a CI run. A
-`draft` state skips this.
+"Read which pre-flip steps run"), fetch `$REMOTE/$DEFAULT_BRANCH` again, take a fresh decision from
+`branch-update-method.sh` in §2.2's branch-only mode and carry it out as §2.2 does, a conflicted
+merge resolved per §2.5.2 ([Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge)),
+and stop as `ready` does. The draft then opens on a head the decision is satisfied with, so §2.5.2 has nothing
+to push and the PR saves a CI run. A `draft` state skips this.
 
 ```bash
 # Push via push-branch.sh, which resolves the push remote (resolve-remote.sh
@@ -278,6 +271,8 @@ that waited in a rate gate while the base moved is not refused by a pre-push sta
 reports the merge on stderr. Exit 4 means that merge conflicted, was aborted, and nothing was
 pushed: merge the base by hand and resolve it per §2.5.2
 ([Resolve a conflicted merge](ready-for-review.md#resolve-a-conflicted-merge)), then push again.
+The [sequence's rule for a later push](ready-for-review.md#decide-and-carry-out-the-update) applies
+here.
 
 Derive the PR title from the commit subject, shaped to the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered source-control config → project convention → Conventional Commits default). Build the body with `${CLOSES_LINE}` at top, then the resolved section scaffold and a config-gated attribution line.
 
@@ -693,10 +688,10 @@ BRANCH=$(git -C "$WT" branch --show-current)
 **Sub-steps relative to the normal `create` path:**
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
-- **§2.2 (rebase onto the default branch):** skipped. The worker brings the branch current before returning; the Phase 3 mergeability read and CI catch residual staleness. The out-of-tree orchestrator cannot rebase a branch it is not on, so it never owns this step.
-- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base merge: when it applies and `$BRANCH` is behind `$BASE`, merge in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`, `$BASE` resolved as the §2.4.3 bullet below says, before the merge) and push it with `push-branch.sh --dir "$WT"`. When the merge conflicts, run `git -C "$WT" merge --abort`, so `$WT` returns to the worker's clean tree, then STOP and report the conflict: no push and no PR create, since this unattended run has no PR to leave in draft and cannot resolve the conflict itself.
+- **§2.2 (bring the branch current):** skipped. The worker brings the branch current before returning; the Phase 3 mergeability read and CI catch residual staleness. The out-of-tree orchestrator cannot update a branch it is not on, so it never owns this step.
+- **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above, except §2.4.1's base update: when it applies, run [Decide and carry out the update](ready-for-review.md#decide-and-carry-out-the-update) from `$WT` with the signals script's `--branch "$BRANCH" --base "$BASE"` mode, `$BASE` resolved as the §2.4.3 bullet below says, before the read. What differs here: only `none`, `merge` and `hold` can come back, because this run's head is pushed and cannot be rewritten and a branch-only read reports no managed head. A `merge` runs in `$WT` (`git -C "$WT"`, the fetch remote from `resolve-remote.sh` without `--push` run from `$WT`) and is pushed with `push-branch.sh --dir "$WT"`. After `none` or `hold` the run pushes nothing and goes on to open the PR. When the merge conflicts, run `git -C "$WT" merge --abort`, so `$WT` returns to the worker's clean tree, then STOP and report the conflict: no push and no PR create, since this unattended run has no PR to leave in draft and cannot resolve the conflict itself.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own source-control config layers, not the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which `git -C` cannot redirect, so leaving it implicit would parse `Closes #N` from the orchestrator's branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base merge and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base update and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section uses for `resolve-remote.sh`.
 

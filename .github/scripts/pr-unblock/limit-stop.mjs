@@ -97,9 +97,12 @@ const untrustedSkip = (run) =>
 // A run that neither handles the head nor counts toward its cap.
 const ignored = (run) => untrustedSkip(run) || faultStop(run);
 
+// A completed neutral check run titled `title`.
+const neutralTitled = (run, title) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === title;
+
 // The neutral check a run skipped on a held PR posts (report-check-run's
 // `Skipped: <reason>` title).
-const heldSkip = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: awaiting-human";
+const heldSkip = (run) => neutralTitled(run, "Skipped: awaiting-human");
 
 // The gate's head-lag stop (check-trusted-trigger.mjs fetchPull), which
 // report-check-run posts as a superseded-sha skip (gate-skip-reasons.json) on
@@ -108,7 +111,7 @@ const heldSkip = (run) => run.status === "completed" && run.conclusion === "neut
 // head a dispatcher reads, the PR's current one, it is a lag stop that did no
 // work there.
 export const HEAD_LAG_STOP = "Skipped: superseded-sha";
-export const headLagStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === HEAD_LAG_STOP;
+export const headLagStop = (run) => neutralTitled(run, HEAD_LAG_STOP);
 
 // Three opt-ins, for a dispatcher that checks the PR's holds itself before it
 // reads the check runs: with `heldSkipsRelease` a held skip stops handling the
@@ -130,7 +133,7 @@ const released = (run, { heldSkipsRelease = false, lagStopsRelease = false } = {
 // like a held skip: it counts toward `limit-stops-per-head`, so a switch that
 // keeps flipping mid-run still ends the head there.
 export const KILL_SWITCH_STOP = "Skipped: kill-switch";
-export const killSwitchStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === KILL_SWITCH_STOP;
+export const killSwitchStop = (run) => neutralTitled(run, KILL_SWITCH_STOP);
 
 // Whether an emitter (push, reply or verdict) check releases the head's
 // earlier activity checks for a same-head retry: a lane stop, or a

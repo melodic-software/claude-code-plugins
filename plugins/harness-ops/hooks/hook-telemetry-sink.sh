@@ -22,7 +22,8 @@
 #     not the per-session event log is enabled.
 #
 # Field mapping: ts<-timestamp, hook_event_name<-hook_event, hook<-hook,
-# tool<-data.tool, subject<-data.subject, changed<-data.changed (when a
+# tool<-data.tool, subject<-data.subject, else data.file (the key
+# hook::data_json_to writes), changed<-data.changed (when a
 # producer sends one); status translates (ok->success) and exit_code derives
 # from status (error/blocked->2, else 0), since the skill keys errors on it.
 #
@@ -30,9 +31,9 @@
 # first write when absent (session-log-lib.sh); a guard an operator changed is
 # respected and the write refused.
 #
-# Wire it by pointing HOOK_TELEMETRY_SINK at this script (relative path committed
-# in settings.json is the portable, team-shared form):
-#   "env": { "HOOK_TELEMETRY_SINK": "<path>/hook-telemetry-sink.sh" }
+# Wire it with the reserved value, which producers resolve to the launcher
+# refresh-sink-launcher.sh keeps in this plugin's data directory:
+#   "env": { "HOOK_TELEMETRY_SINK": "@harness-ops" }
 #
 # Fire-and-forget: the producer execs this as a single command in a backgrounded
 # subshell with stdout+stderr → /dev/null, so it MUST never crash and never write
@@ -70,7 +71,7 @@ command -v jq >/dev/null 2>&1 || exit 0
 mapfile -t FIELDS < <(printf '%s' "$INPUT" | jq -r '
   if (.hook and .hook_event and (.duration_ms != null) and .status)
   then (.timestamp // ""), .hook_event, .hook, (.data.tool // ""),
-       (.duration_ms | tostring), (.data.subject // ""), .status,
+       (.duration_ms | tostring), (.data.subject // .data.file // ""), .status,
        ((.session_id // .data.session_id // "") | tostring),
        (.data.changed | if . == true then "true" elif . == false then "false" else "" end)
   else empty end' 2>/dev/null | tr -d '\r')

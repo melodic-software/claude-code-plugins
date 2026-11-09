@@ -77,6 +77,24 @@ die() {
 
 routes=$(dirname "${BASH_SOURCE[0]}")/escalation-routes.json
 
+need_head_and_repo() {
+  [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
+  [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
+}
+
+# Sets context to the commit status context of activity $1's stop.
+set_context() {
+  if [[ $1 == resolve-conflicts ]]; then context=pr-unblock/conflict; else context=pr-unblock/$1; fi
+}
+
+# Posts a <state> status of <context> on HEAD_SHA with <description>, linked
+# to TARGET_URL when it is set.
+post_status() {
+  local args=(-f "state=$2" -f "context=$1" -f "description=$3")
+  [[ -z ${TARGET_URL:-} ]] || args+=(-f "target_url=$TARGET_URL")
+  gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" "${args[@]}" >/dev/null
+}
+
 # After the hold route adds the human-gated label: a queued PR leaves the merge
 # queue, so its group does not run only for ci-status to fail it on the label.
 # The read and the dequeue are address-feedback.mjs's QUEUE_ENTRY_QUERY and
@@ -149,10 +167,9 @@ retried_refusal() {
 # head, by github-actions[bot], is a failure or error, it posts success over it, so a
 # stop the retry mended no longer fails the head. Needs statuses: write.
 if [[ ${1:-} == clear ]]; then
-  [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
-  [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
+  need_head_and_repo
   jq -e --arg a "${ACTIVITY:-}" 'any(.[]; .activity == $a)' "$routes" >/dev/null || die "ACTIVITY is not an activity the table routes"
-  if [[ $ACTIVITY == resolve-conflicts ]]; then context=pr-unblock/conflict; else context=pr-unblock/$ACTIVITY; fi
+  set_context "$ACTIVITY"
   # Every page, newest first, and failure or error, as ci-status reads the same context.
   # A refused read prints its JSON error on stdout, which jq would die on with
   # no annotation, so the read is checked before jq sees it.
@@ -172,9 +189,7 @@ if [[ ${1:-} == clear ]]; then
     echo "no failing $context on $HEAD_SHA to clear"
     exit 0
   fi
-  args=(-f state=success -f "context=$context" -f "description=The lane ran again on this head and did not stop")
-  [[ -n ${TARGET_URL:-} ]] && args+=(-f "target_url=$TARGET_URL")
-  gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" "${args[@]}" >/dev/null
+  post_status "$context" success "The lane ran again on this head and did not stop"
   echo "cleared $context on $HEAD_SHA"
   exit 0
 fi
@@ -198,8 +213,7 @@ else
     die "the owner-reason for $ESCALATION_REASON in $routes is not a code on a hold route"
 fi
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
-[[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
-[[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
+need_head_and_repo
 
 case ${1:-} in
   '') ;;
@@ -216,19 +230,13 @@ case ${1:-} in
       [[ -z ${GITHUB_OUTPUT:-} ]] || echo "status-withheld=true" >>"$GITHUB_OUTPUT"
       exit 0
     fi
-    if [[ $activity == resolve-conflicts ]]; then
-      context=pr-unblock/conflict
-    else
-      context=pr-unblock/$activity
-    fi
+    set_context "$activity"
     if [[ $ESCALATION_REASON == unresolved-conflict ]]; then
       description='Conflicts with the base branch; CI does not run until they are resolved'
     else
       description="Lane stopped: $ESCALATION_REASON; checked again on a new head"
     fi
-    args=(-f state=failure -f "context=$context" -f "description=$description")
-    [[ -n ${TARGET_URL:-} ]] && args+=(-f "target_url=$TARGET_URL")
-    gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" "${args[@]}" >/dev/null
+    post_status "$context" failure "$description"
     echo "posted $context failure on $HEAD_SHA"
     exit 0
     ;;
@@ -278,11 +286,7 @@ if [[ $route == hold ]]; then
 else
   # gate-source.mjs LANE_STOPPED: one per activity, edited in place.
   marker="<!-- pr-unblock:lane-stopped activity=$activity -->"
-  if [[ $activity == resolve-conflicts ]]; then
-    context=pr-unblock/conflict
-  else
-    context=pr-unblock/$activity
-  fi
+  set_context "$activity"
   existing=$(gh api --paginate "$issue/comments?per_page=100" | jq -sc --arg bot "$bot" --arg m "$marker" \
     '[add[] | select(.user.login == $bot and ((.body // "") | split("\n")[0] | rtrimstr("\r")) == $m)] | last // {} | {id, body}')
 fi

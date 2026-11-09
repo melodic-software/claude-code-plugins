@@ -40,7 +40,8 @@ set -uo pipefail
 # shellcheck source=pre-ready-steps.sh
 source "$(dirname "${BASH_SOURCE[0]}")/pre-ready-steps.sh"
 STEPS=("${PRE_READY_STEPS[@]}")
-PARSER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/yaml-subset.awk"
+# shellcheck source=../../../lib/base-file.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 
 usage() {
   echo "read-pre-ready: usage: read-pre-ready.sh --base <b> --default-branch <d> (- | --http-response)" >&2
@@ -85,29 +86,11 @@ done
 [[ -n "$default" ]] || fail_closed "the base repository's default branch could not be read"
 [[ "$base" == "$default" ]] || fail_closed "base $base is not the default branch $default"
 
-# A command substitution drops NUL bytes (`fal\0se` would read as `false`), so
-# stdin goes to a file and is checked before any variable holds it.
-input_file="$(mktemp)" || fail_closed "no temporary file for the input"
-trap 'rm -f "$input_file"' EXIT
-cat >"$input_file"
-(($(tr -d '\000' <"$input_file" | wc -c) == $(wc -c <"$input_file"))) ||
-  fail_closed "the input holds a NUL byte"
-
-case "$mode" in
--) doc="$(cat "$input_file")" ;;
---http-response)
-  response="$(cat "$input_file")"
-  [[ -n "$response" ]] || fail_closed "the base read returned no response"
-  status="${response%%$'\n'*}"
-  status="${status%$'\r'}"
-  [[ "$status" =~ ^HTTP/[0-9.]+\ ([0-9]{3}) ]] || fail_closed "the base read returned no status line"
-  case "${BASH_REMATCH[1]}" in
-  200) doc="$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$response")" ;;
-  404) emit default " " ;;
-  *) fail_closed "the base read returned $status" ;;
-  esac
-  ;;
-*) usage ;;
+base_file_load "$mode"
+case "$BASE_FILE_STATE" in
+absent) emit default " " ;;
+failed) fail_closed "$BASE_FILE_REASON" ;;
+*) doc="$BASE_FILE_DOC" ;;
 esac
 
 # The parser's records drop quoting, and an empty first pre_ready leaves no
@@ -117,8 +100,8 @@ q="[\"']?"
 (($(grep -cE "^[[:space:]]*${q}pre_ready${q}[[:space:]]*:" <<<"$doc") <= 1)) ||
   fail_closed "pre_ready appears more than once"
 
-records="$(LC_ALL=C awk -f "$PARSER" <<<"$doc")" ||
-  fail_closed "docs/conventions/source-control.yaml does not parse: $(awk -F '\t' '$1 == "error" { print "line " $2 ": " $3 }' <<<"$records")"
+base_file_records || fail_closed "$BASE_FILE_REASON"
+records="$BASE_FILE_RECORDS"
 
 seen=$'\n' max=-1
 while IFS=$'\t' read -r key val; do

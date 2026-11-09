@@ -65,27 +65,100 @@ still run this line, before the push.
 HEAD_BEFORE=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
 ```
 
-## Refresh the base with a merge
-
-Never on a Dependabot head: request its rebase instead, as
-[merge.md, Behind-branch exceptions](merge.md#behind-branch-exceptions) says.
+## Read the base branch
 
 ```bash
 BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName')
-REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1
-
-gh pr update-branch "$PR_NUMBER"                     # merges the base into the head branch
-git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
 ```
 
-When the head already contains the base tip, `gh pr update-branch` prints "PR branch already
-up-to-date" and pushes nothing (cli/cli `pkg/cmd/pr/update-branch/update_branch.go`, the
-`BehindBy == 0` return, read 2026-10-02; recheck when a gh release changes `update-branch`).
+## Refresh the base with a merge
+
+Never on a Dependabot head: `delegate` requests its rebase instead, as
+[merge.md, Behind-branch exceptions](merge.md#behind-branch-exceptions) says.
+
+The update names the decision's `head_sha` as `expected_head_sha`, pinning it to that decision. We
+wait up to 60 seconds for the head to leave `head_sha` before fetching it; `UPDATED=0` after the
+block is a failed update. `DECISION` is the decision the phase read; a run that lost it reads it
+again.
+
+```bash
+DECISION_HEAD=$(jq -r .head_sha <<<"$DECISION") || exit 1
+[ -n "$DECISION_HEAD" ] && [ "$DECISION_HEAD" != unknown ] || exit 1
+
+UPDATED=0
+if gh api --method PUT "repos/{owner}/{repo}/pulls/$PR_NUMBER/update-branch" \
+  -f expected_head_sha="$DECISION_HEAD" >/dev/null; then
+  for _ in $(seq 12); do   # 12 polls x 5 s = 60 s
+    NOW=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')
+    [ -n "$NOW" ] && [ "$NOW" != "$DECISION_HEAD" ] && { UPDATED=1; break; }
+    sleep 5
+  done
+fi
+[ "$UPDATED" = 1 ] && git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
+```
+
+- **Pointer**: when checking the update's parameter and responses, fetch
+  [update a pull request branch](https://docs.github.com/en/rest/pulls/pulls#update-a-pull-request-branch)
+  live.
+- **As of**: 2026-11-08
+- **Recheck trigger**: that section changes `expected_head_sha` or its responses.
 
 The PR's head commit, for the completion check:
 
 ```bash
 gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'
+```
+
+## Read the base's review and signing rules
+
+Both answers come from the base's rulesets and, where one exists, its classic branch protection. A
+protection read that fails counts as no rule.
+
+```bash
+RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" | jq -c 'add // []')
+CLASSIC=$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null) || CLASSIC='{}'
+# true: an update dismisses approvals
+jq -nr --argjson r "$RULES" --argjson c "$CLASSIC" 'any($r[]; .type == "pull_request"
+  and .parameters.dismiss_stale_reviews_on_push == true)
+  or $c.required_pull_request_reviews.dismiss_stale_reviews == true'
+# true: the base requires signed commits
+jq -nr --argjson r "$RULES" --argjson c "$CLASSIC" 'any($r[]; .type == "required_signatures")
+  or $c.required_signatures.enabled == true'
+```
+
+Whether the head commit is signed, for the same choice:
+
+```bash
+git cat-file commit HEAD | grep -q '^gpgsig' && echo signed
+```
+
+- **Pointer**: when checking the rule names, fetch
+  [get rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch) live;
+  for the classic fields, fetch
+  [get branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)
+  live.
+- **As of**: 2026-11-08
+- **Recheck trigger**: either section renames a rule type or field read here.
+
+## Post the range-diff
+
+Exit 0 means the pull request has a reviewer: a person's review, or a review request. Post the
+comparison after the push, in one conversation comment.
+
+```bash
+PEOPLE=$(gh api --paginate --slurp "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" |
+  jq 'add // [] | map(select(.user.type != "Bot")) | length')
+REQUESTED=$(gh pr view "$PR_NUMBER" --json reviewRequests -q '.reviewRequests | length')
+[ "${PEOPLE:-0}" -gt 0 ] || [ "${REQUESTED:-0}" -gt 0 ]
+```
+
+```bash
+{
+  echo 'Rebased onto the base. Before and after (`git range-diff`):'
+  echo '```text'
+  cat "$RANGE_DIFF_FILE"
+  echo '```'
+} | gh pr comment "$PR_NUMBER" --body-file -
 ```
 
 ## Read the diff

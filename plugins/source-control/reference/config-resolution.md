@@ -172,7 +172,7 @@ reads the file itself, through a script where the key names one below.
 
 - `pr_open_state`: the state `/source-control:pull-request create` leaves a pull request in,
   `ready` or `draft`. Create always opens a draft; with `ready` it then runs
-  `/source-control:pull-request ready`, which merges the base, runs the reviews and the verify
+  `/source-control:pull-request ready`, which updates the branch from its base, runs the reviews and the verify
   gate, and flips it, while `draft` leaves that flip for later. The state meanings are in
   [create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3. Resolution, lowest first, where a later level wins:
   1. the default, `ready` (a consumer opts into `draft`);
@@ -213,6 +213,15 @@ reads the file itself, through a script where the key names one below.
   setting nor the overlap script is read from the branch being pushed: a head must not switch on a
   step that runs a script, or choose that script. A file the parser rejects, or another value,
   reads as `false`. A lane push never syncs.
+- `pr_update_method`: how a pull request branch takes its base, `auto`, `merge` or `rebase`.
+  `auto`, the default, applies the shared table; a forced value replaces the method only on the
+  rows [`scripts/branch-update-method.sh`](../scripts/branch-update-method.sh) marks forceable, and
+  [branch-update-criteria.md](branch-update-criteria.md) holds each row's reasoning. Team level
+  only, with no `userConfig` option. Read at the pull request's base branch, never the head, by
+  `scripts/branch-update-signals.sh`, and honored only when that base is the base repository's
+  default branch: any other base is a branch the author may have pushed unreviewed. An unknown
+  value resolves to `auto` with a notice on stderr, and a missing key, a base that is not the
+  default branch, a file that does not parse or a failed read leaves the default.
 - `dialect`: the regex dialect `subject_pattern` and `pr_title_pattern` are written in, default
   `posix-ere`. No skill here reads it. The guardrails enforcement resolver does, and any other value
   turns its enforcement off with a diagnostic; see the

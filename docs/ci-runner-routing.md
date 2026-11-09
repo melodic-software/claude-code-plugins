@@ -148,7 +148,7 @@ of every lane. `lint-shell` skips when the change touches none of its inputs
 directories, skill and agent markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
-declares what it reads in a `# test-scope:` header, and the selector's rule R8
+declares what it reads in a `test-scope:` header comment, and the selector's rule R8
 selects it for any changed file matching the glob. The rules, and the
 `--replay` mode that shows a selector change's effect on recent main commits,
 are in the header of `scripts/affected-tests.sh`.

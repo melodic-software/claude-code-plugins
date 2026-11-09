@@ -24,6 +24,7 @@ import { DEFAULTS, dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
+const userId = (value) => (/^[1-9][0-9]*$/.test(value ?? "") ? Number(value) : undefined);
 
 export async function main(
   env,
@@ -49,9 +50,9 @@ export async function main(
     log(`::notice::skip fix-docs #${number}: this run is not its event's first attempt, and a re-run keeps the event's sender whoever started it; the PR's next event decides`);
     return 0;
   }
-  const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
-  const sender = /^[1-9][0-9]*$/.test(env.SENDER_ID ?? "") ? Number(env.SENDER_ID) : null;
-  if (sender === null || (sender !== appSenderId && !readHumans().has(sender))) {
+  const appSenderId = userId(env.APP_SENDER_ID);
+  const sender = userId(env.SENDER_ID);
+  if (sender === undefined || (sender !== appSenderId && !readHumans().has(sender))) {
     log(`skip fix-docs #${number}: its event's sender is neither the lanes App nor a listed human; only an event one of them sends starts it`);
     return 0;
   }
