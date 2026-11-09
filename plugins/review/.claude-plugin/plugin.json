@@ -78,7 +78,7 @@
     "council_members": {
       "type": "string",
       "title": "Council members (JSON)",
-      "description": "Your /review:council member catalog as JSON, the same shape as council_members in docs/conventions/review.yaml, for example {\"codex-adv\":{\"provider\":\"codex\",\"brief\":\"adversarial\"}}. Empty (default): the repository's value or three Opus members. A repository's value wins; invalid JSON is reported and ignored.",
+      "description": "Your /review:council member catalog as JSON, the shape of council_members in docs/conventions/review.yaml, e.g. {\"codex-adv\":{\"provider\":\"codex\",\"brief\":\"adversarial\"}}. Empty (default): the repository's value or three Opus members. The repository's value wins; invalid JSON is reported and ignored.",
       "default": ""
     },
     "council_panel": {
