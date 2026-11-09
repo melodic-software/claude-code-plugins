@@ -120,6 +120,8 @@ function userLayer(file) {
         continue;
       }
     }
+    // Option values reach the skill as text, so a whole number may arrive quoted.
+    if (k === "council_max_rounds" && typeof v === "string" && /^[0-9]+$/.test(v)) v = Number(v);
     doc[k] = v;
   }
   return { doc, problems };

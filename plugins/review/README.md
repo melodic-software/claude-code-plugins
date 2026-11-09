@@ -75,6 +75,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
+- **`/review:council [--yes]`**. Council review: a panel of configured members (provider, model,
+  brief, effort), chosen for the change by ordered rules over its paths, size tier and merge
+  risk, writes one ranked findings report in fanout's shape. Claude members run as
+  `brief-reviewer`; Codex members run through `scripts/codex-review.sh`. A member that cannot run
+  as configured is reported, never replaced. One round by default; above one
+  (`council_max_rounds`), `/review:fanout fix` runs between rounds and later rounds review only
+  what it changed. Opt-in for lanes through `council_lanes`. Posts nothing.
 - **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz]`**.
   Change digest for a pull request: why, before and after, a risk map that a fresh-context
   agent checks (disputed rows stay, marked), where to focus, a run-e2e recording link when one

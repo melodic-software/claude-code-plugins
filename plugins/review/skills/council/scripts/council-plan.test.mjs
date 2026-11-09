@@ -70,6 +70,13 @@ describe("config", () => {
     assert.match(out.problems.join("\n"), /flow mapping/);
   });
 
+  test("a user council_max_rounds written as a whole-number string is read as a number", () => {
+    const out = resolveConfig({ root: repo(), userFile: userFile({ council_max_rounds: "2" }) });
+    assert.deepEqual(out.max_rounds, { value: 2, layer: "userConfig" });
+    const bad = resolveConfig({ root: repo(), userFile: userFile({ council_max_rounds: "2.5" }) });
+    assert.equal(bad.max_rounds.layer, "default");
+  });
+
   test("invalid user JSON is dropped for its key only", () => {
     const out = resolveConfig({ root: repo(), userFile: userFile({ council_members: "{not json", council_scores: "on" }) });
     assert.equal(out.members.layer, "default");
