@@ -474,7 +474,7 @@ cfv_index_fresh_cache() {
 # verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
 # (the verifier's contract, answered here on a hit and by the verifier on a miss).
 verify_candidate() {
-  local bin="$1" chainstr="$2" flag="$3" key cache_file help rc
+  local bin="$1" chainstr="$2" flag="$3" key cache_file help rc global
   local -a chainarr=()
   read -ra chainarr <<<"$chainstr"
   cfv_index_fresh_cache
@@ -483,6 +483,10 @@ verify_candidate() {
   if [[ -n "${CFV_FRESH[$cache_file]:-}" && -s "$cache_file" ]]; then
     help=$(<"$cache_file")
     cfv_flag_in_help "$help" "$flag" && return 0
+    # The verifier's global-arguments lookup, answered the same way: absent
+    # unless that help, hit or miss, carries the flag.
+    cfv_global_chain_to global "$bin"
+    [[ -n "$global" && "$chainstr" != "$global" ]] && verify_candidate "$bin" "$global" "$flag" && return 0
     return 1
   fi
   "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
