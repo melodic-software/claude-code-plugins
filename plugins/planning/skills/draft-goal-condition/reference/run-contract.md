@@ -21,6 +21,14 @@ Emitted beside the condition when Step 0.5 ran. One line each:
 - **Pre-granted permissions**: what the run would otherwise stop to ask for, each granted in
   settings or the permission mode before launch, never by a line in the prompt. For how goal turns
   get permission, see the SKILL.md gotcha on a goal whose check is a shell command.
+- **Stop limit**: the turn or spend cap that ends the run if the predicate never passes, set
+  before launch.
+- **Output and approval**: where the result lands (a branch, a pull request, a report) and who
+  approves anything irreversible (the merge, a deploy, a deletion).
 - **Dead end**: where the run writes up a dead end under Step 2's stall rule (what was tried and
   what blocked each attempt) before handing the decision to the user.
 - **Readiness**: each condition with its evidence, and any "no" left open.
+
+The pre-run questions these lines answer, and the flags that cap turns and spend:
+<https://code.claude.com/docs/en/best-practices#let-claude-run-without-you>, as of 2026-11-09;
+recheck when that section changes its pre-run questions.
