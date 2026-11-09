@@ -10,4 +10,4 @@ Name the existing code or convention each finding departs from, by path. Leave d
 behavior to other members unless the design causes them.
 
 Report each finding on its own line as `SEVERITY | path:line | finding | action`, with SEVERITY
-one of CRITICAL, IMPORTANT or MINOR. With nothing to report, write `No findings.`
+one of CRITICAL, IMPORTANT or SUGGESTION. With nothing to report, write `No findings.`

@@ -10,4 +10,4 @@ Report only what you can describe as a concrete failure scenario. Leave defects 
 adversary to the correctness member.
 
 Report each finding on its own line as `SEVERITY | path:line | finding | action`, with SEVERITY
-one of CRITICAL, IMPORTANT or MINOR. With nothing to report, write `No findings.`
+one of CRITICAL, IMPORTANT or SUGGESTION. With nothing to report, write `No findings.`

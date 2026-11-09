@@ -15,12 +15,13 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
 | `code-review` plugin | none (flat issue list) | none (validation subagents drop unconfirmed issues; → `high` in Stage 2) | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | none | `[file:line]` (inferred) |
+| council member (`/review:council`) | CRITICAL / IMPORTANT / SUGGESTION (its brief's line format) | none | `path:line` (inferred) |
 
 Line numbers from LLM reviewers drift. Treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** this skill dispatches the `code-review` plugin only in its `--comment` form, which ends by posting its findings to the PR, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
+**One row's raw text is not returned to the session:** `/review:fanout` dispatches the `code-review` plugin only in its `--comment` form, which ends by posting its findings to the PR, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
 
-SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal. A shell variable set in an earlier tool call is gone by the time this one runs:
+Fanout's SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal. A shell variable set in an earlier tool call is gone by the time this one runs:
 
 ```shell
 gh pr view <n> --json comments |
@@ -37,7 +38,7 @@ Identity says a comment is NEW, not whose it is, so shape is the second filter. 
 
 The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output. The row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
-**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary, the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (fanout's SKILL.md "Boundary, the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
 ## Stage 0: Extraction (`review:stage-normalizer`)
 
@@ -69,18 +70,18 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 
 - **Cross-surface merge takes MAX severity + MAX confidence**, never a filtered value.
 - **Agreement = positive presence only.** Count the surfaces that flagged the issue; a surface's ABSENCE carries no signal (it may have been confidence-filtered, not judged absent).
-- **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../../../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
+- **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
 - **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
 
 ## Axis assignment
 
 After ranking, give each merged finding exactly one axis:
 
-- `spec` when the finding says the change does not do what the intent paragraph (SKILL.md "Intent paragraph") says it is for, or does only part of it.
+- `spec` when the finding says the change does not do what the intent paragraph (the calling skill's SKILL.md "Intent paragraph") says it is for, or does only part of it.
 - `standards` for every other finding.
 - `standards` for every finding when the intent paragraph reads `Intent: not stated`.
 
-The axis comes from what the finding says about the change against the intent paragraph, never from its surface, category or tier: a security finding that a stated goal is missing is `spec`. The report lists the findings by axis under `## By axis`, spec first ([`findings-file-shape.md`](../../../reference/findings-file-shape.md) "Findings-file shape").
+The axis comes from what the finding says about the change against the intent paragraph, never from its surface, category or tier: a security finding that a stated goal is missing is `spec`. The report lists the findings by axis under `## By axis`, spec first ([`findings-file-shape.md`](findings-file-shape.md) "Findings-file shape").
 
 ## Model assignment
 
