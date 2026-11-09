@@ -80,6 +80,10 @@ def probed_duration(probe):
         return None
 
 
+def _tolerance(fps, animations):
+    return (animations + 1) / fps
+
+
 def stream_defects(probe, expected, fps, animations):
     """ffprobe's JSON against the scene's timeline. A frame of rounding per animation is allowed."""
     streams = probe.get('streams', [])
@@ -92,7 +96,7 @@ def stream_defects(probe, expected, fps, animations):
     duration = probed_duration(probe)
     if duration is None:
         return defects + ['ffprobe reports no duration']
-    tolerance = (animations + 1) / fps
+    tolerance = _tolerance(fps, animations)
     if duration <= 0 or abs(duration - expected) > tolerance:
         defects.append(f'ffprobe duration {duration:.3f} s differs from the scene timeline {expected:.3f} s '
                        f'by more than {tolerance:.3f} s')
@@ -115,7 +119,7 @@ def narrated_defects(probe, fps, animations):
         except (KeyError, TypeError, ValueError):
             pass
     v, a = lengths.get('video'), lengths.get('audio')
-    tolerance = (animations + 1) / fps
+    tolerance = _tolerance(fps, animations)
     if v is None or a is None:
         defects.append('ffprobe reports no video or audio stream duration')
     elif abs(v - a) > tolerance:
@@ -288,6 +292,10 @@ def normalize(wav, out, measured, target=LOUDNESS):
     return _loudnorm_json(r.stderr).get('normalization_type')
 
 
+def _levels(measured):
+    return {'integrated_lufs': float(measured['input_i']), 'true_peak_dbtp': float(measured['input_tp'])}
+
+
 def loudness_defects(measured, target=LOUDNESS):
     """The delivered file's integrated loudness against the target and its true peak against the ceiling."""
     integrated, true_peak = float(measured['input_i']), float(measured['input_tp'])
@@ -402,17 +410,16 @@ def main(argv=None):
         defects += narrated_defects(probe, frame['fps'], len(checkpoints))
         defects += loudness_defects(delivered)
         loudness = {'target': LOUDNESS, 'normalization_type': mode,
-                    'source': {'integrated_lufs': float(source['input_i']), 'true_peak_dbtp': float(source['input_tp'])},
-                    'delivered': {'integrated_lufs': float(delivered['input_i']),
-                                  'true_peak_dbtp': float(delivered['input_tp'])}}
-    stills = stills_report(still_spans(final, probed_duration(probe) or expected),
+                    'source': _levels(source), 'delivered': _levels(delivered)}
+    probed = probed_duration(probe)
+    stills = stills_report(still_spans(final, probed or expected),
                            narrated['record']['words'] if narrated else None)
 
     frames_dir = out / 'frames'
     shutil.rmtree(frames_dir, ignore_errors=True)
     frames_dir.mkdir()
     seen = set()
-    for k, cp in enumerate(checkpoints):
+    for cp in checkpoints:
         for la, lb in overlaps(cp['texts']):
             if (la, lb) not in seen:
                 seen.add((la, lb))
@@ -421,16 +428,15 @@ def main(argv=None):
             if clipped(box, frame['width'], frame['height']) and (label, 'edge') not in seen:
                 seen.add((label, 'edge'))
                 defects.append(f'at {cp["t"]:.2f} s, {label} is cut off by the frame edge')
-        cp['index'] = k
     frames = []
-    for cp in sample(checkpoints):
-        path = frames_dir / f'f{cp["index"]:04d}.png'
+    for k in sample(range(len(checkpoints))):
+        cp = checkpoints[k]
+        path = frames_dir / f'f{k:04d}.png'
         extract(final, max(0.0, cp['t'] - 1 / frame['fps']), path)
         frames.append({'t': round(cp['t'], 3), 'path': str(path), 'elements': len(cp['tops'])})
         if cp['tops'] and blank(path):
             defects.append(f'the frame at {cp["t"]:.2f} s is blank while {len(cp["tops"])} element(s) are on screen')
 
-    probed = probed_duration(probe)
     report = {'scene': a.scene_class, 'quality': a.quality, 'video': str(final),
               'duration': {'timeline': round(expected, 3), 'ffprobe': probed},
               'animations': len(checkpoints), 'frames': frames,

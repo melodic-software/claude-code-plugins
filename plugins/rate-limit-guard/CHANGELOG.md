@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.9] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared write-snapshot helper, no behavior change.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
 ## [3.0.8] - 2026-11-09
 
 ### Changed

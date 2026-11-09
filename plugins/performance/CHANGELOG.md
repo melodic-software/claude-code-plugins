@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.11] - 2026-11-09
+
+### Changed
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
 ## [0.14.10] - 2026-11-09
 
 ### Changed

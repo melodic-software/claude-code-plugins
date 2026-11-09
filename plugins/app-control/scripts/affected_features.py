@@ -187,12 +187,8 @@ def run(a):
     if not inside(project, top):
         raise Refused(f"--project-dir {a.project_dir} is outside the repository")
     prefix = os.path.relpath(project, top).replace(os.sep, "/")
-    rel = {}
-    for f in files:
-        if prefix == ".":
-            rel[f] = f
-        else:
-            rel[f] = f[len(prefix) + 1 :] if f.startswith(prefix + "/") else None
+    lead = "" if prefix == "." else prefix + "/"
+    rel = {f: f[len(lead) :] if f.startswith(lead) else None for f in files}
 
     trusted = os.path.realpath(a.trusted_root) if a.trusted_root else None
     result = {

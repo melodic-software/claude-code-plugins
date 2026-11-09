@@ -319,6 +319,9 @@ BCD_TAB=$'\t'
 BCD_CWD_DOMAIN=""
 BCD_HOME=""
 BCD_HOME_FOLD=""
+# The folded spellings of HOME a command can write, matched as text.
+# shellcheck disable=SC2016,SC2088  # spellings matched as text, never expanded
+BCD_HOME_SPELLINGS=('~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%')
 BCD_RECORDS=()
 BCD_ROOT=()
 BCD_ROOT_DOMAIN=()
@@ -568,8 +571,7 @@ bcd::dir_to() {
   local __bcd_dt __bcd_p
   bcd::fold_to __bcd_dt "$2"
   if [[ -n "$BCD_HOME_FOLD" ]]; then
-    # shellcheck disable=SC2016  # spellings matched as text, never expanded
-    for __bcd_p in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
+    for __bcd_p in "${BCD_HOME_SPELLINGS[@]}"; do
       if [[ "$__bcd_dt" == "$__bcd_p" || "$__bcd_dt" == "$__bcd_p"/* ]]; then
         __bcd_dt=$BCD_HOME_FOLD${__bcd_dt#"$__bcd_p"}
         break
@@ -626,8 +628,7 @@ bcd::add_root() {
   fi
   if [[ -n "$BCD_HOME" && "$c" == "$BCD_HOME"/?* ]]; then
     bcd::fold_to rest "${c#"$BCD_HOME"}"
-    # shellcheck disable=SC2016,SC2088  # spellings matched as text, never expanded
-    for p in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
+    for p in "${BCD_HOME_SPELLINGS[@]}"; do
       bcd::add_needle "$1" "$p$rest" "$kind" "${3-}"
     done
   fi
@@ -728,12 +729,19 @@ bcd::spend_open() {
   t=$out$rest
 }
 
+# bcd::deny_document <reason>: the PreToolUse deny document on stdout, with any
+# pending notice.
+bcd::deny_document() {
+  local esc
+  hook::json_escape_to esc "$1"
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}'"$BCD_NOTICE_JSON"'}'
+}
+
 # bcd::deny: the decision, as a PreToolUse document on stdout. The exit stays 0.
 bcd::deny() {
-  local d others="" esc
+  local d others=""
   for d in "${BCD_DENY[@]}"; do others+="${others:+, }'$d'"; done
-  hook::json_escape_to esc "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command names a path the domain map gives to another domain ($others). Reading a path there is denied too. Run the command from a session in that domain. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$esc"'"}'"$BCD_NOTICE_JSON"'}'
+  bcd::deny_document "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command names a path the domain map gives to another domain ($others). Reading a path there is denied too. Run the command from a session in that domain. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
 }
 
 # bcd::grants_nothing: the once-per-session notice naming each shared exception
@@ -792,16 +800,23 @@ bcd::foreign_marker() {
   return 1
 }
 
+# bcd::add_once <array name> <value>: append the value unless the array holds it.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::add_once() {
+  local -n __bcd_list=$1
+  local __bcd_v
+  for __bcd_v in ${__bcd_list[@]+"${__bcd_list[@]}"}; do
+    [[ "$__bcd_v" == "$2" ]] && return 0
+  done
+  __bcd_list+=("$2")
+}
+
 # bcd::check <position> <value>: record the position once when the value names
 # a foreign marker.
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::check() {
-  local p
   bcd::foreign_marker "$2" || return 0
-  for p in ${BCD_IDENTITY_DENY[@]+"${BCD_IDENTITY_DENY[@]}"}; do
-    [[ "$p" == "$1" ]] && return 0
-  done
-  BCD_IDENTITY_DENY+=("$1")
+  bcd::add_once BCD_IDENTITY_DENY "$1"
 }
 
 # bcd::env_name_to <var> <assigned name, or PowerShell's $env:<name> in any
@@ -951,11 +966,10 @@ bcd::identity() {
 # bcd::identity_deny: the PreToolUse deny naming each identity position, then
 # exit 0.
 bcd::identity_deny() {
-  local p list="" reason
+  local p list=""
   for p in "${BCD_IDENTITY_DENY[@]}"; do list+="${list:+, }$p"; done
-  hook::json_escape_to reason "BLOCKED by guardrails block-cross-domain: this session's directory is in one identity domain, and this command puts another domain's identity marker in an identity position ($list). Run it from a session in that domain's tree, or turn the guard off with the block_cross_domain_enabled option."
   bcd::emit_tel identity-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
+  bcd::deny_document "BLOCKED by guardrails block-cross-domain: this session's directory is in one identity domain, and this command puts another domain's identity marker in an identity position ($list). Run it from a session in that domain's tree, or turn the guard off with the block_cross_domain_enabled option."
   exit 0
 }
 
@@ -1006,6 +1020,16 @@ bcd::config_check() {
     return 0
   fi
   [[ " ${BCD_CONFIG_DENY[*]-} " == *" $msg "* ]] || BCD_CONFIG_DENY+=("$msg")
+}
+
+# bcd::tool_to <var> <command word>: its last path segment, lowercased, without
+# a `.exe` and then a `.cmd` suffix.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::tool_to() {
+  local __bcd_c=${2##*/}
+  __bcd_c=${__bcd_c,,}
+  __bcd_c=${__bcd_c%.exe}
+  printf -v "$1" '%s' "${__bcd_c%.cmd}"
 }
 
 # bcd::config <words...>: the config directories of one segment's gh or az
@@ -1077,10 +1101,8 @@ bcd::config() {
     return 0
   fi
   [[ "${w[i + 1]-}" == --version ]] && return 0
-  tool=${cmd##*/}
-  tool=${tool,,}
-  tool=${tool%.exe}
-  case "${tool%.cmd}" in
+  bcd::tool_to tool "$cmd"
+  case "$tool" in
   gh) bcd::config_check gh GH_CONFIG_DIR "$cf_gh_set" "$cf_gh" "${GH_CONFIG_DIR-}" ;;
   az) bcd::config_check az AZURE_CONFIG_DIR "$cf_az_set" "$cf_az" "${AZURE_CONFIG_DIR-}" ;;
   *) ;;
@@ -1091,21 +1113,16 @@ bcd::config() {
 # bcd::config_deny: the PreToolUse deny naming each config directory a gh or
 # az call runs without or with, then exit 0.
 bcd::config_deny() {
-  local m list="" reason
+  local m list=""
   for m in "${BCD_CONFIG_DENY[@]}"; do list+="${list:+; it }$m"; done
-  hook::json_escape_to reason "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command $list. Set GH_CONFIG_DIR or AZURE_CONFIG_DIR in the command to this domain's directory, or leave it unset where this domain uses the default. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
   bcd::emit_tel config-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
+  bcd::deny_document "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', and the command $list. Set GH_CONFIG_DIR or AZURE_CONFIG_DIR in the command to this domain's directory, or leave it unset where this domain uses the default. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
   exit 0
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::auth_found() { # <what the command does, as written>
-  local p
-  for p in ${BCD_AUTH_DENY[@]+"${BCD_AUTH_DENY[@]}"}; do
-    [[ "$p" == "$1" ]] && return 0
-  done
-  BCD_AUTH_DENY+=("$1")
+  bcd::add_once BCD_AUTH_DENY "$1"
 }
 
 # bcd::auth_token <assigned name, or PowerShell's $env:<name>> <value>: an
@@ -1189,10 +1206,8 @@ bcd::auth() {
     esac
     i=$((i + 1))
   done
-  tool=${cmd##*/}
-  tool=${tool,,}
-  tool=${tool%.exe}
-  case "${tool%.cmd}" in
+  bcd::tool_to tool "$cmd"
+  case "$tool" in
   gh)
     [[ "${w[i + 1]-}" == auth ]] || return 0
     case "${w[i + 2]-}" in
@@ -1215,11 +1230,10 @@ bcd::auth() {
 # bcd::auth_deny: the PreToolUse deny naming each account switch and GH_TOKEN
 # removal, then exit 0.
 bcd::auth_deny() {
-  local m list="" reason
+  local m list=""
   for m in "${BCD_AUTH_DENY[@]}"; do list+="${list:+; }$m"; done
-  hook::json_escape_to reason "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', which gives gh its own GH_CONFIG_DIR, and the command switches gh's account or removes GH_TOKEN ($list). Either one lets gh act as an account other than this session's. Ask the user to make the change. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
   bcd::emit_tel auth-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
+  bcd::deny_document "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', which gives gh its own GH_CONFIG_DIR, and the command switches gh's account or removes GH_TOKEN ($list). Either one lets gh act as an account other than this session's. Ask the user to make the change. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
   exit 0
 }
 
@@ -1243,8 +1257,7 @@ bcd::is_idfile() {
   [[ "${p##*/}" == ?*.gitconfig ]] && return 0
   if [[ "${p##*/}" == .gitconfig* && "$p" == */* ]]; then
     [[ -n "$BCD_HOME_FOLD" && "${p%/*}" == "$BCD_HOME_FOLD" ]] && return 0
-    # shellcheck disable=SC2016  # spellings matched as text, never expanded
-    for s in '~' '$home' '${home}' '$env:home' '${env:home}' '$env:userprofile' '${env:userprofile}' '%userprofile%'; do
+    for s in "${BCD_HOME_SPELLINGS[@]}"; do
       [[ "${p%/*}" == "$s" ]] && return 0
     done
   fi
@@ -1256,11 +1269,7 @@ bcd::is_idfile() {
 
 # shellcheck disable=SC2329  # reached from the parse callback
 bcd::write_found() { # <what the command writes, as written>
-  local p
-  for p in ${BCD_WRITE_DENY[@]+"${BCD_WRITE_DENY[@]}"}; do
-    [[ "$p" == "$1" ]] && return 0
-  done
-  BCD_WRITE_DENY+=("$1")
+  bcd::add_once BCD_WRITE_DENY "$1"
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
@@ -1461,11 +1470,10 @@ bcd::writes() {
 
 # bcd::write_deny: the PreToolUse deny naming each identity write, then exit 0.
 bcd::write_deny() {
-  local p list="" reason
+  local p list=""
   for p in "${BCD_WRITE_DENY[@]}"; do list+="${list:+; }$p"; done
-  hook::json_escape_to reason "guardrails block-cross-domain: denied. This command writes this machine's git identity ($list). The global, system and identity-file values of user.email, user.signingkey, user.useConfigOnly, credential.helper, core.sshCommand, core.hooksPath and includeIf, and the identity files themselves (~/.gitconfig*, *.gitconfig and the domain map's identity_files), decide which identity every repository on this machine commits and pushes as, so no session writes them, from any directory. Set a value for this repository alone with git config --local, or ask the user to make the change. To turn the guard off, set block_cross_domain_enabled to false."
   bcd::emit_tel identity-write-deny blocked
-  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
+  bcd::deny_document "guardrails block-cross-domain: denied. This command writes this machine's git identity ($list). The global, system and identity-file values of user.email, user.signingkey, user.useConfigOnly, credential.helper, core.sshCommand, core.hooksPath and includeIf, and the identity files themselves (~/.gitconfig*, *.gitconfig and the domain map's identity_files), decide which identity every repository on this machine commits and pushes as, so no session writes them, from any directory. Set a value for this repository alone with git config --local, or ask the user to make the change. To turn the guard off, set block_cross_domain_enabled to false."
   exit 0
 }
 

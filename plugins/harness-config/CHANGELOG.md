@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.2.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
 ## [3.2.3] - 2026-11-09
 
 ### Changed

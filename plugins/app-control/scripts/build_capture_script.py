@@ -313,12 +313,12 @@ def build(bound, recorder, capture, elevate):
             f'stage=$({elevate} mktemp -d) || {{ printf \'could not make a stage directory\\n\' >&2; exit 1; }}\n'
             + run
         )
-    checks = []
-    for i, (_, proc) in enumerate(bound):
-        line = f"  check {proc['pid']} {proc['uid']} {proc['start']} {proc['sha256']}"
-        if i:
-            line += f" {proc['ppid']}"
-        checks.append(line)
+    # A bound child also checks its parent pid.
+    checks = [
+        f"  check {p['pid']} {p['uid']} {p['start']} {p['sha256']}"
+        + (f" {p['ppid']}" if i else "")
+        for i, (_, p) in enumerate(bound)
+    ]
     hand_back = ""
     if staged:
         hand_back = (

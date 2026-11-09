@@ -3,6 +3,22 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper without changing its output.
+
+## [8.12.2] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script and the hook launcher; their behavior is unchanged.
+
 ## [8.12.1] - 2026-11-09
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.12] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.0.11] - 2026-11-09
+
+### Changed
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
 ## [1.0.10] - 2026-11-09
 
 ### Changed

@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.25.6] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
 ## [0.25.5] - 2026-11-09
 
 ### Changed

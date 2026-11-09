@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.7.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper without changing its output.
+
+## [12.7.4] - 2026-11-09
+
+### Changed
+
+- Simplified the session-bridge view app and watcher code (`view_bridge.py`, `watch.sh`). Behavior is unchanged.
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
 ## [12.7.3] - 2026-11-09
 
 ### Changed

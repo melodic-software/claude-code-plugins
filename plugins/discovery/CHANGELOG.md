@@ -1,5 +1,21 @@
 # Changelog: discovery plugin
 
+## [1.6.9] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper and the slice index regeneration script without changing their output.
+
+## [1.6.8] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
 ## [1.6.7] - 2026-11-09
 
 ### Changed

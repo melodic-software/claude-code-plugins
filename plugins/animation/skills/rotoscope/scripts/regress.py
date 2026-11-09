@@ -136,7 +136,8 @@ def synthetic(work):
 
     def case(name, ok):
         print(f"synthetic: {name}: {'ok' if ok else 'FAILED'}", flush=True)
-        bad.extend([] if ok else [name])
+        if not ok:
+            bad.append(name)
 
     frames = work / 'frames'
     case('render.py --encode mp4 exits 0', render_cli(SYNTHETIC, frames, '--encode', 'mp4') == 0)
