@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: wr-glossary-root
+context:
+  scaffold_script: scaffold.sh
+description: "Glossary reader, root placement. The workspace holds a project glossary at the root, GLOSSARY.md, the place testing:write's walk-up rule finds (skills/write/context/write.md, Sequence step 1). Graded on whether the new tests name the feature with the glossary's canonical term (Loan) instead of its rejected synonyms (checkout, rental, booking), and whether the run read the glossary at all. Compare its pass rates with wr-glossary-absent, the same prompt with no glossary: that cross-case gap, not the CLI's with/without-plugin delta, answers whether a glossary helps a skill that reads it, because the CLI ablates the plugin and never the glossary. Source: the maintainers' own writing, an owner-approved measurement before the glossary capability is restructured. Hard: the request itself says 'check out' throughout, so the canonical name has to come from the glossary over the user's own words. Needs --scaffold --allow-tools Bash Edit Write."
+tags: [testing, write, glossary, hard]
+runs: 3
+execution:
+  max_turns: 60
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill]
+expected_outcome: "Reads GLOSSARY.md, then adds the feature to Library under the glossary's term, such as a loan with a due date, with unittest tests in tests/test_tool_library.py that use Loan and none of checkout, rental or booking, and runs the suite until it passes"
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?write"'
+  - name: canonical-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    pattern: 'loan'
+  - name: no-rejected-term
+    type: regex
+    target:
+      source: file
+      path: tests/test_tool_library.py
+    flags: i
+    match: not_contains
+    pattern: 'check(?:ed|s|ing)?[ _-]?outs?|rental|booking'
+  - name: glossary-read
+    type: regex
+    target: trace
+    pattern: '"name":"Read","input":\{"file_path":"[^"]*GLOSSARY\.md"|"name":"Bash","input":\{"command":"(?=(?:[^"\\]|\\.)*\b(?:cat|sed|head|tail|less|grep)\b)(?:[^"\\]|\\.)*GLOSSARY\.md'

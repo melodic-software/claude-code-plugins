@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:write"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "write",
+            "args": "lending tools to members"
+          }
+        }
+      ],
+      "why": "bare name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:audit"
+          }
+        }
+      ],
+      "why": "another testing skill"
+    }
+  ]
+}
