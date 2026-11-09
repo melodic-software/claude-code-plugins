@@ -255,7 +255,7 @@ if ((plugin_stage)); then
 
   # Catalog entries this marketplace marks `defaultEnabled: false`. The two
   # sources above answer INSTALL; enablement is the catalog's separate axis, and
-  # `plugin install --scope user -y` honours it — measured on claude 2.1.263
+  # `plugin install --scope user -y` honors it — measured on claude 2.1.263
   # against a throwaway marketplace: exit 0, the CLI printing "This plugin is
   # disabled by default", and `plugin list --json` showing scope=user with
   # enabled=false. So DISABLED is the EXPECTED end state for these ids, and
