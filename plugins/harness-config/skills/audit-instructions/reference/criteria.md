@@ -749,9 +749,9 @@ choice, on the same reasoning I10 applies to a declined widening.
   effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#calibrate-effort),
   [keep users informed during long
   turns](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-users-informed-during-long-turns)
-  and [What's new in Claude Fable
-  5.2](https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2) (its behavior
-  differences, which carry no heading id of their own). As of: 2026-11-09. Recheck trigger: either
+  and [What's new in Claude Fable 5.2, behavior
+  differences](https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2#behavior-differences).
+  As of: 2026-11-09. Recheck trigger: either
   page advises removing short-turn assumptions, or says that earlier Fable guidance carries over.
 
 **Row I8-e: forced interim-status cadence** · Tier `behavioral`. Unscoped. Promotion gate MET:
@@ -2484,8 +2484,8 @@ skill body.
 ### I35: Settled-answers instruction where later steps revise earlier ones
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
-`opus-5-5`, `fable-5-2` (two guides state the cost, each for its own model; promotion gate unmet,
-see the `fable-5-2` widening below).
+`opus-5-5`, `fable-5-2` (two guides state the cost but disagree on where the line belongs, so they
+do not converge; promotion gate unmet, see the `fable-5-2` widening below).
 
 - **Detect:** an instruction telling the model to treat earlier answers as settled and not go back
   over them ("treat that answer as done", "don't revisit earlier answers"), on a surface that
@@ -2503,15 +2503,16 @@ see the `fable-5-2` widening below).
   **As of 2026-09-23** (our probe: the guide's raw `.md`, hash as in I8-c). **Recheck trigger:**
   that section dropping the carve-out, or a second model guide stating it.
 - **Widened to `fable-5-2` on 2026-11-09**, when the trigger above fired: the Fable 5.2 guide
-  reports that these lines cut the model's thinking on follow-ups and made it far less likely to
-  point out mistakes in its earlier answers, and asks for them to be left out where re-examination
-  matters. **The long-chat exemption narrows on this target:** that guide recommends the line on
-  no surface and asks for a test that the model still points out its own mistakes before the line
-  is adopted, so on a `fable-5-2` target a long-chat surface carrying it with no such test recorded
+  reports that these lines cut the model's thinking on follow-ups and also made it much worse at
+  catching errors in answers it had already given, and asks for them to be left out where
+  re-examination matters. **The long-chat exemption narrows on this target:** that guide
+  recommends the line on no surface and, before anyone adopts it, asks for a test showing the
+  model still flags errors of its own, so on a `fable-5-2` target a long-chat surface carrying it with no such test recorded
   is a finding whose remediation is that test, not removal. **Unscoping considered and declined:**
-  each guide states the cost for its own model, and the Sonnet 5.5 and Haiku 5.5 guides state
-  nothing on it; a claim qualified to two models licenses nothing about the rest, the reading I8-c
-  applies. Pointer: [Fable 5.2 guide, review instructions written for earlier
+  the two guides diverge rather than converge, so the promotion gate's convergence arm is unmet:
+  the Opus 5.5 guide recommends the line on long-chat surfaces, while the Fable 5.2 guide
+  recommends it on none. The Sonnet 5.5 and Haiku 5.5 guides state nothing on it, and a claim
+  qualified to two models licenses nothing about the rest, the reading I8-c applies. Pointer: [Fable 5.2 guide, review instructions written for earlier
   models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models)
   and [Opus 5.5 guide, thinking instructions in chat system
   prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
