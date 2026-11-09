@@ -84,13 +84,11 @@ list_tracked_or_fallback() {
     [[ -n "$listing" ]] && printf '%s\n' "$listing"
     return 0
   fi
+  local sep=/
+  [[ "$dir" == */ || "$dir" == *\\ ]] && sep=""
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
-    if [[ "$dir" == */ || "$dir" == *\\ ]]; then
-      printf '%s%s\n' "$dir" "$rel"
-    else
-      printf '%s/%s\n' "$dir" "$rel"
-    fi
+    printf '%s%s%s\n' "$dir" "$sep" "$rel"
   done <<<"$listing"
 }
 
@@ -116,7 +114,6 @@ resolve_targets() {
   local -a raw=("$@")
   local line rest t end p
   local -a expanded=() windowed=() files=()
-  local paths_file_empty=0
 
   if [[ -n "$paths_file" ]]; then
     if [[ ! -r "$paths_file" ]]; then
@@ -131,11 +128,8 @@ resolve_targets() {
     done <"$paths_file"
     if [[ "${#raw[@]}" -eq 0 ]]; then
       echo "detect.sh: --paths-file lists no paths; nothing was scanned: $paths_file" >&2
-      paths_file_empty=1
     fi
-  fi
-
-  if [[ "${#raw[@]}" -eq 0 && "$paths_file_empty" -eq 0 ]]; then
+  elif [[ "${#raw[@]}" -eq 0 ]]; then
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       raw+=("$repo_root/$line")
@@ -164,10 +158,6 @@ resolve_targets() {
     files+=("$p")
   done
 
-  if [[ ${#files[@]} -eq 0 ]]; then
-    dest_ref=()
-  else
-    # shellcheck disable=SC2034  # nameref: writes the caller's array
-    dest_ref=("${files[@]}")
-  fi
+  # shellcheck disable=SC2034  # nameref: writes the caller's array
+  dest_ref=(${files[@]+"${files[@]}"})
 }

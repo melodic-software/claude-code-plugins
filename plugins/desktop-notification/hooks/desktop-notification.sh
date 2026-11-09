@@ -116,10 +116,6 @@ esac
 
 [[ "$MESSAGE" == "Needs your attention" ]] && MESSAGE="$DEFAULT_MSG"
 
-# HEADLINE is a fixed literal from the case above (no untrusted bytes today);
-# strip C0 defensively so a future dynamic headline can't reintroduce smuggling.
-strip_c0_to HEADLINE "$HEADLINE"
-
 # Consuming-repo root — used for the telemetry sink's relative-path resolution
 # and (below) the optional git branch context on the OS toast body.
 REPO_ROOT=""
@@ -138,8 +134,7 @@ CHANNELS=()
 # session name, and an OSC 2 here would clobber it on every prompt.
 SEQ=""
 if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED:-true}" == "true" ]]; then
-  printf -v __osc '\033]9;%s\007' "$HEADLINE: $MESSAGE"
-  SEQ+="$__osc"
+  printf -v SEQ '\033]9;%s\007' "$HEADLINE: $MESSAGE"
   CHANNELS+=("terminal_notify")
 fi
 if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED:-true}" == "true" ]]; then
@@ -186,26 +181,17 @@ OSA
   esac
 fi
 
-# Telemetry (opt-in, HOOK_TELEMETRY_SINK). Built only when a sink is wired.
-# Channels array and data object are builtins (`json_escape_jq_to`) so a wired
-# sink does not spend jq on `{notification_type,channels}` — the envelope helper
-# still owns any jq fallback it needs.
+# Telemetry (opt-in, HOOK_TELEMETRY_SINK). Built only when a sink is wired, with
+# builtins so a wired sink does not spend jq on `{notification_type,channels}`.
+# Channel names are fixed literals above, so they need no JSON escaping.
 if [[ -n "$start" ]] && hook::telemetry_enabled; then
+  ch_json=""
+  status="skipped"
   if ((${#CHANNELS[@]})); then
-    ch_json="["
-    __ch_sep=""
-    for __ch in "${CHANNELS[@]}"; do
-      __ch_e=""
-      hook::json_escape_jq_to __ch_e "$__ch"
-      ch_json+="$__ch_sep\"$__ch_e\""
-      __ch_sep=","
-    done
-    ch_json+="]"
+    printf -v ch_json '"%s",' "${CHANNELS[@]}"
     status="ok"
-  else
-    ch_json='[]'
-    status="skipped"
   fi
+  ch_json="[${ch_json%,}]"
   __nt=""
   hook::json_escape_jq_to __nt "$TYPE"
   data_json="{\"notification_type\":\"$__nt\",\"channels\":$ch_json}"

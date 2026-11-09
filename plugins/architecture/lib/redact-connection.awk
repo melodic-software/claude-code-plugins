@@ -242,10 +242,8 @@ function redact_shape(key, value,    cls, account, suffix, server, kl, bare, por
 
   if (value ~ /AccountName=/ &&
       (value ~ /AccountKey=/ || value ~ /EndpointSuffix=/ || value ~ /DefaultEndpointsProtocol=/)) {
-    account = redact_cs_field(value, "AccountName")
-    suffix = redact_cs_field(value, "EndpointSuffix")
-    account = tolower(account)
-    suffix = tolower(suffix)
+    account = tolower(redact_cs_field(value, "AccountName"))
+    suffix = tolower(redact_cs_field(value, "EndpointSuffix"))
     if (suffix == "") suffix = "core.windows.net"
     if (redact_account_name(account) && suffix ~ /^[a-z0-9.-]+$/)
       redact_emit("storage", account ".blob." suffix, "")

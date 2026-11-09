@@ -170,15 +170,20 @@ space() {
   LAST_START="$now"
 }
 
+# header_value <name>: the value of the lowercase header <name> in $STATE/headers.
+header_value() {
+  awk -F ': *' -v k="$1" 'tolower($1) == k { sub(/\r$/, "", $2); print $2 }' "$STATE/headers"
+}
+
 # read_headers <response> <body>: splits a gh api --include response at the
 # first blank line, and sets REMAINING and RESET from the headers it carries.
 read_headers() {
   local v
   awk -v h="$STATE/headers" -v b="$2" 'body { print > b; next } /^\r?$/ { body = 1; next } { print > h }' "$1"
   [[ -f "$STATE/headers" ]] || return 0
-  v="$(awk -F ': *' 'tolower($1) == "x-ratelimit-remaining" { sub(/\r$/, "", $2); print $2 }' "$STATE/headers")"
+  v="$(header_value x-ratelimit-remaining)"
   [[ ! "$v" =~ ^[0-9]+$ ]] || REMAINING="$v"
-  v="$(awk -F ': *' 'tolower($1) == "x-ratelimit-reset" { sub(/\r$/, "", $2); print $2 }' "$STATE/headers")"
+  v="$(header_value x-ratelimit-reset)"
   [[ ! "$v" =~ ^[0-9]+$ ]] || RESET="$v"
   rm -f "$STATE/headers"
 }
@@ -656,6 +661,16 @@ scan() {
     "$STATE/gitleaks.json" >"$OUT/findings.json"
 }
 
+# tsv_list <repo-source-detail.tsv>: one "- repo: source: detail" line per row,
+# or None for an empty file.
+tsv_list() {
+  if [[ -s "$1" ]]; then
+    awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$1"
+  else
+    printf 'None\n'
+  fi
+}
+
 report() {
   local r src hits gaps
   local sources=(runs logs check-runs artifacts releases release-assets bot-comments bot-reviews caches)
@@ -686,18 +701,10 @@ report() {
       jq -r '.[] | "| \(.rule) | \(.path) | \(.line) |"' "$OUT/findings.json"
     fi
     printf '\n## GAPS (%d)\n\n' "$gaps"
-    if ((gaps == 0)); then
-      printf 'None\n'
-    else
-      awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$STATE/gaps.tsv"
-    fi
+    tsv_list "$STATE/gaps.tsv"
     printf '\n## Unreadable by design (%d)\n\nThe API serves these to nobody; they do not change the exit code.\n\n' \
       "$(wc -l <"$STATE/by-design.tsv")"
-    if [[ -s "$STATE/by-design.tsv" ]]; then
-      awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$STATE/by-design.tsv"
-    else
-      printf 'None\n'
-    fi
+    tsv_list "$STATE/by-design.tsv"
   } | tr -d '\000-\010\013-\037\177' >"$OUT/summary.md"
   cat "$OUT/summary.md"
   printf '\nReport: %s\n' "$OUT/summary.md"

@@ -19,6 +19,11 @@ die() {
   exit 2
 }
 
+write_failed() {
+  echo "source-bookmarks: cannot write bookmark for $source_id" >&2
+  exit 1
+}
+
 cmd="${1:-}"
 [[ -n "$cmd" ]] && shift
 data_dir="" profile="" source_id="" state="" read_kind="" at=""
@@ -77,12 +82,10 @@ fi
 # Refuse a symlinked bookmark; write through a fresh mktemp file so a link
 # planted at the temp path is never followed.
 if [[ -L "$file" ]] || ! mkdir -p "${file%/*}" 2>/dev/null || ! tmp="$(mktemp "$file.XXXXXX" 2>/dev/null)"; then
-  echo "source-bookmarks: cannot write bookmark for $source_id" >&2
-  exit 1
+  write_failed
 fi
 if ! { printf '%s\n' "$at" >"$tmp" && mv -f "$tmp" "$file"; } 2>/dev/null; then
   rm -f "$tmp"
-  echo "source-bookmarks: cannot write bookmark for $source_id" >&2
-  exit 1
+  write_failed
 fi
 echo advanced

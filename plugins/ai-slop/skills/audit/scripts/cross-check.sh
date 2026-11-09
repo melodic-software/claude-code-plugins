@@ -47,13 +47,10 @@ done
 # The detector's effective config decides whether the rule ran and where.
 config="$(bash "$SCRIPT_DIR/detect.sh" --show-config 2>/dev/null | tr -d '\r')"
 disabled="$(sed -n 's/^Effective: disabled_rules=//p' <<<"$config")"
-case " $disabled " in
-*" rule-em-dash "*)
+if [[ " $disabled " == *" rule-em-dash "* ]]; then
   echo "CrossCheck: comparison skipped: rule-em-dash disabled"
   exit 0
-  ;;
-*) ;;
-esac
+fi
 allowed=()
 read -r -a allowed <<<"$(sed -n 's/^Effective: rule_allowed_paths\[rule-em-dash\]=//p' <<<"$config")"
 

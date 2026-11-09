@@ -25,16 +25,8 @@ class Refused(Exception):
 
 def git(top, *args, stdin=None):
     return subprocess.run(
-        [
-            "git",
-            "--no-replace-objects",
-            "--literal-pathspecs",
-            "-C",
-            top,
-            "-c",
-            "core.fsmonitor=false",
-            *args,
-        ],
+        ["git", "--no-replace-objects", "--literal-pathspecs", "-C", top]
+        + ["-c", "core.fsmonitor=false", *args],
         input=stdin,
         capture_output=True,
         env=ENV,
@@ -47,6 +39,12 @@ def git_ok(top, *args, stdin=None, why):
     if res.returncode != 0:
         raise Refused(why)
     return res.stdout
+
+
+def blob_id(top, data):
+    why = "git hash-object failed"
+    out = git_ok(top, "hash-object", "--no-filters", "--stdin", stdin=data, why=why)
+    return out.strip().decode()
 
 
 def records(out):
@@ -160,21 +158,8 @@ def check(checkout, app, sha):
             raise Refused(f"{show(rel)} is not a regular file")
         with open(path, "rb") as f:
             data = f.read()
-        hashes = [data] if b"\r\n" not in data else [data, data.replace(b"\r\n", b"\n")]
-        if not any(
-            git_ok(
-                top,
-                "hash-object",
-                "--no-filters",
-                "--stdin",
-                stdin=d,
-                why="git hash-object failed",
-            )
-            .strip()
-            .decode()
-            == oid
-            for d in hashes
-        ):
+        forms = [data] if b"\r\n" not in data else [data, data.replace(b"\r\n", b"\n")]
+        if not any(blob_id(top, d) == oid for d in forms):
             raise Refused(f"{show(rel)} differs from the pin")
 
     for path, (mode, _) in tree.items():

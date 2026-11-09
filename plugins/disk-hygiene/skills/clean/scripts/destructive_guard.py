@@ -213,7 +213,7 @@ def _display_python() -> str:
         runtime = Path(sys.executable).resolve(strict=True)
     except OSError:
         runtime = Path(sys.executable).absolute()
-    return os.fspath(runtime).replace("\\", "/")
+    return _display_path(runtime)
 
 
 def _literal_shell_words(
@@ -312,6 +312,22 @@ def _plugins_cache_index(parts: tuple[str, ...]) -> int | None:
     return None
 
 
+def _cache_install_segments(parts: tuple[str, ...]) -> tuple[int, str, str] | None:
+    """The ``cache`` index, marketplace and name of a cache-layout root, or None."""
+    index = _plugins_cache_index(parts)
+    if index is None or index + 2 >= len(parts):
+        return None
+    marketplace, name = parts[index + 1], parts[index + 2]
+    if not marketplace or not name:
+        return None
+    return index, marketplace, name
+
+
+def _sanitized_plugin_id(name: str, marketplace: str) -> str:
+    """``<name>@<marketplace>`` with each disallowed character replaced by ``-``."""
+    return _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+
+
 def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     """Derive the persistent data root from the plugin's installation root.
 
@@ -333,15 +349,14 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     instead of trusting a guessed path.
     """
     parts = Path(plugin_root).parts
-    index = _plugins_cache_index(parts)
-    if index is None or index + 2 >= len(parts):
+    segments = _cache_install_segments(parts)
+    if segments is None:
         return None
-    marketplace, name = parts[index + 1], parts[index + 2]
-    if not marketplace or not name:
-        return None
-    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    index, marketplace, name = segments
     plugins_dir = Path(*parts[:index])
-    return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
+    return os.fspath(
+        plugins_dir / _PLUGIN_DATA_DIRNAME / _sanitized_plugin_id(name, marketplace)
+    )
 
 
 _KNOWN_MARKETPLACES_FILENAME = "known_marketplaces.json"
@@ -539,7 +554,7 @@ def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None
     own = _read_json_object(root / _MANIFEST_DIRNAME / "plugin.json")
     if own is None or own.get("name") != name:
         return None
-    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    plugin_id = _sanitized_plugin_id(name, marketplace)
     data_root = config_dir / _PLUGINS_DIRNAME / _PLUGIN_DATA_DIRNAME / plugin_id
     return _DirectoryInstall(config_dir, os.fspath(data_root))
 
@@ -590,10 +605,10 @@ def _plugin_cache_family_root() -> str | None:
     would gate a contributor's work on their own checkout.
     """
     parts = Path(__file__).resolve().parts
-    index = _plugins_cache_index(parts)
-    if index is None or index + 2 >= len(parts):
+    segments = _cache_install_segments(parts)
+    if segments is None:
         return None
-    return os.path.normcase(os.fspath(Path(*parts[: index + 3])))
+    return os.path.normcase(os.fspath(Path(*parts[: segments[0] + 3])))
 
 
 def _within_plugin_cache_family(value: str) -> bool:
@@ -601,14 +616,10 @@ def _within_plugin_cache_family(value: str) -> bool:
     if family is None:
         return False
     try:
-        candidate = os.path.normcase(os.fspath(Path(value).resolve(strict=True)))
+        candidate = Path(value).resolve(strict=True)
     except OSError:
         return False
-    try:
-        return os.path.commonpath([candidate, family]) == family
-    except ValueError:
-        # Different drives on Windows; nothing on another volume is in the tree.
-        return False
+    return _same_or_within(candidate, Path(family))
 
 
 # The subcommands `classify_exact_engine_command` accepts, read from the one
@@ -870,8 +881,9 @@ def _powershell_without_string_data(command: str) -> str | None:
     command_word = _PATH_SEPARATOR.split(words[0].casefold())[-1]
     if command_word.endswith(".exe"):
         command_word = command_word[: -len(".exe")]
-    blocked = _POWERSHELL_EXECUTORS | _LAUNCHER_WRAPPERS
-    return None if command_word in blocked else stripped
+    if command_word in _POWERSHELL_EXECUTORS or command_word in _LAUNCHER_WRAPPERS:
+        return None
+    return stripped
 
 
 # Outside string data: expansion, escape, comment, statement-separator, grouping
@@ -1333,11 +1345,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.
-    _WRAPPERS = _LAUNCHER_WRAPPERS
     wrapper_indices = [
         index
         for index, word in enumerate(words)
-        if Path(word.casefold()).name in _WRAPPERS
+        if Path(word.casefold()).name in _LAUNCHER_WRAPPERS
     ]
     for index, word in enumerate(words):
         if _carries_marker(word):
@@ -1404,10 +1415,10 @@ def _argv_flag_value(argv: list[str], flag: str) -> str | None:
     where environment injection does not. Accepts both the space-separated
     (``--flag value``) and ``--flag=value`` spellings.
     """
+    prefix = f"{flag}="
     for index, token in enumerate(argv):
         if token == flag and index + 1 < len(argv):
             return argv[index + 1]
-        prefix = f"{flag}="
         if token.startswith(prefix):
             return token[len(prefix) :]
     return None
@@ -1520,13 +1531,10 @@ def _plugin_id_from_root(plugin_root: str) -> str | None:
     marker (or missing the name/marketplace segments) yields ``None`` and the read
     falls back to matching any ``disk-hygiene`` entry.
     """
-    parts = Path(plugin_root).parts
-    index = _plugins_cache_index(parts)
-    if index is None or index + 2 >= len(parts):
+    segments = _cache_install_segments(Path(plugin_root).parts)
+    if segments is None:
         return None
-    marketplace, name = parts[index + 1], parts[index + 2]
-    if not marketplace or not name:
-        return None
+    _, marketplace, name = segments
     return f"{name}@{marketplace}"
 
 
@@ -1604,9 +1612,7 @@ def resolve_disk_hygiene_enabled() -> bool:
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:
     """Accept only the data root the runtime told this hook to authorize."""
-    if not authority:
-        return False
-    return _data_root_key(value) == _data_root_key(authority)
+    return bool(authority) and _data_root_key(value) == _data_root_key(authority)
 
 
 def _is_authorized_data_root_file(value: str, authority: str | None) -> bool:
@@ -1642,9 +1648,7 @@ def _engine_external_checks(authority: str | None) -> dict[str, object]:
 def _display_data_root(authority: str | None) -> str | None:
     if not authority:
         return None
-    return os.fspath(Path(authority).expanduser().resolve(strict=False)).replace(
-        "\\", "/"
-    )
+    return _display_path(Path(authority).expanduser().resolve(strict=False))
 
 
 def launch_disclosure(plugin_root: str | None) -> dict[str, str | None]:
@@ -1770,12 +1774,9 @@ def _parse_bracket_test_words(command: str) -> list[str] | None:
 
 
 def _is_readonly_find(tokens: list[str]) -> bool:
-    for token in tokens[1:]:
-        if token.casefold() in {
-            name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES
-        }:
-            return False
-    return True
+    return not any(
+        token.casefold() in _FIND_SIDE_EFFECT_PRIMARIES for token in tokens[1:]
+    )
 
 
 def _readonly_supporting_basename(head: str) -> str:
@@ -1786,11 +1787,8 @@ def _readonly_supporting_basename(head: str) -> str:
     ``ls.EXE`` matches ``_READONLY_SUPPORTING_BASH_HEADS`` (#2774).
     """
     name = _PATH_SEPARATOR.split(head.rstrip("/\\"))[-1]
-    if os.name == "nt":
-        lower = name.lower()
-        for ext in (".exe", ".com", ".bat", ".cmd"):
-            if lower.endswith(ext):
-                return name[: -len(ext)]
+    if os.name == "nt" and name.lower().endswith((".exe", ".com", ".bat", ".cmd")):
+        return name[:-4]
     return name
 
 
@@ -1841,17 +1839,13 @@ def _nt_known_git_installation_roots() -> tuple[Path, ...]:
     stronger precondition than PATH planting, but these roots are still
     environment-derived — not independently attested install locations.
     """
-    candidates: list[tuple[str, tuple[str, ...]]] = [
-        ("ProgramFiles", ("Git",)),
-        ("ProgramFiles(x86)", ("Git",)),
-    ]
     roots: list[Path] = []
-    for key, rel in candidates:
+    for key in ("ProgramFiles", "ProgramFiles(x86)"):
         base = os.environ.get(key)
         if not base:
             continue
         try:
-            candidate = Path(base).joinpath(*rel).resolve()
+            candidate = (Path(base) / "Git").resolve()
         except OSError:
             continue
         if candidate.is_dir():

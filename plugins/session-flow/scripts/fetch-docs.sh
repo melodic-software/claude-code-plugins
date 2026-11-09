@@ -271,7 +271,8 @@ CURL_MISSING=0
 if [[ $FIXTURE_SET -eq 0 ]] && ! command -v curl >/dev/null 2>&1; then CURL_MISSING=1; fi
 CACHE_DISABLED=""
 # The docs cache's configuration holds max_page_bytes, so it resolves with or without --cache.
-DOCS_CACHE="$(dirname "${BASH_SOURCE[0]}")/docs-cache.sh"
+HERE="$(dirname "${BASH_SOURCE[0]}")"
+DOCS_CACHE="$HERE/docs-cache.sh"
 [[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
 # shellcheck source=docs-cache.sh
 . "$DOCS_CACHE"
@@ -289,7 +290,7 @@ if [[ $CACHE -eq 1 ]]; then
   fi
 fi
 MAX_AGE="${MAX_AGE:-0}"
-CONVERTER="${FETCH_DOCS_HTML2MD:-$(dirname "${BASH_SOURCE[0]}")/html2md.py}"
+CONVERTER="${FETCH_DOCS_HTML2MD:-$HERE/html2md.py}"
 
 mkdir -p "$OUT" || die "cannot create $OUT"
 MANIFEST="${MANIFEST:-$OUT/manifest.json}"
@@ -383,7 +384,7 @@ http_get() {
   [[ -z "$4" ]] || args+=(-H "If-None-Match: $4")
   [[ -z "$5" ]] || args+=(-H "If-Modified-Since: $5")
   rm -f "$2" "$hdr"
-  H_STATUS="" H_EFF="" H_CTYPE="" H_ETAG="" H_LM="" H_DATE=""
+  H_STATUS="" H_EFF="" H_CTYPE="" H_CTYPE_LC="" H_ETAG="" H_LM="" H_DATE=""
   if [[ $PUBLIC_ONLY -eq 1 ]]; then
     url_parts "$1" || {
       H_RC=1
@@ -403,7 +404,6 @@ http_get() {
   H_RC=$?
   if [[ -f "$2" && $(wc -c <"$2") -gt $MAX_PAGE ]]; then H_RC=63; fi
   [[ $H_RC -ne 63 ]] || rm -f "$2"
-  H_STATUS="" H_EFF="" H_CTYPE="" H_CTYPE_LC="" H_ETAG="" H_LM=""
   read -r H_STATUS H_EFF H_CTYPE <<<"$meta"
   [[ "$H_STATUS" =~ ^[0-9]+$ ]] || H_STATUS=""
   dc_lower H_CTYPE_LC "$H_CTYPE"
@@ -656,7 +656,10 @@ generic_slug() {
 # 3 (a Store stub or a Python 2 fails it); return 1 when none does.
 resolve_python() {
   local c v
-  if [[ -n "${PY_STATE:-}" ]]; then [[ "$PY_STATE" == ok ]] && return 0 || return 1; fi
+  if [[ -n "${PY_STATE:-}" ]]; then
+    [[ "$PY_STATE" == ok ]]
+    return
+  fi
   PY_STATE=none
   for c in python3 python; do
     command -v "$c" >/dev/null 2>&1 || continue
@@ -1031,9 +1034,7 @@ if [[ -n "$claude_bin" && -f "$claude_bin" ]]; then
   [[ "$raw" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && claude_version="${BASH_REMATCH[1]}"
 fi
 
-if jq -n --arg v "$claude_version" --slurpfile idx "$INDEX_REC" --slurpfile pages "$PAGE_RECS" --arg cd "$CACHE_DISABLED" \
-  '{claude_version: $v, index: $idx[0], pages: $pages, cache_disabled: (if $cd == "" then null else $cd end)}' >"$MANIFEST.tmp"; then
-  mv "$MANIFEST.tmp" "$MANIFEST" || die "could not write $MANIFEST"
-else
+jq -n --arg v "$claude_version" --slurpfile idx "$INDEX_REC" --slurpfile pages "$PAGE_RECS" --arg cd "$CACHE_DISABLED" \
+  '{claude_version: $v, index: $idx[0], pages: $pages, cache_disabled: (if $cd == "" then null else $cd end)}' >"$MANIFEST.tmp" ||
   die "could not write $MANIFEST"
-fi
+mv "$MANIFEST.tmp" "$MANIFEST" || die "could not write $MANIFEST"

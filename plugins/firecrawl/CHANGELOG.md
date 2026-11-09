@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.8.4] - 2026-11-07
 
 ### Changed

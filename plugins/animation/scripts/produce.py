@@ -85,9 +85,7 @@ def load_json(path):
 
 
 def color(value):
-    if not isinstance(value, str) or len(value) != 7 or value[0] != '#' or any(c not in HEX for c in value[1:]):
-        return False
-    return True
+    return isinstance(value, str) and len(value) == 7 and value[0] == '#' and all(c in HEX for c in value[1:])
 
 
 def labeled(text, field):
@@ -96,6 +94,11 @@ def labeled(text, field):
         if line.startswith(prefix):
             return line[len(prefix):].strip()
     return None
+
+
+def split_packs(value):
+    """The pack names of a brief's comma-separated Packs: value."""
+    return [p.strip() for p in value.split(',') if p.strip()]
 
 
 def palette_of(prod, problems):
@@ -133,7 +136,7 @@ def check_brief(prod, pack, problems):
         if not value:
             problems.append(f'brief.md {field}: is empty')
         elif field == 'Packs':
-            packs = [p.strip() for p in value.split(',') if p.strip()]
+            packs = split_packs(value)
     if pack and packs and pack not in packs:
         problems.append(f'brief.md Packs does not name the palette pack {pack}')
     return packs
@@ -225,19 +228,16 @@ def board_problems(prod):
 def read_approval(prod):
     path = prod / 'boards/approval.json'
     data, err = load_json(path) if path.is_file() else (None, 'missing')
-    if err or not isinstance(data, dict) or data.get('approved') is not True:
-        return None
-    if data.get('boards_digest') != digest(prod):
-        return None
-    if not isinstance(data.get('note'), str) or not data['note'].strip():
+    if err or not isinstance(data, dict) or data.get('approved') is not True \
+            or data.get('boards_digest') != digest(prod) or not isinstance(data.get('note'), str) \
+            or not data['note'].strip():
         return None
     return data
 
 
 def brief_packs(prod):
     text = (prod / 'brief.md').read_text(encoding='utf-8') if (prod / 'brief.md').is_file() else ''
-    value = labeled(text, 'Packs') or ''
-    return [p.strip() for p in value.split(',') if p.strip()]
+    return split_packs(labeled(text, 'Packs') or '')
 
 
 def shot_problems(prod):
@@ -345,8 +345,7 @@ def cmd_approve(prod, note):
         sys.exit('produce: approve needs the user\'s note')
     problems = board_problems(prod)
     if problems:
-        report(problems)
-        return 1
+        return report(problems)
     (prod / 'boards/approval.json').write_text(json.dumps(
         {'approved': True, 'note': note.strip(), 'boards_digest': digest(prod)}, indent=2) + '\n', encoding='utf-8')
     print(prod / 'boards/approval.json')
@@ -361,10 +360,7 @@ def gate(prod):
 
 
 def cmd_shots(prod):
-    closed = gate(prod)
-    if closed:
-        return closed
-    return report(shot_problems(prod))
+    return gate(prod) or report(shot_problems(prod))
 
 
 def cmd_cuts(prod):
@@ -395,8 +391,7 @@ def render_problems(meta, data):
 
 
 def cmd_review(prod, frames):
-    closed = gate(prod)
-    if closed:
+    if closed := gate(prod):
         return closed
     problems = shot_problems(prod)
     if problems:

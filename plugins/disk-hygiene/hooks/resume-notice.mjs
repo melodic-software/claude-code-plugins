@@ -95,7 +95,7 @@ async function main(argv) {
   const at = argv.indexOf('--marker-root')
   const markerRoot = at >= 0 ? (argv[at + 1] ?? '') : ''
   const payload = await readPayload(process.stdin)
-  const out = payload ? decide(payload, { markerRoot, env: process.env, platform: process.platform }) : null
+  const out = decide(payload, { markerRoot, env: process.env, platform: process.platform })
   if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
 }
 

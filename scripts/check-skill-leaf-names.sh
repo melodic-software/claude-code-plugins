@@ -57,20 +57,16 @@ for plugin_dir in plugins/*/; do
   done
 done
 
-# Collisions only: a leaf name owned by 2+ plugins.
-#
-# `collision_leaves` shadows the associative array on purpose: under `set -u`
-# an associative array that was declared but never assigned is UNBOUND, so
-# `${#collisions[@]}` and `${!collisions[@]}` abort the script in the
+# Collisions only: a leaf name owned by 2+ plugins. A plain indexed array, not
+# an associative one: under `set -u` an associative array that was declared but
+# never assigned is UNBOUND, so counting or listing it aborts the script in the
 # zero-collision case -- which is exactly the state the stale-entry guard is
 # meant to shepherd the repo into.
-declare -A collisions
 collision_leaves=()
 for leaf in "${!leaf_owners[@]}"; do
   # shellcheck disable=SC2206  # plugin names are kebab-case; word-splitting is the intent
   owners=(${leaf_owners[$leaf]})
   ((${#owners[@]} >= 2)) || continue
-  collisions["$leaf"]="${leaf_owners[$leaf]}"
   collision_leaves+=("$leaf")
 done
 
@@ -132,7 +128,7 @@ if [[ "$mode" == "discover" ]]; then
   fi
   for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
     # shellcheck disable=SC2206
-    owners=(${collisions[$leaf]})
+    owners=(${leaf_owners[$leaf]})
     # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
     actual="$(owner_set "${owners[@]}")"
     state="UNREGISTERED"
@@ -175,7 +171,7 @@ done
 
 for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
   # shellcheck disable=SC2206
-  owners=(${collisions[$leaf]})
+  owners=(${leaf_owners[$leaf]})
   # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
   actual="$(owner_set "${owners[@]}")"
 

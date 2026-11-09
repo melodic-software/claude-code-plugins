@@ -174,6 +174,17 @@ if [[ ! -e "${manifests[0]}" ]]; then
 fi
 
 version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
+# version_at <rev> <manifest>: the manifest's `version` at <rev>, empty when unreadable.
+version_at() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true; }
+# sans_version_at <rev> <manifest>: the manifest at <rev> without `version`, keys sorted.
+sans_version_at() { git show "$1:$2" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null; }
+
+# require_semver <name> <version>: exit 2 unless the version is comparable.
+require_semver() {
+  [[ "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]] && return
+  echo "check-changelog-parity: $1 carries a non-SemVer manifest version '$2'; refusing to pass without a comparable version." >&2
+  exit 2
+}
 
 # --check-order: every changelog reads newest-first, with no version repeated.
 #
@@ -435,26 +446,23 @@ if [[ "$mode" == "--check" ]]; then
       # in its own right, and --check-bump refuses it unconditionally for every
       # plugin in its scope. Gating it on an unrelated precondition would let a
       # malformed version ride through behind a not-yet-written release note.
-      if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
-        echo "check-changelog-parity: $name carries a non-SemVer manifest version '$version'; refusing to pass without a comparable version." >&2
-        exit 2
-      fi
+      require_semver "$name" "$version"
       # Reverse parity: the newest heading must not outrun the manifest. Only the
       # NEWEST is compared — an older heading naming a version the manifest never
       # took is invisible from the tree alone, but it can only get there by first
       # being the newest, which this catches in the change set that writes it.
       mapfile -t headings < <(changelog_versions "$plugin_dir/CHANGELOG.md")
       newest="${headings[0]:-}"
-      newest_key=""
-      version_key=""
       if [[ -n "$newest" ]]; then
+        newest_key=""
+        version_key=""
         version_sort_key newest_key "$newest"
         version_sort_key version_key "$version"
-      fi
-      if [[ -n "$newest" && "$newest_key" > "$version_key" ]]; then
-        echo "CHANGELOG AHEAD OF MANIFEST: $plugin_dir/CHANGELOG.md documents $newest but $manifest carries $version." >&2
-        echo "  Bump the manifest to $newest, or fold that entry into the version that actually ships." >&2
-        ahead=$((ahead + 1))
+        if [[ "$newest_key" > "$version_key" ]]; then
+          echo "CHANGELOG AHEAD OF MANIFEST: $plugin_dir/CHANGELOG.md documents $newest but $manifest carries $version." >&2
+          echo "  Bump the manifest to $newest, or fold that entry into the version that actually ships." >&2
+          ahead=$((ahead + 1))
+        fi
       fi
       continue
     fi
@@ -555,7 +563,6 @@ head_show() {
     exit 2
   fi
 }
-head_version_of() { git show "$head_commit:$1" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true; }
 for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   case "$path" in
   plugins/*/.claude-plugin/plugin.json)
@@ -563,7 +570,7 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
     bumped_candidate["${rest%%/*}"]=1
     # A manifest edit other than `version` (description, userConfig, ...) is a
     # shipped change; only a version-only edit is the bump itself.
-    if [[ "$(git show "$merge_base:$path" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null)" != "$(git show "$head_commit:$path" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null)" ]]; then
+    if [[ "$(sans_version_at "$merge_base" "$path")" != "$(sans_version_at "$head_commit" "$path")" ]]; then
       manifest_edited["${rest%%/*}"]=1
     fi
     ;;
@@ -583,11 +590,7 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   .changes/*/*)
     # A fragment gone at head is one the release consumed; it is the release's
     # change for BUMP WITHOUT CHANGE.
-    if ! listing="$(git ls-tree --name-only "$head_commit" -- "$path")"; then
-      echo "check-changelog-parity: 'git ls-tree $head_commit -- $path' failed; refusing to pass without checking." >&2
-      exit 2
-    fi
-    if [[ -z "$listing" ]]; then
+    if ! head_has "$path"; then
       rest="${path#.changes/}"
       consumed_fragment["${rest%%/*}"]=1
     fi
@@ -670,9 +673,7 @@ if [[ "$mode" == "--check-preserved" ]]; then
     fi
 
     head_seen=()
-    if ((${#head_versions[@]} > 0)); then
-      for v in ${head_versions[@]+"${head_versions[@]}"}; do head_seen["$v"]=1; done
-    fi
+    for v in ${head_versions[@]+"${head_versions[@]}"}; do head_seen["$v"]=1; done
     missing=""
     for v in ${base_versions[@]+"${base_versions[@]}"}; do
       [[ -n "${head_seen[$v]:-}" ]] && continue
@@ -788,8 +789,8 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     case $? in
     0)
       if [[ -n "${bumped_candidate[$name]:-}" ]]; then
-        head_version="$(head_version_of "$manifest")"
-        fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+        head_version="$(version_at "$head_commit" "$manifest")"
+        fork_version="$(version_at "$merge_base" "$manifest")"
         if [[ -n "$fork_version" && "$head_version" != "$fork_version" ]]; then
           echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set moves its version $fork_version -> $head_version." >&2
           fragment_release=$((fragment_release + 1))
@@ -811,12 +812,12 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   # `git show | jq` reads: the mode's cost follows the diff, not the fleet.
   [[ -n "${shipped_changed[$name]:-}" || -n "${bumped_candidate[$name]:-}" ]] || continue
 
-  base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+  base_version="$(version_at "$base" "$manifest")"
   # Absent at base => new plugin in this change set; the static --check owns
   # whether its initial CHANGELOG.md exists, not the bump gate.
   [[ -n "$base_version" ]] || continue
-  head_version="$(head_version_of "$manifest")"
-  fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+  head_version="$(version_at "$head_commit" "$manifest")"
+  fork_version="$(version_at "$merge_base" "$manifest")"
 
   # A branch that changes shipped plugin files but leaves the manifest version
   # unchanged vs the fork point reuses a published version number. Two
@@ -851,12 +852,8 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   # valid parity pair), and concurrent branches staging one number merge as an
   # equal-version collision. Compare on the zero-padded key (see
   # version_sort_key) so 0.10.0 outranks 0.9.0 numerically, not lexically.
-  for v in "$head_version" "$base_version"; do
-    if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
-      echo "check-changelog-parity: $name carries a non-SemVer manifest version '$v'; refusing to pass without a comparable version." >&2
-      exit 2
-    fi
-  done
+  require_semver "$name" "$head_version"
+  require_semver "$name" "$base_version"
   head_key=""
   base_key=""
   version_sort_key head_key "$head_version"

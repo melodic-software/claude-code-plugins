@@ -23,9 +23,7 @@ const load = k => cache.get(k) || cache.set(k, fetch(`${DIR}/d${String(k).padSta
 export const BRUSH = { ...await (await fetch('brush.json')).json(), ...JSON.parse(q.get('brush') || '{}') };
 
 function rings(d) {
-  const out = [];
-  for (const p of d.paths) { out.push(p.d); for (const h of p.holes) out.push(h); }
-  return out;
+  return d.paths.flatMap(p => [p.d, ...p.holes]);
 }
 
 function fillPaths(c, d, color) {

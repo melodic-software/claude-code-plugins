@@ -456,11 +456,10 @@ function wiring(info, plugin, entry, scope, manager) {
     return { wired: wired && (scope === "local" || info.hooksPath === SHARED_DIR) };
   }
   const file = manager === "lefthook" ? lefthookFile(info, scope) : `.husky/${entry.event}`;
-  const run = runLine(info, p.script);
   const wired = Boolean(readText(path.join(info.top, file))?.includes(configPath(info, p.script)));
   if (wired) return { wired };
   const snippet =
-    manager === "lefthook" ? lefthookSnippet(info, plugin, entry, p.script) : `${run}${entry.event === "pre-commit" ? "" : ' "$@"'}`;
+    manager === "lefthook" ? lefthookSnippet(info, plugin, entry, p.script) : `${runLine(info, p.script)}${entry.event === "pre-commit" ? "" : ' "$@"'}`;
   const kind = manager === "lefthook" ? "lefthook-config" : "husky-config";
   return { wired, decision: { kind, entry: entry.name, file, snippet } };
 }
@@ -617,9 +616,8 @@ function sharedEntries(info, plugin) {
 
 function plainDecisions(info, plugin, scope) {
   const out = [];
-  const events = [...new Set(plugin.entries.map((e) => e.event))];
-  for (const event of events) {
-    const { dispatchDir } = layout(info, scope, "plain");
+  const { dispatchDir } = layout(info, scope, "plain");
+  for (const event of new Set(plugin.entries.map((e) => e.event))) {
     const file = path.join(dispatchDir, event);
     if (dispatcherState(file) === "foreign") {
       out.push({ kind: "foreign-hook", file, chainAs: `${file}.pre-checks` });
@@ -642,8 +640,7 @@ function managerDecisions(info, plugin, scope, manager) {
       : [{ kind: "husky-install", detail: "core.hooksPath is not .husky/_ in this clone; run the project's husky install" }];
   }
   const out = [];
-  const installed = plugin.entries.some((e) => readText(path.join(info.hooksDir, e.event))?.includes("lefthook"));
-  if (!installed) out.push({ kind: "lefthook-install", command: "lefthook install" });
+  if (!plugin.entries.some((e) => lefthookHook(info, e.event))) out.push({ kind: "lefthook-install", command: "lefthook install" });
   if (scope === "local") out.push(...excludeDecision(info, lefthookFile(info, "local")));
   return out;
 }
@@ -935,10 +932,10 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
   if ((before === "modified" || hook === "modified") && !force) return "refused";
   const exec = [];
   const plainFiles = []; // staged without the exec bit at shared scope
-  const support = [{ file: p.lib, text: plugin.libText }];
-  for (const asset of sourceAssets(plugin, entry)) {
-    support.push({ file: path.join(path.dirname(p.script), asset.name), text: asset.text });
-  }
+  const support = [
+    { file: p.lib, text: plugin.libText },
+    ...sourceAssets(plugin, entry).map((a) => ({ file: path.join(path.dirname(p.script), a.name), text: a.text })),
+  ];
   let changed = false;
   for (const { file, text } of support) {
     const mode = copyMode(text);
@@ -1131,8 +1128,9 @@ function entryVerdict(info, plugin, entry, manager) {
   const copies = list(info, plugin).filter((c) => c.entryId === entry.name);
   if (copies.length === 0) return { state: "missing", detail: "not installed" };
   const states = copies.map((c) => copyState(c.file, entry, current));
-  if (states.includes("modified")) return { state: "modified", detail: copies[states.indexOf("modified")].file };
-  if (states.includes("stale")) return { state: "stale", detail: copies[states.indexOf("stale")].file };
+  for (const state of ["modified", "stale"]) {
+    if (states.includes(state)) return { state, detail: copies[states.indexOf(state)].file };
+  }
   const wired = copies.some((c) => manager !== "conflict" && wiring(info, plugin, entry, c.scope, manager).wired);
   return wired ? { state: "ok" } : { state: "missing", detail: "installed but not wired into the hook manager" };
 }

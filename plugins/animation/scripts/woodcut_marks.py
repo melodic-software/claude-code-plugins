@@ -14,9 +14,7 @@ INK = (20, 17, 14)
 
 
 def _blank(h, w):
-    img = np.empty((h, w, 3), np.uint8)
-    img[:] = CREAM
-    return img
+    return np.full((h, w, 3), CREAM, np.uint8)
 
 
 def _ring(h, w, outer, thick):
@@ -39,9 +37,9 @@ def caption_panel(length=5, thick=2, n=4):
     x, y, pw, ph = 30, 16, 120, 36
     cv2.rectangle(img, (x, y), (x + pw, y + ph), INK, 8)
     cv2.rectangle(img, (x + 16, y + 12), (x + pw - 16, y + ph - 10), INK, -1)
+    sy = y + 16
     for i in range(n):
         sx = x + 24 + i * 18
-        sy = y + 16
         img[sy:sy + length, sx:sx + thick] = CREAM
     return img
 

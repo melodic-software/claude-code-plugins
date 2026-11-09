@@ -183,6 +183,7 @@ describe("--config", () => {
       },
       components: { primitives_default: "base-ui" },
       typography: { long_form_body_px: 18 },
+      touch: { both_axes_activation: "tap-to-activate" },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -228,6 +229,7 @@ describe("--config", () => {
       "animation.cleanup_order": "defaults",
       "components.primitives_default": "defaults",
       "typography.long_form_body_px": "defaults",
+      "touch.both_axes_activation": "defaults",
       routing: "team",
     });
   });

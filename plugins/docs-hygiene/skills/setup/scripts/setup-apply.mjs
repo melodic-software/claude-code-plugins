@@ -27,9 +27,10 @@ const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 // in force, as compress reads them.
 function report({ rel, keys, problems, value }) {
   const parseError = problems.some((p) => p.kind === "parse");
+  const badKeys = new Set(problems.map((p) => p.key));
   const out = problems.map((p) => `WARN ${rel}: ${p.msg}\n`);
   for (const k of Object.keys(keys)) {
-    if (parseError || problems.some((p) => p.key === k)) {
+    if (parseError || badKeys.has(k)) {
       out.push(`WARN ${k}: dropped from ${rel}; resolves to its default, ${keys[k].default}, not to userConfig\n`);
     } else {
       out.push(`PASS ${k}: ${value(k) || "(unset)"}\n`);

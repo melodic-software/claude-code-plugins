@@ -347,9 +347,10 @@ function slicesFor(urls) {
 async function judged(build, o, urls, allowed) {
   const first = await agentRetry(build(fence('slices', slicesFor(urls)) + SLICE_RULE), o)
   const asked = (first && Array.isArray(first.requests) ? first.requests : [])
-    .filter(q => q && typeof q.url === 'string' && rawable(pageOf(q.url.trim())) && allowed(pageOf(q.url.trim())))
-    .slice(0, REQUEST_CAP)
+    .filter(q => q && typeof q.url === 'string')
     .map(q => ({ url: pageOf(q.url.trim()), sections: idsOf(q.sections) }))
+    .filter(q => rawable(q.url) && allowed(q.url))
+    .slice(0, REQUEST_CAP)
     .filter(q => !slices.has(sliceKey(q.url, q.sections)))
   if (!asked.length) return first
   for (const q of asked) await fetchOne(q)
@@ -629,7 +630,7 @@ const votes = await inWaves(panel.map(({ c, k }) => () => judged(extra =>
 )), MAX_CONCURRENT)
 
 const tally = toVerify.map(c => {
-  const mine = panel.map((p, i) => (p.c === c ? votes[i] : undefined)).filter(v => v !== undefined)
+  const mine = votes.filter((v, i) => panel[i].c === c && v !== undefined)
   const count = { upheld: 0, refuted: 0, unverified: 0, panel: SKEPTICS }
   const reasons = []
   for (const v of mine) {

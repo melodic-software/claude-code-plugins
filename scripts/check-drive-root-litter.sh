@@ -117,11 +117,8 @@ record_if_litter() {
   [[ -d "$candidate" ]] || return 0
   cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
   [[ -n "$cand_real" ]] || cand_real="$candidate"
-  case "$here/" in
-  "$cand_real"/*) return 0 ;;
-  *) ;; # the cwd is elsewhere: the candidate is a real hit
-  esac
-  if [[ "$mount_root" == "" ]]; then
+  [[ "$here/" == "$cand_real"/* ]] && return 0
+  if [[ -z "$mount_root" ]]; then
     hits+=("$candidate    (${drive^}:\\${name}\\)")
   else
     hits+=("$candidate")

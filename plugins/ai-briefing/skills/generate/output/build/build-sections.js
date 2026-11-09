@@ -39,6 +39,7 @@ const SECTION_LABELS = {
   taskforce: "Task Force",
   qa: "Q&A",
 };
+const labelFor = (key) => SECTION_LABELS[key] || key;
 
 // Linear primary nav order. "news" is a virtual chip — no section element with id="news";
 // it represents the parent grouping of all `parentSection: "news"` sections.
@@ -178,7 +179,7 @@ function renderPatterns(s) {
 }
 
 function renderNewsSection(sectionKey, sectionSlides, providerLogoSvg) {
-  const label = SECTION_LABELS[sectionKey] || sectionKey;
+  const label = labelFor(sectionKey);
   const provider = sectionSlides.find((s) => s.provider)?.provider || sectionKey;
   const providerLogo = providerLogoSvg[provider]
     ? `<span class="provider-logo">${providerLogoSvg[provider]}</span>`
@@ -252,7 +253,7 @@ function renderGroup(group, logoWhiteData, providerLogoSvg) {
     .map((s) => (s.speakerNotes || "").trim())
     .filter((n) => n.length > 0);
   const notesAside = notesPieces.length > 0
-    ? `<aside class="speaker-notes" aria-hidden="true">${notesPieces.map((n) => escape(n)).join(" • ")}</aside>`
+    ? `<aside class="speaker-notes" aria-hidden="true">${notesPieces.map(escape).join(" • ")}</aside>`
     : "";
 
   return `<section id="${escape(sectionKey)}" class="${cls}">${inner}${notesAside}</section>`;
@@ -261,22 +262,18 @@ function renderGroup(group, logoWhiteData, providerLogoSvg) {
 function renderTopnav(groups, meta, logoWhiteData) {
   const groupKeys = new Set(groups.map((g) => g.key));
 
-  const newsSubKeys = groups
-    .filter((g) => g.slides[0]?.parentSection === "news")
-    .map((g) => g.key);
-
   const primaryChips = PRIMARY_NAV_ORDER
     .filter((k) => k === "news" || groupKeys.has(k))
     .map((k) => {
-      const label = k === "news" ? "News" : (SECTION_LABELS[k] || k);
+      const label = k === "news" ? "News" : labelFor(k);
       const chipClass = k === "news" ? "chip-news-parent" : "";
       return `<li><a href="#${escape(k)}" class="${chipClass}" data-key="${escape(k)}">${escape(label)}</a></li>`;
     }).join("");
 
-  const subChips = newsSubKeys.map((k) => {
-    const label = SECTION_LABELS[k] || k;
-    return `<li><a href="#${escape(k)}" class="chip-news-sub" data-key="${escape(k)}">${escape(label)}</a></li>`;
-  }).join("");
+  const subChips = groups
+    .filter((g) => g.slides[0]?.parentSection === "news")
+    .map((g) => `<li><a href="#${escape(g.key)}" class="chip-news-sub" data-key="${escape(g.key)}">${escape(labelFor(g.key))}</a></li>`)
+    .join("");
 
   return `
   <nav id="topnav" aria-label="Section navigation">

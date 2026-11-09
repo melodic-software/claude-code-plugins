@@ -229,7 +229,7 @@ export function writeSnapshot(argv, text, options) {
 
     const current = readJson(target);
     if (has(current) && !has(body)) return skip("preserve");
-    if (!(has(body) && !has(current))) {
+    if (!has(body) || has(current)) {
       const was = capturedAt(current);
       const at = capturedAt(body);
       if (was > at && was <= at + CEILING_S) return skip("regress");

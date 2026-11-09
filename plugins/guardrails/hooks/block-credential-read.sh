@@ -240,15 +240,15 @@ match_shapes() {
       "gh auth status (exits 0 when logged in)"
   fi
 
-  if ! allowed env-echo &&
-    [[ "$s" =~ $re_printenv || "$s" =~ $re_echo || "$s" =~ $re_psvar || "$s" =~ $re_psenv ]]; then
-    block env-echo "a token-shaped environment variable" \
-      "test -n \"\$NAME\" && echo set (PowerShell: if (\$env:NAME) { 'set' })"
-  fi
-
-  if ! allowed env-echo && [[ "$sj" =~ $re_jqenv ]]; then
-    block env-echo "every environment variable, through jq env" \
-      "test -n \"\$NAME\" && echo set"
+  if ! allowed env-echo; then
+    if [[ "$s" =~ $re_printenv || "$s" =~ $re_echo || "$s" =~ $re_psvar || "$s" =~ $re_psenv ]]; then
+      block env-echo "a token-shaped environment variable" \
+        "test -n \"\$NAME\" && echo set (PowerShell: if (\$env:NAME) { 'set' })"
+    fi
+    if [[ "$sj" =~ $re_jqenv ]]; then
+      block env-echo "every environment variable, through jq env" \
+        "test -n \"\$NAME\" && echo set"
+    fi
   fi
 
   if ! allowed credential-file-read && { [[ "$s" =~ $re_file || "$sj" =~ $re_jqfile ]] || interpreter_reads "$s" "$lead" "$pre"; }; then

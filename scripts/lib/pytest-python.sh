@@ -67,9 +67,7 @@ pytest_python::venv_bin() {
 }
 
 pytest_python::resolve() {
-  local top main venv py setup=$PYTEST_PYTHON_SETUP
-  top=$(pwd -P)
-  main=$(pytest_python::main_checkout)
+  local top venv py setup=$PYTEST_PYTHON_SETUP
   if venv=$(pytest_python::find_venv); then
     pytest_python::venv_python "$venv"
     return 0
@@ -78,7 +76,8 @@ pytest_python::resolve() {
     echo python3
     return 0
   fi
-  venv=${SETUP_ENV_VENV:-$main/.work/venv}
+  top=$(pwd -P)
+  venv=${SETUP_ENV_VENV:-$(pytest_python::main_checkout)/.work/venv}
   py=$(pytest_python::venv_python "$venv")
   if [[ -z ${CI:-}${GITHUB_ACTIONS:-} && -f $setup && -f .python-version && -f .github/requirements-ci.txt ]] &&
     mkdir -p "${venv%/*}"; then

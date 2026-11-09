@@ -36,17 +36,20 @@ const GITHUB_NOREPLY = /^\d+\+[^@]+@users\.noreply\.github\.com$/i
 const isAllowed = (match: string, offset: number, text: string): boolean =>
   NOREPLY.test(match) || GITHUB_NOREPLY.test(match) || (/^git@/i.test(match) && text[offset + match.length] === ':')
 
+type Group = { quantified: boolean; alternates: boolean }
+type Quantifier = { range: number; length: number; repeats: boolean }
+
 // How many lengths a pattern can try at one start: the product of its quantifiers' ranges, an
 // unbounded one counted as a window. Infinity for a shape that backtracks without bound: a
 // quantified group holding a quantifier or an alternation, or a backreference.
 const backtrackCost = (source: string): number => {
-  const groups: { quantified: boolean; alternates: boolean }[] = [{ quantified: false, alternates: false }]
+  const groups: Group[] = [{ quantified: false, alternates: false }]
   let cost = 1
   let inClass = false
   // The range of the quantifier at `i`, its length, and whether it repeats without a small bound.
-  const quantifierAt = (i: number): { range: number; length: number; repeats: boolean } | undefined => {
+  const quantifierAt = (i: number): Quantifier | undefined => {
     const c = source[i]
-    let q: { range: number; length: number; repeats: boolean } | undefined
+    let q: Quantifier | undefined
     if (c === '*' || c === '+') q = { range: WINDOW, length: 1, repeats: true }
     else if (c === '?') q = { range: 2, length: 1, repeats: false }
     else if (c === '{') {
@@ -62,7 +65,7 @@ const backtrackCost = (source: string): number => {
   }
   for (let i = 0; i < source.length; i++) {
     const c = source[i]
-    const top = groups[groups.length - 1] as { quantified: boolean; alternates: boolean }
+    const top = groups[groups.length - 1] as Group
     if (c === '\\') {
       if (!inClass && /[1-9k]/.test(source[i + 1] ?? '')) return Infinity
       i++
@@ -183,9 +186,11 @@ export function maskText(text: string, patterns: readonly RegExp[], mask: string
     let masked = false
     let i = start
     while (j < escapes.length && (escapes[j] as Range)[1] <= start) j++
-    for (let k = j; k < escapes.length && (escapes[k] as Range)[0] < end; k++) {
-      const s = Math.max((escapes[k] as Range)[0], start)
-      const e = Math.min((escapes[k] as Range)[1], end)
+    for (let k = j; k < escapes.length; k++) {
+      const [escStart, escEnd] = escapes[k] as Range
+      if (escStart >= end) break
+      const s = Math.max(escStart, start)
+      const e = Math.min(escEnd, end)
       if (s > i && !masked) {
         out += mask
         masked = true
@@ -281,8 +286,9 @@ const walk = (
 ): unknown => {
   if (typeof value === 'string') return str(value)
   if (value === null || typeof value !== 'object') return value
-  if (depth >= MAX_DEPTH || !(Array.isArray(value) || isPlain(value))) return mask
+  if (depth >= MAX_DEPTH) return mask
   if (Array.isArray(value)) return value.map((v) => walk(v, str, key, mask, depth + 1))
+  if (!isPlain(value)) return mask
   const entries = Object.entries(value)
   const keys = distinct(entries.map(([k]) => key(k)), mask)
   return Object.fromEntries(entries.map(([, v], i) => [keys[i], walk(v, str, key, mask, depth + 1)]))

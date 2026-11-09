@@ -79,11 +79,8 @@ word_count() {
   # Floor small files: densities on <50 words are unstable.
   local n
   n=$(wc -w <"$1" | tr -d ' ')
-  if [[ "$n" -lt 50 ]]; then
-    echo 50
-  else
-    echo "$n"
-  fi
+  ((n < 50)) && n=50
+  echo "$n"
 }
 
 classify_file() {
@@ -127,11 +124,9 @@ classify_file() {
     emit_row "$file" '3-7%' 'UNCERTAIN' "inline-code density $tick_dens/kw AND/OR cross-ref density $path_dens/kw; flavor band narrow"
     return 0
   fi
-  if [[ "$ARTICLES" == cut ]]; then
-    emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging/articles'
-  else
-    emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging; articles kept (compress_articles: keep)'
-  fi
+  local cuts='filler/hedging; articles kept (compress_articles: keep)'
+  [[ "$ARTICLES" == cut ]] && cuts='filler/hedging/articles'
+  emit_row "$file" '5-15%' 'COMPRESS' "verbose-prose baseline; expected flavor cuts on $cuts"
 }
 
 printf '| target | expected_yield_pct | classify | reason |\n'
@@ -139,10 +134,9 @@ printf '|---|---|---|---|\n'
 
 skips=0 compress=0 uncertain=0
 mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
-rows=()
 for f in "${SORTED[@]}"; do
   row="$(classify_file "$f")"
-  rows+=("$row")
+  printf '%s\n' "$row"
   case "$row" in
   *'| SKIP |'*) skips=$((skips + 1)) ;;
   *'| COMPRESS |'*) compress=$((compress + 1)) ;;
@@ -150,6 +144,5 @@ for f in "${SORTED[@]}"; do
   *) ;;
   esac
 done
-printf '%s\n' "${rows[@]}"
 printf '\nTotal: %s skips, %s compress-recommended, %s uncertain\n' "$skips" "$compress" "$uncertain"
 exit 0

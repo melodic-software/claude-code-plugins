@@ -6,8 +6,9 @@ name: Maintenance File Upstream Drift Issues
 # upstream titled `Upstream drift: <owner>/<repo>` (opened on drift, updated in
 # place on later runs, closed once the upstream is clean). Informational: not
 # in pr-require-checks.yml and not behind `ci-status`, so nothing here can block
-# a merge. The run fails only on a script error or a failed issue write; drift
-# alone does not fail it.
+# a merge. The run fails on a script error, a failed issue write, or a page
+# whose upstream stayed unreachable (reported `status=unreachable`, after the
+# other upstreams are filed); drift alone does not fail it.
 #
 # Its token can write issues and nothing else; it reads repository contents. No
 # pull-request or issue text reaches it: the only triggers are the schedule and
@@ -73,6 +74,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: bash scripts/upstream-drift-issues.sh "$RUNNER_TEMP/drift.txt"
+      - name: Fail on an unreachable upstream
+        run: |
+          if grep ' status=unreachable ' "$RUNNER_TEMP/drift.txt"; then
+            echo "::error title=Upstream unreachable::An upstream refused both the token and an anonymous read; the page above was not checked."
+            exit 1
+          fi
 
       - name: Log the API budget at the end
         if: always()
