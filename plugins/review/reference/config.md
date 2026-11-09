@@ -11,6 +11,20 @@ file or personal override sets these keys. `/review:setup apply` writes the repo
 | `downstream_probe` | `run`, `report` | `run` | `/review:quality-gate` downstream mode (Step 2): `run` writes the safety-fact probe in a temporary directory outside the tree and runs it; `report` states the probe without running it. Level rule: policy floor, `report` in any layer wins; the repository value is read from the default branch |
 | `fanout_diversity` | `lens`, `model`, `codex` | `lens` | `/review:fanout` run-everything steps 3 and 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map; `codex` runs the surfaces `lens` runs, with no model tiers, and reports the Codex reviewer as the model-diversity panel in a `panel:` line, `skipped` when Codex is absent. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 | `fanout_act_on_cap` | a whole number, at least `1` | `2` | `/review:fanout` Step 2, both review modes: the report's `## By axis` marks the first this many rows under `### Spec`, and separately the first this many under `### Standards`, `yes` in their `Act on` cell, and every later row `no`; a row listed under `## Dismissed` reads `no` and is not counted; no row is dropped. The default `2` is the smallest cap that kept both planted defects of the two-defect fixtures inside act on in 12 of 12 runs, where a cap of `1` left the second outside it in all 12 (#12505). A user option that is not a whole number of at least 1 is an invalid layer. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
+| `council_lanes` | `on`, `off` | `off` | `/review:council`: an unattended run stops with success unless this is `on`; an attended run never reads it. Repository layer only, no user option. Read as the council keys below are |
+| `council_max_rounds` | a whole number, at least `1` | `1` | `/review:council` round loop: above `1`, `/review:fanout fix` runs between rounds. Level rule: later layer; council read rule below |
+| `council_scores` | `on`, `off` | `off` | `/review:council` report: `on` adds a mark table by member and round; marks gate nothing. Level rule: later layer; council read rule below |
+| `council_members` | a map of member id to `provider`, `model`, `brief`, `effort` | three `claude` members on `opus`, briefed `correctness`, `design`, `adversarial` | `/review:council` selection. The user option holds the same shape as JSON text. Level rule: later layer per key; council read rule below |
+| `council_panel` | a list of member ids | every catalog member | `/review:council` when no rule matches. User option: JSON text. Level rule: later layer; council read rule below |
+| `council_rules` | a list of `name`, `when` (`paths`, `size`, `risk`), `members` | none | `/review:council` selection, first match wins. User option: JSON text. Level rule: later layer; council read rule below |
+
+**Council read rule.** When the reviewed change set edits `docs/conventions/review.yaml`
+(committed, staged, unstaged or untracked), every council key is read from the base branch's
+committed copy, never the working tree, through the same ladder as `downstream_probe`: fetch the
+base, else read the last fetched copy and say so, else skip the repository layer and say why. A
+change therefore never chooses its own reviewers or turns its own lane switch on. `/review:council`
+checks the user layer's JSON text against the same schema; an invalid option is reported and
+dropped for that key.
 
 ## Resolution
 
@@ -63,4 +77,7 @@ unknown key keeps the file's other keys; an older reader drops the whole reposit
 each key then resolves as it does for an invalid layer: `fanout_diversity` and
 `fanout_act_on_cap` take their defaults,
 never the lower userConfig value, and `downstream_probe` still takes `report` from userConfig. A
-repository shared with users on an older release should add a key only once they have updated.
+key holding a map or a list, as `council_members`, `council_panel` and `council_rules` do, makes an
+older reader drop the whole repository layer, not just that key: every other key in the file falls
+back too. A repository shared with users on an older release should add a key only once they have
+updated.

@@ -31,6 +31,68 @@
       "type": "integer",
       "minimum": 1,
       "default": 2
+    },
+    "council_lanes": {
+      "description": "The council's lane switch. on: an unattended run (a lane, claude -p, an autonomous loop) may start /review:council in this repository. off: an unattended run stops with success and says the switch is off. An attended run never reads it. Repository only: no user option sets it.",
+      "enum": ["on", "off"],
+      "default": "off"
+    },
+    "council_max_rounds": {
+      "description": "How many review rounds /review:council runs at most. Above 1, /review:fanout fix runs between rounds and each later round reviews only what that fix changed; the loop stops earlier on a round with no new or unresolved CRITICAL or IMPORTANT finding.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+    },
+    "council_scores": {
+      "description": "on: the /review:council report carries a mark table by member and round. Marks never rank, gate or stop anything.",
+      "enum": ["on", "off"],
+      "default": "off"
+    },
+    "council_members": {
+      "description": "The council's member catalog, keyed by member id. Each member names a provider (claude, codex) and optionally a model (an alias, <provider>/flagship, or a provider model id), a shipped brief (correctness, design, adversarial) and an effort. Unset: three claude members on opus, briefed correctness, design and adversarial. A member its provider's adapter cannot run as written is skipped with the reason, never replaced.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9-]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider"],
+        "properties": {
+          "provider": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "model": { "type": "string", "minLength": 1 },
+          "brief": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "effort": { "type": "string", "pattern": "^[a-z]+$" }
+        }
+      }
+    },
+    "council_panel": {
+      "description": "The member ids /review:council runs when no council_rules entry matches the change. Unset: every member in council_members.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+    },
+    "council_rules": {
+      "description": "Selection rules /review:council tries in order; the first whose every term matches the change decides the members. paths: any changed path matches any glob. size: fanout's size tier, promotion included. risk: the highest merge-risk level on the reviewed head is at or above this one.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "when", "members"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "when": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "paths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+              "size": { "type": "array", "minItems": 1, "items": { "enum": ["small", "medium", "large"] } },
+              "risk": { "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] }
+            }
+          },
+          "members": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9-]+$" } }
+        }
+      }
     }
   }
 }

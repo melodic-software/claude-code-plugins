@@ -92,6 +92,7 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
+        "required": ["role"],
         "properties": { "role": { "type": "string", "enum": ["lead", "member"] } }
       }
     },
@@ -422,6 +423,7 @@ check_warn "a list item value outside its pattern" $'rules:\n  - name: One\n' 'r
 check_warn "an empty value where a list item takes a map" $'rules:\n  - name: one\n    when:\n' 'rules.0.when is null; it takes a map'
 check_ok "a map whose key names match propertyNames" $'crew:\n  ana:\n    role: lead\n' "PASS crew:"
 check_warn "a map key outside propertyNames" $'crew:\n  Ana:\n    role: lead\n' 'crew key "Ana"'
+check_warn "a map missing a required key" $'crew:\n  ana:\n    mood: calm\n' 'crew.ana.role is required'
 out="$(run --root "$(new_root list-cli)" tags=a)"
 assert_eq "a list key on the command line: exits 1" "1" "$?"
 assert_contains "a list key on the command line: says to edit by hand" "$out" "is not set from the command line"

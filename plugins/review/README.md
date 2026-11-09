@@ -243,7 +243,7 @@ Review criteria and findings location route through your own project context: re
 criteria docs and severity vocabulary override the bundled baseline, and a documented
 findings location in your `CLAUDE.md`/rules overrides the default path.
 
-Three settings, each set per user through the option below or per repository in
+Each setting is set per user through the option below or per repository in
 `docs/conventions/review.yaml` (written by `/review:setup apply`). `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
@@ -251,7 +251,10 @@ whether `/review:fanout run-everything` runs one reviewer agent per concern (`le
 or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
 with the Codex reviewer as its model-diversity panel (`codex`). `fanout_act_on_cap` decides how
 many rows under each `### Spec` and `### Standards` heading of a `/review:fanout` report are marked
-act on (default `2`); every other row stays in the report. Keys, values and resolution:
+act on (default `2`); every other row stays in the report. The `council_*` keys configure
+`/review:council`: its member catalog, fallback panel, selection rules, round count, score table and
+the repository-only lane switch, read from the base branch when a change edits the file. Keys,
+values and resolution:
 [`reference/config.md`](reference/config.md).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -267,6 +270,11 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |
+| `council_max_rounds` | number<br>*min 1* | `1` | How many review rounds /review:council runs at most; default 1, a whole number of at least 1. Above 1, /review:fanout fix runs between rounds. A repository's docs/conventions/review.yaml council_max_rounds wins over this option. |
+| `council_scores` | string | `"off"` | on: the /review:council report carries a mark table by member and round; off (default): none. A repository's docs/conventions/review.yaml council_scores wins over this option. |
+| `council_members` | string | *(none)* | Your /review:council member catalog as JSON, the same shape as council_members in docs/conventions/review.yaml, for example {"codex-adv":{"provider":"codex","brief":"adversarial"}}. Empty (default): the repository's value or three Opus members. A repository's value wins; invalid JSON is reported and ignored. |
+| `council_panel` | string | *(none)* | Your /review:council fallback panel as a JSON list of member ids. Empty (default): the repository's value or every catalog member. A repository's value wins; invalid JSON is reported and ignored. |
+| `council_rules` | string | *(none)* | Your /review:council selection rules as a JSON list, the same shape as council_rules in docs/conventions/review.yaml. Empty (default): the repository's rules or none. A repository's value wins; invalid JSON is reported and ignored. |
 | `medium` | string | `"auto"` | Where /review:explain-change sends a digest page. auto (default): the shipped artifact default, which the publish gate keeps local for a non-public repository or a credential-shaped diff; terminal: no page; file: a local file; artifact: publish anyway; hosted: the shared page host. |
 
 ### How to set these
