@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.5] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.18.4] - 2026-11-09
 
 ### Changed

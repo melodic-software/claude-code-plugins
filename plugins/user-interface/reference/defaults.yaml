@@ -229,12 +229,13 @@ color:
 # page gives). The project's installed library and design system beat every layer.
 components:
   primitives_default: base-ui
-# Icon sizes and gaps in px or em. icon.size_px, the ladder of sizes, is a heuristic.
+# Icon sizes and gaps in px or em. icon.size_px, the ladder of sizes, and icon.label_gap_em are heuristics.
 icon:
   filled_below_px: 12
   label_gap_px:
     - 6
     - 8
+  label_gap_em: 0.5
   size_em: 1
   size_px:
     - 12

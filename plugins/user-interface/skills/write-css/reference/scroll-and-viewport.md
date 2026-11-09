@@ -1,8 +1,8 @@
 # Scroll and viewport
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. Fill each
+`{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
+examples illustrate the technique.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -28,11 +28,11 @@ Use it for any horizontal row of cards.
 ```css
 .carousel {
   display: flex;
-  gap: var(--space-s, 1rem);
+  gap: var(--space-s, {{spacing.s}});
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: var(--gutter, 1.5rem);
-  padding-inline: var(--gutter, 1.5rem);
+  scroll-padding-inline: var(--gutter, {{spacing.m}});
+  padding-inline: var(--gutter, {{spacing.m}});
   overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
@@ -101,7 +101,7 @@ Use it for the body of a modal, a chat list, a drawer or a sidebar.
 .panel {
   display: flex;
   flex-direction: column;
-  max-block-size: 80dvh;
+  max-block-size: {{layout.panel_max_height}};
 }
 
 .panel-body {
@@ -167,9 +167,9 @@ content fades:
 }
 
 @keyframes edges {
-  from { --fade-start: 0px; --fade-end: 2rem; }
-  10%, 90% { --fade-start: 2rem; --fade-end: 2rem; }
-  to { --fade-start: 2rem; --fade-end: 0px; }
+  from { --fade-start: 0px; --fade-end: {{css.edge_fade.length}}; }
+  {{css.edge_fade.stops_percent[0]}}%, {{css.edge_fade.stops_percent[1]}}% { --fade-start: {{css.edge_fade.length}}; --fade-end: {{css.edge_fade.length}}; }
+  to { --fade-start: {{css.edge_fade.length}}; --fade-end: 0px; }
 }
 
 .scroller-edges {
@@ -283,7 +283,7 @@ insets.
 
 .bottom-bar { padding-block-end: env(safe-area-inset-bottom, 0px); }
 
-.sheet { padding-block-end: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+.sheet { padding-block-end: calc({{spacing.s}} + env(safe-area-inset-bottom, 0px)); }
 
 /* Landscape puts the notch on the side */
 .sidebar { padding-inline-start: env(safe-area-inset-left, 0px); }
@@ -401,19 +401,19 @@ Baseline: [`::-webkit-scrollbar`](https://developer.mozilla.org/en-US/docs/Web/C
 As of 2026-10-29, recheck on a status change.
 
 Never replace the page scrollbar. Customize scrollbars only inside small elements like code blocks:
-`8px` wide, `rgba(0,0,0,0.2)` thumb, `4px` radius.
+`spacing.xs` wide, a black thumb at `color.overlay_alpha`, `radius.s` radius.
 
-Write that thumb as `oklch(0 0 none / 0.2)`: colors here are `oklch()` with `none` as the hue of a
-gray, never a hardcoded `rgba()` (`oklch-color`, `foundations.md`).
+Write that thumb as `oklch(0 0 none / {{color.overlay_alpha}})`: colors here are `oklch()` with
+`none` as the hue of a gray, never a hardcoded `rgba()` (`oklch-color`, `foundations.md`).
 
 ```css
 .code-block::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: {{spacing.xs}};
+  height: {{spacing.xs}};
 }
 .code-block::-webkit-scrollbar-thumb {
-  background: oklch(0 0 none / 0.2);
-  border-radius: 4px;
+  background: oklch(0 0 none / {{color.overlay_alpha}});
+  border-radius: {{radius.s}};
 }
 ```
 
@@ -421,7 +421,7 @@ Rules:
 
 - `scrollbar-width` and `scrollbar-color` are the standard properties; check the target's compat
   rows before writing them beside or in place of the prefixed rules.
-- In a dark theme the thumb takes the light form, `oklch(1 0 none / 0.2)`.
+- In a dark theme the thumb takes the light form, `oklch(1 0 none / {{color.overlay_alpha}})`.
 
 ## Menu items that fade at the container edge: `menu-items-that-fade-at-the-container-edge`
 
@@ -439,8 +439,8 @@ must stay unclipped.
   mask-image: linear-gradient(
     to right,
     transparent,
-    oklch(0 0 none) var(--edge, 1rem),
-    oklch(0 0 none) calc(100% - var(--edge, 1rem)),
+    oklch(0 0 none) var(--edge, {{spacing.s}}),
+    oklch(0 0 none) calc(100% - var(--edge, {{spacing.s}})),
     transparent
   );
 }

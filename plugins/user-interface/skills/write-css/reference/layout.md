@@ -1,8 +1,8 @@
 # Layout
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. Fill each
+`{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
+examples illustrate the technique.
 
 The layout rules these recipes implement, with audit severities, are in
 [the web layout spoke](../../../reference/types/web/layout.md).
@@ -31,9 +31,9 @@ with no negative margin and no new wrapper.
 
 ```css
 .content-grid {
-  --gutter: var(--space-m, 1.5rem);
-  --content: 64rem;
-  --breakout: 80rem;
+  --gutter: var(--space-m, {{spacing.m}});
+  --content: {{layout.content_width}};
+  --breakout: max({{layout.breakout_width}}, var(--content) + var(--gutter) * 2);
 
   display: grid;
   grid-template-columns:
@@ -58,6 +58,9 @@ Rules:
 - Every child must be placed. An unplaced child lands in the gutter track.
 - Every direct child is a grid item. Wrap a run of inline elements in one element.
 - Change a width by overriding `--content`, not by writing a new column template.
+- Keep the `max()` on `--breakout`. The two widths can be in different units, so at some root sizes
+  the breakout width is no wider than the content; the floor keeps each breakout track at least a
+  gutter wide.
 - In a pass over existing CSS, replace each centered `max-width` wrapper with the grid, and keep
   the wrapper's width as `--content` on its section.
 - Where the authoring system has no child selectors, each child sets its own `grid-column` to
@@ -76,8 +79,8 @@ Use it for any set of equal cards or tiles.
 ```css
 .grid {
   display: grid;
-  gap: var(--space-s, 1rem);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-s, {{spacing.s}});
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, {{layout.grid_track_min_width}}), 1fr));
 }
 ```
 
@@ -96,15 +99,15 @@ As of 2026-10-11, recheck on a status change.
 ```css
 .cards {
   display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: {{spacing.m}};
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, {{layout.grid_track_min_width}}), 1fr));
 }
 
 .card {
   display: grid;
   grid-row: span 3;
   grid-template-rows: subgrid;
-  row-gap: 0.5rem;
+  row-gap: {{spacing.xs}};
 }
 ```
 
@@ -129,18 +132,18 @@ object, an input with a button, a page with an aside.
 .with-sidebar {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: {{spacing.s}};
 }
 
 .sidebar {
-  flex-basis: 20rem;
+  flex-basis: {{layout.sidebar_width[0]}};
   flex-grow: 1;
 }
 
 .main {
   flex-basis: 0;
   flex-grow: 999;
-  min-inline-size: 50%;
+  min-inline-size: {{layout.sidebar_width[1]}};
 }
 ```
 

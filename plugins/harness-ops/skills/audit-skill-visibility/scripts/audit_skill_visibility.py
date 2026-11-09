@@ -1992,17 +1992,12 @@ def compute_listing(
         # cost nothing and take no separator.
         if eligibility not in ("exempt-user-only", "exempt-hidden"):
             listed += 1
-            name_chars = len(entry["qualified_name"])
-            if eligibility == "exempt-bundled":
-                # Keeps its description unconditionally, so it is charged for it.
-                floor += name_chars + 4 + desc_chars
-                full += name_chars + 4 + desc_chars
-            elif eligibility == "exempt-name-only":
-                floor += name_chars + 2
-                full += name_chars + 2
-            else:
-                floor += name_chars + 2
-                full += name_chars + 4 + desc_chars
+            name_only = len(entry["qualified_name"]) + 2
+            rendered = name_only + 2 + desc_chars
+            # A bundled entry keeps its description unconditionally, so its
+            # floor is charged for it.
+            floor += rendered if eligibility == "exempt-bundled" else name_only
+            full += name_only if eligibility == "exempt-name-only" else rendered
         rows.append(
             {
                 "qualified_name": entry["qualified_name"],
@@ -2232,8 +2227,9 @@ def compute_listing_band(
         # A row that withholds its starvation verdict carries the reason with
         # it, so the merged row does too: a band whose rows disagree still has
         # to say why the overflowing ones name nobody.
-        if any(r.get("reason") for r in per_row):
-            merged["reason"] = next(r["reason"] for r in per_row if r.get("reason"))
+        reason = next((r["reason"] for r in per_row if r.get("reason")), None)
+        if reason:
+            merged["reason"] = reason
         if base["eligibility"] == "competing":
             merged["by_band"] = {
                 r["label"]: r["skills"][index]["verdict"] for r in rows
@@ -2864,11 +2860,10 @@ def _observation_value(
     """Resolve one observation value, refusing any verdict the span cannot back."""
     backed_by = own_events[0].get("source") if own_events else None
 
-    # A span shorter than the floor cannot support a cold verdict at all.
-    if observable_days < config.exposure_floor_days and count == 0:
-        return "not-observable", backed_by
-
     if count == 0:
+        # A span shorter than the floor cannot support a cold verdict at all.
+        if observable_days < config.exposure_floor_days:
+            return "not-observable", backed_by
         return "no-observation-in-horizon", backed_by
 
     age_days = (clock - last_used).days
@@ -3409,25 +3404,17 @@ def _render_coverage(listing: dict) -> list[str]:
         if stale:
             parts.append(
                 f"{len(stale)} captured plugin {_plural(len(stale), 'skill')} "
-                "this fleet no longer has, not counted ("
-                + ", ".join(f"`{name}`" for name in stale[:10])
-                + ("…" if len(stale) > 10 else "")
-                + ")"
+                f"this fleet no longer has, not counted ({_name_preview(stale)})"
             )
         if absent:
             parts.append(
                 f"{len(absent)} counted {_plural(len(absent), 'skill')} "
-                "absent from it ("
-                + ", ".join(f"`{name}`" for name in absent[:10])
-                + ("…" if len(absent) > 10 else "")
-                + ")"
+                f"absent from it ({_name_preview(absent)})"
             )
         if longer:
             parts.append(
-                f"{len(longer)} rendered longer there than counted here ("
-                + ", ".join(f"`{name}`" for name in longer[:10])
-                + ("…" if len(longer) > 10 else "")
-                + ")"
+                f"{len(longer)} rendered longer there than counted here "
+                f"({_name_preview(longer)})"
             )
         lines += [
             "**The capture does not cover the counted fleet**: "
@@ -3447,10 +3434,7 @@ def _render_coverage(listing: dict) -> list[str]:
     if shed:
         lines += [
             f"The capture shows {len(shed)} "
-            f"{_plural(len(shed), 'description')} shed: "
-            + ", ".join(f"`{name}`" for name in shed[:10])
-            + ("…" if len(shed) > 10 else "")
-            + ".",
+            f"{_plural(len(shed), 'description')} shed: {_name_preview(shed)}.",
             "",
         ]
     if capture["disagrees"]:
@@ -3461,6 +3445,12 @@ def _render_coverage(listing: dict) -> list[str]:
             "",
         ]
     return lines + [_SUBAGENT_NOTE, ""]
+
+
+def _name_preview(names: list[str]) -> str:
+    """The first ten names in backticks, with an ellipsis when more follow."""
+    preview = ", ".join(f"`{name}`" for name in names[:10])
+    return preview + ("…" if len(names) > 10 else "")
 
 
 _SUBAGENT_NOTE = (
@@ -3666,7 +3656,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"error: cannot read --fixture {args.fixture}: {exc}", file=sys.stderr
             )
             return 2
-        clock = _parse_ts(args.now) if args.now else _parse_ts(bundle["now"])
+        clock = _parse_ts(args.now or bundle["now"])
         horizons = {k: _parse_ts(v) for k, v in bundle.get("horizons", {}).items()}
         events = [dict(e, ts=_parse_ts(e["ts"])) for e in bundle.get("events", [])]
         denominator = bundle["denominator"]
