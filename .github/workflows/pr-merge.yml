@@ -2645,8 +2645,11 @@ jobs:
             fresh=0
             # Written now, so a check that times out or is cancelled still says it ran.
             echo "fresh-started=true" >>"$GITHUB_OUTPUT"
+            # --stop-uncovered ends the check with exit 6 once its run
+            # listings show a judged merge no dispatch run covers: that report
+            # would need a dispatch, which idle_report_refusal always refuses.
             python3 "$scripts/babysit_postmerge.py" \
-              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only --stop-uncovered \
               </dev/null >"$last/post-merge.json" || fresh=$?
             echo "::group::fresh post-merge check: exit $fresh"
             cat "$last/post-merge.json"
@@ -2665,6 +2668,9 @@ jobs:
             fi
             if [ "$kept" = true ]; then
               echo "the fresh post-merge check (exit $fresh) passed and settle --idle-tick --fresh keeps it"
+            elif [ "$fresh" = 6 ]; then
+              rm -rf "${last:?}"
+              echo "::notice::the fresh post-merge check stopped at a lane merge no dispatch run covers yet; its report would need a dispatch, so nothing is armed or disarmed, and the next sweep checks again"
             else
               rm -rf "${last:?}"
               echo "::notice::the fresh post-merge check (exit $fresh) does not stand for this run; nothing is armed or disarmed, and the next sweep checks again"
@@ -2851,6 +2857,8 @@ jobs:
               OUTCOME="skipped: a waiting run does this work"
             elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
               OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
+            elif [ "$STANDS" = false ] && [ "$FRESH" = 6 ]; then
+              OUTCOME="skipped: the fresh post-merge check stopped at a lane merge no dispatch run covers (needs-dispatch)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then
               OUTCOME="skipped: the fresh post-merge check stopped on a GitHub rate limit"
             elif [ "$STANDS" = false ] && [[ $FRESH =~ ^[05]$ ]]; then

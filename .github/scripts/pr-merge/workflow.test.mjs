@@ -648,7 +648,7 @@ const SETTLE = (sha, fresh = "") =>
 // The fresh report's settle: the same call with --fresh, and only there.
 const SETTLE_FRESH = (sha) => SETTLE(sha, " --fresh");
 const FRESH_CHECK =
-  /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only$/;
+  /^\.base\/plugins\/source-control\/skills\/babysit-prs\/scripts\/babysit_postmerge\.py --repo o\/r --agent-identity lanes-bot --lane-merges-only --stop-uncovered$/;
 
 test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick keeps it", () => {
   const kept = keepReport();
@@ -742,6 +742,20 @@ test("a PR-scoped run whose fresh check or fresh settle refuses keeps no report"
   }
 });
 
+// Exit 6 (--stop-uncovered): the check stopped at a merge no dispatch run
+// covers, a report idle_report_refusal refuses as needs-dispatch, so no
+// settle runs and nothing stands, with a notice of its own.
+test("a PR-scoped run whose fresh check stops at an uncovered merge keeps no report and runs no settle", () => {
+  const run = keepReport({ settles: [1], fresh: 6 });
+  assert.equal(run.status, 0);
+  assert.equal(run.kept, false);
+  assert.equal(run.output, "fresh-started=true\nstands=false\nfresh=6\nfresh-reason=\n");
+  assert.ok(run.calls.some((c) => FRESH_CHECK.test(c)));
+  assert.equal(run.calls.some((c) => SETTLE_FRESH(FRESH_SHA).test(c)), false);
+  assert.match(run.stdout, /::notice::the fresh post-merge check stopped at a lane merge no dispatch run covers yet/);
+  assert.doesNotMatch(run.stdout, /check \(exit 6\) does not stand for this run/);
+});
+
 // The countable line's outcome when the arm step wrote none.
 const wakeOutcome = (env) => {
   const arm = job("enable-auto-merge");
@@ -769,6 +783,7 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   const base = { KILL: "true", WHO: "true", STANDS: "false" };
   assert.match(wakeOutcome({ ...base, FRESH: "1" }), /report=fresh outcome=skipped: the fresh post-merge check exited 1$/);
   assert.match(wakeOutcome({ ...base, FRESH: "75" }), /report=fresh outcome=skipped: the fresh post-merge check stopped on a GitHub rate limit$/);
+  assert.match(wakeOutcome({ ...base, FRESH: "6" }), /report=fresh outcome=skipped: the fresh post-merge check stopped at a lane merge no dispatch run covers \(needs-dispatch\)$/);
   assert.match(
     wakeOutcome({ ...base, FRESH: "0", FRESH_REASON: "idle tick needs-dispatch" }),
     /report=fresh outcome=skipped: settle --idle-tick refused the fresh post-merge report \(idle tick needs-dispatch\)$/,
