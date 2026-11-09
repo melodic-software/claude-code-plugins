@@ -1,0 +1,28 @@
+{
+  "skill": "planning:interview",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/interview",
+  "ranking_note": "Bare build prompts with no request to be interviewed, and clear small negatives. Kept apart from interview.json so that frozen set stays comparable. A lexical record only; the behavior eval interview-bare-vague-build-asks is the gate. Competitors as interview.json.",
+  "competitors": [
+    "planning:prd",
+    "planning:plan",
+    "planning:brainstorm",
+    "planning:questionnaire",
+    "planning:wayfind",
+    "planning:audit-answers"
+  ],
+  "queries": [
+    {"id": "bare-pos-train-01", "split": "train", "expect_trigger": true, "request": "Add notifications to the app."},
+    {"id": "bare-pos-train-02", "split": "train", "expect_trigger": true, "request": "Build a reporting feature for the admin side."},
+    {"id": "bare-pos-train-03", "split": "train", "expect_trigger": true, "request": "We need user roles in this service."},
+    {"id": "bare-pos-train-04", "split": "train", "expect_trigger": true, "request": "Make the onboarding better."},
+    {"id": "bare-pos-validation-01", "split": "validation", "expect_trigger": true, "request": "Add a billing system."},
+    {"id": "bare-pos-validation-02", "split": "validation", "expect_trigger": true, "request": "Let's add search to the product."},
+    {"id": "bare-pos-validation-03", "split": "validation", "expect_trigger": true, "request": "Implement an export feature."},
+    {"id": "bare-neg-train-01", "split": "train", "expect_trigger": false, "request": "Fix the typo in README.md: 'recieve' should be 'receive'."},
+    {"id": "bare-neg-train-02", "split": "train", "expect_trigger": false, "request": "Rename the variable usr to user in src/auth.py."},
+    {"id": "bare-neg-train-03", "split": "train", "expect_trigger": false, "request": "What does the retry code in src/ do?"},
+    {"id": "bare-neg-validation-01", "split": "validation", "expect_trigger": false, "request": "Bump the requests dependency to the latest patch version."},
+    {"id": "bare-neg-validation-02", "split": "validation", "expect_trigger": false, "request": "Run the test suite and tell me what fails."}
+  ]
+}

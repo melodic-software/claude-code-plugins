@@ -69,9 +69,9 @@ re-plan the user approved: list it as retired, and it withholds nothing. A row m
 
 Read the Goal's `- Finish line:` line and report it as its own `Finish line:` row of the intent
 report: `met` with the evidence, `not met` with what is missing, or `not checkable yet` when it
-names a release or in-use event that has not happened. A change that stops short of the Finish
-line's `merged` state is `not met`. A Brief with no Finish line, or one reading `not settled yet`,
-is listed under the report's findings.
+names a merge, release or in-use event that has not happened yet, with the check that will
+decide it. A Brief with no Finish line, or one reading `not settled yet`, is listed under the
+report's findings.
 
 The ladder changes where intent comes from, not what is judged: the pipeline's `check-intent`
 activity still runs outcome verification only, and this skill never edits the PLAN.md, the pull
