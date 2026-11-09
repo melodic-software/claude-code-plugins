@@ -34,13 +34,12 @@ NO_FETCH=0
 MANAGED_FILE=""
 SURFACE=""
 
-usage() {
-  sed -n '/^# Usage:/,/^# Exit:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-}
-need() { [[ $# -ge 2 && -n "$2" ]] || {
-  echo "mod-posture.sh: $1 needs a value" >&2
+usage() { sed -n '/^# Usage:/,/^# Exit:/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; }
+die() {
+  echo "mod-posture.sh: $1" >&2
   exit 2
-}; }
+}
+need() { [[ $# -ge 2 && -n "$2" ]] || die "$1 needs a value"; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --date) need "$@" && DATE="$2" && shift 2 ;;
@@ -51,27 +50,14 @@ while [[ $# -gt 0 ]]; do
   --managed-file) need "$@" && MANAGED_FILE="$2" && shift 2 ;;
   --surface) need "$@" && SURFACE="$2" && shift 2 ;;
   -h | --help) usage && exit 0 ;;
-  *) echo "mod-posture.sh: unknown argument (see --help)" >&2 && exit 2 ;;
+  *) die "unknown argument (see --help)" ;;
   esac
 done
-[[ -d "$PROJECT" ]] || {
-  echo "mod-posture.sh: --project is not a directory" >&2
-  exit 2
-}
+[[ -d "$PROJECT" ]] || die "--project is not a directory"
 [[ -z "$DATE" ]] && DATE="$(date +%Y-%m-%d)"
-[[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
-  echo "mod-posture.sh: --date must be YYYY-MM-DD" >&2
-  exit 2
-}
-case "$SURFACE" in "" | terminal | desktop) ;; *)
-  echo "mod-posture.sh: --surface is terminal or desktop" >&2
-  exit 2
-  ;;
-esac
-command -v jq >/dev/null 2>&1 || {
-  echo "mod-posture.sh: jq is required" >&2
-  exit 2
-}
+[[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "--date must be YYYY-MM-DD"
+case "$SURFACE" in "" | terminal | desktop) ;; *) die "--surface is terminal or desktop" ;; esac
+command -v jq >/dev/null 2>&1 || die "jq is required"
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf -- "${TMP:?}"' EXIT
@@ -152,13 +138,9 @@ else
   while IFS=$'\t' read -r path id tier enabled; do
     [[ -d "$path" ]] || continue
     [[ "$enabled" == "elsewhere" ]] && elsewhere=$((elsewhere + 1)) && continue
-    modules=0
-    if [[ -f "$path/hooks/hooks.json" ]] && jq -e '(.modules | type) == "array" and (.modules | length) > 0' "$path/hooks/hooks.json" >/dev/null 2>&1; then
-      modules=1
-    elif [[ -f "$path/.claude-plugin/plugin.json" ]] && jq -e '(.hooks | type) == "object" and (.hooks.modules | type) == "array" and (.hooks.modules | length) > 0' "$path/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-      modules=1
-    fi
-    ((modules)) || continue
+    { [[ -f "$path/hooks/hooks.json" ]] && jq -e '(.modules | type) == "array" and (.modules | length) > 0' "$path/hooks/hooks.json" >/dev/null 2>&1; } ||
+      { [[ -f "$path/.claude-plugin/plugin.json" ]] && jq -e '(.hooks | type) == "object" and (.hooks.modules | type) == "array" and (.hooks.modules | length) > 0' "$path/.claude-plugin/plugin.json" >/dev/null 2>&1; } ||
+      continue
     if "$CLAUDE" plugin validate --json "$path" >"$TMP/validate.json" 2>/dev/null || jq -e '.contents' "$TMP/validate.json" >/dev/null 2>&1; then
       notes="$(jq -r '[.contents[]?.notes[]? | strings] | .[]' "$TMP/validate.json" 2>/dev/null)"
       hooks="$(printf '%s\n' "$notes" | after_marker ' hooks: ' | paste -sd, - | filter_list "$HOOK_RE")"
