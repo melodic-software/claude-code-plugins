@@ -5,6 +5,18 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.4.0] - 2026-11-09
+
+Minor: additive guidance.
+
+- **Claude Fable 5.2 release re-audit of the alias binding (§3, "Alias binding").** From Claude Code
+  v2.1.321, `best` resolves to the same model as `opus`, so the frontier tier's "Fable where the
+  organization has it" reading no longer holds. The binding stays `best` by owner decision; lane
+  dispatch already names `opus` while the Fable rung waits on the owner.
+- **The reminder paragraph now says which clauses the lane prompts carry.** The Worker and Merge
+  prompts carry the end-of-turn clause and "speak to me only when fully blocked"; the reminder's
+  recovery clause, its new deliberate-block sentence included, has no counterpart in them yet.
+
 ## [19.3.0] - 2026-11-08
 
 Minor: additive guidance.

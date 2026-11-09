@@ -52,7 +52,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. Fable 5 is now superseded by Fable 5.1; for current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#compare-models) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (models overview anchor as of 2026-11-01, cost per task as of 2026-10-11; recheck on a new model release). Re-sync through `/playbooks:update` once upstream publishes Fable 5.1 tips |
+| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. For current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (both as of 2026-11-09; recheck on a new model release). Re-sync through `/playbooks:update` when upstream publishes tips for a newer model |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Add what corrections teach, and prune as you add (Section 4) |
 | Skills | Create for repeated workflows |
@@ -64,7 +64,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Verification | Always give Claude a way to verify |
 | Learning | Use Claude to explain and teach |
 | Terminal | /config, /terminal-setup, /vim |
-| Effort | `/effort` to set the level; for levels and per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-11-01; recheck on a new model release or when that section changes its levels or defaults) |
+| Effort | `/effort` to set the level; for levels and per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-11-09; recheck on a new model release or when that section changes its levels or defaults) |
 | Plugins | /plugin for LSPs, MCPs, skills |
 | Agents | .claude/agents, custom defaults |
 | Sandboxing | /sandbox for file & network isolation |
@@ -107,7 +107,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot (Opus 4.7-era; see §64's amendment, premise does not carry to Opus 5) |
 | Delegation over Guidance | Treat Opus 4.7 like an engineer, not a pair programmer |
 | Full Task Context Upfront | Goal + constraints + acceptance criteria in the first turn |
-| xhigh effort | An effort level above high (tip 67); for per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-11-01; recheck when that section's table changes which models accept `xhigh` or their defaults) |
+| xhigh effort | An effort level above high (tip 67); for per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-11-09; recheck when that section's table changes which models accept `xhigh` or their defaults) |
 | Auto Mode + Parallel Claudes | Fleet of autonomous Claudes, no permission babysitting |
 | /fewer-permission-prompts | Scan history, tune your permission allowlist |
 | Recaps | Short summary of what happened and what's next |
@@ -127,7 +127,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Write It Down | On every mistake: rule into CLAUDE.md / skill, not a chat correction |
 | Nested Subagents | Agents spawn agents. Context management primitive; never author a tree needing a specific depth. For the depth ceiling and how to change it, see [nested subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) (as of 2026-10-02; recheck when the default or the variable name changes) |
 | fork: true | Run a skill in its own context window; the tip's key is not the documented field, see [Section 92's amendment](reference/orchestration.md#92-fork-true-runs-a-skill-in-its-own-context-window-experimental) (as of 2026-10-11; recheck when that amendment's pointed skills sections change the field that forks a skill) |
-| Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/models/overview#compare-models) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) (models overview anchor as of 2026-11-01, pricing as of 2026-10-11; recheck on a new model release) |
+| Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) (both as of 2026-11-09; recheck on a new model release) |
 | Four Unknowns | Known/unknown × known/unknown, the gap between your prompt and the codebase |
 | Blindspot Pass | Ask Claude to surface your unknown unknowns before you write code |
 | Interviews & Prototypes | One question at a time, architecture-changing first; HTML artifacts for taste calls |
@@ -147,7 +147,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Progressive Disclosure | Skills, deferred tool loading, a tree of files, load context when relevant |
 | Auto-Memory & References | Memories save themselves; HTML artifacts, code, test suites, rubrics as specs |
 | /doctor | Rightsizes skills and CLAUDE.md automatically, context-engineering twin of /checkup |
-| Opus 5 | Historical (Opus 5 launch tip): SOTA coding + knowledge work; least prompt-injectable model, auto mode drives attacks to ~0. For the current Opus, see the [models overview](https://platform.claude.com/docs/en/models/overview#compare-models) (as of 2026-11-01; recheck on a new model release) |
+| Opus 5 | Historical (Opus 5 launch tip): SOTA coding + knowledge work; least prompt-injectable model, auto mode drives attacks to ~0. For the current Opus, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) (as of 2026-11-09; recheck on a new model release) |
 | What to Automate | Mechanical, verifiable, endless maintenance as daily routines (crash fuzzer, dead code, flaky tests, duplicates), never feature work |
 | Probe, Then Delete | Delete provably dead code; log the suspected rest, wait a day, remove what never fired |
 | Prove It in the PR | Every routine PR runs /verify and posts a repro and a truth table; fuzz the real app, no mocks |
@@ -157,7 +157,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Read the Diffs That Matter | Read critical or hard-to-get-right code; reading is triage |
 | Flickering TUI | Treat flicker as a bug, not a setting; Boris's fix order is in Section 123 |
 | Claude Maintains the Renderer | Hand a component over once property-based tests and benchmarks specify it |
-| Pick Effort by the Job | Match effort to the job and to how much you want to stay in the loop (Thariq's mapping, Section 126). For the current levels, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-10-13; recheck on a new model release) |
+| Pick Effort by the Job | Match effort to the job and to how much you want to stay in the loop (Thariq's mapping, Section 126). For the current levels, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-11-09; recheck on a new model release) |
 | Interview, Build Low, Verify High | Spec interview, build and iterate at low effort, verify and test at higher effort (Section 128) |
 | Effort and Edge Cases | Historical (Thariq's Part 25 evals, Section 129): more effort cut missed edge cases more than wrong approaches |
 | Steps of AI Adoption | Tokens alone don't move a team up a step: remove the next bottlenecks and build the next guardrails; measure return, not usage (Section L1) |

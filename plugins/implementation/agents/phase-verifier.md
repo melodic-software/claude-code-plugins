@@ -124,6 +124,6 @@ the model-config row the pointer below names, above the implementer's `medium`.
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
   and that plus the Agent tool's per-call `effort` and its rank over this pin, in
   [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
-- **As of:** 2026-10-11.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
   what a subagent's effort follows, the precedence, or which spawns honor a per-call `effort`.
