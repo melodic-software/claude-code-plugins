@@ -15,6 +15,8 @@ export GIT_AUTHOR_DATE='2026-10-01T00:00:00Z' GIT_COMMITTER_DATE='2026-10-01T00:
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
+# A signature would make the SHAs vary with the operator's global git config.
+git config commit.gpgsign false
 mkdir -p src
 printf 'export const retries = 1;\n' >src/retry.ts
 printf '# demo\n' >README.md

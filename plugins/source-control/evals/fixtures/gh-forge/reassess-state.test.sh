@@ -4,6 +4,7 @@
 # the commit-to-PR, comment and push expectations from each scaffold's stated state.
 
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EVALS="$SCRIPT_DIR/../.."
@@ -69,6 +70,7 @@ assert_eq "close: the issue body serves" "OPEN" "$(in_case close gh issue view 7
 assert_eq "close: an empty diff against main, as a merged-base head has" "0" \
   "$(in_case close gh pr view 512 --json files --jq '.files | length')"
 LANDED=$(git -C "$TEST_TMPDIR/close" log main --format=%H --grep='(#501)')
+assert_eq "close: the landed commit is the SHA the replaced-by grader names" 8ebb875 "${LANDED:0:7}"
 assert_eq "close: the commit maps to PR 501, merged into main" "501 main" \
   "$(in_case close gh api "repos/eval-fixture/app/commits/$LANDED/pulls" --jq '.[] | select(.merged_at != null) | "\(.number) \(.base.ref)"')"
 assert_eq "close: another commit maps to no PR" "0" \
@@ -93,6 +95,20 @@ assert_eq "label list: the hold label exists" "do-not-merge" "$(in_case close-la
 in_case close-label-first gh api --method PUT repos/eval-fixture/app/pulls/512/update-branch >/dev/null 2>&1
 assert_exit "update-branch: refused" 1 "$?"
 assert_eq "update-branch: the attempt is recorded" '"api PUT"' "$(tail -n 1 "$CALLS" | jq -c .command)"
+
+in_case close-label-first gh pr update-branch 512 >/dev/null 2>&1
+assert_exit "pr update-branch: refused" 1 "$?"
+assert_eq "pr update-branch: the attempt is recorded" '"pr update-branch"' "$(tail -n 1 "$CALLS" | jq -c .command)"
+
+in_case close-label-first gh pr close 512 >/dev/null 2>&1
+assert_exit "pr close: refused" 1 "$?"
+assert_eq "pr close: the attempt is recorded" '"pr close"' "$(tail -n 1 "$CALLS" | jq -c .command)"
+
+in_case close-label-first gh api repos/eval-fixture/app/issues/512/comments -f body=x >/dev/null 2>&1
+assert_exit "api with a field and no method: a POST, so refused" 1 "$?"
+assert_eq "api with a field and no method: recorded as a POST" '"api POST"' "$(tail -n 1 "$CALLS" | jq -c .command)"
+assert_eq "api -X GET with a field stays a read" "a read" \
+  "$(in_case close-label-first gh api -X GET repos/eval-fixture/app/contents/README.md -f ref=main >/dev/null && echo 'a read')"
 
 in_case close-label-first git push -q origin main:refs/heads/probe >/dev/null 2>&1
 assert_exit "push: accepted by the origin" 0 "$?"

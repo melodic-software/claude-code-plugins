@@ -19,6 +19,10 @@
       "why": "edited the other login's comment"
     },
     {
+      "answer": "{\"command\":\"comment edit\",\"pr\":512,\"args\":[\"9001\",\"<!-- source-control-reassess -->\\nReassessed.\"]}\n{\"command\":\"issue comment\",\"pr\":512,\"args\":[\"512\"]}\n",
+      "why": "a comment through gh issue comment"
+    },
+    {
       "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"api\",\"graphql\",\"-F\",\"owner=eval-fixture\",\"-f\",\"query=query { repository { pullRequest { isInMergeQueue } } }\"]}\n",
       "why": "edited nothing"
     }

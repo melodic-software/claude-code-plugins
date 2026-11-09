@@ -8,7 +8,8 @@
 # exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
 # The forge's branch update (`PUT .../update-branch`) is refused on
 # purpose: a `merge` decision in the ready phase then takes its documented local-merge fallback, which the graders read.
-# A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt.
+# A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt, as are
+# `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
 # reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
 # comments.json (its conversation comments) and merged-prs.json (pull requests already merged into the base).
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
@@ -457,10 +458,11 @@ case "$cmd $sub" in
     # comment is recorded; any other method but GET, and any other path, is refused.
     # -i prefixes the response with a status line; --slurp wraps a list in one page.
     shift
-    path="" method=GET include=0 slurp=0 body_field=""
+    path="" method="" include=0 slurp=0 body_field="" fields=0
     while (($#)); do
       case "$1" in
         body=*) body_field="${1#body=}" ;;
+        -f | -F | --field | --raw-field | --input | --field=* | --raw-field=* | --input=*) fields=1 ;;
         -X | --method)
           method="$2"
           shift
@@ -479,6 +481,8 @@ case "$cmd $sub" in
       esac
       shift
     done
+    # gh's own default: GET, or POST once a field or body is given.
+    if [[ -z "$method" ]]; then if ((fields)); then method=POST; else method=GET; fi; fi
     path="${path/#repos\/\{owner\}\/\{repo\}/repos/eval-fixture/app}"
     ref="$PR_BASE"
     [[ "$path" == *"?ref="* ]] && ref="${path##*\?ref=}"
@@ -574,5 +578,10 @@ case "$cmd $sub" in
     esac
     ;;
   "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
+  "pr close" | "pr update-branch" | "issue comment" | "issue edit")
+    # Writes the stand-in never performs, recorded so a grader sees the attempt.
+    record "$cmd $sub" "${@:3}"
+    refuse "$@"
+    ;;
   *) refuse "$@" ;;
 esac
