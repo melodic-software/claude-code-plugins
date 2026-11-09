@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.6.0] - 2026-11-09
+
+### Changed
+
+- The `owner-decision` role label now defaults to `needs-owner-decision`. `status: needs-decision` stays in the default `hold_labels` and `hold_state_labels`, so an item still carrying it is held.
+
 ## [12.5.0] - 2026-11-08
 
 ### Changed

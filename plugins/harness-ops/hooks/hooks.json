@@ -1,5 +1,5 @@
 {
-  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing. At session start it reports a missing node, and runs the prerequisites probe of each enabled plugin whose prerequisites.json declares session_probe, as one notice.",
+  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing. At session start it reports a missing node, runs the prerequisites probe of each enabled plugin whose prerequisites.json declares session_probe, as one notice, and refreshes the launcher in its data directory that HOOK_TELEMETRY_SINK=@harness-ops resolves to.",
   "modules": [
     "./register.ts"
   ],
@@ -169,6 +169,19 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/prerequisites-fleet.mjs\"",
             "timeout": 15,
             "statusMessage": "Checking the enabled plugins' prerequisites..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/refresh-sink-launcher.sh\"",
+            "async": true,
+            "timeout": 10,
+            "statusMessage": "Refreshing the telemetry sink launcher..."
           }
         ]
       }

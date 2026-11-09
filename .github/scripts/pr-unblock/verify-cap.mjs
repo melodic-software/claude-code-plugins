@@ -147,7 +147,7 @@ async function fetchCarry(env) {
     });
     process.stdout.write(done.stdout ?? "");
     if (done.status !== 0) {
-      failed.push(`${step.script}: ${oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`}`);
+      failed.push(`${step.script}: ${failureOf(done)}`);
     }
   }
   if (failed.length > 0) {
@@ -170,6 +170,10 @@ export function deadlineWarning(number, answer) {
 }
 
 const oneLine = (text, max = 300) => String(text ?? "").replaceAll(/[\r\n%]/g, " ").trim().slice(0, max);
+
+// Why a child that did not exit 0 failed: its spawn error, else its last
+// stderr line, else its exit status.
+const failureOf = (done) => oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`;
 
 // One line for a read's stderr: its line count, then the listing-miss lines,
 // else the last line; null when it wrote nothing.
@@ -217,6 +221,7 @@ export const EARLIER_FAILS = "earlierFails";
 // else empty. `readFailed` is true when the read failed, timed out, did not
 // parse or answered for another head.
 export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
+  const unread = () => ({ cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true });
   let carried = null;
   let deadlineMissed = false;
   return async ({ number, head, base, expected = [] }) => {
@@ -230,7 +235,7 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
     // which every lanes App spec reads untrusted.
     if (!SHA.test(String(base ?? ""))) {
       log(`::warning::#${number}: no base commit to read the verifier at (${oneLine(String(base))}); the round runs under its own caps`);
-      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
+      return unread();
     }
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     // The reader sizes its listing to this kill limit and names this caller
@@ -244,7 +249,7 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
     let report;
     try {
       if (done.status !== 0) {
-        throw new Error(oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`);
+        throw new Error(failureOf(done));
       }
       report = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
       if (report?.head !== head) {
@@ -253,7 +258,7 @@ export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.
     } catch (error) {
       log(`::warning::#${number}: the verifier reader did not read its FAIL cap (${oneLine(error.message)}); the round runs under its own caps`);
       // readFailed: no answer at all, which is not "no earlier FAIL".
-      return { cap: null, supersededAtHead: false, earlierFailHeads: [], readFailed: true };
+      return unread();
     }
     const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true, earlierFailHeads: [] });
     if (report.refusal === EARLIER_FAIL) {

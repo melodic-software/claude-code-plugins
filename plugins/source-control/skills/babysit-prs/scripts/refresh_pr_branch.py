@@ -19,6 +19,7 @@ import babysit_repo_config as repo_policy
 from babysit_classify import is_dependency_author
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
+from babysit_merge import branch_update_decision
 from babysit_gh import (
     base_requires_merge_queue,
     fetch_paginated_api,
@@ -189,7 +190,7 @@ def run_locked(
         raise RuntimeError("a refresh was already requested for this source SHA")
 
     try:
-        validate_current_candidate(
+        current = validate_current_candidate(
             repo, number, expected_head_sha, allowed_owners, fallback
         )
     except DependabotHead as head:
@@ -197,12 +198,22 @@ def run_locked(
             args, state_dir, repo, number, key, expected_head_sha, head.pr
         )
 
+    decision = branch_update_decision(repo, number, expected_head_sha)
+    if decision["method"] == "delegate":
+        return request_dependabot_rebase(
+            args, state_dir, repo, number, key, expected_head_sha, current
+        )
     result: dict[str, object] = {
         "key": key,
         "expected_head_sha": expected_head_sha,
         "apply": args.apply,
         "eligible": True,
     }
+    if decision["method"] == "hold":
+        result.update(
+            eligible=False, held="branch-update-hold", reason=decision["reason"]
+        )
+        return result
     if not args.apply:
         return result
 

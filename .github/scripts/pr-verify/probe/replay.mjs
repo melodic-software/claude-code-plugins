@@ -85,7 +85,7 @@ export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/action
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
 // pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "8f2240359aff2febf49ff1ff838d1ffb27d6b14f";
+export const RUN_CLAUDE_CLI_PIN = "a5af46547856939969bee3c44d32d8ea6bc5dca4";
 export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",

@@ -98,7 +98,8 @@ Contract enforced here (encoded as code, not convention):
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
   the base changed a `merge.check-inputs` path since its merge base, when its
-  branch is updated from the base (`update-branch`) instead, or, for a
+  branch is updated from the base (`update-branch`) instead, unless the shared
+  branch update decision holds it, or, for a
   shared-copy canonical it carries, it gets the human-gated role label and one
   upserted `<!-- babysit-merge-shared-copy-escalation -->` comment; a later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
@@ -145,6 +146,7 @@ import functools
 import json
 import os
 import re
+import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -1546,6 +1548,60 @@ def pull_request_stack(repo: str, number: int) -> dict[str, Any] | None:
     data = gh_json(["api", f"repos/{repo}/pulls/{number}", "--jq", "{stack: .stack}"])
     stack = data.get("stack") if is_json_object(data) else None
     return stack if is_json_object(stack) else None
+
+
+BRANCH_UPDATE_METHOD = (
+    Path(__file__).resolve().parents[3] / "scripts" / "branch-update-method.sh"
+)
+
+
+def branch_update_decision(repo: str, number: int, head_sha: str) -> dict[str, Any]:
+    """The shared decision on how this behind branch takes its base.
+
+    Each caller has already decided an update is due, taken a dependency
+    manager's head aside and never rewrites a head, so only the stack read
+    varies. No usable answer, or a method no caller acts on, is a `hold`.
+    """
+    try:
+        native_stack = "yes" if pull_request_stack(repo, number) else "no"
+    except (RuntimeError, json.JSONDecodeError):
+        native_stack = "unknown"
+    signals = {
+        "head_sha": head_sha,
+        "setting": "auto",
+        "setting_level": "default",
+        "behind": "yes",
+        "conflict": "unknown",
+        "up_to_date_required": "unknown",
+        "base_change_needed": "yes",
+        "native_stack": native_stack,
+        "managed_head": "no",
+        "rewrite": "blocked",
+        "other_authors": "unknown",
+        "dependents": "unknown",
+        "base_merged": "unknown",
+        "human_review": "unknown",
+        "landing": "unknown",
+    }
+    try:
+        platform = "win32" if os.name == "nt" else sys.platform
+        bash = merge_policy.resolve_bash(os.environ, platform, os.path.isfile)
+        if bash is None:
+            raise RuntimeError("no usable bash found")
+        proc = run_command(
+            [bash, "-c", 'printf %s "$1" | "$BASH" "$0"']
+            + [str(BRANCH_UPDATE_METHOD), json.dumps(signals)],
+            allowed_executables=(bash,),
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"exit {proc.returncode}: {proc.stderr.strip()}")
+        decision = json_object(json.loads(proc.stdout))
+        if decision.get("method") not in ("none", "merge", "delegate", "hold"):
+            raise RuntimeError(f"unexpected method {decision.get('method')!r}")
+    except (RuntimeError, ValueError, OSError) as exc:
+        return {"method": "hold", "reason": f"no branch update decision ({exc})"}
+    return decision
 
 
 def stack_members(repo: str, stack_number: int) -> list[dict[str, Any]]:
@@ -4904,7 +4960,8 @@ def unattended_enqueue(
     # the base instead; a later run enqueues the new head once its checks
     # pass. A Dependabot head is not written (its own rebases stop): an
     # eligible one enqueues, any other gets one rebase request per base tip
-    # and holds (`request_dependabot_rebase`). A
+    # and holds (`request_dependabot_rebase`). A head the shared decision holds
+    # (`branch_update_decision`) is neither updated nor enqueued. A
     # doubtful read or an update the API refused (4xx) enqueues as before. An
     # update with no answer (a timeout, no status, a server error) may have
     # landed, so the old head is held rather than pinned.
@@ -4966,6 +5023,14 @@ def unattended_enqueue(
             f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
             f"{branch} since merge base {inputs_read['mergeBase']}"
         )
+        decision = branch_update_decision(repo, number, pin)
+        if decision["method"] == "hold":
+            return hold(f"{stale}; the branch update is held: {decision['reason']}")
+        if decision["method"] == "delegate":
+            held, why = request_dependabot_rebase(
+                repo, number, branch, inputs_read, inputs
+            )
+            return hold(f"{held}:{stale}; {why}")
         try:
             proc = gh_capture(
                 ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]

@@ -1508,6 +1508,9 @@ export const refsMergedComment = (pr) =>
 export const refsClosedComment = (pr) =>
   `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 
+// A work-resolve-issue run title that names an issue ends with ` #<number>`.
+const NAMES_ISSUE = / #[1-9][0-9]*$/;
+
 // The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
 // of the label event at `addedAt`, as `mine`. The run title ends with
 // ` #<number>`; `untitled` counts the runs in the window whose title names no
@@ -1527,7 +1530,7 @@ async function laneRuns(actions, repo, number, addedAt) {
       const title = (run) => String(run.display_title ?? "");
       return {
         mine: runs.filter((run) => title(run).endsWith(` #${number}`)),
-        untitled: runs.filter((run) => !/ #[1-9][0-9]*$/.test(title(run))).length,
+        untitled: runs.filter((run) => !NAMES_ISSUE.test(title(run))).length,
       };
     }
   }
@@ -1672,45 +1675,33 @@ const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => ste
 // A mint that ended green with no token: kill-switch-ok's stop.
 const stoppedAt = (job) => endedAt(job, MINT_STEP, "success") && endedAt(job, STAGE_STEP, "skipped");
 
-// Whether a mint of one of `runs` stopped green: such a run that also minted
-// did work and never reported, as a failed run did before kill-switch-ok.
-async function stoppedMint(jobsOf, runs) {
+// Whether the job listing of one of `runs` with a usable id passes `test`,
+// read run by run until one does.
+async function someRunJobs(jobsOf, runs, test) {
   for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
-    if ((await jobsOf(run)).some(stoppedAt)) {
+    if (test(await jobsOf(run))) {
       return true;
     }
   }
   return false;
 }
+
+// Whether a mint of one of `runs` stopped green: such a run that also minted
+// did work and never reported, as a failed run did before kill-switch-ok.
+const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.some(stoppedAt));
 
 const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
 
 // Whether one of `runs` stopped at the admit job's provenance stop.
-async function stoppedUntrusted(jobsOf, runs) {
-  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
-    const admit = namedJobs(await jobsOf(run), "admit");
-    if (admit.some((job) => (job?.steps ?? []).some((step) => step?.name === UNTRUSTED_STEP && step.conclusion === "success"))) {
-      return true;
-    }
-  }
-  return false;
-}
+const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => namedJobs(jobs, "admit").some((job) => endedAt(job, UNTRUSTED_STEP, "success")));
 
 // Whether one of `runs` stopped at the read runner's stale-workflow stop, in
 // any of its calls: a later leg waits for its slot after the first hands off,
 // so it can be the one that stops. The run's report-outcome then re-fires the
 // issue at once; a run that ended red there (its mint refused or failed) still
 // ran no model, so it counts here, ahead of any failed mint.
-async function stoppedStale(jobsOf, runs) {
-  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
-    const jobs = await jobsOf(run);
-    const resolve = RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name));
-    if (resolve.some((job) => (job?.steps ?? []).some((step) => step?.name === STALE_STEP && step.conclusion === "success"))) {
-      return true;
-    }
-  }
-  return false;
-}
+const stoppedStale = (jobsOf, runs) =>
+  someRunJobs(jobsOf, runs, (jobs) => RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name)).some((job) => endedAt(job, STALE_STEP, "success")));
 
 // A job that never ran on a runner: skipped, or no step ran and no runner took
 // it. A job listing with no steps for a job a runner took is not one.
@@ -1723,21 +1714,20 @@ const neverStarted = (job) =>
 // while it waited for its slot (GitHub cancels a slot queue past its limit).
 // A run a newer agent-ready run replaced in the workflow's concurrency group
 // was cancelled while it waited, before admit ran, so it never counts.
-async function cancelledBeforeWork(jobsOf, runs) {
-  for (const run of runs.filter((item) => item.conclusion === "cancelled" && RUN_ID.test(String(item.id)))) {
-    const jobs = await jobsOf(run);
-    const named = (name) => namedJobs(jobs, name);
-    const resolve = named("resolve-issue");
-    if (
-      named("admit").some((job) => job.conclusion === "success") &&
-      resolve.every(neverStarted) &&
-      [...named("pick-slot"), ...resolve].some((job) => job.conclusion === "cancelled")
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
+const cancelledBeforeWork = (jobsOf, runs) =>
+  someRunJobs(
+    jobsOf,
+    runs.filter((item) => item.conclusion === "cancelled"),
+    (jobs) => {
+      const named = (name) => namedJobs(jobs, name);
+      const resolve = named("resolve-issue");
+      return (
+        named("admit").some((job) => job.conclusion === "success") &&
+        resolve.every(neverStarted) &&
+        [...named("pick-slot"), ...resolve].some((job) => job.conclusion === "cancelled")
+      );
+    },
+  );
 
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
 
@@ -1807,6 +1797,9 @@ async function runsInFlight(actions, repo) {
   return titles;
 }
 
+// `issue`'s lowercased names as the Work status field decides them (fieldFirst).
+const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
+
 // For a fix issue post-merge-demotion-alert reopened on a repeat failure: why
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
@@ -1836,7 +1829,7 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (lastAdd === undefined || !trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
-  const held = (await fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()))).find((label) => HOLDS.has(label));
+  const held = (await fieldNamesOf(statusOf, issue)).find((label) => HOLDS.has(label));
   if (held) {
     return { reason: `held by ${held}` };
   }
@@ -1855,7 +1848,7 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (titles.some((title) => title.endsWith(` #${issue.number}`))) {
     return { reason: "a lane run for it is in flight" };
   }
-  const untitled = titles.filter((title) => !/ #[1-9][0-9]*$/.test(title)).length;
+  const untitled = titles.filter((title) => !NAMES_ISSUE.test(title)).length;
   if (untitled > 0) {
     return { reason: `cannot tell whether a lane run for it is in flight: ${untitled} unfinished run(s) name no issue in their title` };
   }
@@ -1863,13 +1856,16 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   return { reason: null, resets: at, recurrence: recurrence.id, recorded };
 }
 
+// Whether the lanes App (`bot`) posted one of `comments` opening with `marker`.
+const appPosted = (comments, bot, marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
+
 // What the lane PR the newest agent-ready label's run opened asks for: a
 // hand-off to triage once it merged with `Refs:` or closed unmerged, or
 // nothing, with why. `held`: the issue's one hold is needs-human, which only
 // the end (merge or unmerged close) of the Refs PR report-outcome set it for
 // lifts.
 function pullRefusal({ pull, number, comments, events, bot, held }) {
-  const byApp = (marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
+  const byApp = (marker) => appPosted(comments, bot, marker);
   const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
   const merged = Boolean(pull.merged_at);
   if (held) {
@@ -1915,14 +1911,15 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   // above; this is the removal by someone unlisted. An outsider's issue loses
   // agent-ready to the lane's report-skip, and a run that stopped on it is
   // never re-fired (stoppedUntrusted, below).
-  if (untrustedHold({ labels: [], events, humans, isApp: (actor) => actor?.login === bot })) {
+  if (untrustedHold({ labels: [], events, humans, isApp: byBot(bot) })) {
     return { reason: `${UNTRUSTED} was last removed by neither a listed human nor the lanes App` };
   }
   // The lane skips an issue a blocker still blocks (check-blockers.mjs), so
   // one is never re-fired or handed to a person while one does.
+  const base = `/repos/${repo}/issues/${number}`;
   const closes = new Map();
   const pending = await stillBlocking(
-    await blockersOf(github, `/repos/${repo}/issues/${number}`),
+    await blockersOf(github, base),
     repo,
     clearedHere({ github, repo, humans, closes, bot, events }),
     closedElsewhere({ github, repo, humans, closes }),
@@ -1931,7 +1928,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     return { reason: `waiting on ${pending.length} blocker(s) not closed by a listed human or a merge` };
   }
   // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs).
-  const subs = await openSubIssues(github, `/repos/${repo}/issues/${number}`, issue);
+  const subs = await openSubIssues(github, base, issue);
   if (subs.length > 0) {
     return { reason: `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}` };
   }
@@ -1940,8 +1937,8 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   }
   // A record counts once the App added the label back at or after it; one
   // whose label write failed is finished by the next sweep, not posted again.
-  // A re-fire record on workflow files `key` other than a breaker trip's.
-  const refiredOn = (marker, key) => marker.outcome === "refired" && !marker.breaker && marker.key === key;
+  // The re-fire records on workflow files `key` other than a breaker trip's.
+  const firedOn = (key) => markers.filter((marker) => marker.outcome === "refired" && !marker.breaker && marker.key === key);
   const relabeled = (marker) =>
     events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
   const hoursFor = resolveStrandedBackoff(limits["stranded-backoff-hours"]);
@@ -1949,7 +1946,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   // (backoffDue from `since`, starting at `hours`), and its record is the one
   // backoff comment, edited in place, never a new comment or a hold.
   const backoff = (key, since, cause, hours) => {
-    const first = Math.min(...markers.filter((marker) => refiredOn(marker, key)).map((marker) => marker.at));
+    const first = Math.min(...firedOn(key).map((marker) => marker.at));
     // Each breaker record's own re-add, the App's first after it (dated by
     // when it was posted), is that trip's, not this cause's; the backoff
     // comment's edits never move it.
@@ -1981,7 +1978,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
       return { reason: `${why}; a listed human's PR #${person.number} for it is open` };
     }
     const key = await workflowKey();
-    const fired = markers.filter((marker) => refiredOn(marker, key));
+    const fired = firedOn(key);
     if (fired.some(relabeled)) {
       return backoff(key, since, strandedCause[cause](hours), hours);
     }
@@ -2038,7 +2035,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     // goes on a backoff after limits.limit-stops-per-issue re-fires on these
     // workflow files, as a crash does after one. A WIP cap skip made no mint
     // attempt, and the cap and restarts-per-run bound it.
-    const fired = markers.filter((marker) => refiredOn(marker, key)).length;
+    const fired = firedOn(key).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
       return backoff(key, ended, MINT_CAUSE, hoursFor["failed-mint"]);
     }
@@ -2049,7 +2046,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();
-  const recorded = markers.filter((marker) => refiredOn(marker, key));
+  const recorded = firedOn(key);
   if (recorded.some(relabeled)) {
     return stranded(ended, `already re-fired for workflow files ${key}`, "failed-again");
   }
@@ -2063,7 +2060,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
 async function restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }) {
   // The holds as the Work status field decides them, so a hold set only on
   // the field stops here too.
-  const holds = (await fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()))).filter((label) => HOLDS.has(label));
+  const holds = (await fieldNamesOf(statusOf, issue)).filter((label) => HOLDS.has(label));
   // needs-human alone may be report-outcome's hold on a Refs PR, which the
   // lane PR check below may lift; any other hold stops everything here.
   const held = holds.length > 0;
@@ -2088,26 +2085,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({
-      github,
-      actions,
-      jobLog,
-      repo,
-      number: issue.number,
-      issue,
-      lastAdd,
-      addedAt,
-      markers,
-      comments,
-      events,
-      humans,
-      bot,
-      workflowKey,
-      held,
-      limits,
-      now,
-      wipCapped,
-    });
+    return refireRefusal({ github, actions, jobLog, repo, number: issue.number, issue, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped });
   }
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
@@ -2118,9 +2096,10 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   if (marker?.outcome === "failed") {
     return { reason: `a failed stop left ${LABEL} on`, fail: { finish: true } };
   }
-  const since = events
-    .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
-    .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+  // When an agent-ready add that `by` passes last happened.
+  const addedSince = (by) =>
+    events.filter((event) => isLabel(event, "labeled") && by(event)).reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+  const since = addedSince((event) => event.actor?.login !== bot);
   // A stop routed to wait names the pull request it waits on (`pr=`): while
   // that pull request is open the issue waits, and once it merges or closes
   // it restarts like a retry, under its own count of waits.
@@ -2137,9 +2116,7 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   if (bound) {
     // Only a listed human's agent-ready resets the count, so another labeler
     // cannot buy restarts.
-    const humanSince = events
-      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
-      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+    const humanSince = addedSince((event) => humans.has(event.actor?.id));
     const caps = markers.filter((item) => item.outcome === marker.outcome && item.at > humanSince).length;
     return caps > limits[bound]
       ? { reason: `${caps} ${marker.outcome} stops since a person last added ${LABEL}` }
@@ -2224,21 +2201,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
     try {
       const verdict =
         (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
-        (await restartRefusal({
-          github,
-          actions,
-          jobLog,
-          repo,
-          issue,
-          bot,
-          humans,
-          now,
-          workflowKey,
-          limits,
-          wipCapped,
-          read,
-          statusOf,
-        }));
+        (await restartRefusal({ github, actions, jobLog, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf }));
       const { reason, fail } = verdict;
       if (fail) {
         // The fail route: the comment first and the field write last, so the
@@ -2264,7 +2227,7 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
         // Handed to triage as a lane PR merged with `Refs:` is: admission
         // then parks it at `status: confirmed` for a done-check.
         const pr = done.at(-1);
-        const explained = (await read("comments")).some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(handedMarker(pr)));
+        const explained = appPosted(await read("comments"), bot, handedMarker(pr));
         console.log(`label-unblocked: #${issue.number} not re-fired: ${doneReason(done)}`);
         ready.push({ number: Number(issue.number), had: labelNames(issue), resets: verdict.resets, handOff: "merged", pr, explained });
         continue;
@@ -2352,7 +2315,7 @@ const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 // splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
-  const isApp = (actor) => actor?.login === bot;
+  const isApp = byBot(bot);
   return (await closedByHumanOrMerge(github, repo, issue, humans, isApp)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
 }
 
@@ -2390,7 +2353,7 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
 // (reenterFinished). Returns how many reads or writes failed.
 async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, writer = NO_WRITER, statusOf }) {
   const hour = new Date(now).getUTCHours();
-  const done =(item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
+  const done = (item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
   const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour);
   if (due.length === 0) {
     return 0;
@@ -2421,7 +2384,7 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
   const children = await paginate(github, `${base}/sub_issues`);
   // The field is read once, for the comment refresh, and reused when the parent stays open.
   let names;
-  const namesOf = async () => (names ??= fieldFirst(statusOf, parent.number, labelNames(parent).map((name) => name.toLowerCase())));
+  const namesOf = async () => (names ??= fieldNamesOf(statusOf, parent));
   // A failed refresh never holds back the close below; the sweep's rotation
   // tries the comment again.
   try {
@@ -2432,13 +2395,13 @@ async function closeDoneParent({ github, repo, parent, humans, closes, bot, writ
     console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${escapeCommand(error?.message ?? error)}`);
   }
   const trusted = async (child) => NUMBER.test(String(child)) && trustedClose({ github, repo, number: Number(child), humans, closes, bot });
-  const leftOpen = await splitLeftOpen({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans, trusted });
+  const leftOpen = await splitLeftOpen({ github, repository: repo, issue: parent, comments, children, isApp: byBot(bot), humans, trusted });
   if (leftOpen) {
     console.log(`label-unblocked: #${parent.number} stays open: ${leftOpen}`);
     await reenterFinished({ github, repo, parent, names: await namesOf(), comments, children, trusted, bot, writer, statusOf });
     return;
   }
-  if (!comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(SPLIT_CLOSED))) {
+  if (!appPosted(comments, bot, SPLIT_CLOSED)) {
     await github("POST", `${base}/comments`, {
       body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed as completed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
     });
@@ -2639,6 +2602,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
       console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${minutes} minutes (${window.why})`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
+    const appId = logins.get(bot);
     const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
     const limits = readLimits(resolved);
     const wip = readWip(resolved);
@@ -2646,17 +2610,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     let read;
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus }));
     const gate = admissionGate(status);
-    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, writer: writeTo, statusOf: statusTo, byStatus: listing }) : 0;
+    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing }) : 0;
     // One close check per issue this run, shared by both passes below.
     const closes = new Map();
-    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId: logins.get(bot), admission, writer: writeTo, closes, statusOf: statusTo });
+    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo });
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, writer: writeTo, statusOf: statusTo });
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
-    }
-    if (sweep) {
+    } else {
       // One listing of the open issues, oldest updated first, for the parent
       // rescan and readmitReady.
       let listed;
@@ -2676,10 +2639,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           reportHold("Work status", error);
         }
         if (names) {
-          failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
+          failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId: logins.get(bot), now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, appId, now, limits, status, writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
     }
     if (github.held > 0) {
       console.log(HELD_LINE);

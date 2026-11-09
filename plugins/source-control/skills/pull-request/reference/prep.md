@@ -99,4 +99,4 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 Report: the review venue's `code-review` line and whether the 1.2 review ran or was skipped for it, findings verified/dropped, simplify ran/skipped, the comment pass applied, report-only or not run (with its proposals when report-only), verify gate pass/fail per ecosystem, which classes 1.1 detected, the pre-push warnings from 1.2.1, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
-**Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the verify gate on the head it flips.
+**Prep before create is the developer loop.** The branch updates in [create.md](create.md) §2.2 and [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, so the ready step re-runs the verify gate on the head it flips.
