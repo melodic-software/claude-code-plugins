@@ -530,6 +530,8 @@ class CheckCase(unittest.TestCase):
     def setUp(self) -> None:
         pm._anchor_cache.clear()
         self.addCleanup(pm._anchor_cache.clear)
+        pm._default_branches.clear()
+        self.addCleanup(pm._default_branches.clear)
         self.gh = FakeGh()
         for module in (pm, pm.policy):
             patcher = mock.patch.object(module, "gh_capture", self.gh)
@@ -3318,6 +3320,143 @@ class DispatchCoverage(CheckCase):
         self.assertFalse(verdict.needs_dispatch)
 
 
+class StopUncovered(CheckCase):
+    """`stop_uncovered` ends the check early only for a verdict
+    `idle_report_refusal` refuses (`needs-dispatch` or `not-passing`); any
+    other verdict is judged in full, with the same reads."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.merged = [identity_merge()]
+
+    def lane_check(self, **extra: Any) -> pm.PostMergeVerdict:
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=lambda merge: HEAD_SHA,
+            lane_merges_only=True,
+            **extra,
+        )
+
+    def both(self) -> tuple[pm.PostMergeVerdict, int, int | None, int]:
+        """The full verdict and its call count, then the stopped merge (None:
+        no stop) and the stopped check's call count, from equal fakes."""
+        verdict = self.lane_check()
+        full = len(self.gh.calls)
+        self.gh.calls.clear()
+        # Each check as its own process would run it.
+        pm._default_branches.clear()
+        try:
+            stopped = self.lane_check(stop_uncovered=True)
+        except pm.UncoveredMergeStop as stop:
+            return verdict, full, stop.number, len(self.gh.calls)
+        self.assertEqual(stopped.report(), verdict.report())
+        return verdict, full, None, len(self.gh.calls)
+
+    def test_a_merge_with_no_dispatch_run_stops_with_fewer_reads(self) -> None:
+        verdict, full, number, reads = self.both()
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertEqual(number, 7001)
+        self.assertLess(reads, full)
+
+    def test_a_dispatch_run_before_the_merge_does_not_cover_it(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, created_at="2026-10-12T09:59:59Z"),
+        )
+        verdict, full, number, reads = self.both()
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertEqual(number, 7001)
+        self.assertLess(reads, full)
+
+    def test_the_newer_of_two_merges_uncovered_stops(self) -> None:
+        self.gh.merged = [
+            identity_merge(),
+            identity_merge(
+                number=7002,
+                url=f"https://github.com/{REPO}/pull/7002",
+                mergedAt="2026-10-12T10:06:00Z",
+                updatedAt="2026-10-12T10:06:05Z",
+                mergeCommit={"oid": LATER_SHA},
+            ),
+        ]
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        verdict, _, number, _ = self.both()
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertEqual(number, 7002)
+
+    def test_a_covering_run_of_any_state_judges_in_full(self) -> None:
+        for why, listed in [
+            ("green", dispatch_run(11)),
+            ("in progress", dispatch_run(11, status="in_progress", conclusion=None)),
+            ("red", dispatch_run(11, conclusion="failure")),
+        ]:
+            with self.subTest(why):
+                self.setUp()
+                self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", listed)
+                verdict, full, number, reads = self.both()
+                self.assertIsNone(number)
+                self.assertFalse(verdict.needs_dispatch)
+                self.assertEqual(reads, full)
+
+    def test_a_run_another_actor_dispatched_is_judged_in_full(self) -> None:
+        # Such a run never covers a merge, but the stop counts any dispatch
+        # listed after it: the full check still finds a dispatch needed.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer")),
+        )
+        verdict, _, number, _ = self.both()
+        self.assertIsNone(number)
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_an_unreadable_listing_is_unreadable_not_a_stop(self) -> None:
+        self.gh.fail_reads.add("post-merge-detect-silent-revert.yml")
+        verdict, _, number, _ = self.both()
+        self.assertIsNone(number)
+        self.assertFalse(verdict.readable)
+
+    def test_the_cli_exits_6_with_no_verdict(self) -> None:
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                    "--stop-uncovered",
+                ]
+            )
+        self.assertEqual(code, 6)
+        report = json.loads(out.getvalue())
+        self.assertEqual((report["stopped"], report["number"]), ("uncovered-merge", 7001))
+        self.assertIs(report["readable"], False)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_the_cli_refuses_it_beside_remediate(self) -> None:
+        with (
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit) as exit_,
+        ):
+            pm.main(
+                ["--repo", REPO, "--agent-identity", IDENTITY, "--stop-uncovered", "--remediate"]
+            )
+        self.assertEqual(exit_.exception.code, 2)
+        self.assertEqual(self.gh.calls, [])
+
+
 class LaneMergesOnly(CheckCase):
     """#7481: the pr-merge lane's check counts only merges the agent identity
     enqueued. A release App's own enqueue (the fixture's `example-sync`, as
@@ -4013,6 +4152,20 @@ class Cli(CheckCase):
         self.assertFalse(report["readable"])
         self.assertEqual(self.gh.writes(), [])
 
+    def test_the_default_branch_is_read_once_per_process(self) -> None:
+        repo_reads = lambda: [c for c in self.gh.calls if c[-1] == f"repos/{REPO}"]  # noqa: E731
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "main")
+        self.gh.default_branch = "trunk"
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "main")
+        self.assertEqual(len(repo_reads()), 1)
+
+    def test_a_failed_default_branch_read_is_not_kept(self) -> None:
+        self.gh.default_branch = None
+        with self.assertRaises(pm.PostMergeReadError):
+            pm._default_branch(*REPO.split("/"))
+        self.gh.default_branch = "trunk"
+        self.assertEqual(pm._default_branch(*REPO.split("/")), "trunk")
+
     def test_an_explicit_branch_skips_the_lookup(self) -> None:
         self.gh.default_branch = None
         code, report = self.main("--branch", "release")
@@ -4148,6 +4301,48 @@ class DefaultIsHuman(CheckCase):
         is_human(HUMAN)
         reads = [c for c in self.gh.calls if "/collaborators/maintainer/" in c[1]]
         self.assertEqual(len(reads), 1)
+
+    def shared_cache(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patcher = mock.patch.dict(
+            os.environ, {pm.run_cache.ENV: str(pathlib.Path(tmp.name) / "cache.json")}
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def permission_reads(self) -> list[list[str]]:
+        return [c for c in self.gh.calls if "/collaborators/" in c[1]]
+
+    def test_a_permission_read_is_shared_with_the_run_and_answers_the_same(self) -> None:
+        self.shared_cache()
+        first = pm._default_is_human(REPO, IDENTITY, [])
+        answers = [first(HUMAN), first({"__typename": "User", "login": "reader"})]
+        self.assertEqual(answers, [True, False])
+        self.assertEqual(len(self.permission_reads()), 2)
+        # Another process of the run: the gate's reader and a second check.
+        self.gh.calls.clear()
+        policy_read = pm.policy.permission_reader(REPO)
+        self.assertEqual(policy_read("maintainer"), "write")
+        second = pm._default_is_human(REPO, IDENTITY, [])
+        self.assertEqual(
+            [second(HUMAN), second({"__typename": "User", "login": "reader"})], answers
+        )
+        self.assertEqual(self.permission_reads(), [])
+
+    def test_a_404_or_failed_permission_is_never_shared(self) -> None:
+        self.shared_cache()
+        self.gh.permissions["maintainer"] = 403
+        first = pm._default_is_human(REPO, IDENTITY, [])
+        with self.assertRaises(pm.PostMergeReadError):
+            first(HUMAN)
+        self.assertFalse(first({"__typename": "User", "login": "stranger"}))
+        self.gh.calls.clear()
+        second = pm._default_is_human(REPO, IDENTITY, [])
+        with self.assertRaises(pm.PostMergeReadError):
+            second(HUMAN)
+        self.assertFalse(second({"__typename": "User", "login": "stranger"}))
+        self.assertEqual(len(self.permission_reads()), 2)
 
     def test_a_failed_permission_read_makes_the_verdict_unreadable(self) -> None:
         # A human enqueue past the dispatch deadline would otherwise fail as an

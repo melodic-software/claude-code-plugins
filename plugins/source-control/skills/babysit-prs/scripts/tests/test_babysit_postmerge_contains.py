@@ -629,5 +629,80 @@ class TipMoved(unittest.TestCase):
         self.assertEqual(len(api.compares()), len(shas))
 
 
+class GreenMainAncestry(unittest.TestCase):
+    """`_GreenMain.ahead` and `on_main` (a demotion's recovery) answer from a
+    local clone as the compare API would (`ahead`: the base is a strict
+    ancestor), and fall back to the API for whatever the clone cannot decide.
+    Fixture: `Contains`'s repository, main c1-c2-c3 and side s1 off c1."""
+
+    setUpClass = classmethod(Contains.setUpClass.__func__)
+    tearDownClass = classmethod(Contains.tearDownClass.__func__)
+
+    def green(
+        self, checkouts: list[pathlib.Path], tip: str
+    ) -> tuple[pm.policy._GreenMain, list[str]]:
+        api = ApiCompare(self.root)
+        endpoints: list[str] = []
+
+        def get(endpoint: str) -> tuple[int, object]:
+            endpoints.append(endpoint)
+            if endpoint.endswith("/git/ref/heads/main"):
+                return 200, {"object": {"sha": tip}}
+            if UNKNOWN in endpoint:
+                return 404, {"message": "Not Found"}
+            done = api(["api", endpoint])
+            return 200, json.loads(done.stdout)
+
+        for patcher in (
+            mock.patch.object(pm.policy, "_get", get),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=checkouts),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return pm.policy._GreenMain("example-org", "example-repo"), endpoints
+
+    def answers(self, green: pm.policy._GreenMain) -> list[bool]:
+        pairs = itertools.product([self.c1, self.c2, self.c3, self.s1], repeat=2)
+        return [green.ahead(a, b) for a, b in pairs]
+
+    def test_ahead_answers_locally_what_the_compare_api_answers(self) -> None:
+        remote, remote_calls = self.green([self.empty], self.c3)
+        expected = self.answers(remote)
+        self.assertEqual(len(remote_calls), 16)
+        local, local_calls = self.green([self.root], self.c3)
+        self.assertEqual(self.answers(local), expected)
+        # c1 < c2 < c3 on main, s1 off c1: only c1 is behind s1.
+        self.assertEqual(expected.count(True), 4)
+        # A commit against itself is the API's `identical`, never asked locally.
+        self.assertEqual(
+            local_calls,
+            [
+                f"repos/example-org/example-repo/compare/{s}...{s}"
+                for s in (self.c1, self.c2, self.c3, self.s1)
+            ],
+        )
+
+    def test_on_main_answers_locally_for_a_tip_the_clone_holds(self) -> None:
+        green, calls = self.green([self.root], self.c3)
+        self.assertTrue(green.on_main(self.c1))
+        self.assertFalse(green.on_main(self.s1))
+        self.assertEqual(calls, ["repos/example-org/example-repo/git/ref/heads/main"])
+
+    def test_a_tip_or_commit_the_clone_lacks_asks_the_api(self) -> None:
+        green, calls = self.green([self.shallow, self.empty], self.c3)
+        self.assertTrue(green.on_main(self.c2))
+        self.assertEqual(
+            calls[1:], [f"repos/example-org/example-repo/compare/{self.c2}...{self.c3}"]
+        )
+        green, calls = self.green([self.root], self.c3)
+        with self.assertRaises(pm.policy.PolicyReadError):
+            green.ahead(UNKNOWN, self.c3)
+
+    def test_a_grafted_or_replaced_clone_still_answers_ancestry(self) -> None:
+        for clone in (self.grafted, self.replaced):
+            green, _ = self.green([clone], self.c3)
+            self.assertTrue(green.ahead(self.c1, self.c3), clone.name)
+
+
 if __name__ == "__main__":
     unittest.main()
