@@ -439,5 +439,21 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a thread refuses already-addressed" 1 "$?"
 assert_eq "the refused records append nothing" 0 "$(recorded)"
 
+# issues and follow-up: only a thread the select job marked may_follow_up
+# takes a follow-up reply, and issues prints the closing issues it read.
+setup
+assert_eq "issues prints [] when the thread file holds no closing issue" "[]" "$(run issues | jq -c .)"
+disposition '{"disposition":"follow-up","evidence":["src/a.js:3"],"note":"Out of scope for the issue."}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a thread not marked may_follow_up refuses follow-up" 1 "$?"
+jq '.threads[0].may_follow_up = true | .closing_issues = [{"number":7,"url":"https://github.com/o/r/issues/7","body":"## Out of scope\n- new tests","comments":[]}]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+assert_eq "issues prints each closing issue's number" "7" "$(run issues | jq -r 'map(.number) | join(" ")')"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a thread marked may_follow_up records follow-up" 0 "$?"
+assert_eq "the follow-up reply is recorded as written" '{"thread":"PRRT_a","disposition":"follow-up","evidence":["src/a.js:3"],"fix_sha":"","note":"Out of scope for the issue."}' "$(jq -c . "$STUB/replies.jsonl")"
+run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "the other thread, not marked, still refuses follow-up" 1 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0
