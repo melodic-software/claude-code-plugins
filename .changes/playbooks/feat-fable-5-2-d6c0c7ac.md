@@ -2,6 +2,10 @@
 bump: minor
 ---
 
+### Added
+
+- `fable-5-2.md`, the Claude Fable 5.2 adaptation chapter: what the playbook does differently on Fable 5.2 for effort, finishing work, the consent gate's reach, code ownership, progress updates, delegation, cautions in durable notes, earlier answers and writing form, each with a pointer to the Fable 5.2 prompting guide.
+
 ### Changed
 
 - `/playbooks:fable-5` routes Claude Fable 5.2 to its own adaptation chapter, `fable-5-2.md`, and a later Fable version with no chapter of its own reads `fable-5-2.md` method-only as the nearest prior Fable chapter. Claude Fable 5.1 still reads no chapter, as the doctrine's author. The skill's description lists Fable 5.2 among the current models.

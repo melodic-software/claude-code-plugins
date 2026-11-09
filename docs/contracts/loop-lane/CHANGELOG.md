@@ -13,8 +13,9 @@ Minor: additive guidance.
   v2.1.321, `best` resolves to the same model as `opus`, so the frontier tier's "Fable where the
   organization has it" reading no longer holds. The binding stays `best` by owner decision; lane
   dispatch already names `opus` while the Fable rung waits on the owner.
-- **The autonomy reminder's deliberate-block sentence has no lane-prompt counterpart yet**, noted
-  where the contract says the reminder states the same clause set.
+- **The reminder paragraph now says which clauses the lane prompts carry.** The Worker and Merge
+  prompts carry the end-of-turn clause and "speak to me only when fully blocked"; the reminder's
+  recovery clause, its new deliberate-block sentence included, has no counterpart in them yet.
 
 ## [19.3.0] - 2026-11-08
 
