@@ -56,10 +56,24 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 errors=0
 
-scan_hook() {
-  awk '
+# Shared by both scanners: an annotation anywhere in the contiguous comment
+# block directly above a flagged line sanctions it; any code line ends the
+# pending block. track_annotation sets annotated_above for the current line.
+AWK_ANNOTATION_LIB='
     function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
+    function track_annotation(l) {
+      annotated_above = pending_annot
+      if (is_comment(l)) {
+        if (is_annotated(l)) pending_annot = 1
+      } else {
+        pending_annot = 0
+      }
+    }
+'
+
+scan_hook() {
+  awk "$AWK_ANNOTATION_LIB"'
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
         l ~ /hook::notice_once/ || l ~ /hook::require(_jq_blocking| jq)/
@@ -96,14 +110,7 @@ scan_hook() {
         next
       }
 
-      # An annotation anywhere in the contiguous comment block directly above
-      # a guard sanctions that guard; any code line ends the pending block.
-      annotated_above = pending_annot
-      if (is_comment(line)) {
-        if (is_annotated(line)) pending_annot = 1
-      } else {
-        pending_annot = 0
-      }
+      track_annotation(line)
 
       if (line ~ /^[[:space:]]*(el)?if[[:space:]]+!.*command -v/) {
         in_block = 1; depth = 1; block_start = FNR
@@ -132,9 +139,7 @@ scan_hook() {
 # "skip " / 'skip ' (space-delimited) so descriptions like
 # `ok "skip-named-helper ... fails"` are not flagged.
 scan_test_skip_pass() {
-  awk '
-    function is_annotated(l) { return l ~ /#[[:space:]]*silent-skip-ok:/ }
-    function is_comment(l) { return l ~ /^[[:space:]]*#/ }
+  awk "$AWK_ANNOTATION_LIB"'
     function is_skip_ok(l) {
       # Match at a shell command boundary (not only line-start), so one-line
       # forms like `if x; then ok "skip ..."; fi` are caught too.
@@ -143,12 +148,7 @@ scan_test_skip_pass() {
     FNR == 1 { pending_annot = 0 }
     {
       line = $0
-      annotated_above = pending_annot
-      if (is_comment(line)) {
-        if (is_annotated(line)) pending_annot = 1
-      } else {
-        pending_annot = 0
-      }
+      track_annotation(line)
       if (is_skip_ok(line) && !is_annotated(line) && !annotated_above)
         printf "%s:%d: skip scored as PASS via ok \"skip ...\" — fail closed or annotate with # silent-skip-ok:\n", FILENAME, FNR
     }
@@ -156,19 +156,17 @@ scan_test_skip_pass() {
 }
 
 report_hits() {
-  local out="$1"
-  if [[ -n "$out" ]]; then
-    while IFS= read -r v; do
-      echo "SILENT SKIP: ${v}" >&2
-      errors=$((errors + 1))
-    done <<<"$out"
-  fi
+  local v
+  [[ -n "$1" ]] || return 0
+  while IFS= read -r v; do
+    echo "SILENT SKIP: ${v}" >&2
+    errors=$((errors + 1))
+  done <<<"$1"
 }
 
 hooks=()
 for hook in plugins/*/hooks/*.sh; do
-  base="${hook##*/}"
-  case "$base" in
+  case "${hook##*/}" in
   hook-utils.sh | *.test.sh) continue ;;
   *) ;;
   esac
@@ -183,13 +181,10 @@ test_files=()
 for test_file in scripts/*.test.sh; do
   # An unmatched glob arrives as its own literal text, which is not a file, so
   # the same `-f` guard the hook loop above uses covers the empty case here too.
-  [[ -f "$test_file" ]] || continue
   # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
   # own body; scanning it would false-positive on those embeddings. Shape 3 is
   # still exercised via the suite's throwaway fixtures under /tmp.
-  if [[ "$test_file" == "scripts/check-silent-skips.test.sh" ]]; then
-    continue
-  fi
+  [[ -f "$test_file" && "$test_file" != scripts/check-silent-skips.test.sh ]] || continue
   test_files+=("$test_file")
 done
 if ((${#test_files[@]} > 0)); then
