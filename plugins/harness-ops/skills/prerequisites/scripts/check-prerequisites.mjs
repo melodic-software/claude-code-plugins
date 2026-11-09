@@ -50,6 +50,7 @@ const realOr = (p) => {
   }
 };
 const sameDir = (a, b) => Boolean(a && b) && realOr(a) === realOr(b);
+const isFile = (p) => existsSync(p) && statSync(p).isFile();
 
 function readJson(file) {
   try {
@@ -106,7 +107,7 @@ export function rootsFromSettings(config, project, managed = []) {
   const state = {};
   let read = false;
   for (const file of files) {
-    if (!existsSync(file) || !statSync(file).isFile()) continue;
+    if (!isFile(file)) continue;
     const doc = readJson(file);
     if (doc === undefined) continue;
     read = true;
@@ -117,20 +118,18 @@ export function rootsFromSettings(config, project, managed = []) {
   }
   const enabled = Object.keys(state).filter((key) => state[key]);
   const installedFile = path.join(config, "plugins", "installed_plugins.json");
-  const hasInstalled = existsSync(installedFile) && statSync(installedFile).isFile();
+  const hasInstalled = isFile(installedFile);
   if (hasInstalled) read = true;
-  const roots = [];
-  if (enabled.length && hasInstalled) {
-    const installed = readJson(installedFile)?.plugins ?? {};
-    for (const key of enabled.sort()) {
-      let records = installed[key] ?? [];
-      if (!Array.isArray(records)) records = [records];
-      // The listing's rule: another project's records drop out, and the most specific scope wins.
-      const rows = records.filter((r) => r && typeof r === "object").map((r) => ({ ...r, id: key, enabled: true }));
-      roots.push(...rootsFromListing(rows, project));
-    }
-  }
-  return { read, roots };
+  if (!enabled.length || !hasInstalled) return { read, roots: [] };
+  const installed = readJson(installedFile)?.plugins ?? {};
+  const rows = enabled.sort().flatMap((id) => {
+    const records = installed[id] ?? [];
+    return (Array.isArray(records) ? records : [records])
+      .filter((r) => r && typeof r === "object")
+      .map((r) => ({ ...r, id, enabled: true }));
+  });
+  // The listing's rule: another project's records drop out, and the most specific scope wins.
+  return { read, roots: rootsFromListing(rows, project) };
 }
 
 function parseArgs(argv) {
@@ -203,10 +202,10 @@ export function run(argv, ctx = {}, io = {}) {
           .map((name) => path.join(pluginsDir, name))
           .filter((dir) => existsSync(path.join(dir, "prerequisites.json")));
       }
-    }
-    if (roots.length === 0 && !stateRead) {
-      err("check-prerequisites.mjs: no plugin roots to read");
-      return 2;
+      if (roots.length === 0) {
+        err("check-prerequisites.mjs: no plugin roots to read");
+        return 2;
+      }
     }
   }
   return report(roots, { env, platform, cwd }, { stdout: out, stderr: err });
