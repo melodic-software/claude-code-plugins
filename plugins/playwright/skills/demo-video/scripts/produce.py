@@ -175,7 +175,7 @@ class Renderer:
         d.rounded_rectangle(rect, radius=rad, outline=(255, 255, 255, alpha), width=int(stroke * HALO * S))
         d.rounded_rectangle(rect, radius=rad, outline=ACCENT + (alpha,), width=int(stroke * S))
         layer = layer.resize((w, h), Image.LANCZOS)
-        img.paste(layer, (int(ox0), int(oy0)), layer)
+        img.paste(layer, (ox0, oy0), layer)
         return g.bbox
 
     def caption_layer(self, ci):
@@ -192,18 +192,17 @@ class Renderer:
         cy, r = h // 2, 19
         badge = Image.new('RGBA', (2 * r * S, 2 * r * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(badge)
-        if c['kind'] == 'outcome':
-            d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=OK_GREEN + (255,))
+        outcome = c['kind'] == 'outcome'
+        d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=(OK_GREEN if outcome else ACCENT) + (255,))
+        if outcome:
             k = r * S / 21
             d.line([(11 * k, 21.5 * k), (18 * k, 28.5 * k), (31 * k, 14 * k)], fill=(255, 255, 255, 255), width=int(4 * k), joint='curve')
-        else:
-            d.ellipse([0, 0, 2 * r * S - 1, 2 * r * S - 1], fill=ACCENT + (255,))
         badge = badge.resize((2 * r, 2 * r), Image.LANCZOS)
         x0 = (h - 2 * r) // 2 + 2
         layer.alpha_composite(badge, (x0, cy - r))
         d = ImageDraw.Draw(layer)
         fg = tuple(self.e['caption_style']['text']) + (255,)
-        if c['kind'] != 'outcome':
+        if not outcome:
             d.text((x0 + r, cy + 1), c['badge'], font=self.f_badge, fill=fg, anchor='mm')
         d.text((x0 + 2 * r + 14, cy + 1), c['text'], font=self.f_cap, fill=fg, anchor='lm')
         self.cap_layers[ci] = layer
@@ -299,7 +298,7 @@ def main(argv=None):
     off = set(filter(None, a.off.split(',')))
     W, H, fps = edl['width'], edl['height'], edl['fps']
     nframes = int(round(edl['total'] * fps))
-    enc = {**edl['encode'], **({'preset': a.preset} if a.preset else {})}
+    enc = {**edl['encode'], 'preset': a.preset or edl['encode']['preset']}
     out = Path(a.out)
     video_only = out.with_suffix('.video.mp4')
     vf = 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=' + enc['pix_fmt']

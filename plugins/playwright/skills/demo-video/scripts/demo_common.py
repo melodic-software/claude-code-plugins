@@ -52,7 +52,7 @@ def smooth(u):
 def font(size, path=None):
     """A TrueType font at `size`: the given path, the first common system font found, else Pillow's
     bundled default (Pillow >= 10.1), so rendering never depends on one machine's font set."""
-    for candidate in ([path] if path else []) + list(FONT_CANDIDATES):
+    for candidate in (path, *FONT_CANDIDATES) if path else FONT_CANDIDATES:
         try:
             return ImageFont.truetype(candidate, size)
         except OSError:
