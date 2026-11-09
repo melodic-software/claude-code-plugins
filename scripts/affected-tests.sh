@@ -695,8 +695,10 @@ scope_declarations() {
     { b = $0; sub(/.*\//, "", b); c = b ~ /\.test\.m?js$/ ? "//" : "#" }
     !(c == "//" || /\.test\.sh$|\.Tests\.ps1$/ || b ~ /^test_.*\.py$/) { next }
     {
+      n = 0
       while ((getline line < $0) > 0) {
         sub(/\r$/, "", line)
+        if (++n == 1 && line ~ /^#!/) continue
         if (index(line, c) != 1 && line !~ /^[ \t]*$/) break
         if (sub("^" c "[ \t]*test-scope:", "", line)) print $0 " " line
       }
