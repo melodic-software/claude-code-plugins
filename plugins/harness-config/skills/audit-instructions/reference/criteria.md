@@ -598,7 +598,7 @@ target model.
   the Opus 5 guide starts using "nitpick".
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
-`opus-5-5`, `sonnet-5-5`, `fable-5-2`.
+`opus-5-5`, `fable-5-2`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
 claim (see Source), and it is a model-agnostic feature page, the surface where a wider claim would
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
@@ -1291,9 +1291,9 @@ since each prescribes a request the model refuses.
   level.
 - **Second arm: the models that reject the disable outright, at every effort level.** We treat
   `thinking: {type: "disabled"}` as failing whatever effort is in force on this row's set: Claude
-  Opus 5.5, Claude Sonnet 5.5, Claude Fable 5.1, Claude Mythos 5.1, Claude Fable 5, Claude Mythos
-  5 and Claude Mythos Preview. On that set the disable surface alone is the finding and no effort
-  operand has to be present for the request to fail. Read the effort operand as a condition that
+  Opus 5.5, Claude Sonnet 5.5, Claude Fable 5.2, Claude Mythos 5.2, Claude Fable 5.1, Claude
+  Mythos 5.1, Claude Fable 5, Claude Mythos 5 and Claude Mythos Preview. On that set the disable
+  surface alone is the finding and no effort operand has to be present for the request to fail. Read the effort operand as a condition that
   *narrows* the Opus 5 arm, never as a precondition the whole row inherits. Carried across, it
   would pass a surface prescribing thinking-off at `high` on Fable 5.1 as compliant. On Sonnet 5.5
   the remediation also points at the guide's thinking-off alternative, which the third arm bounds.
@@ -1309,7 +1309,8 @@ since each prescribes a request the model refuses.
   table](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models);
   for the harness no-ops, see
   [model configuration: extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking).
-  As of: 2026-11-04. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
+  As of: 2026-11-09, re-read on the Fable 5.2 release, which added Claude Fable 5.2 and Claude
+  Mythos 5.2 to the set. Recheck trigger: a model gains or loses a 400 for `"disabled"` in either
   table, or the harness no-op list changes.
 - **Third arm, API requests only: `between_tools` at a level or with a change it refuses.** Flag
   instruction text that prescribes, or a code sample it tells the reader to send, a request to
@@ -1503,8 +1504,8 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
 - **Detect:** instruction text directing a reader to control thinking *depth* with a fixed token
   budget on a model that always uses adaptive reasoning: this row's set is Opus 4.7 and later
   (Opus 4.7, Opus 4.8, Opus 5, Opus 5.5), Sonnet 5 and later (Sonnet 5, Sonnet 5.5), Haiku 5.5,
-  and the Fable and Mythos 5-series models (Fable 5.1, Fable 5, Mythos 5.1, Mythos 5). Two arms,
-  with opposite failure modes:
+  and the Fable and Mythos 5-series models (Fable 5.2, Fable 5.1, Fable 5, Mythos 5.2, Mythos 5.1,
+  Mythos 5). Two arms, with opposite failure modes:
   - **Harness arm: silent no-op.** A nonzero `MAX_THINKING_TOKENS`, or
     `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` offered as the way to make one take effect, on a
     model in the set. We rank this the worse of the two arms because nothing tells the reader it
@@ -1525,6 +1526,14 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   Haiku 5.5 in this row's set on both sides, so the set above names it. Pointer: the pointers
   above, the Haiku 5.5 row of the thinking table and the model list in model configuration. As
   of: 2026-10-10. Recheck trigger: the same as the row's trigger above.
+- **Widened to Fable 5.2 and Mythos 5.2 on 2026-11-09**, the API arm on both: the thinking
+  table's rows for both models reject `"enabled"`. The harness arm reaches Fable 5.2 through the
+  model configuration section's Fable entry; as for the earlier Mythos models, that section does
+  not name Mythos 5.2. Pointer: the [troubleshooting
+  table](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models)
+  and [model configuration: adaptive reasoning and fixed thinking
+  budgets](https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets).
+  As of: 2026-11-09. Recheck trigger: the same as the row's trigger above.
 - **Why this is not I17-a.** That row is about `MAX_THINKING_TOKENS=0`, the claim that thinking can
   be turned *off*, and whether the exceptions travel with it. This row is the claim that thinking
   depth can be *set to a number*. Different literal, different promise, different failure; both can
@@ -1782,9 +1791,14 @@ condition, not a `Model scope` annotation**, for the reason I17 states.
   Instructions targeting an explicitly pinned earlier model, which still supports it.
 - **Source:** prompting best practices, "Migrating away from prefilled responses" (the unsupported
   model range, the 400, and what stays unaffected).
-- **As of 2026-08-02** (that page read as raw markdown; the standalone prefill technique page
-  redirected to the prompt-engineering overview). **Recheck trigger:** any change to
-  that page, or the unsupported-model range moving.
+- **As of 2026-11-09** (that page read as raw markdown; the standalone prefill technique page
+  redirected to the prompt-engineering overview on 2026-08-02). Re-read on the Fable 5.2 release:
+  the page still states the range as a release floor rather than a model list, and no Fable 5.2
+  page names prefill, so this row adds no model token; we read the range as already reaching
+  Fable 5.2. Correlate with [API errors: prefill not
+  supported](https://platform.claude.com/docs/en/api/errors#prefill-not-supported), which states
+  the same range. **Recheck trigger:** any change to that page, or the unsupported-model range
+  moving.
 
 ### I21: Effort level pinned across a model change with no re-sweep
 
@@ -2117,13 +2131,15 @@ states.
   its default, commonly "raise the temperature" for variety, creativity, or design
   divergence, or "set `temperature = 0`" for determinism, where the run's resolved target model is
   in this row's set: Claude Opus 4.7 or later (Opus 4.7, Opus 4.8, Opus 5, Opus 5.5), Claude
-  Sonnet 5 or later (Sonnet 5, Sonnet 5.5), Claude Haiku 5.5, Claude Fable 5.1, Claude Fable 5,
-  Claude Mythos 5.1, Claude Mythos 5, or Claude Mythos Preview. Fire on those models whether or
-  not the surface also sets thinking, and even where the instruction would type-check against an
-  SDK. A model outside the set is outside this row, whatever it does with thinking on.
+  Sonnet 5 or later (Sonnet 5, Sonnet 5.5), Claude Haiku 5.5, Claude Fable 5.2, Claude Fable 5.1,
+  Claude Fable 5, Claude Mythos 5.2, Claude Mythos 5.1, Claude Mythos 5, or Claude Mythos Preview.
+  Fire on those models whether or not the surface also sets thinking, and even where the
+  instruction would type-check against an SDK. A model outside the set is outside this row,
+  whatever it does with thinking on.
   Pointer: for the set, see [thinking: sampling
   parameters](https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters).
-  As of: 2026-10-01. Recheck trigger: a model joins or leaves that section's list.
+  As of: 2026-11-09, re-read on the Fable 5.2 release, which added Claude Fable 5.2 and Claude
+  Mythos 5.2 to the list. Recheck trigger: a model joins or leaves that section's list.
 - **Widened to `haiku-5-5` on 2026-10-10:** our read of that section that day put Claude Haiku
   5.5 in this row's set, so the set above names it. Pointer: the same section. As of: 2026-10-10. Recheck trigger: Haiku 5.5 leaves
   that section's list.
