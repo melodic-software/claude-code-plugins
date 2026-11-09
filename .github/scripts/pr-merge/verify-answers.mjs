@@ -85,7 +85,7 @@ export async function main({ env = process.env, actions, download } = {}) {
     rmSync(env.VERIFY_ANSWERS_PATH, { force: true });
     if (env.EAM_SKIP_PATH) rmSync(env.EAM_SKIP_PATH, { force: true });
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-    download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: ANSWERS_ARTIFACT, file: ANSWERS_FILE });
+    download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: ANSWERS_ARTIFACT, file: ANSWERS_FILE, shared: env.PR_MERGE_READS_PATH });
     const id = await answersRun({ repo, runId: String(env.GITHUB_RUN_ID), actions, shared: env.PR_MERGE_READS_PATH });
     if (id === undefined) {
       console.log("no earlier verifier answers; each pull request is read in full");

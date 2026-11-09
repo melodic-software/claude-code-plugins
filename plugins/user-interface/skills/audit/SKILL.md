@@ -89,11 +89,18 @@ fixes.
 
 ## Steps
 
-1. **Detect.** Run
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config` and read
-   `project`, `config.values` and `config.provenance`. Find the project's tokens and conventions.
-   With no shell or no `node`, read the same signals by hand and use the defaults in
-   `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
+1. **Detect.** Write the userConfig values to
+   `${CLAUDE_PLUGIN_DATA}/audit-user-config-${CLAUDE_SESSION_ID}.json` with the Write tool,
+   never through a shell command, as one JSON object: `css_browser_target` =
+   `${user_config.css_browser_target}`, `css_important` = `${user_config.css_important}`,
+   `css_layer` = `${user_config.css_layer}`, `css_token_fallback` =
+   `${user_config.css_token_fallback}`. Leave a key out when its value is empty or still reads as a
+   literal `${user_config.` placeholder. Then run
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "<that file>"`
+   and delete the file. Read `project`, `config.values`, `config.provenance` and `config.layers`.
+   Find the project's tokens and conventions. Judge each value against the order in
+   [values.md](../../reference/values.md). With no shell or no `node`, read the same signals by hand
+   and use the defaults in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
 2. **Scope.** Settle the files in scope from the scope argument: the diff, the tree (or
    `<target>`), or the tree for `launch`. Name the stack of each from its files. In `diff` scope,
    read the whole diff first, then judge it lane by lane; the `audit.order` is the triage order: a

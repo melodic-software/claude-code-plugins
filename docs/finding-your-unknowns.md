@@ -238,14 +238,15 @@ Recheck trigger: a raw retrieval, which records its date and hash here.
   Candidate home, only if stumble evidence appears: `education:teach`. Eval candidate:
   [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938).
 
-A related experiment is Shaw and Nave's "cognitive surrender" SSRN working paper
-(`https://papers.ssrn.com/abstract=6097646`). SSRN returned HTTP 403 on 2026-11-03, so the
-paper is unread here. Secondary coverage
-(`https://thedecisionlab.com/insights/technology/when-ai-becomes-part-of-how-we-reason`,
-read 2026-11-03 through a summarizing fetch, so no hash is recorded) describes a design that
-tests neither practice: Study 3 gave feedback only together with per-question rewards. A web
-search on 2026-11-03 found no independent replication. Recheck trigger: a raw retrieval of
-the SSRN page.
+A related experiment is Shaw and Nave's "cognitive surrender" working paper (SSRN 6097646;
+full text on PsyArXiv, `https://doi.org/10.31234/osf.io/yk25n_v1`, read 2026-11-09). Three
+preregistered experiments on an adapted Cognitive Reflection Test (N = 1,372) measure how often
+people adopt a planted wrong AI answer; the high adoption rate holds for the trials where a
+participant chose to consult the AI, about half of the faulty ones. The authors name a lab
+setting, a single task and a single exposure as limits, and suggest feedback, aligned incentives
+and uncertainty cues as remedies; neither practice above is tested, and Study 3 gave feedback
+only together with per-question rewards. No journal publication or independent replication was
+found as of 2026-11-09. Recheck trigger: a journal version or a replication appears.
 
 ## Sources and citation shape
 

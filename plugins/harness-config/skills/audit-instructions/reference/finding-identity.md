@@ -67,6 +67,7 @@ prints `#REFUSED`, the row, and the reason, and is never given an id.
 | I8-d | `I8-d.short-turn-assumption` | 1 |
 | I8-e | `I8-e.forced-interim-status` | 1 |
 | I8-f | `I8-f.think-carefully-steer` | 1 |
+| I8-g | `I8-g.keep-going-exhortation` | 1 |
 | I9 | `I9.example-hygiene` | 1 |
 | I10 | `I10.reasoning-echo-directive` | 1 |
 | I11 | `I11.mcp-where-cli-equivalent` | 1 |

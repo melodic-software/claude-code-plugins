@@ -146,7 +146,7 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
     if (!REPO.test(repo)) throw new Error("GITHUB_REPOSITORY is not owner/repo");
     if (mode === "read") {
       actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
-      download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: MAP_ARTIFACT, file: MAP_FILE });
+      download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: MAP_ARTIFACT, file: MAP_FILE, shared: env.PR_MERGE_READS_PATH });
       const found = await readMap({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
       if (found === undefined) {
         console.log("no earlier head-ref map; the gate downloads each untied FAIL");

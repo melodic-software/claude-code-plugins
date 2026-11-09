@@ -1496,6 +1496,9 @@ repo-specific policy of their own:
   rather than `--prefix`. A generic `--help` parser cannot consume it, and
   verifying against one produces false "unknown flag" findings. Re-add it with
   `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` if your project wants it checked anyway.
+  `az` prints its global arguments (`--only-show-errors`, `--output`, `--query`)
+  only under a leaf command's help, so an `az` flag missing from the resolved
+  help is also looked up in `az version --help`.
 - **Hook-manager prefixes.** `block-no-verify` reads its recognized
   hook-manager disable-env-var prefixes from `block_no_verify_hook_manager_prefixes`
   (comma list, default `lefthook, husky, pre_commit, simple_git_hooks`). Add a

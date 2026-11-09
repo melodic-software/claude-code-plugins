@@ -240,9 +240,9 @@ assert_contains "a symlink from home to a file outside home and the repo is refu
   "$(surface_row notes/out.md)" $'\tsurface-outside-repository-and-home'
 
 # --- Case 7: the claim table mirrors the reference and the catalog -----------
-script_table="$(sed -n 's/^  \(I[0-9][0-9]*\(-[a-f]\)\{0,1\}\)) echo "\([^"]*\)" ;;$/\1 \3/p' "$IDS" | LC_ALL=C sort)"
+script_table="$(sed -n 's/^  \(I[0-9][0-9]*\(-[a-g]\)\{0,1\}\)) echo "\([^"]*\)" ;;$/\1 \3/p' "$IDS" | LC_ALL=C sort)"
 # shellcheck disable=SC2016 # the backticks are literal markdown code spans
-ref_table="$(sed -n 's/^| \(I[0-9][0-9]*\(-[a-f]\)\{0,1\}\) | `\([^`]*\)` | [12] |$/\1 \3/p' \
+ref_table="$(sed -n 's/^| \(I[0-9][0-9]*\(-[a-g]\)\{0,1\}\) | `\([^`]*\)` | [12] |$/\1 \3/p' \
   "$SKILL_DIR/reference/finding-identity.md" | LC_ALL=C sort)"
 assert_eq "the script's claim table equals the reference's" "$ref_table" "$script_table"
 catalog_ids="$(sed -n 's/^### \(I[0-9][0-9]*\):.*/\1/p' "$SKILL_DIR/reference/criteria.md" |

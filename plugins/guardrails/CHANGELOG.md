@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.8] - 2026-11-09
+
+### Fixed
+
+- `cli-flag-verify` no longer reports az global arguments such as `--only-show-errors` as unknown flags. `az --help` lists none of them, so a flag missing from the resolved help is also looked up in `az version --help`, which carries az's Global Arguments.
+
 ## [3.0.7] - 2026-11-09
 
 ### Changed

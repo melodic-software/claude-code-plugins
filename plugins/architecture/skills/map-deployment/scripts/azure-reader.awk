@@ -33,7 +33,7 @@ function fail(reason) { print reason > flag; failed = 1; exit 0 }
 function tok(t, v) { NT++; T[NT] = t; V[NT] = v }
 
 # Tokens: s string, n identifier or number, p punctuation, nl newline.
-function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, m) {
+function tokenize(s,    L, i, c, c2, j, out, depth, ch, nx, m) {
   NT = 0
   L = length(s)
   i = 1
@@ -307,7 +307,7 @@ function parse_bicep(    kw, name, sec, pre) {
 function parse_file(f, s) {
   FILE_ = f
   bad = 0
-  if (!tokenize(f, s)) fail(tp(f) "-unreadable:" f)
+  if (!tokenize(s)) fail(tp(f) "-unreadable:" f)
   P = 1
   skip_nl()
   if (f ~ /\.json$/) {
@@ -477,7 +477,7 @@ function env_entry(sc, c, g, secret_key, ev,    f, k, v) {
 
 # The compute node id a reference names: a Bicep <sym>.id, or an ARM
 # resourceId('<type>', <name>) whose name matches a declared resource.
-function compute_ref(sc, path, type,    f, v, e, lt, p, nm) {
+function compute_ref(sc, path, type,    f, v, e, lt, nm) {
   f = S_file[sc]
   if (!field(f, path)) return ""
   if (FK == "x" && FV ~ /^[A-Za-z_][A-Za-z0-9_]*\.id$/) {
@@ -522,15 +522,14 @@ function is_node_type(lt) {
   return lt ~ /^microsoft\.(app\/(managed|connected)environments|web\/serverfarms|containerservice\/managedclusters|containerinstance\/containergroups)$/
 }
 
-function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, reps, ports, cl, j, m, pv, par) {
+function map_scope(sc,    f, i, rp, lt, id, n, k, gs, eg, cp, c, reps, ports, cl, j, m, pv, par) {
   f = S_file[sc]
   for (i = 1; i <= RN[f]; i++) {
     rp = RES[f, i]; lt = tolower(RTYPE[f, rp])
     if (lt == "microsoft.resources/deployments") fail(tp(f) "-deployment-unread:" f ":" RSYM[f, rp])
     if (!is_node_type(lt)) continue
     id = S_env[sc] "/" S_prefix[sc] RSYM[f, rp]
-    nm = show(sc, rp "name", RSYM[f, rp])
-    node(sc, id, RTYPE[f, rp], nm, f)
+    node(sc, id, RTYPE[f, rp], show(sc, rp "name", RSYM[f, rp]), f)
     CID[sc, lt, "sym", RSYM[f, rp]] = id
     CID[sc, lt, "name", get(sc, rp "name", RSYM[f, rp])] = id
   }

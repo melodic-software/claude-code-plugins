@@ -274,6 +274,9 @@ EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
 # `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
 # failed read (3) or rate limit (75) produces, so only it lets pr-merge.yml send.
 EXIT_NOT_ALERTED = 4
+# `--stop-uncovered`'s stop: a code no crash, refusal, failed read, verdict or
+# rate limit produces, so only it reads as "this report would need a dispatch".
+EXIT_UNCOVERED = 6
 
 IsHuman = Callable[[Any], bool]
 
@@ -304,6 +307,17 @@ class UnlistedRecordHold(PostMergeReadError):
 
 class PostMergeWriteError(RuntimeError):
     """A remediation write failed."""
+
+
+class UncoveredMergeStop(Exception):
+    """`check(stop_uncovered=True)` found a judged merge that no listed
+    dispatch run created at or after its merge can cover, so the verdict is
+    unreadable or `needs_dispatch`. Not a `PostMergeReadError`: it ends the
+    check rather than making the verdict unreadable."""
+
+    def __init__(self, number: int) -> None:
+        super().__init__(f"#{number}: no dispatch run created since its merge")
+        self.number = number
 
 
 # One type and one derivation with `babysit_merge_policy.in_flight`, so both
@@ -764,15 +778,22 @@ def _immediate_enqueue(
     return lane_prs_at(parent if isinstance(parent, str) else "") == "native"
 
 
+# Each repository's default branch this process read; a failed read is not kept.
+_default_branches: dict[tuple[str, str], str] = {}
+
+
 def _default_branch(owner: str, name: str) -> str:
-    """The repository's default branch; an unreadable one fails the read, so
-    the check never judges a branch the repository does not merge into."""
-    branch = json_object(_read(["api", f"repos/{owner}/{name}"], "repository")).get(
-        "default_branch"
-    )
-    if not isinstance(branch, str) or not branch.strip():
-        raise PostMergeReadError("repository: no default branch")
-    return branch
+    """The repository's default branch, read once per process; an unreadable
+    one fails the read, so the check never judges a branch the repository
+    does not merge into."""
+    if (owner, name) not in _default_branches:
+        branch = json_object(
+            _read(["api", f"repos/{owner}/{name}"], "repository")
+        ).get("default_branch")
+        if not isinstance(branch, str) or not branch.strip():
+            raise PostMergeReadError("repository: no default branch")
+        _default_branches[owner, name] = branch
+    return _default_branches[owner, name]
 
 
 def _merged_since(
@@ -1337,6 +1358,10 @@ class _Context:
     # The verdict's first run listing's completed runs, by id, at the
     # `updated_at` read (`_listed_runs` with `record`); None until listed.
     judged_runs: dict[int, str] | None = None
+    # That listing's dispatch runs as `_runs` returned them, with the time
+    # they were listed from, which `_lane_reruns` reads when it covers its
+    # lookback and every run in it had completed; None until listed.
+    dispatch_listing: tuple[datetime, list[Run]] | None = None
     settle_compares_left: int = SETTLE_COMPARE_BUDGET
     compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
@@ -2742,14 +2767,27 @@ def _lane_reruns(
                 )
                 if ctx.on_branch(r) and not ctx.replaced(r)
             )
-        runs = _runs(
-            ctx.owner,
-            ctx.name,
-            FULL_RUN_WORKFLOW,
-            "workflow_dispatch",
-            ctx.branch,
-            now - ctx.lane_rerun_lookback(),
-            now,
+        start = now - ctx.lane_rerun_lookback()
+        listing = ctx.dispatch_listing
+        listed = (
+            [r for r in listing[1] if r.created_at >= start]
+            if listing is not None and listing[0] <= start
+            else None
+        )
+        # A run still going when listed may have finished red since, so any
+        # such run in the lookback means the runs are listed again.
+        runs = (
+            listed
+            if listed is not None and all(r.status == "completed" for r in listed)
+            else _runs(
+                ctx.owner,
+                ctx.name,
+                FULL_RUN_WORKFLOW,
+                "workflow_dispatch",
+                ctx.branch,
+                start,
+                now,
+            )
         )
         ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
@@ -2783,14 +2821,14 @@ def _listed_runs(
     `record`, each listed run that had completed is kept in
     `_Context.judged_runs` at the `updated_at` read."""
     owner, name, branch = ctx.owner, ctx.name, ctx.branch
-    listed = [
-        (SIGNAL_SCHEDULE, r)
-        for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
-    ] + [
-        (SIGNAL_DISPATCH, r)
-        for r in _runs(
-            owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
-        )
+    schedule = _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now)
+    dispatched = _runs(
+        owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor, now
+    )
+    if record:
+        ctx.dispatch_listing = (floor, dispatched)
+    listed = [(SIGNAL_SCHEDULE, r) for r in schedule] + [
+        (SIGNAL_DISPATCH, r) for r in dispatched
     ]
     # A listing filtered by branch name also returns runs on a tag named
     # like the branch, whose red would be charged to the merge. A run the
@@ -2881,6 +2919,23 @@ def _final_by_runs(
     return frozenset(final)
 
 
+def _stop_uncovered(
+    judged: list[AutoMerge], full_runs: list[tuple[str, Run]]
+) -> None:
+    """Raise `UncoveredMergeStop` for the first judged merge no listed
+    dispatch run was created at or after. `_judge`'s `own` runs are among
+    these, so such a merge is neither verified nor `dispatch_covered`. A
+    merge with no commit or time is left to `_judge`, which reads it
+    unreadable."""
+    dispatched = [r.created_at for signal, r in full_runs if signal == SIGNAL_DISPATCH]
+    for merge in judged:
+        if not merge.merge_commit or not merge.merged_at:
+            continue
+        merged_at = _time(merge.merged_at)
+        if not any(at >= merged_at for at in dispatched):
+            raise UncoveredMergeStop(merge.number)
+
+
 def check(
     repo: str,
     *,
@@ -2894,6 +2949,7 @@ def check(
     quarantine_days: int | None = None,
     settled: Callable[[AutoMerge], bool] | None = None,
     rejudge: Callable[[AutoMerge], bool] | None = None,
+    stop_uncovered: bool = False,
 ) -> PostMergeVerdict:
     """Judge every auto-merge into `branch` since `merged_since`; with no
     `branch`, the repository's default branch, read once from the repos API.
@@ -2909,7 +2965,12 @@ def check(
     (`PinReader.settled`); such a merge is verified with none of its runs
     read. `rejudge` names the settled merges whose runs are read anyway, for
     `MergeState.final_by_runs` alone (`_final_by_runs`, `anchor_needs`).
-    Any read failure makes the verdict unreadable, which is never ok."""
+    Any read failure makes the verdict unreadable, which is never ok.
+
+    `stop_uncovered` raises `UncoveredMergeStop`, once the runs are listed and
+    before any is judged, for a judged merge with no listed dispatch run
+    created at or after it: `_judge` finds no `own` run for it, so the verdict
+    would be unreadable or need a dispatch."""
     if not agent_identity:
         return PostMergeVerdict(False, "agent-identity-unconfigured")
     if merged_since is None:
@@ -3013,6 +3074,8 @@ def check(
             else merged_since
         )
         full_runs, canary_runs = _listed_runs(ctx, floor, now, record=True)
+        if stop_uncovered:
+            _stop_uncovered(judged, full_runs)
         states = tuple(
             _settled_state(merge)
             if merge.number in done
@@ -4182,12 +4245,22 @@ def _default_is_human(
     """The merge policy's human test. A null actor, the identity, a self login,
     an automation login, or a login with no write permission is non-human. A
     permission read that fails raises `PostMergeReadError`, so the verdict is
-    unreadable rather than a human enqueue misjudged as an auto-merge."""
+    unreadable rather than a human enqueue misjudged as an auto-merge. A
+    permission another process of the run read within `run_cache.MAX_AGE`
+    (`policy.permission_reader`'s section) is reused, and each one read here
+    is saved for them; a 404 or a failure never is."""
     cache: dict[str, str | None] = {}
 
     def permission(login: str) -> str | None:
         if login not in cache:
             owner, name = _split_repo(repo)
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get_dated("permission", key, run_cache.MAX_AGE)
+            if shared is not None and isinstance(shared[0], str):
+                run_cache.note(shared[1])
+                cache[login] = shared[0]
+                return cache[login]
+            at = run_cache.now()
             endpoint = (
                 f"repos/{owner}/{name}/collaborators/{quote(login, safe='')}/permission"
             )
@@ -4210,6 +4283,7 @@ def _default_is_human(
                 if not isinstance(value, str):
                     raise PostMergeReadError(f"{label}: no permission in the response")
                 cache[login] = value
+                run_cache.put("permission", key, value, at)
         return cache[login]
 
     return lambda actor: policy.is_human(
@@ -5296,6 +5370,15 @@ def main(argv: list[str] | None = None) -> int:
             "another App's or a person's merge is not the lane's"
         ),
     )
+    parser.add_argument(
+        "--stop-uncovered",
+        action="store_true",
+        help=(
+            "exit 6 with no verdict, once the runs are listed, when a judged merge "
+            "has no dispatch run created since it: the verdict would need a "
+            "dispatch or be unreadable (a pr-merge wake, which dispatches nothing)"
+        ),
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--remediate",
@@ -5359,6 +5442,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.stop_uncovered and (
+        args.remediate
+        or args.preflight
+        or args.settle_from
+        or args.judge_run is not None
+        or args.lane_alerted is not None
+    ):
+        parser.error("--stop-uncovered is for a read-only check alone")
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
     if args.lane_alerted is not None:
@@ -5427,18 +5518,34 @@ def main(argv: list[str] | None = None) -> int:
         if anchored:
             since, anchor = lane_floor(args.repo, args.agent_identity, since)
     out = os.environ.get(ANCHOR_ENV)
-    verdict = check(
-        args.repo,
-        agent_identity=args.agent_identity,
-        is_human=is_human,
-        merged_since=since,
-        branch=args.branch,
-        pinned_sha=(reader := pin_reader(args.repo, args.agent_identity)),
-        lane_merges_only=args.lane_merges_only,
-        settled=reader.settled,
-        # Only the check that writes the anchor reads settled merges' runs.
-        rejudge=anchor_needs(anchor) if anchored and out else None,
-    )
+    try:
+        verdict = check(
+            args.repo,
+            agent_identity=args.agent_identity,
+            is_human=is_human,
+            merged_since=since,
+            branch=args.branch,
+            pinned_sha=(reader := pin_reader(args.repo, args.agent_identity)),
+            lane_merges_only=args.lane_merges_only,
+            settled=reader.settled,
+            # Only the check that writes the anchor reads settled merges' runs.
+            rejudge=anchor_needs(anchor) if anchored and out else None,
+            stop_uncovered=args.stop_uncovered,
+        )
+    except UncoveredMergeStop as stop:
+        json.dump(
+            {
+                "ok": False,
+                "readable": False,
+                "stopped": "uncovered-merge",
+                "number": stop.number,
+                "since": since.isoformat(),
+            },
+            sys.stdout,
+            indent=2,
+        )
+        sys.stdout.write("\n")
+        return EXIT_UNCOVERED
     report = verdict.report()
     report["since"] = since.isoformat()
     if shared is not None:

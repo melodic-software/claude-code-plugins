@@ -10,6 +10,8 @@ allowed-tools:
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs verify:*)"
   - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" plan:*)"
   - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs plan:*)"
+  - "Bash(node \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs\" check \"${CLAUDE_PLUGIN_ROOT}\" --for hook:run-guards.sh)"
+  - "Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs check ${CLAUDE_PLUGIN_ROOT} --for hook:run-guards.sh)"
 shell: bash
 ---
 
@@ -50,10 +52,10 @@ source of truth for the guard inventory and each guard's runtime needs.
 pre-computed `jq` and `node` rows, run the remaining probes via Bash, and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-When every guard's toggle is disabled, every prerequisite absence but `node` (step 3) downgrades
-from FAIL to INFO. Each guard exits through its enabled-gate before probing anything, so a
-deliberately disabled plugin is not broken. Report the probes informationally and note that
-re-enabling restores the FAIL semantics.
+When every guard's toggle is disabled, every prerequisite absent or below its floor, but `node`
+(step 3), downgrades from FAIL to INFO. Each guard exits through its enabled-gate before probing
+anything, so a deliberately disabled plugin is not broken. Report the probes informationally and
+note that re-enabling restores the FAIL semantics.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
@@ -89,6 +91,17 @@ re-enabling restores the FAIL semantics.
    silent. Bash unavailable → report the step UNKNOWN with remediation, never green. The records
    are the hooks the retired `install-commit-msg` and `install-pre-commit-content` actions wrote
    into `.git/hooks/`.
+9. **`shfmt`.** The Bash guards read every command through it, and an older build can let a
+   command through that the floor's build blocks. Run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --for hook:run-guards.sh`
+   and report its `shfmt` line; steps 2 and 3 already cover its `jq` and `node` lines. The floor
+   is the `shfmt` entry's `detect.version.min` in `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`, and
+   the checker compares versions numerically. `PASS` is PASS. A FAIL naming a version is FAIL:
+   quote the version found and the floor, with the remediation to upgrade shfmt to at least the
+   floor (README Requirements). A FAIL for a missing shfmt first gets
+   `"$HOME/.local/bin/shfmt" --version`, where the guards also look: report that build against the
+   same floor, compared part by part as numbers, and FAIL only when it is absent too. `WARN`
+   (version unreadable) is WARN.
 
 ## `apply` (idempotent)
 
@@ -96,7 +109,7 @@ Run `check`, then for each FAIL point at the resolution. Every prerequisite is a
 tool and every tunable is native `userConfig`, so `apply` installs nothing and, apart from
 the retired-hook cleanup below, writes nothing. It points:
 
-- missing `jq` or `node` / old Bash: platform install instructions from the README
+- missing `jq` or `node` / old Bash / missing or old `shfmt`: install instructions from the README
   Requirements section; this skill never installs system packages.
 - any toggle or scalar change: reconfigure through Claude Code's native flow, per the
   marketplace's plugin-reconfiguration convention
