@@ -2598,7 +2598,13 @@ export async function deferredAhead(github, repository, issue, listing, pullsFor
     return true;
   }
   try {
-    const older = (await listing.issues(["deferred"]))
+    const deferred = await listing.issues(["deferred"]);
+    // An older issue the listing holds (`held`, Work status mid-write) could
+    // be deferred: it counts as one ahead, as an unreadable answer does.
+    if ((deferred.held ?? []).some((item) => Number(item.number) !== Number(issue.number) && !(Date.parse(item.created_at) >= created))) {
+      return true;
+    }
+    const older = deferred
       .filter((item) => Number(item.number) !== Number(issue.number) && Date.parse(item.created_at) < created)
       .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.number - b.number);
     for (const item of older.slice(0, DEFERRED_AHEAD_READS)) {
@@ -2629,16 +2635,21 @@ export const RACE_WINDOW_MS = 10 * 60_000;
 // reads as an admission-deferred add), the claim admit() makes, else its
 // first agent-ready add then (an admission that made no claim), or null when
 // its history shows no add of either at all yet; one whose adds all predate
-// `since` is left out. A failed read throws.
+// `since` is left out, and one the listing holds mid-write reads at null. A
+// failed read throws.
 export async function admissionsSince(github, repository, since, listing) {
   const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
   const listed = new Set();
-  for (const item of await listing.issues(["deferred", AGENT_READY], { since: stamp })) {
+  const found = await listing.issues(["deferred", AGENT_READY], { since: stamp });
+  for (const item of found) {
     if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
       listed.add(item.number);
     }
   }
-  const entered = [];
+  // An issue the listing holds (`held`, Work status mid-write) may be a
+  // racing admission: it counts as entered with its add not read (at null),
+  // so it takes room rather than undercount.
+  const entered = (found.held ?? []).filter((item) => Number.isSafeInteger(item?.number) && !listed.has(item.number)).map((item) => ({ number: item.number, at: null }));
   for (const number of listed) {
     const adds = (await listing.events(number)).filter((event) => event?.event === "labeled" && [AGENT_READY, DEFERRED].includes(event.label?.name));
     const times = (name) => adds.filter((event) => event.label.name === name).map((event) => Date.parse(event.created_at)).filter((time) => Number.isFinite(time) && time >= since);
