@@ -191,8 +191,9 @@ row_args_of() {
     .hooks.PreToolUse[]
     | select(.matcher == "Bash|PowerShell")
     | .hooks[]
-    | if ((.args // []) | map(tostring) | join(" ") | contains("run-guards.sh")) then
-        ((.args // []) | map(tostring) | join(" "))
+    | ((.args // []) | map(tostring) | join(" ")) as $args
+    | if ($args | contains("run-guards.sh")) then
+        $args
       elif (.command | tostring | contains("run-guards.sh")) then
         .command
       else
@@ -298,9 +299,13 @@ done
 run_cells "$WORK/cells1"
 
 NMASK=$(((1 << ${#TOKENS[@]}) - 1))
-: >"$WORK/cells2"
+# Indices of the commands base block-dangerous-git refuses token-free.
+REFUSED=()
 for ((i = 0; i < N; i++)); do
-  [[ "$(result base block-dangerous-git "$i" 0)" == 2 ]] || continue
+  [[ "$(result base block-dangerous-git "$i" 0)" == 2 ]] && REFUSED+=("$i")
+done
+: >"$WORK/cells2"
+for i in ${REFUSED[@]+"${REFUSED[@]}"}; do
   for ((m = 1; m <= NMASK; m++)); do
     printf '%s %s %d %d\n' base block-dangerous-git "$i" "$m" branch block-dangerous-git "$i" "$m" >>"$WORK/cells2"
   done
@@ -313,13 +318,12 @@ command_of() { jq -r '.tool_input.command' "$WORK/payload/$1.json"; }
 declare -A T_CELLS=() T_BASE2=() T_BRANCH2=() T_LOST=() T_GAINED=()
 LOST=0
 report_cell() { # <label> <target> <index> <mask>
-  local label=$1 b r
+  local label=$1 b r tokens
   b=$(result base "$2" "$3" "$4")
   r=$(result branch "$2" "$3" "$4")
   T_CELLS[$label]=$((${T_CELLS[$label]:-0} + 1))
   [[ "$b" == 2 ]] && T_BASE2[$label]=$((${T_BASE2[$label]:-0} + 1))
   [[ "$r" == 2 ]] && T_BRANCH2[$label]=$((${T_BRANCH2[$label]:-0} + 1))
-  local tokens
   tokens=$(mask_tokens "$4")
   if [[ "$b" == 2 && "$r" != 2 ]]; then
     T_LOST[$label]=$((${T_LOST[$label]:-0} + 1))
@@ -342,8 +346,7 @@ for target in "${CONSUMERS[@]}" row; do
 done
 label="block-dangerous-git, $NMASK token subsets"
 LABELS+=("$label")
-for ((i = 0; i < N; i++)); do
-  [[ "$(result base block-dangerous-git "$i" 0)" == 2 ]] || continue
+for i in ${REFUSED[@]+"${REFUSED[@]}"}; do
   for ((m = 1; m <= NMASK; m++)); do report_cell "$label" block-dangerous-git "$i" "$m"; done
 done
 

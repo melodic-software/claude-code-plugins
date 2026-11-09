@@ -228,10 +228,7 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
       }
     | . + { verdict: (
         if .state == "declined" then "declined"
-        else ([ (if .tp == 1 then "tp" else empty end),
-                (if .fn == 1 then "fn" else empty end),
-                (if .fp == 1 then "fp" else empty end),
-                (if .tn == 1 then "tn" else empty end) ] | join("+"))
+        else (. as $c | ["tp", "fn", "fp", "tn"] | map(select($c[.] == 1)) | join("+"))
         end) }
   ] as $cases
 

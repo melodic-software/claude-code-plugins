@@ -58,7 +58,7 @@ eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) |
 **Refuse before any spend** when it is longer than 24 characters, the longest length measured to
 work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is a shorter `<dir>`, as in Run step 3.
 
-Preflight removes nothing and blocks on neither `leftover_sandboxes` nor `tmp_free`. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on neither `leftover_sandboxes` nor `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)). Report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is

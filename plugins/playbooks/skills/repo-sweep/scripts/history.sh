@@ -31,16 +31,17 @@ trap 'rm -rf "$tmp"' EXIT
 bash "$dir/catalog.sh" "$1" >"$tmp/rows"
 
 # Last-run lines, "<skill>@<version>", newest and highest-priority source first.
+: >"$tmp/partial"
 if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 1000 \
   --json headRefName,body,mergedAt,isCrossRepository 2>/dev/null); then
-  : >"$tmp/partial"
   jq -r '[.[] | select((.isCrossRepository | not) and (.headRefName | startswith("chore/repo-sweep-")))]
     | sort_by(.mergedAt) | reverse | .[].body' <<<"$prs" | awk '
     { sub(/\r$/, "") }
     /^<!-- repo-sweep:begin / { inb = 1; next }
     /^<!-- repo-sweep:end -->/ { inb = 0; next }
     inb && /^- \[[xX]\] / {
-      if (substr($0, index($0, ": ") + 2) ~ /^not applicable: / || $0 ~ /, not applicable: /) next
+      tail = substr($0, index($0, ": ") + 2)
+      if (tail ~ /^not applicable: / || $0 ~ /, not applicable: /) next
       rest = substr($0, 7); i = index(rest, ": ")
       if (i) {
         eid = substr(rest, 1, i - 1)
@@ -49,13 +50,12 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
           if ($0 ~ /partial coverage:/) print eid > partialf
         }
       }
-      n = split(substr($0, index($0, ": ") + 2), t, /, */)
+      n = split(tail, t, /, */)
       for (i = 1; i <= n; i++) if (t[i] ~ /^[^ @]+@[^ @]+$/) print t[i]
     }' partialf="$tmp/partial" >"$tmp/last"
 else
   printf 'history.sh: gh unavailable or unauthenticated; using commit trailers only\n' >&2
   : >"$tmp/last"
-  : >"$tmp/partial"
 fi
 ref=HEAD
 git rev-parse -q --verify origin/HEAD >/dev/null && ref=origin/HEAD

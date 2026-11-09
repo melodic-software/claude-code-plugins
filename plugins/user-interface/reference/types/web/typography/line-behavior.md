@@ -6,12 +6,13 @@ characters belong in them. The rules these explain are in `../typography.md` "Li
 
 ## Measure
 
-The measure is the character count per line, and it has a comfort zone: roughly 45-75 characters
-for sustained reading, with the mid-60s as the classic target. Beyond it, the eye struggles to
-track back and find the next line's start; far below it, reading turns choppy.
+The measure is the character count per line, and it has a comfort zone around
+`typography.measure_ch` characters for sustained reading. Far beyond it, the eye struggles to track
+back and find the next line's start; far below it, reading turns choppy.
 
-The direct way to state it is `max-width: 65ch`: the `ch` unit equals the width of the font's `0`,
-so it counts characters natively. A rem-based cap can land in the same zone; the unit is
+The direct way to state it is `max-width: {{typography.measure_ch}}ch`, filled as
+[`values.md`](../../../values.md) says: the `ch` unit equals the width of the font's `0`, so it
+counts characters natively. A rem-based cap can land in the same zone; the unit is
 unimportant so long as a cap exists, and it should be rechecked whenever the body size or family
 changes, since the same width holds a different character count in a different font.
 

@@ -84,19 +84,73 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `css.important` | `avoid` | `avoid`, `utilities-only`, `allow` |
 | `css.layer` | `null` (the project's own layer order) | a cascade layer name |
 | `css.token_fallback` | `ask` | `ask`, `propose-token`, `literal` |
-| `animation.easing.out`, `.in`, `.in_out`, `.drawer`; `animation.easing_library.out.*`, `.in_out.*` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
-| `animation.duration_ms.press`, `.small`, `.medium`, `.large`, `.page` | `160`, `200`, `250`, `300`, `400` | milliseconds |
+| `css.concentric_radius.max_gap_px` | `24` | px: the widest gap at which a nested radius is still derived from its parent's |
+| `css.border_px.hairline`, `.standard`, `.strong` | `0.5`, `1`, `2` | px: a high-density hairline, a standard border, an emphasis line |
+| `css.edge_fade.length` | `2rem` | a CSS length: the fade band on an overflowing scroller |
+| `css.edge_fade.stops_percent` | `10`, `90` | two percents: where that fade is full, start then end |
+| `css.focus_ring.offset_px` | `2` | px between an element and its focus ring |
+| `css.focus_ring.width` | `max(2px, 0.08em)` | a CSS length: the focus ring's width |
+| `css.image_outline.opacity` | `0.1` | 0 to 1: the outline around an image |
+| `animation.easing.out`, `.in`, `.in_out`, `.drawer`, `.spring_stand_in`; `animation.easing_library.out.*`, `.in_out.*` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
+| `animation.duration_ms.press`, `.hover`, `.small`, `.medium`, `.large`, `.page` | `160`, `150`, `200`, `250`, `300`, `400` | milliseconds: the value a recipe writes for the role, and the longest the role allows |
 | `animation.duration_ms.exit_factor` | `0.8` | the longest an exit runs, as a fraction of its entrance |
-| `animation.scale.press` | `0.97` | the scale a pressable element takes while pressed, 0 to 1 |
-| `animation.stagger_ms.interval`, `.max_total` | `40`, `400` | milliseconds between items, and for the group |
-| `animation.blur_max_px` | `20` | px, a heuristic ceiling for an animated blur |
+| `animation.delay_ms.group_warm`, `.tooltip`, `.indicator` | `300`, `200`, `150` | milliseconds: a group staying warm after it closes, and the wait before a first tooltip or a loading indicator shows |
+| `animation.scale.press`, `.press_min`, `.enter`, `.enter_small`, `.swap_start` | `0.97`, `0.95`, `0.95`, `0.97`, `0.3` | 0 to 1: a pressed element, the lower limit `/user-interface:audit` reports a press scale below, an entering surface, a small entering element, an icon swapping in |
+| `animation.scale.hover_max` | `1.02` | at least 1: the largest scale a hovered element takes |
+| `animation.stagger_ms.interval`, `.max_total`, `.section`, `.word` | `40`, `400`, `100`, `80` | milliseconds between items, for the group, between a section's large pieces, and between a headline's words |
+| `animation.travel_px.small`, `.medium`, `.large` | `4`, `8`, `16` | px a surface travels: a nudge, a short rise or exit, an arrival from its edge |
+| `animation.blur_max_px` | `20` | px, the largest blur an animated element takes |
+| `animation.blur_px.soften` | `2` | px, a small blur that softens a transition |
+| `animation.spring.bounce.default`, `.playful_max` | `0`, `0.3` | 0 to 1: default motion, and the most a playful interaction takes |
+| `animation.spring.duration_s.default`, `.small` | `0.5`, `0.35` | seconds: the default spring, and a small element's |
+| `animation.spring.response_s` | `0.3`, `0.4` | two numbers in seconds, low then high, for stacks that take damping and response |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
 | `animation.gesture.distance_threshold` | `0.4` | Fraction of its own travel, 0 to 1, past which a dragged element dismisses on release |
+| `animation.gesture.deceleration_rate`, `.rubberband_constant`, `.slop_px` | `0.998`, `0.55`, `10` | momentum projection after a flick, resistance past an edge, and px of travel before a drag commits |
+| `animation.inspect_playback_rate` | `0.1` | 0 to 1: the slowed playback for checking motion by eye |
+| `animation.skip_frequency` | `100` | uses per day above which an action takes no animation |
 | `animation.cleanup_order` | `removal`, `review`, `performance` | a list of `removal`, `review`, `opportunities`, `performance`: the passes `/user-interface:audit cleanup` runs, in order |
+| `color.border.dark_solid_l`, `.light_alpha` | `0.285`, `0.08` | 0 to 1: a solid border's OKLCH lightness in a dark theme, a translucent border's alpha in a light one |
+| `color.dark_mode.brand_desaturation_percent` | `20`, `30` | two percents, low then high: how far a brand color is pulled back for a dark theme |
+| `color.hover_mix_percent` | `15` | percent of black mixed into a base color for its hover shade |
+| `color.illustration_max_colors` | `3` | the most colors an illustration uses |
+| `color.overlay_alpha` | `0.2` | 0 to 1: a translucent fill on a small control |
+| `color.ramp.chroma_percent` | `30`, `85` | two percents of the sRGB chroma ceiling: at the ramp's ends, at its peak |
+| `color.ramp.endpoints_l` | `0.97`, `0.22` | two OKLCH lightnesses: the lightest step, the darkest step |
+| `color.ramp.hue_spread_max_deg` | `10` | degrees: the largest hue spread across a ramp |
+| `color.subtle_mix_percent` | `12` | percent of a base color in a subtle tint |
+| `color.triage.light_surface_min_l` | `0.6` | OKLCH lightness above which a surface reads as light |
+| `color.triage.near_black_l` | `0.25`, `0.75`, `0.3` | three lightnesses: a near-black surface's highest, the lowest for text on it, the bottom of the mid-tone band |
+| `color.triage.near_white_l` | `0.85`, `0.45` | two lightnesses: a near-white surface's lowest, the highest for text on it |
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
+| `icon.filled_below_px` | `12` | px under which an outline icon swaps to filled |
+| `icon.label_gap_px` | `6`, `8` | two numbers in px, low then high: the gap between an icon and its label |
+| `icon.size_em` | `1` | em: an icon sized by the text beside it |
+| `icon.size_px` | `12`, `16`, `20`, `24`, `48` | five sizes in px an icon is drawn at, smallest first |
+| `layout.breakout_width`, `.content_width`, `.grid_track_min_width` | `80rem`, `1200px`, `16rem` | CSS lengths: the content grid's wide track, the content cap, an intrinsic grid's smallest track |
+| `layout.media_aspect_ratio`, `.media_small`, `.panel_max_height` | `16 / 9`, `3.5rem`, `80dvh` | CSS values: an image box's ratio, a small media box, a scrolling panel's height limit |
+| `layout.sidebar_width` | `20rem`, `50%` | two CSS values: a sidebar's ideal width, and the container share at which it stacks |
+| `layout.simple_page_columns`, `.terminal_min_columns`, `.z_index_stray_above` | `8`, `80`, `100` | a simple page's column count, the narrowest terminal in columns, the z-index above which a stray value is a finding |
+| `performance.image_max_kb`, `.search_debounce_ms`, `.virtualize_min_items` | `300`, `300`, `50` | the photo weight an audit flags, a search request's debounce, the list length past which a list is virtualized |
+| `radius.s`, `.l` | `4px`, `1.25rem` | CSS lengths: small and large corner radii |
+| `spacing.xs`, `.s`, `.m`, `.l` | `0.5rem`, `1rem`, `1.5rem`, `2rem` | CSS lengths: the spacing steps |
 | `spacing.control_padding` | `0.75rem`, `1.25rem` | two CSS lengths: a control's block and inline padding |
+| `spacing.flow` | `1lh`, `2em`, `0.5em` | three CSS lengths: between paragraphs, before a heading, after a heading |
+| `spacing.optical_icon_px` | `2` | px: a small optical correction beside an icon |
+| `spacing.section` | `clamp(3rem, 1rem + 6vw, 8rem)`, `6rem` | two CSS lengths: a page section's fluid vertical padding, and its fallback |
+| `states.copy_confirm_ms`, `.wait_indicator_ms` | `1500`, `400` | milliseconds: a copy confirmation's stay, and the wait past which an indicator must show |
+| `states.toast_reading_wpm` | `200`, `250` | two reading speeds in words per minute, low then high, a toast's duration is computed from |
 | `typography.long_form_body_px` | `18` | px, at least `16`: long-form reading text, written in `rem` |
+| `typography.fluid_body.min_rem`, `.preferred_rem`, `.preferred_vw`, `.max_rem` | `1`, `0.75`, `1`, `1.75` | a fluid body size's clamp parts; `min_rem` at least `1` |
+| `typography.fluid_scale.narrow_rem`, `.wide_rem`, `.size_narrow_rem`, `.size_wide_rem`, `.ratio_narrow`, `.ratio_wide`, `.space_m_factor`, `.space_l_factor` | `20`, `77.5`, `1.125`, `1.25`, `1.2`, `1.25`, `1.5`, `2` | a fluid type and space scale's inputs; `size_narrow_rem` at least `1` |
+| `typography.fluid_max_ratio` | `2.5` | the most a fluid font size's maximum may be as a multiple of its minimum |
+| `typography.line_height.body` | `1.5`, `1.6` | two numbers, low then high: reading text's leading |
+| `typography.line_height.display` | `1.1` | display text and headings' leading |
+| `typography.measure_ch` | `65` | ch: the reading column's width |
+| `typography.small_text_px.caption`, `.control`, `.min` | `13`, `14`, `12` | px: captions, controls, the lowest size without a stated reason |
 | `touch.both_axes_activation` | `tap-to-activate` | `tap-to-activate`, `always-active`: whether a touch element that needs both axes waits for a tap before it takes gestures |
+| `touch.check_width_px`, `.fixed_width_hunt_px` | `375`, `340` | px: the narrow width a page is checked at, and the width above which a fixed width is a finding |
+| `touch.target_desktop_px` | `40` | px, at least `24`: the hit area on a fine-pointer desktop |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its

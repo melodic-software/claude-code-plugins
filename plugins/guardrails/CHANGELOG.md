@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.10] - 2026-11-09
+
+### Fixed
+
+- The descriptor-leak check in the root-delete guard's resolver test compares the descriptor set of a subshell it owns, so a descriptor another case still has open in the test shell no longer fails it, and a descriptor `rdt_bounded_to` leaves in (or takes from) its caller still does.
+
+## [3.0.9] - 2026-11-09
+
+### Fixed
+
+- `/guardrails:setup check` now reports a `shfmt` row and fails it when the shfmt the Bash guards
+  read commands through is missing or older than the floor in `prerequisites.json`, naming the
+  version found, the floor and the upgrade. An older shfmt can read some commands differently and
+  let them through.
+
 ## [3.0.8] - 2026-11-09
 
 ### Fixed

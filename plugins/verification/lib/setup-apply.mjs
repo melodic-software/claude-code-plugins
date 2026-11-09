@@ -287,6 +287,9 @@ function parseArgs(argv, withRef, withDefault) {
 // A quoted boolean or number is a string, so it is not allowed; a quoted
 // listed string is; a plain true or 5 is not a string.
 const isObject = (spec) => spec.type === "object";
+// A map or list key is never written from the command line or recorded in
+// provenance; the file holds it as the team wrote it.
+const isCollection = (spec) => spec.type === "object" || spec.type === "array";
 const isNull = (raw) => /^(null|Null|NULL|~)$/.test(raw);
 const plainNonString = (raw) =>
   isNull(raw) ||
@@ -323,7 +326,81 @@ function allowedText(spec) {
     return rules.length ? `a string of ${rules.join(", ")}` : "a string";
   }
   if (isObject(spec)) return "a block map";
+  if (spec.type === "array" && checksData(spec)) {
+    const item = spec.items === undefined ? null : spec.items.type === "object" ? "maps" : allowedText(spec.items);
+    return item ? `a block list of ${item}` : "a block list";
+  }
   return null;
+}
+
+// validateData(spec, value, path) checks a parsed value (yaml-subset.mjs parse,
+// or JSON.parse) against the structural keywords in DATA_KEYWORDS and returns
+// one message per problem, each naming its dotted path. checksData(spec) is
+// false when spec, at any depth, uses another keyword, an unknown type or a
+// pattern that does not compile: such a spec is reported unchecked, never
+// passed. Quoting and plain-scalar rules read the file's text, so they stay in
+// checkValue.
+const DATA_KEYWORDS = new Set([
+  "type", "items", "properties", "additionalProperties", "required", "enum", "pattern",
+  "minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems", "minProperties", "propertyNames",
+]);
+const ANNOTATIONS = new Set(["description", "default", "title", "examples", "$comment", "markdownDescription", "deprecated"]);
+const DATA_TYPES = new Set(["string", "integer", "number", "boolean", "object", "array", "null"]);
+const plainMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+export function checksData(spec) {
+  if (typeof spec === "boolean") return true;
+  if (!plainMap(spec)) return false;
+  if (spec.type !== undefined && !DATA_TYPES.has(spec.type)) return false;
+  for (const [k, v] of Object.entries(spec)) {
+    if (ANNOTATIONS.has(k)) continue;
+    if (!DATA_KEYWORDS.has(k)) return false;
+    if ((k === "items" || k === "propertyNames" || k === "additionalProperties") && !checksData(v)) return false;
+    if (k === "properties" && !(plainMap(v) && Object.values(v).every(checksData))) return false;
+    if (k === "pattern" && (typeof v !== "string" || patternOf(spec) === null)) return false;
+  }
+  return true;
+}
+const dataType = (v) =>
+  v === null ? "null" : Array.isArray(v) ? "a list" : plainMap(v) ? "a map" : Number.isInteger(v) ? "a whole number" : typeof v === "number" ? "a number" : `a ${typeof v}`;
+const fitsType = (type, v) =>
+  type === "null" ? v === null
+  : type === "array" ? Array.isArray(v)
+  : type === "object" ? plainMap(v)
+  : type === "integer" ? Number.isInteger(v)
+  : typeof v === type;
+const TYPE_WORDS = { string: "a string", integer: "a whole number", number: "a number", boolean: "true or false", object: "a map", array: "a list", null: "null" };
+export function validateData(spec, value, path) {
+  const out = [];
+  const walk = (s, v, p) => {
+    if (s === true) return;
+    if (s === false) return void out.push(`${p} is not in the schema`);
+    if (s.type !== undefined && !fitsType(s.type, v)) return void out.push(`${p} is ${dataType(v)}; it takes ${TYPE_WORDS[s.type]}`);
+    if (Array.isArray(s.enum) && !s.enum.includes(v)) return void out.push(`${p}=${JSON.stringify(v)} is not one of ${s.enum.join(", ")}`);
+    if (typeof v === "string") {
+      const length = [...v].length;
+      if (length < (s.minLength ?? 0)) out.push(`${p} is shorter than ${s.minLength} character${s.minLength === 1 ? "" : "s"}`);
+      if (s.maxLength !== undefined && length > s.maxLength) out.push(`${p} is longer than ${s.maxLength} characters`);
+      if (s.pattern !== undefined && patternOf(s)?.test(v) !== true) out.push(`${p}=${JSON.stringify(v)} does not match ${s.pattern}`);
+    } else if (typeof v === "number") {
+      if (s.minimum !== undefined && v < s.minimum) out.push(`${p}=${v} is below ${s.minimum}`);
+      if (s.maximum !== undefined && v > s.maximum) out.push(`${p}=${v} is above ${s.maximum}`);
+    } else if (Array.isArray(v)) {
+      if (v.length < (s.minItems ?? 0)) out.push(`${p} holds ${v.length} item${v.length === 1 ? "" : "s"}; it takes at least ${s.minItems}`);
+      if (s.maxItems !== undefined && v.length > s.maxItems) out.push(`${p} holds ${v.length} items; it takes at most ${s.maxItems}`);
+      if (s.items !== undefined) v.forEach((item, i) => walk(s.items, item, `${p}.${i}`));
+    } else if (plainMap(v)) {
+      const keys = Object.keys(v);
+      if (keys.length < (s.minProperties ?? 0)) out.push(`${p} holds ${keys.length} key${keys.length === 1 ? "" : "s"}; it takes at least ${s.minProperties}`);
+      for (const k of s.required ?? []) if (!Object.hasOwn(v, k)) out.push(`${p}.${k} is required`);
+      for (const k of keys) {
+        if (s.propertyNames !== undefined) walk(s.propertyNames, k, `${p} key ${JSON.stringify(k)}`);
+        const sub = Object.hasOwn(s.properties ?? {}, k) ? s.properties[k] : (s.additionalProperties ?? true);
+        walk(sub, v[k], `${p}.${k}`);
+      }
+    }
+  };
+  walk(spec, value, path);
+  return out;
 }
 function allows(spec, raw, value) {
   if (Array.isArray(spec.enum)) return spec.enum.includes(raw.replace(/^(["'])(.*)\1$/, "$2"));
@@ -451,8 +528,17 @@ function blockTree(text) {
 
 // checkValue reports each problem with the value at path against spec through
 // report(msg, fixable), recursing into an object's keys. valueAt(path) is the
-// parsed string at a dotted path, "" when none.
-function checkValue(path, spec, node, valueAt, report) {
+// parsed string at a dotted path, "" when none; dataAt(path) is the typed
+// value there, read by yaml-subset.mjs parse, undefined when the document did
+// not parse that way. A list is checked from dataAt, since the line tree reads
+// nothing under a sequence item.
+function checkValue(path, spec, node, valueAt, dataAt, report) {
+  if (spec.type === "array" && checksData(spec)) {
+    const value = dataAt(path);
+    if (value === undefined) report(`${path} could not be read as typed data; check its quoting and indentation`);
+    else for (const msg of validateData(spec, value, path)) report(msg);
+    return;
+  }
   const values = allowedText(spec);
   const { raw } = node;
   if (values === null) {
@@ -467,10 +553,12 @@ function checkValue(path, spec, node, valueAt, report) {
     else if (!node.keys.size) report(`${path} is empty; it takes ${values}`);
     else {
       for (const k of node.dup) report(`${path}.${k} is set more than once`);
+      for (const k of spec.required ?? []) if (!node.keys.has(k)) report(`${path}.${k} is required`);
       for (const [k, child] of node.keys) {
+        if (spec.propertyNames !== undefined) for (const msg of validateData(spec.propertyNames, k, `${path} key ${JSON.stringify(k)}`)) report(msg);
         const sub = Object.hasOwn(spec.properties ?? {}, k) ? spec.properties[k] : (spec.additionalProperties ?? true);
         if (sub === false) report(`${path}.${k} is not in the schema`);
-        else if (sub !== true) checkValue(`${path}.${k}`, sub, child, valueAt, report);
+        else if (sub !== true) checkValue(`${path}.${k}`, sub, child, valueAt, dataAt, report);
       }
     }
     return;
@@ -667,6 +755,20 @@ function validate(text, { keys, exactKeyNames = false, schemaKey = false, record
   const { records } = parsed;
   const parsedValues = new Map(records.map((r) => [r.path, r.value]));
   const valueAt = (path) => parsedValues.get(path) ?? "";
+  let data;
+  try {
+    data = parse(text);
+  } catch {
+    data = undefined;
+  }
+  const dataAt = (path) => {
+    let v = data;
+    for (const step of path.split(".")) {
+      if (!plainMap(v) && !Array.isArray(v)) return undefined;
+      v = Object.hasOwn(v, step) ? v[step] : undefined;
+    }
+    return v;
+  };
   const tree = blockTree(text);
   const tops = topLevelLines(text);
   const problems = [];
@@ -695,7 +797,7 @@ function validate(text, { keys, exactKeyNames = false, schemaKey = false, record
     const node = tree.keys.get(k);
     if (!node) continue;
     // Apply writes only a top-level scalar, so only a problem there is fixable.
-    checkValue(k, spec, node, valueAt, (msg, fixable = false) => add("value", msg, k, fixable && !isObject(spec)));
+    checkValue(k, spec, node, valueAt, dataAt, (msg, fixable = false) => add("value", msg, k, fixable && !isCollection(spec)));
   }
   // The provenance keys: one version string, and a block map of one entry per
   // schema key. An entry for a key the schema no longer has is a warning. A
@@ -852,7 +954,7 @@ function main(config, argv) {
     const scalars = topScalars(text);
     for (const [k, spec] of Object.entries(keys)) {
       const now = defaultText(spec);
-      if (now === null || isObject(spec) || !scalars.has(k)) continue;
+      if (now === null || isCollection(spec) || !scalars.has(k)) continue;
       const { source, seen } = rec.entries.get(k) ?? { source: "chosen", seen: null };
       const value = scalars.get(k);
       if (source === "default" && value !== now) out.stale.push({ k, from: value, to: now });
@@ -1200,7 +1302,7 @@ function main(config, argv) {
     if (!Object.hasOwn(keys, k)) return { error: `${k} is not a key of ${rel} (keys: ${Object.keys(keys).join(", ")})` };
     const spec = keys[k];
     const values = allowedText(spec);
-    if (values === null || isObject(spec)) {
+    if (values === null || isCollection(spec)) {
       return { error: `${k} takes ${values ?? "a value setup-apply does not check"} and is not set from the command line; edit ${rel} by hand` };
     }
     const control = [...v].some((c) => {
@@ -1229,7 +1331,7 @@ function main(config, argv) {
     const spec = keys[k];
     const value = defaultText(spec);
     const w = value === null ? "" : written(spec, value);
-    if (value === null || allowedText(spec) === null || isObject(spec) || !allows(spec, w, value)) {
+    if (value === null || allowedText(spec) === null || isCollection(spec) || !allows(spec, w, value)) {
       refuse(`${k} has no plugin default --default can write; nothing written`);
     }
     defaulted.set(k, { written: w, value });
@@ -1279,7 +1381,7 @@ function main(config, argv) {
     const scalars = new Map(records.filter((r) => !r.nested).map((r) => [r.top, r.value]));
     const value = (k) => {
       if (!present.has(k)) return null;
-      if (isObject(keys[k])) return leaves(k);
+      if (isCollection(keys[k])) return leaves(k);
       const parsed = scalars.get(k) ?? "";
       if (parsed === "" || parsed.trim() !== parsed) return JSON.stringify(parsed);
       return spawnSync("bash", [config.reader, "-", k], { cwd: HERE, input: existing, encoding: "utf8" }).stdout.trim();
@@ -1393,7 +1495,7 @@ function main(config, argv) {
   const sourceOf = (k) =>
     defaulted.has(k) ? "default" : wanted.has(k) ? "chosen" : carried.has(k) ? carried.get(k).source : (rec.entries.get(k)?.source ?? "chosen");
   const entries = Object.keys(keys)
-    .filter((k) => held.has(k) && !isObject(keys[k]) && allowedText(keys[k]) !== null)
+    .filter((k) => held.has(k) && !isCollection(keys[k]) && allowedText(keys[k]) !== null)
     .map((k) => `  ${k}: ${sourceText(sourceOf(k), defaultText(keys[k]))}`);
   const block = against === null ? [] : [`${PROVENANCE}:`, ...entries];
 

@@ -39,7 +39,9 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { claimsSecurity, createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SEVERITY_SHAPED, SHA } from "./address-feedback.mjs";
+import { claimsSecurity, contractIssues, createGitHubApi, FINDING_STANDS, linkedSpec, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SEVERITY_SHAPED, SHA } from "./address-feedback.mjs";
+
+export { contractIssues };
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -491,20 +493,6 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
   return { count: index.length, over };
 }
 
-// The linked issues' spec text as contract.json stages it: each issue's URL,
-// its body when trusted people wrote it, and its trusted comments, all as
-// resolve-pr.mjs linkedIssues returns them (`specText`).
-export function contractIssues(specText, repository) {
-  return (Array.isArray(specText) ? specText : [])
-    .filter((issue) => Number.isSafeInteger(issue?.number) && issue.number > 0)
-    .map((issue) => ({
-      number: issue.number,
-      url: `https://github.com/${repository}/issues/${issue.number}`,
-      body: typeof issue.body === "string" ? issue.body : null,
-      comments: (Array.isArray(issue.comments) ? issue.comments : []).filter((comment) => typeof comment === "string"),
-    }));
-}
-
 // The URL of the staged issue whose text holds `quote` exactly, or null.
 export function quoteSource(quote, issues) {
   if (typeof quote !== "string" || quote.trim().length < QUOTE_MIN) {
@@ -933,30 +921,6 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
     }
   }
   return { escalationReason: reason, skipReason: (stands || deferred) && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };
-}
-
-// The linked issues' spec text trusted people wrote, as pr-verify reads it
-// (resolve-pr.mjs linkedIssues): [] when PR_NUMBER is unset or the read
-// fails, so no quote can settle a question and it stays a person's. Loaded
-// here, from the full base checkout, for the reason request-budget.mjs is.
-async function linkedSpec(env, log) {
-  if (!/^[1-9][0-9]*$/.test(env.PR_NUMBER ?? "")) {
-    return [];
-  }
-  try {
-    const { linkedIssues } = await import("../pr-verify/resolve-pr.mjs");
-    const { createGitHub, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
-    const { loadRules } = await import("../intake-triage/admit.mjs");
-    const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH || ".base/.github/standards/trusted-actors/trusted-actors.json");
-    const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, keepGraphQLErrors });
-    const identity = String(env.LANE_IDENTITY ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
-    const taskList = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
-    const { specText } = await linkedIssues(api(false), api(true), env.GITHUB_REPOSITORY, Number(env.PR_NUMBER), trusted.humans, identity ? trusted.logins.get(`${identity}[bot]`) : undefined, taskList);
-    return specText;
-  } catch (error) {
-    log(`::warning::cannot read the linked issues' spec text (${String(error?.message ?? error).slice(0, 300)}); no question settles by quote this round`);
-    return [];
-  }
 }
 
 export async function main(argv, env, { api, readContract, log = (line) => console.log(line) } = {}) {

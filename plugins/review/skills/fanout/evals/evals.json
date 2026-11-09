@@ -638,7 +638,7 @@
       "narration": true,
       "expectations": [
         "Reports the line `fanout_diversity: codex (docs/conventions/review.yaml)`",
-        "Runs skills/fanout/scripts/codex-review.sh with --base origin/main, and again with --adversarial, rather than invoking /codex:review",
+        "Runs scripts/codex-review.sh with --base origin/main, and again with --adversarial, rather than invoking /codex:review",
         "Reports the line `panel: codex ran`",
         "Launches the review:fanout-sweep workflow with args.diversity \"lens\", not \"model\" or \"codex\"",
         "Lists Codex under the ## Surfaces Ran entry"

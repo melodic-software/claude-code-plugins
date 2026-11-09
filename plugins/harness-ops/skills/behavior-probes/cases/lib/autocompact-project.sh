@@ -16,5 +16,5 @@ else
     exit 2
   }
   printf '{\n  "autoCompactWindow": %s,\n  "modelSettings": {\n    "%s": { "autoCompactWindow": %s }\n  }\n}\n' \
-    "$window" "${PROBE_MODEL:?set by probe.py}" "$model_window" >"$d/.claude/settings.json"
+    "$window" "$PROBE_MODEL" "$model_window" >"$d/.claude/settings.json"
 fi

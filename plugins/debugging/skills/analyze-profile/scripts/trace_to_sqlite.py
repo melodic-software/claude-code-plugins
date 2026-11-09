@@ -182,13 +182,14 @@ def load_chrome_trace(con, data):
             event.get("tid"),
             json.dumps(clean_tree(args)) if args is not None else None,
         )
+        if event.get("name") not in ("Profile", "ProfileChunk"):
+            continue
+        key = f"{event.get('pid')}:{event.get('id')}"
+        payload = (args or {}).get("data") or {}
         if event.get("name") == "Profile":
-            data = (args or {}).get("data") or {}
-            starts[f"{event.get('pid')}:{event.get('id')}"] = data.get("startTime")
-        if event.get("name") == "ProfileChunk":
-            payload = (args or {}).get("data") or {}
+            starts[key] = payload.get("startTime")
+        else:
             cpu = payload.get("cpuProfile") or {}
-            key = f"{event.get('pid')}:{event.get('id')}"
             chunk = chunks.setdefault(key, {"nodes": [], "samples": [], "deltas": []})
             chunk["nodes"] += cpu.get("nodes") or []
             chunk["samples"] += cpu.get("samples") or []
@@ -324,13 +325,11 @@ def main(argv=None):
     parser.add_argument("--out", required=True, type=Path, help="SQLite file to create")
     parser.add_argument("--format", default="auto", choices=("auto", *FORMATS))
     args = parser.parse_args(argv)
-    if not args.src.is_file():
-        print(f"trace_to_sqlite: input not found: {args.src}", file=sys.stderr)
-        return 2
-    if args.out.exists():
-        print(f"trace_to_sqlite: refusing to overwrite {args.out}", file=sys.stderr)
-        return 2
     try:
+        if not args.src.is_file():
+            raise InputError(f"input not found: {args.src}")
+        if args.out.exists():
+            raise InputError(f"refusing to overwrite {args.out}")
         summary = convert(args.src, args.out, args.format)
     except (InputError, sqlite3.Error) as exc:
         print(f"trace_to_sqlite: {exc}", file=sys.stderr)

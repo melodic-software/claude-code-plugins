@@ -12,6 +12,8 @@
   /** A record's upload ids as the page's attachment list, and what a write sends of one (nothing for none). */
   const attOf = x => (x.attachments ? { att: x.attachments.map(id => ({ kind: "file", upload: id })) } : {});
   const withAtt = extra => (extra?.attachments?.length ? { attachments: extra.attachments } : {});
+  /** n random bytes as lowercase hex. */
+  const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, "0")).join("");
 
   // The guest secret lives under the prototype's key ("secret"), so a guest the import carried over
   // keeps their identity after the cutover reload. It leaves this browser only as a header.
@@ -92,6 +94,8 @@
   /** A pick's fields with the page's option ids turned back into the contract's. */
   const contractPick = f => ("option" in f ? { option: f.option ? optOut(f.option) : "" } : "options" in f ? { options: f.options.map(optOut) }
     : "order" in f ? { order: f.order.map(optOut) } : f);
+  /** A pick, picks or order that holds the person's own "Something else…" option. */
+  const isOther = c => c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
 
   // ---------- mentions: the server stores <@pid>; the page only ever shows and sends "@Name" ----------
   const TOKEN = /<@([A-Za-z0-9_-]{1,32})>/g;
@@ -197,13 +201,12 @@
           return { ...base, option: true, claude: false, name: "Option", text: o?.label || "", ts: 0, ...extra };
         }
         const d = details[qid]?.[c.ref], info = d?.deviceInfo;
-        // A person's own "Something else…" option: their pick, picks or order holds it, and their text is it.
-        const other = c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
+        // `other`: their pick, picks or order holds their own "Something else…" option, and their text is it.
         return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
           // C44: the files an answer or pick carries, each an upload the owner accepted.
           ...attOf(c),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
-          ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
+          ...(c.order ? { order: c.order.map(optIn) } : {}), ...(isOther(c) ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
           // Phase 4c: hidden by the owner (only its author and the owner get it), edited by the owner, and how many
           // earlier versions it has (the owner's snapshot only; Core.cardHistory fetches them).
@@ -385,6 +388,9 @@
     || (e?.status ? "The session refused that." : "The session is out of reach. Check your connection.");
 
   const OPPOSITE = { thumbs: "down", down: "thumbs" }; // one person never holds both on one answer
+  const ownRecord = a => a.cid === Core.me.cid && !a.claude && !a.option;
+  const afterTyping = p => p.then(r => { typingUntil = 0; return r; });
+  const shareBase = () => (Core.state.shareUrl || location.origin).replace(/\/$/, "");
   const Core = {
     /** A request about the whole session has no question: the page files it, and finds its results, under this key. */
     GENERAL: "session",
@@ -471,10 +477,10 @@
     answersFor: qid => Core.state.answers[qid] || [],
     /** My own answer record on qid: on a question asked once per device, this device's record only, so every read of
      *  my pick, text, cites and attachments is about the answer this device sends. */
-    myRecord: qid => { const d = scopeOf(qid).device; return Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option && (!d || a.device === d)); },
+    myRecord: qid => { const d = scopeOf(qid).device; return Core.answersFor(qid).find(a => ownRecord(a) && (!d || a.device === d)); },
     myAnswer: qid => Core.myRecord(qid)?.text || "",
     /** Follow-up 47: on a question asked once per device, the device kinds I answered from other than this one. */
-    myOtherDevices: qid => { const d = scopeOf(qid).device; return d ? [...new Set(Core.answersFor(qid).filter(a => a.cid === Core.me.cid && !a.claude && !a.option && a.device && a.device !== d).map(a => a.device))] : []; },
+    myOtherDevices: qid => { const d = scopeOf(qid).device; return d ? [...new Set(Core.answersFor(qid).filter(a => ownRecord(a) && a.device && a.device !== d).map(a => a.device))] : []; },
     thisDevice: () => deviceKind(),
     /** People here right now other than me, optionally on one question. */
     others: qid => Core.state.presence.filter(p => p.cid !== Core.me.cid && (qid == null || p.q === qid)),
@@ -537,8 +543,7 @@
     // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
     /** extra.attachments (C44), when given, replaces the upload ids the answer carries; left out, it keeps them. */
-    answerCiting: (qid, text, cites, extra) => act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where(), ...scopeOf(qid) })
-      .then(r => { typingUntil = 0; return r; }),
+    answerCiting: (qid, text, cites, extra) => afterTyping(act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where(), ...scopeOf(qid) })),
     /** Choice, confirm, prototype or poll question: pick an option ("" clears it), with an optional comment.
      *  Picking "other" (Something else…) needs opts.other, the person's own option, which takes the comment's place. */
     pick: (qid, option, comment, opts) => Core.pickWith(qid, { option: option || "" }, { comment, other: opts?.other }),
@@ -547,9 +552,9 @@
      *  `attachments`, when given, replaces the upload ids the pick carries (C44); left out, it keeps them. */
     pickWith: (qid, fields, { comment, other, attachments } = {}) => {
       const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where(), ...scopeOf(qid) };
-      return act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }).then(r => { typingUntil = 0; return r; });
+      return afterTyping(act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }));
     },
-    idea: (text, extra) => act("/api/propose", { text, ...withAtt(extra) }).then(r => { typingUntil = 0; return r; }),
+    idea: (text, extra) => afterTyping(act("/api/propose", { text, ...withAtt(extra) })),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
     vote: (qid, target, on) => {
       if ((Core.state.suggestions[qid] || []).some(s => s.id === target)) {
@@ -679,40 +684,22 @@
     editCard: (qid, target, text) => act("/api/card/edit", { qid, card: refOf(qid, target), text }),
     /** Owner: one answer's earlier versions (oldest first), or a cleared answer's last text and versions. */
     cardHistory: async (qid, target) => {
-      const r = await fetch(`/api/card/history?${new URLSearchParams({ qid, card: refOf(qid, target) })}`, { headers: ident() });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
+      const j = await getJson(`/api/card/history?${new URLSearchParams({ qid, card: refOf(qid, target) })}`);
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
       return { ...j, ...(j.text ? { text: Core.plain(j.text) } : {}), history: (j.history || []).map(v => ({ text: Core.plain(v.text), cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
     /** Owner: what the server log adds up to, as `share.sh logs --summary` gives it: {summary, sections: [{title, lines}]}. */
-    health: async () => {
-      const r = await fetch("/api/owner/health", { headers: ident() });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
-      return j;
-    },
+    health: () => getJson("/api/owner/health"),
     /** Report a problem: text, the page context (Core.reportContext) and up to four pictures, each a data: URL. */
     report: (text, ctx, images) => act("/api/report", { text, ctx, ...(images?.length ? { images } : {}) }),
-    /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
     /** The reporter: a line, a screenshot (a data: URL) or both added to their own report while it is not fixed. */
     addToReport: (id, text, image) => act("/api/report/add", { id, ...(text ? { text } : {}), ...(image ? { image } : {}) }),
     /** A received picture an answer, message, request, suggestion, proposal or comment I can see carries, as a data: URL. */
-    uploadImage: async id => {
-      const r = await fetch(`/api/upload/image?${new URLSearchParams({ id })}`, { headers: ident() });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
-      return j.image;
-    },
+    uploadImage: async id => (await getJson(`/api/upload/image?${new URLSearchParams({ id })}`)).image,
     /** Owner: one report's picture (its Nth sent with it, `pic`), or its Nth addition's, as a data: URL. */
-    reportImage: async (id, add, pic) => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}), ...(pic ? { pic } : {}) })}`, { headers: ident() });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
-      return j.image;
-    },
+    reportImage: async (id, add, pic) => (await getJson(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}), ...(pic ? { pic } : {}) })}`)).image,
     /** Owner: admit or decline one person waiting under Approve new joins. */
     joinAct: (pid, action) => act("/api/join/act", { pid, action }),
     /** Owner: "Why you're here" (empty removes it). */
@@ -802,14 +789,11 @@
     uploadChunk: (id, index, total, bytes, sha, whole) => spaced("/api/upload/chunk", async () => {
       const headers = { "Content-Type": "application/octet-stream", ...ident(), "X-Upload-Id": id, "X-Chunk-Index": String(index),
         "X-Chunk-Total": String(total), "X-Chunk-Sha256": sha, ...(whole ? { "X-File-Sha256": whole } : {}) };
-      const r = await fetch("/api/upload/chunk", { method: "POST", headers, body: bytes });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
-      return j;
+      return answered(await fetch("/api/upload/chunk", { method: "POST", headers, body: bytes }));
     }).then(async j => { await poll(); return j; }),
     /** A guest's link that signs them in on another device. It carries their secret: keep it private. The host signs
      *  in elsewhere with a one-time code instead, so the owner link stays where it was opened. */
-    personalLink: () => (secret && !ownerToken ? `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/#me=${secret}` : ""),
+    personalLink: () => (secret && !ownerToken ? `${shareBase()}/#me=${secret}` : ""),
     /** Q98: a note pinned to an element of one prototype variant. anchor is {selector, rect} from the pin helper. */
     annotate: (qid, variant, anchor, text) => act("/api/annotate", { qid, variant, anchor, text }),
     /** A page of this session, `params` in the fragment. It never holds a credential: a guest's secret stays in this
@@ -819,7 +803,7 @@
       return path + (h.toString() ? "#" + h : "");
     },
     /** The guest link to share: the tunnel base, plus the join key once the owner made a new guest link. */
-    guestLink: () => `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/${Core.state.guestKey ? "#join=" + Core.state.guestKey : ""}`,
+    guestLink: () => `${shareBase()}/${Core.state.guestKey ? "#join=" + Core.state.guestKey : ""}`,
   };
 
   // ---------- where an answer was made (Q99): the view, and the device, never more ----------
@@ -828,7 +812,7 @@
   const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (Math.min(screen.width, screen.height) < 600 ? "phone" : "tablet") : "computer");
   const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
   /** A question asked once per device (answerScope device) takes the device kind with each answer and pick. */
-  const scopeOf = qid => (Core.state.questions.find(q => q.id === qid)?.answerScope === "device" ? { device: deviceKind() } : {});
+  const scopeOf = qid => (qOf(Core.state.questions, qid)?.answerScope === "device" ? { device: deviceKind() } : {});
   /** Follow-up 45: {app, open}, the social app whose built-in browser shows this page and the browser to open it in
    *  instead; null in any other browser. */
   Core.inApp = () => {
@@ -843,8 +827,16 @@
       screen: { w: Math.round(innerWidth), h: Math.round(innerHeight) } } };
   }
 
-  const json = body => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const json = (body, headers) => ({ method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
   const ident = () => (ownerToken ? { "X-Owner-Token": ownerToken } : secret ? { "X-Session-Secret": secret } : {});
+  /** The server's JSON answer, or a rejection with {status, ...that answer} when it refused. */
+  async function answered(r) {
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw { status: r.status, ...j };
+    return j;
+  }
+  /** GET as me. */
+  async function getJson(url) { return answered(await fetch(url, { headers: ident() })); }
 
   // The owner following a link to another page of this session (pageLink): the token goes in the fragment of the
   // address opened, never in the link, and a new tab gets no handle on this one. A plain click on a link within this
@@ -867,9 +859,7 @@
   /** Get a fresh {pid, secret}. Concurrent callers share one request. The owner never joins: the link is the identity. */
   function join(name = Core.me.name) {
     const req = json({ name: name || "", key: joinKey, device: deviceKind(), browser: browserKind() });
-    return joining ||= fetch("/api/join", req).then(async r => {
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
+    return joining ||= fetch("/api/join", req).then(answered).then(j => {
       secret = j.secret; Core.me.cid = j.pid;
       put("secret", secret); put("pid", j.pid);
       // the server makes a name unique ("Ivy 2"): the page says so, so nobody is renamed silently
@@ -907,7 +897,7 @@
     return spaced(path, async () => {
       if (!ownerToken && !secret && merged) throw { status: 401, error: "merged-into-owner" };
       if (!ownerToken && !secret) await join();
-      const go = () => fetch(path, { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body) });
+      const go = () => fetch(path, json(body, ident()));
       let r;
       try {
         r = await go();
@@ -935,9 +925,7 @@
     if (!local) throw { error: "no-site-data" };
     redeeming = true;
     try {
-      const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw { status: r.status, ...j };
+      const j = await answered(await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() })));
       put("ownerDevice", j.token); put("ownerDeviceId", j.id); drop("signedOut");
     } catch (x) { redeeming = false; throw x; }
     location.reload();
@@ -972,7 +960,7 @@
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
     seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
-    pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
+    pv: hex(4), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
   const joined = () => !!(ownerToken || secret);
@@ -981,7 +969,7 @@
   const fnv = text => { let h = 0x811c9dc5; for (const c of text) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16).padStart(8, "0"); };
   function post(body) {
     if (!joined()) return Promise.reject(new Error("not sent"));
-    return fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true })
+    return fetch("/api/client-log", { ...json(body, ident()), keepalive: true })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); });
   }
   function noteError(kind, code, message) {
@@ -1267,7 +1255,6 @@
       for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
     }
   }
-  const isOther = c => c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
   /** My pick on qid as /api/pick takes it (contract option ids), the way session.py pick writes my card and vote. */
   function patchPick(s, pid, qid, body) {
     const kind = fmtOf(s, qid).kind, cards = cardsOf(s, qid), device = body.device;
@@ -1310,9 +1297,7 @@
     if (below) held.linked.add(below);
   }
   async function chatPage(query) {
-    const r = await fetch(`/api/chat?${new URLSearchParams(query)}`, { headers: ident() });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw { status: r.status, ...j };
+    const j = await getJson(`/api/chat?${new URLSearchParams(query)}`);
     Object.assign(held.files, j.files || {});
     return j;
   }
@@ -1463,7 +1448,7 @@
       settle(seq);
       Core.state = view();
       Core.me.cid = s.me.pid; Core.me.name = s.me.name;
-      Core.me.isOwner = s.me.role === "owner"; Core.me.isLeader = s.me.role === "leader"; Core.me.isTrusted = !!s.me.trusted;
+      takeRole(s.me);
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }
     } catch { /* offline: the live dot says so */ } finally {
       Core.live = Date.now() - lastOk < 5000;
@@ -1471,6 +1456,7 @@
     }
   }
   Core.snapshot = () => snap;
+  function takeRole({ role, trusted }) { Core.me.isOwner = role === "owner"; Core.me.isLeader = role === "leader"; Core.me.isTrusted = !!trusted; }
 
   // ---------- heartbeat: where I am, whether the tab is visible, how long since my last input, Away by hand ----------
   // The server takes one beat a second (HEARTBEAT_INTERVAL) and answers a faster one 429. A beat that changes `visible`
@@ -1482,7 +1468,7 @@
   // says how long ago this tab gained focus or was shown (lastFocus), so the server names the person's question from
   // the tab they used last rather than whichever tab beat last.
   const TAB = (() => {
-    const fresh = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
+    const fresh = hex(12);
     try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch { /* storage off */ }
     return fresh;
   })();
@@ -1514,7 +1500,7 @@
       if (!r) return;
       if (r.pid && r.pid !== Core.me.cid) { Core.me.cid = r.pid; emit(); }
       if (r.name && r.name !== Core.me.name) { Core.me.name = r.name; if (!ownerToken) put("name", r.name); emit(); }
-      Core.me.isOwner = r.role === "owner"; Core.me.isLeader = r.role === "leader"; Core.me.isTrusted = !!r.trusted;
+      takeRole(r);
     }).catch(() => {}).finally(() => {
       HB.busy = false; HB.done = Date.now(); if (change) HB.changeDone = HB.done;
       pumpBeat();
@@ -1659,8 +1645,7 @@
     try {
       for (let tries = 0; ; tries++) {
         const visible = visibleNow();
-        const r = await fetch("/api/heartbeat", { method: "POST", headers: { "Content-Type": "application/json", "X-Session-Secret": secret },
-          body: JSON.stringify({ visible, tab: TAB }) }).catch(() => null);
+        const r = await fetch("/api/heartbeat", json({ visible, tab: TAB }, { "X-Session-Secret": secret })).catch(() => null);
         HB.done = Date.now();
         if (r?.status === 401 && await mergedIntoOwner(r)) throw "merged";
         if (r?.status === 401 || r?.status === 403) throw r.status;

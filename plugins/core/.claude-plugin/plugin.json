@@ -1,11 +1,11 @@
 {
   "name": "core",
-  "description": "Installs the vital lifecycle plugins in one step, from planning through the pull request and session handoff: a bundle with no skills, agents or hooks of its own, whose dependencies are planning, discovery, verification, toolchain, review, source-control, session-flow and work-items.",
+  "description": "Installs the vital lifecycle plugins in one step, from planning through the pull request and session handoff, plus the guardrails safety hooks: a bundle with no skills, agents or hooks of its own, whose dependencies are planning, discovery, verification, toolchain, review, source-control, session-flow, work-items and guardrails.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "keywords": [
     "bundle",
@@ -25,6 +25,7 @@
     "review",
     "source-control",
     "session-flow",
-    "work-items"
+    "work-items",
+    "guardrails"
   ]
 }

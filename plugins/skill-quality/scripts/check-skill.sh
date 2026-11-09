@@ -1628,8 +1628,7 @@ evals_warrant_skip() {
 plugin_case_tags_skill() {
   local d re="^tags:[[:space:]]*\[(.*,)?[[:space:]]*['\"]?${SKILL_NAME}['\"]?[[:space:]]*(,.*)?\]"
   for d in "$(dirname -- "$SKILLS_ROOT")"/evals/*/; do
-    [[ -f "$d/case.yaml" ]] || continue
-    grep -qE "$re" "$d/case.yaml" && return 0
+    [[ -f "$d/case.yaml" ]] && grep -qE "$re" "$d/case.yaml" && return 0
     [[ -f "$d/prompt.md" ]] &&
       grep -qE "$re" < <(awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { exit } { print }' "$d/prompt.md") &&
       return 0

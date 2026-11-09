@@ -209,13 +209,23 @@ def config(rec):
     return rec.get("hostname") or "", rec.get("tokenFile") or ""
 
 
-def read(data_dir):
-    """The record, or None when no tunnel is wanted."""
+def _load(path):
+    """The JSON document at `path`, or None when it cannot be read or parsed."""
     try:
-        rec = json.loads((Path(data_dir) / RECORD).read_text(encoding="utf-8"))
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return rec if isinstance(rec, dict) and isinstance(rec.get("pid"), int) and isinstance(rec.get("url"), str) else None
+
+
+def _has_pid(rec):
+    """True when rec is a record naming a process id."""
+    return isinstance(rec, dict) and isinstance(rec.get("pid"), int)
+
+
+def read(data_dir):
+    """The record, or None when no tunnel is wanted."""
+    rec = _load(Path(data_dir) / RECORD)
+    return rec if _has_pid(rec) and isinstance(rec.get("url"), str) else None
 
 
 def _write(data_dir, rec, path=None):
@@ -391,7 +401,7 @@ def fall_back(data_dir, port):
         old = (rec or read(d) or {}).get("retired")
         if rec:
             _end(rec)
-        if isinstance(old, dict) and isinstance(old.get("pid"), int) and URL.fullmatch(str(old.get("url"))) and detached.alive(*_identity(old)):
+        if _has_pid(old) and URL.fullmatch(str(old.get("url"))) and detached.alive(*_identity(old)):
             back = {k: v for k, v in old.items() if k != "until"} | {"port": port, "startedAt": time.time()}
             _write(d, back)
             return back
@@ -401,7 +411,7 @@ def fall_back(data_dir, port):
 def retired(data_dir):
     """The retired tunnel while its grace time runs and it still runs, else None."""
     old = (read(data_dir) or {}).get("retired")
-    if not isinstance(old, dict) or not isinstance(old.get("pid"), int) or time.time() >= float(old.get("until") or 0):
+    if not _has_pid(old) or time.time() >= float(old.get("until") or 0):
         return None
     return old if detached.alive(*_identity(old)) else None
 
@@ -418,7 +428,7 @@ def sweep(data_dir):
             return False
         rec.pop("retired")
         _write(d, rec)
-        return isinstance(old, dict) and isinstance(old.get("pid"), int) and _end(old)
+        return _has_pid(old) and _end(old)
 
 
 def _url_arg(args):
@@ -486,7 +496,7 @@ def stop(data_dir):
     with detached.locked(d / LOCK):
         rec = read(d)
         old = (rec or {}).get("retired")
-        if isinstance(old, dict) and isinstance(old.get("pid"), int):
+        if _has_pid(old):
             _end(old)
         stopped = bool(rec) and _ours(d, rec, True) and _end(rec)
         (d / RECORD).unlink(missing_ok=True)
@@ -511,10 +521,7 @@ def live_path(data_dir, lid):
 
 def read_live(path):
     """The live record at `path`, or None."""
-    try:
-        rec = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    rec = _load(path)
     return rec if isinstance(rec, dict) and isinstance(rec.get("id"), str) else None
 
 
@@ -546,14 +553,14 @@ def write_live(path, rec):
 def _server(rec):
     """(pid, marker, start) of the static server a live record names, or None."""
     srv = rec.get("server")
-    if not isinstance(srv, dict) or not isinstance(srv.get("pid"), int):
+    if not _has_pid(srv):
         return None
     return srv["pid"], srv.get("marker") or "liveserve", srv.get("processStart") or "unknown"
 
 
 def tunnel_running(rec):
     """True while the cloudflared a live record names runs."""
-    return isinstance((rec or {}).get("pid"), int) and detached.alive(*_identity(rec))
+    return _has_pid(rec) and detached.alive(*_identity(rec))
 
 
 def server_running(rec):
@@ -596,7 +603,7 @@ def end_live(path, reason):
         if rec is None:
             return None
         stopped = []
-        if isinstance(rec.get("pid"), int) and detached.stop(*_identity(rec)):
+        if _has_pid(rec) and detached.stop(*_identity(rec)):
             stopped.append("tunnel")
         srv = _server(rec)
         if srv and detached.stop(*srv):

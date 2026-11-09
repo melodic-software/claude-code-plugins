@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.11.0] - 2026-11-09
+
+### Changed
+
+- `comments --ci` answers a code-review advisory whose change falls outside the closing issue's acceptance criteria or Out of scope list with the new `follow-up` disposition instead of a fix; the review-thread tool's new `issues` command prints the closing issues' text, and `record` takes `follow-up` only on a thread the select job marked `may_follow_up`
+
+### Fixed
+
+- `landed-work.sh --merged-pr-proof` reads merged pull requests again. The listing asked `gh pr list` for `commits`, which gh expands with each commit's authors, so GitHub refused the query at any limit of 50 or more (more than 500,000 possible nodes) and every worktree stayed unproven with `merged-pr-read-failed:gh-pr-list (GraphQL: ...)`. It now pages a `gh api graphql` query that reads only the head and base refs, the head oid and each PR's commit oids, 100 PRs a page, until `--merged-pr-limit` PRs are read. The stderr gh call count counts each page. The `--merged-pr-limit` window is now the most recently updated merged PRs rather than the most recently created.
+
+- let a re-run flake stop holding the post-merge anchor
+
+  A full run whose identity re-run passed (a flake) kept its merge from
+  ever reading final, so the lane's floor anchor stopped there and every
+  pr-merge check re-read every merge after it. Such a flake now counts as
+  final once `merge.quarantine-days` have passed since the run and no open
+  demotion record names it. A flake read through a newer run superseding
+  it still never counts as final.
+
 ## [8.10.3] - 2026-11-09
 
 ### Changed

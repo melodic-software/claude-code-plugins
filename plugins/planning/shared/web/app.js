@@ -194,7 +194,6 @@
     const ibtn = (cls, name, label) => { const b = btn(cls); b.append(icon(name)); b.setAttribute("aria-label", label); b.title = label; return b; };
     /** Icon and label button. */
     const lbtn = (cls, name, text) => { const b = btn(cls); b.append(icon(name), E("span", null, text)); return b; };
-    /** The "View larger" badge drawn over a picture that opens the picture viewer. */
     // ---------- where an answer was made: sent with answers, picks, votes and suggestions; only the host sees it ----------
     // The device and browser come from Core (deviceKind, browserKind), the one source; the page adds only where it is.
     Core.context = () => ({ view: ui.mode, tab: phone.matches ? ui.tab : "", qid: ui.cur || "", round: Core.state.questions.length ? curRound().current : null });
@@ -307,15 +306,16 @@
       k.merge.setAttribute("aria-label", `Merge ${name} into someone`);
       k.merge.setAttribute("aria-expanded", String(ui.mergeFrom === pid));
       k.remove.textContent = out ? "Restore" : "Remove"; k.remove.hidden = !known;
-      k.remove.setAttribute("aria-label", `${out ? "Restore" : "Remove"} ${name}`);
+      k.remove.setAttribute("aria-label", `${k.remove.textContent} ${name}`);
       k.view.hidden = here === "view"; k.view.setAttribute("aria-label", `View everything ${name} did`);
       k.rename.hidden = !k.rename._on || out || !known; k.rename.setAttribute("aria-label", `Rename ${name}`);
     }
     /** New: Make it a question, Later, Park. Not placed: also Back to Proposed. Parked or Later: Back to Proposed, Make it a question. */
     function paintPropActs(k, i) {
-      k.park.hidden = i.status === "parked" || i.status === "later"; k.later.hidden = i.status !== "new" || !v8(); k.restore.hidden = i.status === "new";
+      k.park.hidden = i.status === "parked" || i.status === "later"; k.later.hidden = i.status !== "new"; k.restore.hidden = i.status === "new";
     }
 
+    /** The "View larger" badge drawn over a picture that opens the picture viewer. */
     const zoomTag = () => { const t = E("span", "vf-zoomtag"); t.setAttribute("aria-hidden", "true"); t.append(icon("search"), E("span", null, "View larger")); return t; };
     const st = () => Core.state.settings;
     const disp = name => (st().showNames ? name : Core.initials(name));
@@ -489,7 +489,6 @@
       if (q.format === "rank") return rec.order?.length ? { order: rec.order } : null;
       return rec.pick ? { option: rec.pick } : null;
     }
-    /** Follow-up 26: a poll or pick-many question takes its comment before the pick, and the comment goes in with it. */
     /** A question that takes a pick first: polls, multi, scale and rank, and a choice with "Something else" (writing
      *  your own option goes there). Its comment box works before the pick, and the comment goes in with it. */
     const commentFirst = q => q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
@@ -512,10 +511,11 @@
     /** An answer's text, else how many files it carries (an answer may be pictures alone); "" for neither. */
     const answerLine = a => a?.text || (a?.att?.length ? `${a.att.length} file${a.att.length === 1 ? "" : "s"}` : "");
     const iVoted = qid => Core.answersFor(qid).some(a => (a.votes || []).includes(Core.me.cid));
+    /** My Claude-cards choice, or the session default from ⚙ when I left it there: Answer first is on. */
+    const answerFirst = () => { const p = claudePref(); return p === "session" ? st().hideClaude !== false : p === "answerFirst"; };
     /** C26: Claude's cards wait until I answered or voted, unless I chose Always show (session default from ⚙). */
     function claudeHidden(qid) {
-      const pref = claudePref(), want = pref === "session" ? st().hideClaude !== false : pref === "answerFirst";
-      return want && !ui.revealed.has(qid) && !hasAnswered(qid) && !iVoted(qid);
+      return answerFirst() && !ui.revealed.has(qid) && !hasAnswered(qid) && !iVoted(qid);
     }
     /** ux-review-2 #5: under Answer first, a guest sees no one's picks (counts, Leading, avatars, pick cards) until they
      *  answered or voted, so the first voter does not steer them. A poll always waits for a pick; the owner, moderators
@@ -523,9 +523,8 @@
     function resultsWait(q) {
       if (!q || Core.me.isOwner || Core.lockOf(q.id)) return false;
       if (q.purpose === "poll") return !savedPick(q, myRec(q.id));
-      const pref = claudePref(), want = pref === "session" ? st().hideClaude !== false : pref === "answerFirst";
       // Picks only: on a written question, voting for someone else's answer is how a guest takes part.
-      return want && isChoice(q) && !Core.canModerate() && !ui.revealed.has(q.id) && !hasAnswered(q.id) && !iVoted(q.id);
+      return answerFirst() && isChoice(q) && !Core.canModerate() && !ui.revealed.has(q.id) && !hasAnswered(q.id) && !iVoted(q.id);
     }
     /** Why a Claude card shows while the others wait: chosen already. */
     function claudeChosen(a, qid, lead) {
@@ -1038,12 +1037,7 @@
       propAll.disabled = true;
       Core.approveProposals(propAllIds).then(r => flash(`Added ${r.questions.length} question${r.questions.length === 1 ? "" : "s"} to round ${r.round}.`)).catch(fail).finally(() => { propAll.disabled = false; });
     });
-    propNewBtn.onclick = () => { ui.propFilter = "new"; render(); };
-    propNotBtn.onclick = () => { ui.propFilter = "notplaced"; render(); };
-    propParkBtn.onclick = () => { ui.propFilter = "parked"; render(); };
-
-
-    // Confirm before sending a round that still has open questions.
+    for (const [b, f] of [[propNewBtn, "new"], [propNotBtn, "notplaced"], [propParkBtn, "parked"]]) b.onclick = () => { ui.propFilter = f; render(); };
 
     // A vote tie on Lock top answer: the moderator picks which answer to lock.
     const tiePop = E("div", "vf-pop vf-tiepop"); tiePop.setAttribute("role", "dialog"); tiePop.setAttribute("aria-label", "Pick the answer to lock"); tiePop.hidden = true;
@@ -1085,9 +1079,9 @@
     roundSel.s.onchange = () => { setTb({ round: roundSel.s.value }); board.scrollLeft = 0; };
     const expandBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-expand");
     toolbar.append(sortSel.w, chips, roundSel.w, expandBtn);
-    /** Does a question pass the toolbar's filter and round? */
     /** A guest's simple view: no view switch, sort or filters, so every question shows in round order. */
     const simpleView = () => !Core.canModerate() && pref("toolbar", "simple") !== "full";
+    /** Does a question pass the toolbar's filter and round? */
     function passes(q) {
       if (simpleView()) return true;
       const t = tb();
@@ -1205,7 +1199,7 @@
     // Research and ask requests
     const tools = E("div", "vf-qtools");
     // "Ask Claude" toggles the ask form below it, the same words everywhere.
-    const askBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-askbtn"); askBtn.append(icon("sparkle"), E("span", null, "Ask Claude"));
+    const askBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-askbtn", "sparkle", "Ask Claude");
     askBtn.setAttribute("aria-expanded", "false");
     const reqChip = E("span", "vf-meta vf-reqchip");
     tools.append(askBtn);
@@ -1247,7 +1241,6 @@
     // Q77: the question's Claude thread, requests and results in time order.
     const thList = E("ul", "vf-thlist"); thList.setAttribute("role", "list"); thList.setAttribute("aria-label", "Claude thread");
     const thEmpty = E("p", "vf-empty vf-empty-sm", "Nothing asked yet. Ask Claude about this question, or have it research something.");
-    const myReqs = thList, resList = thList; // kept names: both now live in the thread
 
     // Locked block
     const lockBox = E("section", "vf-lock"); lockBox.setAttribute("aria-label", "Locked answer");
@@ -1440,8 +1433,8 @@
     refBox.append(refHead, refList);
     // Follow-up 32: received pictures offered on this question that nothing carries, under the approval rule.
     const qPicBox = E("section", "vf-refs vf-qpics"); qPicBox.setAttribute("aria-label", "Pictures on this question"); qPicBox.hidden = true;
-    const qPicList = E("ul", "vf-reflist vf-attlist");
-    qPicBox.append(E("div", "vf-refs-head"), qPicList); qPicBox.firstChild.append(E("h2", "vf-h2", "Pictures"));
+    const qPicHead = E("div", "vf-refs-head"), qPicList = E("ul", "vf-reflist vf-attlist");
+    qPicHead.append(E("h2", "vf-h2", "Pictures")); qPicBox.append(qPicHead, qPicList);
     // Q86 / content first: on phones the question's own row carries previous and next.
     const qNav = E("span", "vf-qnav");
     const qPrev = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevL", "Previous question"), qNext = ibtn("vf-tbtn vf-icon-btn vf-qnav-btn", "chevR", "Next question");
@@ -1461,7 +1454,7 @@
     const sendLbl = E("span", "vf-send-l", "Answer");
     sendBtn.append(icon("send", "vf-i vf-send-i"), sendLbl);
     // Cite one of this question's Claude results; attach a file (uploads on).
-    const citeBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-citebtn"); citeBtn.append(icon("cite"), E("span", null, "Cite"));
+    const citeBtn = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-citebtn", "cite", "Cite");
     citeBtn.setAttribute("aria-haspopup", "dialog"); citeBtn.setAttribute("aria-expanded", "false");
     const attachBtn = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
@@ -1561,12 +1554,17 @@
     hIntroRow.append(hIntroCount, E("span", "vf-spacer"), hIntroSave);
     const hIntroShown = E("p", "vf-hgoal vf-hintro-shown");
     hRound.append(hRoundName, hSteps, hRoundNote, hRoundRow, hGoalLabel, hGoalRow, hIntroLabel, hIntroShown, hIntroIn, hIntroRow);
+    /** A row of filter chips, each with its label and a count: a pick stores its key in ui[field]. Returns the chips by key. */
+    function countChips(holder, entries, field) {
+      const by = {};
+      for (const [k, label] of entries) {
+        const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui[field] = k; render(); }; holder.append(b); by[k] = b;
+      }
+      return by;
+    }
     // queue
     const qFilters = E("div", "vf-chips vf-qfilters"); qFilters.setAttribute("role", "group"); qFilters.setAttribute("aria-label", "Show in the queue");
-    const qfBtns = {};
-    for (const [k, label] of [["all", "All"], ["request", "Requests"], ["proposal", "Proposals"], ["suggestion", "Suggestions"], ["merge", "Merges"], ["upload", "Uploads"], ["report", "Problems"], ["ready", "Ready"]]) {
-      const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.hostFilter = k; render(); }; qFilters.append(b); qfBtns[k] = b;
-    }
+    const qfBtns = countChips(qFilters, [["all", "All"], ["request", "Requests"], ["proposal", "Proposals"], ["suggestion", "Suggestions"], ["merge", "Merges"], ["upload", "Uploads"], ["report", "Problems"], ["ready", "Ready"]], "hostFilter");
     const queueList = E("ul", "vf-queue"); queueList.setAttribute("role", "list");
     const queueEmpty = E("p", "vf-empty vf-empty-sm");
     const queueMore = showMore("queue", 20);
@@ -1574,10 +1572,7 @@
     // people
     // Filter chips by presence, one chip per state so each person is under exactly one (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
     const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
-    const pfBtns = {};
-    for (const [k, label] of [["all", "All"], ["active", "Active"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
-      const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.peopleFilter = k; render(); }; pFilters.append(b); pfBtns[k] = b;
-    }
+    const pfBtns = countChips(pFilters, [["all", "All"], ["active", "Active"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]], "peopleFilter");
     const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
     on(pFind, "input", () => { ui.peopleFind = pFind.value; render(); });
     const peopleList = E("ul", "vf-hpeople"); peopleList.setAttribute("role", "list");
