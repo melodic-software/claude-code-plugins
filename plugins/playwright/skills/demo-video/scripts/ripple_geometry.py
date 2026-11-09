@@ -41,8 +41,8 @@ def ring(box, grow, z, W, H):
     dist = (x, y, W - x - w, H - y - h)
     gaps = tuple(max(min(gap, d - stroke - 1), floor) for d in dist)
     line = (x - gaps[0], y - gaps[1], x + w + gaps[2], y + h + gaps[3])
-    outer = (max(line[0] - stroke, 1), max(line[1] - stroke, 1), min(line[2] + stroke, W - 1), min(line[3] + stroke, H - 1))
+    band = (line[0] - stroke, line[1] - stroke, line[2] + stroke, line[3] + stroke)
+    outer = (max(band[0], 1), max(band[1], 1), min(band[2], W - 1), min(band[3], H - 1))
     if int(outer[2] - outer[0]) <= 0 or int(outer[3] - outer[1]) <= 0:
         return None
-    bbox = [round(line[0] - stroke, 1), round(line[1] - stroke, 1), round(line[2] + stroke, 1), round(line[3] + stroke, 1)]
-    return Ring(stroke, gaps, line, outer, bbox)
+    return Ring(stroke, gaps, line, outer, [round(v, 1) for v in band])

@@ -11,6 +11,8 @@
 #   list                              the kept threads, as JSON
 #   notes                             the pr-verify notes of an earlier FAIL,
 #                                     as JSON (none outside such a round)
+#   issues                            the closing issues' spec text, as JSON
+#                                     (none unless a thread may take follow-up)
 #   check-paths <path>...             exit 0 when every path is in a kept
 #                                     thread's or note's scope (allowed below)
 #   record <id> <disposition>         check the disposition against the
@@ -19,13 +21,15 @@
 # The disposition file is JSON in the scratch directory:
 #   {"disposition": "VALID" | "INCORRECT" | "UNCERTAIN" | "VALID-defer",
 #    "evidence": ["path:line", ...], "fix_sha": "", "note": "<prose>"}
+# A thread marked may_follow_up also takes "follow-up".
 # A note's (a VNOTE_ id) disposition is "VALID" or "already-addressed", with
 # evidence. fix_sha stays empty: the reply job names the commit the push job
 # made.
 #
 # Environment:
 #   FEEDBACK_THREADS    the runner's thread file (repository, pr, head_sha,
-#                       threads[], verify_notes[] in an earlier-fail round)
+#                       threads[], verify_notes[] in an earlier-fail round,
+#                       closing_issues[] when a thread may take follow-up)
 #   FEEDBACK_LOG        the replies file, one JSON object per line
 #   FEEDBACK_SCRATCH    the only directory a disposition file may sit in
 #   FEEDBACK_WORKSPACE  the checkout evidence paths and a VALID reply's
@@ -114,6 +118,10 @@ cmd_notes() {
   jq '.verify_notes // []' "$threads_file"
 }
 
+cmd_issues() {
+  jq '.closing_issues // []' "$threads_file"
+}
+
 cmd_check_paths() {
   (($#)) || die 2 "usage: check-paths <path>..."
   local refused=0 path
@@ -139,6 +147,9 @@ cmd_record() {
     jq -e --arg id "$id" 'any(.threads[]; .id == $id)' "$threads_file" >/dev/null ||
       die 1 "$id is not a kept thread"
     kinds='["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"]'
+    if jq -e --arg id "$id" 'any(.threads[]; .id == $id and .may_follow_up == true)' "$threads_file" >/dev/null; then
+      kinds='["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer", "follow-up"]'
+    fi
   fi
   if [[ -f $log_file ]] && jq -se --arg id "$id" 'any(.[]; .thread == $id)' "$log_file" >/dev/null 2>&1; then
     die 1 "$id already has a reply recorded"
@@ -212,7 +223,8 @@ cmd_record() {
 case ${1:-} in
   list) cmd_list ;;
   notes) cmd_notes ;;
+  issues) cmd_issues ;;
   check-paths) shift && cmd_check_paths "$@" ;;
   record) shift && cmd_record "$@" ;;
-  *) die 2 "usage: feedback-thread.sh list | notes | check-paths <path>... | record <thread-id> <disposition-file>" ;;
+  *) die 2 "usage: feedback-thread.sh list | notes | issues | check-paths <path>... | record <thread-id> <disposition-file>" ;;
 esac

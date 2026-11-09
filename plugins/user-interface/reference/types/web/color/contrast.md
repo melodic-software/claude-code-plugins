@@ -94,11 +94,14 @@ moving the foreground's L.
 
 Estimating before computing:
 
-- **Is the surface light or dark?** L above 0.6 → treat as light, pair with dark content;
-  otherwise pair with light content.
-- **Near-white surface (L ≥ 0.85):** foregrounds want L at or under 0.45.
-- **Near-black surface (L ≤ 0.25):** foregrounds want L at or over 0.75.
+- **Is the surface light or dark?** L above `color.triage.light_surface_min_l` → treat as light,
+  pair with dark content; otherwise pair with light content.
+- **Near-white surface (L at or above the surface value of `color.triage.near_white_l`):**
+  foregrounds want L at or under its text value.
+- **Near-black surface (L at or under the surface value of `color.triage.near_black_l`):**
+  foregrounds want L at or over its text value.
 
 These get you within range in one guess. They don't replace running the actual WCAG calculation
-before shipping: borderline cases and mid-tone backgrounds (L between 0.3 and 0.6, where no
-foreground has much room) need real numbers.
+before shipping: borderline cases and mid-tone backgrounds (L between the mid-tone value of
+`color.triage.near_black_l` and `color.triage.light_surface_min_l`, where no foreground has much
+room) need real numbers.
