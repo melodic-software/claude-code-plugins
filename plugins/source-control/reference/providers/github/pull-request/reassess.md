@@ -5,66 +5,70 @@ The GitHub commands behind the pull-request skill's
 verdicts, the limits and the order; this file holds the commands and the GitHub and `gh` facts
 behind them.
 
-## Read the PR and its queue state
+## Name the repository and its remote
 
-The repository comes from the PR's URL, which names the base repository.
-
-```bash
-gh pr view "$PR_NUMBER" --json state,isDraft,url,title,body,labels,baseRefName,headRefName,headRefOid,isCrossRepository,closingIssuesReferences
-gh api graphql -F owner="$OWNER" -F name="$REPO" -F number="$PR_NUMBER" -f query='
-  query($owner: String!, $name: String!, $number: Int!) {
-    repository(owner: $owner, name: $name) { pullRequest(number: $number) { isInMergeQueue } } }' \
-  --jq '.data.repository.pullRequest.isInMergeQueue'
-```
-
-A native stack member is the signals script's `native_stack` answer. The standards-sync role label
-is the one `standards_sync_skip` in the babysit-prs engine reads.
-
-## Read the hold sources
-
-The worker lease is `<state-dir>/active-workers/<owner>__<name>__pr-<number>.json`, where
-`<state-dir>` is `--state-dir`, else babysit's state directory. A file whose `expires_at` is still
-ahead holds the PR. No file holds nothing. An unreadable file holds the PR, since no hold was ruled
-out.
+The repository comes from the PR's URL, which names the base repository. A failed read, or a base
+repository no local remote fetches, ends the run with no verdict.
 
 ```bash
-jq -r .expires_at "$STATE_DIR/active-workers/${OWNER}__${REPO}__pr-$PR_NUMBER.json"
+REPO=$(gh pr view "$PR_NUMBER" --json url -q '.url | split("/")[3:5] | join("/")') || exit 1
+source "<plugin-root>/lib/github-remote.sh"
+REMOTE=$(remote_of_repo "$REPO")
+[ -n "$REMOTE" ] || exit 1
 ```
 
-For each worktree `git worktree list --porcelain` shows holding the head branch, exit 4 is a live
-claim by another session. Exit 0 is this session's own claim or no linked worktree, and exit 3 is
-an unclaimed worktree; neither holds the PR.
+## Read the limits
+
+`<state-dir>` is `--state-dir`, else the default that the skill's `reassess` row names.
 
 ```bash
-bash "<plugin-root>/scripts/worktree-claim.sh" check-enter "$WORKTREE" --session-id "$SESSION_ID"
+bash "<skill-dir>/scripts/reassess-limits.sh" "$PR_NUMBER" --repo "$REPO" --state-dir "$STATE_DIR"
 ```
 
-## Read the head and the base range
+Exit 0: no limit. Exit 3: limits on stdout. Exit 4: refused. Exit 1 or 5 ran no read, so treat it as
+`unread`. Add `--expect-head "$HEAD_SHA"` for the read before the first write.
 
-The head arrives by its pull ref, which also exists for a fork head and runs no head code.
+## Fetch the head and the base
+
+The pull ref also exists for a fork head, and a fetch runs nothing from it. A head that is not the
+PR's current one ends the run with no verdict.
 
 ```bash
-git fetch "$REMOTE" "+refs/pull/$PR_NUMBER/head:refs/reassess/$PR_NUMBER"
-git worktree add --detach ".work/reassess-$PR_NUMBER" "refs/reassess/$PR_NUMBER"
-gh api --paginate --slurp "repos/$OWNER/$REPO/pulls/$PR_NUMBER/commits" |
-  jq -r 'add | map(select(.parents | length < 2)) | first | "\(.sha) \(.parents[0].sha)"'
+gh pr view "$PR_NUMBER" -R "$REPO" --json baseRefName,headRefOid -q '"\(.baseRefName) \(.headRefOid)"'
+git fetch "$REMOTE" "+refs/pull/$PR_NUMBER/head:refs/reassess/$PR_NUMBER" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE"
+git rev-parse "refs/reassess/$PR_NUMBER"
 ```
 
-The second field is the range's start. The paths are the union over those non-merge commits.
+The PR's own commits are the non-merge commits the base does not hold, oldest first, and the
+range starts at the first one's parent:
+
+```bash
+git rev-list --reverse --topo-order --no-merges "refs/reassess/$PR_NUMBER" --not "$REMOTE/$BASE"
+git rev-parse "$FIRST^"
+git merge-base --is-ancestor "$START" "$REMOTE/$BASE" || START=$(git merge-base "$START" "$REMOTE/$BASE")
+```
 
 ## Search the other PRs
 
-For each commit in the range that touches one of the PR's paths, the PR that merged it:
+File names come from the head, so they stay NUL-delimited and never enter the command text. For the
+commits in the range that touch the PR's paths, then the merged PR behind each:
 
 ```bash
-git log --format=%H "$START..$REMOTE/$BASE" -- "${PATHS[@]}"
-gh api "repos/$OWNER/$REPO/commits/$SHA/pulls" --jq '.[] | select(.merged_at != null) | .number'
+git rev-list --no-merges "refs/reassess/$PR_NUMBER" --not "$REMOTE/$BASE" |
+  xargs -r -n1 git diff-tree -z --no-commit-id --name-only -r --root |
+  sort -zu |
+  xargs -0r git --literal-pathspecs log --format=%H "$START..$REMOTE/$BASE" -- |
+  sort -u
+gh api "repos/$REPO/commits/$SHA/pulls" |
+  jq -r --arg base "$BASE" '.[] | select(.merged_at != null and .base.ref == $base) | .number'
 ```
 
-And the PRs naming the same closing issue:
+Each closing issue is [read with its repository](ready-for-review.md#read-the-closing-claims). The
+PRs naming one:
 
 ```bash
-gh pr list --state all --search "$ISSUE_NUMBER in:body" --json number,state,title,mergedAt
+gh pr list -R "$REPO" --state all --limit 200 --search "$ISSUE_REF in:body" --json number,state,title,mergedAt \
+  --jq "map(select(.number != $PR_NUMBER))"
 ```
 
 - **Pointer**: when checking which PRs a commit lists, fetch
@@ -73,10 +77,34 @@ gh pr list --state all --search "$ISSUE_NUMBER in:body" --json number,state,titl
 - **As of**: 2026-11-08
 - **Recheck trigger**: that section changes which pull requests it returns.
 
-## Disarm auto-merge
+## Read the signals without a checkout
+
+The worktree goes outside the repository, under the worktree root when one is set, holds no files,
+and runs no hook. Its `.git` file is all it needs to answer the signals.
 
 ```bash
-gh pr merge "$PR_NUMBER" --disable-auto
+ROOT=$(git config worktreeroot.path) || ROOT=$(dirname "$(git rev-parse --show-toplevel)")
+TREE="$ROOT/reassess-${REPO//\//-}-$PR_NUMBER"
+git -c core.hooksPath=/dev/null worktree add --detach --no-checkout "$TREE" "refs/reassess/$PR_NUMBER"
+( cd "$TREE" && bash "<plugin-root>/scripts/branch-update-signals.sh" --pr "$PR_NUMBER" --repo "$REPO" |
+  bash "<plugin-root>/scripts/branch-update-method.sh" )
+```
+
+A claim hook can lock the new worktree, so release it before removing it:
+
+```bash
+bash "<plugin-root>/scripts/worktree-claim.sh" release "$TREE"
+git worktree remove --force "$TREE"
+git update-ref -d "refs/reassess/$PR_NUMBER"
+```
+
+## Disarm auto-merge
+
+Only when `autoMergeRequest` is set:
+
+```bash
+gh pr view "$PR_NUMBER" -R "$REPO" --json autoMergeRequest -q '.autoMergeRequest != null'
+gh pr merge "$PR_NUMBER" -R "$REPO" --disable-auto
 ```
 
 ## Add the hold label
@@ -84,22 +112,22 @@ gh pr merge "$PR_NUMBER" --disable-auto
 Check the label exists first, so a missing one is reported rather than read as a failed edit:
 
 ```bash
-gh api "repos/$OWNER/$REPO/labels/do-not-merge" --silent && gh pr edit "$PR_NUMBER" --add-label do-not-merge
+gh api "repos/$REPO/labels/do-not-merge" --silent && gh pr edit "$PR_NUMBER" -R "$REPO" --add-label do-not-merge
 ```
 
 ## Post or edit the comment
 
 The body's first line is `<!-- source-control-reassess -->`. A re-run edits the newest comment that
 starts with that marker and was written by the acting login; a marker on anyone else's comment is
-ignored. With none, it posts a new one.
+ignored. A failed read posts nothing. Under a `label` limit, with no earlier comment, post nothing.
 
 ```bash
 LOGIN=$(gh api user --jq .login) || exit 1
-ID=$(gh api --paginate --slurp "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments" |
-  jq -r --arg login "$LOGIN" 'add | map(select(.user.login == $login and (.body | startswith("<!-- source-control-reassess -->")))) | last | .id // empty')
+COMMENTS=$(gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments") || exit 1
+ID=$(jq -r --arg login "$LOGIN" 'add // [] | map(select(.user.login == $login and (.body | startswith("<!-- source-control-reassess -->")))) | last | .id // empty' <<<"$COMMENTS") || exit 1
 if [ -n "$ID" ]; then
-  gh api --method PATCH "repos/$OWNER/$REPO/issues/comments/$ID" -F body=@"$BODY_FILE" >/dev/null
+  gh api --method PATCH "repos/$REPO/issues/comments/$ID" -F body=@"$BODY_FILE" >/dev/null
 else
-  gh pr comment "$PR_NUMBER" --body-file "$BODY_FILE"
+  gh pr comment "$PR_NUMBER" -R "$REPO" --body-file "$BODY_FILE"
 fi
 ```
