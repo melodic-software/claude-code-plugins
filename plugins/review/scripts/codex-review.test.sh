@@ -165,6 +165,33 @@ assert_eq "in-place plugin uses readFromFolder" "codex: ran" "$(printf '%s\n' "$
 run_case "$LIST_INSTALLED" 1 1 --base origin/main --adversarial
 assert_eq "--adversarial runs adversarial-review" "adversarial-review --wait --base origin/main" "$(cat "$REVIEW_LOG")"
 
+# --- Model and brief: native review commands only, never task, never --write ---
+run_case "$LIST_INSTALLED" 1 1 --base origin/main --model gpt-x
+assert_eq "--model reaches review" "review --wait --base origin/main --model gpt-x" "$(cat "$REVIEW_LOG")"
+run_case "$LIST_INSTALLED" 1 1 --base origin/main --model openai/gpt-x
+assert_eq "a model name with / reaches review, as the schema allows" "review --wait --base origin/main --model openai/gpt-x" "$(cat "$REVIEW_LOG")"
+
+BRIEF="$TEST_TMPDIR/brief.md"
+printf -- '--look for races in reserve()' >"$BRIEF"
+run_case "$LIST_INSTALLED" 1 1 --base origin/main --model gpt-x --brief-file "$BRIEF"
+assert_eq "--brief-file runs adversarial-review with the brief as focus text after --" \
+  "adversarial-review --wait --base origin/main --model gpt-x -- --look for races in reserve()" "$(cat "$REVIEW_LOG")"
+assert_eq "--brief-file keeps the first status line" "codex: ran" "$(printf '%s\n' "$OUT" | head -n 1)"
+
+for args in "--base origin/main" "--base origin/main --adversarial" "--base origin/main --model gpt-x --brief-file $BRIEF"; do
+  # shellcheck disable=SC2086 # the word list is the argument vector under test
+  run_case "$LIST_INSTALLED" 1 1 $args
+  assert_not_contains "no task run for: $args" "$(cat "$REVIEW_LOG")" "task"
+  assert_not_contains "no --write for: $args" "$(cat "$REVIEW_LOG")" "--write"
+done
+
+RC=0
+bash "$SCRIPT" --base origin/main --model 'bad model' >/dev/null 2>&1 || RC=$?
+assert_eq "a model name with a space is a usage error" 2 "$RC"
+RC=0
+bash "$SCRIPT" --base origin/main --brief-file "$TEST_TMPDIR/no-such-brief" >/dev/null 2>&1 || RC=$?
+assert_eq "a missing brief file is a usage error" 2 "$RC"
+
 # --- Review started and failed: failed, not ran or skipped ---
 FAKE_REVIEW_EXIT=3 run_case "$LIST_INSTALLED" 1 1 --base origin/main
 assert_eq "failed review exits 0" 0 "$RC"

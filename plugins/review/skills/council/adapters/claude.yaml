@@ -1,0 +1,18 @@
+# Capability record for claude members, read by scripts/council-plan.mjs select.
+# A member naming a field outside `sets` is skipped with the reason, never replaced.
+kind: agent
+run: review:brief-reviewer
+sets: [model, effort, brief, limit-to-fix]
+sees: work-tree
+briefs: any
+# The Agent tool takes model aliases only, not full model ids or inherit.
+# Pointer: https://code.claude.com/docs/en/sub-agents#choose-a-model
+# As of: 2026-11-09. Recheck when that section changes what the model field accepts.
+models: [opus, sonnet, haiku, fable]
+model_default: opus
+effort_default: high
+# The Agent tool's effort parameter: Claude Code CHANGELOG.md, the 2.1.292 entry
+# (https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md). As of: 2026-11-09.
+# Recheck when the sub-agents page states a different minimum.
+effort_min_version: 2.1.292
+frontier: [fable]
