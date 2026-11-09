@@ -33,8 +33,7 @@ that is read live.
 ## Why the verdict is complementary
 
 `/batch` plans and executes in one run: it does its own research and decomposition, and the
-units are independent by construction. This skill starts where a plan
-already exists and has been approved, runs phases in order with fences composed together per
-wave, verifies every return against direct evidence, and gates each phase on a fresh-context
-verifier. A large mechanical change with no plan is `/batch`'s case; a planned, ordered,
+units are independent by construction. This skill starts where a plan already exists and has been
+approved, runs phases in order with fences composed together per wave, verifies every return
+against direct evidence, and gates each phase on a fresh-context verifier. A large mechanical change with no plan is `/batch`'s case; a planned, ordered,
 verified execution is this skill's.
