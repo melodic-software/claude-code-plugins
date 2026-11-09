@@ -93,11 +93,9 @@ readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.y
 
 case "${1:-}" in
 --help | -h)
-  # Stop at the first non-comment line rather than a fixed line number: the
-  # header outgrew the hardcoded 40 and the banner silently lost its whole exit
-  # status list. A blank-line terminator will not work here, because the header
-  # runs straight into `set -u` with no blank line between them. The linter's
-  # directive line is not for the reader, so it is skipped.
+  # The header ends at the first non-comment line, `set -u`, with no blank line
+  # before it. The linter's directive line is not for the reader, so it is
+  # skipped.
   awk 'NR > 1 { if ($0 !~ /^#/) exit; if ($0 ~ /^# shellcheck /) next; sub(/^# ?/, ""); print }' "$0"
   exit 0
   ;;
@@ -485,24 +483,18 @@ raw_value() {
 # lacks one of those keys.
 check_yaml_key "$key"
 yaml_lookup "$key"
-need_neutral=0
-[ "$YAML_HAS" -eq 1 ] || need_neutral=1
-need_subject=0
+key_in_yaml="$YAML_HAS"
+subject_in_yaml=1
 if [ "$key" = "pr_title_pattern" ] &&
   { [ "$YAML_HAS" -eq 0 ] || [ "$YAML_VAL" = "$PR_DEFERRAL" ]; }; then
-  need_subject=1
   check_yaml_key subject_pattern
   yaml_lookup subject_pattern
-  [ "$YAML_HAS" -eq 1 ] || need_neutral=1
+  subject_in_yaml="$YAML_HAS"
 fi
-if [ "$need_neutral" -eq 1 ]; then
+if [ "$key_in_yaml" -eq 0 ] || [ "$subject_in_yaml" -eq 0 ]; then
   resolve_neutral
-  yaml_lookup "$key"
-  [ "$YAML_HAS" -eq 1 ] || check_neutral_key "$key"
-  if [ "$need_subject" -eq 1 ]; then
-    yaml_lookup subject_pattern
-    [ "$YAML_HAS" -eq 1 ] || check_neutral_key subject_pattern
-  fi
+  [ "$key_in_yaml" -eq 1 ] || check_neutral_key "$key"
+  [ "$subject_in_yaml" -eq 1 ] || check_neutral_key subject_pattern
 fi
 
 raw_value "$key"

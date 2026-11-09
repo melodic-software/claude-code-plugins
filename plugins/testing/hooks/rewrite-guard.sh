@@ -1,16 +1,10 @@
 # GENERATED from lib/rewrite-guard.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # shellcheck shell=bash
-# Content-mutation disclosure guard (#1596, #3401, #3409) for hooks that may
-# rewrite the edited file. One implementation of the protocol every mutating
-# formatter hook previously hand-rolled: snapshot the file before the tool
-# runs, compare after, name the rewrite on the user channel, and release the
-# snapshot on EVERY exit arm. Hand-rolled copies drifted defect by defect —
-# powershell leaked its snapshot on two arms and disclosed nothing on a
-# tool-break rewrite (#3401); go-format carried the identical leak (#3405);
-# ruff/biome/bash printed the disclosure as a second JSON document on runs
-# that also reported findings (#3406), against the single-document stdout
-# contract hook::emit_channels exists to uphold.
+# Content-mutation disclosure guard for hooks that may rewrite the edited
+# file: snapshot the file before the tool runs, compare after, name the
+# rewrite on the user channel in the hook's one stdout document, and release
+# the snapshot on EVERY exit arm.
 #
 # SINGLE SOURCE OF TRUTH: lib/rewrite-guard.sh at the marketplace repo root.
 # The copies at plugins/*/hooks/rewrite-guard.sh exist because installed
@@ -42,15 +36,13 @@
 # empty. Exactly one take per run, on the arm that emits.
 #
 # The release is structural, not per-arm: begin arms an EXIT trap, so an arm
-# that exits without taking (or an arm added later) cannot leak the snapshot
-# — the failure class #3401 and #3405 fixed one plugin at a time. A caller's
-# existing EXIT trap is CHAINED, not replaced: begin captures the previous
-# handler and the guard's handler runs it after the release, so sourcing this
-# lib never silently disables a caller's own cleanup (bash `trap` on a signal
-# replaces the prior handler wholesale). A snapshot that cannot be completed
+# that exits without taking (or an arm added later) cannot leak the snapshot.
+# A caller's existing EXIT trap is CHAINED, not replaced: begin captures the
+# previous handler and the guard's handler runs it after the release, so
+# sourcing this lib never silently disables a caller's own cleanup (bash `trap`
+# on a signal replaces the prior handler wholesale). A snapshot that cannot be completed
 # (mktemp or cp failed) degrades to "no disclosure": the hook still formats,
-# take yields an empty message, and — unlike the hand-rolled copies, which
-# left the mktemp file behind when cp failed — the orphan is removed here.
+# take yields an empty message, and a mktemp file whose cp failed is removed.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_REWRITE_GUARD_LOADED:-}" ]] && return 0
@@ -59,14 +51,13 @@ readonly _HOOK_REWRITE_GUARD_LOADED=1
 _HOOK_REWRITE_BEFORE=""
 # The file begin was given. The take compares against THIS path unless the
 # caller names another, so the two halves of one guard cannot disagree about
-# which file was snapshotted — a hook that formats a normalized spelling of the
-# path (Windows mixed-form) and takes on the original was comparing a snapshot
-# of one file against the bytes of another.
+# which file was snapshotted (a normalized Windows mixed-form spelling and the
+# original, say).
 _HOOK_REWRITE_FILE=""
 _HOOK_REWRITE_PREV_EXIT_TRAP=""
 _HOOK_REWRITE_SNAPSHOT_FAILED=0
 HOOK_REWRITE_MESSAGE=""
-# The byte verdict of the take, for the telemetry `data.changed` key (#3755):
+# The byte verdict of the take, for the telemetry `data.changed` key:
 # "true" when the file differs from the snapshot, "false" when it is identical
 # or no rewrite was ever attempted (begin never ran), and "" when the answer
 # is unknown because begin could not snapshot. A producer sends the key only
@@ -96,31 +87,29 @@ hook::rewrite_guard_begin() {
   _HOOK_REWRITE_SNAPSHOT_FAILED=1
   HOOK_REWRITE_MESSAGE=""
   HOOK_REWRITE_CHANGED=""
-  local snap=""
-  if snap=$(mktemp 2>/dev/null); then
-    if cp "$1" "$snap" 2>/dev/null; then
-      _HOOK_REWRITE_BEFORE="$snap"
-      _HOOK_REWRITE_SNAPSHOT_FAILED=0
-      # Capture the caller's current EXIT handler so ours can chain it.
-      # `trap -p EXIT` prints `trap -- '<quoted cmd>' EXIT`; strip the frame
-      # and eval the remaining shell-quoted literal back into a plain string.
-      # Skip capture when the handler is already ours (a second begin must
-      # not chain the handler to itself).
-      local prev
-      prev=$(trap -p EXIT 2>/dev/null) || prev=""
-      if [[ -n "$prev" ]]; then
-        prev=${prev#trap -- }
-        prev=${prev% EXIT}
-        eval "prev=$prev"
-        if [[ "$prev" != "hook::_rewrite_guard_on_exit" && -n "$prev" ]]; then
-          _HOOK_REWRITE_PREV_EXIT_TRAP="$prev"
-        fi
-      fi
-      trap hook::_rewrite_guard_on_exit EXIT
-    else
-      rm -f "$snap" 2>/dev/null || true
+  local snap prev
+  snap=$(mktemp 2>/dev/null) || return 0
+  if ! cp "$1" "$snap" 2>/dev/null; then
+    rm -f "$snap" 2>/dev/null || true
+    return 0
+  fi
+  _HOOK_REWRITE_BEFORE="$snap"
+  _HOOK_REWRITE_SNAPSHOT_FAILED=0
+  # Capture the caller's current EXIT handler so ours can chain it.
+  # `trap -p EXIT` prints `trap -- '<quoted cmd>' EXIT`; strip the frame
+  # and eval the remaining shell-quoted literal back into a plain string.
+  # Skip capture when the handler is already ours (a second begin must
+  # not chain the handler to itself).
+  prev=$(trap -p EXIT 2>/dev/null) || prev=""
+  if [[ -n "$prev" ]]; then
+    prev=${prev#trap -- }
+    prev=${prev% EXIT}
+    eval "prev=$prev"
+    if [[ "$prev" != "hook::_rewrite_guard_on_exit" && -n "$prev" ]]; then
+      _HOOK_REWRITE_PREV_EXIT_TRAP="$prev"
     fi
   fi
+  trap hook::_rewrite_guard_on_exit EXIT
   return 0
 }
 

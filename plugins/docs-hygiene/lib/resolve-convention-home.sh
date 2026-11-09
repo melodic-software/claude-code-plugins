@@ -8,10 +8,9 @@
 # README.md § Expression doctrine) binds a consumer's convention home with ONE
 # pointer line inside a marked, machine-owned region of the root instruction
 # file. The line IS the binding: there is no binding file, so every plugin that
-# needs the home reads the same line. Eight plugins each parsing that line in
-# their own prose would drift exactly the way retirement detection drifted, so
-# the grammar lives here, once, tested, and the doctrine doc cites this helper
-# as its owner. The behavior follows docs/adr/0075 (fixes 1, 2, 4, 5, 6, 13).
+# needs the home reads the same line, and its grammar lives here, once, tested;
+# the doctrine doc cites this helper as its owner. The behavior follows
+# docs/adr/0075.
 #
 # GRAMMAR. The root instruction file carries a region delimited by two marker
 # lines (surrounding whitespace, a leading UTF-8 BOM, and a trailing carriage
@@ -352,14 +351,12 @@ scan_file() {
 # valid_home <token>: the grammar above. Returns 1 with a reason in
 # INVALID_REASON otherwise.
 valid_home() {
-  local t="$1" seg bare rest backslash
-  backslash=$(printf '%b' '\134')
+  local t="$1" seg bare rest
   INVALID_REASON=""
-  if [[ -z "$t" ]]; then INVALID_REASON="empty"; return 1; fi
   case "$t" in
   /*) INVALID_REASON="absolute path" ;;
   '~'*) INVALID_REASON="home-relative (~) path" ;;
-  *"$backslash"*) INVALID_REASON="backslash" ;;
+  *\\*) INVALID_REASON="backslash" ;;
   *:*) INVALID_REASON="drive letter or colon" ;;
   *) ;;
   esac
