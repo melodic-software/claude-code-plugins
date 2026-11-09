@@ -19,7 +19,7 @@
       "why": "names untrusted only in prose, not on the Flags line"
     },
     {
-      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\nThe spec is quoted from an outside author.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"work-class: untrusted-provenance\"}",
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\nThe spec is quoted from an outside author.\", \"needs_human\": false, \"reason\": \"Spec from an unknown outside author.\", \"type\": \"Task\", \"proposed_class\": \"provenance: untrusted\"}",
       "why": "the legacy class proposal with no flag"
     },
     {

@@ -426,7 +426,7 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
 
 **Research decides the label.** Step 4's research gate applies to the ledger: a finding with `research: open-question`, or one that did not
 clear the research seam at this run's effort, is a decision for the maintainers, not a
-recommendation. State its claim in the item as an open question, and carry its remediation under the owner-decision label (`needs-owner-decision` or `status: needs-decision` by default; [`reference/session-mode.md`](reference/session-mode.md) "Research gate"), or as a stated open decision
+recommendation. State its claim in the item as an open question, and carry its remediation under the owner-decision label (`needs-owner-decision` by default; [`reference/session-mode.md`](reference/session-mode.md) "Research gate"), or as a stated open decision
 where the sink has no labels, never autonomous-eligible (`agent-ready` by default). Only
 a `tier-0` or `tier-1` finding is written as a recommendation, with its primary source named.
 

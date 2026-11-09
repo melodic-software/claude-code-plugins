@@ -25,7 +25,7 @@ const OUTSIDER = 4242;
 const APP = 337595936;
 const humans = new Set([HUMAN]);
 const READY = "status: ready";
-const NEEDS_DECISION = "status: needs-decision";
+const NEEDS_DECISION = "needs-owner-decision";
 const CONFIRMED = "status: confirmed";
 
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
@@ -173,20 +173,19 @@ describe("decide", () => {
     }
   });
 
-  const LEGACY_UNTRUSTED = "work-class: untrusted-provenance";
   // The hold is a constant of decide, so no rules file loadRules accepts
   // lifts it, one with a stale `classes` key naming the class included.
   test("no admission rules loadRules accepts make untrusted-provenance work admissible", () => {
     const dir = tempDir("admit-rules-");
     const widened = [
-      { ...RULES, classes: [LEGACY_UNTRUSTED] },
+      { ...RULES, classes: [UNTRUSTED_CLASS] },
       { ...RULES, "refuse-labels": [], sizes: ["small", "medium", "large"], uncertainty: ["known", "knowable", "unknown"] },
     ];
     widened.forEach((content, index) => {
       const path = join(dir, `rules-${index}.json`);
       writeFileSync(path, JSON.stringify(content));
       const rules = loadRules(path);
-      for (const overrides of [{ verdict: { ...VERDICT, untrusted: true } }, ...[UNTRUSTED_CLASS, LEGACY_UNTRUSTED].map((name) => ({ issue: issueOf({ labels: [{ name: READY }, { name }] }) }))]) {
+      for (const overrides of [{ verdict: { ...VERDICT, untrusted: true } }, ...[UNTRUSTED_CLASS].map((name) => ({ issue: issueOf({ labels: [{ name: READY }, { name }] }) }))]) {
         const result = decide(facts({ rules, ...overrides }));
         assert.equal(result.verdict, "refuse", path);
         assert.equal(result.hold, true, path);
@@ -276,7 +275,7 @@ describe("decide", () => {
   });
 
   test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
-    const event = (kind, id) => ({ event: kind, label: { name: "work-class: untrusted-provenance" }, actor: { id } });
+    const event = (kind, id) => ({ event: kind, label: { name: "provenance: untrusted" }, actor: { id } });
     const refused = decide(facts({ events: [event("labeled", APP), event("unlabeled", OUTSIDER)] }));
     assert.equal(refused.verdict, "refuse");
     assert.match(refused.reasons.join(), /provenance: untrusted work needs a person/);
@@ -326,7 +325,7 @@ describe("decide", () => {
     ["criterion 3: an untrusted verdict", { verdict: { ...VERDICT, untrusted: true } }, /provenance: untrusted work needs a person/],
     [
       "criterion 3: an untrusted-provenance label on the issue",
-      { issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) },
+      { issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) },
       /provenance: untrusted work needs a person/,
     ],
     [
@@ -1538,7 +1537,7 @@ describe("decide", () => {
     // hold later is the re-mark, since no status: ready add follows it.
     const label = (event, name, at, id) => ({ event, label: { name }, actor: { id }, created_at: at });
     const stop = (hold) => [label("labeled", hold, "2026-10-20T00:00:00Z", APP), label("unlabeled", AGENT_READY, "2026-10-20T00:00:01Z", APP)];
-    for (const hold of ["needs-human", "status: needs-decision", "needs-owner-decision"]) {
+    for (const hold of ["needs-human", "needs-owner-decision"]) {
       test(`a lane stop then a trusted lift of ${hold} is decided`, () => {
         assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", HUMAN)]), "admit");
         assert.equal(verdictFor([...stop(hold), label("unlabeled", hold, "2026-10-21T00:00:00Z", APP)]), "admit");
@@ -2268,7 +2267,7 @@ describe("admit", () => {
   });
 
   test("a refusal that needs a person sets the Work status to needs-owner-decision and writes no status label", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
@@ -2280,7 +2279,7 @@ describe("admit", () => {
   // g-holds-governance-1: a hold names its owner reason as the stop-reason
   // marker, after the refusal, so every reader of the refusal line reads it.
   test("a refusal that needs a person writes the intake-triage stop-reason marker and line", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: "provenance: untrusted" }] }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
     const comment = fake.calls.find((call) => call.method === "POST" && call.path.endsWith("/comments"));
@@ -2313,13 +2312,8 @@ describe("admit", () => {
     }
   });
 
-  test("needs-reporter-info beside status: ready is decided as status: needs-info is", () => {
-    const decided = (name) => decide(facts({ issue: issueOf({ labels: [{ name: READY }, { name }] }) }));
-    assert.deepEqual(decided("needs-reporter-info"), decided("status: needs-info"));
-  });
-
   test("a refusal that needs a person over a parked status: confirmed label writes only the hold to the field", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: untrusted-provenance" }] }) });
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "provenance: untrusted" }] }) });
     assert.equal((await go(fake)).outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done[0], STATUS("needs-owner-decision"));
@@ -2327,7 +2321,7 @@ describe("admit", () => {
   });
 
   test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "provenance: untrusted" }] }) });
     const result = await go(fake);
     assert.equal(result.outcome, "refused");
     assert.match(result.reasons.join(), /no trusted-human acceptance criteria/);
@@ -3469,35 +3463,22 @@ describe("size split sub-issues", () => {
 });
 
 describe("roomDeferred", () => {
-  test("either untrusted-provenance label keeps a ready deferred issue out of the room count", () => {
+  test("the untrusted-provenance label keeps a ready deferred issue out of the room count", () => {
     assert.equal(roomDeferred([{ name: "status: ready" }]), true);
-    for (const label of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+    for (const label of ["provenance: untrusted"]) {
       assert.equal(roomDeferred([{ name: "status: ready" }, { name: label }]), false, label);
     }
   });
 });
 
 describe("untrustedHold", () => {
-  const LABEL = "work-class: untrusted-provenance";
-  const NEW = "provenance: untrusted";
+  const LABEL = "provenance: untrusted";
   const humans = new Set([1]);
   const isApp = (actor) => actor?.id === 9;
   const event = (kind, id, name = LABEL) => ({ event: kind, label: { name }, actor: { id } });
   test("the label on the issue holds it", () => {
     assert.equal(untrustedHold({ labels: [{ name: LABEL }], events: [], humans, isApp }), true);
     assert.equal(untrustedHold({ labels: [LABEL], events: [], humans, isApp }), true);
-  });
-  test("provenance: untrusted alone holds it as the work-class label does", () => {
-    assert.equal(untrustedHold({ labels: [{ name: NEW }], events: [], humans, isApp }), true);
-    assert.equal(untrustedHold({ labels: [NEW], events: [], humans, isApp }), true);
-    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9, NEW), event("unlabeled", 5, NEW)], humans, isApp }), true);
-    assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9, NEW), event("unlabeled", 1, NEW)], humans, isApp }), false);
-  });
-  test("a person's later change to one label never lifts a stranger's removal of the other", () => {
-    const events = [event("labeled", 9), event("unlabeled", 5), event("labeled", 1, NEW), event("unlabeled", 1, NEW)];
-    assert.equal(untrustedHold({ labels: [], events, humans, isApp }), true);
-    const reversed = [event("labeled", 9, NEW), event("unlabeled", 5, NEW), event("labeled", 1), event("unlabeled", 1)];
-    assert.equal(untrustedHold({ labels: [], events: reversed, humans, isApp }), true);
   });
   test("a newest removal by neither a listed human nor the App still holds it; theirs lifts it", () => {
     assert.equal(untrustedHold({ labels: [], events: [event("labeled", 9), event("unlabeled", 5)], humans, isApp }), true);
@@ -3510,10 +3491,10 @@ describe("untrustedHold", () => {
   });
 });
 
-// A parent's status: needs-decision blocks its Features only while a decision
+// A parent's needs-owner-decision blocks its Features only while a decision
 // is open: a person set the label, or the newest refinement on the parent asks
 // questions no later Decision recorded comment answers.
-describe("a Feature under a parent at status: needs-decision", () => {
+describe("a Feature under a parent at needs-owner-decision", () => {
   const PARENT = 9;
   const feature = issueOf({ type: { name: "Feature" } });
   const parentIssue = (labels = [NEEDS_DECISION]) => ({
@@ -3645,12 +3626,6 @@ describe("a Feature under a parent at status: needs-decision", () => {
       body: [VERDICT_MARKER, "The latest triage verdict holds nothing: admission moved the issue to needs-decision; its comment says why."].join("\n"),
     };
     assert.equal((await go(withParent({ comments: [holdsNothing] }))).outcome, "admitted");
-  });
-
-  test("reads the parent's needs-owner-decision label as it reads the old name", async () => {
-    const renamedBy = (id) => [{ event: "labeled", label: { name: "needs-owner-decision" }, actor: { id } }];
-    assert.equal((await go(withParent({ labels: ["needs-owner-decision"], events: renamedBy(APP) }))).outcome, "admitted");
-    assert.ok(refusedForParent(await go(withParent({ labels: ["needs-owner-decision"], events: renamedBy(HUMAN) }))));
   });
 
   test("is refused when the parent also carries needs-human", async () => {

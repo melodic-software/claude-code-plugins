@@ -79,15 +79,15 @@ no renumbering.
 into `intake`.
 
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
-model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
+model. On a new comment on an open issue, not a pull request, it acts on a `needs-owner-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
 trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
 `status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
 a decision, whether admission parked it there or a person confirmed it, or on a
-`status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
+`needs-reporter-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
-at `status: needs-decision`, removing that label the same way. A listed human's change of the Work
+at `needs-owner-decision`, removing that label the same way. A listed human's change of the Work
 status field from a hold state to none or `needs-triage`, on an issue with no status label but
 `needs-triage`, re-enters it too, writing no label: the claim is a comment marked with the field
 event that left the hold, which a re-run of that release finds, and the field is set to
@@ -1164,7 +1164,7 @@ Neither authority reads a work class
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
   class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
-  `work-class: untrusted-provenance` (any label naming untrusted work), or had it removed by a
+  `provenance: untrusted` (any label naming untrusted work), or had it removed by a
   non-human, waits for a human, in the local babysit lane and when `enable-auto-merge` arms a
   lanes App pull request. The pr-merge lane merges on the verifier verdict
   ([The pr-merge lane](#the-pr-merge-lane)).
@@ -2290,7 +2290,7 @@ request event, is left to the merge gate or a person, as before. The step
 test, so the carried-read steps run for every judged author.
 
 The trust hold has three checks. At PR open, report-outcome writes a `Hold:` line when the issue
-already carries `work-class: untrusted-provenance`. At arm time, `enable-auto-merge` refuses it
+already carries `provenance: untrusted`. At arm time, `enable-auto-merge` refuses it
 through `evidence --lane-link`. In the merge queue, `ci-status`'s step `Fail a queued pull request
 carrying a hold label` reads the queued pull request's linked issue when an automation opened the
 pull request. The linked issue is its closing issues here, or with none, the one issue its plain
@@ -3806,7 +3806,7 @@ cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes
 work-unblock runs it before a re-fire and before adding `agent-ready`. It reads, one request at a
 time and none once `x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those
 merged in the window, those opened in it, and the open `agent-ready` issues that carry no hold
-label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status: needs-info`).
+label (`needs-human`, `needs-owner-decision`, `needs-reporter-info`).
 
 | Key | Default | What it sets |
 |---|---|---|
@@ -3864,7 +3864,7 @@ pauses only on or after `pause-from`, and no run pause changes.
 The queued issues come from the repository issues listing (open `agent-ready` issues, oldest
 first), not the search index, whose results carry no recency guarantee. The listing also returns
 pull requests and takes no label exclusion, so pull requests and the hold labels (`needs-human`,
-`needs-owner-decision`, `status: needs-decision`, `status: needs-info`, in any case) are left out
+`needs-owner-decision`, `needs-reporter-info`, in any case) are left out
 after the read. A page that fails or is not a list leaves the queued count unread
 (`admission_basis: fail-open`). The listing reads at most 10 pages of 100: a full tenth page counts
 one more issue as queued, and admissions pause (`queued_truncated: true`).
@@ -4236,7 +4236,7 @@ separate from `host-run`, an unattended agent run on a host, and from the human-
   which `--select` fills from `attended.classes`, and `--apply` refuses a `manual` class not
   listed there. No keyword in the issue text sets the line.
 - **Admission.** `attended` is a `refuse-labels` entry, parked at `status: confirmed`, never
-  `status: needs-decision`. An issue whose counted refinement records `manual (...)` is refused
+  `needs-owner-decision`. An issue whose counted refinement records `manual (...)` is refused
   the same way, and admission adds `attended` and says why. `iac (<repo>)` routes nothing: that
   repository's preview and deploy flow is the gate.
 - **Holds downstream.** work-unblock counts `attended` among its holds, so no sweep adds

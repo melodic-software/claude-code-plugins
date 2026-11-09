@@ -8,16 +8,14 @@
 //   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value a key of
 //   models.issue-dimensions in any case (small, Small, KNOWABLE);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
-//   security, cost and untrusted, the last marking untrusted provenance as
-//   the legacy `work-class: untrusted-provenance` proposal on the comment's
-//   second line (`Proposed work class: <label>`) also does;
+//   security, cost and untrusted, the last marking untrusted provenance;
 // - the issues it depends on from one `Blocked by: ` line, `none` or a comma
 //   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
 // It then sets the three issue fields (their ids from
 // models.issue-dimensions, checked against the ids GitHub answers) and sets
 // the Work status field to ready when all three fields and no flag parsed, no
-// hold (needs-human, status: needs-info, status: needs-decision, as the issue's
+// hold (needs-human, needs-reporter-info, needs-owner-decision, as the issue's
 // labels and the field give them, read-status.mjs) holds the issue,
 // and nothing it found conflicts; otherwise needs-owner-decision (unless a
 // needs-info or needs-decision status is already there), removing a parked
@@ -48,8 +46,7 @@
 // `needs-triage` floor label is taken off after the verdict is written.
 // Work classes are retired: a proposed class is never applied, and a class
 // label on the issue is neither read nor taken off. Untrusted provenance adds
-// `provenance: untrusted`, which holds the issue, and neither that label nor
-// its legacy name is taken off. The lanes App's own earlier field values give
+// `provenance: untrusted`, which holds the issue and is not taken off. The lanes App's own earlier field values give
 // way to the new verdict; a field value a listed human set is kept and is the value admission
 // reads; one anyone else set, or one whose setter cannot be read, is kept and
 // sends the issue to needs-decision. It writes a native blocked-by edge for each open issue of this repository
@@ -149,8 +146,6 @@ const inReadingOrder = (key, names) => {
   };
   return names.toSorted((a, b) => rank(a) - rank(b));
 };
-// The reusable's second line; only its legacy untrusted proposal is read.
-const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The Flags entry that marks untrusted provenance: it adds UNTRUSTED and holds
 // for security, and is not a flag an owner reason or a later verdict reads.
 const UNTRUSTED_FLAG = "untrusted";
@@ -223,10 +218,6 @@ export function parseVerdict(body, dimensionsConfig) {
   const problems = [];
   const shown = {};
   const escalated = String(body ?? "").includes(ESCALATED);
-  const classMatch = CLASS_LINE.exec(lines[1] ?? "");
-  // The legacy untrusted class, still in the reusable's enum while its label
-  // exists, marks provenance.
-  const proposedUntrusted = classMatch !== null && !escalated && UNTRUSTED_LABELS.includes(classMatch[1]);
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
@@ -256,7 +247,8 @@ export function parseVerdict(body, dimensionsConfig) {
   let flags = null;
   // Any Flags line naming it counts, so an unreadable or repeated line still
   // marks the issue untrusted.
-  const flaggedUntrusted = lines.some(
+  // The hold reads the verdict itself, so a missing label cannot drop it.
+  const untrusted = lines.some(
     (line) => line.startsWith("Flags: ") && line.slice("Flags: ".length).split(",").some((flag) => flag.trim() === UNTRUSTED_FLAG),
   );
   const flagText = lineValue("Flags");
@@ -270,8 +262,6 @@ export function parseVerdict(body, dimensionsConfig) {
       problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS, UNTRUSTED_FLAG].join(", ")}`);
     }
   }
-  // The hold reads the verdict itself, so a missing label cannot drop it.
-  const untrusted = proposedUntrusted || flaggedUntrusted;
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
@@ -570,7 +560,7 @@ async function readFields(github, repository, number, fieldSetters) {
 // The Work status a verdict leaves on an issue whose label names, with the
 // verdict's label writes applied, are `labels`: the first state in `config`'s
 // order whose label is among them (issue-status.mjs collapseStatus), so the
-// triage run's needs-human, `status: needs-info` and `needs-owner-decision`
+// triage run's needs-human, `needs-reporter-info` and `needs-owner-decision`
 // translate to their state; null for agent-ready, which admission writes.
 export async function verdictStatus(labels, config) {
   const { collapseStatus } = await import("../../actions/resolve-config/issue-status.mjs");

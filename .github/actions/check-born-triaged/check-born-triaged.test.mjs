@@ -147,7 +147,7 @@ const fieldRun = (labels, fields) =>
   });
 
 test("a field that mirrors the labels changes no answer", async () => {
-  const sets = [["needs-human"], ["agent-ready"], ["status: ready"], ["status: needs-decision"], [], ["needs-triage"], ["needs-spec"], ["admission-deferred"], ["priority: high"]];
+  const sets = [["needs-human"], ["agent-ready"], ["status: ready"], ["needs-owner-decision"], [], ["needs-triage"], ["needs-spec"], ["admission-deferred"], ["priority: high"]];
   for (const labels of sets) {
     const byLabels = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, sleep: noSleep, attempts: 1 });
     const mirrored = await run({ fetchIssue: async () => issue({ labels }), list: LIST, lanesAppId: LANES_APP_ID, statusOf: mirroredStatusOf, sleep: noSleep, attempts: 1 });

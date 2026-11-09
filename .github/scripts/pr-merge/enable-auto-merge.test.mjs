@@ -2717,7 +2717,7 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
     8: { body: body("Refs: #18"), closing: [] },
   };
   // Labeled after admission: 16 with the label, 17 (armed) and 18 with variants.
-  const issueLabels = { 11: ["agent-ready"], 16: ["agent-ready", "work-class: untrusted-provenance"], 17: ["Work-Class: Untrusted_Provenance"], 18: ["untrusted"] };
+  const issueLabels = { 11: ["agent-ready"], 16: ["agent-ready", "provenance: untrusted"], 17: ["Work-Class: Untrusted_Provenance"], 18: ["untrusted"] };
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
   const { github, writes, notes } = world(
     [1, 2, 3, 4, 6, 8].map((n) => pull(n, { body: pulls[n].body })).concat([5, 7].map((n) => pull(n, { body: pulls[n].body, autoMergeRequest: armed }))),

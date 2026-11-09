@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.9.0] - 2026-11-09
+
+### Changed
+
+- Every step that updates a pull request branch now takes its method from one shared decision instead of a fixed merge rule. The decision returns no update, merge, rebase, delegate or hold from the branch's signals, `reference/branch-update-criteria.md` records the reasoning and sources per row, and the repository setting `pr_update_method` can force merge or rebase on the rows that allow it.
+
+- Shared `hook-utils.sh` synced where this plugin carries it (#14227): `HOOK_TELEMETRY_SINK=@harness-ops` sends this plugin's hook telemetry to the harness-ops reference sink, and any other value starting with `@` is reserved and skipped. No other change to this plugin.
+
 ## [8.8.5] - 2026-11-08
 
 ### Changed

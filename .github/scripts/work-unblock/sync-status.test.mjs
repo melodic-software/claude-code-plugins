@@ -69,7 +69,7 @@ test("a person's labeled status: ready writes nothing while the field holds need
 });
 
 test("an added hold label writes nothing and reads nothing", async () => {
-  for (const label of ["needs-human", "status: needs-decision", "needs-owner-decision", "status: needs-info", "needs-spec"]) {
+  for (const label of ["needs-human", "needs-owner-decision", "needs-reporter-info", "needs-spec"]) {
     const { calls, run } = harness();
     assert.equal((await run(event("labeled", label))).outcome, "skipped", label);
     assert.deepEqual(calls, [], label);
@@ -86,7 +86,7 @@ test("no status labels with the field at confirmed (App) and unlabeled status: r
 });
 
 test("every removal but agent-ready's writes nothing", async () => {
-  for (const label of ["needs-human", "status: needs-decision", "status: confirmed", "admission-deferred", "needs-triage"]) {
+  for (const label of ["needs-human", "needs-owner-decision", "status: confirmed", "admission-deferred", "needs-triage"]) {
     const { calls, run } = harness({ field: "agent-ready" });
     assert.equal((await run(event("unlabeled", label))).outcome, "skipped", label);
     assert.deepEqual(calls, [], label);

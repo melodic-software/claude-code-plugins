@@ -330,7 +330,7 @@ test("read-only work on ordinary files carries no hold line", () => {
   assert.ok(!decideDone().body.includes("Hold: a human merges this"));
 });
 
-for (const label of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+for (const label of ["provenance: untrusted"]) {
   test(`untrusted-provenance work labeled only ${label} carries the hold line`, () => {
     const plan = decideDone({ issueLabels: [label] });
     assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
@@ -4459,7 +4459,7 @@ test("a hold on the Work status field alone, an unread field, or a field off age
   const decision = [late(5, OWNER_ID, DECISION_BODY, { login: "kyle-sexton" })];
   for (const [name, options] of [
     ["needs-human on the field", { statusOf: async (number, names) => [...names, "needs-human"] }],
-    ["needs-reporter-info on the field", { statusOf: async (number, names) => [...names, "status: needs-info"] }],
+    ["needs-reporter-info on the field", { statusOf: async (number, names) => [...names, "needs-reporter-info"] }],
     ["an unread field", { statusOf: async () => { throw new Error("#77's Work status could not be read: HTTP 502"); } }],
     ["an unread state", { state: new Error("HTTP 502") }],
     ["the field at ready", { state: "ready" }],
@@ -5373,7 +5373,6 @@ const HOLD_CASES = {
   "the compare request failed": { changedFiles: null },
   "the listing is cut at the cap while a path is denied": { changedFiles: CAPPED },
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
-  "the issue is labeled untrusted-provenance": { issueLabels: ["agent-ready", "work-class: untrusted-provenance"] },
   "the issue is labeled provenance: untrusted": { issueLabels: ["agent-ready", "provenance: untrusted"] },
   "a trusted labeler set merge: human": { humanMerge: true },
 };
@@ -5745,7 +5744,7 @@ test("refireStale re-fires a stale run's issue at once with work-unblock's re-fi
 test("refireStale skips an issue a hold on the Work status field alone holds, and one whose field cannot be read", async () => {
   for (const [statusOf, why] of [
     [async (number, names) => [...names, "needs-human"], "skipped: held by needs-human"],
-    [async (number, names) => [...names, "status: needs-decision"], "skipped: held by status: needs-decision"],
+    [async (number, names) => [...names, "needs-owner-decision"], "skipped: held by needs-owner-decision"],
     [async () => {
       throw new Error("#77's Work status could not be read: HTTP 502");
     }, "skipped: the Work status could not be read"],
@@ -5762,7 +5761,7 @@ test("refireStale skips an issue a hold on the Work status field alone holds, an
 test("refireStale reads holds through the real Work status reader: a field-only hold or an unread field skips", async () => {
   for (const [fields, why] of [
     [{ 77: { state: "needs-human" } }, "skipped: held by needs-human"],
-    [{ 77: { state: "needs-owner-decision" } }, "skipped: held by status: needs-decision"],
+    [{ 77: { state: "needs-owner-decision" } }, "skipped: held by needs-owner-decision"],
     [{ 77: new Error("HTTP 502") }, "skipped: the Work status could not be read"],
   ]) {
     const run = staleFetch({ labels: ["work-class: read-only"] });
@@ -5847,7 +5846,7 @@ test("main on a workflow-stale stop re-fires through refireStale and reads no ou
 // One hold set for the lane, which work-unblock's sweep reads too: every hold
 // on it stops the immediate re-fire, the owner-only ones included.
 test("refireStale re-fires nothing on any of the lane's holds", async () => {
-  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("host-run") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance") && LANE_HOLDS.has("provenance: untrusted"));
+  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("host-run") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("provenance: untrusted"));
   for (const hold of LANE_HOLDS) {
     const run = staleFetch({ labels: [hold] });
     assert.equal(await refire(run), `skipped: held by ${hold}`, hold);
