@@ -21,7 +21,7 @@
 # at the pin and at upstream HEAD. A truncated tree, a failed call, or a tree
 # path holding a control character exits 2 and is never a clean report. When an
 # owner's IP allow list refuses the token, that owner's calls retry anonymously
-# with curl; a page whose pin lookup is still refused is reported
+# with curl; a page with any read still refused is reported
 # `status=unreachable`, named on stderr, and skipped; --report goes on and exits
 # by drift alone, the other modes exit 2 after every page is read.
 #
@@ -196,6 +196,7 @@ OUT_SHA=""
 OUT_TREE=""
 OUT_API=""
 API_STATUS=""
+PAGE_UNREACH="" # set when a read for the current page stays refused
 
 # api <owner> <path>: GETs a REST path into OUT_API, the HTTP status of a
 # failure in API_STATUS. Returns 1 on a failure, 5 when <owner>'s IP allow list
@@ -214,6 +215,7 @@ api() {
   OUT_API="${resp%$'\n'*}"
   [[ "$API_STATUS" == 2?? ]] && return 0
   [[ "$API_STATUS" == 404 || "$API_STATUS" == 422 ]] && return 1
+  PAGE_UNREACH="HTTP ${API_STATUS:-none}"
   return 5
 }
 
@@ -240,7 +242,15 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
     [[ -f "$FIXTURE/$1__$2/HEAD" ]] || die "fixture missing: $FIXTURE/$1__$2/HEAD"
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
-    api "$1" "repos/$1/$2/commits/HEAD" || die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}"
+    api "$1" "repos/$1/$2/commits/HEAD"
+    case $? in
+    0) ;;
+    5)
+      OUT_SHA=""
+      return 0
+      ;;
+    *) die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}" ;;
+    esac
     sha="$(jq -r '.sha // empty' <<<"$OUT_API")"
   fi
   [[ "$sha" =~ $SHA_RE ]] || die "$key: HEAD is not a commit SHA: $(printf '%q' "$sha")"
@@ -279,6 +289,7 @@ gh_tree() {
   ((rec)) && url+="?recursive=1"
   if ! api "$o" "$url"; then
     status="$API_STATUS"
+    [[ -n "$PAGE_UNREACH" ]] && return 5
     case "$status" in
     404) return 3 ;;
     422) return 4 ;;
@@ -317,7 +328,7 @@ tree_list() {
   else
     gh_tree "$o" "$r" "$sha" "$p"
     rc=$?
-    if ((rc == 3)); then
+    if ((rc == 3 || rc == 5)); then
       OUT_TREE=""
     elif ((rc == 4)); then
       # A blob path: list its directory and keep the one entry.
@@ -333,7 +344,7 @@ tree_list() {
       fi
     fi
   fi
-  TREES[$key]="$OUT_TREE"
+  [[ -n "$PAGE_UNREACH" ]] || TREES[$key]="$OUT_TREE"
 }
 
 # diff_trees <pin-text> <head-text>: prints `<A|M|D> <path>` sorted by path.
@@ -383,6 +394,13 @@ done
 FINDINGS=()
 REPORT=()
 UNREACHABLE=()
+
+# unreachable_page: records the current page as unreachable; its other results
+# are dropped.
+unreachable_page() {
+  UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous read ($PAGE_UNREACH); not checked")
+  REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
+}
 drifted=0
 links_checked=0
 
@@ -391,6 +409,7 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   parse_marker "$file"
   parse_links "$file"
   o="$P_OWNER" r="$P_REPO" pin="$P_PIN" scope="$P_SCOPE"
+  PAGE_UNREACH=""
   # Without this, an unknown pin reads as every path absent. The fixture seam
   # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
@@ -398,8 +417,7 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     case $? in
     0) ;;
     5)
-      UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous read (HTTP ${API_STATUS:-none}); not checked")
-      REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
+      unreachable_page
       continue
       ;;
     *) die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed): $(jq -r '.message // empty' <<<"$OUT_API" 2>/dev/null)${API_STATUS:+ (HTTP $API_STATUS)}" ;;
@@ -410,10 +428,15 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   # would read empty and new-unit detection would be silently off.
   if [[ -n "$scope" ]]; then
     tree_list "$o" "$r" "$pin" "$scope"
+    if [[ -n "$PAGE_UNREACH" ]]; then
+      unreachable_page
+      continue
+    fi
     [[ -n "$OUT_TREE" ]] || die "$page: scope $scope/ does not exist in $o/$r@$pin"
   fi
 
   if [[ "$MODE" == links ]]; then
+    found=${#FINDINGS[@]}
     for i in "${!L_LINE[@]}"; do
       links_checked=$((links_checked + 1))
       status="${L_FORM[i]}"
@@ -425,11 +448,19 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
       fi
       [[ "$status" == ok ]] || FINDINGS+=("$page:${L_LINE[i]}: $status ${L_URL[i]}")
     done
+    if [[ -n "$PAGE_UNREACH" ]]; then
+      FINDINGS=("${FINDINGS[@]:0:found}")
+      unreachable_page
+    fi
     continue
   fi
 
   head_sha "$o" "$r"
   head="$OUT_SHA"
+  if [[ -n "$PAGE_UNREACH" ]]; then
+    unreachable_page
+    continue
+  fi
   page_events=()
   page_report=()
   covered=()
@@ -490,6 +521,10 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     done < <(diff_trees "$at_pin" "$at_head")
   fi
 
+  if [[ -n "$PAGE_UNREACH" ]]; then
+    unreachable_page
+    continue
+  fi
   status=clean
   if ((${#page_events[@]} > 0)); then
     status=drift

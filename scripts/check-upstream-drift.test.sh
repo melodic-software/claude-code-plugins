@@ -410,11 +410,12 @@ no_out "missing fixture HEAD"
 # IP allow list: stub gh and curl on PATH, no fixture seam. The page has a pin
 # and no links, so a read is the pin lookup and HEAD, then status=untracked.
 # Stub gh logs each call and prints <gh-body> (default: the allow-list refusal);
-# stub curl answers commits/<sha> with that sha and HTTP <curl-code>.
+# stub curl answers commits/<sha> with that sha and HTTP <curl-code>
+# (<head-code> for commits/HEAD, default <curl-code>).
 # The backticks below are literal text.
 # shellcheck disable=SC2016
 ALLOW_BODY='{"message":"Although you appear to have the correct authorization credentials, the `acme` organization has an IP allow list enabled.","status":"403"}'
-stub_api() { # <curl-code> [<gh-body>]
+stub_api() { # <curl-code> [<gh-body>] [<head-code>]
   new_root || return 2
   {
     printf '# Widgets\n\n'
@@ -434,8 +435,9 @@ EOS
 echo "\$*" >>"$f/curl.log"
 u="\${*: -1}"
 s="\${u##*/}"
-[[ "\$s" == HEAD ]] && s=$NEW
-printf '{"sha":"%s"}\n%s' "\$s" "$1"
+c=$1
+[[ "\$s" == HEAD ]] && s=$NEW c=${3:-$1}
+printf '{"sha":"%s"}\n%s' "\$s" "\$c"
 EOS
   chmod +x "$f/bin/gh" "$f/bin/curl"
 }
@@ -455,6 +457,12 @@ want_err "allow list, anonymous read refused, --report" "$PAGE: acme/widgets ref
 run_env PATH="$f/bin:$PATH" --
 want_rc "allow list, anonymous read refused, default mode" 2
 no_out "allow list, anonymous read refused, default mode"
+
+stub_api 200 "" 403
+run_env PATH="$f/bin:$PATH" -- --report
+want_rc "allow list, a later read refused, --report" 0
+want_out_line "allow list, a later read refused, --report" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
+want_err "allow list, a later read refused, --report" "an anonymous read (HTTP 403)"
 
 stub_api 200 '{"message":"Not Found","status":"404"}'
 run_env PATH="$f/bin:$PATH" -- --report
