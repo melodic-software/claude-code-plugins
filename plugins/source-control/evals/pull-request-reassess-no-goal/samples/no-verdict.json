@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "reassess: no verdict: the PR states no goal",
+      "why": "the failure line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{ \"verdict\": \"close\" }",
+      "why": "a verdict"
+    },
+    {
+      "answer": "reassess: no verdict, but \"verdict\": \"rework\"",
+      "why": "both"
+    },
+    {
+      "answer": "It looks fine.",
+      "why": "no failure stated"
+    }
+  ]
+}

@@ -3,11 +3,16 @@
 # state install.sh wrote (or, under --no-pr, opens it on `pr create`), any extra pull requests in
 # extra-prs, the issues in issues/<n>.json, and the REST reads the create phase and the branch update signals make, and never
 # reaches a network or the real gh: any command it does not serve
-# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`
-# and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`, `pr edit`,
+# a comment edit and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
 # exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
 # The forge's branch update (`PUT .../update-branch`) is refused on
 # purpose: a `merge` decision in the ready phase then takes its documented local-merge fallback, which the graders read.
+# A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt, as are
+# `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
+# reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
+# comments.json (its conversation comments), reviews.json (its reviews) and merged-prs.json (pull requests
+# already merged into the base). The last `pr comment` body is kept in comment-body.md for a grader.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
@@ -15,20 +20,41 @@ forge="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 state="$forge/state"
 origin="$forge/eval-fixture/app.git"
 extra="$forge/extra-prs"
+overlay="$forge/pr-overlay.json"
+comments="$forge/comments.json"
+merged="$forge/merged-prs.json"
+reviews="$forge/reviews.json"
 [[ -f "$extra" ]] || extra=/dev/null
 # shellcheck source=/dev/null
 source "$state"
+primary="$PR_NUMBER"
 
 refuse() {
   echo "gh (eval fixture forge): '$*' is not served offline" >&2
   exit 1
 }
 
-# Split argv into positionals plus the --json, --jq, --head, --base and --name-only options gh accepts.
-json="" jq_expr="" head="" base_filter="" name_only=0 args=()
+# Split argv into positionals plus the --json, --jq, --head, --base, --state, --search, label and --name-only options gh accepts.
+json="" jq_expr="" head="" base_filter="" state_filter="" search="" name_only=0 args=() add_labels=()
 parse() {
   while (($#)); do
     case "$1" in
+      --state)
+        state_filter="${2:-}"
+        shift
+        ;;
+      --state=*) state_filter="${1#--state=}" ;;
+      -S | --search)
+        search="${2:-}"
+        shift
+        ;;
+      --search=*) search="${1#--search=}" ;;
+      --add-label)
+        add_labels+=("${2:-}")
+        shift
+        ;;
+      --add-label=*) add_labels+=("${1#--add-label=}") ;;
+      --remove-label) shift ;;
       --json)
         json="$2"
         shift
@@ -83,6 +109,25 @@ pr_matches() {
   return 1
 }
 
+# The ref the forge holds a pull request's head at: the pull ref once written, else its branch.
+head_ref() {
+  if git --git-dir="$origin" rev-parse -q --verify "refs/pull/$PR_NUMBER/head" >/dev/null; then
+    echo "refs/pull/$PR_NUMBER/head"
+  else
+    echo "refs/heads/$PR_HEAD"
+  fi
+}
+
+merged_prs() { if [[ -f "$merged" ]]; then cat "$merged"; else echo '[]'; fi; }
+
+# The merged pull request a selector names, or nothing.
+merged_doc() {
+  local sel="${1#\#}"
+  sel="${sel##*/pull/}"
+  [[ "$sel" =~ ^[0-9]+$ ]] || return 0
+  merged_prs | jq -c --argjson n "$sel" '.[] | select(.number == $n)'
+}
+
 # The extra pull requests' documents; with a head branch, only that branch's.
 extra_docs() {
   local n h t
@@ -93,14 +138,20 @@ extra_docs() {
 }
 
 pr_doc() {
-  local head_oid base_oid mss=CLEAN
-  head_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_HEAD")
+  local head_oid base_oid mss=CLEAN doc commits files
+  head_oid=$(git --git-dir="$origin" rev-parse "$(head_ref)")
   base_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_BASE")
   # GitHub never reads CLEAN with a failing check: a non-required one makes it UNSTABLE.
   jq -e 'any(.[]; .bucket == "fail")' "$forge/checks" >/dev/null && mss=UNSTABLE
   git --git-dir="$origin" merge-base --is-ancestor "$base_oid" "$head_oid" || mss=BEHIND
-  jq -n --arg n "$PR_NUMBER" --arg head "$PR_HEAD" --arg base "$PR_BASE" --arg oid "$head_oid" \
+  commits=$(git --git-dir="$origin" log --reverse --format='%H%x09%s' "$base_oid..$head_oid" |
+    jq -Rsc 'split("\n") | map(select(length > 0) | split("\t") | {oid: .[0], messageHeadline: .[1]})')
+  files=$(git --git-dir="$origin" diff --numstat "$base_oid...$head_oid" |
+    jq -Rsc 'split("\n") | map(select(length > 0) | split("\t")
+      | {path: .[2], additions: (.[0] | tonumber? // 0), deletions: (.[1] | tonumber? // 0)})')
+  doc=$(jq -n --arg n "$PR_NUMBER" --arg head "$PR_HEAD" --arg base "$PR_BASE" --arg oid "$head_oid" \
     --arg title "$PR_TITLE" --argjson draft "$(cat "$forge/draft")" --arg mss "$mss" \
+    --argjson commits "$commits" --argjson files "$files" \
     --argjson checks "$(jq -c 'map({name, status: "COMPLETED", conclusion: (if .bucket == "fail" then "FAILURE" else "SUCCESS" end), detailsUrl: .link})' "$forge/checks")" '{
       number: ($n | tonumber), title: $title, body: "", state: "OPEN", isDraft: $draft,
       headRefName: $head, headRefOid: $oid, baseRefName: $base,
@@ -108,17 +159,22 @@ pr_doc() {
       author: {login: "eval-fixture"}, isCrossRepository: false,
       headRepository: {name: "app"}, headRepositoryOwner: {login: "eval-fixture"},
       mergeable: "MERGEABLE", mergeStateStatus: $mss, reviewDecision: "",
-      statusCheckRollup: $checks, reviews: [], comments: [], labels: [], files: []
-    }'
+      statusCheckRollup: $checks, reviews: [], comments: [], labels: [], commits: $commits, files: $files
+    }')
+  if [[ -f "$overlay" && "$PR_NUMBER" == "$primary" ]]; then
+    jq --slurpfile o "$overlay" '. * $o[0]' <<<"$doc"
+  else
+    printf '%s\n' "$doc"
+  fi
 }
 
 # The pull request as REST serves it. No native stack: GitHub sets `stack` only on a stack member.
 rest_pull() {
   local count
-  count=$(git --git-dir="$origin" rev-list --count "refs/heads/$PR_BASE..refs/heads/$PR_HEAD")
+  count=$(git --git-dir="$origin" rev-list --count "refs/heads/$PR_BASE..$(head_ref)")
   pr_doc | jq --argjson commits "$count" '{
     number, title, draft: .isDraft, state: "open",
-    head: {ref: .headRefName, sha: .headRefOid, repo: {full_name: "eval-fixture/app"}},
+    head: {ref: .headRefName, sha: .headRefOid, repo: {full_name: (.headRepositoryOwner.login + "/" + .headRepository.name)}},
     base: {ref: .baseRefName}, user: {login: .author.login},
     mergeable: (.mergeable == "MERGEABLE"), mergeable_state: (.mergeStateStatus | ascii_downcase),
     commits: $commits, stack: null
@@ -129,7 +185,7 @@ rest_pull() {
 rest_commits() {
   local author
   author=$(pr_doc | jq -r .author.login)
-  git --git-dir="$origin" rev-list --reverse --parents "refs/heads/$PR_BASE..refs/heads/$PR_HEAD" |
+  git --git-dir="$origin" rev-list --reverse --parents "refs/heads/$PR_BASE..$(head_ref)" |
     jq -Rsc --arg author "$author" 'split("\n") | map(select(length > 0) | split(" ")
       | {sha: .[0], parents: (.[1:] | map({sha: .})), author: {login: $author}})'
 }
@@ -152,6 +208,11 @@ case "$cmd $sub" in
     shift 2
     parse "$@"
     pr_matches "${args[0]:-}" || {
+      doc=$(merged_doc "${args[0]:-}")
+      [[ -n "$doc" ]] && {
+        emit "$doc"
+        exit 0
+      }
       echo "no pull requests found for branch \"${args[0]:-$(git branch --show-current)}\"" >&2
       exit 1
     }
@@ -166,11 +227,18 @@ case "$cmd $sub" in
     parse "$@"
     doc=$(
       if [[ -z "$base_filter" || "$base_filter" == "$PR_BASE" ]]; then
-        if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then pr_doc; fi
-        extra_docs "$head"
+        if [[ "$state_filter" != merged ]]; then
+          if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then pr_doc; fi
+          extra_docs "$head"
+        fi
+        if [[ -z "$head" && ("$state_filter" == merged || "$state_filter" == all) ]]; then merged_prs | jq -c '.[]'; fi
       fi
     )
     doc=$(jq -sc . <<<"$doc")
+    # Only the `<text> in:body` search the reassess same-issue read makes is applied; any other is ignored.
+    if [[ "$search" == *" in:body" ]]; then
+      doc=$(jq -c --arg term "${search% in:body}" 'map(select((.body // "") | contains($term)))' <<<"$doc")
+    fi
     if [[ -n "$json" ]]; then
       json_list="$json"
       json=""
@@ -181,11 +249,17 @@ case "$cmd $sub" in
   "pr diff")
     shift 2
     parse "$@"
-    pr_matches "${args[0]:-}" || refuse pr diff "$@"
+    if ! pr_matches "${args[0]:-}"; then
+      oid=$(merged_doc "${args[0]:-}" | jq -r .mergeCommit.oid)
+      [[ -n "$oid" ]] || refuse pr diff "$@"
+      if ((name_only)); then flags=(--name-only); else flags=(); fi
+      git --git-dir="$origin" diff "${flags[@]+"${flags[@]}"}" "$oid^" "$oid"
+      exit
+    fi
     if ((name_only)); then
-      git --git-dir="$origin" diff --name-only "refs/heads/$PR_BASE...refs/heads/$PR_HEAD"
+      git --git-dir="$origin" diff --name-only "refs/heads/$PR_BASE...$(head_ref)"
     else
-      git --git-dir="$origin" diff "refs/heads/$PR_BASE...refs/heads/$PR_HEAD"
+      git --git-dir="$origin" diff "refs/heads/$PR_BASE...$(head_ref)"
     fi
     ;;
   "pr create")
@@ -314,7 +388,34 @@ case "$cmd $sub" in
     parse "$@"
     pr_matches "${args[0]:-}" || refuse pr comment "$@"
     record "pr comment" "$@"
+    while (($#)); do
+      case "$1" in
+        -F | --body-file) cat -- "${2:-/dev/null}" >"$forge/comment-body.md" ;;
+        --body-file=*) cat -- "${1#--body-file=}" >"$forge/comment-body.md" ;;
+        -b | --body) printf '%s\n' "${2:-}" >"$forge/comment-body.md" ;;
+        --body=*) printf '%s\n' "${1#--body=}" >"$forge/comment-body.md" ;;
+        *) ;;
+      esac
+      shift
+    done
     echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER#issuecomment-1"
+    ;;
+  "pr edit")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr edit "$@"
+    record "pr edit" "$@"
+    for l in "${add_labels[@]+"${add_labels[@]}"}"; do
+      [[ -f "$overlay" ]] || echo '{}' >"$overlay"
+      jq -c --arg l "$l" '.labels = ((.labels // []) + [{name: $l}])' "$overlay" >"$overlay.new" && mv "$overlay.new" "$overlay"
+    done
+    echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER"
+    ;;
+  "label list")
+    shift 2
+    parse "$@"
+    json=""
+    emit '[{"name":"do-not-merge"}]'
     ;;
   "api graphql")
     shift 2
@@ -337,7 +438,10 @@ case "$cmd $sub" in
       emit '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
     elif [[ "$gql" == *reviewThreads* ]]; then
       emit "$(jq -c '{data: {repository: {pullRequest: {reviewThreads: {pageInfo: {hasNextPage: false, endCursor: null}, nodes: .}}}}}' "$forge/threads")"
+    elif [[ "$gql" == *isInMergeQueue* ]]; then
+      emit '{"data":{"repository":{"pullRequest":{"isInMergeQueue":false}}}}'
     else
+      [[ "$gql" != *mutation* ]] || record "api graphql mutation" "$gql"
       refuse api graphql "$@"
     fi
     ;;
@@ -362,13 +466,16 @@ case "$cmd $sub" in
     emit "$doc"
     ;;
   "api "*)
-    # REST reads: the repository, an issue and its sub-issues, a file at a ref, and the pull request
-    # and base facts the branch update signals read. Any method but GET, and any other path, is
-    # refused. -i prefixes the response with a status line; --slurp wraps a list in one page.
+    # REST reads: the repository, an issue, its sub-issues and comments, a file at a ref, the commit-to-PR
+    # lookup, and the pull request and base facts the branch update signals read. A PATCH of a seeded
+    # comment is recorded; any other method but GET, and any other path, is refused.
+    # -i prefixes the response with a status line; --slurp wraps a list in one page.
     shift
-    path="" method=GET include=0 slurp=0
+    path="" method="" include=0 slurp=0 body_field="" fields=0
     while (($#)); do
       case "$1" in
+        body=*) body_field="${1#body=}" ;;
+        -f | -F | --field | --raw-field | --input | --field=* | --raw-field=* | --input=*) fields=1 ;;
         -X | --method)
           method="$2"
           shift
@@ -387,10 +494,26 @@ case "$cmd $sub" in
       esac
       shift
     done
-    [[ "$method" == GET ]] || refuse api --method "$method" "$path"
+    # gh's own default: GET, or POST once a field or body is given.
+    if [[ -z "$method" ]]; then if ((fields)); then method=POST; else method=GET; fi; fi
     path="${path/#repos\/\{owner\}\/\{repo\}/repos/eval-fixture/app}"
     ref="$PR_BASE"
-    [[ "$path" == *"?ref="* ]] && ref="${path##*\?ref=}" && path="${path%%\?*}"
+    [[ "$path" == *"?ref="* ]] && ref="${path##*\?ref=}"
+    path="${path%%\?*}"
+    if [[ "$method" == PATCH && "$path" == repos/eval-fixture/app/issues/comments/* ]]; then
+      id="${path##*/}"
+      if [[ ! -f "$comments" ]] || ! jq -e --argjson id "$id" 'any(.[]; .id == $id)' "$comments" >/dev/null; then
+        refuse api --method PATCH "$path"
+      fi
+      if [[ "$body_field" == @* ]]; then body_text=$(cat -- "${body_field#@}") || exit 1; else body_text="$body_field"; fi
+      record "comment edit" "$id" "$body_text"
+      emit "$(jq -nc --argjson id "$id" '{id: $id}')"
+      exit 0
+    fi
+    if [[ "$method" != GET ]]; then
+      record "api $method" "$path"
+      refuse api --method "$method" "$path"
+    fi
     not_found() {
       ((include)) && printf 'HTTP/2.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"message":"Not Found"}\n'
       echo "gh: Not Found (HTTP 404)" >&2
@@ -408,6 +531,15 @@ case "$cmd $sub" in
     case "$path" in
       repos/eval-fixture/app)
         emit "$(jq -n --arg base "$PR_BASE" '{name: "app", full_name: "eval-fixture/app", owner: {login: "eval-fixture"}, default_branch: $base, private: true, html_url: "https://github.com/eval-fixture/app"}')"
+        ;;
+      repos/eval-fixture/app/issues/*/comments)
+        if [[ -f "$comments" ]]; then page "$(cat "$comments")"; else page '[]'; fi
+        ;;
+      repos/eval-fixture/app/commits/*/pulls)
+        sha="${path#repos/eval-fixture/app/commits/}"
+        sha="${sha%/pulls}"
+        page "$(merged_prs | jq -c --arg sha "$sha" '[.[] | select(any(.commit_shas[]; . as $c | ($c | startswith($sha)) or ($sha | startswith($c))))
+          | {number, title, body, state: "closed", merged_at: .mergedAt, base: {ref: .baseRefName}, html_url: .url}]')"
         ;;
       repos/eval-fixture/app/issues/*/sub_issues)
         n="${path#repos/eval-fixture/app/issues/}"
@@ -433,7 +565,15 @@ case "$cmd $sub" in
         ;;
       repos/eval-fixture/app/pulls/*/reviews)
         pull_of
+        if [[ -f "$reviews" && "$PR_NUMBER" == "$primary" ]]; then page "$(cat "$reviews")"; else page '[]'; fi
+        ;;
+      repos/eval-fixture/app/pulls/*/comments)
+        pull_of
         page '[]'
+        ;;
+      repos/eval-fixture/app/pulls/*/files)
+        pull_of
+        page "$(pr_doc | jq -c '.files | map({filename: .path, additions, deletions})')"
         ;;
       repos/eval-fixture/app/pulls/*)
         [[ "${path#repos/eval-fixture/app/pulls/}" != */* ]] || refuse api "$path"
@@ -455,5 +595,10 @@ case "$cmd $sub" in
     esac
     ;;
   "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
+  "pr close" | "pr update-branch" | "issue comment" | "issue edit")
+    # Writes the stand-in never performs, recorded so a grader sees the attempt.
+    record "$cmd $sub" "${@:3}"
+    refuse "$@"
+    ;;
   *) refuse "$@" ;;
 esac

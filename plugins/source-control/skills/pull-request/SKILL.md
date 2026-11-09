@@ -2,13 +2,13 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create, ready (update branch, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|ci|merge|evidence|status|full|fetch-logs…] [--unattended] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|evidence|status|full|fetch-logs…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
+**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
@@ -77,6 +77,7 @@ For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/tem
 | `ci --ci` | CI | The pr-unblock lane's unattended fix of a PR's failing checks: reads the runner's context file as data, reproduces each check with the repository's own command, fixes the cause, reruns it, and leaves the fix uncommitted for the runner's patch; never weakens a check, and escalates what it cannot fix with a named reason. See [reference/ci-ci.md](reference/ci-ci.md) |
 | `merge` | Phase 4 | Squash merge, or merge or enqueue without asking once the PR is `CLEAN` and the AI review checks have passed on the reviewed head, with the plain merge command (a refusal is reported, never handed to the user or retried in another shape), then confirm a merge-queue PR entered the queue (enqueue a `CLEAN` one left out, report the refusal text verbatim; §4.2.2) and wait for `MERGED` (no strategy flag behind a merge queue, `--auto` only pinned to the reviewed head; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `evidence <pr> --evidence <file> [--attach <path>]... [--summary <file>] [--artifact-url <url> [--retention-days <n>]]` | Evidence | After the verifier passed for the PR's head, post one evidence comment, or update it in place for a new head, with `gh pr comment --edit-last --create-if-none --attach`: the text summary, publishable captures only in collapsed sections laid out by `templates/evidence-comment.md`, and the CI capture artifact link with its expiry. A file outside the `publishable` list, or a leak-scan hit on the body, posts nothing. See [reference/evidence.md](reference/evidence.md) |
+| `reassess [<pr>] [--act] [--state-dir <dir>]` | Reassess | Judge whether one open PR should still land, even when green and mergeable, and return `continue`, `rework` or `close` with its evidence: report-only unless `--act` carries out the verdict. Runs on one PR and is no merge prerequisite. `--state-dir` defaults to `${CLAUDE_PLUGIN_DATA}/state/babysit-prs`. See [reference/reassess.md](reference/reassess.md) |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
@@ -153,6 +154,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 | CI | [reference/ci-ci.md](reference/ci-ci.md) | `ci --ci` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 | Evidence | [reference/evidence.md](reference/evidence.md) | `evidence` |
+| Reassess | [reference/reassess.md](reference/reassess.md) | `reassess` |
 
 ---
 
@@ -283,9 +285,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-/session-flow:retro
-
-Optional, once the PR has merged: it reviews how the session went.
+- PR merged, optional review of how the session went: /session-flow:retro.
+- `reassess` returned `rework`: /implementation:implement.
 
 ## Gotchas
 

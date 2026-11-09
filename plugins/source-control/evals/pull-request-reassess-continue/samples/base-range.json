@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "\"base_range\": \"1234abc..9876def\"",
+      "why": "the JSON field"
+    },
+    {
+      "answer": "Range: 1234abcd...9876def0",
+      "why": "three-dot form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"base_range\": \"main..head\"",
+      "why": "names, not SHAs"
+    }
+  ]
+}

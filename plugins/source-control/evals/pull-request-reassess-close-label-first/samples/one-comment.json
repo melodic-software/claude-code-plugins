@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "one comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "two comments"
+    },
+    {
+      "answer": "{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n",
+      "why": "none"
+    }
+  ]
+}

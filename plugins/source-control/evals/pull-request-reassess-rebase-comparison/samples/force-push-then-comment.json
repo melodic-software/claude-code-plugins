@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\"]}\n{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"abc123\",\"forced\":true}\n{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n",
+      "why": "one rewrite of the head, then the comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"abc123\",\"forced\":false}\n",
+      "why": "the merge a refused rebase falls back to: a fast-forward push and no comment"
+    },
+    {
+      "answer": "{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"abc123\",\"forced\":false}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n",
+      "why": "a comment after a merge, which rewrote nothing"
+    },
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"abc123\",\"forced\":true}\n",
+      "why": "the comment went first"
+    },
+    {
+      "answer": "{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"abc123\",\"forced\":true}\n{\"command\":\"push\",\"ref\":\"refs/heads/fix/retry-limit\",\"sha\":\"def456\",\"forced\":true}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n",
+      "why": "two force pushes"
+    },
+    {
+      "answer": "{\"command\":\"push\",\"ref\":\"refs/heads/probe\",\"sha\":\"abc123\",\"forced\":true}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n",
+      "why": "a push to another branch"
+    },
+    {
+      "answer": "",
+      "why": "no forge call at all"
+    }
+  ]
+}

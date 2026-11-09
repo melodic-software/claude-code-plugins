@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A push can dismiss approvals under the base's stale-review setting and re-runs the review lanes.",
+      "why": "the warning, stating both effects"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added the label, then one comment.",
+      "why": "neither effect"
+    },
+    {
+      "answer": "A push can dismiss approvals.",
+      "why": "no mention of the review lanes"
+    },
+    {
+      "answer": "I didn't push or update the branch, so no approvals were dismissed and no reviews re-ran.",
+      "why": "says what did not happen and gives no warning about a push"
+    }
+  ]
+}

@@ -24,7 +24,7 @@
 # lacks the stand-in's bin/, as in the no-plugin arm. Without either, git fails with
 # "remote-evalforge is not a git command" and never falls back to https.
 #
-# The stand-in lands in <git common dir>/eval-forge/bin. A case puts it first on the run's Bash PATH by
+# The gh and git stand-ins land in <git common dir>/eval-forge/bin. A case puts them first on the run's Bash PATH by
 # listing its own `gh-forge-path` plugin subdirectory in prompt.md `plugins:`: that plugin's
 # SessionStart hook appends an export of the directory to $CLAUDE_ENV_FILE, which the run's shell
 # applies whether it is bash or zsh. A case cannot set PATH (env keys are EVAL_* only), a plugin's
@@ -116,6 +116,9 @@ git init -q --bare "$forge/eval-fixture/app.git"
 git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
 git push -q origin "$base" "$head" "${extra_heads[@]+"${extra_heads[@]}"}"
+# Copied after that push, so the call record holds only what the run pushes.
+cp "$here/git" "$forge/bin/git"
+chmod +x "$forge/bin/git"
 for b in "$head" "${extra_heads[@]+"${extra_heads[@]}"}"; do
   git branch -q --set-upstream-to="origin/$b" "$b"
 done

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"api\",\"graphql\",\"-F\",\"owner=eval-fixture\",\"-f\",\"query=query { repository { pullRequest { isInMergeQueue } } }\"]}\n",
+      "why": "the limits read reached the forge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\",\"--json\",\"body\"]}\n",
+      "why": "a read, but not the action's limits read"
+    },
+    {
+      "answer": "",
+      "why": "no forge call at all"
+    }
+  ]
+}
