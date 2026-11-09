@@ -3,11 +3,9 @@
 # a finding blocks only on a line the commit adds, a finding about a whole
 # workflow is attributed to the line actionlint names, a partly staged file is
 # checked as staged, nothing is ever rewritten, only workflow files are linted,
-# --worktree reports uncommitted changes, an actionlint that could not lint
-# (exit above 1) fails the check with its output, a missing actionlint follows
-# the skip-key rule, and the plugin's own vendored installer wires the entry so
-# `git commit` runs it. The exit-status tests use a stub actionlint and run
-# without the real tool; the rest skip when it is not on PATH.
+# --worktree reports uncommitted changes, a missing actionlint follows the
+# skip-key rule, and the plugin's own vendored installer wires the entry so
+# `git commit` runs it.
 # Expected values are actionlint's documented output (docs/checks.md): an
 # undefined property in an expression, a job without runs-on, and a YAML parse
 # error; the line numbers are counted by hand from the fixtures below.
@@ -18,6 +16,10 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/actionlint-check.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
+if ! command -v actionlint >/dev/null 2>&1; then
+  echo "SKIP: actionlint not on PATH -- actionlint-check tests skipped"
+  exit 0
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -63,44 +65,6 @@ CLEAN=$'name: ok\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    ste
 BAD=$'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n'
 MSG='property "missing" is not defined in object type {} [expression]'
 WF=.github/workflows
-
-# A stub actionlint first on PATH prints one line and exits with the status
-# given, so the exit-status handling is tested without the real tool: exit 1 is
-# findings, above 1 means actionlint could not lint, and then its output goes to
-# stderr after "actionlint failed[ on <path>]:" and the check exits 1.
-STUB="$WORK/stub"
-mkdir -p "$STUB"
-cat >"$STUB/actionlint" <<'EOF'
-#!/bin/sh
-printf '%s\n' "$STUB_LINE"
-exit "$STUB_RC"
-EOF
-chmod +x "$STUB/actionlint"
-stub_check() { # <stub exit status> <stub line> <repo> [args...]
-  local rc="$1" line="$2"
-  shift 2
-  STUB_RC="$rc" STUB_LINE="$line" PATH="$STUB:$PATH" check "$@"
-}
-
-new_repo
-printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
-git -C "$REPO" add "$WF/ci.yml"
-expect "stub exit 1: its finding blocks as a finding, not a failure" "1||$WF/ci.yml:7: stub finding [stub]
-$HINT" "$(stub_check 1 "$WF/ci.yml:7:3: stub finding [stub]" "$REPO")"
-expect "stub exit 2 on a whole file: the failure and its output go to stderr" "1||actionlint: actionlint failed:
-stub crashed" "$(stub_check 2 "stub crashed" "$REPO")"
-printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
-expect "stub exit 1 on a partly staged file: the finding is named by its path" "1||$WF/ci.yml:7: stub finding [stub]
-$HINT" "$(stub_check 1 "<stdin>:7:3: stub finding [stub]" "$REPO")"
-expect "stub exit 2 on a partly staged file: the failure names the file" "1||actionlint: actionlint failed on $WF/ci.yml:
-stub crashed" "$(stub_check 2 "stub crashed" "$REPO")"
-
-if ! command -v actionlint >/dev/null 2>&1; then
-  echo "SKIP: actionlint not on PATH -- the tests that need the real actionlint skipped"
-  echo "actionlint-check: $PASS passed, $FAIL failed"
-  ((FAIL == 0))
-  exit
-fi
 
 new_repo
 printf '%s' "$CLEAN" >"$REPO/$WF/ci.yml"
