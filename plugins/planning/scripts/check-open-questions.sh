@@ -1085,7 +1085,7 @@ if [[ "$procedure_on" -eq 1 ]]; then
     done
 
     # The Goal's Finish line says when the whole effort is done and who checks it.
-    finish_line="$(section_lines 'goal' "$brief_lo" "$brief_hi" "$brief" | tr '[:upper:]' '[:lower:]' | sed -n 's/^[-*+] finish line:[[:space:]]*//p' | head -n 1)"
+    finish_line="$(section_lines 'goal' "$brief_lo" "$brief_hi" "$brief" | tr '[:upper:]' '[:lower:]' | sed -e 's/\*\*//g' -e 's/__//g' | sed -n 's/^[-*+] finish line:[[:space:]]*//p' | head -n 1)"
     finish_check="$(printf '%s' "$finish_line" | tr -d '`' | tr '[:upper:]' '[:lower:]')"
     case "$finish_check" in
     '' | 'not settled yet' | 'not settled yet.')

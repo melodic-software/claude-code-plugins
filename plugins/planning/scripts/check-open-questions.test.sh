@@ -96,19 +96,22 @@ expect_exit "one open row -> 1" 1 --ledger "$one_open"
 
 # A row a newer constraint marked blocks the gate on an answered row too, and a
 # ledger with no such row keeps its verdict line.
-stale_row="$(mkledger <<'EOF'
+stale_row="$(
+  mkledger <<'EOF'
 - Q1 | answered | round 1 | a | answer:: accepted: yes; stale:: C2, C3
 - Q2 | answered | round 1 | b | answer:: accepted: yes
 EOF
 )"
 expect_exit "stale answered row -> 1" 1 --ledger "$stale_row"
 expect_stdout "stale row is counted" "stale=1" --ledger "$stale_row"
-stale_text="$(mkledger <<'EOF'
+stale_text="$(
+  mkledger <<'EOF'
 - Q1 | answered | round 1 | a | answer:: said\; stale:: C2
 EOF
 )"
 expect_exit "an escaped separator is answer text, not a mark -> 0" 0 --ledger "$stale_text"
-stale_backslash="$(mkledger <<'EOF'
+stale_backslash="$(
+  mkledger <<'EOF'
 - Q1 | answered | round 1 | a | answer:: free-text: C:\\; stale:: C2
 EOF
 )"
@@ -826,7 +829,10 @@ grep -v -e '^### Work size' "$proc_brief_full" >"$proc_brief_nosize"
 expect_exit "--procedure --brief missing Work size -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_nosize" --procedure
 if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_nosize" --procedure)" == *"work[- ]size"* ]]; then pass "--procedure names the missing Work size section"; else fail "--procedure names the missing Work size section"; fi
 proc_brief_plan="$TMP/proc-brief-plan.md"
-{ cat "$proc_brief_short"; printf '\n### Out-of-scope\n- x\n'; } >"$proc_brief_plan"
+{
+  cat "$proc_brief_short"
+  printf '\n### Out-of-scope\n- x\n'
+} >"$proc_brief_plan"
 expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure
 
 # 53b. The Goal's Finish line: missing, empty and `not settled yet` fail; present passes;
@@ -842,6 +848,12 @@ proc_brief_unsettled="$TMP/proc-brief-unsettled.md"
 sed 's/^- Finish line:.*/- Finish line: not settled yet/' "$proc_brief_full" >"$proc_brief_unsettled"
 expect_exit "--procedure --brief with Finish line 'not settled yet' -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_unsettled" --procedure
 expect_exit "Brief with no Finish line without --procedure -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_nofinish"
+proc_brief_boldfinish="$TMP/proc-brief-boldfinish.md"
+sed 's/^- Finish line:/- **Finish line:**/' "$proc_brief_full" >"$proc_brief_boldfinish"
+expect_exit "--procedure --brief with a bold Finish line label -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_boldfinish" --procedure
+proc_brief_boldunsettled="$TMP/proc-brief-boldunsettled.md"
+sed 's/^- Finish line:.*/- **Finish line:** not settled yet/' "$proc_brief_full" >"$proc_brief_boldunsettled"
+expect_exit "--procedure --brief with a bold 'not settled yet' Finish line -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_boldunsettled" --procedure
 
 # 54. Ungradeable stays exit 2 and reports procedure=unchecked.
 expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure
@@ -949,7 +961,10 @@ placeholder_err="$(stderr_of --ledger "$stamp_ledger" --brief "$placeholder_crit
 if [[ "$placeholder_err" == *"the acceptance criteria are the placeholder"* && "$placeholder_err" != *"page title"* ]]; then pass "the placeholder criteria are named on stderr"; else fail "the placeholder criteria are named on stderr (stderr: '$placeholder_err')"; fi
 expect_exit "a stamped Brief with a restated Goal and criteria -> 0" 0 --ledger "$stamp_ledger" --brief "$restated_brief"
 open_fence_plan="$TMP/open-fence-plan.md"
-{ cat "$restated_brief"; printf '\n```bash\nmake cache\n'; } >"$open_fence_plan"
+{
+  cat "$restated_brief"
+  printf '\n```bash\nmake cache\n'
+} >"$open_fence_plan"
 expect_exit "a stray open fence under ## Plan, nothing retired, does not make a stamped Brief ungradeable -> 0" 0 --ledger "$clean" --brief "$open_fence_plan"
 expect_exit "a stray open fence under ## Plan with --procedure is ungradeable -> 2" 2 --ledger "$clean" --brief "$open_fence_plan" --procedure
 expect_stdout "a restated Brief under --procedure fails only on its missing template headings" "brief=ok status=incomplete procedure=fail" --ledger "$stamp_ledger" --brief "$restated_brief" --procedure
