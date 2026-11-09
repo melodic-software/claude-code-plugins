@@ -1091,6 +1091,7 @@ if [[ "$procedure_on" -eq 1 ]]; then
     '' | 'not settled yet' | 'not settled yet.')
       proc_problems="${proc_problems}Brief's Goal has no settled '- Finish line:' line (<merged | released | in use> — checked by <who> via <observable check>)"$'\n'
       ;;
+    *) ;;
     esac
 
     # The page's own export is what the Brief must still carry: the sections a
