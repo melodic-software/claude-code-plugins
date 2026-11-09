@@ -504,8 +504,8 @@ function lineOf(text, index) {
 }
 
 // A literal opening with `{` is a shorthand operation when it parses as one
-// anonymous query whose root fields all exist on Query; jq filters and JSON
-// fail one of those checks.
+// anonymous query with at least one root field, all of which exist on Query;
+// jq filters and JSON, `{}` included, fail one of those checks.
 function isShorthand(schema, source) {
   let document;
   try {
@@ -519,7 +519,8 @@ function isShorthand(schema, source) {
   }
   if (definition.name || definition.loc.startToken.kind !== "{") return false;
   const fields = schema.getQueryType().getFields();
-  return definition.selectionSet.selections.every(
+  const { selections } = definition.selectionSet;
+  return selections.length > 0 && selections.every(
     (selection) =>
       selection.kind === Kind.FIELD && selection.name.value in fields,
   );
