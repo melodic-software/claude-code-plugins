@@ -204,7 +204,7 @@ across models.
   [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort)
   (correlate with <https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform>,
   whose benchmark comparison is vendor-reported and unreproduced).
-- **As of**: 2026-11-01
+- **As of**: 2026-11-09
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the practice beside
   it, or a model release that changes a row in either table.
 

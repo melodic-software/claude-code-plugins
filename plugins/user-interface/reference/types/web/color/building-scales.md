@@ -15,14 +15,16 @@ Whatever the count, 50 is always the near-white tint and 950 the near-black shad
 
 A good oklch ramp comes from three decisions, applied per step:
 
-**1. Anchor the lightness endpoints, then space evenly.** Put step 50 around L 0.97 and step 950
-around L 0.22, and interpolate linearly between them. Even L spacing is the point of using oklch:
+**1. Anchor the lightness endpoints, then space evenly.** Put step 50 and step 950 at the two
+lightness values of `color.ramp.endpoints_l`, lightest and darkest, and interpolate linearly
+between them. Even L spacing is the point of using oklch:
 every adjacent pair of steps will look equally far apart. Don't run all the way to L 0 or L 1: at
 the poles chroma collapses to zero and the endpoints stop reading as members of the hue.
 
 **2. Shape chroma as a curve, not a constant.** Real-world ramps are most vivid in the middle and
-gentle at both ends. Express each step's chroma as a fraction of that step's sRGB ceiling (e.g.
-~30% at the extremes rising to ~85% around the 400 to 500 range) so the tints stay airy, the shades
+gentle at both ends. Express each step's chroma as a fraction of that step's sRGB ceiling, rising
+from the ends value of `color.ramp.chroma_percent` at the extremes to its peak value around the
+400 to 500 range, so the tints stay airy, the shades
 stay rich, and nothing leaves the gamut.
 
 **3. Clamp against the gamut per step.** The ceiling `maxC(L, H)` differs at every lightness, so
@@ -131,5 +133,5 @@ perceived brightness, so spacing computed from it is real.
 
 1. Convert every step of the existing scale to oklch (`converting-colors.md`).
 2. Read off the H values and find the spread between the minimum and maximum.
-3. Over ~10° of spread is visible drift: keep the scale's mid-tone hue, then regenerate the ramp
-   with the procedure above.
+3. Spread over `color.ramp.hue_spread_max_deg` degrees is visible drift: keep the scale's mid-tone
+   hue, then regenerate the ramp with the procedure above.

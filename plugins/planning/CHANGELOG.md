@@ -3,6 +3,42 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.15.0] - 2026-11-09
+
+### Added
+
+- **`setup --check` validates list keys.** A list key and its items are checked against the schema (type, length, required keys, allowed keys, patterns, key names) instead of being reported unchecked; a list key using a keyword the checker does not implement stays reported as unchecked. List keys are never written from the command line.
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+- Internal simplification, no behavior change.
+
+## [2.14.3] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.14.2] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [2.14.1] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [2.14.0] - 2026-11-09
 
 ### Added

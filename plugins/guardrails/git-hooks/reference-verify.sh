@@ -186,7 +186,7 @@ nearest_pushed_base() {
   local r n best="" min=0
   while IFS= read -r r; do
     [[ "$r" != "$BASE" ]] || continue
-    n="$(git rev-list --count "$r..$TIP" 2>/dev/null)" || continue
+    n="$(git rev-list --count "$r..$TIP" -- 2>/dev/null)" || continue
     if [[ -z "$best" ]] || ((n < min)); then
       best="$r"
       min="$n"

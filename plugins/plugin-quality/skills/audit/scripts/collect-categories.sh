@@ -73,15 +73,11 @@ fi
 
 DIR="$(cd "$(dirname "$NOTES")" && pwd -P)"
 CYGPATH_OK=0
-if command -v cygpath >/dev/null 2>&1; then
-  converted="$(cygpath -u -- "$DIR" 2>/dev/null)" || converted=""
-  if [[ -n "$converted" ]]; then
-    resolved="$(realpath -m -- "$converted" 2>/dev/null)" || resolved=""
-    if [[ -n "$resolved" ]]; then
-      DIR="$resolved"
-      CYGPATH_OK=1
-    fi
-  fi
+if command -v cygpath >/dev/null 2>&1 &&
+  converted="$(cygpath -u -- "$DIR" 2>/dev/null)" && [[ -n "$converted" ]] &&
+  resolved="$(realpath -m -- "$converted" 2>/dev/null)" && [[ -n "$resolved" ]]; then
+  DIR="$resolved"
+  CYGPATH_OK=1
 fi
 
 awk -v dir="$DIR" -v cygpath_ok="$CYGPATH_OK" '
@@ -211,12 +207,8 @@ function reset_finding() {
   basis = ""
 }
 BEGIN {
-  bad = 0
-  section = ""
-  marker = ""
-  items = 0
-  finding_open = 0
-  title = ""
+  nreq = split("Errors|Improvements|Quality of life|Standards alignment|Emitted findings", req, "|")
+  for (i = 1; i <= nreq; i++) graded[req[i]] = 1
 }
 {
   line = trim($0)
@@ -224,20 +216,12 @@ BEGIN {
     close_section()
     marker = ""
     items = 0
-    finding_open = 0
     name = substr(line, 4)
-    if (name == "Blindspots" || name == "Doc-worthy gotchas" || name == "Unverified claims") {
-      section = ""
-      next
-    }
-    if (name != "Errors" && name != "Improvements" && name != "Quality of life" &&
-        name != "Standards alignment" && name != "Emitted findings") {
-      problem("unknown-section name=" name)
-      section = ""
-    } else if (name in seen) {
-      problem("duplicate-section name=" name)
-      section = name
-    } else {
+    section = ""
+    if (name == "Blindspots" || name == "Doc-worthy gotchas" || name == "Unverified claims") next
+    if (!(name in graded)) problem("unknown-section name=" name)
+    else {
+      if (name in seen) problem("duplicate-section name=" name)
       section = name
     }
     next
@@ -282,14 +266,8 @@ BEGIN {
 }
 END {
   close_section()
-  req[1] = "Errors"
-  req[2] = "Improvements"
-  req[3] = "Quality of life"
-  req[4] = "Standards alignment"
-  req[5] = "Emitted findings"
-  for (i = 1; i <= 5; i++) if (!(req[i] in seen)) problem("missing-section name=" req[i])
-  if (bad) print "status: incomplete"
-  else print "status: complete"
+  for (i = 1; i <= nreq; i++) if (!(req[i] in seen)) problem("missing-section name=" req[i])
+  print (bad ? "status: incomplete" : "status: complete")
   exit bad
 }
 ' "$NOTES"

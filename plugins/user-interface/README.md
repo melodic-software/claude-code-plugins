@@ -125,6 +125,7 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
 | `icon.filled_below_px` | `12` | px under which an outline icon swaps to filled |
 | `icon.label_gap_px` | `6`, `8` | two numbers in px, low then high: the gap between an icon and its label |
+| `icon.label_gap_em` | `0.5` | em: the gap between an icon and its label when it scales with the text |
 | `icon.size_em` | `1` | em: an icon sized by the text beside it |
 | `icon.size_px` | `12`, `16`, `20`, `24`, `48` | five sizes in px an icon is drawn at, smallest first |
 | `layout.breakout_width`, `.content_width`, `.grid_track_min_width` | `80rem`, `1200px`, `16rem` | CSS lengths: the content grid's wide track, the content cap, an intrinsic grid's smallest track |

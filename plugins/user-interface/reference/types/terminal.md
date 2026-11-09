@@ -101,7 +101,8 @@ reference.
 
 - A banner is optional decoration: print it only on an interactive start, never in piped output,
   and give a flag to suppress it.
-- Keep it within the narrowest supported width (80 columns unless the target says otherwise), in
-  plain ASCII unless Unicode support is detected, and no taller than the information it frames.
+- Keep it within the narrowest supported width (`layout.terminal_min_columns` columns unless the
+  target says otherwise), in plain ASCII unless Unicode support is detected, and no taller than the
+  information it frames.
 - The program's name and version appear as plain text near the art, so a screen reader and a log
   carry them.

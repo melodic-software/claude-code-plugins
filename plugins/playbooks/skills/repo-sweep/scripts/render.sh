@@ -82,7 +82,6 @@ if [[ $mode == --checklist ]]; then
       for (i = 1; i <= m; i++) print "- [ ] " s[i] ": " skills[s[i]]
       print "<!-- repo-sweep:end -->"
       if (recsf == "" || m == n) exit 0
-      FS = "\t"
       while ((getline l < recsf) > 0) { split(l, f, "\t"); rec[f[1]] = f[2]; why[f[1]] = f[3] }
       print ""
       print "Not run:"

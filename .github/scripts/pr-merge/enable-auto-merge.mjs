@@ -979,7 +979,7 @@ export const refusalBody = (person, reason, head, label, since = null, partial =
 function renderRefusal(fence, person, reason, head, label, since, partial, records) {
   const who = person
     ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
-    : "The lanes clear this reason on their own; the next scheduled run judges it again.";
+    : "No person needs to act: a lane clears this reason, and the next scheduled run judges it again.";
   return [
     ...(person ? [ATTEND_QUEUE_MARKER] : []),
     REFUSAL_MARKER,
@@ -1482,9 +1482,12 @@ export function rotated(pulls, runNumber) {
 }
 
 // The address-feedback lane-stopped comment report-escalation.sh posts, one
-// per activity, edited in place, and the reason that closes the pull request.
+// per activity, edited in place, the reason that closes the pull request, and
+// the one no further round clears: the finding stood at adjudication and the
+// lane left it open again, so the pull request's owning session settles it.
 export const LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->";
 export const NOT_CONVERGING = "feedback-not-converging";
+export const STOOD_OPEN = "feedback-stood-open";
 
 // Whether the pr-unblock lane stopped the review rounds of the head as not
 // converging: a failing pr-unblock/address-feedback status stops the head
@@ -1492,7 +1495,11 @@ export const NOT_CONVERGING = "feedback-not-converging";
 // names NOT_CONVERGING and `head`. The reason is read from that comment, which
 // only the App writes, never from a status description, which any workflow
 // run can post (babysit_verify_evidence.not_converging_stop judges it again).
-export function notConverging(detail, bot, head) {
+export const notConverging = (detail, bot, head) => feedbackStopped(detail, bot, head, NOT_CONVERGING);
+// Whether that comment names STOOD_OPEN and `head` instead.
+export const stoodOpen = (detail, bot, head) => feedbackStopped(detail, bot, head, STOOD_OPEN);
+
+function feedbackStopped(detail, bot, head, reason) {
   if (!Array.isArray(detail?.unblockStops) || !detail.unblockStops.some((stop) => stop?.context === "pr-unblock/address-feedback")) {
     return false;
   }
@@ -1503,17 +1510,23 @@ export function notConverging(detail, bot, head) {
     const lines = String(comment.body ?? "")
       .split("\n")
       .map((line) => line.replace(/\r$/, ""));
-    return lines[0] === LANE_STOPPED_FEEDBACK && lines.includes(`- Reason: \`${NOT_CONVERGING}\``) && lines.includes(`- Head: \`${head}\``);
+    return lines[0] === LANE_STOPPED_FEEDBACK && lines.includes(`- Reason: \`${reason}\``) && lines.includes(`- Head: \`${head}\``);
   });
 }
 
 // Why a head's pr-unblock statuses hold it (merge-holds.unblockStops), or
-// null: anything but a read list of stops holds it.
-export function unblockHold(stops) {
+// null: anything but a read list of stops holds it. `stood`: the stop is
+// STOOD_OPEN, which no further lane run clears.
+export function unblockHold(stops, stood = false) {
   if (!Array.isArray(stops)) {
     return "its head's pr-unblock statuses could not be read";
   }
-  return stops.length === 0 ? null : `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")}), which clears when the lane runs again`;
+  const named = `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")})`;
+  return stops.length === 0
+    ? null
+    : stood
+      ? `${named}: a review finding stood at adjudication and the lane left it open again (${STOOD_OPEN}), so the pull request's owning session settles that thread: fix it, or answer it with evidence`
+      : `${named}, which clears when the lane runs again`;
 }
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
@@ -1568,7 +1581,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   // after the path, cost and discussion holds, as the verify cap does.
   const unconverged = stopped !== null && notConverging(detail, bot, pull.headRefOid);
   if (stopped !== null && !unconverged) {
-    return { action: armed ? "disarm" : "none", reason: stopped, clears: "lane" };
+    return { action: armed ? "disarm" : "none", reason: unblockHold(detail.unblockStops, stoodOpen(detail, bot, pull.headRefOid)), clears: "lane" };
   }
   // A hold path a person clears, lifted by a trusted person's approval of the
   // head or of an earlier head carried over base merges (`lifters`) as

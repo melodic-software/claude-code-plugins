@@ -70,7 +70,7 @@ def frontmatter_of(text: str) -> tuple[str, int] | None:
     it never closes -- an unterminated block is not frontmatter to any reader.
     """
     lines = text.split("\n")
-    if not lines or lines[0].rstrip("\r") != FRONTMATTER_OPEN:
+    if lines[0].rstrip("\r") != FRONTMATTER_OPEN:
         return None
     for index in range(1, len(lines)):
         if lines[index].rstrip("\r") in FRONTMATTER_CLOSE:
@@ -185,26 +185,19 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
             key: (value, key_node)
             for key, value, key_node in mapping_entries(node, set())
         }
-        if "command" in entries and "args" in entries:
+        if "command" in entries:
             command_node, command_key_node = entries["command"]
             line = command_key_node.start_mark.line + offset
-            if isinstance(command_node, yaml.ScalarNode):
+            exec_form = "args" in entries
+            if not isinstance(command_node, yaml.ScalarNode):
+                form = "an exec-form" if exec_form else "a shell-form"
+                emit("X", path, line, f"{form} hook whose `command` is not a scalar")
+            elif exec_form:
                 args_node, _ = entries["args"]
                 kind = "V" if isinstance(args_node, yaml.SequenceNode) else "N"
                 emit(kind, path, line, command_node.value)
             else:
-                emit(
-                    "X", path, line, "an exec-form hook whose `command` is not a scalar"
-                )
-        elif "command" in entries:
-            command_node, command_key_node = entries["command"]
-            line = command_key_node.start_mark.line + offset
-            if isinstance(command_node, yaml.ScalarNode):
                 emit("S", path, line, command_node.value)
-            else:
-                emit(
-                    "X", path, line, "a shell-form hook whose `command` is not a scalar"
-                )
         for value_node, _ in entries.values():
             scan_node(value_node, path, offset, seen)
     seen.discard(id(node))

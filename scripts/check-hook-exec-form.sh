@@ -66,41 +66,23 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 errors=0
 execform_errors=0
 
-# is_bare <command> — true when the value carries no path separator in either
-# spelling, i.e. Claude Code will resolve it through PATH.
-is_bare() {
-  case "$1" in
-  */* | *\\*) return 1 ;;
-  *) return 0 ;;
+# on_hook <file> <where> <form> <args> <command> <argv>: flag an exec-form hook
+# whose command carries no path separator in either spelling (Claude Code
+# resolves it through PATH) and is not an allowlisted name.
+on_hook() {
+  local file="$1" where="$2" cmd="$5"
+  [[ "$3" == exec ]] || return 0
+  case "$cmd" in
+  */* | *\\*) return 0 ;;
+  *) ;;
   esac
-}
-
-# flag <file> <where> <command>
-flag() {
-  local file="$1" where="$2" cmd="$3"
-  echo "EXEC-FORM HOOK: ${file}:${where}: exec-form hook (\`args\` present) with bare command \"${cmd}\"" >&2
-  errors=$((errors + 1))
-  execform_errors=$((execform_errors + 1))
-}
-
-# consider <file> <where> <command> — apply the rule to one exec-form hook.
-consider() {
-  local file="$1" where="$2" cmd="$3"
-  # shellcheck disable=SC2310  # is_bare/allowed_exec_name are pure case/loop tests; neither can fail unexpectedly
-  if ! is_bare "$cmd"; then
-    return 0
-  fi
-  # shellcheck disable=SC2310  # see above
+  # shellcheck disable=SC2310  # allowed_exec_name is a pure loop test; it cannot fail unexpectedly
   if hook_configs::allowed_exec_name "$cmd"; then
     return 0
   fi
-  flag "$file" "$where" "$cmd"
-}
-
-# on_hook <file> <where> <form> <args> <command> <argv>: exec form only.
-on_hook() {
-  [[ "$3" == exec ]] || return 0
-  consider "$1" "$2" "$5"
+  echo "EXEC-FORM HOOK: ${file}:${where}: exec-form hook (\`args\` present) with bare command \"${cmd}\"" >&2
+  errors=$((errors + 1))
+  execform_errors=$((execform_errors + 1))
 }
 
 # on_unreadable <surface> <file> <where> <detail>. Fail closed on an unparsable

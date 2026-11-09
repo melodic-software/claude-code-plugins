@@ -59,6 +59,9 @@ FINDINGS=()
 finding() {
   FINDINGS+=("$1")
 }
+print_findings() {
+  ((${#FINDINGS[@]} == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
+}
 
 # Scripts shape (a) scans, keyed by path, each mapped to one declaring site.
 declare -A SCRIPTS=()
@@ -137,7 +140,7 @@ on_unreadable() {
 hook_configs::scan check-hook-slow-shapes on_hook on_unreadable
 
 if ((commands == 0)); then
-  ((${#FINDINGS[@]} == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
+  print_findings
   echo "check-hook-slow-shapes: no command hooks found; refusing to report clean" >&2
   exit 1
 fi
@@ -191,7 +194,7 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
 done
 
 if ((${#FINDINGS[@]} > 0)); then
-  printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
+  print_findings
   cat >&2 <<'REMEDY'
 
 ENV SHEBANG: prefix the command word with bash, keeping the path's quoting, and

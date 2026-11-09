@@ -135,18 +135,13 @@ def sheet(frames_rgb, items, path):
 
 def spans(idx, fps):
     """Frame indices -> 't0-t1s' spans for messages."""
-    out, start, prev = [], None, None
+    runs = []   # [first, one past last] of each consecutive run
     for i in idx:
-        if start is None:
-            start = prev = i
-        elif i == prev + 1:
-            prev = i
+        if runs and i == runs[-1][1]:
+            runs[-1][1] = i + 1
         else:
-            out.append(f'{start / fps:.2f}-{(prev + 1) / fps:.2f}s')
-            start = prev = i
-    if start is not None:
-        out.append(f'{start / fps:.2f}-{(prev + 1) / fps:.2f}s')
-    return out
+            runs.append([i, i + 1])
+    return [f'{a / fps:.2f}-{b / fps:.2f}s' for a, b in runs]
 
 
 def main(argv=None):
@@ -188,7 +183,8 @@ def main(argv=None):
         return 2
 
     # ---- registration: zoom and rect per runtime frame, measured from the frame ------------------
-    rows = int((H - CAP['margin'] - CAP['pill_h'] - CAP['clear']) * AH / H)
+    band_top = H - CAP['margin'] - CAP['pill_h'] - CAP['clear']   # top of the caption band, CSS px
+    rows = int(band_top * AH / H)
     reg = Registrar(W, H, CAM['zmax'], rows)
     est = {}
     prev = None
@@ -217,8 +213,12 @@ def main(argv=None):
     def med5(v):   # registration noise is one or two frames wide
         p = np.pad(v, 2, mode='edge')
         return np.median(np.stack([p[k:k + len(v)] for k in range(5)]), axis=0)
-    lnz, cx, cy = med5(lnz), med5(cx), med5(cy)
+    lnz, cx, cy = (med5(v) for v in (lnz, cx, cy))
     zf = np.exp(lnz)
+
+    def view(j):   # the camera rect at runtime position j
+        z = zf[j]
+        return [cx[j] - W / z / 2, cy[j] - H / z / 2, W / z, H / z]
 
     # camera still at a frame: no zoom or pan change across a settled_frames window
     dz = np.abs(np.diff(lnz, prepend=lnz[0]))
@@ -249,18 +249,18 @@ def main(argv=None):
     for j, i in enumerate(runtime):
         if not settled[j] or zf[j] < 1.02:
             continue
-        rect = [cx[j] - W / zf[j] / 2, cy[j] - H / zf[j] / 2, W / zf[j], H / zf[j]]
+        rect = view(j)
         rect[0] = min(max(rect[0], 0.0), W - rect[2])
         rect[1] = min(max(rect[1], 0.0), H - rect[3])
         # registration is good to about one analysis pixel: an edge passes if a gutter lies within that
         # distance of where it was measured, and an edge that close to the page edge is the page edge
         prec = W / AW / zf[j]
         ink = ink_for(est[i][3], log[i]['captures'][-1])
-        worst = None
+        least = None   # each edge's lowest ink over the shifts
         for d in np.arange(-prec, prec + 1e-6, 1.0):
             e = edge_ink(ink, [rect[0] + d, rect[1] + d, rect[2], rect[3]], Q['edge_band'], W, H, 2 * prec)
-            worst = e if worst is None else {k2: min(worst.get(k2, v), v) for k2, v in e.items()}
-        bad = {k2: round(v, 1) for k2, v in (worst or {}).items() if v > Q['edge_ink_max']}
+            least = e if least is None else {k2: min(least.get(k2, v), v) for k2, v in e.items()}
+        bad = {k2: round(v, 1) for k2, v in (least or {}).items() if v > Q['edge_ink_max']}
         if bad:
             clipped[i] = bad
     if camera_on:
@@ -280,9 +280,8 @@ def main(argv=None):
             j = next((j for j, i in enumerate(runtime) if i >= fi), None)
             if j is None:
                 continue
-            z = zf[j]
-            r = [cx[j] - W / z / 2, cy[j] - H / z / 2, W / z, H / z]
-            tb, m = s['target_box'], CAM['safe_margin'] / z / 2
+            r = view(j)
+            tb, m = s['target_box'], CAM['safe_margin'] / zf[j] / 2
             inside = (tb[0] >= r[0] + m or r[0] < 1) and (tb[1] >= r[1] + m or r[1] < 1) and \
                 (tb[0] + tb[2] <= r[0] + r[2] - m or r[0] + r[2] > W - 1) and (tb[1] + tb[3] <= r[1] + r[3] - m or r[1] + r[3] > H - 1)
             if not inside:
@@ -305,7 +304,7 @@ def main(argv=None):
         check('caption-anchor', 'SKIP', 'captions layer off')
 
     # ---- stillness (caption band masked) --------------------------------------------------------
-    band0 = int((H - CAP['margin'] - CAP['pill_h'] - CAP['clear']) * SH / H)
+    band0 = int(band_top * SH / H)
     band1 = int(math.ceil((H - CAP['margin'] + CAP['clear']) * SH / H))
     sm = small.copy()
     sm[:, band0:band1, :] = 0
@@ -362,9 +361,8 @@ def main(argv=None):
                 ('pan', dpan, pv[s0:s1 + 1] / pv[s1] if dpan > 0.02 else None, MOT['max_pan_speed'], MOT['max_pan_accel'])):
             if prog is None:
                 continue
-            t = np.arange(len(prog)) / fps
-            t10 = float(np.interp(0.1, np.maximum.accumulate(prog), t))
-            t90 = float(np.interp(0.9, np.maximum.accumulate(prog), t))
+            t, mono = np.arange(len(prog)) / fps, np.maximum.accumulate(prog)
+            t10, t90 = float(np.interp(0.1, mono, t)), float(np.interp(0.9, mono, t))
             T = max((t90 - t10) / SMOOTH_10_90, 1 / fps)
             v, acc = SMOOTH_PEAK_V * delta / T, SMOOTH_PEAK_A * delta / T ** 2
             if v > lim_v * tol or acc > lim_a * tol:
