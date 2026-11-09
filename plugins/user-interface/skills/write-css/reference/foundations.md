@@ -232,8 +232,8 @@ Rules:
   over px; times 100 it is the `vw` number. The `rem` part is `min - slope × narrow`.
 - Keep both bounds in `rem` so they follow the reader's font size.
 - For a font size, keep the maximum at or below `typography.fluid_max_ratio` times the minimum.
-  The `vw` part does not grow with zoom, so the steeper the ratio, the less 500% zoom enlarges the
-  text; past the ratio it cannot double the text at some widths, which fails WCAG 1.4.4.
+  The key can only lower the WCAG limit of 2.5: the `vw` part does not grow with zoom, so past 2.5
+  times, 500% zoom cannot double the text at some widths, which fails WCAG 1.4.4.
 - Put fluid values in tokens. Components use the token and never repeat the math.
 - For more than two or three sizes, derive a scale: `one-fluid-scale-for-type-and-space`.
 
@@ -293,9 +293,9 @@ Rules:
   so a ratio set on a descendant changes nothing below it.
 - Derive sizes below step 0 from step 0 and the narrow ratio, as `--step--1` does. With both ratios
   a small size can shrink as the screen grows.
-- Check the top step against the `typography.fluid_max_ratio` limit in `fluid-sizes-with-clamp`:
-  step `n` passes when `(size-wide / size-narrow) × (ratio-wide / ratio-narrow)ⁿ` is at or below
-  it. The shipped defaults give 1.31 at step 4.
+- Check the top step against the `typography.fluid_max_ratio` limit in `fluid-sizes-with-clamp`,
+  never above 2.5: step `n` passes when `(size-wide / size-narrow) × (ratio-wide / ratio-narrow)ⁿ`
+  is at or below it. The shipped defaults give 1.31 at step 4.
 - Write a space pair only where a layout uses it, and never for a font size: a pair is steep on
   purpose and breaks that limit.
 - For a scale that follows the container, write `100cqi` in place of `100vw`

@@ -411,7 +411,7 @@
             "space_l_factor": {"type": "number", "minimum": 0, "description": "The large space as a multiple of step 0."}
           }
         },
-        "fluid_max_ratio": {"type": "number", "minimum": 1, "description": "The most a fluid font size's maximum may be as a multiple of its minimum."},
+        "fluid_max_ratio": {"type": "number", "minimum": 1, "maximum": 2.5, "description": "The most a fluid font size's maximum may be as a multiple of its minimum; never above 2.5, past which 500% zoom cannot double the text (WCAG 1.4.4)."},
         "line_height": {
           "type": "object",
           "additionalProperties": false,

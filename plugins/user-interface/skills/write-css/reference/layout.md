@@ -33,7 +33,7 @@ with no negative margin and no new wrapper.
 .content-grid {
   --gutter: var(--space-m, {{spacing.m}});
   --content: {{layout.content_width}};
-  --breakout: {{layout.breakout_width}};
+  --breakout: max({{layout.breakout_width}}, var(--content) + var(--gutter) * 2);
 
   display: grid;
   grid-template-columns:
@@ -58,6 +58,9 @@ Rules:
 - Every child must be placed. An unplaced child lands in the gutter track.
 - Every direct child is a grid item. Wrap a run of inline elements in one element.
 - Change a width by overriding `--content`, not by writing a new column template.
+- Keep the `max()` on `--breakout`. The two widths can be in different units, so at some root sizes
+  the breakout width is no wider than the content; the floor keeps each breakout track at least a
+  gutter wide.
 - In a pass over existing CSS, replace each centered `max-width` wrapper with the grid, and keep
   the wrapper's width as `--content` on its section.
 - Where the authoring system has no child selectors, each child sets its own `grid-column` to

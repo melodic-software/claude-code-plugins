@@ -75,9 +75,10 @@ Map the surface before judging it. Ten minutes here saves an hour of false findi
 - **Entry points**: root layout, `_document` / `<head>`, global CSS, the viewport and `theme-color`
   meta tags, font loading, the manifest if it's a PWA, `robots` and `sitemap`.
 - **Surfaces**: which routes are product UI and which are marketing. The bar differs. Product UI
-  stays within `animation.duration_ms.large` and skips decoration; marketing can be richer but must
-  not shift layout. Note every route that is neither (`/proto`, `/lab`, `/test`, `/playground`, storybook-style
-  pages).
+  keeps each motion role within its own ceiling (`animation.duration_ms.large` for a dialog or sheet,
+  `animation.duration_ms.page` for a page transition) and skips decoration; marketing can be richer
+  but must not shift layout. Note every route that is neither (`/proto`, `/lab`, `/test`,
+  `/playground`, storybook-style pages).
 - **Interactive inventory**: modals, drawers, popovers, tooltips, forms, icon buttons, long lists,
   carousels, video, anything that animates.
 - **Data-driven views**: every list, table, feed, and dashboard. Each one has four states (loading,

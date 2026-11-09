@@ -25,13 +25,13 @@ order.
 ```css
 section { padding-block: var(--space-section, {{spacing.section[1]}}); }
 
-.logos:has(+ .features) { padding-block-end: 2rem; }
+.logos:has(+ .features) { padding-block-end: {{spacing.l}}; }
 .features:has(+ .cta) { padding-block-end: 0; }
 
-.hero + .logos { padding-block-start: 2rem; }
+.hero + .logos { padding-block-start: {{spacing.l}}; }
 .features + .faq { padding-block-start: 3rem; }
 
-.logos:where(.hero + *) { border-block-start: 1px solid; }
+.logos:where(.hero + *) { border-block-start: {{css.border_px.standard}}px solid; }
 ```
 
 Rules:
@@ -151,7 +151,7 @@ button in an input.
 ```css
 .card {
   --radius: var(--radius-l, {{radius.l}});
-  --border: 1px;
+  --border: {{css.border_px.standard}}px;
   --pad: 0.5rem;
   border: var(--border) solid var(--border-subtle, oklch(0 0 none / {{color.border.light_alpha}}));
   padding: var(--pad);
