@@ -15,7 +15,7 @@ import {
 import { issueStatus } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
-import { statusLabels } from "./read-status.mjs";
+import { DISAGREEMENT_WAIT_MS, statusLabels } from "./read-status.mjs";
 import {
   checkAppliedBySupported,
   checkConfigPath,
@@ -358,12 +358,28 @@ async function gatherFacts(
       // matches `labels`, and a field hold matches `labels-absent`. A failed
       // read throws rather than fall back to the labels, which could miss a hold.
       if (status?.config) {
-        const fieldEventsRead = await readEvents();
-        const state = issueStatus(
-          { fieldValues: await readValues(), fieldEvents: fieldEventsRead, fieldEventsFull: fieldEventsRead.full === true },
-          status.config,
-          status.trustedActors,
-        );
+        const readState = async () => {
+          const fieldEventsRead = await readEvents();
+          return issueStatus(
+            { fieldValues: await readValues(), fieldEvents: fieldEventsRead, fieldEventsFull: fieldEventsRead.full === true },
+            status.config,
+            status.trustedActors,
+          );
+        };
+        let state;
+        try {
+          state = await readState();
+        } catch (error) {
+          if (error?.name !== "StatusDisagreement") {
+            throw error;
+          }
+          // A read racing a write, as read-status.mjs fieldStatusSetter
+          // treats it: both reads once more, and a second disagreement throws.
+          await sleep(DISAGREEMENT_WAIT_MS);
+          values = undefined;
+          events = undefined;
+          state = await readState();
+        }
         facts.labels = statusLabels(state, facts.labels, status.config);
       }
     }
