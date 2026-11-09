@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.21] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.4.20] - 2026-11-09
 
 ### Changed
