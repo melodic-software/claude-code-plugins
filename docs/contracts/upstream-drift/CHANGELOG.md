@@ -4,6 +4,20 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [4.3.0] - 2026-11-09
+
+Additive guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability tier changes.
+
+"Monthly drift issues" now covers sources with no git pin and how the filer labels and closes
+issues. The filer accepts a report's `pin` and `head` as the literal `unknown`, the form for a
+source with no git pin such as a vendored skill, under the id `<plugin>/<skill>`; its issue names the skill and the check to run, and the re-audit
+footer is written only when a hex-pin page drifted. A created or reopened issue carries
+`needs-human`, added before the reopen, and an in-place edit adds no label; removing the label does
+not admit a bot-authored issue. An upstream with an `untracked` page is never closed as clean. The
+section also states the accepted cases: muting by closing as not planned or duplicate, and a body
+replaced in place on an open issue.
+
 ## [4.2.2] - 2026-11-08
 
 Patch: `t3dotgg-tstack.md` joins the adopters. No required part, canonical name, or enforceability
