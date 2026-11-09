@@ -137,12 +137,12 @@ gh pr merge "$PR_NUMBER" -R "$REPO" --disable-auto
 
 ## Add the hold label
 
-A failed list ends the step without a label. A list that does not name the label means no hold was
-applied:
+A failed list or a failed edit ends the run with nothing posted. A list that does not name the
+label means no hold was applied, so the close comment renders with `--no-label`:
 
 ```bash
 LABELS=$(gh label list -R "$REPO" --limit 1000 --json name -q '.[].name') || exit 1
-grep -qix do-not-merge <<<"$LABELS" && gh pr edit "$PR_NUMBER" -R "$REPO" --add-label do-not-merge
+if grep -qix do-not-merge <<<"$LABELS"; then gh pr edit "$PR_NUMBER" -R "$REPO" --add-label do-not-merge || exit 1; fi
 ```
 
 ## Post or edit the comment
@@ -153,7 +153,8 @@ marker on anyone else's comment is ignored. A failed read posts nothing. Under a
 no earlier comment, post nothing.
 
 ```bash
-bash "<skill-dir>/scripts/reassess-comment.sh" --verdict close --replaced-by "$REPLACED_BY" --evidence "$REF"
+BODY=$(bash "<skill-dir>/scripts/reassess-comment.sh" --verdict close --replaced-by "$REPLACED_BY" --evidence "$REF") || exit 1
+printf '%s\n' "$BODY" >"$BODY_FILE"
 LOGIN=$(gh api user --jq .login) || exit 1
 COMMENTS=$(gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments") || exit 1
 ID=$(jq -r --arg login "$LOGIN" 'add // [] | map(select(.user.login == $login and (.body | startswith("<!-- source-control-reassess -->")))) | last | .id // empty' <<<"$COMMENTS") || exit 1

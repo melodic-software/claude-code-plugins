@@ -16,7 +16,13 @@ assert_exit "a close renders" 0 "$?"
 assert_contains "a close starts with the marker" "$(head -1 <<<"$out")" "<!-- source-control-reassess -->"
 assert_contains "a close names what replaced it" "$out" "Replaced by #12."
 assert_contains "a close lists its evidence" "$out" "- https://github.com/a/b/pull/12"
+assert_contains "a close says the label holds it" "$out" "label now holds"
 close_body="$out"
+
+out=$(bash "$SCRIPT" --verdict close --replaced-by '#12' --no-label --evidence abc1234)
+assert_exit "a close with no label renders" 0 "$?"
+assert_not_contains "a close with no label claims no hold" "$out" "holds"
+assert_contains "a close with no label still names the replacement" "$out" "Replaced by #12."
 
 out=$(bash "$SCRIPT" --verdict rework --evidence '#3')
 assert_exit "a rework renders" 0 "$?"

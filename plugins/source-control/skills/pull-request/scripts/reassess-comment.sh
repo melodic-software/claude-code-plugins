@@ -6,9 +6,11 @@
 # leak local data or read as a person's veto.
 #
 # Usage:
-#   reassess-comment.sh --verdict <rework|close> [--replaced-by <ref>] --evidence <ref>...
+#   reassess-comment.sh --verdict <rework|close> [--replaced-by <ref>] [--no-label] --evidence <ref>...
 #
 # A <ref> is a full https://github.com/ URL, a commit SHA, or #<number>.
+# --no-label is for a close where the label does not exist, so the comment
+# claims no hold.
 #
 # Exit 0, or 2 for a usage error (stdout empty).
 set -uo pipefail
@@ -23,9 +25,13 @@ check_ref() {
     die "not a reference: $(printf '%q' "$1")"
 }
 
-verdict="" replaced="" evidence=()
+verdict="" replaced="" evidence=() label=1
 while (($# > 0)); do
   case "$1" in
+  --no-label)
+    label=0
+    shift
+    ;;
   --verdict | --replaced-by | --evidence)
     (($# >= 2)) || die "$1 needs a value"
     case "$1" in
@@ -54,6 +60,7 @@ rework)
 close)
   [[ -n "$replaced" ]] || die "a close needs --replaced-by"
   summary="Reassessed: this change already landed, so the \`do-not-merge\` label now holds this pull request. Replaced by $replaced."
+  ((label)) || summary="Reassessed: this change already landed. Replaced by $replaced."
   ;;
 *) die "--verdict must be rework or close" ;;
 esac
