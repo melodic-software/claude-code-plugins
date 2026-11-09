@@ -43,9 +43,8 @@ the check table, not a request to satisfy, and it widens no authority over what 
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "${CLAUDE_PLUGIN_DATA}/setup-user-config-${CLAUDE_SESSION_ID}.json"`
    and read its top-level `config` object: `values`, `provenance`, `layers`, `legacy`, `prose`,
    `home` and, when set, `home_error`. When `node` is missing, report it with
-   `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}"`, show the shipped
-   values from `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml` as what every skill uses until it is
-   fixed, say no other layer was read, and stop.
+   `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}"` and stop: no
+   layer can be read without it.
 
 ## `check` (read-only)
 
@@ -92,9 +91,8 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 3. Write one key in the layer's YAML file. For `--user`, run the managed check below on
    the `user` layer's path from `config.layers` first; when it is managed, write the source file
    instead. Create the file when absent with `version: 1` first.
-   Change only that key and keep every other key, comment and blank line. Nest a dotted key one
-   level per segment, as "Setting a key" in [values.md](../../reference/values.md) shows; never
-   write `a.b:` on one line. Block style only: one list item per line, never `{` or `[a, b]` for a non-empty list. A `*.disable` value is appended
+   Change only that key and keep every other key, comment and blank line. Block style only: one
+   list item per line, never `{` or `[a, b]` for a non-empty list. A `*.disable` value is appended
    once. When the value already matches, write nothing and say `already configured`.
 4. For `--local`, add `<home>/*.local.*` to the project's `.gitignore` when `check` found the path
    not ignored, then confirm with `git check-ignore`.
