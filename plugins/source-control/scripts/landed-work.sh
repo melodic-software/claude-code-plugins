@@ -7,8 +7,8 @@
 # distinction is the only thing standing between a cleanup sweep and data loss.
 #
 # Read-only by construction: no fetch, no ref write, no checkout, no removal, and
-# no network unless --merged-pr-proof is passed (one read-only `gh pr list` of
-# merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
+# no network unless --merged-pr-proof is passed (one read-only, paged `gh api
+# graphql` listing of merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
 # ref yields a conservative answer (see the fail-closed rule below), never a wrong
 # destructive one.
 #
@@ -722,7 +722,7 @@ merged_pr_listing() {
     GH_CALLS=$((GH_CALLS + 1))
     # `{owner}`/`{repo}` resolve from <path>'s repository, as `gh pr list` did.
     if ! (cd "$p" && gh api graphql -f query="$MERGED_PR_QUERY" -F owner='{owner}' -F name='{repo}' \
-      -f base="$base_name" -F first="$first" "${after[@]}" --jq "$MERGED_PR_JQ") >"$page" 2>"$MP_FILE.err"; then
+      -f base="$base_name" -F first="$first" ${after[@]+"${after[@]}"} --jq "$MERGED_PR_JQ") >"$page" 2>"$MP_FILE.err"; then
       # Name gh's own error so a failed run states its cause; tabs and semicolons
       # would break the record's columns and reason list. The `gh-pr-list` token
       # stays: callers match on it.
