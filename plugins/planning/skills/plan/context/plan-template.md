@@ -341,15 +341,15 @@ attempts is decided at dispatch, by `/implementation:implement-dispatch`.
 
 The `Model` column decides which implementer agent a worker row dispatches to:
 
-- **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not a security-surface work class. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
+- **`sonnet`:** only when all of these hold: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and not a security-surface work class. A clear spec alone does not qualify a row: a migration or a performance optimization stays on `opus` or above however precise its spec. `/implementation:implement-dispatch` sends the row to `implementation:scoped-implementer`.
 - **`opus`:** architectural work, per-file judgment, or multi-step reasoning, and the value to use when in doubt. A row with no `Model` value is treated the same way and goes to `implementation:implementer`.
-- **`frontier`:** security-surface work classes and complex-stamped items, per the loop-lane convention's capability tiers.
+- **`frontier`:** security-surface work classes and complex-stamped items, per the loop-lane convention's capability tiers, and major refactors and migrations and architecture planning.
 
 This split is our routing rule. Two built-in levers sit beside it and are not part of it: the `opusplan` model setting, and model choice for agent teammates.
 
-- **Pointer**: for the model split, see <https://code.claude.com/docs/en/costs#choose-the-right-model>; for `opusplan`, see <https://code.claude.com/docs/en/model-config#opusplan-model-setting>; for teammates, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: any of those sections is renamed, or the costs page changes its model split.
+- **Pointer**: for the model split, see <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#model-selection-matrix> (correlate with <https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task> and its TL;DR caveat on clear specs); for `opusplan`, see <https://code.claude.com/docs/en/model-config#opusplan-model-setting>; for teammates, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>.
+- **As of**: 2026-11-09
+- **Recheck trigger**: any of those sections is renamed, or the selection matrix or the guide's task table changes its model split.
 
 ### Composition risks
 

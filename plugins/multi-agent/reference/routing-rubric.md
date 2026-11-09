@@ -2,7 +2,7 @@
 
 Owner document for whether a role in [`defaults.yaml`](defaults.yaml), or any
 routing guidance in this repository, may name `haiku`. Accuracy comes before
-cost: a cheaper model that answers worse is not a saving.
+cost. A cheaper model that answers worse is not a saving.
 
 ## The rule
 
@@ -42,6 +42,16 @@ run on the verifier cases, so no role moves to `haiku` and every default in
 cases barely separate the models on accuracy. The advisor arm did not run:
 `claude plugin eval` loads no user settings, and no advisor tool appeared in a
 probe run's tools.
+
+On 2026-11-09 the owner decided that no role routes to Haiku: accuracy and
+the rework a wrong answer causes come before token price. The source that
+disagrees is the task table in
+[which Claude model should you build with: pick a model by task](https://claude.dev/blog/which-claude-model-should-you-build-with#pick-a-model-by-task),
+whose rows start classification and routing work on Haiku and offer it for
+subagents that search files, read logs or summarize; that work stays on
+`sonnet` or above, kept per owner rule. That table starts Haiku at its default effort, while
+[#10022](https://github.com/melodic-software/claude-code-plugins/issues/10022)
+ran it at `high`, so the eval did not measure the guide's starting point.
 
 ## Where to read the specifics
 

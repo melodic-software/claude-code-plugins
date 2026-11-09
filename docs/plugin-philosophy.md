@@ -1047,8 +1047,8 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model, the same failure seen more than once, never anticipation
   of a failure a past model had. Name the evidence where the instruction is added (PR body or an
-  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses,
-  which limits what the next model does.
+  adjacent comment). Anticipatory instructions keep guarding against an earlier model's weaknesses
+  and limit what the next model does.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
   Claude model release, re-audit standing instruction surfaces against the new model
   (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
@@ -1309,8 +1309,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 Four rules decide a lane's model, applied in this order:
 
-1. **Tune effort on the current model before adding a second model.** A lane that falls short moves
-   its effort level first; a second model enters only when effort cannot close the gap.
+1. **Self-check, then effort, then a second model.** A lane that falls short first gets a check of
+   its own output (a test, build or script), then a higher effort; a second model enters last.
 2. **Use one model at lower effort unless the work is bulk and independent.** A dependent chain, or
    work that fits one context, stays on the coordinating model. Only a fan-out of independent items
    delegates to a cheaper worker model.
@@ -1321,7 +1321,10 @@ Four rules decide a lane's model, applied in this order:
 
 - **Pointer:** for rule 1, see
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task)
-  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort);
+  and [tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort),
+  with the self-check step first from
+  [which Claude model should you build with: latency against accuracy](https://claude.dev/blog/which-claude-model-should-you-build-with#latency-against-accuracy)
+  (as of 2026-11-09);
   for rule 2,
   [orchestrator strategy: delegate bulk work](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work);
   for rule 3, the advisor capability rule in
@@ -1461,7 +1464,7 @@ well-scoped phases, dispatched with an explicit per-invocation `model`.
 
 A consumer can lose that floor. An enterprise `availableModels` allowlist reaches frontmatter
 pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
-command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
+command. Our conclusion, with the per-surface rules left at the pointer, is that a subagent lane's tier is
 not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
 allowlist that permits only an older Opus) or on the inherited session model (a blocked cheap pin,
 which is then not cheap), with no error either way. A skill or command lane with a blocked pin stays
