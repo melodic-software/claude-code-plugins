@@ -122,7 +122,7 @@ else
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   release=shellcheck-v$shellcheck_version
-  curl -fsSL --retry 3 "https://github.com/koalaman/shellcheck/releases/download/v$shellcheck_version/$release.linux.x86_64.tar.gz" -o "$tmp/$release.tar.gz"
+  curl -fsSL --retry 7 --retry-all-errors "https://github.com/koalaman/shellcheck/releases/download/v$shellcheck_version/$release.linux.x86_64.tar.gz" -o "$tmp/$release.tar.gz"
   got=$(hash_of "$tmp/$release.tar.gz")
   if [[ "$got" != "$shellcheck_sha256" ]]; then
     echo "setup-env: the shellcheck $shellcheck_version download failed its checksum" >&2
