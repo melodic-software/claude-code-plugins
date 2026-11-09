@@ -104,7 +104,8 @@ PY=""
 python_probe::floor_interpreter_to PY
 SKIPPED=0
 
-# confirm <root> <dir>: the newest transcript in <dir> records a cwd at or under <root>.
+# confirm <root> <dir>: the newest transcript in <dir> records a cwd at or under
+# <root>, which arrives already normalized.
 confirm() {
   local root="$1" dir="$2" newest="" f cwd
   if [[ -z "$PY" ]]; then
@@ -122,7 +123,6 @@ import transcript_reader
 sys.stdout.write(transcript_reader.first_cwd(sys.argv[2]) or "")' "$HERE" "$newest" 2>/dev/null)" || return 1
   [[ -n "$cwd" ]] || return 1
   cwd="$(norm "$cwd")"
-  root="$(norm "$root")"
   [[ "$cwd" == "$root" || "$cwd" == "$root/"* ]]
 }
 
@@ -132,6 +132,7 @@ scan_root() {
   [[ -n "$enc" ]] || return 0
   [[ -d "$STORE/$enc" ]] && emit "$STORE/$enc"
   [[ "${#enc}" -ge 200 ]] && long="${enc:0:200}"
+  root="$(norm "$root")"
   for dir in "$STORE"/*/; do
     dir="${dir%/}"
     name="${dir##*/}"
