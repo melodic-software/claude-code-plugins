@@ -1539,8 +1539,10 @@ async function laneRuns(actions, repo, number, addedAt) {
 }
 
 // How every one of `runs` (completed) did no work in its latest attempt, or
-// null when one did some: no job minted a lane token, and the agent-ready run
-// either had its `Request the lane token` step or broker-check's BROKER_STEP
+// null when one did some: no job minted a lane token (a run that minted, then
+// had report-outcome's mint alone stop with the STOPPED notice in its log, is
+// `breaker` at `token`, since the switch left it unreported), and the
+// agent-ready run either had its `Request the lane token` step or broker-check's BROKER_STEP
 // fail for a reason other than the kill switch, or with no reason in its log,
 // or had that mint step stop green with no token and no STOPPED notice in its
 // log (`mint-failed`, which wins; the read runner resolve-issue calls has no
@@ -1555,9 +1557,6 @@ async function laneRuns(actions, repo, number, addedAt) {
 // branch) is none of these, so it is never re-fired here. Returned as
 // `stalled`, with `run` the run that made it a breaker trip and `stage`
 // where: `check` at broker-check, before any model turn, or `token` at a mint.
-// A run with a mint that took its token did work, so it is null, unless
-// report-outcome's own mint then stopped with the STOPPED notice in its log:
-// that run never reported because of the switch, and is `breaker` at `token`.
 async function didNoWork(jobsOf, refusalOf, runs) {
   // A higher rank wins across runs; between equal ranks the first stays.
   const rank = { capped: 1, blocked: 1, breaker: 2, "mint-failed": 3 };
