@@ -1690,7 +1690,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@c0949c50a78c1ec8ce2647db36629b870e715d0c # v1.0.268
+        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
