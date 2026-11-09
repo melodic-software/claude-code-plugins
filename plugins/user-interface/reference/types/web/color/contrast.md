@@ -15,7 +15,7 @@ opaque ancestor background, not against the page.
 
 ## The bar
 
-WCAG 2.2 AA is the bar: 4.5:1 for body text, 3:1 for large text and for UI components and
+This section is the home of the contrast floors. WCAG 2.2 AA is the bar: 4.5:1 for body text, 3:1 for large text and for UI components and
 graphics (success criteria 1.4.3 and 1.4.11). APCA is an advisory second check, not a standard;
 the WCAG 3 draft has not chosen its contrast algorithm.
 
@@ -46,10 +46,11 @@ bar.
 - **Recheck trigger**: a WCAG 3 draft adopts a contrast algorithm, WCAG 2.x is superseded as the
   referenced standard, or APCA revises its published levels.
 
-**Audit: Blocking.** Body text under 4.5:1 against its real background, in either theme.
+**Audit: Blocking.** Against its real background, in either theme: body text or informative
+placeholder text under 4.5:1; large text, an icon, a control border or a meaningful graphic under
+3:1. These are the AA floors.
 
-**Audit: Important.** Large text, an icon, a control border or a meaningful graphic under 3:1
-against its real background, in either theme; or informative placeholder text under 4.5:1.
+**Audit: Important.** For a project held to AAA, text under its AAA ratio above.
 
 ## Check every pair in both themes
 

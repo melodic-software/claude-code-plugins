@@ -360,9 +360,9 @@ at that tag, and while it is open it blocks the launch whatever the tag is.
   Enter must submit"); `<div onClick>` doing a button's job, and a submit button that stays enabled
   while submitting ("7. Buttons are `<button>` elements, with a loading state"); destructive action
   with no confirmation ("12. Destructive actions require confirmation").
-- `color`: text under 4.5:1 in either theme (`contrast.md` "The bar").
+- `color`: text under its AA contrast floor in either theme (`contrast.md` "The bar").
 - `touch`: ungated `:hover`, or an action reachable only on hover ("1. Hover and press"); input font
-  size under 16px ("4. Inputs and the keyboard"); `user-scalable=no` or `maximum-scale=1`, `100vh`
+  size under the input floor ("4. Inputs and the keyboard"); `user-scalable=no` or `maximum-scale=1`, `100vh`
   for an app shell or bottom-pinned UI, and `env(safe-area-inset-*)` without `viewport-fit=cover`
   ("5. Viewport, safe areas and anchors").
 - `layout-stability`: image or video with no reserved dimensions, and fonts loaded without
