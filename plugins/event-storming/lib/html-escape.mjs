@@ -123,18 +123,12 @@ export function stampPage(html) {
  * @returns {{ name: string, value: string }[]}
  */
 function parseAttributes(raw) {
-  const attrs = [];
   const re =
     /([^\s"'>=/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
-  let match = re.exec(raw);
-  while (match) {
-    attrs.push({
-      name: match[1].toLowerCase(),
-      value: match[2] ?? match[3] ?? match[4] ?? "",
-    });
-    match = re.exec(raw);
-  }
-  return attrs;
+  return [...raw.matchAll(re)].map((match) => ({
+    name: match[1].toLowerCase(),
+    value: match[2] ?? match[3] ?? match[4] ?? "",
+  }));
 }
 
 /**
@@ -142,25 +136,22 @@ function parseAttributes(raw) {
  * @param {string[]} failures
  */
 function scanStructure(html, failures) {
-  const tagRe = /<\/?([A-Za-z][A-Za-z0-9]*)\b([^>]*)>/g;
-  let match = tagRe.exec(html);
-  while (match) {
+  for (const match of html.matchAll(/<\/?([A-Za-z][A-Za-z0-9]*)\b([^>]*)>/g)) {
     const name = match[1].toLowerCase();
-    const closing = match[0].startsWith("</");
     if (!ALLOWED_TAGS.has(name)) {
       failures.push(`tag:${name}`);
     }
-    if (!closing) {
-      for (const attr of parseAttributes(match[2])) {
-        if (!ALLOWED_ATTRS.has(attr.name)) {
-          failures.push(`attr:${attr.name}`);
-        }
-        if (!ESCAPED_TEXT.test(attr.value)) {
-          failures.push("unescaped");
-        }
+    if (match[0].startsWith("</")) {
+      continue;
+    }
+    for (const attr of parseAttributes(match[2])) {
+      if (!ALLOWED_ATTRS.has(attr.name)) {
+        failures.push(`attr:${attr.name}`);
+      }
+      if (!ESCAPED_TEXT.test(attr.value)) {
+        failures.push("unescaped");
       }
     }
-    match = tagRe.exec(html);
   }
 
   // Style text is raw CSS, which can fetch a resource with no HTML-significant
@@ -168,12 +159,10 @@ function scanStructure(html, failures) {
   // The capture ends where a browser ends style text: `</style` followed by
   // whitespace, `/` or `>`, or end of input for an unclosed element.
   const styleRe = /<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi;
-  let style = styleRe.exec(html);
-  while (style) {
+  for (const style of html.matchAll(styleRe)) {
     if (/url\(|@import|expression\(|\\/i.test(style[1])) {
       failures.push("style");
     }
-    style = styleRe.exec(html);
   }
 
   let rest = html.replace(/<!--[\s\S]*?-->/g, "");
