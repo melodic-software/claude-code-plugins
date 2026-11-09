@@ -112,13 +112,10 @@ def render(rows: list[list[str]]) -> str:
 
 
 def splice(text: str, block: str) -> str:
-    if (
-        text.count(BEGIN) != 1
-        or text.count(END) != 1
-        or text.index(BEGIN) > text.index(END)
-    ):
+    start, end = text.find(BEGIN), text.find(END)
+    if text.count(BEGIN) != 1 or text.count(END) != 1 or start > end:
         raise Fail(2, "expected one BEGIN and one END generated marker, BEGIN first")
-    return text[: text.index(BEGIN)] + block + text[text.index(END) + len(END) :]
+    return text[:start] + block + text[end + len(END) :]
 
 
 def main() -> int:
