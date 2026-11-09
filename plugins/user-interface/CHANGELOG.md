@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-11-09
+
+### Added
+
+- `typography.long_form_body_px` (default `18`, at least `16`): the size of long-form reading text, which the web typography rules write in `rem` above the `16px` body floor. The default is the low end of Emil Kowalski's 18 to 20px for long-form text ([post](https://x.com/emilkowalski/status/2112245483464802700)); the config check refuses a value under `16`.
+
 ## [0.19.0] - 2026-11-09
 
 ### Added
