@@ -182,11 +182,10 @@ async function main() {
   /** @type {ResourceBuckets} */
   const buckets = { allDownloads: [], allPdfs: [], allArticles: [] };
   walkModules(modulesDir, buckets);
-  const { allDownloads, allPdfs, allArticles } = buckets;
 
-  const uniqueDownloads = uniqueByHref(allDownloads);
-  const uniquePdfs = uniqueByHref(allPdfs);
-  const uniqueArticles = uniqueByHref(allArticles);
+  const uniqueDownloads = uniqueByHref(buckets.allDownloads);
+  const uniquePdfs = uniqueByHref(buckets.allPdfs);
+  const uniqueArticles = uniqueByHref(buckets.allArticles);
 
   log.info("\nResources found:");
   log.info(`  Downloads: ${uniqueDownloads.length} unique files`);
@@ -208,9 +207,10 @@ async function main() {
     return;
   }
 
-  mkdirSync(downloadsDir, { recursive: true });
-  mkdirSync(slidesDir, { recursive: true });
-  mkdirSync(resourcesDir, { recursive: true });
+  const outputDirs = [downloadsDir, slidesDir, resourcesDir];
+  for (const dir of outputDirs) {
+    mkdirSync(dir, { recursive: true });
+  }
 
   const downloadItems = buildDownloadItems({
     uniqueDownloads,
@@ -233,10 +233,9 @@ async function main() {
   log.info(`Failed: ${failed}`);
   log.info(`Articles saved: ${uniqueArticles.length} references`);
   log.info("\nOutput:");
-  log.info(`  ${downloadsDir}`);
-  log.info(`  ${slidesDir}`);
-  log.info(`  ${resourcesDir}`);
-  log.info(`  ${articlesPath}`);
+  for (const path of [...outputDirs, articlesPath]) {
+    log.info(`  ${path}`);
+  }
 }
 
 if (isMainModule(import.meta.url)) {
