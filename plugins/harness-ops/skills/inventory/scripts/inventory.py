@@ -453,19 +453,15 @@ def _select_longest_run(
     meta["region_rule"] = (
         "no bundle marker found; largest printable run around an anchor"
     )
-    printable = bytearray(256)
-    for c in b"\t\n\r":
-        printable[c] = 1
-    for c in range(0x20, 0x7F):
-        printable[c] = 1
+    printable = frozenset(b"\t\n\r" + bytes(range(0x20, 0x7F)))
 
     def run_bounds(pos: int) -> tuple[int, int]:
         n = len(data)
         end = pos
-        while end < n and printable[data[end]]:
+        while end < n and data[end] in printable:
             end += 1
         begin = pos
-        while begin > 0 and printable[data[begin - 1]]:
+        while begin > 0 and data[begin - 1] in printable:
             begin -= 1
         return begin, end
 
@@ -616,16 +612,10 @@ def _brace_pairs(s: str, lo: int, n: int, pairs: dict[int, int]) -> None:
                 i += 1
             prev_sig, prev_word = q, ""
             continue
-        if c == "`":
-            i, opened = _scan_template_text(s, i + 1, n)
-            if opened:
-                templates.append(len(stack))
-                prev_sig, prev_word = "{", ""
-            else:
-                prev_sig, prev_word = "`", ""
-            continue
-        if c == "}" and templates and templates[-1] == len(stack):
-            templates.pop()
+        resumes_template = c == "}" and templates and templates[-1] == len(stack)
+        if c == "`" or resumes_template:
+            if resumes_template:
+                templates.pop()
             i, opened = _scan_template_text(s, i + 1, n)
             if opened:
                 templates.append(len(stack))
@@ -758,15 +748,21 @@ def _open_paren(src: str, close: int) -> int | None:
     return None
 
 
+def _close_paren_before(src: str, brace: int) -> int | None:
+    """The `)` just before the `{` at `brace`, past whitespace, or None."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    return j if j >= 0 and src[j] == ")" else None
+
+
 def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
     """Whether the `{` at `brace` opens a `function` body. The parameter
     list is matched by depth with quoted text blanked, so a default holding
     a call (`a=g()`) or a quoted paren (`s=")"`) counts. Raises ValueError
     when the head cannot be read, so the caller's value stays unresolved."""
-    j = brace - 1
-    while j >= 0 and src[j] in " \t\r\n":
-        j -= 1
-    if j < 0 or src[j] != ")":
+    j = _close_paren_before(src, brace)
+    if j is None:
         return False
     k = _head_open(src, braces, j)
     return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
@@ -775,10 +771,8 @@ def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
 def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
     """The parameters of the `catch (...)` whose block opens at `brace`, each
     a runtime value; empty when the block is not a catch block."""
-    j = brace - 1
-    while j >= 0 and src[j] in " \t\r\n":
-        j -= 1
-    if j < 0 or src[j] != ")":
+    j = _close_paren_before(src, brace)
+    if j is None:
         return NO_SCOPE
     k = _head_open(src, braces, j)
     if not re.search(r"(?<![\w$.])catch\s*$", src[max(0, k - 16) : k]):
@@ -793,12 +787,8 @@ _FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])([^;]*)")
 def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
     """The `let`/`const` names of the `for (...)` head whose body opens at
     `brace`, each a runtime value; empty for any other block."""
-    j = brace - 1
-    while j >= 0 and src[j] in " \t\r\n":
-        j -= 1
-    if j < 0 or src[j] != ")":
-        return NO_SCOPE
-    return _for_head_names(src, braces, j)
+    j = _close_paren_before(src, brace)
+    return NO_SCOPE if j is None else _for_head_names(src, braces, j)
 
 
 def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
@@ -808,11 +798,10 @@ def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
     extra names only leaves more unresolved, and a binding named `of` or `in`
     is still caught.
     """
-    j = close
-    k = _head_open(src, braces, j)
+    k = _head_open(src, braces, close)
     if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
         return NO_SCOPE
-    decl = _FOR_DECL_RE.match(_mask_strings(src[k + 1 : j]))
+    decl = _FOR_DECL_RE.match(_mask_strings(src[k + 1 : close]))
     return _param_names(decl.group(1)) if decl else NO_SCOPE
 
 
@@ -1542,10 +1531,8 @@ def _param_names(text: str) -> Scope:
 
 def _params_before(src: str, braces: BraceMap, body_open: int) -> Scope:
     """The parameters of the method or function whose body opens at `body_open`."""
-    j = body_open - 1
-    while j >= 0 and src[j] in " \t\r\n":
-        j -= 1
-    if j < 0 or src[j] != ")":
+    j = _close_paren_before(src, body_open)
+    if j is None:
         return NO_SCOPE
     return _param_names(src[_head_open(src, braces, j) + 1 : j])
 
@@ -1644,6 +1631,9 @@ def _read_string(
     raise ValueError("unterminated template")
 
 
+_JOIN_CALL_RE = re.compile(r"\s*\.join\(\s*")
+
+
 def _array_join(
     src: str, braces: BraceMap, i: int, n: int, acc: _Values, **kw: Any
 ) -> tuple[list[str] | None, int]:
@@ -1652,7 +1642,7 @@ def _array_join(
     An element that does not resolve renders as an ellipsis.
     """
     close = _match_close(src, braces, i, n)
-    m = re.compile(r"\s*\.join\(\s*").match(src, close, n)
+    m = _JOIN_CALL_RE.match(src, close, n)
     if not m:
         return None, close
     k = m.end()
