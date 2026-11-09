@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.10] - 2026-11-09
+
+### Fixed
+
+- The descriptor-leak check in the root-delete guard's resolver test compares the descriptor set of a subshell it owns, so a descriptor another case still has open in the test shell no longer fails it, and a descriptor `rdt_bounded_to` leaves in (or takes from) its caller still does.
+
 ## [3.0.9] - 2026-11-09
 
 ### Fixed
