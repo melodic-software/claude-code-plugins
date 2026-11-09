@@ -49,6 +49,9 @@ usage() {
 # jq: emit each result as TSV (word, score, numSyllables, tags).
 emit_tsv() { jq -r '.[] | [.word, (.score // 0), (.numSyllables // 0), ((.tags // []) | join(","))] | @tsv'; }
 
+# One Datamuse request for <query>, with syllable metadata and the result cap.
+fetch() { curl -sS "$api?$1&md=s&max=$max"; }
+
 if [[ "$MODE" == "-h" || "$MODE" == "--help" ]]; then
   usage
   exit 0
@@ -81,8 +84,8 @@ syllables)
   ;;
 family)
   # near rhymes + consonance, combined; useful for Pat's family-rhyme search
-  near=$(curl -sS "$api?rel_nry=$word&md=s&max=$LIMIT")
-  cons=$(curl -sS "$api?rel_cns=$word&md=s&max=$LIMIT")
+  near=$(fetch "rel_nry=$word")
+  cons=$(fetch "rel_cns=$word")
   echo "$near $cons" |
     jq -s 'add | unique_by(.word) | sort_by(-(.score // 0))' |
     emit_tsv
@@ -95,4 +98,4 @@ family)
   ;;
 esac
 
-curl -sS "$api?$query&md=s&max=$max" | emit_tsv
+fetch "$query" | emit_tsv
