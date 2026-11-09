@@ -326,6 +326,9 @@ const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=esca
 // work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
 
+// The lines that link the run in a comment, or none without its URL.
+const runLines = (runUrl) => (runUrl ? ["", `Run: ${runUrl}`] : []);
+
 // The secret NAME a run's leg used and why it fell back, from lane.json, which
 // the run could rewrite. Only the names run-claude-cli records for role
 // issue-lane and the reasons the collect step writes pass, so a rewritten
@@ -434,16 +437,27 @@ const stepList = (value) =>
     .slice(0, MAX_ITEMS)
     .map(({ activity, result }) => ({ activity: activity.slice(0, 40), result: result.slice(0, 20) }));
 
+// The resolved config's merge.diff-check, or undefined when the file cannot be
+// read or parsed.
+function readDiffCheck(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"];
+  } catch {
+    return undefined;
+  }
+}
+
+// Its denied-paths list when that is a list of strings, else null.
+function deniedPaths(diffCheck) {
+  const paths = diffCheck?.["denied-paths"];
+  return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
+}
+
 // The merge lane's denied-path globs from the resolved config; an empty list
 // denies no path. Null, which holds every PR, when the file cannot be read or
 // parsed, or the value is missing, not a list, or holds a non-string.
 export function readHoldPaths(path) {
-  try {
-    const paths = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["denied-paths"];
-    return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
-  } catch {
-    return null;
-  }
+  return deniedPaths(readDiffCheck(path));
 }
 
 // The denied paths a PR holds on: readHoldPaths while
@@ -451,13 +465,9 @@ export function readHoldPaths(path) {
 // decisions Q15 and Q16; merge-holds.mjs pathHoldsOf reads it alike). An
 // unreadable config still holds.
 export function heldPaths(path) {
-  const paths = readHoldPaths(path);
-  try {
-    const on = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"];
-    return paths !== null && [undefined, null, false, "false"].includes(on) ? [] : paths;
-  } catch {
-    return paths;
-  }
+  const diffCheck = readDiffCheck(path);
+  const paths = deniedPaths(diffCheck);
+  return paths !== null && [undefined, null, false, "false"].includes(diffCheck?.["path-holds"]) ? [] : paths;
 }
 
 // The read runner's scan refusal markers, the ones address-feedback.mjs
@@ -611,12 +621,16 @@ const bullets = (items) =>
     .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
+// A comment's section listing what the run says it did not do, or none.
+const notDoneLines = (notDone) => (notDone.length ? ["", "What the run says it did not do:", "", bullets(notDone.map(({ what }) => what))] : []);
+
 // The first line that makes a listed human's issue comment a decision the run
 // builds (select-trusted-text's isDecisionComment, which write-issue.mjs
 // applies). A script activity runs from a copy of its own directory, so the
 // rule is restated here, not imported.
 export const DECISION_LINE = "**Decision recorded.**";
 const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
+const firstLine = (body) => String(body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*#issuecomment-[1-9][0-9]*$/;
 
 // The URL of a listed human's newest issue comment after the lanes App's
@@ -626,8 +640,7 @@ const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+
 export function unmarkedAnswer(comments, humans, bot) {
   const since = comments.findLastIndex((comment) => comment?.user?.login === bot && parseOutcomeMarker(comment.body) !== null);
   const last = comments.slice(since + 1).filter((comment) => humans.has(comment?.user?.id)).at(-1);
-  const first = String(last?.body ?? "").trimStart().split("\n", 1)[0].trimEnd();
-  return last && last.performed_via_github_app == null && !DECISION.test(first) && COMMENT_URL.test(last.html_url ?? "") ? last.html_url : null;
+  return last && last.performed_via_github_app == null && !DECISION.test(firstLine(last.body)) && COMMENT_URL.test(last.html_url ?? "") ? last.html_url : null;
 }
 
 // The marker names the run, so --find-prior never reuses a branch whose work
@@ -658,10 +671,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
     "Why, in the run's own words:",
     "",
     quoted(outcome.reason || outcome.summary),
+    ...notDoneLines(outcome.notDone),
   ]);
-  if (outcome.notDone.length) {
-    lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
-  }
   if (pushback && unmarked) {
     lines.push(
       "",
@@ -680,10 +691,8 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
         : `Partial work is on the branch \`${branch}\`. A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh.`,
     );
   }
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
   lines.push(
+    ...runLines(runUrl),
     "",
     pushback
       ? `To retry, answer the question in a comment whose first line is \`${DECISION_LINE}\`, then set Work status to agent-ready again (clearing the \`${humanLabel}\` hold).`
@@ -724,10 +733,13 @@ export async function stripQueueLabels() {
 // its state. `attended` stays: only a listed human lifts it.
 export const STATE_LABELS = [HOST_RUN_LABEL];
 
+// The lowercased names of `labels`, each a name or a label object.
+const labelNames = (labels) => labels.map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
+
 // Removes the state labels `had` holds from the closed issue at `base`, and
 // returns their names. A 404 counts as removed.
 export async function stripStateLabels(github, base, had) {
-  const present = new Set(had.map((name) => String(typeof name === "string" ? name : name?.name).toLowerCase()));
+  const present = new Set(labelNames(had));
   const removed = STATE_LABELS.filter((name) => present.has(name));
   for (const name of removed) {
     await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`).catch((error) => {
@@ -781,15 +793,11 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
   if (route === "close" && outcome.reason && outcome.summary) {
     lines.push("", "The run's report:", "", quoted(outcome.summary));
   }
-  if (outcome.notDone.length) {
-    lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
-  }
+  lines.push(...notDoneLines(outcome.notDone));
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`. The next run continues from it while it is not behind the default branch, and otherwise starts fresh.`);
   }
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
+  lines.push(...runLines(runUrl));
   if (route === "host-run") {
     lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`);
   } else if (route === "attended") {
@@ -884,10 +892,8 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
   const lines = [
     `<!-- work-resolve-issue outcome=${OUTSIDE_AUTHOR}${runId ? ` run=${runId}` : ""} -->`,
     "The work-resolve-issue lane did not start this issue (`outside-author`): its author is outside the trusted list, neither a listed human nor the lanes App, so the lane does not work from its text. A listed human re-files the work as a new issue in their own words.",
+    ...runLines(runUrl),
   ];
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
   return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [] };
 }
 
@@ -925,13 +931,17 @@ const appSets = (fieldEvents, fieldId, appId) =>
     .filter((event) => event?.field === String(fieldId) && event.removed === false && event.to === "agent-ready" && event.actorId === appId)
     .map((event) => Date.parse(event.at));
 
+// The one warning a failed Work status read leaves.
+const warnStatus = (issueNumber, error) =>
+  console.log(`::warning title=work-status::issue #${issueNumber} is left as it is: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+
 // The trusted Work status state (`field.state`), or undefined with one
 // warning when it cannot be read.
 async function fieldState(field, issueNumber) {
   try {
     return await field.state(issueNumber);
   } catch (error) {
-    console.log(`::warning title=work-status::issue #${issueNumber} is left as it is: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    warnStatus(issueNumber, error);
     return undefined;
   }
 }
@@ -982,7 +992,7 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   }
   const base = `${repo}/issues/${issueNumber}`;
   const issue = await github("GET", base);
-  const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
+  const labels = labelNames(issue?.labels ?? []);
   if (issue?.state !== "open") {
     return "skipped: the issue is closed";
   }
@@ -1039,7 +1049,7 @@ async function laneHold(statusOf, issueNumber, labels) {
   try {
     names = (await statusOf(issueNumber, labels)).map((name) => String(name).toLowerCase());
   } catch (error) {
-    console.log(`::warning title=work-status::issue #${issueNumber} is left as it is: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
+    warnStatus(issueNumber, error);
     return "the Work status could not be read";
   }
   const hold = names.find((label) => LANE_HOLDS.has(label));
@@ -1096,8 +1106,7 @@ export async function lateRecord({ comments, fieldEvents, fieldId, appId, bot, h
     if (item.user?.login === bot) {
       return body.startsWith(REFINE_MARKER);
     }
-    const first = body.trimStart().split("\n", 1)[0].trimEnd();
-    return item.user?.type === "User" && humans.has(item.user.id) && item.performed_via_github_app == null && DECISION.test(first);
+    return item.user?.type === "User" && humans.has(item.user.id) && item.performed_via_github_app == null && DECISION.test(firstLine(body));
   });
   return comment ? { comment } : null;
 }
@@ -1121,7 +1130,7 @@ async function redispatch(github, repo, plan, late, { runId, statusOf, field, ap
   }
   const base = `${repo}/issues/${plan.issueNumber}`;
   const issue = await github("GET", base);
-  const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
+  const labels = labelNames(issue?.labels ?? []);
   const since = late.marker ? Date.parse(late.marker.created_at) : Number.POSITIVE_INFINITY;
   const events = late.marker ? await field.events(plan.issueNumber) : [];
   if (appSets(events, field.id, appId).some((time) => time >= since)) {
@@ -1158,9 +1167,7 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) 
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`.`);
   }
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
+  lines.push(...runLines(runUrl));
   return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
@@ -1179,9 +1186,7 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it while it is not behind the default branch, and otherwise starts fresh.`);
   }
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
+  lines.push(...runLines(runUrl));
   return { action: "funding", exit: "funding", issueNumber, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
@@ -1208,10 +1213,8 @@ function turnCapPlan({ issueNumber, branch, cap, timeout = false, restart, human
     branch
       ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`
       : "The run committed nothing.",
+    ...runLines(runUrl),
   ];
-  if (runUrl) {
-    lines.push("", `Run: ${runUrl}`);
-  }
   return { action: "turn-cap", exit: "turn-cap", issueNumber, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
@@ -1230,7 +1233,7 @@ export function readSummary(dir, { issueNumber, branch }) {
     parsed?.version !== 1 ||
     parsed.issue !== issueNumber ||
     parsed.branch !== branch ||
-    !/^[0-9a-f]{40}$/.test(parsed.tip ?? "") ||
+    !BLOB.test(parsed.tip ?? "") ||
     output === null ||
     typeof output !== "object" ||
     Array.isArray(output)
@@ -1259,7 +1262,7 @@ export function readChecks(text, { branch }) {
     typeof branch === "string" &&
     branch !== "" &&
     parsed.branch === branch &&
-    /^[0-9a-f]{40}$/.test(parsed.tip ?? "") &&
+    BLOB.test(parsed.tip ?? "") &&
     Array.isArray(results) &&
     results.length <= MAX_ITEMS &&
     results.every((result) => typeof result?.check === "string" && Number.isInteger(result.exit));
