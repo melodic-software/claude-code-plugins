@@ -84,5 +84,7 @@ while read -r _ new ref; do
 done
 EOF
 chmod +x "$origin/hooks/pre-receive"
+# A global core.hooksPath would otherwise replace this hook and leave pushes unrecorded.
+git -C "$origin" config core.hooksPath "$origin/hooks"
 
 git config worktreeroot.path "$PWD/.eval-worktrees"

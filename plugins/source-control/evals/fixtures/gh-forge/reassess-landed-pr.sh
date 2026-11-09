@@ -11,12 +11,13 @@ number="$1" title="$2"
 shift 2
 here="$(dirname "${BASH_SOURCE[0]}")"
 export GIT_AUTHOR_DATE='2026-10-01T00:00:00Z' GIT_COMMITTER_DATE='2026-10-01T00:00:00Z'
+export GIT_AUTHOR_NAME=eval GIT_AUTHOR_EMAIL=eval@example.invalid
+export GIT_COMMITTER_NAME=eval GIT_COMMITTER_EMAIL=eval@example.invalid
 
 git init -q -b main
-git config user.name eval
-git config user.email eval@example.invalid
-# A signature would make the SHAs vary with the operator's global git config.
+# A signature or a global commit-msg hook would make the SHAs vary with the operator's git config.
 git config commit.gpgsign false
+git config core.hooksPath /dev/null
 mkdir -p src
 printf 'export const retries = 1;\n' >src/retry.ts
 printf '# demo\n' >README.md

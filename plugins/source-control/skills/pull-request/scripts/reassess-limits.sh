@@ -140,7 +140,8 @@ else
   repo_key=$(tr '[:upper:]' '[:lower:]' <<<"${REPO/\//__}")
   lease="$STATE_DIR/active-workers/${repo_key}__pr-$PR.json"
   if [[ -e "$lease" ]]; then
-    if stamp=$(jq -er .expires_at "$lease" 2>/dev/null) && expiry=$(date -d "$stamp" +%s 2>/dev/null); then
+    # Babysit writes UTC with microseconds; jq parses it on every platform, and any other offset fails closed.
+    if expiry=$(jq -er '.expires_at | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601' "$lease" 2>/dev/null); then
       ((expiry <= $(date +%s))) || limit held "a live babysit worker lease"
     else
       limit unread "the babysit worker lease"

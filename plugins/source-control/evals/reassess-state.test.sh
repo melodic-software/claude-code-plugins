@@ -7,12 +7,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EVALS="$SCRIPT_DIR/../.."
+EVALS="$SCRIPT_DIR"
 LIMITS="$EVALS/../skills/pull-request/scripts/reassess-limits.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# shellcheck source=../../../scripts/test-helpers.sh
+# shellcheck source=../scripts/test-helpers.sh
 source "$EVALS/../scripts/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
@@ -34,7 +34,7 @@ limits() {
   in_case "$1" bash "$LIMITS" 512 --repo eval-fixture/app --state-dir "$TEST_TMPDIR/state" 2>&1
 }
 
-for c in close continue rework report-only no-goal close-label-first fork-no-push labeled-own-comment; do
+for c in close continue rework report-only no-goal close-label-first fork-no-push fork-close labeled-own-comment; do
   scaffold "$c"
 done
 
@@ -51,6 +51,10 @@ assert_eq "labeled: only the label limit" "label: the pull request carries do-no
 out=$(limits fork-no-push)
 assert_exit "fork: a limit" 3 "$?"
 assert_eq "fork: only the no-update limit" "no-update: the head is on a fork" "$out"
+
+out=$(limits fork-close)
+assert_exit "fork close: a limit" 3 "$?"
+assert_eq "fork close: only the no-update limit, which leaves a close free to act" "no-update: the head is on a fork" "$out"
 
 # The fetch the action makes, through the helper.
 ORIGIN="$TEST_TMPDIR/fork-no-push/.git/eval-forge/eval-fixture/app.git"
@@ -117,6 +121,18 @@ assert_eq "api -X GET with a field stays a read" "a read" \
 in_case close-label-first git push -q origin main:refs/heads/probe >/dev/null 2>&1
 assert_exit "push: accepted by the origin" 0 "$?"
 assert_eq "push: the pre-receive hook records it" "push refs/heads/probe" "$(tail -n 1 "$CALLS" | jq -r '"\(.command) \(.ref)"')"
+
+printf '[core]\n\thooksPath = %s/no-hooks\n' "$TEST_TMPDIR" >"$TEST_TMPDIR/global-hooks"
+GIT_CONFIG_GLOBAL="$TEST_TMPDIR/global-hooks" in_case close-label-first git push -q origin main:refs/heads/probe-global >/dev/null 2>&1
+assert_eq "push: recorded under a global core.hooksPath" "push refs/heads/probe-global" "$(tail -n 1 "$CALLS" | jq -r '"\(.command) \(.ref)"')"
+
+in_case close-label-first gh api graphql -f 'query=mutation { closePullRequest(input: {pullRequestId: "x"}) { clientMutationId } }' >/dev/null 2>&1
+assert_exit "graphql mutation: refused" 1 "$?"
+assert_eq "graphql mutation: the attempt is recorded" '"api graphql mutation"' "$(tail -n 1 "$CALLS" | jq -c .command)"
+
+mkdir -p "$TEST_TMPDIR/close-env"
+(cd "$TEST_TMPDIR/close-env" && GIT_AUTHOR_NAME=other GIT_COMMITTER_EMAIL=other@example.invalid bash "$EVALS/pull-request-reassess-close/scaffold.sh") >/dev/null 2>&1
+assert_eq "close: the pinned SHAs ignore the operator's identity variables" "$(git -C "$TEST_TMPDIR/close" rev-parse main)" "$(git -C "$TEST_TMPDIR/close-env" rev-parse main)"
 
 # The comment read and edit a re-run makes.
 LABELED_CALLS="$TEST_TMPDIR/labeled-own-comment/.git/eval-forge/calls.jsonl"

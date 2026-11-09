@@ -429,6 +429,7 @@ case "$cmd $sub" in
     elif [[ "$gql" == *isInMergeQueue* ]]; then
       emit '{"data":{"repository":{"pullRequest":{"isInMergeQueue":false}}}}'
     else
+      [[ "$gql" != *mutation* ]] || record "api graphql mutation" "$gql"
       refuse api graphql "$@"
     fi
     ;;
