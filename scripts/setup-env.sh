@@ -55,7 +55,7 @@ node_packages() {
   for dir in . .github/standards/runner-policy; do
     key=$(hash_of "$dir/package-lock.json")
     stamp=$dir/node_modules/.setup-env
-    if [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" = "$key" ]]; then
+    if [[ -f "$stamp" && "$(<"$stamp")" == "$key" ]]; then
       echo "setup-env: $dir/node_modules is current"
     else
       nice npm ci --no-audit --no-fund --prefix "$dir"
@@ -76,7 +76,7 @@ venv=${SETUP_ENV_VENV:-$root/.work/venv}
 bin=$venv/bin
 [[ -d "$venv/Scripts" ]] && bin=$venv/Scripts
 key="$want $(hash_of .github/requirements-ci.txt)"
-if [[ -f "$venv/.setup-env" ]] && [[ "$(cat "$venv/.setup-env")" = "$key" ]] && "$bin/python" -I -c "" 2>/dev/null; then
+if [[ -f "$venv/.setup-env" && "$(<"$venv/.setup-env")" == "$key" ]] && "$bin/python" -I -c "" 2>/dev/null; then
   echo "setup-env: Python $want venv is current: $venv"
 else
   py=""
