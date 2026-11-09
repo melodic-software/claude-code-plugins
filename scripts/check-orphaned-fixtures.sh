@@ -81,7 +81,6 @@ matched_baseline() {
 
 # plugin root that owns a path under plugins/<name>/… -> plugins/<name>
 plugin_root_of_to() {
-  # plugins / <name> / rest…  -> keep the first two segments
   local rest="${2#plugins/}"
   printf -v "$1" 'plugins/%s' "${rest%%/*}"
 }
@@ -259,12 +258,7 @@ for f in "${fixtures[@]}"; do
 done
 
 stale=0
-stale_entries=()
-read_list::stale_to stale_entries entries
-for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do
-  read_list::stale_line "$BASELINE" "$entry" 'no longer shadows any orphaned fixture — remove it.'
-  stale=$((stale + 1))
-done
+read_list::report_stale entries "$BASELINE" 'no longer shadows any orphaned fixture — remove it.' || stale=1
 
 if ((orphans > 0 || stale > 0)); then
   exit 1
