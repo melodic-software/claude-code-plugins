@@ -448,7 +448,7 @@ so this fires for every target model.
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
 Rows I8-a, I8-c, I8-d and I8-f carry their own `Model scope` (single-model guide sources; promotion
-gate unmet). The base row and rows I8-b and I8-e are unscoped, since a model-agnostic statement or
+gate unmet). The base row and rows I8-b, I8-e and I8-g are unscoped, since a model-agnostic statement or
 convergent model guides meet the gate for each (see the rows); the base row's delegation-throttle
 worked instance keeps a `fable-5` scope of its own.
 
@@ -799,6 +799,47 @@ general think-thoroughly prompt over a hand-written plan, so an unscoped row wou
   thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
   As of: 2026-10-10. Recheck trigger: that section takes a position on think-carefully
   instructions.
+
+**Row I8-g: standing keep-going exhortation** · Tier `behavioral`. Unscoped. Promotion gate MET:
+the model-agnostic best-practices page states the claim for current models (see Source), and the
+three model guides P6 cites do not contradict it: each one's carry-on text states a finish line and
+the cases to stop for, which is the shape this row's first fence keeps.
+
+- **Detect:** a standing line telling the model to keep going, loop until done, not give up, or not
+  be lazy, with no finish line it can observe and no stop cases. We treat such a line as more likely
+  to cause over-work than to fix a stall, since current models usually carry on through an agreed
+  task without being told.
+- **Remediate:** delete the line. Where runs do stop short, give the model a check to pass in the
+  instruction ("keep going until the auth tests pass"); for unattended runs, enforce it with `/goal`
+  or a `Stop` hook rather than an exhortation. Verify per Deletion tiers (a consequential removal
+  needs a closed watch, an editorial one does not).
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Must NOT flag: the finish-line and carry-on statement an autonomous component owes under the
+  posture catalog's P6** (`audit-prompting-postures`, "Autonomy or checkpoint posture"): a line that
+  says what done observably is, or carries on without asking while naming the cases that stop for
+  the human. "Keep going, with status notes in the same message as the next action", beside the
+  stops that need the user, is that statement, not this row's finding.
+- **Must NOT flag: a check, goal, or `Stop`-hook instruction**: "keep going until the tests pass",
+  a `/goal` condition, or a hook that sends the model back until a script passes. The check is the
+  enforcement the Remediate line asks for.
+- **Must NOT flag:** a one-off `continue` the human types for one run, or "lazy" in its technical
+  sense (lazy loading, lazy evaluation).
+- **Must NOT flag: a document *about* the pattern**, such as this row, a model-adaptation chapter,
+  or a verification record quoting it, on the audience test I8-b applies.
+- **Source:** Claude Code best practices, "What you can stop doing" (the table row "Tell Claude to
+  keep going, loop until done, don't be lazy"); the check-to-pass remediation is the same page's
+  "Give Claude a check to run" section. Pointer: [best practices, what you can stop
+  doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing). The guides read
+  for contradiction: [Fable 5.1, "Finish the whole
+  task"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task),
+  [Opus 5.5, "Unattended agentic
+  runs"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
+  and [Sonnet 5.5, "Steer initiative and
+  scope"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#steer-initiative-and-scope).
+  **As of 2026-11-09** (our probe: the best-practices page's raw `.md`, 52,515 bytes, MD5
+  `ae54fd546226b55140a6bd4b979e1871`; each guide read as raw markdown, no artifact stored).
+  **Recheck trigger:** the best-practices table drops or reverses the row, or a model guide starts
+  prescribing a carry-on line with no finish line or stop cases, which re-opens the scoping question.
 
 ### I9: Example hygiene
 
