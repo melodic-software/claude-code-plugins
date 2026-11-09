@@ -76,10 +76,7 @@ ensure_dir() {
   [[ -d "$1" ]] || mkdir -- "$1" || die "cannot create $1"
 }
 
-[[ $# -ge 1 ]] || {
-  usage
-  exit 2
-}
+[[ $# -ge 1 ]] || { usage; exit 2; }
 cmd="$1"
 shift
 case "$cmd" in
@@ -118,12 +115,6 @@ record | check)
     fi
   fi
   ;;
---help | -h)
-  usage
-  exit 0
-  ;;
-*)
-  usage
-  exit 2
-  ;;
+--help | -h) usage; exit 0 ;;
+*) usage; exit 2 ;;
 esac

@@ -22,6 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/opt-value.sh
 source "$SCRIPT_DIR/lib/opt-value.sh"
+ME="emit-fix-record.sh"
 
 OUT_DIR=""
 CONSUMED=()
@@ -36,27 +37,14 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --out-dir | --consumed | --branch | --rows | --outcome | --not-applied-rows)
-    require_opt_value "emit-fix-record.sh" "$@"
-    case "$1" in
-    --out-dir) OUT_DIR="$2" ;;
-    --consumed) CONSUMED+=("$2") ;;
-    --branch) BRANCH="$2" ;;
-    --rows) ROWS="$2" ;;
-    --outcome) OUTCOME="$2" ;;
-    --not-applied-rows) NA_ROWS="$2" ;;
-    *) exit 2 ;;
-    esac
-    shift 2
-    ;;
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "emit-fix-record.sh: unknown argument: $1" >&2
-    exit 2
-    ;;
+  --out-dir) require_opt_value "$ME" "$@"; OUT_DIR="$2"; shift 2 ;;
+  --consumed) require_opt_value "$ME" "$@"; CONSUMED+=("$2"); shift 2 ;;
+  --branch) require_opt_value "$ME" "$@"; BRANCH="$2"; shift 2 ;;
+  --rows) require_opt_value "$ME" "$@"; ROWS="$2"; shift 2 ;;
+  --outcome) require_opt_value "$ME" "$@"; OUTCOME="$2"; shift 2 ;;
+  --not-applied-rows) require_opt_value "$ME" "$@"; NA_ROWS="$2"; shift 2 ;;
+  --help | -h) usage; exit 0 ;;
+  *) echo "$ME: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
@@ -123,7 +111,7 @@ for f in "${CONSUMED[@]}"; do names+="${names:+, }$(basename "$f")"; done
   printf -- '- Correctness-class (0): (none)\n'
   printf -- '- Producer-owned (%d): %s\n' "$ROWS" "$OUTCOME"
   printf -- '\n## Not applied: recover by re-running the source producer\n\n'
-  if [[ -n "$NA_ROWS" && -s "$NA_ROWS" ]]; then
+  if [[ -s "$NA_ROWS" ]]; then
     printf -- '| Location | Finding | Why not applied | Source file |\n|---|---|---|---|\n'
     cat "$NA_ROWS"
   else
