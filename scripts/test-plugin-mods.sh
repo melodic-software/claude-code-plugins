@@ -49,9 +49,7 @@ process.exit(Array.isArray(m) && m.length > 0 ? 0 : 1)' "$hooks" 2>/dev/null; th
     unloaded=1
   done
 done
-if [[ $unloaded -ne 0 ]]; then
-  exit 1
-fi
+((unloaded == 0)) || exit 1
 
 if [[ ${#mods[@]} -eq 0 ]]; then
   echo "claude plugin test: skipped, no plugin ships a mod"

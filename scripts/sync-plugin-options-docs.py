@@ -122,6 +122,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     # in every README is drift waiting to happen.
     cite = convention_cite(plugin)
     sensitive = [k for k, s in options.items() if s.get("sensitive")]
+    settable_by_hand = len(sensitive) < len(options)
     sensitive_note = (
         [
             "",
@@ -144,14 +145,14 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         f"  headless route in {cite}, which records its limits.",
         *(
             [f"- **By hand:** under [`pluginConfigs`]({PLUGIN_CONFIGS_DOCS}) in your **user** settings."]
-            if len(sensitive) < len(options)
+            if settable_by_hand
             else []
         ),
         *sensitive_note,
         "",
         f"Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps]({UNINSTALL_DOCS}).",
         f"For a Claude Code release without `plugin configure`, see [Plugin install]({INSTALL_DOCS})."
-        if len(sensitive) < len(options)
+        if settable_by_hand
         else "Every option here is `sensitive`, so the install fallback for a release without `plugin configure` does not apply.",
         "",
         "### Upstream documentation",
@@ -211,10 +212,10 @@ def strip_stale_block(readme: pathlib.Path, check: bool) -> str | None:
     halves = split_block(readme.read_text(encoding="utf-8"))
     if halves is None:
         return None
-    head, tail = halves
-    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
     if check:
         return "stale"
+    head, tail = halves
+    stripped = (head.rstrip("\n") + "\n" + tail.lstrip("\n")).rstrip("\n") + "\n"
     readme.write_text(stripped, encoding="utf-8", newline="\n")
     print(f"  removed stale block: plugins/{readme.parent.name}/README.md (0 options)")
     return "wrote"
