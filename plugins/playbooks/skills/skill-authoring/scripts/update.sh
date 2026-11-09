@@ -31,11 +31,7 @@ SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FRONTMATTER_FILE="${SKILL_DIR}/SKILL.md"
 VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t skill-authoring-update-XXXXXX)
-
-cleanup() {
-  rm -rf "$TMPDIR_RUN"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 log() { printf '%s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
@@ -257,13 +253,10 @@ EOF
 main() {
   local mode="${1:---check}"
 
-  case "$mode" in
-  -h | --help)
+  if [[ "$mode" == -h || "$mode" == --help ]]; then
     print_help
     exit 0
-    ;;
-  *) ;; # other modes handled below after prerequisite checks
-  esac
+  fi
 
   if [[ ! -f "$FRONTMATTER_FILE" ]]; then
     err "SKILL.md not found at $FRONTMATTER_FILE — run from a plugin checkout"
