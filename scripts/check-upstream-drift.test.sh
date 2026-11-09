@@ -446,6 +446,7 @@ stub_api 200
 run_env PATH="$f/bin:$PATH" -- --report
 want_rc "allow list, anonymous read works" 0
 want_out_line "allow list, anonymous read works" "page repo=acme/widgets pin=aaaaaaaaaaaa head=bbbbbbbbbbbb status=untracked path=$PAGE"
+want_err "allow list, anonymous read works" "acme: IP allow list refused the token; reading anonymously"
 if [[ "$(wc -l <"$f/gh.log")" -eq 1 ]]; then pass "allow list: later calls skip gh"; else bad "allow list: later calls skip gh" "$(cat "$f/gh.log")"; fi
 
 stub_api 403
