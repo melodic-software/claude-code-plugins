@@ -411,7 +411,7 @@ assert_exit "handover without --session-id is usage, whatever CLAUDE_CODE_SESSIO
 # --- stale: read-only stale-lock detector -------------------------------------
 
 CFG="$TEST_TMPDIR/harness-config"
-mkdir -p "$CFG/projects/-proj"
+mkdir -p "$CFG/projects/-proj" "$CFG/sessions"
 STALE_HOST=stalehost
 stale_lock() { # <name> <reason>
   git -C "$REPO" worktree add -q "$EXT/$1" -b "feat/$1"
@@ -453,9 +453,11 @@ run_stale wt-st-nosess
 assert_exit "stale: a reason without a session id is not provable (exit 1)" 1 "$?"
 
 git -C "$REPO" worktree add -q "$EXT/wt-st-bare" -b feat/st-bare
-CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-such-config" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+mkdir -p "$TEST_TMPDIR/no-projects-config/sessions"
+CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-projects-config" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
 assert_exit "stale: an unreadable transcript directory is not provable (exit 1)" 1 "$?"
-assert_contains "stale: the refusal names the directory" "$OUT" "unreadable"
+assert_contains "stale: the refusal names the directory" "$OUT" "transcript directory"
+assert_contains "stale: the refusal says it is unreadable" "$OUT" "unreadable"
 
 # A scan that fails mid-way. uid 0 reads through chmod 000 and Windows Git Bash
 # does not enforce it, so a stub `find` that exits non-zero after a real scan
@@ -593,6 +595,157 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_eq "spawn budget: a batch over 12 worktrees forks the same as one over 2" "$batch_small" "$batch_large"
 else
   skip_case "spawn budget: no working strace on this host"
+fi
+
+# --- stale: a running Claude Code process holds the session --------------------
+
+registry_entry() { # <config> <file-stem> <pid> <session> <procStart>
+  printf '{"pid":%s,"sessionId":"%s","procStart":"%s","cwd":"/x","kind":"interactive"}\n' \
+    "$3" "$4" "$5" >"$1/sessions/$2.json"
+}
+
+# Each row must equal what single-path `stale` returns and prints for that path.
+batch_agrees() { # <label> <config> <path>...
+  local label="$1" CFG="$2" rows="" p rc note
+  shift 2
+  for p in "$@"; do
+    CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$STALE_HOST" run_claim stale "$p" --repo-dir "$REPO"
+    rc=$?
+    note="$OUT"
+    rows+="$rc"$'\t'"$p"$'\t'"$note"$'\n'
+  done
+  run_batch "$REPO" "$@"
+  assert_exit "stale --batch ($label): every path evaluated is exit 0" 0 "$?"
+  assert_eq "stale --batch ($label): each row is the single-path verdict" "${rows%$'\n'}" "$OUT"
+}
+
+MISSING_CFG="$TEST_TMPDIR/missing-registry"
+mkdir -p "$MISSING_CFG/projects/-proj"
+touch -d '3 hours ago' "$MISSING_CFG/projects/-proj/st-old.jsonl"
+CLAUDE_CONFIG_DIR="$MISSING_CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+assert_exit "stale: a missing session registry is not provable (exit 1)" 1 "$?"
+assert_contains "stale: the missing-registry refusal says not provable" "$OUT" "not provable"
+assert_contains "stale: the missing-registry refusal names the registry" "$OUT" "$MISSING_CFG/sessions"
+batch_agrees "missing registry" "$MISSING_CFG" "$EXT/wt-st-old"
+
+NOSEARCH_CFG="$TEST_TMPDIR/nosearch-registry"
+mkdir -p "$NOSEARCH_CFG/projects/-proj" "$NOSEARCH_CFG/sessions"
+touch -d '3 hours ago' "$NOSEARCH_CFG/projects/-proj/st-old.jsonl"
+registry_entry "$NOSEARCH_CFG" entry 1 st-old 1
+chmod 644 "$NOSEARCH_CFG/sessions"
+if [[ -x "$NOSEARCH_CFG/sessions" ]]; then
+  skip_case "unsearchable-registry fixture: chmod 644 is not enforced here (uid $(id -u))"
+else
+  CLAUDE_CONFIG_DIR="$NOSEARCH_CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+  assert_exit "stale: a registry whose entries cannot be opened is not provable (exit 1)" 1 "$?"
+  assert_contains "stale: the unsearchable-registry refusal names the registry" "$OUT" "$NOSEARCH_CFG/sessions"
+fi
+chmod 755 "$NOSEARCH_CFG/sessions"
+
+MALFORMED_CFG="$TEST_TMPDIR/malformed-registry"
+mkdir -p "$MALFORMED_CFG/projects/-proj" "$MALFORMED_CFG/sessions"
+touch -d '3 hours ago' "$MALFORMED_CFG/projects/-proj/st-old.jsonl"
+for malformed in '{not json' '{"pid":1,"sessionId":"s","procStart":123}' \
+  '{"pid":1,"sessionId":"s"}' '{"pid":1,"sessionId":"s","procStart":"soon"}' '[]' ''; do
+  printf '%s' "$malformed" >"$MALFORMED_CFG/sessions/1.json"
+  CLAUDE_CONFIG_DIR="$MALFORMED_CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+  assert_exit "stale: registry entry '$malformed' is not provable (exit 1)" 1 "$?"
+  assert_contains "stale: registry entry '$malformed' is reported as the registry's shape" "$OUT" "unknown shape"
+done
+batch_agrees "malformed registry" "$MALFORMED_CFG" "$EXT/wt-st-old"
+
+if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/null 2>&1; then
+  OWN_STAT="$(<"/proc/$$/stat")"
+  read -r -a OWN_FIELDS <<<"${OWN_STAT##*) }"
+  OWN_START="${OWN_FIELDS[19]}"
+  DEAD_PID=$(($(</proc/sys/kernel/pid_max) + 1))
+  LIVE_CFG="$TEST_TMPDIR/live-registry"
+  mkdir -p "$LIVE_CFG/projects/-proj" "$LIVE_CFG/sessions"
+  # Not JSON: reading it would turn every verdict below into "unknown shape".
+  printf 'credential\n' >"$LIVE_CFG/sessions/$$.key"
+  live_tree() { # <session> <transcript-age>
+    stale_lock "wt-$1" "$(stale_reason "$1")"
+    touch -d "$2" "$LIVE_CFG/projects/-proj/$1.jsonl"
+  }
+  run_live() { # <session> [args]
+    local session="$1" CFG="$LIVE_CFG"
+    shift
+    run_stale "wt-$session" "$@"
+  }
+
+  live_tree lv-live '3 hours ago'
+  registry_entry "$LIVE_CFG" live "$$" lv-live "$OWN_START"
+  run_live lv-live
+  assert_exit "stale: a session with a live process is not provable, however old its transcript (exit 1)" 1 "$?"
+  assert_contains "stale: the live-process refusal says not provable" "$OUT" "not provable"
+  assert_contains "stale: the live-process refusal names the process" "$OUT" "process $$"
+
+  live_tree lv-dead '3 hours ago'
+  registry_entry "$LIVE_CFG" dead "$DEAD_PID" lv-dead 12345
+  run_live lv-dead
+  assert_exit "stale: a dead registry entry falls through to an old transcript (exit 0)" 0 "$?"
+  assert_contains "stale: the dead entry is judged by transcript age" "$OUT" "no transcript change"
+
+  live_tree lv-dead-fresh 'now'
+  registry_entry "$LIVE_CFG" dead-fresh "$DEAD_PID" lv-dead-fresh 12345
+  run_live lv-dead-fresh
+  assert_exit "stale: a dead registry entry falls through to a fresh transcript (exit 1)" 1 "$?"
+  assert_contains "stale: the fresh transcript decides, not the registry" "$OUT" "lv-dead-fresh.jsonl changed"
+
+  live_tree lv-reused '3 hours ago'
+  registry_entry "$LIVE_CFG" reused "$$" lv-reused 1
+  run_live lv-reused
+  assert_exit "stale: a reused pid falls through to an old transcript (exit 0)" 0 "$?"
+  assert_contains "stale: the reused pid is judged by transcript age" "$OUT" "no transcript change"
+
+  live_tree lv-reused-fresh 'now'
+  registry_entry "$LIVE_CFG" reused-fresh "$$" lv-reused-fresh 1
+  run_live lv-reused-fresh
+  assert_exit "stale: a reused pid falls through to a fresh transcript (exit 1)" 1 "$?"
+  assert_contains "stale: the fresh transcript decides a reused pid" "$OUT" "lv-reused-fresh.jsonl changed"
+
+  live_tree lv-unlisted '3 hours ago'
+  run_live lv-unlisted
+  assert_exit "stale: another session's live process does not hold this one (exit 0)" 0 "$?"
+
+  live_tree lv-both '3 hours ago'
+  registry_entry "$LIVE_CFG" both-dead "$DEAD_PID" lv-both 12345
+  registry_entry "$LIVE_CFG" both-live "$$" lv-both "$OWN_START"
+  run_live lv-both
+  assert_exit "stale: a live entry wins over a dead entry for the same session (exit 1)" 1 "$?"
+
+  batch_agrees "live, dead and reused entries" "$LIVE_CFG" \
+    "$EXT/wt-lv-live" "$EXT/wt-lv-dead" "$EXT/wt-lv-dead-fresh" \
+    "$EXT/wt-lv-reused" "$EXT/wt-lv-unlisted" "$EXT/wt-lv-both"
+
+  # A host where a start time cannot be read cannot prove an entry dead either.
+  DARWIN_BIN="$TEST_TMPDIR/darwin-bin"
+  mkdir -p "$DARWIN_BIN"
+  printf '#!/usr/bin/env bash\necho Darwin\n' >"$DARWIN_BIN/uname"
+  chmod +x "$DARWIN_BIN/uname"
+  PATH="$DARWIN_BIN:$PATH_SAVED" run_live lv-dead
+  assert_exit "stale: an entry on a host without start times is not provable (exit 1)" 1 "$?"
+  assert_contains "stale: the host refusal names the start time" "$OUT" "start time"
+  PATH="$DARWIN_BIN:$PATH_SAVED" run_live lv-unlisted
+  assert_exit "stale: a session with no entry needs no start time (exit 0)" 0 "$?"
+
+  JQ_COUNT_BIN="$TEST_TMPDIR/jq-count-bin"
+  JQ_COUNT_LOG="$TEST_TMPDIR/jq-count.log"
+  mkdir -p "$JQ_COUNT_BIN"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "jq\\n" >>%q\n' "$JQ_COUNT_LOG"
+    printf 'exec %q "$@"\n' "$(command -v jq)"
+  } >"$JQ_COUNT_BIN/jq"
+  chmod +x "$JQ_COUNT_BIN/jq"
+  : >"$JQ_COUNT_LOG"
+  CFG="$LIVE_CFG" PATH="$JQ_COUNT_BIN:$PATH_SAVED" run_batch "$REPO" \
+    "$EXT/wt-lv-live" "$EXT/wt-lv-dead" "$EXT/wt-lv-reused" "$EXT/wt-lv-unlisted"
+  assert_exit "stale --batch through the jq stub is exit 0" 0 "$?"
+  assert_contains "stale --batch still reports the live session" "$OUT" $'1\t'"$EXT/wt-lv-live"$'\t'
+  assert_eq "stale --batch reads the session registry once" 1 "$(wc -l <"$JQ_COUNT_LOG" | tr -d ' ')"
+else
+  skip_case "live registry cases: no Linux /proc or no jq on this host"
 fi
 
 # --- usage / environment ------------------------------------------------------
