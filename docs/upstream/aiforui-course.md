@@ -12,6 +12,7 @@
 - [Other captures](#other-captures)
 - [Resources and mentions](#resources-and-mentions)
 - [Frame-capture vendor](#frame-capture-vendor)
+- [Config keys](#config-keys)
 - [Rejected](#rejected)
 
 Provenance record for everything this marketplace takes from Emil Kowalski's paid course "AI for
@@ -526,6 +527,65 @@ specifics a skill points at instead of restating.
 | S8 `emil-ask-lapse/TROUBLESHOOTING.md` | all | Rejected (`S8-r1`) |
 | L19 Setting up Lapse | lead; Installing it; Dropping it in; A skill to help you | Rejected (`L19-r1` to `L19-r4`) |
 | L19 Setting up Lapse | What you get; Something to point it at | `plugins/user-interface/skills/audit/reference/frame-capture.md` (38) |
+
+## Config keys
+
+Defaults in `plugins/user-interface/reference/defaults.yaml` whose number the course decides, each
+with the course skill files it comes from, so a recheck finds every key a changed unit touches. A
+changed number moves the key, its copies and this row together, and the change is listed for the
+owner. `spacing.flow` takes only its paragraph part from the course; its heading parts are a
+heuristic.
+
+| Key | Course units |
+|---|---|
+| `animation.blur_max_px` | S1 |
+| `animation.blur_px.soften` | S2, S3 |
+| `animation.delay_ms.group_warm` | S49 |
+| `animation.delay_ms.tooltip` | S38, S49 |
+| `animation.delay_ms.indicator` | S40 |
+| `animation.duration_ms.press` | S1, S29 |
+| `animation.duration_ms.hover`, `animation.duration_ms.small`, `animation.duration_ms.exit_factor` | S1 |
+| `animation.duration_ms.medium`, `animation.duration_ms.large` | S1, S2 |
+| `animation.easing.out` | S1, S38 |
+| `animation.easing.spring_stand_in` | S2 |
+| `animation.scale.enter` | S1, S59 |
+| `animation.scale.enter_small` | S1, S2 |
+| `animation.scale.hover_max` | S38, S59 |
+| `animation.scale.swap_start` | S2 |
+| `animation.skip_frequency` | S1 |
+| `animation.spring.bounce.default`, `animation.spring.bounce.playful_max`, `animation.spring.duration_s.default` | S1 |
+| `animation.spring.duration_s.small` | S2 |
+| `animation.stagger_ms.interval` | S19 |
+| `animation.stagger_ms.max_total` | S38 |
+| `animation.stagger_ms.section`, `animation.stagger_ms.word` | S2 |
+| `animation.travel_px.small`, `animation.travel_px.medium` | S2 |
+| `animation.travel_px.large` | S2, S38 |
+| `color.border.dark_solid_l`, `color.border.light_alpha`, `color.dark_mode.brand_desaturation_percent`, `color.hover_mix_percent` | S19 |
+| `color.illustration_max_colors` | S20 |
+| `color.overlay_alpha` | S57 |
+| `color.ramp.chroma_percent`, `color.ramp.endpoints_l` | S13 |
+| `color.ramp.hue_spread_max_deg`, `color.triage.light_surface_min_l` | S12 |
+| `color.triage.near_black_l`, `color.triage.near_white_l` | S12, S14 |
+| `css.border_px.hairline`, `css.border_px.standard`, `css.concentric_radius.max_gap_px`, `css.image_outline.opacity` | S48 |
+| `css.focus_ring.offset_px` | S19 |
+| `css.focus_ring.width` | S32 (the `px` part) |
+| `icon.filled_below_px`, `icon.label_gap_px` | S20 |
+| `layout.content_width`, `layout.simple_page_columns` | S19 |
+| `layout.z_index_stray_above` | S40 |
+| `performance.image_max_kb` | S39 |
+| `performance.search_debounce_ms` | S19, S39 |
+| `performance.virtualize_min_items` | S30 |
+| `radius.s` | S57 |
+| `spacing.xs` | S26, S57 |
+| `spacing.flow` | S19 |
+| `spacing.optical_icon_px` | S20, S57 |
+| `states.copy_confirm_ms`, `states.wait_indicator_ms` | S19, S40 |
+| `states.toast_reading_wpm` | S19 |
+| `touch.check_width_px`, `touch.fixed_width_hunt_px` | S37 |
+| `touch.target_desktop_px` | S57 |
+| `typography.line_height.body` | S50, S59 |
+| `typography.line_height.display`, `typography.small_text_px.caption`, `typography.small_text_px.control`, `typography.small_text_px.min` | S50 |
+| `typography.measure_ch` | S50, S52 |
 
 ## Rejected
 
