@@ -211,7 +211,10 @@ api() {
     ANON[$o]=1
     printf '%s: %s: IP allow list refused the token; reading anonymously\n' "$SELF" "$o" >&2
   fi
-  resp="$(curl -sS -H 'Accept: application/vnd.github+json' -w '\n%{http_code}' "https://api.github.com/$url" 2>/dev/null)" || return 5
+  resp="$(curl -sS -H 'Accept: application/vnd.github+json' -w '\n%{http_code}' "https://api.github.com/$url" 2>/dev/null)" || {
+    PAGE_UNREACH="curl failed"
+    return 5
+  }
   API_STATUS="${resp##*$'\n'}"
   OUT_API="${resp%$'\n'*}"
   [[ "$API_STATUS" == 2?? ]] && return 0

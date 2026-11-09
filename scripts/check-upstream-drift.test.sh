@@ -411,7 +411,8 @@ no_out "missing fixture HEAD"
 # and no links, so a read is the pin lookup and HEAD, then status=untracked.
 # Stub gh logs each call and prints <gh-body> (default: the allow-list refusal);
 # stub curl answers commits/<sha> with that sha and HTTP <curl-code>
-# (<head-code> for commits/HEAD, default <curl-code>).
+# (<head-code> for commits/HEAD, default <curl-code>); a code of `exit`
+# makes curl itself fail.
 # The backticks below are literal text.
 # shellcheck disable=SC2016
 ALLOW_BODY='{"message":"Although you appear to have the correct authorization credentials, the `acme` organization has an IP allow list enabled.","status":"403"}'
@@ -437,6 +438,7 @@ u="\${*: -1}"
 s="\${u##*/}"
 c=$1
 [[ "\$s" == HEAD ]] && s=$NEW c=${3:-$1}
+[[ "\$c" == exit ]] && exit 7
 printf '{"sha":"%s"}\n%s' "\$s" "\$c"
 EOS
   chmod +x "$f/bin/gh" "$f/bin/curl"
@@ -464,6 +466,12 @@ run_env PATH="$f/bin:$PATH" -- --report
 want_rc "allow list, a later read refused, --report" 0
 want_out_line "allow list, a later read refused, --report" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
 want_err "allow list, a later read refused, --report" "an anonymous read (HTTP 403)"
+
+stub_api 200 "" exit
+run_env PATH="$f/bin:$PATH" -- --report
+want_rc "allow list, curl fails on a later read" 0
+want_out_line "allow list, curl fails on a later read" "page repo=acme/widgets pin=aaaaaaaaaaaa head=unknown status=unreachable path=$PAGE"
+want_err "allow list, curl fails on a later read" "an anonymous read (curl failed)"
 
 stub_api 200 '{"message":"Not Found","status":"404"}'
 run_env PATH="$f/bin:$PATH" -- --report

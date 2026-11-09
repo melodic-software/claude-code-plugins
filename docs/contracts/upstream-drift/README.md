@@ -444,8 +444,8 @@ A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss ma
 indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
 character exits 2 with nothing on stdout: an unread tree is never a clean
 report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). When an owner's IP
-allow list refuses the token, that owner's calls retry anonymously; a page whose pin lookup is
-still refused is named on stderr and listed as `status=unreachable` with `head=unknown`, the other
+allow list refuses the token, that owner's calls retry anonymously; a page with any read (pin,
+HEAD or tree) still refused is named on stderr and listed as `status=unreachable` with `head=unknown`, the other
 pages are still read, and every mode but `--report` then exits 2. The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
