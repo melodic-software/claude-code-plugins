@@ -2,10 +2,12 @@
 # Seeds what the reassess cases read, after install.sh has given the current checkout a forge:
 #   bash reassess-state.sh <number> [--body <text>] [--issue <n> <title> <body>]... [--closes <n>]...
 #     [--label <name>]... [--fork <owner>] [--comment <id> <login> <association> <body>]...
-#     [--merged <number> <title> <body> <sha>]...
+#     [--merged <number> <title> <body> <sha>]... [--review <login> <state>]...
 # It writes refs/pull/<number>/head in the bare origin (the ref the action fetches), one passing check,
-# pr-overlay.json, comments.json and merged-prs.json, and a pre-receive hook that records every push
-# in calls.jsonl. --fork takes the head off the origin, leaving only the pull ref, as a real fork does.
+# pr-overlay.json, comments.json, reviews.json and merged-prs.json, a pre-receive hook that records every
+# push in calls.jsonl with whether it rewrote the ref, and a post-receive hook that moves the pull ref with
+# a push to the head branch, as GitHub does. --fork takes the head off the origin, leaving only the pull
+# ref, as a real fork does. Each --review is one person's review of the current head.
 # `worktreeroot.path` is set inside the checkout, because a run's Bash can write only under its workspace
 # and the action's unpopulated worktree otherwise goes beside the repository.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
@@ -18,7 +20,7 @@ origin="$forge/eval-fixture/app.git"
 # shellcheck source=/dev/null
 source "$forge/state"
 
-body="" fork="" labels='[]' closes='[]' comments='[]' merged='[]'
+body="" fork="" labels='[]' closes='[]' comments='[]' merged='[]' reviews='[]'
 while (($#)); do
   case "$1" in
     --body)
@@ -54,6 +56,12 @@ while (($#)); do
           url: "https://github.com/eval-fixture/app/pull/\($n)"}]' <<<"$merged")
       shift 4
       ;;
+    --review)
+      reviews=$(jq -c --arg login "$2" --arg state "$3" --arg sha "$(git -C "$origin" rev-parse "refs/heads/$PR_HEAD")" \
+        '. + [{id: (length + 1), user: {login: $login, type: "User"}, author_association: "COLLABORATOR", state: $state, body: "",
+          commit_id: $sha, submitted_at: "2026-11-01T00:00:00Z"}]' <<<"$reviews")
+      shift 2
+      ;;
     *)
       echo "reassess-state.sh: unknown argument '$1'" >&2
       exit 2
@@ -70,21 +78,34 @@ if [[ -n "$fork" ]]; then
 fi
 
 jq -n '[{name: "ci", state: "SUCCESS", bucket: "pass", workflow: "ci", link: "https://github.com/eval-fixture/app/actions/runs/1"}]' >"$forge/checks"
-jq -n --arg body "$body" --argjson labels "$labels" --argjson closes "$closes" --arg fork "$fork" \
-  '{body: $body, labels: $labels, closingIssuesReferences: $closes}
+jq -n --arg body "$body" --argjson labels "$labels" --argjson closes "$closes" --arg fork "$fork" --argjson reviews "$reviews" \
+  '{body: $body, labels: $labels, closingIssuesReferences: $closes, reviews: ($reviews | map({author: {login: .user.login}, state}))}
    + (if $fork == "" then {} else {isCrossRepository: true, author: {login: $fork}, headRepositoryOwner: {login: $fork}} end)' >"$forge/pr-overlay.json"
 printf '%s\n' "$comments" >"$forge/comments.json"
+printf '%s\n' "$reviews" >"$forge/reviews.json"
 printf '%s\n' "$merged" >"$forge/merged-prs.json"
 
 mkdir -p "$origin/hooks"
 cat >"$origin/hooks/pre-receive" <<'EOF'
 #!/usr/bin/env bash
-while read -r _ new ref; do
-  jq -nc --arg ref "$ref" --arg sha "$new" '{command: "push", ref: $ref, sha: $sha}' >>../../calls.jsonl
+zero=0000000000000000000000000000000000000000
+while read -r old new ref; do
+  forced=false
+  if [[ "$old" != "$zero" && "$new" != "$zero" ]] && ! git merge-base --is-ancestor "$old" "$new"; then forced=true; fi
+  jq -nc --arg ref "$ref" --arg sha "$new" --argjson forced "$forced" '{command: "push", ref: $ref, sha: $sha, forced: $forced}' >>../../calls.jsonl
 done
 EOF
-chmod +x "$origin/hooks/pre-receive"
-# A global core.hooksPath would otherwise replace this hook and leave pushes unrecorded.
+cat >"$origin/hooks/post-receive" <<'EOF'
+#!/usr/bin/env bash
+# shellcheck disable=SC2154 # PR_* come from the state file sourced below
+# shellcheck source=/dev/null
+source ../../state
+while read -r _ new ref; do
+  if [[ "$ref" == "refs/heads/$PR_HEAD" ]]; then git update-ref "refs/pull/$PR_NUMBER/head" "$new"; fi
+done
+EOF
+chmod +x "$origin/hooks/pre-receive" "$origin/hooks/post-receive"
+# A global core.hooksPath would otherwise replace these hooks and leave pushes unrecorded.
 git -C "$origin" config core.hooksPath "$origin/hooks"
 
 git config worktreeroot.path "$PWD/.eval-worktrees"

@@ -11,7 +11,8 @@
 # A refused write method is still recorded, as `api <METHOD>`, so a grader can see the attempt, as are
 # `pr close`, `pr update-branch`, `issue comment` and `issue edit`.
 # reassess-state.sh seeds what the reassess cases need: pr-overlay.json (merged over the first pull request),
-# comments.json (its conversation comments) and merged-prs.json (pull requests already merged into the base).
+# comments.json (its conversation comments), reviews.json (its reviews) and merged-prs.json (pull requests
+# already merged into the base). The last `pr comment` body is kept in comment-body.md for a grader.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
@@ -22,6 +23,7 @@ extra="$forge/extra-prs"
 overlay="$forge/pr-overlay.json"
 comments="$forge/comments.json"
 merged="$forge/merged-prs.json"
+reviews="$forge/reviews.json"
 [[ -f "$extra" ]] || extra=/dev/null
 # shellcheck source=/dev/null
 source "$state"
@@ -386,6 +388,16 @@ case "$cmd $sub" in
     parse "$@"
     pr_matches "${args[0]:-}" || refuse pr comment "$@"
     record "pr comment" "$@"
+    while (($#)); do
+      case "$1" in
+        -F | --body-file) cat -- "${2:-/dev/null}" >"$forge/comment-body.md" ;;
+        --body-file=*) cat -- "${1#--body-file=}" >"$forge/comment-body.md" ;;
+        -b | --body) printf '%s\n' "${2:-}" >"$forge/comment-body.md" ;;
+        --body=*) printf '%s\n' "${1#--body=}" >"$forge/comment-body.md" ;;
+        *) ;;
+      esac
+      shift
+    done
     echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER#issuecomment-1"
     ;;
   "pr edit")
@@ -551,7 +563,11 @@ case "$cmd $sub" in
         pull_of
         page "$(rest_commits)"
         ;;
-      repos/eval-fixture/app/pulls/*/reviews | repos/eval-fixture/app/pulls/*/comments)
+      repos/eval-fixture/app/pulls/*/reviews)
+        pull_of
+        if [[ -f "$reviews" && "$PR_NUMBER" == "$primary" ]]; then page "$(cat "$reviews")"; else page '[]'; fi
+        ;;
+      repos/eval-fixture/app/pulls/*/comments)
         pull_of
         page '[]'
         ;;
