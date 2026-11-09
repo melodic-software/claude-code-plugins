@@ -1601,6 +1601,9 @@ printf '# test-scope: plugins/alpha/skills/*/SKILL.md\n"""Scans the skill bodies
   >"$repo/plugins/alpha/tests/test_scan.py"
 printf '#!/usr/bin/env bash\necho late\n# test-scope: plugins/alpha/skills/*.md\n' >"$repo/plugins/alpha/tests/late.test.sh"
 printf 'import test from "node:test";\n' >"$repo/plugins/alpha/tests/scan.test.mjs"
+printf '// Scans the skill bodies.\n// test-scope: plugins/alpha/skills/*.md\nimport test from "node:test";\n' \
+  >"$repo/plugins/alpha/tests/scoped.test.mjs"
+printf 'import test from "node:test";\n// test-scope: plugins/alpha/skills/*.md\n' >"$repo/plugins/alpha/tests/late.test.mjs"
 printf '#!/usr/bin/env bash\n# test-scope: plugins/nowhere/*\necho stale\n' >"$repo/plugins/alpha/tests/stale.test.sh"
 printf 'echo orphan\n' >"$repo/plugins/alpha/zzorphan-plugin.sh"
 git_test_config "$repo" add plugins >/dev/null
@@ -1611,6 +1614,8 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
   has_line "$OUT" plugins/alpha/tests/test_scan.py &&
   ! has_line "$OUT" plugins/alpha/tests/late.test.sh &&
   ! has_line "$OUT" plugins/alpha/tests/scan.test.mjs &&
+  has_line "$OUT" plugins/alpha/tests/scoped.test.mjs &&
+  ! has_line "$OUT" plugins/alpha/tests/late.test.mjs &&
   ! has_line "$OUT" plugins/alpha/hooks/alpha-hook.test.sh; then
   ok "R8: a SKILL.md edit selects the suites whose headers declare it and no other suite of the plugin"
 else
