@@ -1360,7 +1360,7 @@ class _Context:
     judged_runs: dict[int, str] | None = None
     # That listing's dispatch runs as `_runs` returned them, with the time
     # they were listed from, which `_lane_reruns` reads when it covers its
-    # lookback; None until listed.
+    # lookback and every run in it had completed; None until listed.
     dispatch_listing: tuple[datetime, list[Run]] | None = None
     settle_compares_left: int = SETTLE_COMPARE_BUDGET
     compare_reads: int = 0
@@ -2769,9 +2769,16 @@ def _lane_reruns(
             )
         start = now - ctx.lane_rerun_lookback()
         listing = ctx.dispatch_listing
-        runs = (
+        listed = (
             [r for r in listing[1] if r.created_at >= start]
             if listing is not None and listing[0] <= start
+            else None
+        )
+        # A run still going when listed may have finished red since, so any
+        # such run in the lookback means the runs are listed again.
+        runs = (
+            listed
+            if listed is not None and all(r.status == "completed" for r in listed)
             else _runs(
                 ctx.owner,
                 ctx.name,

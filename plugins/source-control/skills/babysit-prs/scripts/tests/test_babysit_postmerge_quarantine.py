@@ -876,6 +876,46 @@ class LaneRerunOutsideAWindow(AffectedBase):
             [(r["runId"], r["laneDispatched"]) for r in reused["reruns"]], [(11, True)]
         )
 
+    def test_a_run_in_progress_when_listed_is_listed_again_and_its_red_found(
+        self,
+    ) -> None:
+        # Listed in progress by the verdict, then red before the lookback is
+        # read: the lane's one re-run is still marked, from a second listing.
+        later = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
+        self.gh.merged = [identity_merge(number=7002)]
+        self.lane_red(
+            bash_log((TOUCHED, False)),
+            head_sha=HEAD_SHA,
+            created_at="2026-10-12T11:00:00Z",
+        )
+        key = ("pr-require-checks.yml", "workflow_dispatch")
+        red = self.gh.runs[key]
+        self.gh.runs[key] = [{**red[0], "status": "in_progress", "conclusion": None}]
+        original = pm._lane_reruns
+
+        def finished_red(ctx: Any, *args: Any, **kwargs: Any) -> list[str]:
+            self.gh.runs[key] = red
+            return original(ctx, *args, **kwargs)
+
+        self.gh.calls.clear()
+        with mock.patch.object(pm, "_lane_reruns", finished_red):
+            verdict = pm.check(
+                REPO,
+                agent_identity=IDENTITY,
+                is_human=lambda actor: False,
+                merged_since=datetime(2026, 10, 12, 0, 0, tzinfo=UTC),
+                now=later,
+                pinned_sha=lambda merge: None,
+                lane_merges_only=True,
+            )
+        self.assertEqual(self.lane_reruns(verdict), [(11, True)])
+        listings = [
+            c
+            for c in map(" ".join, self.gh.calls)
+            if "event=workflow_dispatch" in c and "created=" in c
+        ]
+        self.assertGreaterEqual(len(listings), 2)
+
     def test_a_lookback_older_than_the_listing_is_listed_again(self) -> None:
         # Checked at 11:00, the lookback starts at 09:15, before the merge.
         self.gh.merged = [identity_merge(number=7002)]
