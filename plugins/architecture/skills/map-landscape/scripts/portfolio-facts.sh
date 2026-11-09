@@ -97,6 +97,25 @@ json_escape() {
   JSON_ESC="$s"
 }
 
+# The non-blank lines of $1, sorted, de-duplicated and capped at DEP_CAP, as the
+# body of a JSON string array, into JSON_ARR.
+JSON_ARR=""
+json_name_array() {
+  local item
+  JSON_ARR=""
+  [[ -n "$1" ]] || return 0
+  while IFS= read -r item; do
+    json_escape "$item"
+    JSON_ARR="$JSON_ARR${JSON_ARR:+,}\"$JSON_ESC\""
+  done < <(printf '%s' "$1" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
+}
+
+# Append $2 to the variable named $1, separated by ", " when it already holds text.
+append_csv() {
+  local current="${!1}"
+  printf -v "$1" '%s%s%s' "$current" "${current:+, }" "$2"
+}
+
 # ---------------------------------------------------------------------------
 # Probe helpers
 # ---------------------------------------------------------------------------
@@ -533,12 +552,10 @@ for raw_path in "$@"; do
     scope="$(effective_scope "$2" "$3")"
     if [[ "$scope" == "development" ]]; then
       toolings+=("$1")
-      [[ -n "$tooling_evidence" ]] && tooling_evidence="$tooling_evidence, "
-      tooling_evidence="$tooling_evidence$1: $2 (development scope)"
+      append_csv tooling_evidence "$1: $2 (development scope)"
     else
       runtimes+=("$1")
-      [[ -n "$runtime_evidence" ]] && runtime_evidence="$runtime_evidence, "
-      runtime_evidence="$runtime_evidence$1: $2"
+      append_csv runtime_evidence "$1: $2"
     fi
   }
 
@@ -596,29 +613,20 @@ for raw_path in "$@"; do
   [[ -n "$py_manifest" ]] && add_family python "$py_manifest" "$py_scope"
 
   go_manifest=""
-  find_first 'go.mod' && go_manifest="$FIND_HIT"
-  [[ -n "$go_manifest" ]] && add_family go "$go_manifest" runtime
+  find_first 'go.mod' && go_manifest="$FIND_HIT" && add_family go "$go_manifest" runtime
 
   rust_manifest=""
-  find_first 'Cargo.toml' && rust_manifest="$FIND_HIT"
-  [[ -n "$rust_manifest" ]] && add_family rust "$rust_manifest" runtime
+  find_first 'Cargo.toml' && rust_manifest="$FIND_HIT" && add_family rust "$rust_manifest" runtime
 
-  jvm_manifest=""
   for pattern in 'pom.xml' 'build.gradle*'; do
     if find_first "$pattern"; then
-      jvm_manifest="$FIND_HIT"
+      add_family jvm "$FIND_HIT" runtime
       break
     fi
   done
-  [[ -n "$jvm_manifest" ]] && add_family jvm "$jvm_manifest" runtime
 
-  ruby_manifest=""
-  find_first 'Gemfile' && ruby_manifest="$FIND_HIT"
-  [[ -n "$ruby_manifest" ]] && add_family ruby "$ruby_manifest" runtime
-
-  php_manifest=""
-  find_first 'composer.json' && php_manifest="$FIND_HIT"
-  [[ -n "$php_manifest" ]] && add_family php "$php_manifest" runtime
+  find_first 'Gemfile' && add_family ruby "$FIND_HIT" runtime
+  find_first 'composer.json' && add_family php "$FIND_HIT" runtime
 
   # `shell` only when no RUNTIME-scope family claimed the repository. A
   # development-scope family never suppresses it: a shell-and-markdown
@@ -655,17 +663,17 @@ for raw_path in "$@"; do
   primary="${runtimes[0]:-unknown}"
 
   # --- target framework (from the primary runtime's declaration) ------------
+  # Each branch reads tf and names its source; the source is cited only when tf is found.
   target_framework="unknown"
   tf_evidence="no framework declaration for runtime $primary"
+  tf=""
+  tf_source=""
   case "$primary" in
   dotnet)
-    if [[ -n "$dotnet_proj" && "$dotnet_proj" == *.*proj ]]; then
+    if [[ "$dotnet_proj" == *.*proj ]]; then
       tf="$(grep -oE '<TargetFrameworks?>[^<]*</TargetFrameworks?>' "$repo/$dotnet_proj" 2>/dev/null |
         head -1 | sed 's/<[^>]*>//g')"
-      if [[ -n "$tf" ]]; then
-        target_framework="$tf"
-        tf_evidence="$dotnet_proj"
-      fi
+      tf_source="$dotnet_proj"
     fi
     ;;
   node | bun | deno)
@@ -673,41 +681,32 @@ for raw_path in "$@"; do
       grep -oE '"engines"[[:space:]]*:[[:space:]]*\{[^}]*\}' |
       grep -oE '"node"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 |
       sed 's/.*:[[:space:]]*"//; s/"$//')"
-    if [[ -n "$tf" ]]; then
-      target_framework="$tf"
-      tf_evidence="$node_manifest (engines.node)"
-    fi
+    tf_source="$node_manifest (engines.node)"
     ;;
   python)
     if [[ "$py_manifest" == *pyproject.toml ]]; then
       tf="$(scalar_value "$repo/$py_manifest" 'requires-python')"
-      if [[ -n "$tf" ]]; then
-        target_framework="$tf"
-        tf_evidence="$py_manifest (requires-python)"
-      fi
+      tf_source="$py_manifest (requires-python)"
     fi
     ;;
   go)
     tf="$(awk '{ sub(/\r$/, "") } /^go[[:space:]]+[0-9]/ { print $2; exit }' "$repo/$go_manifest" 2>/dev/null)"
-    if [[ -n "$tf" ]]; then
-      target_framework="$tf"
-      tf_evidence="$go_manifest (go directive)"
-    fi
+    tf_source="$go_manifest (go directive)"
     ;;
   rust)
     tf="$(scalar_value "$repo/$rust_manifest" 'rust-version')"
-    tf_key="rust-version"
+    tf_source="$rust_manifest (rust-version)"
     if [[ -z "$tf" ]]; then
       tf="$(scalar_value "$repo/$rust_manifest" 'edition')"
-      tf_key="edition"
-    fi
-    if [[ -n "$tf" ]]; then
-      target_framework="$tf"
-      tf_evidence="$rust_manifest ($tf_key)"
+      tf_source="$rust_manifest (edition)"
     fi
     ;;
   *) ;;
   esac
+  if [[ -n "$tf" ]]; then
+    target_framework="$tf"
+    tf_evidence="$tf_source"
+  fi
 
   # --- dependencies, split by scope -----------------------------------------
   # Runtime-scope names land in `dependencies`; development-scope names land in
@@ -718,14 +717,6 @@ for raw_path in "$@"; do
   dep_sources=""
   dev_dep_raw=""
   dev_dep_sources=""
-  note_dep_source() {
-    [[ -n "$dep_sources" ]] && dep_sources="$dep_sources, "
-    dep_sources="$dep_sources$1"
-  }
-  note_dev_dep_source() {
-    [[ -n "$dev_dep_sources" ]] && dev_dep_sources="$dev_dep_sources, "
-    dev_dep_sources="$dev_dep_sources$1"
-  }
 
   # `global.json` alone marks the runtime but carries no references, so it must
   # not claim a dependency source that produced nothing.
@@ -738,7 +729,7 @@ for raw_path in "$@"; do
       find_all '*.csproj'
       find_all '*.fsproj'
     )
-    note_dep_source "*.csproj/*.fsproj Package/ProjectReference"
+    append_csv dep_sources "*.csproj/*.fsproj Package/ProjectReference"
   fi
 
   if [[ -n "$node_manifest" ]]; then
@@ -748,12 +739,12 @@ for raw_path in "$@"; do
         json_object_keys "$repo/$node_manifest" peerDependencies
       )"
       [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-      note_dep_source "$node_manifest (dependencies + peerDependencies)"
+      append_csv dep_sources "$node_manifest (dependencies + peerDependencies)"
     fi
     hits="$(json_object_keys "$repo/$node_manifest" devDependencies)"
     if [[ -n "$hits" ]]; then
       dev_dep_raw="$dev_dep_raw$hits"$'\n'
-      note_dev_dep_source "$node_manifest (devDependencies)"
+      append_csv dev_dep_sources "$node_manifest (devDependencies)"
     fi
   fi
 
@@ -783,11 +774,11 @@ for raw_path in "$@"; do
     if [[ "$py_scope" == "development" ]]; then
       if [[ -n "$hits" ]]; then
         dev_dep_raw="$dev_dep_raw$hits"$'\n'
-        note_dev_dep_source "$py_manifest (development scope)"
+        append_csv dev_dep_sources "$py_manifest (development scope)"
       fi
     else
       [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-      note_dep_source "$py_manifest"
+      append_csv dep_sources "$py_manifest"
     fi
   fi
 
@@ -800,31 +791,16 @@ for raw_path in "$@"; do
       /^require[[:space:]]+[^([:space:]]/ { print $2 }
     ' "$repo/$go_manifest")"
     [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-    note_dep_source "$go_manifest (require)"
+    append_csv dep_sources "$go_manifest (require)"
   fi
 
   if [[ -n "$rust_manifest" ]]; then
     hits="$(toml_table_keys "$repo/$rust_manifest" dependencies)"
     [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-    note_dep_source "$rust_manifest ([dependencies])"
+    append_csv dep_sources "$rust_manifest ([dependencies])"
   fi
 
-  dependencies=()
-  if [[ -n "$dep_raw" ]]; then
-    while IFS= read -r dep; do
-      [[ -n "$dep" ]] || continue
-      dependencies+=("$dep")
-    done < <(printf '%s' "$dep_raw" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
-  fi
   [[ -n "$dep_sources" ]] || dep_sources="no runtime-scope dependency manifest"
-
-  dev_dependencies=()
-  if [[ -n "$dev_dep_raw" ]]; then
-    while IFS= read -r dep; do
-      [[ -n "$dep" ]] || continue
-      dev_dependencies+=("$dep")
-    done < <(printf '%s' "$dev_dep_raw" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
-  fi
   [[ -n "$dev_dep_sources" ]] || dev_dep_sources="no development-scope dependency manifest"
 
   # --- last touched (local HEAD; nothing here fetches) ----------------------
@@ -845,19 +821,10 @@ for raw_path in "$@"; do
   json_escape "$runtime" && record="$record\"runtime\":\"$JSON_ESC\","
   json_escape "$tooling" && record="$record\"tooling\":\"$JSON_ESC\","
   json_escape "$target_framework" && record="$record\"target_framework\":\"$JSON_ESC\","
-  record="$record\"dependencies\":["
-  for ((di = 0; di < ${#dependencies[@]}; di++)); do
-    [[ "$di" -gt 0 ]] && record="$record,"
-    json_escape "${dependencies[$di]}"
-    record="$record\"$JSON_ESC\""
-  done
-  record="$record],\"dev_dependencies\":["
-  for ((di = 0; di < ${#dev_dependencies[@]}; di++)); do
-    [[ "$di" -gt 0 ]] && record="$record,"
-    json_escape "${dev_dependencies[$di]}"
-    record="$record\"$JSON_ESC\""
-  done
-  record="$record],"
+  json_name_array "$dep_raw"
+  record="$record\"dependencies\":[$JSON_ARR],"
+  json_name_array "$dev_dep_raw"
+  record="$record\"dev_dependencies\":[$JSON_ARR],"
   json_escape "$last_touched" && record="$record\"last_touched\":\"$JSON_ESC\","
   record="$record\"evidence\":{"
   json_escape "$owner_evidence" && record="$record\"owner\":\"$JSON_ESC\","
@@ -870,7 +837,7 @@ for raw_path in "$@"; do
   record="$record}}"
   printf '%s\n' "$record"
 
-  unset -f add_family note_dep_source note_dev_dep_source
+  unset -f add_family
 done
 
 exit "$exit_code"
