@@ -764,8 +764,9 @@ assert_contains "pr listing: the call is one GraphQL query" "$(cat "$GH_LOG")" "
 assert_contains "pr listing: the query lists merged PRs" "$(cat "$GH_LOG")" "states: MERGED, baseRefName: \$base"
 assert_contains "pr listing: the query names the base" "$(cat "$GH_LOG")" "-f base=main"
 assert_contains "pr listing: the query reads only commit oids" "$(cat "$GH_LOG")" "commits(first: 100) { nodes { commit { oid } } }"
-# Commit authors are what pushed `gh pr list --json commits` past GitHub's
-# 500,000-node limit at 50 PRs.
+# `gh pr list --json commits` adds each commit's authors, which pushed the
+# listing past GitHub's 500,000-node limit at 50 PRs; the query never regains them.
+assert_not_contains "pr listing: the call is not gh pr list --json" "$(cat "$GH_LOG")" "--json"
 assert_not_contains "pr listing: the query asks for no commit authors" "$(cat "$GH_LOG")" "authors"
 assert_not_contains "pr listing: the call is not scoped to one branch" "$(cat "$GH_LOG")" "headRefName:"
 assert_contains "pr listing: the run reports its gh call count" "$(cat "$MANY_ERR")" "merged-pr-proof made 1 gh call(s)"
@@ -826,6 +827,15 @@ assert_eq "pr paging: a PR past the limit proves nothing" \
 
 OUT="$(run_paged --merged-pr-limit 3)"
 assert_contains "pr paging: the last page asks only for what the limit leaves" "$(sed -n 2p "$GH_LOG")" "-F first=1 "
+
+# An empty page that still claims more ends the listing.
+printf 'next c1\n' >"$TEST_TMPDIR/pr-empty"
+printf 'pr feat-many-2 main\nhead %s\ncommit %s\n' "$MANY2" "$MANY2" >"$TEST_TMPDIR/pr-empty.c1"
+: >"$GH_LOG"
+OUT="$(PATH="$PR_BIN:$PATH" GH_STUB_OUT="$TEST_TMPDIR/pr-empty" GH_STUB_LOG="$GH_LOG" \
+  bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof 2>"$MANY_ERR")"
+assert_eq "pr paging: an empty page stops the listing" "1" "$(grep -c . "$GH_LOG")"
+assert_eq "pr paging: nothing past an empty page is read" "no" "$(col "$(row "$OUT" "wt-many-2")" $C_LANDED)"
 
 # A failed later page fails the whole listing: the first page proves nothing.
 OUT="$(GH_STUB_FAIL_AFTER=c1 run_paged)"
