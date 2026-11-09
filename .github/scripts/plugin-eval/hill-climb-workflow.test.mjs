@@ -133,7 +133,7 @@ test("every ci-workflows action is pinned to one full commit", () => {
   // run-claude-cli, report-lane-outcome and select-model-credential are
   // pinned where every lane pins them; the rest at one commit.
   const allowed = [
-    "a5af46547856939969bee3c44d32d8ea6bc5dca4 a5af465 2026-11-08",
+    "fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09",
     "b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 b8bdd7f 2026-11-04",
     "6b9c640bf209c0c7e76f1111c5d18c96707348a2 6b9c640 2026-11-02",
     "5b5110ae015183e900dd098c631d4dcc68904067 5b5110a 2026-11-06",
@@ -141,7 +141,7 @@ test("every ci-workflows action is pinned to one full commit", () => {
   for (const pin of pins) assert.ok(allowed.includes(pin), pin);
   // The classifier each pass leg checks out is run-claude-cli's, at the same commit.
   const classifier = [...pass.matchAll(/repository: melodic-software\/ci-workflows\n {10}ref: (\S+) # (.+)/g)].map(([, sha, note]) => `${sha} ${note}`);
-  assert.deepEqual(classifier, Array(3).fill("a5af46547856939969bee3c44d32d8ea6bc5dca4 a5af465 2026-11-08"));
+  assert.deepEqual(classifier, Array(3).fill("fc442ad3e808adafe3b195e9d12fff901220db50 fc442ad 2026-11-09"));
 });
 
 test("the model steps are read-only, on the maintenance key, then its token, then the fallback token, and frame what they read as data", () => {
