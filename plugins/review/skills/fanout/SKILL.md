@@ -111,6 +111,13 @@ title and body if a PR exists, the commit subjects on the branch, and the user's
 of them states a purpose, an interactive session asks the user once; any other session writes
 `Intent: not stated` and reviews without it.
 
+**Finding class.** Every leaf prompt this skill writes names the class of finding it wants (the
+leaf's concern, for example correctness) and what to leave out (for example style); the coverage
+clause applies inside that class. Pointer:
+[best practices: review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec).
+As of: 2026-11-09. Recheck trigger: that section changes what it says a review prompt should name
+or skip.
+
 ## Pre-flight gate (both review modes)
 
 **Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security audit rather than a change review, emit the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" and STOP. Regardless of diff state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped fan-out would answer a question the user did not ask.
