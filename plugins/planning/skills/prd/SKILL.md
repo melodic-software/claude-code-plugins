@@ -111,7 +111,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same nine required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, quality requirements, dependencies/risks, assumptions, open questions).
+Tier governs section depth, not section presence: all three tiers cover the same nine required sections listed in Step 5.
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
@@ -142,7 +142,7 @@ Question shapes that recur, in priority order:
 | Non-goals | "What is explicitly out of scope so we don't drift?" Then: "For every new option, control or setting: what is it for?" Any that no one can explain lands in this section. |
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
-| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
+| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" And: "What result would make us stop or kill this feature?" |
 | Quality requirements | "Which of these does the feature touch, and where would a wrong guess change the design or a check grade it?", over Step 5's prompt list at the tier's depth. Ask for a measurable target only there. |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
@@ -174,7 +174,7 @@ Required sections (every tier; verbosity varies):
 2. **Goals**. Outcome-level, not implementation-level, plus one `Vision:` line on where the user wants this to head (`none stated` when they gave none)
 3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
-5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
+5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so; plus one `Stop condition:` line, the result that would end or kill the feature
 6. **Quality requirements**. Non-functional requirements (NFRs): how well the product must do what it does, one line each in the `Quality requirement:` format of [`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`](../interview/context/nfr-prompts.md), which owns the prompts and when a target is owed
 7. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
 8. **Assumptions**. What the PRD takes as true without proof, each with what would show it false; `/planning:interview` carries them into the Brief's Captured assumptions
@@ -254,7 +254,7 @@ When invoked with `review`:
 2. Evaluate against the nine required sections. Flag any missing or fuzzy
 3. Evaluate against skip-conditions. If engineering-internal, recommend supersession with a `/planning:interview` brief
 4. Check goals are *outcomes*, not implementations (the most common failure mode)
-5. Check success metrics have a *measurement window* and *threshold*, not vague language
+5. Check success metrics have a *measurement window* and *threshold*, not vague language, and a `Stop condition:` line
 6. Check the quality requirements cover the prompts the tier's depth requires (Step 5), with a measurable target where the interview's prompt list says one is owed and no invented target elsewhere
 7. Present findings: what's strong, what's missing, what to revise
 

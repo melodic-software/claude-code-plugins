@@ -117,6 +117,8 @@ class LaneRecordCase(unittest.TestCase):
         self, now: datetime = NOW, since: datetime = SINCE
     ) -> pm.PostMergeVerdict:
         gh.reset_gh_call_counts()
+        # Each check as its own process runs it, so each reads the default branch.
+        pm._default_branches.clear()
         return pm.check(
             REPO,
             agent_identity=IDENTITY,

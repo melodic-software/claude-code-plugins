@@ -825,6 +825,105 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual([s.settled for s in verdict.merges], [True])
         self.assertEqual(self.lane_reruns(verdict), [])
 
+    def lane_check_at(
+        self, now: datetime, *, reuse: bool
+    ) -> tuple[dict[str, Any], int]:
+        """The lane check's report at `now` and its workflow_dispatch run
+        listings; without `reuse`, `_lane_reruns` lists its lookback itself."""
+        self.gh.calls.clear()
+        original = pm._lane_reruns
+
+        def lane_reruns(ctx: Any, *args: Any, **kwargs: Any) -> list[str]:
+            if not reuse:
+                ctx.dispatch_listing = None
+            return original(ctx, *args, **kwargs)
+
+        with mock.patch.object(pm, "_lane_reruns", lane_reruns):
+            verdict = pm.check(
+                REPO,
+                agent_identity=IDENTITY,
+                is_human=lambda actor: False,
+                merged_since=datetime(2026, 10, 12, 0, 0, tzinfo=UTC),
+                now=now,
+                pinned_sha=lambda merge: None,
+                lane_merges_only=True,
+            )
+        listings = [
+            c
+            for c in map(" ".join, self.gh.calls)
+            if "event=workflow_dispatch" in c and "created=" in c
+        ]
+        return verdict.report(), len(listings)
+
+    def test_the_verdicts_listing_answers_the_lookback_with_one_read_less(self) -> None:
+        # A lane merge at 10:00 checked at 12:00: the verdict lists from the
+        # merge, which covers the lookback from 10:15 (12:00 less 105 minutes).
+        later = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
+        for why, head in [("in the merge's window", LATER_SHA), ("outside it", HEAD_SHA)]:
+            with self.subTest(why):
+                self.setUp()
+                self.gh.merged = [identity_merge(number=7002)]
+                self.lane_red(
+                    bash_log((TOUCHED, False)),
+                    head_sha=head,
+                    created_at="2026-10-12T11:00:00Z",
+                )
+                reused, once = self.lane_check_at(later, reuse=True)
+                fresh, twice = self.lane_check_at(later, reuse=False)
+                self.assertEqual(reused, fresh)
+                self.assertEqual(twice - once, 1)
+        self.assertEqual(
+            [(r["runId"], r["laneDispatched"]) for r in reused["reruns"]], [(11, True)]
+        )
+
+    def test_a_run_in_progress_when_listed_is_listed_again_and_its_red_found(
+        self,
+    ) -> None:
+        # Listed in progress by the verdict, then red before the lookback is
+        # read: the lane's one re-run is still marked, from a second listing.
+        later = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
+        self.gh.merged = [identity_merge(number=7002)]
+        self.lane_red(
+            bash_log((TOUCHED, False)),
+            head_sha=HEAD_SHA,
+            created_at="2026-10-12T11:00:00Z",
+        )
+        key = ("pr-require-checks.yml", "workflow_dispatch")
+        red = self.gh.runs[key]
+        self.gh.runs[key] = [{**red[0], "status": "in_progress", "conclusion": None}]
+        original = pm._lane_reruns
+
+        def finished_red(ctx: Any, *args: Any, **kwargs: Any) -> list[str]:
+            self.gh.runs[key] = red
+            return original(ctx, *args, **kwargs)
+
+        self.gh.calls.clear()
+        with mock.patch.object(pm, "_lane_reruns", finished_red):
+            verdict = pm.check(
+                REPO,
+                agent_identity=IDENTITY,
+                is_human=lambda actor: False,
+                merged_since=datetime(2026, 10, 12, 0, 0, tzinfo=UTC),
+                now=later,
+                pinned_sha=lambda merge: None,
+                lane_merges_only=True,
+            )
+        self.assertEqual(self.lane_reruns(verdict), [(11, True)])
+        listings = [
+            c
+            for c in map(" ".join, self.gh.calls)
+            if "event=workflow_dispatch" in c and "created=" in c
+        ]
+        self.assertGreaterEqual(len(listings), 2)
+
+    def test_a_lookback_older_than_the_listing_is_listed_again(self) -> None:
+        # Checked at 11:00, the lookback starts at 09:15, before the merge.
+        self.gh.merged = [identity_merge(number=7002)]
+        self.lane_red(bash_log((TOUCHED, False)), created_at="2026-10-12T10:30:00Z")
+        report, listings = self.lane_check_at(self.NOW, reuse=True)
+        self.assertEqual(listings, 2)
+        self.assertEqual([(r["runId"]) for r in report["reruns"]], [11])
+
     def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
         # Run 11 on a tag named main: its commit is not on refs/heads/main.
         self.lane_red(bash_log((TOUCHED, False)), head_sha=FORK_SHA)

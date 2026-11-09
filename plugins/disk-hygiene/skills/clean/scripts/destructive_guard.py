@@ -1342,6 +1342,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         ):
             return False
         return True
+    # Identity on every path-legal token and the word holding it, as the
+    # PowerShell branch reads it: `awk -v c=<engine>` and `perl -e ... c=<engine>`
+    # hand the engine path to a program inside a larger word.
+    if any(
+        _samefile(candidate)
+        or (_carries_marker(token) and _within_plugin_cache_family(candidate))
+        for token, word in _marker_tokens_with_words(command)
+        for candidate in (token, word)
+    ):
+        return True
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.

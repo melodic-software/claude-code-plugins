@@ -40,6 +40,18 @@ cfv_cache_key_to() {
   printf -v "$cfv__var" '%s' "${cfv__key//[^a-zA-Z0-9_-]/_}"
 }
 
+# cfv_global_chain_to <var> <bin>: the subcommand chain whose --help lists the
+# bin's global arguments when its other help texts may not, else empty. az
+# prints its Global Arguments (--only-show-errors, --output, --query, ...) only
+# on a leaf command's help: `az --help` and every group help list none. A flag
+# missing from the resolved help is looked up in this chain's help as well.
+cfv_global_chain_to() {
+  case "$2" in
+  az) printf -v "$1" '%s' version ;;
+  *) printf -v "$1" '%s' "" ;;
+  esac
+}
+
 # cfv_flag_pattern_to <var> <flag-name>: the ERE that matches <flag-name> as a
 # whole flag inside a --help text. The flag may appear as:
 #   `  --flag         description`            (column-aligned)

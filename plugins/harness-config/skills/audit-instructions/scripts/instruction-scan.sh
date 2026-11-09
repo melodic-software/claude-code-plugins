@@ -28,7 +28,7 @@
 #       response", "don't narrate", "no interim updates"). Final-message shape
 #       contracts and "narrate" meaning "describe as" are criteria-owned
 #       fences the model lane applies.
-#   I8  model-era candidates, four pattern families emitted with per-family ids
+#   I8  model-era candidates, five pattern families emitted with per-family ids
 #       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
 #       unscoped (promotion gate met; fires for every target). The scanner is
 #       model-blind — the model lane adjudicates against the resolved target model
@@ -41,6 +41,8 @@
 #              reason", "without thinking", "skip the reasoning")
 #         I8-f think-carefully steers ("think carefully", "think step by step",
 #              "ultrathink"); Opus-5.5-scoped
+#         I8-g standing keep-going exhortations ("keep going.", "loop until
+#              done", "don't be lazy"); unscoped
 #       Over-production is by design: restraint clauses, quoted/meta text,
 #       idiomatic uses ("do not think of this as…"), and substring near-misses
 #       ("don't reasonably…") ARE emitted; the fences live in
@@ -119,7 +121,7 @@ and frontmatter, fenced code, table rows, and headings are never read.
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason, I8-f think-carefully steer. I23 marks self-estimated context-budget phrasing. I27 marks
+don't-reason, I8-f think-carefully steer, I8-g keep-going exhortation. I23 marks self-estimated context-budget phrasing. I27 marks
 effort-for-brevity candidates (effort-lowering directive paired with a brevity
 token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
@@ -209,6 +211,12 @@ I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agen
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
 I8_F_ERE="think (very |really )?(carefully|hard|harder|deeply|thoroughly|step[- ]by[- ]step)|${WB_L}ultrathink${WB_R}"
+# I8-g ends the keep-going arm at a sentence end or a vague finish word, so
+# "keep going until the tests pass" (a check, the row's own remediation),
+# "keep going, with status notes" (the P6 statement) and a heading or wrapped
+# line ending on the phrase are never rows.
+I8_G_DONE="(it('|’)?s |you('|’)?re |everything is |the (task|work) is )?(done|finished|complete)${WB_R}"
+I8_G_ERE="(keep going|keep working|continue|loop) until ${I8_G_DONE}|keep going( no matter what|[.!])|(don('|’)?t|do not|never) (be lazy|give up)"
 # I23 self-estimated context-budget phrasing. Deliberately anchored to
 # BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
 # is ordinary vocabulary in any instruction surface discussing sessions, and
@@ -681,15 +689,16 @@ fi
     run_family 4 -nHiE "$I8_B_ERE"
     run_family 5 -nHiE "$I8_C_ERE"
     run_family 6 -nHiE "$I8_F_ERE"
-    run_family 7 -nHiE "$I27_EFFORT_ERE"
-    run_family 8 -nHE "$I28_A_ERE"
-    run_family 9 -nHiE "$I28_B_ERE"
-    run_family 10 -nHiE "$I25_ERE"
-    run_family 11 -nHiE "$I38_ERE"
-    run_i40 12
+    run_family 7 -nHiE "$I8_G_ERE"
+    run_family 8 -nHiE "$I27_EFFORT_ERE"
+    run_family 9 -nHE "$I28_A_ERE"
+    run_family 10 -nHiE "$I28_B_ERE"
+    run_family 11 -nHiE "$I25_ERE"
+    run_family 12 -nHiE "$I38_ERE"
+    run_i40 13
   fi
 } | tr '\000' '\003' | awk -v mode="$inner_mode" -v body_only="$body_only" \
-  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25 I38 I40" \
+  -v ids="I10 I23 I8-a I8-b I8-c I8-f I8-g I27 I28-a I28-b I25 I38 I40" \
   -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
 
 if [[ "$mode" == "count" ]]; then

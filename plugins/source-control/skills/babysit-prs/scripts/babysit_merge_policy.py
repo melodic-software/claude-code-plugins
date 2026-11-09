@@ -2068,6 +2068,8 @@ class _GreenMain:
         self.runs: dict[str, list[dict[str, Any]]] = {}
         self.tip: str | None = None
         self.compares: dict[tuple[str, str], str | None] = {}
+        # babysit_postmerge's `_Context` for local ancestry; False: unavailable.
+        self.local: Any = None
 
     def _read(self, endpoint: str) -> Any:
         status, answer = _get(endpoint)
@@ -2141,13 +2143,32 @@ class _GreenMain:
         return self.runs[stamp]
 
     def ahead(self, base: str, head: str) -> bool:
-        """Whether `head` has `base` in its history and is a later commit."""
+        """Whether `head` has `base` in its history and is a later commit:
+        from a local full-history clone when one can decide two different
+        commits (`_local_ancestor`), else the compare API's `ahead`."""
         if (base, head) not in self.compares:
-            answer = self._read(
-                f"repos/{self.owner}/{self.name}/compare/{base}...{head}"
-            )
-            self.compares[base, head] = json_object(answer).get("status")
+            local = None if base == head else self._local_ancestor(base, head)
+            if local is not None:
+                self.compares[base, head] = "ahead" if local else "not-ancestor"
+            else:
+                answer = self._read(
+                    f"repos/{self.owner}/{self.name}/compare/{base}...{head}"
+                )
+                self.compares[base, head] = json_object(answer).get("status")
         return self.compares[base, head] == "ahead"
+
+    def _local_ancestor(self, ancestor: str, sha: str) -> bool | None:
+        """`babysit_postmerge._Context._local_contains` on main, with its
+        shallow, graft, replace-ref and lazy-fetch guards, or None when no
+        clone can decide."""
+        if self.local is None:
+            try:
+                import babysit_postmerge as postmerge
+            except ImportError:
+                self.local = False
+            else:
+                self.local = postmerge._Context(self.owner, self.name, "", branch="main")
+        return self.local._local_contains(ancestor, sha) if self.local else None
 
     def on_main(self, sha: str) -> bool:
         """Whether `sha` is on main's history, read by heads/main: a ref named
