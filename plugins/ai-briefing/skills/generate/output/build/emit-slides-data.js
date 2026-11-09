@@ -212,9 +212,7 @@ async function main() {
   const deck = { meta, theme: THEME, providerLogos: PROVIDER_LOGOS, slides };
   validateDeck(deck);
 
-  const outPath = args.out
-    ? path.resolve(args.out)
-    : slidesDataPath();
+  const outPath = args.out ? path.resolve(args.out) : slidesDataPath();
   await fs.writeFile(outPath, renderModule(deck), "utf-8");
 
   console.log(`\nSlides emitted:    ${outPath}`);
