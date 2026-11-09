@@ -31,17 +31,38 @@ where no sink is configured.
 
 ## Sink path resolution
 
-`HOOK_TELEMETRY_SINK` is a **single executable path**, absolute or relative to the consuming repo root.
-The producer resolves it before dispatch:
+`HOOK_TELEMETRY_SINK` is the reserved value `@harness-ops`, or a **single executable path**, absolute
+or relative to the consuming repo root. The producer resolves it before dispatch:
 
+- **`@harness-ops`**: the harness-ops reference sink, through the launcher harness-ops rewrites at each
+  SessionStart in its plugin data directory, `<data root>/harness-ops-<marketplace>/hook-telemetry-sink.sh`.
+  The producer searches the parent of its own `CLAUDE_PLUGIN_DATA` when it has one (a plugin hook;
+  either path separator), then `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/data`. Precedence: of every
+  `harness-ops-*` launcher found, the one modified most recently wins, whatever its name and
+  whichever producer asks. harness-ops touches its launcher at each SessionStart, so the install
+  that last started a session wins, and every producer sends to the same root. None found: the
+  event is skipped, fail-open. The launcher carries harness-ops'
+  `session_event_log_dir` and `hook_events_max_bytes`, so every producer's rows land in harness-ops'
+  root, and deletes itself when its install is gone.
+- **Any other value starting with `@`**: reserved for later sinks; the producer skips the event.
 - **Absolute** (POSIX `/…` or Windows `X:\` / `X:/`): used as-is.
 - **Relative** (e.g. `.claude/hooks/hook-telemetry-sink.sh`): joined onto the consuming repo root the
   producer already resolves for `data.file` (falling back to `$CLAUDE_PROJECT_DIR`); skipped fail-open if
   neither anchor is available, since a drifted hook CWD would resolve it incorrectly.
 
-Relative is the portable, team-shared wiring form: commit a relative path in `settings.json`, so
-every clone and worktree wires the same sink with no per-machine absolute path. To pass arguments,
-wrap the sink in a script: the producer runs the value as a single command.
+`@harness-ops` and a relative path are the portable, team-shared wiring forms: commit either in
+`settings.json`, so every clone and worktree wires the same sink with no per-machine absolute path.
+`@harness-ops` also needs no copy of the sink in the repository. Settings `env` values reach the
+environment as written, with no shell expansion, so `${CLAUDE_PLUGIN_ROOT}` cannot name the
+installed sink there. To pass arguments, wrap the sink in a script: the producer runs the value as a
+single command.
+
+- **Pointer**: for where plugin data directories live and that they survive updates, fetch
+  [plugins reference § Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+  and the `CLAUDE_CONFIG_DIR` row of [environment variables](https://code.claude.com/docs/en/env-vars) live.
+- **As of**: 2026-11-08
+- **Recheck trigger**: either page moves `${CLAUDE_PLUGIN_DATA}` out of `<config dir>/plugins/data`
+  or changes how `<id>` is formed.
 
 - **Pointer**: when checking where Claude Code expands `${VAR}` references in configuration, fetch
   [MCP § Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
@@ -192,13 +213,17 @@ standards-repo "adopt by copy" pattern.
 
 A mod emits from its own hooks module instead, in TypeScript: context-guard's
 `hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
-(a relative path joins onto the session's project root, else `CLAUDE_PROJECT_DIR`), and starts the
+(`@harness-ops` through `$.fs.list` and `$.fs.stat` modification times of the config dir's plugin
+data root, since a mod has no
+`CLAUDE_PLUGIN_DATA`; a relative path joins onto the session's project root, else
+`CLAUDE_PROJECT_DIR`), and starts the
 sink fire-and-forget through `$.process.run`. Its envelope is checked by the plugin's own
 `claude plugin test` cases rather than by `check_envelope`.
 
 ## Consuming (sink side)
 
-A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (relative, committed in `settings.json`) to an
+A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (committed in `settings.json`) to
+`@harness-ops`, or to a relative path of an
 executable that reads one envelope on stdin and maps the common fields into its own store. The
 envelope arrives as one JSON document; since the shared library's 2026-09-02 builtin emitter it is a
 single compact line (`jq -c` shape, no trailing CR), where earlier producers wrote jq's
