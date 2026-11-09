@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.7.0] - 2026-11-09
+
+### Changed
+
+- `/work-items:triage` and `/work-items:track add --priority` set the organization `Priority` issue field, and use the repository's `priority:` labels where there is no such field or the adapter cannot write one.
+
 ## [12.6.2] - 2026-11-09
 
 ### Changed
