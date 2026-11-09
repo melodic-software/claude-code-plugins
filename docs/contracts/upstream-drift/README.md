@@ -179,8 +179,8 @@ lookup, is what fires, and only a firing invokes the maintenance procedure above
 Re-reading the section a pointer names is the first step of every firing above, so **how** the page is read is
 part of the contract. A summarizing fetch of a long docs page is not a read of that page: it
 truncates, and a summarizer asked what the page contains then answers from the truncated span. That
-answer is indistinguishable from a genuine absence, so a truncated fetch does not merely fail. It
-manufactures drift that is not there. `env-vars` produced exactly that false negative on three
+answer is indistinguishable from a genuine absence, so a truncated fetch manufactures drift that is
+not there. `env-vars` produced exactly that false negative on three
 independent fetches, each stopping before the `CLAUDE_CODE_MAX_*` range and each reporting those
 rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pull/2182)).
 
