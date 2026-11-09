@@ -36,11 +36,15 @@
 # shellcheck shell=bash
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.
-_jvm_gradle_awk='
-BEGIN { sq = "\047"; dq = "\"" }
+_jvm_awk_common='
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function tidy(d) { gsub(/\t/, " ", d); gsub(/[[:space:]]+/, " ", d); return d }
 function unread(d) { printf "unread\t%s\n", tidy(d) }
+'
+
+# shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.
+_jvm_gradle_awk="$_jvm_awk_common"'
+BEGIN { sq = "\047"; dq = "\"" }
 function strip(line,    i, c, q, n, out) {
   out = ""; q = ""; n = length(line); i = 1
   while (i <= n) {
@@ -114,7 +118,7 @@ function settings_line(s,    rest) {
   }
   if (s ~ /(^|[^[:alnum:]_.$"\047])include(Flat|Build)?[[:space:](]/) unread(s)
 }
-function build_line(s,    rest, p, i, c, q, d, a, item, after, ok) {
+function build_line(s,    rest, p, i, c, q, d, a, item, ok) {
   if (s ~ /(^|[^[:alnum:]_.$"\047])projects\.[A-Za-z_]/) unread(s)
   rest = s
   while (match(rest, /(^|[^[:alnum:]_$])project[[:space:]]*\(/)) {
@@ -129,9 +133,8 @@ function build_line(s,    rest, p, i, c, q, d, a, item, after, ok) {
     }
     if (!ok) { unread(s); return }
     a = trim(substr(rest, p, i - p))
-    after = substr(rest, i + 1)
-    rest = after
-    if (after ~ /^[[:space:]]*\./) { unread(s); continue }
+    rest = substr(rest, i + 1)
+    if (rest ~ /^[[:space:]]*\./) { unread(s); continue }
     sub(/^path[[:space:]]*[:=][[:space:]]*/, "", a)
     if (match(a, /^"[^"]*"/) || match(a, "^" sq "[^" sq "]*" sq)) {
       item = substr(a, 2, RLENGTH - 2)
@@ -158,10 +161,7 @@ END { if (acc != "") unread("<unterminated include> " acc) }
 '
 
 # shellcheck disable=SC2016 # an awk program: $0 belongs to awk, not the shell.
-_jvm_pom_awk='
-function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-function tidy(d) { gsub(/\t/, " ", d); gsub(/[[:space:]]+/, " ", d); return d }
-function unread(d) { printf "unread\t%s\n", tidy(d) }
+_jvm_pom_awk="$_jvm_awk_common"'
 function tag(t,    name, closing, selfclose) {
   if (t ~ /^<[?!]/) return
   closing = (t ~ /^<\//)
