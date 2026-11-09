@@ -55,14 +55,8 @@ usage() {
 form="-m"
 while (($# > 0)); do
   case "$1" in
-  -w | --backslash)
-    form="-w"
-    shift
-    ;;
-  -m | --mixed)
-    form="-m"
-    shift
-    ;;
+  -w | --backslash) form="-w" ;;
+  -m | --mixed) form="-m" ;;
   -h | --help)
     usage
     exit 0
@@ -78,6 +72,7 @@ while (($# > 0)); do
     ;;
   *) break ;;
   esac
+  shift
 done
 
 if (($# == 0)); then
@@ -92,7 +87,7 @@ fi
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) ;;
 *)
-  for p in "$@"; do printf '%s\n' "$p"; done
+  printf '%s\n' "$@"
   exit 0
   ;;
 esac

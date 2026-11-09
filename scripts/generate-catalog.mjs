@@ -34,10 +34,9 @@ const END = "<!-- catalog:end -->";
 
 // Category render order, conforming to the vocabulary tiers owned by
 // docs/catalog-taxonomy.md (lifecycle spine, then domain-and-cross-cutting).
-// The generator conforms to that document; it does not redefine the vocabulary
-// — and taxonomyCategories() below holds it to that: the list here is asserted
-// equal, in order, to the document's own tables on every run, so editing one
-// side without the other fails --check instead of drifting quietly.
+// Every run (generate and --check) asserts this list equal, in order, to the
+// document's own tables, so a value added, dropped, renamed or reordered on
+// one side only fails instead of drifting quietly.
 const CATEGORY_ORDER = [
   "discovery",
   "design",
@@ -61,11 +60,10 @@ const CATEGORY_ORDER = [
 ];
 
 // The document's own statement of the vocabulary: the backticked first column
-// of the two tier tables under "## Vocabulary", in document order. This is a
-// deliberately narrow parse of a stable shape, not a markdown engine — and it
-// FAILS CLOSED on shape: a reworked section that yields no rows, or rows this
-// pattern no longer matches, throws rather than returning a shorter list that
-// happens to compare equal to a shorter CATEGORY_ORDER.
+// of the two tier tables under "## Vocabulary", in document order. A narrow
+// parse of a stable shape that FAILS CLOSED: a reworked section that yields no
+// rows throws rather than returning a shorter list that happens to compare
+// equal to a shorter CATEGORY_ORDER.
 function taxonomyCategories() {
   const text = readFileSync(taxonomyPath, "utf8");
   const section = text.match(/^## Vocabulary$([\s\S]*?)(?=^## )/m);
@@ -85,11 +83,6 @@ function taxonomyCategories() {
   return values;
 }
 
-// An unknown category hard-errors below, but that gate is
-// one-way: it never compares CATEGORY_ORDER back to the document that claims
-// sole ownership of the vocabulary. Assert full order equality on
-// every run (generate and --check both), so a value added, dropped, renamed,
-// or reordered on either side is loud.
 {
   const documented = taxonomyCategories();
   if (JSON.stringify(documented) !== JSON.stringify(CATEGORY_ORDER)) {
@@ -142,20 +135,15 @@ function buildBlock() {
   return `${START}\n\n${sections.join("\n\n")}\n\n${END}`;
 }
 
-function currentBlock(content) {
-  const block = findMarkerBlock(content, START, END);
-  if (block === null) {
-    throw new Error(
-      `${outputLabel} is missing the catalog markers (${START} … ${END}); add them once.`,
-    );
-  }
-  return block;
-}
-
 const check = process.argv.includes("--check");
 const content = readFileSync(outputPath, "utf8");
 const expected = buildBlock();
-const existing = currentBlock(content);
+const existing = findMarkerBlock(content, START, END);
+if (existing === null) {
+  throw new Error(
+    `${outputLabel} is missing the catalog markers (${START} … ${END}); add them once.`,
+  );
+}
 
 syncMarkerBlock({
   path: outputPath,
