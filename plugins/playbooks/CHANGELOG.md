@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.29.2] - 2026-11-09
+
+### Changed
+
+- Simplified `docs-cache.sh`: one routine now warns on a bad summary or note file, and the UTC formatter picks its format once. Outputs, exit codes and messages are unchanged.
+
 ## [0.29.1] - 2026-11-09
 
 ### Changed

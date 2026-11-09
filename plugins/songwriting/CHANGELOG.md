@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.18] - 2026-11-09
+
+### Changed
+
+- datamuse.sh builds every Datamuse request through one fetch helper; requests are unchanged.
+
 ## [1.7.17] - 2026-11-03
 
 ### Changed

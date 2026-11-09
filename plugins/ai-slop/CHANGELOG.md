@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.1] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
 ## [0.18.0] - 2026-11-06
 
 ### Added

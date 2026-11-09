@@ -3,6 +3,16 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-11-09
+
+### Added
+
+- `/user-interface:audit cleanup`: a motion lane sub-mode that runs the lane's passes in the order `animation.cleanup_order` sets, one pass per value. The key takes `removal`, `review`, `opportunities` and `performance`. Its default, `removal`, `review`, `performance`, is the cleanup sequence Emil Kowalski suggests for his skills: remove, then improve, then check performance ([post](https://x.com/emilkowalski/status/2116583281332503038)).
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
 ## [0.20.0] - 2026-11-09
 
 ### Added
