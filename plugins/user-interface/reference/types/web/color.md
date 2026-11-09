@@ -85,8 +85,9 @@ A fresh `rgb()` literal counts too. A hex counts here only where it defines a co
 Tailwind `@theme` block, which `color/tailwind.md` grades; a raw hex used in place of a token is
 graded once, under section 5.
 
-**L answers "light or dark."** A surface with L above 0.6 reads as light and wants dark text on it;
-at or below 0.6, reach for light text. No luminance formula needed for the first pass.
+**L answers "light or dark."** A surface with L above `color.triage.light_surface_min_l` reads as
+light and wants dark text on it; at or below `color.triage.light_surface_min_l`, reach for light
+text. No luminance formula needed for the first pass.
 
 **Contrast lives in the L gap.** Chroma and hue barely move contrast; the distance in L between a
 foreground and the background it renders on is what counts. To repair a failing pair, move only L.
@@ -99,7 +100,8 @@ Low-contrast text "fixed" by pumping saturation → does nothing; widen the L ga
 severity of that finding is in `color/contrast.md`.
 
 **One hue per ramp.** Every step of a tonal scale keeps the identical H. If converting an old scale
-to oklch reveals more than about 10° of hue spread between its ends, the ramp drifts visibly:
+to oklch reveals more hue spread between its ends than `color.ramp.hue_spread_max_deg` degrees,
+the ramp drifts visibly:
 rebuild it. How, and the severity of a drifting ramp, in `color/building-scales.md`.
 
 **Vividness is relative, not absolute.** Each hue has its own chroma ceiling at a given lightness,
@@ -122,18 +124,21 @@ perceptually. Use OKLCH when lightness must actually match.
 
 ## 4. Numbers worth memorizing
 
-- Light-vs-dark surface cutoff: **L 0.6**
-- Against a very light ground (L ≥ 0.85), text needs **L ≤ 0.45**; against a very dark ground
-  (L ≤ 0.25), text needs **L ≥ 0.75**: heuristics, confirm with a real check
-- Visible hue drift across a ramp: spread **> 10°**
+- Light-vs-dark surface cutoff: L `color.triage.light_surface_min_l`
+- Against a very light ground (L at or above the surface value of `color.triage.near_white_l`),
+  text needs L at or under its text value; against a very dark ground (L at or under the surface
+  value of `color.triage.near_black_l`), text needs L at or over its text value: heuristics,
+  confirm with a real check
+- Visible hue drift across a ramp: spread over `color.ramp.hue_spread_max_deg` degrees
 - WCAG 2.2 AA: **4.5:1** body text; **3:1** large text (18pt, or 14pt bold) and UI components and
   graphics. AAA: **7:1** body text, **4.5:1** large text
 - Contrast repairs touch **L only**: C and H stay
 
 ## 5. Derived and semantic colors
 
-Derive hover states with `color-mix(in oklch, var(--color) 85%, black)`, not a hand-picked darker
-hex: hardcoded hexes drift hue unexpectedly. Recipe: `oklch-color`.
+Derive hover states with `color-mix(in oklch, var(--color), black {{color.hover_mix_percent}}%)`,
+not a hand-picked darker hex: hardcoded hexes drift hue unexpectedly. Fill the placeholder as
+[`values.md`](../../values.md) says. Recipe: `oklch-color`.
 
 **Audit: Suggestion.** A hover, pressed or tint shade hardcoded as a second literal instead of
 derived from its base with `color-mix(in oklch, ...)`.
@@ -212,10 +217,11 @@ them.
 - **Recheck trigger**: any of them changes how a dark theme's raised surfaces relate to the base
   surface.
 
-Light-mode 1px borders: `oklch(0 0 none / 0.08)` recedes naturally; solid `#e0e0e0` looks pasted
-on top of the surface.
+Light-mode 1px borders: `oklch(0 0 none / {{color.border.light_alpha}})` recedes naturally; solid
+`#e0e0e0` looks pasted on top of the surface.
 
-Dark-mode 1px borders: the opposite: solid (`oklch(0.285 0 none)`-style) sits quietly, while
+Dark-mode 1px borders: the opposite: solid (`oklch({{color.border.dark_solid_l}} 0 none)`-style)
+sits quietly, while
 `oklch(1 0 none / 0.1)` glows.
 
 This applies to layout borders and dividers. The low-opacity white 1px ring that stands in for a
@@ -235,7 +241,7 @@ lines, so treat the split as a default, not a hard rule.
 black would recede, or a dark-mode layout border or divider drawn in translucent white where a
 solid dark step would sit quietly.
 
-Desaturate brand colors 20–30% for dark mode. Carried over at full saturation they vibrate off
-a dark background.
+Desaturate brand colors for dark mode by the range in `color.dark_mode.brand_desaturation_percent`.
+Carried over at full saturation they vibrate off a dark background.
 
 **Audit: Suggestion.** A brand color carried into the dark theme at its light-theme chroma.
