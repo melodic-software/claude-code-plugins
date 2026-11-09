@@ -96,7 +96,7 @@ Options:
                       request and report landed when local HEAD equals or is an
                       ancestor of the PR head commit, or every unpushed local
                       commit is in the PR's commit list. The PRs come from one
-                      paged \`gh api graphql\` listing of merged PRs per
+                      paged GraphQL listing (\`gh api\`) of merged PRs per
                       repository and base, read once and reused for every
                       worktree (the only network use). The number of gh calls
                       the run made, one per page, is printed on stderr. A
