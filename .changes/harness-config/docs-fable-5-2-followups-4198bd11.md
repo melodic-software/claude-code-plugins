@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- `/harness-config:audit-instructions` checks Claude Fable 5.2 and Claude Mythos 5.2 requests: I17's outright-disable arm and I17-c's fixed-budget set now name both models, each on the thinking pages' per-model tables. I20 keeps its release-floor range, which already reaches Fable 5.2, and records the re-read.
+- `/harness-config:audit-instructions` checks Claude Fable 5.2 and Claude Mythos 5.2 requests: I17's outright-disable arm, I17-c's fixed-budget set and I25's sampling-parameter set now name both models, each on the thinking pages' per-model lists. I20 keeps its release-floor range, which already reaches Fable 5.2, and records the re-read.
 
 ### Fixed
 

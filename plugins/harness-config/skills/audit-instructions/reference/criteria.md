@@ -2131,13 +2131,15 @@ states.
   its default, commonly "raise the temperature" for variety, creativity, or design
   divergence, or "set `temperature = 0`" for determinism, where the run's resolved target model is
   in this row's set: Claude Opus 4.7 or later (Opus 4.7, Opus 4.8, Opus 5, Opus 5.5), Claude
-  Sonnet 5 or later (Sonnet 5, Sonnet 5.5), Claude Haiku 5.5, Claude Fable 5.1, Claude Fable 5,
-  Claude Mythos 5.1, Claude Mythos 5, or Claude Mythos Preview. Fire on those models whether or
-  not the surface also sets thinking, and even where the instruction would type-check against an
-  SDK. A model outside the set is outside this row, whatever it does with thinking on.
+  Sonnet 5 or later (Sonnet 5, Sonnet 5.5), Claude Haiku 5.5, Claude Fable 5.2, Claude Fable 5.1,
+  Claude Fable 5, Claude Mythos 5.2, Claude Mythos 5.1, Claude Mythos 5, or Claude Mythos Preview.
+  Fire on those models whether or not the surface also sets thinking, and even where the
+  instruction would type-check against an SDK. A model outside the set is outside this row,
+  whatever it does with thinking on.
   Pointer: for the set, see [thinking: sampling
   parameters](https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters).
-  As of: 2026-10-01. Recheck trigger: a model joins or leaves that section's list.
+  As of: 2026-11-09, re-read on the Fable 5.2 release, which added Claude Fable 5.2 and Claude
+  Mythos 5.2 to the list. Recheck trigger: a model joins or leaves that section's list.
 - **Widened to `haiku-5-5` on 2026-10-10:** our read of that section that day put Claude Haiku
   5.5 in this row's set, so the set above names it. Pointer: the same section. As of: 2026-10-10. Recheck trigger: Haiku 5.5 leaves
   that section's list.
