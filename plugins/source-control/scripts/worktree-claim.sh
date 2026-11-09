@@ -40,13 +40,20 @@
 #   stale <path> [--repo-dir DIR] [--idle-minutes N]
 #     Read-only. Exit 0 only when the lock is provably stale: a linked worktree
 #     whose reason reads `lane active on <host> session <sid> since`, <host> is
-#     this host, and no ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/<sid>.jsonl
-#     changed within N minutes (default 120; a missing transcript is idle). It
-#     does not look at PR or landed state; the caller requires that separately.
+#     this host, no running Claude Code process holds <sid>, and no
+#     ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/<sid>.jsonl changed within N
+#     minutes (default 120; a missing transcript is idle). A process holds <sid>
+#     when a ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions/*.json entry names it
+#     and that entry's pid is running with the entry's procStart. Dead and
+#     pid-reused entries do not count. A missing, unreadable or malformed
+#     registry, or a host where an entry's start time cannot be read, is not
+#     provable. It does not look at PR or landed state; the caller requires that
+#     separately.
 #   stale --batch --repo-dir DIR [--idle-minutes N]
 #     The same verdict for each NUL-delimited path on stdin, from one worktree
-#     list parse and one transcript scan. Prints one `exit<TAB>path<TAB>note`
-#     row per path, in input order, where exit and note are what single-path
+#     list parse, one registry read and one transcript scan. Prints one
+#     `exit<TAB>path<TAB>note` row per path, in input order, where exit and note
+#     are what single-path
 #     `stale` would return and print for it (a tab or newline in the note reads
 #     as a space). A path holding a tab or newline is usage (exit 2) and no row
 #     is printed. --repo-dir is required: no single path locates the repository.
@@ -64,7 +71,8 @@
 #      handover: the lock now names NEW (or already did)
 #   1  report: one or more linked worktrees have no lock reason
 #      stale: not provably stale (unlocked, reasonless, no session, another
-#      host, or a transcript changed within the idle window)
+#      host, a running process holds the session, the session registry is
+#      missing or malformed, or a transcript changed within the idle window)
 #   2  usage (release: main worktree, or no session id to prove ownership;
 #      handover: main worktree, or --session-id / --to missing)
 #   3  check-enter: the worktree is unclaimed (no lock reason)
@@ -686,11 +694,114 @@ scan_transcripts() {
   fi
 }
 
+# load_session_registry: on its first call only, read every <config>/sessions/*.json
+# into REGISTRY_ROWS as sessionId<TAB>pid<TAB>procStart lines. REGISTRY_SCAN records
+# ok, unreadable or malformed. One malformed entry spoils the whole read, because
+# it might be the one holding the session asked about. The <pid>.key files beside
+# the entries hold credentials and never match this glob.
+REGISTRY_SCAN=""
+REGISTRY_ROWS=""
+load_session_registry() {
+  [[ -z "$REGISTRY_SCAN" ]] || return 0
+  REGISTRY_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions"
+  if [[ ! -d "$REGISTRY_DIR" || ! -r "$REGISTRY_DIR" || ! -x "$REGISTRY_DIR" ]]; then
+    REGISTRY_SCAN=unreadable
+    return 0
+  fi
+  local -a entries=("$REGISTRY_DIR"/*.json)
+  if [[ ! -e "${entries[0]}" ]]; then
+    REGISTRY_SCAN=ok
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    REGISTRY_SCAN=nojq
+    return 0
+  fi
+  local rows row count=0
+  # shellcheck disable=SC2016  # jq program, not a shell expansion.
+  if ! rows="$(jq -r '
+    if (.pid | type) == "number" and .pid > 0 and .pid == (.pid | floor)
+      and (.sessionId | type) == "string" and (.sessionId | length) > 0
+      and (.procStart | type) == "string" and (.procStart | test("^[0-9]+$"))
+    then [.sessionId, .pid, .procStart] | @tsv
+    else error("unknown shape")
+    end' "${entries[@]}" 2>/dev/null)"; then
+    REGISTRY_SCAN=malformed
+    return 0
+  fi
+  while IFS= read -r row; do
+    [[ -z "$row" ]] || count=$((count + 1))
+  done <<<"$rows"
+  # jq emits nothing for a zero-byte file and exits 0.
+  if ((count != ${#entries[@]})); then
+    REGISTRY_SCAN=malformed
+    return 0
+  fi
+  REGISTRY_SCAN=ok
+  REGISTRY_ROWS="$rows"
+}
+
+# proc_start_time <pid>: field 22 of /proc/<pid>/stat into PROC_START, the clock
+# ticks since boot that a registry procStart records. Returns 1 when the process
+# is gone, 2 when this host cannot tell: macOS has no /proc, and Git Bash's /proc
+# lists only its own pids, not the Windows pids a registry entry holds.
+HOST_KERNEL=""
+proc_start_time() {
+  local stat
+  local -a fields
+  [[ -n "$HOST_KERNEL" ]] || HOST_KERNEL="$(uname -s 2>/dev/null)"
+  [[ "$HOST_KERNEL" == Linux && -r /proc/self/stat ]] || return 2
+  [[ -d "/proc/$1" ]] || return 1
+  IFS= read -r stat 2>/dev/null <"/proc/$1/stat" || return 2
+  # The command name (field 2) may itself hold spaces and parentheses.
+  read -r -a fields <<<"${stat##*) }"
+  PROC_START="${fields[19]:-}"
+  [[ "$PROC_START" =~ ^[0-9]+$ ]] || return 2
+}
+
+# session_is_free <sid>: 0 when no running Claude Code process holds <sid>,
+# including an entry that is dead or whose pid now belongs to another process.
+# Otherwise 1, with the reason in STALE_NOTE.
+session_is_free() {
+  local entry_sid entry_pid entry_start rc
+  load_session_registry
+  case "$REGISTRY_SCAN" in
+  unreadable)
+    STALE_NOTE="not provable: session registry $REGISTRY_DIR is missing or unreadable"
+    return 1
+    ;;
+  nojq)
+    STALE_NOTE="not provable: jq is not on PATH, so session registry $REGISTRY_DIR cannot be read"
+    return 1
+    ;;
+  malformed)
+    STALE_NOTE="not provable: session registry $REGISTRY_DIR could not be read or holds an entry in an unknown shape"
+    return 1
+    ;;
+  *) ;;
+  esac
+  while IFS=$'\t' read -r entry_sid entry_pid entry_start; do
+    [[ "$entry_sid" == "$1" ]] || continue
+    proc_start_time "$entry_pid"
+    rc=$?
+    if ((rc == 2)); then
+      STALE_NOTE="not provable: cannot read the start time of process $entry_pid on this host"
+      return 1
+    fi
+    if ((rc == 0)) && [[ "$PROC_START" == "$entry_start" ]]; then
+      STALE_NOTE="not provable: session $1 is held by running process $entry_pid"
+      return 1
+    fi
+  done <<<"$REGISTRY_ROWS"
+  return 0
+}
+
 # stale_verdict <canonical-path>: the stale verdict into STALE_NOTE, returned as
-# the exit code `stale` documents. Forks only for the host name and the
-# transcript scan, each once per run, so --batch pays nothing more per path.
-# ponytail: liveness is provable only from this host's transcripts; a lock from
-# another host, or without a session id, stays "not provable".
+# the exit code `stale` documents. Forks only for the host name, the kernel name,
+# the registry read and the transcript scan, each once per run, so --batch pays
+# nothing more per path.
+# ponytail: liveness is provable only from this host's registry and transcripts;
+# a lock from another host, or without a session id, stays "not provable".
 THIS_HOST=""
 stale_verdict() {
   local idx reason host sid hit
@@ -716,6 +827,7 @@ stale_verdict() {
     STALE_NOTE="not provable: the lock is from host $host, not this host"
     return "$EX_UNCLAIMED_REPORT"
   fi
+  session_is_free "$sid" || return "$EX_UNCLAIMED_REPORT"
   if ((batch)); then
     scan_transcripts '*.jsonl'
   else
