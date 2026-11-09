@@ -20,7 +20,8 @@
 #   --<flag>          The flag to verify (must start with `--`)
 #
 # Exit codes:
-#   0  Flag exists in `<bin> [<subcmd>...] --help` output
+#   0  Flag exists in `<bin> [<subcmd>...] --help` output, or in the help
+#      that lists the bin's global arguments (az: `az version --help`)
 #   1  Flag absent — likely hallucinated
 #   2  Binary missing on PATH OR `<bin> --help` failed (cannot verify)
 #   3  Argument validation error (caller bug)
@@ -171,6 +172,17 @@ if [[ "$HELP_OUTPUT" =~ $FLAG_PATTERN ]]; then
     printf '%s\n' "$HELP_OUTPUT" | grep -nE "$FLAG_PATTERN" | head -1
   fi
   exit 0
+fi
+
+# A global argument the resolved help omits is looked up in the bin's
+# global-arguments help, cached under its own key by the same script. Its
+# unverifiable answer (2) leaves this one absent (1).
+GLOBAL_CHAIN=""
+cfv_global_chain_to GLOBAL_CHAIN "$BIN"
+if [[ -n "$GLOBAL_CHAIN" && "${SUBCMDS[*]}" != "$GLOBAL_CHAIN" ]]; then
+  GLOBAL_OPTS=(--quiet)
+  $VERBOSE && GLOBAL_OPTS+=(--verbose)
+  bash "${BASH_SOURCE[0]}" "${GLOBAL_OPTS[@]}" -- "$BIN" "$GLOBAL_CHAIN" "$FLAG_NAME" && exit 0
 fi
 
 $QUIET || echo "verify-cli-flag: '$FLAG_NAME' not found in '$BIN ${SUBCMDS[*]} --help' output" >&2
