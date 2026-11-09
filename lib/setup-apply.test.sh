@@ -5,8 +5,11 @@
 # (integer, minimum 1, maximum 8), count (integer, no bounds), label (string,
 # minLength 1, pattern ^[a-z][a-z0-9-]*$), note (string), session (an object of
 # a boolean and an enum), sizes (an object of objects of non-empty strings),
-# extras (an object whose leaves are unchecked) and weird (an array, a shape
-# the checker does not validate). Expected values come
+# extras (an object whose leaves are unchecked), tags (a list of 1 to 3
+# non-empty strings), rules (a list of maps, each a required name matching
+# ^[a-z]+$ and a when map of at least one key, nothing else), crew (a map keyed
+# ^[a-z]+$ of maps holding a required role) and weird (an array with
+# uniqueItems, a keyword the checker does not validate). Expected values come
 # from that schema, JSON Schema's meaning of each keyword, YAML's reading of a
 # plain true or 5 as a boolean or a number, and the library's stated rules and
 # exit codes.
@@ -70,7 +73,29 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
       }
     },
     "extras": { "type": "object" },
-    "weird": { "type": "array" },
+    "tags": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "minLength": 1 } },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z]+$" },
+          "when": { "type": "object", "minProperties": 1 }
+        }
+      }
+    },
+    "crew": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "role": { "type": "string", "enum": ["lead", "member"] } }
+      }
+    },
+    "weird": { "type": "array", "uniqueItems": true },
     "code": { "type": "string", "pattern": "^a\\-b$" }
   }
 }
@@ -380,6 +405,31 @@ check_warn "an empty string two levels down" $'sizes:\n  small:\n    label: ""\n
 check_warn "a scalar where an inner object belongs" $'sizes:\n  small: x\n' 'sizes.small=x is not a map'
 check_warn "a map where a leaf belongs" $'session:\n  uploads:\n    a: true\n' 'session.uploads holds a map or a list'
 check_warn "a schema shape the checker does not know" $'weird: [1]\n' 'weird uses a schema shape setup-apply does not check'
+
+# --- Lists: checked from the parsed document, items included -----------------
+check_ok "a block list of strings" $'tags:\n  - a\n  - b\n' "PASS tags:"
+check_ok "a flow list of strings" $'tags: [a, b]\n' "PASS tags:"
+check_warn "a list under minItems" $'tags: []\n' 'tags holds 0 items; it takes at least 1'
+check_warn "a list over maxItems" $'tags: [a, b, c, d]\n' 'tags holds 4 items; it takes at most 3'
+check_warn "a bad item names its index" $'tags:\n  - a\n  - ""\n' 'tags.1 is shorter than 1 character'
+check_warn "a number item in a list of strings" $'tags: [a, 5]\n' 'tags.1 is a whole number; it takes a string'
+check_warn "a scalar on a list key" $'tags: a\n' 'tags is a string; it takes a list'
+check_warn "a map on a list key" $'tags:\n  a: b\n' 'tags is a map; it takes a list'
+check_ok "a list of maps" $'rules:\n  - name: one\n    when:\n      size: large\n  - name: two\n' "PASS rules:"
+check_warn "a list item missing a required key" $'rules:\n  - when:\n      size: large\n' 'rules.0.name is required'
+check_warn "a list item key outside the schema" $'rules:\n  - name: one\n    extra: 1\n' 'rules.0.extra is not in the schema'
+check_warn "a list item value outside its pattern" $'rules:\n  - name: One\n' 'rules.0.name="One" does not match ^[a-z]+$'
+check_warn "an empty value where a list item takes a map" $'rules:\n  - name: one\n    when:\n' 'rules.0.when is null; it takes a map'
+check_ok "a map whose key names match propertyNames" $'crew:\n  ana:\n    role: lead\n' "PASS crew:"
+check_warn "a map key outside propertyNames" $'crew:\n  Ana:\n    role: lead\n' 'crew key "Ana"'
+out="$(run --root "$(new_root list-cli)" tags=a)"
+assert_eq "a list key on the command line: exits 1" "1" "$?"
+assert_contains "a list key on the command line: says to edit by hand" "$out" "is not set from the command line"
+R="$(new_root list-keep)"
+printf 'rules:\n  - name: one\nmode: slow\n' >"$(yaml_of "$R")"
+out="$(run --root "$R" --yes mode=fast)"
+assert_eq "apply beside a valid list: exits 0" "0" "$?"
+assert_eq "apply beside a valid list: the list is kept byte for byte" $'rules:\n  - name: one\nmode: fast' "$(cat "$(yaml_of "$R")")"
 R="$(new_root obj-keep)"
 printf 'session:\n  uploads: true\nmode: slow\n' >"$(yaml_of "$R")"
 out="$(run --root "$R" --yes mode=fast)"
