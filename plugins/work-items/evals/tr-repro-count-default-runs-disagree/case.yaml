@@ -7,7 +7,7 @@ graders:
     target: 'last_message'
   - name: 'needs-info'
     type: 'regex'
-    pattern: '\bstatus:[ \t]?needs-info\b|\bneeds-info\b'
+    pattern: '\bneeds-reporter-info\b|\bneeds-info\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'
