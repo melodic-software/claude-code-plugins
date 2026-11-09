@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the vendored git-hook check library and installer. They behave the same, but a git-hook copy you already installed shows as stale until setup refreshes it, because the copy's stamp covers the library's text.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
 ## [3.0.3] - 2026-11-09
 
 ### Changed

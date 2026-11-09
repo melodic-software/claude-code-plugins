@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
 ## [0.18.3] - 2026-11-09
 
 ### Changed

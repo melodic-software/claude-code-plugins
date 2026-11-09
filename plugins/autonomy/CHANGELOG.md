@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.1.13] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Internal simplification of the shared hook test sink helper, no behavior change.
+
+- Simplified the internals of the hook launcher; its behavior is unchanged.
+
 ## [4.1.12] - 2026-11-09
 
 ### Changed

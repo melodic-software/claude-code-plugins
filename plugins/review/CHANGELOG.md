@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.1.5] - 2026-11-09
+
+### Changed
+
+- Simplified the session-bridge view app and watcher code (`view_bridge.py`, `watch.sh`). Behavior is unchanged.
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
 ## [8.1.4] - 2026-11-09
 
 ### Changed
