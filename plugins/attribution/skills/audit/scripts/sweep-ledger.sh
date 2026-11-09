@@ -275,7 +275,7 @@ cache-add)
   url="${ARGS[0]}"
   sha="${ARGS[1]}"
   [[ "$url" =~ ^https?://[^[:space:]\|]+$ ]] || die 2 "cache-add takes an http(s) URL with no whitespace or '|', not $url"
-  [[ "${#sha}" -eq 64 && "$sha" =~ ^[0-9a-f]+$ ]] || die 2 "cache-add takes a lowercase hex sha256 (64 characters)"
+  [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || die 2 "cache-add takes a lowercase hex sha256 (64 characters)"
   need_ledger
   at="$(now)"
   append "- cache: $url | $sha | $at"
