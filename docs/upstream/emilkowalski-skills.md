@@ -84,11 +84,14 @@ Defaults and rules taken from his posts rather than the repository. A post has n
 check does not watch these rows.
 
 - **As of**: 2026-11-09
-- **Recheck trigger**: he posts a different long-form reading size, or the linked post is removed.
+- **Recheck trigger**: he posts a different long-form reading size, motion cleanup order or touch
+  activation approach, or a linked post is removed.
 
 | Key or topic | Post | Taken / rejected |
 |---|---|---|
 | `typography.long_form_body_px` | [2026-10-19](https://x.com/emilkowalski/status/2112245483464802700) | **Taken:** long-form reading text at 18 to 20px rather than 16px, his stated preference with no measurement, for long-form text only. The default is `18`, the low end of his range, by the owner's decision that the reading research does not contradict it; a team overrides it through the key. The skill writes it in `rem`. **Floor:** the `16px` body floor ([USWDS typography](https://designsystem.digital.gov/components/typography/)) holds over his value as the schema's `minimum`; it did not change his value. |
+| `animation.cleanup_order` | [2026-10-31](https://x.com/emilkowalski/status/2116583281332503038) | **Taken:** his suggested motion cleanup sequence of three of his skills, `remove-animations`, then `improve-animations`, then `animation-performance`, as the default order `removal`, `review`, `performance` of the motion lane's `cleanup` sub-mode of `/user-interface:audit`; `review` is the lane's review pass, which covers `improve-animations` in `tree` scope (`/user-interface:audit tree cleanup`). He gives no reason for the order, so it is a default a team changes through the key, which also accepts `opportunities`. No measured fact or accessibility floor changed his value. |
+| `touch.both_axes_activation` | [2026-11-04](https://x.com/emilkowalski/status/2117955432438469085) | **Taken:** on touch, a complex interactive element waits for a tap before it takes input, so the page scrolls freely until the user chooses to interact; the default `tap-to-activate` for elements that need both axes, in `reference/types/touch-web.md` "Elements that need both axes tap to activate". A team picks `always-active` through the key, and the project's own pattern beats it. The ways out (a tap outside, a visible control, Esc), shown to the user, are the owner's decision; his post does not say how to leave. **Floor:** [WCAG 2.2 SC 2.1.2 No Keyboard Trap](https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html#intent) holds over the key for keyboard users; it did not change his value. |
 
 ## Map
 

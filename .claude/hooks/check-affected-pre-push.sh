@@ -61,7 +61,7 @@ source "$HOOK_DIR/../../lib/hook-utils.sh" || exit 0
 # returns 1 when no subcommand is such a push.
 push_dir_to() {
   local -n __pd_out="$1"
-  local cmd="$2" len=${#2} i=0 c q="" word="" in_word=0 heredoc="" line
+  local cmd="$2" len=${#2} i=0 c q="" word="" in_word=0 heredoc="" line moved=0
   local -a words=()
   # Each unquoted separator ends a segment; quoted text stays inside one word,
   # so `echo "git push"` is the command `echo` with one argument.
@@ -70,7 +70,6 @@ push_dir_to() {
     word=""
     in_word=0
   }
-  local moved=0
   end_segment() {
     flush_word
     [[ "${words[0]-}" == @(cd|pushd|popd) ]] && moved=1
@@ -226,8 +225,8 @@ TOOLS_EXTRACT=(
 )
 
 # tooling_change_to <out-var> <top> <mb>: assigns the first TOOLING path HEAD,
-# the working tree or an untracked file changes against <mb> and returns 0; returns 1 when the tooling is
-# unchanged, and 2 when the diff cannot be read.
+# the working tree or an untracked file changes against <mb> and returns 0;
+# returns 1 when the tooling is unchanged, and 2 when the diff cannot be read.
 tooling_change_to() {
   local -n __tc_out="$1"
   local top="$2" mb="$3" changed f p

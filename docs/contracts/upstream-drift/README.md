@@ -443,7 +443,10 @@ locally). It is a member of the check-script family
 A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
 indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
 character exits 2 with nothing on stdout: an unread tree is never a clean
-report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The script writes no
+report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). When an owner's IP
+allow list refuses the token, that owner's calls retry anonymously; a page with any read (pin,
+HEAD or tree) still refused is named on stderr and listed as `status=unreachable` with `head=unknown`, the other
+pages are still read, and every mode but `--report` then exits 2. The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
 ### Monthly drift issues
@@ -455,8 +458,32 @@ runs the check once a month with `--report` and hands the report to
 issue in place on later runs, reopens and updates it when it was closed, unless it was closed as not
 planned or duplicate, and closes it once the upstream is clean. It also closes, with a
 comment, any open `Upstream drift:` issue the workflow's bot opened for a repository the report no
-longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails only on a
-script error or a failed issue write; drift alone does not fail it. It differs from
+longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails on a
+script error, a failed issue write, or an `unreachable` page, the last after every other upstream
+is filed; drift alone does not fail it. After a failed write the other
+upstreams still run, and the run then exits nonzero.
+
+- **Sources with no git pin.** A report `page` line's `pin` and `head` are each a hex SHA or the
+  literal `unknown`; any other token fails the report. The filer accepts a source with no git pin,
+  such as a vendored skill, as `pin=unknown head=unknown` under the id `<plugin>/<skill>`, and
+  titles its issue with that id. `scripts/check-upstream-drift.sh` itself prints only hex pins. A drifted `pin=unknown` page has no pin sentence in the issue. It names the
+  skill (`<plugin>:<skill>` from a `plugins/<plugin>/skills/<skill>/` path, else the id) and tells
+  the reader to run the page's path, restore or re-vendor what it names, and read its output in
+  the run's job summary. The re-audit footer is written only when a hex-pin page drifted.
+- **`needs-human` on create and reopen.** A created issue carries the `needs-human` label. A
+  reopen adds the label first, then reopens, then replaces the body, so a failed reopen leaves a
+  labeled closed issue and a failed label add leaves the issue closed. An in-place edit of an open
+  issue adds no label. Removing `needs-human` does not admit a bot-authored issue to the issue
+  lane: the lane starts only when a listed person or the lanes App sets the issue's Work status to
+  agent-ready, and an issue this workflow's token opens starts no intake run.
+- **`untracked` and `unreachable` block close.** An upstream with any `untracked` or
+  `unreachable` page is never closed as clean,
+  even beside a `clean` page, and since the report names it, the sweep leaves its issue alone too.
+- **Accepted cases.** Closing an issue as not planned or duplicate mutes that upstream: later drift
+  neither reopens it nor files another. An open issue's body is replaced in place on each drifted
+  run, with no label change and no comment.
+
+It differs from
 `maintenance-check-upstream-drift.yml`, which runs weekly over the vendored skills' own update
 scripts, fails on drift, and never opens an issue. Whether to adopt an
 upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which

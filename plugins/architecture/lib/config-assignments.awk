@@ -23,9 +23,7 @@ function consider(path, value) {
 
 function hex_digit(c) {
   c = tolower(c)
-  if (c ~ /^[0-9]$/) return index("0123456789", c) - 1
-  if (c ~ /^[a-f]$/) return index("abcdef", c) + 9
-  return -1
+  return c ~ /^[0-9a-f]$/ ? index("0123456789abcdef", c) - 1 : -1
 }
 
 function json_skip_ws() {
@@ -50,7 +48,7 @@ function json_skip_ws() {
   }
 }
 
-function json_string(    out, c, hex, hv, d1, d2, d3, d4) {
+function json_string(    out, c, hv, d, j) {
   out = ""
   if (substr(buf, pi, 1) != "\"") return ""
   pi++
@@ -69,16 +67,13 @@ function json_string(    out, c, hex, hv, d1, d2, d3, d4) {
     else if (c == "t") out = out "\t"
     else if (c == "r") out = out "\r"
     else if (c == "u") {
-      hex = substr(buf, pi, 4)
-      pi += 4
-      d1 = hex_digit(substr(hex, 1, 1))
-      d2 = hex_digit(substr(hex, 2, 1))
-      d3 = hex_digit(substr(hex, 3, 1))
-      d4 = hex_digit(substr(hex, 4, 1))
-      if (d1 >= 0 && d2 >= 0 && d3 >= 0 && d4 >= 0) {
-        hv = d1 * 4096 + d2 * 256 + d3 * 16 + d4
-        if (hv >= 32 && hv < 127) out = out sprintf("%c", hv)
+      hv = 0
+      for (j = 0; j < 4 && hv >= 0; j++) {
+        d = hex_digit(substr(buf, pi + j, 1))
+        hv = d < 0 ? -1 : hv * 16 + d
       }
+      pi += 4
+      if (hv >= 32 && hv < 127) out = out sprintf("%c", hv)
     } else out = out c
   }
   return out
@@ -118,7 +113,6 @@ function json_object(path,    k, child, mark) {
     }
     if (c != "\"") {
       if (pi <= mark) pi = mark + 1
-      else if (pi == mark) pi++
       continue
     }
     k = json_string()
@@ -226,17 +220,9 @@ function env_scan(    nlines, i, line, k, val) {
   }
 }
 
-function xml_attr(line, attr,    re, v) {
-  re = attr "=\"[^\"]*\""
-  if (match(line, re)) {
-    v = substr(line, RSTART + length(attr) + 2, RLENGTH - length(attr) - 3)
-    return v
-  }
-  re = attr "='[^']*'"
-  if (match(line, re)) {
-    v = substr(line, RSTART + length(attr) + 2, RLENGTH - length(attr) - 3)
-    return v
-  }
+function xml_attr(line, attr) {
+  if (match(line, attr "=\"[^\"]*\"") || match(line, attr "='[^']*'"))
+    return substr(line, RSTART + length(attr) + 2, RLENGTH - length(attr) - 3)
   return ""
 }
 
@@ -256,15 +242,8 @@ function xml_scan(    nlines, i, line, name, cs, key, val) {
   }
 }
 
-function hcl_quote(line,    q, val) {
-  if (match(line, /"[^"]*"/)) {
-    q = substr(line, RSTART, RLENGTH)
-    return substr(q, 2, length(q) - 2)
-  }
-  if (match(line, /'[^']*'/)) {
-    q = substr(line, RSTART, RLENGTH)
-    return substr(q, 2, length(q) - 2)
-  }
+function hcl_quote(line) {
+  if (match(line, /"[^"]*"/) || match(line, /'[^']*'/)) return substr(line, RSTART + 1, RLENGTH - 2)
   return ""
 }
 
@@ -288,11 +267,9 @@ function hcl_scan(    nlines, i, line, depth, start, delta, ins, esc, j, c, res_
       }
       res_floor = start
     } else if (match(line, /resource[[:space:]]+[A-Za-z0-9_]+[[:space:]]+'[^']+'/)) {
-      chunk = substr(line, RSTART, RLENGTH)
-      if (match(chunk, /[A-Za-z0-9_]+/)) res_name = substr(chunk, RSTART, RLENGTH)
-      # The first identifier is the keyword "resource". Take the second.
-      chunk = substr(chunk, RSTART + RLENGTH)
-      if (match(chunk, /[A-Za-z0-9_]+/)) res_name = substr(chunk, RSTART, RLENGTH)
+      res_name = substr(line, RSTART, RLENGTH)
+      sub(/^resource[[:space:]]+/, "", res_name)
+      sub(/[^A-Za-z0-9_].*$/, "", res_name)
       if (match(line, /'[^']+'/)) {
         res_type = substr(line, RSTART + 1, RLENGTH - 2)
         sub(/@.*$/, "", res_type)

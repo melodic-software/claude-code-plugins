@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Rebased onto the base. Before and after (`git range-diff`):\n```text\n1:  d4f1a2b = 1:  9c3e7f0 fix: retry a failed request three times\n```\n",
+      "why": "range-diff output pairing the rewritten commit with the original"
+    },
+    {
+      "answer": "```text\n1:  d4f1a2b ! 1:  9c3e7f0 fix: retry a failed request three times\n    @@ src/retry.ts\n```\n",
+      "why": "a pair whose patch changed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<!-- source-control-reassess -->\nThe pull request still fits the base.\n",
+      "why": "a verdict comment, not a comparison"
+    },
+    {
+      "answer": "Rebased onto main.\n",
+      "why": "says it rebased and shows no before and after"
+    }
+  ]
+}

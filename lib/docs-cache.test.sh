@@ -704,7 +704,7 @@ printf 'S2 says "body 2".\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --mode
 printf 'not json\n' >"$S/notes/${KEY:0:16}/0000000000000000"
 err="$TEST_TMPDIR/badnote.err"
 assert_eq "edge: a malformed note file: the valid note is still served" 1 "$(dc "$S" note get "$KEY" 2>"$err" | grep -c -F 'body 2".')"
-assert_eq "edge: a malformed note file: a warning names it" 1 "$(grep -c "^WARNING: .*notes/${KEY:0:16}/0000000000000000" "$err")"
+assert_eq "edge: a malformed note file: a warning names it" 1 "$(grep -c "^WARNING: docs-cache: skipped a note file that is not one JSON note: .*notes/${KEY:0:16}/0000000000000000$" "$err")"
 assert_eq "edge: a malformed note file: list still lists the valid note" 1 "$(dc "$S" note list "$KEY" 2>/dev/null | grep -c valid)"
 
 # A summary file that is not JSON hides only itself, with a warning.
@@ -714,7 +714,7 @@ printf 'not json\n' >"$S/summaries/${KEY:0:16}/0000000000000000"
 err="$TEST_TMPDIR/badsummary.err"
 assert_eq "edge: a malformed summary file: every valid summary is still shown" 2 \
   "$(dc "$S" --whole-page-bytes 50 read "$KEY" 2>"$err" | grep -c -E '^summary [23]: (One|Two)\.$')"
-assert_eq "edge: a malformed summary file: a warning names it" 1 "$(grep -c "^WARNING: .*summaries/${KEY:0:16}/0000000000000000" "$err")"
+assert_eq "edge: a malformed summary file: a warning names it" 1 "$(grep -c "^WARNING: docs-cache: skipped a summary file that is not one JSON summary: .*summaries/${KEY:0:16}/0000000000000000$" "$err")"
 
 # --- prune -----------------------------------------------------------------------------
 # bytes_of <path>...: the bytes of every file under the paths.

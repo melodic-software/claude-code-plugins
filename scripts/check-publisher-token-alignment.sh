@@ -68,16 +68,12 @@ org_member() {
 }
 
 publisher_like() {
-  local p="$1"
-  [[ "$p" == *'@melodic-software'* || "$p" == *'MELODIC_'* || "$p" == *'melodic-software'* ]]
+  [[ "$1" == *'melodic-software'* || "$1" == *'MELODIC_'* ]]
 }
 
 failed=0
 for p in "${port_active[@]}"; do
-  if org_member "$p"; then
-    continue
-  fi
-  if publisher_like "$p"; then
+  if ! org_member "$p" && publisher_like "$p"; then
     printf 'FAIL: active portability token matches publisher class but is absent from %s: %s\n' "$ORG_FILE" "$p" >&2
     failed=1
   fi

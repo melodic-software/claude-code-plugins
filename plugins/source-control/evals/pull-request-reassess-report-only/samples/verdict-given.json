@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "{ \"verdict\": \"close\" }",
+      "why": "the shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "reassess: no verdict: x",
+      "why": "no verdict"
+    }
+  ]
+}

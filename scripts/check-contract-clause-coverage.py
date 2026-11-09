@@ -260,9 +260,8 @@ def _markers_on(line: str) -> list[tuple[str | None, str]]:
     """
     found: list[tuple[str | None, str]] = []
     for match in MARKER_RE.finditer(line):
-        groups = match.groupdict()
-        kind = groups.get("kind_html") or groups.get("kind_line")
-        clause_id = groups.get("id_html") or groups.get("id_line")
+        kind = match.group("kind_html") or match.group("kind_line")
+        clause_id = match.group("id_html") or match.group("id_line")
         if clause_id is None:  # pragma: no cover - one id group always binds
             raise GateError("marker matched with no clause id")
         found.append((kind, clause_id))
@@ -363,6 +362,14 @@ def residual_chunks(lines: list[str], spans: list[Span]) -> list[tuple[str, list
     return [chunk for chunk in chunks if chunk[0]]
 
 
+def _missing_qualifiers(clause: Clause, spans: list[Span]):
+    """Yield (span, qualifier) for every qualifier a span's text does not carry."""
+    for span in spans:
+        for qualifier in clause.qualifiers:
+            if not qualifier.pattern.search(span.text):
+                yield span, qualifier
+
+
 def check_clause(
     clause: Clause,
     path: str,
@@ -405,41 +412,37 @@ def check_clause(
                 )
             )
             return
-        for span in spans:
-            for qualifier in clause.qualifiers:
-                if not qualifier.pattern.search(span.text):
-                    report.findings.append(
-                        Finding(
-                            path=path,
-                            clause=clause.id,
-                            line=span.start,
-                            kind="canonical-missing-qualifier",
-                            detail=f"the canonical passage no longer carries `{qualifier.name}`",
-                            remedy=qualifier.hint,
-                        )
-                    )
+        for span, qualifier in _missing_qualifiers(clause, spans):
+            report.findings.append(
+                Finding(
+                    path=path,
+                    clause=clause.id,
+                    line=span.start,
+                    kind="canonical-missing-qualifier",
+                    detail=f"the canonical passage no longer carries `{qualifier.name}`",
+                    remedy=qualifier.hint,
+                )
+            )
         return
 
     if not clause.detect.search(text):
         return
 
-    for span in spans:
-        report.restatements += 1
-        for qualifier in clause.qualifiers:
-            if not qualifier.pattern.search(span.text):
-                report.findings.append(
-                    Finding(
-                        path=path,
-                        clause=clause.id,
-                        line=span.start,
-                        kind="missing-qualifier",
-                        detail=(
-                            f"this restatement omits `{qualifier.name}`, which the canonical "
-                            f"({clause.canonical}) carries"
-                        ),
-                        remedy=qualifier.hint,
-                    )
-                )
+    report.restatements += len(spans)
+    for span, qualifier in _missing_qualifiers(clause, spans):
+        report.findings.append(
+            Finding(
+                path=path,
+                clause=clause.id,
+                line=span.start,
+                kind="missing-qualifier",
+                detail=(
+                    f"this restatement omits `{qualifier.name}`, which the canonical "
+                    f"({clause.canonical}) carries"
+                ),
+                remedy=qualifier.hint,
+            )
+        )
 
     for chunk, origins in residual_chunks(lines, spans):
         match = clause.restates.search(chunk)

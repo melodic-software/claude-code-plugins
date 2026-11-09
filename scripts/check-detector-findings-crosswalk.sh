@@ -47,8 +47,6 @@ if [[ ! -f "$doc" ]]; then
 fi
 
 awk -v want_header="$header" -v mode="$mode" -v doc="$doc" '
-BEGIN { in_table = 0; seen_header = 0; rows = 0; errors = 0 }
-
 # The findings-file table belongs to
 # plugins/review/reference/findings-file-shape.md. Restating it here is the
 # pointer-not-copy failure this convention is most likely to commit, because
@@ -115,10 +113,8 @@ in_table {
   if (trimmed[4] == "") {
     printf "UNARGUED: %s:%d rule %s states a disposition with an EMPTY test cell.\n", doc, NR, trimmed[2] > "/dev/stderr"
     errors++
-  }
-
-  # An em dash alone passes a non-empty check while arguing nothing.
-  if (trimmed[4] != "" && trimmed[4] !~ /[A-Za-z]/) {
+  } else if (trimmed[4] !~ /[A-Za-z]/) {
+    # An em dash alone passes a non-empty check while arguing nothing.
     printf "UNARGUED: %s:%d rule %s has a test cell with no prose in it.\n", doc, NR, trimmed[2] > "/dev/stderr"
     errors++
   }

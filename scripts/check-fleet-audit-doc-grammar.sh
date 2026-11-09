@@ -46,11 +46,10 @@ fi
 seal_dir="$(mktemp -d)"
 probe_out="$seal_dir/probe.out"
 trap 'rm -rf "$seal_dir"' EXIT
-mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe"
 # The probe's working directory sits 4 levels below seal_dir, so the ancestor rung's 4
 # parents are all inside seal_dir and none holds a repository.
 probe_cwd="$seal_dir/a/b/c/d"
-mkdir -p "$probe_cwd"
+mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe" "$probe_cwd"
 
 # Seal config/project env so probes never reach a maintainer fleet config or an
 # incidental project-scoped rung. No network, no gh, no discovery.
@@ -79,30 +78,24 @@ classify_bare_positional() {
   local missing="$seal_dir/probe/missing-plan-$$.json"
   local bare="$seal_dir/probe/bare-dir-$$"
   mkdir -p "$bare"
-  rm -f "$missing"
   run_sealed --apply-plan "$missing" "$bare" || true
   if grep -Fq "unknown argument" "$probe_out"; then
     printf 'rejected'
-    return 0
-  fi
-  if grep -Fq "cannot be combined with audit discovery flags" "$probe_out"; then
+  elif grep -Fq "cannot be combined with audit discovery flags" "$probe_out"; then
     printf 'accepted'
-    return 0
-  fi
-  if grep -Fq "apply-plan file not found" "$probe_out"; then
+  elif grep -Fq "apply-plan file not found" "$probe_out"; then
     printf 'ignored'
-    return 0
+  else
+    echo "check-fleet-audit-doc-grammar: probe inconclusive (bare positional): $(tr '\n' ' ' <"$probe_out")" >&2
+    exit 2
   fi
-  echo "check-fleet-audit-doc-grammar: probe inconclusive (bare positional): $(tr '\n' ' ' <"$probe_out")" >&2
-  exit 2
 }
 
 # argument-hint carries a bare positional form when it documents [<dir>], not
 # merely --root <dir> / --repo <dir> as flag values.
 argument_hint_has_bare() {
   local hint
-  hint="$(grep -E '^argument-hint:' "$SKILL" | head -n1 || true)"
-  [[ -n "$hint" ]] || return 1
+  hint="$(grep -m1 -E '^argument-hint:' "$SKILL" || true)"
   [[ "$hint" == *'[<dir>]'* ]]
 }
 
@@ -123,7 +116,6 @@ grammar_spans() {
 grammar_covers_token() {
   local token="$1" span
   while IFS= read -r span; do
-    [[ -n "$span" ]] || continue
     if [[ "$span" == "$token" || "$span" == "$token "* ]]; then
       return 0
     fi
@@ -211,7 +203,6 @@ tokens_tmp="$seal_dir/tokens"
 probe_no_scope_and_collect_tokens "$tokens_tmp"
 
 while IFS= read -r token; do
-  [[ -n "$token" ]] || continue
   # Bare <dir> is already asserted against the bare-positional probe above.
   [[ "$token" == '<dir>' ]] && continue
   if ! grammar_covers_token "$token"; then

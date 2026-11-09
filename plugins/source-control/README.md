@@ -78,6 +78,10 @@ research-gated:
   otherwise merges on approval. Merges with plain `gh pr merge` and the flags
   the repository needs, `--auto` only pinned to the reviewed head; a refused merge is reported, never handed to the user
   or retried in another shape.
+- **reassess**. Judges whether one open PR should still land, even when it is
+  green and mergeable: `continue`, `rework` or `close`, with the goal, the base
+  range and the PRs it searched. Report-only unless `--act` carries it out, and
+  it never closes a PR or lifts a label.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
 - **view / list**. Read-only PR reads for other skills: one PR's facts

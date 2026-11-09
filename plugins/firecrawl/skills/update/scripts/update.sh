@@ -44,11 +44,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 UPSTREAM_MD="${SKILL_DIR}/upstream.md"
 TMPDIR_RUN=$(mktemp -d "${TMPDIR:-/tmp}/firecrawl-update-XXXXXX")
-
-cleanup() {
-  rm -rf "$TMPDIR_RUN"
-}
-trap cleanup EXIT
+trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 log() { printf '%s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
@@ -140,22 +136,20 @@ run_check() {
     unverifiable=1
   fi
   recorded_ver=$(recorded_cli_version)
-
-  if [[ -z "$current" ]]; then
-    log "installed:  NOT INSTALLED (not counted as drift)"
-  else
-    log "installed:  $current"
-  fi
-  log "latest:     ${latest:-unknown}"
   synced=$(recorded_sync_date)
+
+  log "installed:  ${current:-NOT INSTALLED (not counted as drift)}"
+  log "latest:     ${latest:-unknown}"
   log "last sync:  ${synced:-never} (CLI ${recorded_ver:-not recorded})"
 
-  if [[ -n "$current" && -z "$latest" ]]; then
+  if [[ -z "$current" ]]; then
+    : # not installed: reported above, not drift
+  elif [[ -z "$latest" ]]; then
     log "→ CLI version unverifiable"
-  elif [[ -n "$current" && "$current" != "$latest" ]]; then
+  elif [[ "$current" != "$latest" ]]; then
     log "→ CLI upgrade available: $current → $latest"
     drift=1
-  elif [[ -n "$current" ]]; then
+  else
     log "→ CLI at latest"
   fi
 
@@ -179,11 +173,11 @@ run_check() {
   fi
 
   section "Summary"
-  if [[ $drift -eq 0 && $unverifiable -eq 1 ]]; then
-    log "Unverifiable: the npm registry or the upstream SKILL.md could not be read."
-    return 2
-  fi
   if [[ $drift -eq 0 ]]; then
+    if [[ $unverifiable -eq 1 ]]; then
+      log "Unverifiable: the npm registry or the upstream SKILL.md could not be read."
+      return 2
+    fi
     log "No drift. CLI and skill are in sync with upstream."
     return 0
   fi
@@ -225,11 +219,12 @@ require_npm_owned_command() {
 }
 
 run_apply() {
-  local current latest previous_ver
+  local current latest previous_ver rollback
 
   require_npm_owned_command || return 2
 
   previous_ver=$(current_cli_version)
+  rollback="rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
   # Registry preflight — fail before npm install mutates the global CLI.
   if ! latest=$(latest_cli_version) || [[ -z "$latest" ]]; then
     err "failed to reach npm registry"
@@ -238,7 +233,7 @@ run_apply() {
 
   section "npm install -g ${NPM_PKG}@latest"
   if ! npm install -g "${NPM_PKG}@latest"; then
-    err "npm install failed — rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
+    err "npm install failed — $rollback"
     return 2
   fi
 
@@ -250,7 +245,7 @@ run_apply() {
   fi
   log "installed: $current (was: ${previous_ver:-none})"
   if [[ "$current" != "$latest" ]]; then
-    err "firecrawl reports $current after install, expected $latest; upstream.md not written — rollback: npm install -g ${NPM_PKG}@${previous_ver:-<previous>}"
+    err "firecrawl reports $current after install, expected $latest; upstream.md not written — $rollback"
     return 2
   fi
   # A global install updates itself in the background; turn that off so the CLI
@@ -313,8 +308,7 @@ EOF
 main() {
   local mode="${1:---check}"
 
-  case "$mode" in
-  -h | --help)
+  if [[ "$mode" == -h || "$mode" == --help ]]; then
     cat <<'EOF'
 Usage: update.sh [--check | --apply | --record-upstream | --help]
 
@@ -342,9 +336,7 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
   --help   Show this message.
 EOF
     exit 0
-    ;;
-  *) ;; # other modes handled below after prerequisite checks
-  esac
+  fi
 
   if [[ ! -f "${SKILL_DIR}/SKILL.md" ]]; then
     err "SKILL.md not found at ${SKILL_DIR} — run from a plugin checkout"
@@ -354,15 +346,9 @@ EOF
   check_prereqs
 
   case "$mode" in
-  --check)
-    run_check
-    ;;
-  --apply)
-    run_apply
-    ;;
-  --record-upstream)
-    run_record_upstream
-    ;;
+  --check) run_check ;;
+  --apply) run_apply ;;
+  --record-upstream) run_record_upstream ;;
   *)
     err "unknown mode: $mode (expected --check, --apply, --record-upstream, or --help)"
     exit 2

@@ -107,12 +107,13 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   ((refused)) && exit 1
 fi
 
-# local_prefix <dir>: the module path of the module holding <dir>, for goimports'
-# -local grouping; empty when go is absent or the directory is outside a module.
+# local_prefix <file>: the module path of the module holding <file>, for
+# goimports' -local grouping; empty when go is absent or the file is outside a module.
 local_prefix() {
-  local mod=""
+  local dir="${1%/*}" mod=""
+  [[ "$dir" == "$1" ]] && dir=.
   if command -v go >/dev/null 2>&1; then
-    mod="$(cd "$1" 2>/dev/null && go list -m 2>/dev/null)" || mod=""
+    mod="$(cd "$dir" 2>/dev/null && go list -m 2>/dev/null)" || mod=""
     [[ "$mod" == "command-line-arguments" ]] && mod=""
   fi
   printf '%s' "$mod"
@@ -139,9 +140,7 @@ run_group() {
 group=()
 group_prefix=""
 for f in ${files[@]+"${files[@]}"}; do
-  dir="${f%/*}"
-  [[ "$dir" == "$f" ]] && dir=.
-  prefix="$(local_prefix "$dir")"
+  prefix="$(local_prefix "$f")"
   if ((${#group[@]})) && [[ "$prefix" != "$group_prefix" ]]; then
     run_group "$group_prefix" "${group[@]}"
     group=()
@@ -153,9 +152,7 @@ done
 
 # goimports reads stdin when given no file and names it "<standard input>".
 for f in ${gone[@]+"${gone[@]}"}; do
-  dir="${f%/*}"
-  [[ "$dir" == "$f" ]] && dir=.
-  prefix="$(local_prefix "$dir")"
+  prefix="$(local_prefix "$f")"
   args=()
   [[ -n "$prefix" ]] && args+=(-local "$prefix")
   git show ":$f" 2>/dev/null | goimports ${args[@]+"${args[@]}"} 2>"$CHECKS_TMP/one" >/dev/null || :

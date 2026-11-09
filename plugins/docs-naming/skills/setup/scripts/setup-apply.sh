@@ -136,13 +136,10 @@ while IFS= read -r pair; do
   value="${pair#*=}"
   key="${key#file_names.}"
   [[ -n "$key" ]] || die "empty key in '$pair'"
-  if printf '%s' "$value" | jq -e . >/dev/null 2>&1; then
-    current="$(jqr -c --arg k "$key" --argjson v "$value" '.file_names[$k] = $v' <<<"$current")" ||
-      die "cannot set '$key'"
-  else
-    current="$(jqr -c --arg k "$key" --arg v "$value" '.file_names[$k] = $v' <<<"$current")" ||
-      die "cannot set '$key'"
-  fi
+  value_opt=--arg
+  printf '%s' "$value" | jq -e . >/dev/null 2>&1 && value_opt=--argjson
+  current="$(jqr -c --arg k "$key" "$value_opt" v "$value" '.file_names[$k] = $v' <<<"$current")" ||
+    die "cannot set '$key'"
 done <<EOF
 $PAIRS
 EOF

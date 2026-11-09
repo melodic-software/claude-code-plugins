@@ -179,9 +179,11 @@ describe("--config", () => {
         stagger_ms: { interval: 40, max_total: 400 },
         blur_max_px: 20,
         gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
+        cleanup_order: ["removal", "review", "performance"],
       },
       components: { primitives_default: "base-ui" },
       typography: { long_form_body_px: 18 },
+      touch: { both_axes_activation: "tap-to-activate" },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -224,8 +226,10 @@ describe("--config", () => {
       "animation.blur_max_px": "defaults",
       "animation.gesture.velocity_threshold": "defaults",
       "animation.gesture.distance_threshold": "defaults",
+      "animation.cleanup_order": "defaults",
       "components.primitives_default": "defaults",
       "typography.long_form_body_px": "defaults",
+      "touch.both_axes_activation": "defaults",
       routing: "team",
     });
   });

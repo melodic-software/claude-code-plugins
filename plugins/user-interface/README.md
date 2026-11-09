@@ -91,17 +91,25 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.blur_max_px` | `20` | px, a heuristic ceiling for an animated blur |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
 | `animation.gesture.distance_threshold` | `0.4` | Fraction of its own travel, 0 to 1, past which a dragged element dismisses on release |
+| `animation.cleanup_order` | `removal`, `review`, `performance` | a list of `removal`, `review`, `opportunities`, `performance`: the passes `/user-interface:audit cleanup` runs, in order |
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
 | `typography.long_form_body_px` | `18` | px, at least `16`: long-form reading text, written in `rem` |
+| `touch.both_axes_activation` | `tap-to-activate` | `tap-to-activate`, `always-active`: whether a touch element that needs both axes waits for a tap before it takes gestures |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its
 [`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes. The
 `animation` keys are taste defaults that apply only where the project has no motion tokens of its
 own; `/user-interface:write-animation` reads them all, and write-css reads the curves and durations.
+`animation.cleanup_order` is the exception: it sets the pass order of the motion lane's `cleanup`
+sub-mode in `/user-interface:audit`, and no other skill reads it.
 The `typography` key is read through the `typography` concern by `/user-interface:design` and
 `/user-interface:audit`, and applies only where the project has no type tokens for long-form text;
 the config check refuses a value under the `16px` body floor.
+The `touch` key is read through the `touch` concern by `/user-interface:design` and
+`/user-interface:audit`, and by `/user-interface:write-css`'s
+`gesture-surface-that-claims-only-its-axis` recipe; it applies only where the project has no
+pattern of its own for these elements.
 `routing` is validated and shown by `/user-interface:setup check`, and `/user-interface:design`
 routes from the bundled rows with it applied: a row with a bundled concern and id overrides that
 row key by key, a new row adds a route, and `disable` and `deny` skip routes (a `deny` skip names

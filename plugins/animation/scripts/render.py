@@ -98,8 +98,8 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     cap = json.loads(r.stdout.strip().splitlines()[-1])
     plugin = json.load(open(HERE.parent / '.claude-plugin/plugin.json', encoding='utf-8'))
     meta = dict(scene=str(scene), adapter='native', adapter_version=plugin['version'],
-                browser_build=cap['browser_build'], fps=int(fps) if fps and fps == int(fps) else fps, size=cap['size'], frames=cap['frames'],
-                duration=cap['duration'])
+                browser_build=cap['browser_build'], fps=int(fps) if fps and fps == int(fps) else fps,
+                size=cap['size'], frames=cap['frames'], duration=cap['duration'])
     (out / 'render.json').write_text(json.dumps(meta, indent=1) + '\n', encoding='utf-8')
     return meta
 

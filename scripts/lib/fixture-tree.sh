@@ -161,7 +161,7 @@ fixture_tree::build() {
   shift
 
   local -a _ft_suts=()
-  local _ft_git=0 _ft_plugins=0 _ft_lib=auto _ft_lib_explicit=0 _ft_label=fixture
+  local _ft_git=0 _ft_plugins=0 _ft_lib=auto _ft_label=fixture
   while (($# > 0)); do
     case "$1" in
     --sut)
@@ -189,11 +189,11 @@ fixture_tree::build() {
       shift
       ;;
     --lib)
-      _ft_lib=1 _ft_lib_explicit=1
+      _ft_lib=all
       shift
       ;;
     --no-lib)
-      _ft_lib=0
+      _ft_lib=none
       shift
       ;;
     *)
@@ -260,14 +260,10 @@ fixture_tree::build() {
     _ft_srcs+=("$_ft_src")
   done
 
-  if [[ "$_ft_lib" == auto ]]; then
-    if ((${#_ft_suts[@]} > 0)); then
-      _ft_lib=1
-    else
-      _ft_lib=0
-    fi
+  if [[ "$_ft_lib" == auto && ${#_ft_suts[@]} -eq 0 ]]; then
+    _ft_lib=none
   fi
-  if ((_ft_lib == 1)); then
+  if [[ "$_ft_lib" != none ]]; then
     mkdir -p "$_ft_root/scripts/lib" || {
       rm -rf "$_ft_root"
       return 1
@@ -283,7 +279,7 @@ fixture_tree::build() {
     # Behind a --sut, only the libs the scripts under test name, and the libs
     # those name in turn: a copied lib is a file the suite reads, and one no
     # copied script uses is a read the test selection cannot see.
-    if ((_ft_lib_explicit == 0)); then
+    if [[ "$_ft_lib" == auto ]]; then
       mapfile -t _ft_libnames < <(fixture_tree::_lib_closure "${_ft_libnames[@]}" -- "${_ft_srcs[@]}")
     fi
     for _ft_libfile in ${_ft_libnames[@]+"${_ft_libnames[@]}"}; do

@@ -95,20 +95,18 @@ function scanOf(step) {
 
 // Every upload step: { file, line, job, name, retention, path, condition, scans }.
 const steps = [];
-const lineCounterFor = new Map();
-function collect(file, stepSeqs) {
+function collect(file, lineCounter, stepSeqs) {
   for (const [job, seq] of stepSeqs) {
     if (!yaml.isSeq(seq)) continue;
-    for (const step of seq.items) {
+    for (const [index, step] of seq.items.entries()) {
       if (!yaml.isMap(step)) continue;
       const uses = step.get("uses");
       if (typeof uses !== "string" || !UPLOAD.test(uses)) continue;
       const withMap = step.get("with", true);
       const input = (key) => (yaml.isMap(withMap) ? withMap.get(key) : undefined);
-      const index = seq.items.indexOf(step);
       steps.push({
         file,
-        line: lineCounterFor.get(file).linePos(step.range[0]).line,
+        line: lineCounter.linePos(step.range[0]).line,
         job,
         name: input("name"),
         retention: input("retention-days"),
@@ -120,12 +118,10 @@ function collect(file, stepSeqs) {
   }
 }
 
-const files = [];
-for (const dir of [".github/workflows"]) {
-  for (const name of readdirSync(path.join(root, dir)).sort()) {
-    if (/\.ya?ml$/.test(name)) files.push({ file: `${dir}/${name}`, kind: "workflow" });
-  }
-}
+const files = readdirSync(path.join(root, ".github/workflows"))
+  .sort()
+  .filter((name) => /\.ya?ml$/.test(name))
+  .map((name) => ({ file: `.github/workflows/${name}`, kind: "workflow" }));
 const actionsDir = path.join(root, ".github/actions");
 if (existsSync(actionsDir)) {
   for (const name of readdirSync(actionsDir).sort()) {
@@ -139,7 +135,6 @@ if (existsSync(actionsDir)) {
 
 for (const { file, kind } of files) {
   const lineCounter = new yaml.LineCounter();
-  lineCounterFor.set(file, lineCounter);
   const doc = yaml.parseDocument(readFileSync(path.join(root, file), "utf8"), { lineCounter });
   if (doc.errors.length > 0) {
     findings.push(`${file}:${doc.errors[0].linePos?.[0]?.line ?? 1}: does not parse, so its uploads cannot be checked`);
@@ -148,10 +143,10 @@ for (const { file, kind } of files) {
   if (kind === "workflow") {
     const jobs = doc.get("jobs");
     if (yaml.isMap(jobs)) {
-      collect(file, jobs.items.map((pair) => [String(pair.key?.value ?? pair.key), yaml.isMap(pair.value) ? pair.value.get("steps") : undefined]));
+      collect(file, lineCounter, jobs.items.map((pair) => [String(pair.key?.value ?? pair.key), yaml.isMap(pair.value) ? pair.value.get("steps") : undefined]));
     }
   } else {
-    collect(file, [["runs", doc.getIn(["runs", "steps"])]]);
+    collect(file, lineCounter, [["runs", doc.getIn(["runs", "steps"])]]);
   }
 }
 
@@ -186,7 +181,7 @@ for (const step of steps) {
   }
   const [key] = claimed;
   used.add(key);
-  const scan = families[key].scan;
+  const row = families[key];
   // The scan gates the upload only as a top-level && conjunct of its if:,
   // with no top-level ||. A scan step's gate is the whole condition: that
   // step's own if:, parenthesized, then the clean output, so the scan runs
@@ -200,7 +195,7 @@ for (const step of steps) {
     if (conjuncts.length === 1) return own === "";
     return conjuncts.length === 2 && own !== "" && conjuncts[0] === `(${own})`;
   };
-  if (scan === "upload") {
+  if (row.scan === "upload") {
     const viaLeakScan = step.scans.some((s) => s.id === "leak-scan") && String(step.path ?? "").includes("steps.leak-scan.outputs.dir") && gated("leak-scan");
     const viaScanStep = step.scans.some((s) => s.path !== undefined && String(s.path) === String(step.path ?? "") && gatedBy(s));
     if (!viaLeakScan && !viaScanStep) {
@@ -208,16 +203,16 @@ for (const step of steps) {
         `${label} has no scan before it; ${TABLE} family \`${key}\` says scan: upload, so a .github/actions/scan-upload step over the same path must come first and the upload's if: must require its clean output`,
       );
     }
-  } else if (scan === "plaintext" && step.scans.length === 0) {
+  } else if (row.scan === "plaintext" && step.scans.length === 0) {
     findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
   }
-  const want = families[key]["retention-days"];
+  const want = row["retention-days"];
   const raw = step.retention;
   if (raw === undefined || raw === null || raw === "") {
     findings.push(`${label} sets no retention-days; ${TABLE} family \`${key}\` says ${said(want)}`);
     continue;
   }
-  if (families[key]["computed-by"] !== undefined && COMPUTED.test(String(raw))) {
+  if (row["computed-by"] !== undefined && COMPUTED.test(String(raw))) {
     continue;
   }
   const value = typeof raw === "number" ? raw : /^\d+$/.test(String(raw)) ? Number(raw) : Number.NaN;

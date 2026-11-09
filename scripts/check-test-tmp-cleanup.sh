@@ -74,9 +74,9 @@ offends_js() {
 }
 
 findings=()
-tracked=()
+sh_tracked=0
 while IFS= read -r -d '' path; do
-  tracked+=("$path")
+  sh_tracked=$((sh_tracked + 1))
   # shellcheck disable=SC2310  # offends only tests; nothing inside can fail the script
   if offends "$path"; then
     findings+=("$path: mktemp without a trap ... EXIT; add the trap")
@@ -92,7 +92,7 @@ while IFS= read -r -d '' path; do
 done < <(git ls-files -z -- '*.test.mjs' '*.test.js' '*.test.cjs')
 
 if ((${#findings[@]} == 0)); then
-  printf 'check-test-tmp-cleanup: %d tracked *.test.sh and %d JS tests checked; every temp-folder user removes it.\n' "${#tracked[@]}" "$js_tracked"
+  printf 'check-test-tmp-cleanup: %d tracked *.test.sh and %d JS tests checked; every temp-folder user removes it.\n' "$sh_tracked" "$js_tracked"
   exit 0
 fi
 

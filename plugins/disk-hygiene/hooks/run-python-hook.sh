@@ -53,12 +53,10 @@ set -uo pipefail
 # would find no interpreter at all and the guard would not run.
 set -h
 
-# `$(cd ... && pwd)` forks twice (command substitution plus `dirname`) on a path
-# every registered caller already passes ABSOLUTE — hooks.json and the skill
-# frontmatter both spell it `"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh`.
-# Strip the trailing component with parameter expansion in that case and keep
-# the fork for the relative spelling (a test harness, or a hand `./` run), which
-# is the only one that needs normalizing.
+# Every registered caller passes this script's path absolute
+# (`${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh`), so the directory comes
+# from parameter expansion; only a relative spelling (a test harness, a hand
+# `./` run) pays the `cd`/`pwd` fork to normalize it.
 _SOURCE_DIR="${BASH_SOURCE[0]%/*}"
 if [[ "$_SOURCE_DIR" == "${BASH_SOURCE[0]}" ]]; then
   _SOURCE_DIR="."
@@ -69,26 +67,19 @@ case "$_SOURCE_DIR" in
 esac
 ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
 
-# Interpreter resolution is COLD-PATH ONLY (#3502). This launcher sits behind an
+# Interpreter resolution is COLD-PATH ONLY. This launcher sits behind an
 # always-on `Bash|PowerShell` PreToolUse matcher, so every shell tool call in
-# every session pays whatever happens here — and what happened here was 2-3
-# extra process spawns before the guard even started: a `sed` read of the engine
-# to recover `MIN_PYTHON`, a whole extra Python launched solely to evaluate a
-# version predicate, and on the `py` branch a third. Process creation is the
-# dominant cost on Windows (EDR scans every image), and it is the term that
-# explodes under concurrent load, which is exactly when the guard's own watchdog
-# was firing and denying benign read-only commands.
+# every session pays for whatever runs here. Process creation is the dominant
+# cost on Windows (EDR scans every image) and the one that explodes under
+# concurrent load, when the guard's watchdog would deny benign commands. The
+# cache below answers the hot path; full resolution (WindowsApps App Execution
+# Alias stubs, the `py` launcher fallback, the minimum-version floor) runs only
+# when it misses.
 #
-# The resolution logic itself is unchanged and still runs whenever the cache
-# does not answer — it exists for real reasons (WindowsApps App Execution Alias
-# stubs, the `py` launcher fallback, the minimum-version floor). It just no
-# longer runs on every invocation.
-#
-# `PYTHON_VERSION_PROBE` now recovers the floor from the engine ITSELF, inside
-# the candidate interpreter, so the cold path spends ONE spawn per candidate
-# instead of a `sed` plus a Python. `hygiene.MIN_PYTHON` remains the single
-# origin of the floor (#1028) — this changes who reads it, not where it lives —
-# and the hardcoded fallback below still applies when the engine is unreadable.
+# `PYTHON_VERSION_PROBE` reads the floor from the engine's `MIN_PYTHON`, its
+# single origin, inside the candidate interpreter, so the cold path spends ONE
+# spawn per candidate. The hardcoded floor applies when the engine is
+# unreadable or has no `MIN_PYTHON` line.
 #
 # Past the floor the probe reports `sys.executable` as filesystem-encoded bytes
 # (UTF-8 on Windows, which is how MSYS reads paths). `print` would encode it
@@ -404,17 +395,10 @@ fi
 # A marker-only row: nothing to launch, so no interpreter to resolve.
 [[ -n "$SCRIPT" ]] || exit 0
 
-# Portable WindowsApps path-component check (case-insensitive).
-_under_windowsapps() {
-  [[ "${1,,}" == *windowsapps* ]]
-}
-
-# True when `path` names a zero-length Windows App Execution Alias stub.
+# True when `path` names a zero-length Windows App Execution Alias stub (the
+# WindowsApps match is case-insensitive).
 _is_store_alias_stub() {
-  local path="$1"
-  [[ -f "$path" ]] || return 1
-  [[ -s "$path" ]] && return 1
-  _under_windowsapps "$path"
+  [[ -f "$1" && ! -s "$1" && "${1,,}" == *windowsapps* ]]
 }
 
 # True when `path` has the basename an interpreter resolution can produce. The
@@ -433,6 +417,13 @@ _interpreter_shaped() {
   python3 | python | py | python3.* | python.exe | py.exe) return 0 ;;
   *) return 1 ;;
   esac
+}
+
+# Set `PYTHON` to the probe's output, less a trailing CR, when it is one
+# executable, non-empty path an interpreter resolution can produce.
+_use_probed_executable() {
+  local exe="${1%$'\r'}"
+  [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe" && PYTHON="$exe"
 }
 
 # Set `_LOOKUP` to where bash's own PATH search finds `name`, or to empty.
@@ -467,11 +458,8 @@ resolve_python3() {
     [[ -n "$_LOOKUP" ]] || continue
     _is_store_alias_stub "$_LOOKUP" && continue
     exe="$("$_LOOKUP" -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null)" || continue
-    exe="${exe%$'\r'}"
     PYTHON="$_LOOKUP"
-    if [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe"; then
-      PYTHON="$exe"
-    fi
+    _use_probed_executable "$exe"
     return 0
   done
 
@@ -479,12 +467,7 @@ resolve_python3() {
   _LOOKUPS+=("py|$_LOOKUP")
   [[ -n "$_LOOKUP" ]] || return 1
   exe="$("$_LOOKUP" -3 -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null)" || return 1
-  exe="${exe%$'\r'}"
-  if [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe"; then
-    PYTHON="$exe"
-    return 0
-  fi
-  return 1
+  _use_probed_executable "$exe"
 }
 
 # --- resolved-interpreter cache -------------------------------------------

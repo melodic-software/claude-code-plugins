@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"api\",\"graphql\",\"-F\",\"owner=eval-fixture\",\"-f\",\"query=query { repository { pullRequest { isInMergeQueue } } }\"]}\n{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\",\"--json\",\"body\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "the label, then the comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n",
+      "why": "comment first"
+    },
+    {
+      "answer": "{\"command\":\"pr edit\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--add-label\",\"do-not-merge\"]}\n",
+      "why": "no comment"
+    },
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"-R\",\"eval-fixture/app\",\"--body-file\",\"body.md\"]}\n",
+      "why": "no label"
+    }
+  ]
+}

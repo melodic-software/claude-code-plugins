@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"-\"]}\n{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\"]}\n",
+      "why": "exactly one comment among the reads"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"a\"]}\n{\"command\":\"pr comment\",\"pr\":512,\"args\":[\"512\",\"--body-file\",\"b\"]}\n",
+      "why": "two comments"
+    },
+    {
+      "answer": "{\"command\":\"read\",\"pr\":512,\"args\":[\"pr\",\"view\",\"512\"]}\n",
+      "why": "no comment"
+    }
+  ]
+}

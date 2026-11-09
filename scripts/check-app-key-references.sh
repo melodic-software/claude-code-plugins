@@ -51,7 +51,8 @@ if [[ "$rc" -gt 1 ]]; then
 fi
 if [[ -n "$hits" ]]; then
   while IFS= read -r hit; do
-    printf '%s: references the lanes App key or client id\n' "${hit%%:*}:$(cut -d: -f2 <<<"$hit")" >&2
+    rest=${hit#*:}
+    printf '%s:%s: references the lanes App key or client id\n' "${hit%%:*}" "${rest%%:*}" >&2
   done <<<"$hits"
   exit 1
 fi

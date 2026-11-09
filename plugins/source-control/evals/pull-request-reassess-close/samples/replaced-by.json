@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "\"replaced_by\": \"#501\"",
+      "why": "the PR"
+    },
+    {
+      "answer": "replaced_by: \"8ebb875\"",
+      "why": "the commit"
+    },
+    {
+      "answer": "**Replaced by:** pull request 501",
+      "why": "the field in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"replaced_by\": \"#600\"",
+      "why": "another PR"
+    },
+    {
+      "answer": "\"prs_searched\": [\"#501\"],\n\"replaced_by\": \"#600\"",
+      "why": "501 was only searched, and another PR is the replacement"
+    },
+    {
+      "answer": "already landed somewhere",
+      "why": "names nothing"
+    }
+  ]
+}

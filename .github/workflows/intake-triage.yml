@@ -295,7 +295,6 @@ jobs:
         priority: low
         needs-reporter-info
         needs-owner-decision
-        question
         area: security
         needs-human
         duplicate

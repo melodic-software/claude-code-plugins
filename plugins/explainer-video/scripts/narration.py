@@ -98,14 +98,18 @@ def _balanced(sentence, limit):
     return runs
 
 
+def _reading_limits(min_seconds, per_word):
+    return (CAPTIONS['min_seconds'] if min_seconds is None else min_seconds,
+            CAPTIONS['seconds_per_word'] if per_word is None else per_word)
+
+
 def captions(record, beats, limit=None, min_seconds=None, per_word=None):
     """[(start, end, text)]: each beat's sentences split into the fewest balanced runs of at most `limit` words.
     A run whose time before the next run starts is under min_seconds joins a neighbor in its beat when the two fit
     in `limit` words. Each cue then stays up for min_seconds and per_word seconds a word, as far as the next cue's
     start (the narration's end for the last) allows."""
     limit = limit or CAPTIONS['max_words']
-    min_seconds = CAPTIONS['min_seconds'] if min_seconds is None else min_seconds
-    per_word = CAPTIONS['seconds_per_word'] if per_word is None else per_word
+    min_seconds, per_word = _reading_limits(min_seconds, per_word)
     words = record['words']
     beat_runs = [[r for s in _sentences(words[first:first + count]) for r in _balanced(s, limit)]
                  for first, count in beats]
@@ -135,8 +139,7 @@ def captions(record, beats, limit=None, min_seconds=None, per_word=None):
 def caption_findings(cues, min_seconds=None, per_word=None):
     """(defects, flags): a cue shorter than min_seconds is a defect; one under per_word seconds a word is flagged,
     since narration spoken faster than that cannot be captioned slower."""
-    min_seconds = CAPTIONS['min_seconds'] if min_seconds is None else min_seconds
-    per_word = CAPTIONS['seconds_per_word'] if per_word is None else per_word
+    min_seconds, per_word = _reading_limits(min_seconds, per_word)
     defects, flags = [], []
     for i, (a, b, text) in enumerate(cues, 1):
         n = len(text.split())

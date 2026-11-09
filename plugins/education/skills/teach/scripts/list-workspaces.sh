@@ -72,7 +72,6 @@ canonicalize() {
 }
 
 if [[ "${1:-}" == "--default-root" ]]; then
-  docs=""
   case "$(uname -s)" in
   Darwin)
     docs="$HOME/Documents"

@@ -253,19 +253,19 @@ check_bump() {
       git diff --quiet "$mb" -- "$src" "$copy" && continue
       src_changed=1
       rest="${copy#plugins/}"
-      manifest="plugins/${rest%%/*}/.claude-plugin/plugin.json"
+      plugin="${rest%%/*}"
+      rest="${rest#*/}"
+      manifest="plugins/$plugin/.claude-plugin/plugin.json"
       # A plugin absent at the base ref is new in this change set; its initial
       # release already carries the new canonical content.
       base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
-      plugin="${rest%%/*}"
       rc=0
       # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
       changelog_fragments::bump_delivered "$mb" "$plugin" "$base_version" "$head_version" || rc=$?
       ((rc < 2)) || exit 2
       if ((rc == 1)); then
-        rest="${rest#*/}"
         # shellcheck disable=SC2310  # bump_delivered already read the list; rc 2 cannot recur
         if changelog_fragments::in_mode "$plugin"; then
           echo "STALE VERSION: $src or its copy $copy changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2

@@ -70,6 +70,10 @@ def load_json(path, default):
         return default
 
 
+def load_log(path):
+    return load_json(path, {"seq": 0, "events": []})
+
+
 def write_json(path, value):
     bridge.write_private(path, json.dumps(value, ensure_ascii=False, indent=2) + "\n")
 
@@ -144,7 +148,7 @@ class ViewHub(bridge.LoopbackWatcher):
             return self.waiters == 0 and quiet > self.idle
 
     def read_log(self):
-        return load_json(self.actions, {"seq": 0, "events": []})
+        return load_log(self.actions)
 
     def write_log(self, log):
         write_json(self.actions, log)
@@ -273,7 +277,7 @@ def cmd_apply(d, a):
     if not f.exists():
         print("nothing to apply")
         return
-    log = load_json(d / "actions.json", {"seq": 0, "events": []})
+    log = load_log(d / "actions.json")
     try:
         done, out = parse_ops(
             json.loads(f.read_text(encoding="utf-8")), {e["seq"] for e in log["events"]}
@@ -291,29 +295,27 @@ def cmd_apply(d, a):
 def page_input(event, record_id):
     """The PageInput entries one logged action carries: locks or unlocks, then comments."""
     at = event.get("at")
-    entries = []
-    if event.get("action") in ("lock", "unlock"):
-        for choice, option in event.get("choices", {}).items():
-            entries.append(
-                {
-                    "kind": event["action"],
-                    "recordId": record_id,
-                    "choiceId": choice,
-                    "optionId": option,
-                    "at": at,
-                }
-            )
-    for text in event.get("notes", {}).values():
-        entries.append(
-            {"kind": "comment", "recordId": record_id, "text": text, "at": at}
-        )
-    return entries
+    kind = event.get("action")
+    locks = event.get("choices", {}) if kind in ("lock", "unlock") else {}
+    return [
+        {
+            "kind": kind,
+            "recordId": record_id,
+            "choiceId": choice,
+            "optionId": option,
+            "at": at,
+        }
+        for choice, option in locks.items()
+    ] + [
+        {"kind": "comment", "recordId": record_id, "text": text, "at": at}
+        for text in event.get("notes", {}).values()
+    ]
 
 
 def cmd_status(d, a):
     if not KEY.fullmatch(a.record_id):
         sys.exit("status: --record-id must be a builder key")
-    log = load_json(d / "actions.json", {"seq": 0, "events": []})
+    log = load_log(d / "actions.json")
     handled = set(load_json(d / "replies.json", {}).get("handled", []))
     events = [
         {"seq": e["seq"], "input": page_input(e, a.record_id)}
@@ -374,22 +376,18 @@ def cmd_ensure_running(d, a):
         port = next((p for p in ports if p and bridge.port_free(p)), 0)
         nonce = secrets.token_hex(8)
         cmd = [bridge.interpreter(), str(HERE / "view_bridge.py"), "--dir", str(d)]
-        idle = ["--idle-seconds", str(a.idle_seconds)]
+        cmd += ["serve", "--port", str(port), "--nonce", nonce]
+        cmd += ["--idle-seconds", str(a.idle_seconds)]
         with bridge.open_server_log(d, NAME) as log:
-            proc = bridge.spawn(
-                [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle],
-                stderr=log,
-            )
+            proc = bridge.spawn(cmd, stderr=log)
         s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
         if s is None:
             code = proc.poll()
             if code is None:
                 proc.kill()
-            why = (
-                f"the server exited with status {code}"
-                if code is not None
-                else f"the server did not start within {START_SECONDS} s"
-            )
+                why = f"the server did not start within {START_SECONDS} s"
+            else:
+                why = f"the server exited with status {code}"
             tail = bridge.log_tail(bridge.server_log(d, NAME))
             sys.exit(
                 f"{why} (data dir {d})"

@@ -287,7 +287,14 @@ usage() {
 # scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
 # byte-identical to its in-repo SOURCE, so the source is where this contract
 # gates a change — scanning each copy would flag content no copy edit is
-# allowed to fix.
+# allowed to fix. The registry is read once, here.
+sync_copies=()
+if [[ -r scripts/cross-plugin-source-registry.txt ]]; then
+  while IFS= read -r line; do
+    case "$line" in '' | \#*) continue ;; *) ;; esac
+    sync_copies+=("$line")
+  done <scripts/cross-plugin-source-registry.txt
+fi
 is_scannable() {
   local f="$1"
   case "$f" in
@@ -297,14 +304,13 @@ is_scannable() {
   plugins/*/reference/*.md) ;;
   *) return 1 ;;
   esac
-  local registry="scripts/cross-plugin-source-registry.txt" rel line
-  if [[ "$f" == plugins/*/* && -r "$registry" ]]; then
+  local rel copy
+  if [[ "$f" == plugins/*/* ]]; then
     rel="${f#plugins/}"
     rel="${rel#*/}"
-    while IFS= read -r line; do
-      case "$line" in '' | \#*) continue ;; *) ;; esac
-      [[ "$rel" == "$line" ]] && return 1
-    done <"$registry"
+    for copy in ${sync_copies[@]+"${sync_copies[@]}"}; do
+      [[ "$rel" == "$copy" ]] && return 1
+    done
   fi
   return 0
 }
@@ -341,8 +347,7 @@ all)
   done < <(
     {
       find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*'
-      find plugins -type f -path 'plugins/*/skills/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
-      find plugins -type f -path 'plugins/*/reference/*' -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
+      find plugins -type f \( -path 'plugins/*/skills/*' -o -path 'plugins/*/reference/*' \) -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null
     } | sed 's|^\./||' | sort -u
   )
   ;;

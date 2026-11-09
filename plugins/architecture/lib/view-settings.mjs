@@ -206,14 +206,11 @@ function retiredNotices(legacy, { plugin, hasMediumOption, root, userHome, dataD
     [seen[shown], changed] = [hash, true];
     const value = retiredMedium(bytes, kind);
     const to = destination[kind] ?? TEAM_FILE;
-    const caveat =
-      value && mediumOf(value)?.publishes
-        ? to === TEAM_FILE
-          ? "; a team file never publishes, so that value would be ignored there"
-          : to === PERSONAL_FILE
-            ? "; it publishes only while that file is untracked and gitignored"
-            : ""
-        : "";
+    const caveat = !mediumOf(value)?.publishes
+      ? ""
+      : to === TEAM_FILE
+        ? "; a team file never publishes, so that value would be ignored there"
+        : "; it publishes only while that file is untracked and gitignored";
     const status = rank({ path, kind }) >= 0 && isLocal(value) ? "is retired but still keeps the view local" : "is no longer read";
     const perUser = kind === "claude-user" && hasMediumOption ? `; per user, the ${plugin} plugin's medium option also works` : "";
     notices.push({ kind: "retired", path: shown, value, destination: to, text: `${shown} ${status}${value ? ` (it sets medium: ${value})` : ""}; set it in ${to} instead${caveat}${perUser}` });
@@ -255,10 +252,10 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
 
   const shown = (path) => (path && root && isAbsolute(path) ? relative(root, path).split("\\").join("/") : path);
   for (const layer of layers) {
+    const prefix = `${layer.name}${layer.path ? ` (${layer.path})` : ""}: `;
+    const where = `${layer.name === "local" ? "personal override" : layer.name}${layer.path ? ` ${shown(layer.path)}` : ""}`;
     for (const error of layer.errors) {
-      const prefix = `${layer.name}${layer.path ? ` (${layer.path})` : ""}: `;
-      const name = { local: "personal override" }[layer.name] ?? layer.name;
-      notices.push({ kind: "invalid", text: `${name}${layer.path ? ` ${shown(layer.path)}` : ""}: ${error.startsWith(prefix) ? error.slice(prefix.length) : error}; ignored` });
+      notices.push({ kind: "invalid", text: `${where}: ${error.startsWith(prefix) ? error.slice(prefix.length) : error}; ignored` });
     }
   }
   const valueOf = (name) => layers.find((l) => l.name === name)?.values.medium;

@@ -42,9 +42,7 @@ if grep -qx "$NAME" <<<"$names"; then
 fi
 
 if ! names=$(gh api --paginate "orgs/$org/actions/secrets" --jq '.secrets[].name' 2>/dev/null); then
-  if [[ $hit -eq 1 ]]; then
-    exit 1
-  fi
+  ((hit)) && exit 1
   printf 'check-scan-carrier-secret-shadow: cannot list the secrets of organization %s (forbidden, or not an organization); the repository has none named %s, the organization is unchecked\n' "$org" "$NAME" >&2
   exit 2
 fi
@@ -53,7 +51,5 @@ if grep -qx "$NAME" <<<"$names"; then
   hit=1
 fi
 
-if [[ $hit -eq 1 ]]; then
-  exit 1
-fi
+((hit)) && exit 1
 printf 'check-scan-carrier-secret-shadow: neither %s nor organization %s has a secret named %s.\n' "$repo" "$org" "$NAME"

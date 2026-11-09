@@ -120,6 +120,12 @@ animation:
     velocity_threshold: 0.11
     # Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it.
     distance_threshold: 0.4
+  # The passes the motion lane's cleanup sub-mode runs, in list order, one per value. Allowed
+  # values: removal, review (the lane's review pass), opportunities, performance.
+  cleanup_order:
+    - removal
+    - review
+    - performance
 # The primitives library a React project with none installed builds on: a setting value from the
 # primitives table in component-libraries.md, not a package name (install by the name its Install
 # page gives). The project's installed library and design system beat every layer.
@@ -129,3 +135,8 @@ components:
 # writes it in rem, the value divided by the root size in px. Project tokens beat every layer.
 typography:
   long_form_body_px: 18
+# How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts
+# it inactive so the page scrolls across it, and one tap activates it; always-active takes gestures
+# from the first touch. The project's own pattern beats every layer.
+touch:
+  both_axes_activation: tap-to-activate

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "\"base_range\": \"c02d2f9..d0f728e\"",
+      "why": "from the seed commit through the base tip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "\"base_range\": \"main..head\"",
+      "why": "names, not SHAs"
+    },
+    {
+      "answer": "\"base_range\": \"d0f728e..d0f728e\"",
+      "why": "starts at the merge the head took, so it hides the landed change"
+    },
+    {
+      "answer": "\"base_range\": \"c02d2f9...d0f728e\"",
+      "why": "a three-dot range"
+    }
+  ]
+}

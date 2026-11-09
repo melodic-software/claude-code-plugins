@@ -85,8 +85,8 @@ export async function resolveBrand({ defaultBrand, defaultTheme, configDir }) {
   }
 
   const overlay = overlaySchema.parse(JSON.parse(fs.readFileSync(overlayPath, "utf-8")));
-  const brand = { ...defaultBrand, ...(overlay.brand ?? {}) };
-  const theme = { ...defaultTheme, ...(overlay.theme ?? {}) };
+  const brand = { ...defaultBrand, ...overlay.brand };
+  const theme = { ...defaultTheme, ...overlay.theme };
 
   for (const key of LOGO_KEYS) {
     if (overlay.brand?.[key]) brand[key] = resolveLogo(configDir, overlay.brand[key]);

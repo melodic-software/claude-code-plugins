@@ -297,15 +297,13 @@ parse_shard() {
   # Strip leading zeros so `08` is 8 rather than an octal parse error.
   i=$((10#$i))
   n=$((10#$n))
-  ((n >= 1)) || return 1
-  ((i < n)) || return 1
+  ((n >= 1 && i < n)) || return 1
   shard_index="$i"
   shard_total="$n"
-  return 0
 }
 
-# need_value <flag> <argc> <value>: usage errors exit 2, never 1, which is
-# spoken for by an unmapped file and a failing suite.
+# need_value <flag> <argc> <value> <what>: usage errors exit 2, never 1, which
+# is spoken for by an unmapped file and a failing suite.
 need_value() {
   if [[ "$2" -lt 2 || -z "$3" ]]; then
     echo "error: $1 needs a value ($4)." >&2
@@ -486,11 +484,7 @@ build_sync_map() {
   outfile="$WORK_DIR/print-manifest.out"
   errfile="$WORK_DIR/print-manifest.err"
   for script in scripts/sync-*.sh; do
-    [[ -f "$script" ]] || continue
-    case "$script" in
-    *.test.sh) continue ;;
-    *) ;;
-    esac
+    [[ -f "$script" && "$script" != *.test.sh ]] || continue
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
@@ -1064,7 +1058,7 @@ colocated_suites() {
     "$dir/test_${base//-/_}.py"
     "$dir/tests/test_${base//-/_}.py"
   )
-  for candidate in ${candidates[@]+"${candidates[@]}"}; do
+  for candidate in "${candidates[@]}"; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
   # pytest loads a conftest.py, and Python a package's __init__.py, without
@@ -1098,23 +1092,18 @@ select_for() {
   local -A VISITED=()
   SEED_HITS=0
 
-  frontier=("$seed")
-  # R5: a sync source seeds every copy the manifest declares.
-  if [[ -n "${SYNC_SRC_COPIES[$seed]:-}" ]]; then
+  # R6: a sync script pulls in whatever its sources pull in. R5: a sync source
+  # seeds every copy the manifest declares.
+  local -a sources=("$seed")
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && sources+=("$line")
+  done <<<"${SYNC_SCRIPT_SRC[$seed]:-}"
+  for line in "${sources[@]}"; do
+    frontier+=("$line")
     while IFS= read -r copy; do
       [[ -n "$copy" ]] && frontier+=("$copy")
-    done <<<"${SYNC_SRC_COPIES[$seed]}"
-  fi
-  # R6: a sync script pulls in whatever its sources pull in.
-  if [[ -n "${SYNC_SCRIPT_SRC[$seed]:-}" ]]; then
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      frontier+=("$line")
-      while IFS= read -r copy; do
-        [[ -n "$copy" ]] && frontier+=("$copy")
-      done <<<"${SYNC_SRC_COPIES[$line]:-}"
-    done <<<"${SYNC_SCRIPT_SRC[$seed]}"
-  fi
+    done <<<"${SYNC_SRC_COPIES[$line]:-}"
+  done
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
     : >"$WORK_DIR/patterns"
@@ -1615,17 +1604,13 @@ if [[ ${#NO_SUITE_FILES[@]} -gt 0 && "$explain" -eq 1 ]]; then
 fi
 
 if [[ ${#DELETED[@]} -gt 0 ]]; then
-  for f in "${DELETED[@]}"; do
-    echo "deleted: $f (no longer exists and no surviving suite names it; nothing left to cover)" >&2
-  done
+  printf 'deleted: %s (no longer exists and no surviving suite names it; nothing left to cover)\n' "${DELETED[@]}" >&2
 fi
 
 corpus_used=0
 if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   echo "UNMAPPED: ${#UNMAPPED[@]} changed file(s) map to no test suite:" >&2
-  for f in "${UNMAPPED[@]}"; do
-    echo "  - $f" >&2
-  done
+  printf '  - %s\n' "${UNMAPPED[@]}" >&2
   echo "This is NOT 'nothing to run' — it is 'this tool does not know what covers these'." >&2
   echo "Fix one of: add a co-located <stem>.test.sh; make a suite name the file; declare a" >&2
   echo "test-scope on the suite that reads it; or record the path class in $NO_SUITE_LIST" >&2
@@ -1788,9 +1773,7 @@ if [[ ${#delegated[@]} -gt 0 ]]; then
   echo "NOT RUN: ${#delegated[@]} selected suite(s) belong to an ecosystem this" >&2
   echo "runner does not execute. They are SELECTED, not skipped — run each from" >&2
   echo "its own lane:" >&2
-  for s in "${delegated[@]}"; do
-    echo "  - $s" >&2
-  done
+  printf '  - %s\n' "${delegated[@]}" >&2
 fi
 
 if [[ "$failed" -ne 0 ]]; then

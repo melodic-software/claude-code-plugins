@@ -28,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DEFAULTS = (
     REPO_ROOT / "plugins" / "code-metrics" / "scripts" / "config-defaults.json"
 )
+SKILLS = "plugins/code-metrics/skills"
 
 
 def _render(value: object) -> str:
@@ -44,63 +45,51 @@ def expected_phrases(defaults: dict) -> list[tuple[str, str]]:
     coverage = defaults["coverage"]
     size = defaults["size"]
     cyclomatic = defaults["complexity"]["cyclomatic"]["reference"]
+    audit_duplication = f"{SKILLS}/audit-duplication/SKILL.md"
+    measures = f"{SKILLS}/principles/reference/measures.md"
+    audit_coverage = f"{SKILLS}/audit-coverage/SKILL.md"
+    setup = f"{SKILLS}/setup/SKILL.md"
+    min_tokens = f"`duplication.min_tokens` (default {_render(duplication['min_tokens'])})"
+    min_lines = f"`duplication.min_lines` (default {_render(duplication['min_lines'])})"
     return [
+        (audit_duplication, min_tokens),
+        (audit_duplication, min_lines),
         (
-            "plugins/code-metrics/skills/audit-duplication/SKILL.md",
-            f"`duplication.min_tokens` (default {_render(duplication['min_tokens'])})",
-        ),
-        (
-            "plugins/code-metrics/skills/audit-duplication/SKILL.md",
-            f"`duplication.min_lines` (default {_render(duplication['min_lines'])})",
-        ),
-        (
-            "plugins/code-metrics/skills/audit-duplication/SKILL.md",
+            audit_duplication,
             f"`duplication.max_size` (default `{_render(duplication['max_size'])}`",
         ),
         (
-            "plugins/code-metrics/skills/audit-duplication/SKILL.md",
+            audit_duplication,
             f"`duplication.max_lines` (default `{_render(duplication['max_lines'])}`",
         ),
         (
-            "plugins/code-metrics/skills/audit-duplication/SKILL.md",
+            audit_duplication,
             f"`duplication.rollup_depth` (default {_render(duplication['rollup_depth'])}",
         ),
+        (measures, min_tokens),
+        (measures, min_lines),
         (
-            "plugins/code-metrics/skills/principles/reference/measures.md",
-            f"`duplication.min_tokens` (default {_render(duplication['min_tokens'])})",
-        ),
-        (
-            "plugins/code-metrics/skills/principles/reference/measures.md",
-            f"`duplication.min_lines` (default {_render(duplication['min_lines'])})",
-        ),
-        (
-            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            audit_coverage,
             f"| `coverage.artifacts` | `{_render(coverage['artifacts'])}` |",
         ),
         (
-            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            audit_coverage,
             f"| `coverage.path_prefix_strip` | `{_render(coverage['path_prefix_strip'])}` |",
         ),
         (
-            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            audit_coverage,
             f"| `coverage.reference` | `{_render(coverage['reference'])}` |",
         ),
         (
-            "plugins/code-metrics/skills/audit-coverage/SKILL.md",
+            audit_coverage,
             f"| `coverage.crap.reference` | `{_render(coverage['crap']['reference'])}` |",
         ),
         (
-            "plugins/code-metrics/skills/audit/actions/type-debt.md",
+            f"{SKILLS}/audit/actions/type-debt.md",
             f"`type_debt.reference`, `{_render(defaults['type_debt']['reference'])}`",
         ),
-        (
-            "plugins/code-metrics/skills/setup/SKILL.md",
-            f"the cyclomatic reference ({_render(cyclomatic)}",
-        ),
-        (
-            "plugins/code-metrics/skills/setup/SKILL.md",
-            f"the file-length reference ({_render(size['file_lines'])}",
-        ),
+        (setup, f"the cyclomatic reference ({_render(cyclomatic)}"),
+        (setup, f"the file-length reference ({_render(size['file_lines'])}"),
     ]
 
 

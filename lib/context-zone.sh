@@ -98,9 +98,8 @@ set -uo pipefail
 STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract
 DEFAULT_SMART_MAX=50
 DEFAULT_ACCEPTABLE_MAX=75
-# [class, smart_max, acceptable_max] rows, ascending class order. JSON rather
-# than whitespace rows because the bands are handed to the snapshot pass as
-# data, so the comparison happens there instead of in a separate awk process.
+# [class, smart_max, acceptable_max] rows, ascending class order, as JSON
+# because the snapshot pass takes the bands as data.
 DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,500000]]'
 
 unknown() {
@@ -123,10 +122,8 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 # one jq on the common path, and a second only when a zones.json override is
 # present. The gates above this line stay in bash and cost nothing, so the
 # no-snapshot and hostile-id cases exit without starting anything at all.
-#
-# The band resolution therefore sits AHEAD of the snapshot pass: the resolved
-# bands are handed to that one jq as data, so the comparisons happen where the
-# snapshot is already parsed rather than in separate awk processes.
+# Band resolution therefore runs first and hands the bands to the snapshot
+# pass as data, so every comparison happens inside that one jq.
 #
 # REDIRECTION PLACEMENT. Counting jq invocations is not the same as counting
 # processes. Bash elides the extra fork inside `$(...)` and execs the command
@@ -138,17 +135,15 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 # captured, and jq's exit status still reaches the `||`. See #3520.
 
 # Band resolution: zones.json override when present and valid, shipped
-# defaults otherwise (with a visible notice when a present shape is bad). The
-# two shapes are still validated INDEPENDENTLY and still emit their own
-# notices; they are read in one jq pass rather than two because both read the
-# same file. Output is two lines: the percentage result, then the token result.
+# defaults otherwise, with a visible notice for each present shape that is bad.
+# One jq pass validates the two shapes INDEPENDENTLY and prints two lines: the
+# percentage result, then the token result.
 smart_max=$DEFAULT_SMART_MAX
 acceptable_max=$DEFAULT_ACCEPTABLE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
 zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
-  # Stderr on the GROUP, not inside the substitution — see the REDIRECTION
-  # PLACEMENT note in the spawn-discipline block above.
+  # Stderr on the GROUP: see REDIRECTION PLACEMENT above.
   { zres=$(jq -r '
     def pct_ok:
       (type == "object")
@@ -192,8 +187,8 @@ if [[ -e "$zones" ]]; then
   zres=${zres//$'\r'/}
   zpct=${zres%%$'\n'*}
   ztb=${zres#*$'\n'}
-  # An unreadable or unparsable file yields no output at all: both shapes fall
-  # back, and both say so, exactly as two independent failing passes did.
+  # An unreadable or unparsable file yields no output: both shapes fall back,
+  # each with its own notice.
   [[ -n "$zres" && "$ztb" != "$zres" ]] || {
     zpct="invalid"
     ztb="invalid"
@@ -212,15 +207,12 @@ if [[ -e "$zones" ]]; then
   fi
 fi
 
-# `now` from the printf builtin rather than `date -u +%s`: same integer, no
-# process. The snapshot's own epoch is computed inside the jq pass below.
-# The %()T conversion arrived in bash 4.2, and stock macOS ships 3.2, which
-# these scripts support: there printf fails and binds nothing, so the clock
-# falls back to the `date` this line replaced rather than resolving every
-# snapshot to unknown and silently disabling both hooks. The pre-assignment is
-# deliberate: under `set -u` a printf that never bound the variable would
-# otherwise abort the -z test. On 4.2+ the fallback is never reached and the
-# per-resolve budget the test suite asserts by trace still holds.
+# `now` from the printf builtin, which starts no process. Its %()T conversion
+# arrived in bash 4.2, and stock macOS ships 3.2, which these scripts support:
+# there printf fails and binds nothing, so the clock falls back to `date`
+# rather than resolving every snapshot to unknown and silently disabling both
+# hooks. The pre-assignment keeps `set -u` from aborting the -z test when
+# printf bound nothing.
 now_epoch=""
 if ! printf -v now_epoch '%(%s)T' -1 2>/dev/null || [[ -z "$now_epoch" ]]; then
   now_epoch=$(date -u +%s 2>/dev/null) || unknown
@@ -233,28 +225,18 @@ fi
 # answer for another session, non-null current_usage) resolve to unknown, as do a
 # non-conforming captured_at, a stale or future-dated one, and a snapshot
 # whose measurement fields are all out of documented range.
-# TOKEN-SHAPE VERSION GATE: the token fields carry current-occupancy semantics
-# only from this version on. Compared component by component, missing
-# components reading as 0 so "2.2" means 2.2.0. That is the same rule the awk
-# gate applied, now an array comparison inside the pass below.
+# TOKEN-SHAPE VERSION GATE (see the header): versions compare component by
+# component, missing components reading as 0, so "2.2" means 2.2.0.
 TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
 
-# THE CAPTURED_AT GATE, AND WHY THE ROUND TRIP IS PART OF IT. The strict
-# ISO-8601 format test still runs FIRST and still exists to stop a lenient
-# parser accepting natural-language values ("now", "1 second ago") that would
-# let a forged captured_at defeat the staleness check. `fromdateiso8601` then
-# parses it, but unlike `date -u -d` it NORMALIZES a structurally well-formed
-# yet calendar-invalid value instead of refusing it: February 30th becomes
-# March 2nd, and second 60 rolls into the next minute. Normalizing there would
-# quietly widen the gate this code exists to hold. So the parsed epoch is
-# formatted back and required to equal the input byte for byte; anything that
-# does not round-trip is refused, which restores `date`'s answer on every such
-# value. The two implementations part company only for timestamps thousands of
-# years from now, and those fail the staleness window either way.
-# Stderr on the GROUP, not inside the substitution — see the REDIRECTION
-# PLACEMENT note in the spawn-discipline block above. This is the resolver's
-# one common-path jq, so the fork the inner redirect used to add was paid on
-# every fire of both hooks that call here.
+# THE CAPTURED_AT GATE. The strict ISO-8601 format test runs FIRST, so no
+# natural-language value ("now", "1 second ago") can let a forged captured_at
+# defeat the staleness check. `fromdateiso8601` then parses it, but it
+# NORMALIZES a well-formed yet calendar-invalid value instead of refusing it:
+# February 30th becomes March 2nd, and second 60 rolls into the next minute.
+# So the parsed epoch is formatted back and must equal the input byte for
+# byte; anything that does not round-trip is refused.
+# Stderr on the GROUP: see REDIRECTION PLACEMENT above.
 { zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
   --argjson now "$now_epoch" --argjson stale "$STALENESS_SECONDS" \
   --argjson smax "$smart_max" --argjson amax "$acceptable_max" \
@@ -267,8 +249,8 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
       | (($c + [range($n) | 0]) | .[0:$n]) as $cp
       | (($m + [range($n) | 0]) | .[0:$n]) as $mp
       | $cp >= $mp);
-  def band($v; $s; $a):
-    if $v <= $s then "smart" elif $v <= $a then "acceptable" else "dumb" end;
+  def rank($v; $s; $a):
+    if $v <= $s then 0 elif $v <= $a then 1 else 2 end;
   if (type != "object") then "unknown"
   elif ((.captured_at? // null) | type) != "string" then "unknown"
   elif (.session_id? // null) != $sid then "unknown"
@@ -293,7 +275,7 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
            else [$smax, $amax] end) as $pb
         | (if ((($w.used_percentage? // null) | type) == "number")
               and ($w.used_percentage >= 0) and ($w.used_percentage <= 100)
-           then band($w.used_percentage; $pb[0]; $pb[1]) else null end) as $pz
+           then rank($w.used_percentage; $pb[0]; $pb[1]) else null end) as $pz
         | (if ((($w.total_input_tokens? // null) | type) == "number") and ($w.total_input_tokens >= 0)
               and ((($w.total_output_tokens? // null) | type) == "number") and ($w.total_output_tokens >= 0)
               and ((($w.context_window_size? // null) | type) == "number") and ($w.context_window_size > 0)
@@ -301,14 +283,12 @@ TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
            then (($w.total_input_tokens + $w.total_output_tokens) as $occ
              | if $occ > $w.context_window_size then null
                else ($tbands | map(select(.[0] <= $w.context_window_size)) | sort_by(.[0]) | last) as $row
-                 | if $row == null then null else band($occ; $row[1]; $row[2]) end
+                 | if $row == null then null else rank($occ; $row[1]; $row[2]) end
                end)
            else null end) as $tz
-        | ([$pz, $tz] | map(select(. != null))) as $zs
-        | if ($zs | length) == 0 then "unknown"
-          else ($zs | map(if . == "smart" then 0 elif . == "acceptable" then 1 else 2 end) | max
-            | if . == 0 then "smart" elif . == 1 then "acceptable" else "dumb" end)
-          end
+        | [$pz, $tz] | map(select(. != null))
+        | if length == 0 then "unknown"
+          else max as $worst | ["smart", "acceptable", "dumb"][$worst] end
       end
   end' "$snap"); } 2>/dev/null || unknown
 zone=${zone//$'\r'/}

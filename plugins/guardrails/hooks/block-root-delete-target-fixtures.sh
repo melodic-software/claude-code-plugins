@@ -52,8 +52,7 @@ rdt_pl() {
 
 RDT_SPT="$TEST_TMPDIR/rdt-scratch"
 
-rdt_br=""
-for ((rdt_d = 0; rdt_d < 3000; rdt_d++)); do rdt_br+='{'; done
+rdt_br=$(rdt_rep '{' 3000)
 
 rdt_arp() { # <label> <want> <command> [roots]
   local -a env=("HOME=$RDT_AH")

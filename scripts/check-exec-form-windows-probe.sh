@@ -87,6 +87,14 @@ image_name() {
   lower "$base"
 }
 
+# is_shell_image <image>: a shell process image is the args-drop signature.
+is_shell_image() {
+  case "$1" in
+  bash | bash.exe | sh | sh.exe) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 NOT_EXE_HINT='is not a real Windows executable (no shell and no shebang). Use "command": "node" with the script in args; a bash script goes through hooks/exec-bash.mjs.'
 
 # consider <file> <where> <command>
@@ -191,7 +199,8 @@ run_spawn() {
     return 1
   fi
   image="$(image_name "$exec_path")"
-  if [[ "$got" != "true" || "$image" == "bash" || "$image" == "bash.exe" || "$image" == "sh" || "$image" == "sh.exe" ]]; then
+  # shellcheck disable=SC2310 # is_shell_image is a pure match
+  if [[ "$got" != "true" ]] || is_shell_image "$image"; then
     echo "ARGS-DROP: Windows exec-form spawn dropped args or routed through bash.exe (anthropics/claude-code#90495). Fleet sweep stopped." >&2
     return 1
   fi
@@ -306,13 +315,7 @@ SH
   return "$rc"
 }
 
-spawn_active=0
 if ((windows)) || [[ "${EXEC_FORM_WINDOWS_PROBE_FORCE:-}" == 1 ]]; then
-  spawn_active=1
-fi
-
-if ((spawn_active)); then
-  node_exe=""
   # shellcheck disable=SC2310 # resolve_node/run_spawn/run_launcher report their own failures; a miss is a skip or a finding, not an abort
   if node_exe="$(resolve_node)"; then
     # shellcheck disable=SC2310
@@ -341,7 +344,8 @@ live_signature() {
 }
 
 run_live() {
-  local tmp script marker sentinel script_arg marker_arg settings claude_bin out rc seen bytes exec_path image
+  local tmp script marker sentinel script_arg marker_arg settings out rc seen bytes exec_path image
+  local -a claude_cmd
   tmp="$(mktemp -d)"
   sentinel="live-sentinel-$$"
   marker="$tmp/marker.json"
@@ -378,37 +382,34 @@ JS
     echo "LIVE-PROBE: could not write the live-probe settings file. Fleet sweep stopped." >&2
     return 1
   fi
-  claude_bin="$(command -v claude)"
-  set +e
+  claude_cmd=("$(command -v claude)")
   if command -v timeout >/dev/null 2>&1; then
-    out="$(timeout 90 "$claude_bin" -p 'Run exactly this bash command and reply with its output: echo probe-ok' --settings "$settings" </dev/null 2>&1)"
-    rc=$?
-  else
-    out="$("$claude_bin" -p 'Run exactly this bash command and reply with its output: echo probe-ok' --settings "$settings" </dev/null 2>&1)"
-    rc=$?
+    claude_cmd=(timeout 90 "${claude_cmd[@]}")
   fi
+  set +e
+  out="$("${claude_cmd[@]}" -p 'Run exactly this bash command and reply with its output: echo probe-ok' --settings "$settings" </dev/null 2>&1)"
+  rc=$?
   set -e
   if [[ -f "$marker" ]]; then
     seen="$(jq -r '.sentinelSeen' "$marker" 2>/dev/null || true)"
     bytes="$(jq -r '.stdinBytes' "$marker" 2>/dev/null || true)"
     exec_path="$(jq -r '.execPath' "$marker" 2>/dev/null || true)"
+    rm -rf "$tmp"
     image="$(image_name "$exec_path")"
-    if [[ "$seen" == "true" && "$bytes" != "0" && "$bytes" != "null" && "$image" != "bash" && "$image" != "bash.exe" && "$image" != "sh" && "$image" != "sh.exe" ]]; then
-      rm -rf "$tmp"
+    # shellcheck disable=SC2310 # is_shell_image is a pure match
+    if [[ "$seen" == "true" && "$bytes" != "0" && "$bytes" != "null" ]] && ! is_shell_image "$image"; then
       note "check-exec-form-windows-probe: live probe delivered args and stdin to ${image}. This host did not reproduce anthropics/claude-code#90495. No .sh row was converted."
       return 0
     fi
-    rm -rf "$tmp"
     echo "ARGS-DROP: live exec-form probe lost args, stdin, or the node image (anthropics/claude-code#90495). Fleet sweep stopped." >&2
     return 1
   fi
+  rm -rf "$tmp"
   # shellcheck disable=SC2310 # live_signature is a pure match; set -e staying off is the point of the test
   if live_signature "$out"; then
-    rm -rf "$tmp"
     echo "ARGS-DROP: live exec-form probe reproduced args-drop (anthropics/claude-code#90495: hook still routed through bash, script never started). Fleet sweep stopped." >&2
     return 1
   fi
-  rm -rf "$tmp"
   note "SKIP: live Claude Code exec-form probe did not observe a hook execution (claude exit ${rc}, no marker). A skip does not clear anthropics/claude-code#90495 and does not authorize a fleet sweep."
   return 0
 }

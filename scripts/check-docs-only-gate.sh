@@ -219,26 +219,19 @@ SKIP_CHECKED_RESULTS="\${{ steps.${SKIP_CHECK_STEP_ID}.outputs.results }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
-# The table's row names joined with <sep>: a space for the parser, ", " for a
-# message. Defined here rather than with the other table readers below because
-# the parser runs before them.
-table_names() {
-  local sep="$1" tn out=""
+# row_names <table> <sep>: the table's row names joined with <sep>, a space for
+# the parser and ", " for a message. Defined here rather than with the other
+# table readers below because the parser runs before them.
+row_names() {
+  local tn out=""
   while IFS="$TAB" read -r tn _; do
     [[ -n "$tn" ]] || continue
-    out+="${out:+$sep}$tn"
-  done <<<"$OUTPUT_TABLE"
+    out+="${out:+$2}$tn"
+  done <<<"$1"
   printf '%s' "$out"
 }
-
-data_names() {
-  local sep="$1" tn out=""
-  while IFS="$TAB" read -r tn _; do
-    [[ -n "$tn" ]] || continue
-    out+="${out:+$sep}$tn"
-  done <<<"$DATA_TABLE"
-  printf '%s' "$out"
-}
+table_names() { row_names "$OUTPUT_TABLE" "$1"; }
+data_names() { row_names "$DATA_TABLE" "$1"; }
 
 errors=0
 report() {
@@ -560,23 +553,11 @@ has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac
 
 # --- the output table, read three ways --------------------------------------
 
-# table_has <name>: is <name> a sanctioned output?
-table_has() {
-  local tn
-  while IFS="$TAB" read -r tn _; do
-    [[ "$tn" == "$1" ]] && return 0
-  done <<<"$OUTPUT_TABLE"
-  return 1
-}
-
-# data_has <name>: is <name> a sanctioned data output?
-data_has() {
-  local tn
-  while IFS="$TAB" read -r tn _; do
-    [[ "$tn" == "$1" ]] && return 0
-  done <<<"$DATA_TABLE"
-  return 1
-}
+# table_has / data_has <name>: is <name> a row of the output or data table?
+# Every row is `<name><TAB><expr>`, so a row starts at a line start and ends its
+# name at the tab.
+table_has() { [[ $'\n'"$OUTPUT_TABLE" == *$'\n'"$1$TAB"* ]]; }
+data_has() { [[ $'\n'"$DATA_TABLE" == *$'\n'"$1$TAB"* ]]; }
 
 # is_data_read <line>: is this line exactly one env entry reading one data
 # output, `KEY: ${{ needs.<resolver>.outputs.<name> }}`? Whole-string, like
@@ -635,24 +616,21 @@ uniq_list() {
   printf '%s' "$out"
 }
 
-shape_errors="$REC_ERR"
-
-if [[ -n "$shape_errors" ]]; then
+if [[ -n "$REC_ERR" ]]; then
   echo "check-docs-only-gate: unrecognized workflow shape in $WORKFLOW" >&2
   while IFS= read -r msg; do
     [[ -n "$msg" ]] || continue
     echo "  $msg" >&2
-  done <<<"$shape_errors"
+  done <<<"$REC_ERR"
   echo "  Refusing to report a satisfied contract from a file this gate did not fully parse." >&2
   exit 2
 fi
 
-jobs_all="$REC_JOB"
-if [[ -z "$jobs_all" ]]; then
+if [[ -z "$REC_JOB" ]]; then
   echo "check-docs-only-gate: no jobs parsed from $WORKFLOW" >&2
   exit 2
 fi
-if ! has_line "$jobs_all" "$RESOLVER_JOB"; then
+if ! has_line "$REC_JOB" "$RESOLVER_JOB"; then
   echo "check-docs-only-gate: resolving job '$RESOLVER_JOB' is not defined in $WORKFLOW" >&2
   exit 2
 fi
@@ -661,7 +639,7 @@ fi
 # empty closure makes the job-level-condition rule and the lane opt-out rule
 # both pass every workflow. One defect line beside two rules that silently
 # stopped asking is the nominal closure this gate exists to deny.
-if ! has_line "$jobs_all" "$AGGREGATE_JOB"; then
+if ! has_line "$REC_JOB" "$AGGREGATE_JOB"; then
   echo "check-docs-only-gate: aggregate job '$AGGREGATE_JOB' is not defined in $WORKFLOW, so the required-lane closure cannot be computed" >&2
   exit 2
 fi
@@ -706,17 +684,23 @@ fi
 # makes an unset detector output resolve toward RUNNING; the second is what
 # keeps a new polarity decision from being introduced where nothing checks it.
 
-while IFS="$TAB" read -r tname texpr; do
-  [[ -n "$tname" ]] || continue
+# find_published <name>: sets published_expr to the expression the resolver
+# publishes <name> by (its last one, if it publishes the name twice); fails when
+# it publishes no such output.
+find_published() {
+  local ojob oname oexpr found=1
   published_expr=""
-  published_found=0
   while IFS="$TAB" read -r ojob oname oexpr; do
-    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$tname" ]] || continue
-    published_found=1
+    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$1" ]] || continue
+    found=0
     published_expr="$oexpr"
   done <<<"$REC_OUTPUT"
+  return "$found"
+}
 
-  if [[ "$published_found" -eq 0 ]]; then
+while IFS="$TAB" read -r tname texpr; do
+  [[ -n "$tname" ]] || continue
+  if ! find_published "$tname"; then
     report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes no '$tname' output. Consumers would read an empty string, which skips both the work step and its not-applicable reporter."
   elif [[ "$published_expr" != "$texpr" ]]; then
     report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$tname: $published_expr', expected exactly '$tname: $texpr'. That expression is the contract: an UNSET detector output (the detector never ran, or failed) renders as 'true', so the full suite runs, and every narrowing clause compares != 'false' so an unset filter group runs its lane too. Any other derivation can resolve an unset input toward skipping."
@@ -728,14 +712,7 @@ done <<<"$OUTPUT_TABLE"
 # string every reader takes as "the whole tree".
 while IFS="$TAB" read -r tname texpr; do
   [[ -n "$tname" ]] || continue
-  published_expr=""
-  published_found=0
-  while IFS="$TAB" read -r ojob oname oexpr; do
-    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$tname" ]] || continue
-    published_found=1
-    published_expr="$oexpr"
-  done <<<"$REC_OUTPUT"
-  if [[ "$published_found" -eq 0 ]]; then
+  if ! find_published "$tname"; then
     report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes no '$tname' data output; expected exactly '$tname: $texpr'."
   elif [[ "$published_expr" != "$texpr" ]]; then
     report "DATA IS NOT A GATE: job '$RESOLVER_JOB' publishes '$tname: $published_expr', expected exactly '$tname: $texpr'. A data output passes its step's value through unchanged; an expression around it is a decision this gate does not model."
@@ -1012,7 +989,6 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # status-check function either, so the needs edge still governs; what it
 # subtracts is a draft pull request, where every lane is skipped and the
 # aggregate fails.
-
 #
 # AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` (or
 # `lint-shell`, row `run_shell`) only,
@@ -1073,10 +1049,9 @@ while IFS="$TAB" read -r sjob svalue; do
   [[ "$svalue" == "fail" || "$svalue" == "$SKIP_AS_DRAFT" ]] && continue
   report "A SKIPPED LANE NEVER PASSES: job '$AGGREGATE_JOB' sets treat-skipped-as: $svalue. Use 'fail' or exactly $SKIP_AS_DRAFT."
 done <<<"$REC_SKIPAS"
-if [[ "$skipas_seen" -eq 0 ]] && has_line "$jobs_all" "$AGGREGATE_JOB"; then
-  if [[ -n "$(printf '%s' "$REC_JOBIF" | awk -F'\t' -v j="$JOB_GATE_DRAFT" '$2 == j')" ]]; then
-    report "A SKIPPED LANE NEVER PASSES: a lane carries the draft gate but job '$AGGREGATE_JOB' sets no treat-skipped-as, whose default passes a skip. Set it to 'fail' or exactly $SKIP_AS_DRAFT."
-  fi
+if [[ "$skipas_seen" -eq 0 ]] &&
+  awk -F '\t' -v j="$JOB_GATE_DRAFT" '$2 == j { f = 1 } END { exit !f }' <<<"$REC_JOBIF"; then
+  report "A SKIPPED LANE NEVER PASSES: a lane carries the draft gate but job '$AGGREGATE_JOB' sets no treat-skipped-as, whose default passes a skip. Set it to 'fail' or exactly $SKIP_AS_DRAFT."
 fi
 
 # --- 8. NO LANE OPT-OUT INSIDE THE CLOSURE ----------------------------------

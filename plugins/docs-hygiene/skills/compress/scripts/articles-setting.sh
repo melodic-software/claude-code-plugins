@@ -48,23 +48,19 @@ key_lines="$(grep -E "$key_re" "$file")"
 count="$(grep -cE "$key_re" "$file")"
 
 # The strict reader also rejects a duplicate key; name the duplicate first.
-if [[ "$count" =~ ^[0-9]+$ ]] && ((count > 1)); then
+if ((count > 1)); then
   printf 'invalid\tset %s times\n' "$count"
   exit 0
 fi
 
 value="$(bash "$READER" --strict "$file" "$KEY" 2>/dev/null)"
-status=$?
-if ((status == 3)); then
+if (($? == 3)); then
   printf 'invalid\tdoes not parse\n'
   exit 0
 fi
-if [[ ! "$count" =~ ^[0-9]+$ ]] || ((count == 0)); then
-  if [[ -z "$value" ]]; then
-    printf 'unset\t%s not set in %s\n' "$KEY" "$REL"
-    exit 0
-  fi
-  count=1
+if ((count == 0)) && [[ -z "$value" ]]; then
+  printf 'unset\t%s not set in %s\n' "$KEY" "$REL"
+  exit 0
 fi
 case "$value" in
 keep | cut)

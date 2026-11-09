@@ -26,6 +26,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { loadManifest } from "../lib/prerequisites.mjs";
 
+const SELF = fileURLToPath(import.meta.url);
 const BASELINE = "scripts/prerequisites-baseline.txt";
 const TOOLS = "scripts/prerequisites-tools.txt";
 const SHARED = "scripts/shared-copies.txt";
@@ -151,21 +152,19 @@ const matcherCache = new Map();
 // usesOf(file, text, tools) -> [{ tool, line }]
 export function usesOf(file, text, tools) {
   const ext = path.extname(file);
-  const shellish = file.endsWith("SKILL.md") || [".sh", ".bash", ".ps1", ".psm1"].includes(ext);
+  const powershell = ext === ".ps1" || ext === ".psm1";
+  const shellish = file.endsWith("SKILL.md") || powershell || ext === ".sh" || ext === ".bash";
   const key = `${shellish}\n${tools.join("\n")}`;
   if (!matcherCache.has(key)) matcherCache.set(key, shellish ? shellMatcher(tools) : callMatcher(tools));
   const re = matcherCache.get(key);
-  const found = [];
   if (!shellish) return callUses(re, ext, text);
-  const lines = shellLines(file, text);
+  const found = [];
   let blockComment = false;
-  for (const [line, raw] of withoutHeredocs(lines)) {
-    if ([".ps1", ".psm1"].includes(ext)) {
-      // PowerShell <# ... #> block comments are prose.
-      if (blockComment || raw.trimStart().startsWith("<#")) {
-        blockComment = !raw.includes("#>");
-        continue;
-      }
+  for (const [line, raw] of withoutHeredocs(shellLines(file, text))) {
+    // PowerShell <# ... #> block comments are prose.
+    if (powershell && (blockComment || raw.trimStart().startsWith("<#"))) {
+      blockComment = !raw.includes("#>");
+      continue;
     }
     if (ESCAPE.test(raw) || isComment(raw, ext) || CASE_LABEL.test(raw)) continue;
     const content = literalsBlanked(raw);
@@ -239,7 +238,7 @@ export function collect(root) {
 }
 
 function parseArgs(argv) {
-  const opts = { root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), write: false };
+  const opts = { root: path.resolve(path.dirname(SELF), ".."), write: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--root" && argv[i + 1]) opts.root = path.resolve(argv[++i]);
     else if (argv[i] === "--write-baseline") opts.write = true;
@@ -283,7 +282,7 @@ export function main(argv, out = { log: console.log, error: console.error }) {
     if (allowed.has(key)) continue;
     const [plugin, gap] = key.split(" ");
     if (gap === "schema") {
-      findings.push(`${details[0]}`);
+      findings.push(details[0]);
     } else {
       findings.push(
         `plugins/${plugin} runs ${gap} but its prerequisites.json does not declare it: ${details.slice(0, 3).join(", ")}${details.length > 3 ? ", ..." : ""}`,
@@ -304,7 +303,6 @@ export function main(argv, out = { log: console.log, error: console.error }) {
   return 0;
 }
 
-const self = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === self) {
+if (process.argv[1] && path.resolve(process.argv[1]) === SELF) {
   process.exitCode = main(process.argv.slice(2));
 }

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "evidence: [\"#588 renamed request to send\"]",
+      "why": "the PR that obsoleted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "the head no longer fits",
+      "why": "no citation"
+    },
+    {
+      "answer": "#500 changed it",
+      "why": "another PR"
+    }
+  ]
+}

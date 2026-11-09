@@ -106,11 +106,14 @@ export function splatter(ctx, cx, cy, R, o = {}) {
   const color = o.color || INK, fixed = rng(o.seed || 1, 0), live = rng(o.seed || 1, (o.step || 0) + 1), sz = o.size || 3;
   for (let i = 0; i < (o.dots ?? 10); i++) {
     const a = fixed() * 6.283, d = Math.sqrt(fixed()) * R, rad = sz * (0.4 + fixed()), show = live() >= (o.flicker ?? 0.3);
-    if (show) { const jx = (live() - 0.5) * sz, jy = (live() - 0.5) * sz; capsule(ctx, cx + Math.cos(a) * d + jx, cy + Math.sin(a) * d + jy, cx + Math.cos(a) * d + jx + 0.5, cy + Math.sin(a) * d + jy, rad * 2, color); }
+    if (show) {
+      const x = cx + Math.cos(a) * d + (live() - 0.5) * sz, y = cy + Math.sin(a) * d + (live() - 0.5) * sz;
+      capsule(ctx, x, y, x + 0.5, y, rad * 2, color);
+    }
   }
   for (let i = 0; i < (o.dashes ?? 6); i++) {
-    const a = live() * 6.283, d = R * (0.3 + live()), l = sz * (2 + 6 * live());
-    capsule(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, cx + Math.cos(a) * (d + l), cy + Math.sin(a) * (d + l), sz * (0.6 + live()), color);
+    const a = live() * 6.283, d = R * (0.3 + live()), l = sz * (2 + 6 * live()), c = Math.cos(a), s = Math.sin(a);
+    capsule(ctx, cx + c * d, cy + s * d, cx + c * (d + l), cy + s * (d + l), sz * (0.6 + live()), color);
   }
 }
 

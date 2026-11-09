@@ -38,9 +38,11 @@ const CONTRACT = {
     stagger_ms: { interval: 40, max_total: 400 },
     blur_max_px: 20,
     gesture: { velocity_threshold: 0.11, distance_threshold: 0.4 },
+    cleanup_order: ["removal", "review", "performance"],
   },
   components: { primitives_default: "base-ui" },
   typography: { long_form_body_px: 18 },
+  touch: { both_axes_activation: "tap-to-activate" },
 };
 
 test("the shipped defaults hold the contract's layer-1 values", () => {
@@ -97,6 +99,31 @@ test("the long-form reading size takes an integer of at least 16 and keeps 18 ot
   assert.deepEqual(sizeWith("16"), { size: 16, error_keys: [] });
   assert.deepEqual(sizeWith("15"), { size: 18, error_keys: ["typography.long_form_body_px"] });
   assert.deepEqual(sizeWith("18.5"), { size: 18, error_keys: ["typography.long_form_body_px"] });
+});
+
+// Expected values: the key's contract, the two approach values with default tap-to-activate.
+test("the both-axes activation takes one of its two approaches and keeps tap-to-activate otherwise", () => {
+  const activationWith = (raw) => {
+    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { touch_both_axes_activation: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return { activation: values.touch.both_axes_activation, error_keys: layers[1].error_keys };
+  };
+  assert.deepEqual(activationWith("always-active"), { activation: "always-active", error_keys: [] });
+  assert.deepEqual(activationWith("tap-to-activate"), { activation: "tap-to-activate", error_keys: [] });
+  assert.deepEqual(activationWith("tap to activate"), { activation: "tap-to-activate", error_keys: ["touch.both_axes_activation"] });
+  assert.deepEqual(activationWith("never"), { activation: "tap-to-activate", error_keys: ["touch.both_axes_activation"] });
+});
+
+// Expected values: the key's contract, a list of 1 to 4 of the motion lane's four pass names.
+test("the cleanup order takes a list of the four pass names and refuses anything else", () => {
+  const errorKeysWith = (order) => {
+    const { layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults: { ...defaults, animation: { ...defaults.animation, cleanup_order: order } }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
+    return layers[0].error_keys;
+  };
+  assert.deepEqual(errorKeysWith(["performance", "opportunities", "review", "removal"]), []);
+  assert.deepEqual(errorKeysWith(["review"]), []);
+  assert.deepEqual(errorKeysWith([]), ["animation.cleanup_order"]);
+  assert.deepEqual(errorKeysWith(["removal", "polish"]), ["animation.cleanup_order"]);
+  assert.deepEqual(errorKeysWith("removal"), ["animation.cleanup_order"]);
 });
 
 // Expected values: the exit factor's contract, a fraction from 0 to 1 with default 0.8.
