@@ -171,9 +171,7 @@ for plugin in "${changed_plugins[@]}"; do
     echo "$self: git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
     exit 2
   fi
-  if [[ -z "$base_manifest_entry" ]]; then
-    continue
-  fi
+  [[ -n "$base_manifest_entry" ]] || continue
   if ! git show "$mb:$manifest" >"$base_manifest_file"; then
     echo "$self: git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
     exit 2
@@ -201,9 +199,7 @@ for plugin in "${changed_plugins[@]}"; do
     if [[ -z "$dependabot" ]]; then
       dependabot=no
       # shellcheck disable=SC2310  # the non-zero return IS the answer
-      if changelog_fragments::dependabot_only "$base"; then
-        dependabot=yes
-      fi
+      changelog_fragments::dependabot_only "$base" && dependabot=yes
     fi
     if [[ "$dependabot" == yes ]]; then
       echo "Dependabot-only change to a vendor/ tree of plugins/$plugin/: scripts/dependabot-fragments.sh writes its fragment after the merge."

@@ -46,6 +46,11 @@ usage() {
   printf 'usage: %s [--report | --links] [--page <file>]... | --help\n' "${0##*/}"
 }
 
+bad_usage() {
+  usage >&2
+  exit 2
+}
+
 die() {
   printf '%s: %s\n' "$SELF" "$*" >&2
   exit 2
@@ -60,24 +65,15 @@ while (($# > 0)); do
     exit 0
     ;;
   --report | --links)
-    [[ "$MODE" == default ]] || {
-      usage >&2
-      exit 2
-    }
+    [[ "$MODE" == default ]] || bad_usage
     MODE="${1#--}"
     ;;
   --page)
-    (($# >= 2)) || {
-      usage >&2
-      exit 2
-    }
+    (($# >= 2)) || bad_usage
     PAGES+=("$2")
     shift
     ;;
-  *)
-    usage >&2
-    exit 2
-    ;;
+  *) bad_usage ;;
   esac
   shift
 done
@@ -303,7 +299,8 @@ tree_list() {
       gh_tree "$o" "$r" "$sha" "$dir" 0
       rc=$?
       if ((rc == 0)); then
-        OUT_TREE="$(awk -v p="$p" '{ q = substr($0, index($0, " ") + 1); if (q == p) print }' <<<"$OUT_TREE")"
+        # The listing is one level deep, so no entry sits under <path>.
+        OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
       else
         OUT_TREE=""
       fi
@@ -333,15 +330,11 @@ diff_trees() {
 
 # --- pages -------------------------------------------------------------------
 
-if ((${#PAGES[@]} == 0)); then
-  if [[ -d "$ROOT/docs/upstream" ]]; then
-    while IFS= read -r path; do
-      PAGES+=("${path#"$ROOT"/}")
-    done < <(find "$ROOT/docs/upstream" -type f -name '*.md' | sort)
-  fi
-  EXPLICIT=0
-else
-  EXPLICIT=1
+EXPLICIT=$((${#PAGES[@]} > 0))
+if ((!EXPLICIT)) && [[ -d "$ROOT/docs/upstream" ]]; then
+  while IFS= read -r path; do
+    PAGES+=("${path#"$ROOT"/}")
+  done < <(find "$ROOT/docs/upstream" -type f -name '*.md' | sort)
 fi
 
 page_file() { # <page>: resolves a page argument to a readable file
@@ -469,14 +462,10 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   fi
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=${head:0:12} status=$status path=$page")
   # Row lines first in page order, then units, as the report contract lists.
-  for line in ${page_report[@]+"${page_report[@]}"}; do
-    [[ "$line" == row\ * ]] && REPORT+=("$line")
-  done
-  for line in ${page_report[@]+"${page_report[@]}"}; do
-    [[ "$line" == new-unit\ * ]] && REPORT+=("$line")
-  done
-  for line in ${page_report[@]+"${page_report[@]}"}; do
-    [[ "$line" == removed-unit\ * ]] && REPORT+=("$line")
+  for kind in row new-unit removed-unit; do
+    for line in ${page_report[@]+"${page_report[@]}"}; do
+      [[ "$line" == "$kind "* ]] && REPORT+=("$line")
+    done
   done
 done
 
