@@ -211,6 +211,21 @@ pretty-printed form. A sink must parse the document as JSON, never by line or by
 That is the whole consumer contract. Any number of independently-written sinks can subscribe to the same
 producers without coordinating with them or each other.
 
+**Store anchoring.** A sink, or a producer that writes its own rows, whose store path is relative to
+the project joins it onto the main checkout: the directory that holds the repository's common `.git`
+directory, which `git rev-parse --git-common-dir` prints. The session's working tree is the wrong
+anchor. In a linked worktree, `git rev-parse --show-toplevel` prints the worktree, so rows written
+there are deleted when the worktree is removed, and a reader in the main checkout never sees them.
+Without spawning git, follow the worktree's `.git` file (`gitdir: <path>`) to its `commondir` file;
+a relative `commondir` path resolves against that gitdir. The anchor is the parent of the common
+directory when that directory is named `.git`, so a bare repository cloned into `proj/.git` anchors
+at `proj/`. A directory outside any git checkout keeps its own directory, and so does a submodule (its
+gitdir has no `commondir`) and a worktree of a bare repository whose directory has another name, such
+as `proj.git`. A reader resolves the same anchor, so one store serves every worktree of a
+repository, and retention that counts sessions counts those of every worktree together. The containment checks a sink applies hold against the
+anchor. The harness-ops reference sink, its retention hook and its reader share one resolver:
+`slog_anchor_to` in `plugins/harness-ops/hooks/session-log-lib.sh`.
+
 **Sink routing by session (reference sink, harness-ops 0.42.11).** Since contract 1.1 every producer
 that emits through `hook::emit_telemetry` carries the payload's `session_id` on the envelope spine
 (see "Correlation keys" above), so a sink needs nothing from the producer to file rows per session.

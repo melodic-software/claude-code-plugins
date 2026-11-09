@@ -32,10 +32,17 @@ rows for envelopes that carry no session id. That file is size-capped: past `hoo
 (10 MiB by default) the sink moves it to `hook-events.jsonl.1`, replacing any older `.1`, so queries
 read both files.
 
+The root is joined onto the main checkout, not the session's working tree: a session in a linked
+worktree writes under the main checkout's root, so its rows outlive the worktree, and a run from
+either checkout reads the same files. `slog_anchor_to` in `hooks/session-log-lib.sh` resolves that
+directory for the hooks and for this snippet.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
+. "<skill-dir>/../../hooks/session-log-lib.sh"
+slog_anchor_to LOG_ANCHOR "$REPO_ROOT"   # the main checkout when REPO_ROOT is a worktree
 HOOK_ROOT_REL="${HOOK_ROOT_REL:-.observability/claude}"   # the rendered option, or the flag
-HOOK_ROOT="${REPO_ROOT}/${HOOK_ROOT_REL%/}"
+HOOK_ROOT="${LOG_ANCHOR}/${HOOK_ROOT_REL%/}"
 
 # Scope → window cutoff (ISO-8601 UTC) and file set. Every whole-root query reads
 # every session file plus the shared file; a session scope reads one file.

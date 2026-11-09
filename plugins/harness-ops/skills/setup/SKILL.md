@@ -79,9 +79,13 @@ modify anything.
    team policy; `registry_dir` alone can also be set for everyone in the repository by its team file.
    Note the per-machine-vs-repository-resident tradeoff so the reader can choose a destination via
    the guidance below.
-5. **Hook log root and its guard**. Anchor at the repo root: resolve `REPO_ROOT` once,
-   `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`, and use that literal
-   path for every read below. The root is `REPO_ROOT/<dir>` where `<dir>` is
+5. **Hook log root and its guard**. Anchor at the main checkout: resolve `REPO_ROOT` once,
+   `${CLAUDE_PROJECT_DIR}` when set, otherwise `git rev-parse --show-toplevel`. When
+   `REPO_ROOT/.git` is a file (a linked worktree) and
+   `git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir` prints a path ending in
+   `/.git`, set `REPO_ROOT` to that path without `/.git`: the hooks write under the main checkout
+   (`slog_anchor_to` in `hooks/session-log-lib.sh`). Use that literal path for every read below.
+   The root is `REPO_ROOT/<dir>` where `<dir>` is
    `${user_config.session_event_log_dir}`, or `.observability/claude` when empty or unexpanded.
    - `<dir>` uncontained (rule 3): FAIL, the hooks write nothing; remediate through the
      reconfiguration guidance. `<dir>` root-equivalent (`.`, `./`, or a path that resolves to

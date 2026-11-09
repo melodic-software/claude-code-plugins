@@ -5,6 +5,12 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Consumer rule, envelope unchanged at 1.1 - 2026-11-09
+
+- README "Consuming (sink side)" gains a store-anchoring rule: a project-relative store is joined
+  onto the main checkout, not the session's working tree, so a linked worktree's rows outlive the
+  worktree and a reader in the main checkout counts them. No envelope or `data` field changed.
+
 ## Data schemas, envelope unchanged at 1.1 - 2026-10-11
 
 - `zone-gate` is retired: context-guard no longer denies tool calls, so nothing emits it, and

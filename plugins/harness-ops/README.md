@@ -492,7 +492,9 @@ known-issues skill.
 On, each recorded event starts one process. The log runs only where mods load.
 
 **`session_event_log_dir`.** Inside a checkout the directory carries a self-ignoring `.gitignore`,
-created on the first write.
+created on the first write. In a linked worktree the path is relative to the main checkout, not the
+worktree. The hooks write there and `/harness-ops:observability` reads there, so a worktree
+session's logs stay after the worktree is removed.
 
 **`hook_events_max_bytes`.** Read only when a harness-ops hook emits the envelope: an emitter in
 another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is

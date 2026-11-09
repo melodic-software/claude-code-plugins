@@ -105,18 +105,59 @@ slog_contained() {
   return 0
 }
 
+# slog_anchor_to <var> <project-dir>: the directory the log root is joined
+# onto. In a linked worktree (a .git file whose gitdir holds a commondir file)
+# it is the main checkout, the directory holding the common .git directory, so
+# a worktree session's logs land where the main checkout's reader finds them
+# and stay when the worktree is removed. A common directory not named .git (a
+# bare repository such as proj.git) has no main checkout, so every other case
+# answers <project-dir> unchanged: a main checkout, a directory outside git, a
+# submodule (no commondir), a worktree of such a bare repository, and a
+# worktree whose common directory is gone. Builtins only. Locals carry a
+# `slog__anc_` prefix: slog_root_to passes its own `slog__` names as <var>.
+slog_anchor_to() {
+  local slog__anc_var="$1" slog__anc_dir="${2%/}" slog__anc_line="" slog__anc_gitdir
+  local slog__anc_common="" slog__anc_saved="$PWD"
+  printf -v "$slog__anc_var" '%s' "$2"
+  [[ -n "$slog__anc_dir" && -f "$slog__anc_dir/.git" ]] || return 0
+  { IFS= read -r slog__anc_line || :; } 2>/dev/null <"$slog__anc_dir/.git"
+  slog__anc_line="${slog__anc_line%$'\r'}"
+  [[ "$slog__anc_line" == "gitdir: "?* ]] || return 0
+  slog__anc_gitdir="${slog__anc_line#gitdir: }"
+  case "$slog__anc_gitdir" in
+  /* | [A-Za-z]:*) ;;
+  *) slog__anc_gitdir="$slog__anc_dir/$slog__anc_gitdir" ;;
+  esac
+  [[ -f "$slog__anc_gitdir/commondir" ]] || return 0
+  { IFS= read -r slog__anc_common || :; } 2>/dev/null <"$slog__anc_gitdir/commondir"
+  slog__anc_common="${slog__anc_common%$'\r'}"
+  [[ -n "$slog__anc_common" ]] || return 0
+  case "$slog__anc_common" in
+  /* | [A-Za-z]:*) ;;
+  *) slog__anc_common="$slog__anc_gitdir/$slog__anc_common" ;;
+  esac
+  cd -P -- "$slog__anc_common" 2>/dev/null || return 0
+  slog__anc_common="$PWD"
+  cd -- "$slog__anc_saved" 2>/dev/null || cd / || true
+  [[ "${slog__anc_common##*/}" == .git && -n "${slog__anc_common%/.git}" ]] || return 0
+  printf -v "$slog__anc_var" '%s' "${slog__anc_common%/.git}"
+}
+
 # slog_root_to <var> <project-dir>: the absolute log root for <project-dir>,
-# or the empty string when the configured root is uncontained or resolves to
-# the project root itself (a `*` guard there would ignore the whole repository).
+# joined onto its anchor (slog_anchor_to: the main checkout when <project-dir>
+# is a linked worktree), or the empty string when the configured root is
+# uncontained or resolves to the anchor itself (a `*` guard there would ignore
+# the whole repository).
 #
 # Containment is checked twice: lexically (slog_contained) and physically. A
 # relative path whose existing component is a symlink can point anywhere, and
 # the retention hook deletes under this root, so the nearest existing ancestor
 # of the root is resolved with `cd -P` (a builtin; no process) and must sit
-# below the physically resolved project. A root that exists and resolves to
-# the project itself is refused for the same reason `.` is.
+# below the physically resolved anchor. A root that exists and resolves to
+# the anchor itself is refused for the same reason `.` is.
 slog_root_to() {
-  local slog__var="$1" slog__project="$2"
+  local slog__var="$1" slog__project=""
+  slog_anchor_to slog__project "$2"
   local slog__rel="${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR:-$SLOG_DEFAULT_ROOT}"
   slog__rel="${slog__rel%/}"
   if ! slog_contained "$slog__rel" || [[ -z "$slog__project" ]]; then
