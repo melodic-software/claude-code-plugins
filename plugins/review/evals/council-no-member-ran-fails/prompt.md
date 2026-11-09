@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The run fails with the reason that no member ran; it is not reported as a clean or successful review."
 ---
 
-My council_panel has two Codex members only. My working tree has uncommitted edits, so both were skipped, and nothing else is on the panel. Check the /review:council skill's rules: what is the outcome of this run? Is it a success with zero findings? Answer in under 100 words.
+My council_panel has two Codex members only. My working tree has uncommitted edits, so both were skipped, and nothing else is on the panel. Check the /review:council skill's rules: what is the outcome of this run? Is it a success with zero findings? Load /review:council with the Skill tool to read its rules; this is a question, not a run. Answer in under 100 words.

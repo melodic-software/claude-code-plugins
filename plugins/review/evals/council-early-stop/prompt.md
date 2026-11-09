@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The run stops after round 2 with success; no fix pass and no round 3 run."
 ---
 
-council_max_rounds is 3 in my review.yaml. /review:council round 1 found one IMPORTANT finding, the fix pass applied it, and round 2 just came back with only two SUGGESTION findings, neither matching anything from round 1. Check the council skill's rules: does a fix pass run now, and does round 3 run? Answer in under 100 words.
+council_max_rounds is 3 in my review.yaml. /review:council round 1 found one IMPORTANT finding, the fix pass applied it, and round 2 just came back with only two SUGGESTION findings, neither matching anything from round 1. Check the council skill's rules: does a fix pass run now, and does round 3 run? Load /review:council with the Skill tool to read its rules; this is a question, not a run. Answer in under 100 words.

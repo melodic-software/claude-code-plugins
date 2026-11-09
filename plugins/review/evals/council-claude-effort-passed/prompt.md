@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The member is dispatched as review:brief-reviewer with model sonnet and effort max passed on the Agent call."
 ---
 
-One of my council_members is `fast-check` with provider: claude, model: sonnet, effort: max. The review plugin's brief-reviewer agent file pins model opus and effort high. Check the /review:council skill and its files: when the council dispatches fast-check, which model and effort does it run with, and how are they applied? Answer in under 120 words.
+One of my council_members is `fast-check` with provider: claude, model: sonnet, effort: max. The review plugin's brief-reviewer agent file pins model opus and effort high. Check the /review:council skill and its files: when the council dispatches fast-check, which model and effort does it run with, and how are they applied? Load /review:council with the Skill tool to read its rules; this is a question, not a run. Answer in under 120 words.
