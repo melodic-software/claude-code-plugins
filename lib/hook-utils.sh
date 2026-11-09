@@ -826,16 +826,8 @@ hook::_physical_prime() {
     __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
   fi
   local -a __hu_lines=()
-  local __hu_glob=0
-  [[ $- == *f* ]] || __hu_glob=1
-  set -f
-  local IFS=$'\n'
-  # shellcheck disable=SC2206 # splitting realpath's one-line-per-operand output is the intent
-  __hu_lines=($__hu_out)
-  ((__hu_glob)) && set +f
-  ((${#__hu_lines[@]} == ${#__hu_todo[@]})) || return 0
+  hook::_split_lines "$__hu_out" "${#__hu_todo[@]}" || return 0
   for ((__hu_i = 0; __hu_i < ${#__hu_todo[@]}; __hu_i++)); do
-    [[ -n "${__hu_lines[__hu_i]}" ]] || return 0
     hook::expand_8dot3_to __hu_v "${__hu_lines[__hu_i]}"
     _HOOK_PHYS_KEYS+=("${__hu_todo[__hu_i]}")
     _HOOK_PHYS_VALS+=("$__hu_v")
@@ -1325,6 +1317,15 @@ hook::json_unescape_to() {
   printf -v "$1" '%s' "$__hu_out"
 }
 
+# hook::_key_depth_is_one <index>: 0 when placeholder `"#<index>"` sits at
+# depth one of _HOOK_JSON_SK, the opening brackets before it outnumbering the
+# closing ones by exactly one. Every bracket in the skeleton is structural.
+hook::_key_depth_is_one() {
+  local __hu_pre=${_HOOK_JSON_SK%%\"#"$1"\"*}
+  local __hu_open=${__hu_pre//[^\{\[]/} __hu_close=${__hu_pre//[^\}\]]/}
+  ((${#__hu_open} - ${#__hu_close} == 1))
+}
+
 # hook::_fast_file_path_to <var> <payload>
 # The builtin answer to `jq -r '(.tool_input.file_path // empty) |
 # gsub("\r";"")'` followed by the `$(...)` capture. Returns
@@ -1347,7 +1348,7 @@ hook::_fast_file_path_to() {
     hook::_c_locale hook::_fast_file_path_to "$@"
     return
   }
-  local __hu_s="$2" __hu_i __hu_n __hu_part __hu_body __hu_ti=-1 __hu_fp=-1 __hu_m __hu_raw __hu_pre __hu_re __hu_file
+  local __hu_s="$2" __hu_i __hu_n __hu_part __hu_body __hu_ti=-1 __hu_fp=-1 __hu_m __hu_re __hu_file
   hook::_json_skeleton "$__hu_s" || return 2
   [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
   __hu_n=${#_HOOK_JSON_PARTS[@]}
@@ -1379,17 +1380,10 @@ hook::_fast_file_path_to() {
   ((__hu_fp >= 0)) || return 1
   ((__hu_ti >= 0)) || return 1
   __hu_re="(^|[{,])\"#$__hu_ti\":\\{([^][{}]*)\\}"
-  if [[ "$_HOOK_JSON_SK" =~ $__hu_re ]]; then
-    __hu_body=${BASH_REMATCH[2]}
-    __hu_pre=${_HOOK_JSON_SK%%\"#"$__hu_ti"\"*}
-    # Depth of the key: opening brackets minus closing ones before it must be
-    # exactly one, i.e. a direct member of the root object.
-    local __hu_o1=${__hu_pre//\{/} __hu_o2=${__hu_pre//\[/} __hu_c1=${__hu_pre//\}/} __hu_c2=${__hu_pre//\]/}
-    local __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
-    ((__hu_depth == 1)) || return 2
-  else
-    return 2
-  fi
+  [[ "$_HOOK_JSON_SK" =~ $__hu_re ]] || return 2
+  __hu_body=${BASH_REMATCH[2]}
+  # The key must be a direct member of the root object.
+  hook::_key_depth_is_one "$__hu_ti" || return 2
   __hu_re="(^|,)\"#$__hu_fp\":\"#([0-9]+)\"(,|$)"
   if [[ "$__hu_body" =~ $__hu_re ]]; then
     __hu_m=${BASH_REMATCH[2]}
@@ -1398,11 +1392,9 @@ hook::_fast_file_path_to() {
   else
     return 1
   fi
-  __hu_raw=${__hu_s:${_HOOK_JSON_OFF[__hu_m]}:${#_HOOK_JSON_PARTS[__hu_m]}}
-  if [[ "$__hu_raw" == *\\* ]]; then
-    hook::json_unescape_to __hu_file "$__hu_raw" || return 2
-  else
-    __hu_file=$__hu_raw
+  __hu_file=${__hu_s:${_HOOK_JSON_OFF[__hu_m]}:${#_HOOK_JSON_PARTS[__hu_m]}}
+  if [[ "$__hu_file" == *\\* ]]; then
+    hook::json_unescape_to __hu_file "$__hu_file" || return 2
   fi
   __hu_file=${__hu_file//$'\r'/}
   while [[ "$__hu_file" == *$'\n' ]]; do
@@ -1509,7 +1501,7 @@ hook::_fast_fields() {
     fi
   done
   local -a __hu_vals=()
-  local __hu_ti __hu_fi __hu_pre __hu_o1 __hu_o2 __hu_c1 __hu_c2 __hu_depth __hu_tok
+  local __hu_ti __hu_fi __hu_tok
   for ((__hu_j = 0; __hu_j < ${#__hu_k1[@]}; __hu_j++)); do
     # What jq prints for an absent or null value: `// ""` gives the empty
     # string, `// false | tostring` gives `false`.
@@ -1529,27 +1521,11 @@ hook::_fast_fields() {
       continue
     fi
     __hu_tok=${BASH_REMATCH[2]}
-    __hu_pre=${_HOOK_JSON_SK%%\"#"$__hu_ti"\"*}
-    __hu_o1=${__hu_pre//\{/}
-    __hu_o2=${__hu_pre//\[/}
-    __hu_c1=${__hu_pre//\}/}
-    __hu_c2=${__hu_pre//\]/}
-    __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
-    if ((__hu_depth != 1)); then
+    if ! hook::_key_depth_is_one "$__hu_ti"; then
       __hu_vals+=("$__hu_nil")
       continue
     fi
-    if [[ -z "${__hu_k2[__hu_j]}" ]]; then
-      case "$__hu_tok" in
-      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
-      null) __hu_vals+=("$__hu_nil") && continue ;;
-      true | false)
-        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
-        __hu_vals+=("$__hu_tok") && continue
-        ;;
-      *) return 2 ;;
-      esac
-    else
+    if [[ -n "${__hu_k2[__hu_j]}" ]]; then
       case "$__hu_tok" in
       null) __hu_vals+=("$__hu_nil") && continue ;;
       \{*\}) ;;      # a flat object: its members are the only place the key can be
@@ -1568,16 +1544,16 @@ hook::_fast_fields() {
         continue
       fi
       __hu_tok=${BASH_REMATCH[2]}
-      case "$__hu_tok" in
-      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
-      null) __hu_vals+=("$__hu_nil") && continue ;;
-      true | false)
-        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
-        __hu_vals+=("$__hu_tok") && continue
-        ;;
-      *) return 2 ;;
-      esac
     fi
+    case "$__hu_tok" in
+    \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
+    null) __hu_vals+=("$__hu_nil") && continue ;;
+    true | false)
+      [[ -n "${__hu_df[__hu_j]}" ]] || return 2
+      __hu_vals+=("$__hu_tok") && continue
+      ;;
+    *) return 2 ;; # a number, an object or an array: jq's tostring
+    esac
     __hu_val=${__hu_s:${_HOOK_JSON_OFF[__hu_raw]}:${#_HOOK_JSON_PARTS[__hu_raw]}}
     if [[ "$__hu_val" == *\\* ]]; then
       hook::json_unescape_to __hu_val "$__hu_val" || return 2
@@ -1692,22 +1668,14 @@ hook::json_escape_jq_to() {
 hook::json_str_object_to() {
   local __hu_dest="$1"
   shift
-  local __hu_out="{" __hu_first=1 __hu_k __hu_v __hu_ek __hu_ev
+  local __hu_out="" __hu_ek __hu_ev
   while (($# >= 2)); do
-    __hu_k="$1"
-    __hu_v="$2"
+    hook::json_escape_jq_to __hu_ek "$1"
+    hook::json_escape_jq_to __hu_ev "$2"
     shift 2
-    hook::json_escape_jq_to __hu_ek "$__hu_k"
-    hook::json_escape_jq_to __hu_ev "$__hu_v"
-    if ((__hu_first)); then
-      __hu_first=0
-    else
-      __hu_out+=","
-    fi
-    __hu_out+='"'"$__hu_ek"'":"'"$__hu_ev"'"'
+    __hu_out+="${__hu_out:+,}\"$__hu_ek\":\"$__hu_ev\""
   done
-  __hu_out+="}"
-  printf -v "$__hu_dest" '%s' "$__hu_out"
+  printf -v "$__hu_dest" '{%s}' "$__hu_out"
 }
 
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
@@ -1734,20 +1702,16 @@ hook::json_str_object_to() {
 # `read -d ''` of the pipe for the same answer.
 hook::read_file_path() {
   local -a __hu_chunks=()
-  local __hu_chunk __hu_out=""
+  local __hu_chunk="" __hu_out=""
   # Builtin read to NUL or EOF. A NUL splits the payload into several chunks;
   # the fast path only takes a single-chunk (NUL-free) payload, and the jq
   # fallback is fed the chunks NUL-joined, so it sees the bytes jq used to
-  # read straight from stdin.
-  while :; do
-    __hu_chunk=""
-    if IFS= read -r -d '' __hu_chunk; then
-      __hu_chunks+=("$__hu_chunk")
-      continue
-    fi
+  # read straight from stdin. The last chunk is what read held at EOF.
+  while IFS= read -r -d '' __hu_chunk; do
     __hu_chunks+=("$__hu_chunk")
-    break
+    __hu_chunk=""
   done
+  __hu_chunks+=("$__hu_chunk")
   hook::read_file_path_to __hu_out "${__hu_chunks[@]}" || return 1
   printf '%s' "$__hu_out"
 }
