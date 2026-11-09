@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0] - 2026-11-09
+
+### Changed
+
+- `/implementation:implement-dispatch` copies the Brief Goal's `Finish line:` line into a worker brief beside the Intent, Vision and tiebreak lines.
+
 ## [0.37.5] - 2026-11-09
 
 ### Changed
