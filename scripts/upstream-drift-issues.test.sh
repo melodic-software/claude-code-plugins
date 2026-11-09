@@ -74,17 +74,24 @@ calls() {
   done
 }
 
-# body_of <verb>: the body file recorded for the first call whose verb matches.
-body_of() {
+# body_file_of <verb>: the path of the body file recorded for the first call
+# whose verb matches.
+body_file_of() {
   local i n
   n="$(cat "$LOG/count" 2>/dev/null || echo 0)"
   for ((i = 1; i <= n; i++)); do
     if [[ "$(sed -n 2p "$LOG/call.$i")" == "$1" && -f "$LOG/body.$i" ]]; then
-      cat "$LOG/body.$i"
+      printf '%s' "$LOG/body.$i"
       return 0
     fi
   done
   return 1
+}
+
+# body_of <verb>: the contents of that body file.
+body_of() {
+  local f
+  f="$(body_file_of "$1")" && cat "$f"
 }
 
 expect_code() { # <name> <expected>
@@ -141,8 +148,37 @@ expect_lacks "create: unchanged rows are left out" "$body" 'skills/gamma'
 expect_has "create: body names the pin" "$body" "\`$PIN\`"
 expect_has "create: body names the head" "$body" "\`$HEAD\`"
 expect_has "create: body names the run URL" "$body" 'https://github.com/acme/site/actions/runs/777'
-expect_lacks "create: no label flag" "$c" '--label'
+expect_has "create: the issue gets the needs-human label" "$c" '--label needs-human'
 expect_lacks "create: no assignee flag" "$c" '--assignee'
+
+# --- a report with no unknown token keeps the record body byte for byte ------
+# Run again until the UTC date is the same before and after, so a run that
+# crosses midnight cannot mismatch the body's run date.
+for _ in 1 2; do
+  run_date="$(date -u +%Y-%m-%d)"
+  run_sut "$DRIFT"
+  [[ "$(date -u +%Y-%m-%d)" == "$run_date" ]] && break
+done
+want_body="$TMP/want-body.md"
+printf '%s' "Upstream \`acme/widgets\` changed since the pin on its docs/upstream page.
+
+Run: $run_date, https://github.com/acme/site/actions/runs/777
+
+### \`docs/upstream/widgets.md\`
+
+Pin \`$PIN\`, upstream head \`$HEAD\`.
+
+- \`M\` \`skills/alpha/SKILL.md\` (page line 7)
+- new unit \`skills/delta/SKILL.md\`
+- removed unit \`skills/beta\`
+
+Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue.
+" >"$want_body"
+if cmp -s "$want_body" "$(body_file_of create)"; then
+  pass "record body: byte-identical to the hex-pin wording"
+else
+  bad "record body: byte-identical to the hex-pin wording" "got: $(body_of create)"
+fi
 
 # --- edit: exact-title issue open, drift ------------------------------------
 GH_STUB_LIST="$LIST_OPEN"
@@ -152,6 +188,7 @@ c="$(calls)"
 expect_has "edit: edits issue 12 from a body file" "$c" 'issue edit 12 --body-file'
 expect_lacks "edit: creates nothing" "$c" 'issue create'
 expect_lacks "edit: never touches the near-match issue 5" "$c" 'issue edit 5'
+expect_lacks "edit: an in-place edit adds no label" "$c" 'label'
 
 # --- close: exact-title issue open, clean -----------------------------------
 run_sut "$CLEAN"
@@ -231,10 +268,10 @@ expect_has "reopen: replaces its body from a body file" "$c" 'issue edit 12 --bo
 expect_lacks "reopen: creates nothing" "$c" 'issue create'
 expect_has "reopen: reports the action" "$OUT" 'action=reopen repo=acme/widgets'
 expect_has "reopen: the body lists the changed row" "$(body_of edit)" '`skills/alpha/SKILL.md`'
-if [[ "$c" == *'issue reopen 12'*'issue edit 12'* ]]; then
-  pass "reopen: reopens before it edits"
+if [[ "$c" == *'issue edit 12 --add-label needs-human'*'issue reopen 12'*'issue edit 12 --body-file'* ]]; then
+  pass "reopen: labels, then reopens, then edits the body"
 else
-  bad "reopen: reopens before it edits" "$c"
+  bad "reopen: labels, then reopens, then edits the body" "$c"
 fi
 closed_list 'null'
 run_sut "$DRIFT"
@@ -318,6 +355,80 @@ run_sut "$UNTRACKED"
 expect_code "untracked: exit 0" 0
 expect_has "untracked: the only gh call is the issue list read" "[$(calls)]" "[$LIST_API]"
 expect_has "untracked: reports action none" "$OUT" 'action=none repo=acme/plans'
+LIST_PLANS_OPEN="$TMP/list-plans-open.json"
+printf '[{"number":14,"title":"Upstream drift: acme/plans",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_PLANS_OPEN"
+GH_STUB_LIST="$LIST_PLANS_OPEN"
+run_sut "$UNTRACKED"
+expect_code "untracked, issue open: exit 0" 0
+expect_has "untracked, issue open: leaves its issue untouched" "[$(calls)]" "[$LIST_API]"
+CLEAN_UNTRACKED="$TMP/clean-untracked.txt"
+printf '%s\n' \
+  "page repo=acme/plans pin=$PIN head=$HEAD status=clean path=docs/upstream/plans.md" \
+  "page repo=acme/plans pin=unknown head=unknown status=untracked path=plugins/plans/skills/sync/scripts/update.sh" >"$CLEAN_UNTRACKED"
+run_sut "$CLEAN_UNTRACKED"
+expect_code "clean beside untracked: exit 0" 0
+expect_lacks "clean beside untracked: closes nothing" "$(calls)" 'issue close'
+expect_has "clean beside untracked: reports action none" "$OUT" 'action=none repo=acme/plans'
+
+# --- a source with no git pin: pin=unknown head=unknown ---------------------
+VENDORED="$TMP/vendored.txt"
+printf '%s\n' \
+  "page repo=playwright/playwright pin=unknown head=unknown status=drift path=plugins/playwright/skills/playwright/scripts/update.sh" >"$VENDORED"
+GH_STUB_LIST="$LIST_NONE"
+run_sut "$VENDORED"
+expect_code "unknown pin: accepted, exit 0" 0
+c="$(calls)"
+expect_has "unknown pin: creates the id's issue" "$c" 'issue create --title Upstream drift: playwright/playwright --body-file'
+expect_has "unknown pin: the issue gets the needs-human label" "$c" '--label needs-human'
+body="$(body_of create)"
+expect_has "unknown pin: names the skill" "$body" '### `playwright:playwright`'
+expect_has "unknown pin: says what to run" "$body" 'Run `plugins/playwright/skills/playwright/scripts/update.sh`; restore or re-vendor what it names; its output is in the run'"'"'s job summary.'
+expect_lacks "unknown pin: no pin sentence" "$body" 'Pin `'
+expect_lacks "unknown pin: no re-audit footer" "$body" 'Re-audit'
+# AC10: an open issue for a vendored id is edited, never filed twice.
+LIST_VENDORED_OPEN="$TMP/list-vendored-open.json"
+printf '[{"number":15,"title":"Upstream drift: playwright/playwright",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_OPEN"
+GH_STUB_LIST="$LIST_VENDORED_OPEN"
+run_sut "$VENDORED"
+expect_code "unknown pin, issue open: exit 0" 0
+c="$(calls)"
+expect_has "unknown pin, issue open: edits issue 15" "$c" 'issue edit 15 --body-file'
+expect_lacks "unknown pin, issue open: files no second issue" "$c" 'issue create'
+expect_lacks "unknown pin, issue open: an in-place edit adds no label" "$c" 'label'
+# No skills/ segment in the path: the id names it.
+printf '%s\n' \
+  "page repo=user-interface/write-css pin=unknown head=unknown status=drift path=plugins/user-interface/scripts/check-good-css-drift.sh" >"$TMP/vendored-noskill.txt"
+GH_STUB_LIST="$LIST_NONE"
+run_sut "$TMP/vendored-noskill.txt"
+expect_has "unknown pin, no skill path: the id names it" "$(body_of create)" '### `user-interface/write-css`'
+# A clean record page beside a drifted unknown page on one id.
+MIXED_PIN="$TMP/mixed-pin.txt"
+printf '%s\n' \
+  "page repo=acme/widgets pin=$PIN head=$HEAD status=clean path=docs/upstream/widgets.md" \
+  "page repo=acme/widgets pin=unknown head=unknown status=drift path=plugins/widgets/skills/sync/scripts/update.sh" >"$MIXED_PIN"
+run_sut "$MIXED_PIN"
+body="$(body_of create)"
+expect_has "clean record beside drifted unknown: vendored wording" "$body" 'no longer matches the copy vendored here'
+expect_has "clean record beside drifted unknown: names the skill" "$body" '### `widgets:sync`'
+expect_lacks "clean record beside drifted unknown: no re-audit footer" "$body" 'Re-audit'
+expect_lacks "clean record beside drifted unknown: no pin sentence" "$body" 'Pin `'
+# Any other non-hex token is rejected before any gh call.
+for bad_token in "pin=UNKNOWN head=unknown" "pin=unknown head=none" "pin=zz12 head=$HEAD" "pin=$PIN head=" "pin= head=unknown"; do
+  printf '%s\n' "page repo=acme/widgets $bad_token status=drift path=docs/upstream/widgets.md" >"$TMP/bad-token.txt"
+  run_sut "$TMP/bad-token.txt"
+  expect_code "bad token ($bad_token): exit 2" 2
+  expect_has "bad token ($bad_token): no gh call" "[$(calls)]" '[]'
+done
+# The sweep leaves an untracked <plugin>/<skill> id alone.
+LIST_VENDORED_SWEEP="$TMP/list-vendored-sweep.json"
+printf '[{"number":16,"title":"Upstream drift: dometrain/sync",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR" >"$LIST_VENDORED_SWEEP"
+GH_STUB_LIST="$LIST_VENDORED_SWEEP"
+printf '%s\n' \
+  "page repo=dometrain/sync pin=unknown head=unknown status=untracked path=plugins/dometrain/skills/sync/scripts/update.sh" >"$TMP/vendored-untracked.txt"
+run_sut "$TMP/vendored-untracked.txt"
+expect_code "untracked vendored id: exit 0" 0
+expect_has "untracked vendored id: the sweep leaves its issue alone" "[$(calls)]" "[$LIST_API]"
+expect_lacks "untracked vendored id: no close-unreported line" "$OUT" 'close-unreported'
 
 # --- body over the cap is cut with a job-summary pointer --------------------
 BIG="$TMP/big.txt"
@@ -435,7 +546,21 @@ closed_list '"completed"'
 GH_STUB_FAIL=reopen
 run_sut "$DRIFT"
 if [[ "$CODE" != 0 ]]; then pass "failed reopen: exits nonzero"; else bad "failed reopen: exits nonzero" "$OUT"; fi
-expect_lacks "failed reopen: does not edit the closed issue" "$(calls)" 'issue edit'
+c="$(calls)"
+expect_has "failed reopen: the closed issue keeps the label added first" "$c" 'issue edit 12 --add-label needs-human'
+expect_lacks "failed reopen: does not edit the closed issue's body" "$c" 'issue edit 12 --body-file'
+# A failed label add stops that issue's reopen; the next upstream still runs.
+TWO_DRIFT="$TMP/two-drift.txt"
+printf '%s\n' \
+  "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \
+  "row line=7 status=M path=skills/alpha/SKILL.md" \
+  "page repo=other/tools pin=$PIN head=$HEAD status=drift path=docs/upstream/tools.md" >"$TWO_DRIFT"
+GH_STUB_FAIL=edit
+run_sut "$TWO_DRIFT"
+if [[ "$CODE" != 0 ]]; then pass "failed label add: exits nonzero"; else bad "failed label add: exits nonzero" "$OUT"; fi
+c="$(calls)"
+expect_lacks "failed label add: no reopen" "$c" 'issue reopen'
+expect_has "failed label add: the next upstream still runs" "$c" 'issue create --title Upstream drift: other/tools'
 GH_STUB_FAIL=""
 
 # --- untrusted text never reaches shell evaluation (bash 5.1 semantics) -----

@@ -1967,9 +1967,9 @@ core_case() {
   out="$(run_fixture)"
   rm -rf "$TMP/.claude-plugin"
 }
-core_case ', "defaultEnabled": false' '["on1", {"name": "on2"}]'
-if ! grep -qE 'must set "defaultEnabled": false|must equal the catalog' <<<"$out"; then
-  ok "a default-off core whose dependencies equal the default-on set passes"
+core_case ', "defaultEnabled": false' '[{"name": "on2"}]'
+if ! grep -qE 'must set "defaultEnabled": false|dependencies must be' <<<"$out"; then
+  ok "a default-off core whose dependencies are a subset of the default-on set passes"
 else
   fail "a conforming core bundle should pass: $out"
 fi
@@ -1980,10 +1980,16 @@ else
   fail "a default-on core entry should fail: $out"
 fi
 core_case ', "defaultEnabled": false' '["on1", "off"]'
-if has_fail_line 'missing: on2; not default-on: off'; then
-  ok "core dependencies that differ from the default-on set fail, naming both sides"
+if has_fail_line 'dependencies must be default-on catalog plugins \(not default-on: off\)' && ! grep -q 'not in the catalog' <<<"$out"; then
+  ok "a core dependency the catalog sets defaultEnabled false fails, naming it"
 else
-  fail "core dependencies differing from the default-on set should fail: $out"
+  fail "a default-off core dependency should fail naming only off: $out"
+fi
+core_case ', "defaultEnabled": false' '["on1", "ghost"]'
+if has_fail_line 'dependencies must be catalog plugins \(not in the catalog: ghost\)' && ! grep -q 'not default-on' <<<"$out"; then
+  ok "a core dependency missing from the catalog fails, naming it"
+else
+  fail "a core dependency missing from the catalog should fail naming only ghost: $out"
 fi
 # The core bundle's Done-when check, run on the real catalog: jq's `//` treats
 # false like a missing value, so the default-off entry still prints `absent`.

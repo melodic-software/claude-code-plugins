@@ -5,21 +5,25 @@
 #   scripts/upstream-drift-issues.sh [--dry-run] <report-file>
 #   scripts/upstream-drift-issues.sh --help
 #
-# Each upstream repository gets at most one issue titled
-# `Upstream drift: <owner>/<repo>`, found with an exact title match in jq over
-# every issue, open or closed, the workflow's github-actions bot opened, read
-# once through the REST issue list: a same-titled issue anyone else opens is
-# never edited or closed. A repository with a drifted page gets that issue
-# created, its body replaced in place, or, when closed other than as not
-# planned or duplicate, reopened with its body replaced; a repository whose
-# pages are all clean gets an open issue closed with a comment; a repository
-# whose pages are all `untracked` is left alone. Last, the bot's open drift
-# issue for any upstream the report no longer names is closed with a comment,
-# printed as `action=close-unreported`. The body names the pin, head, run date and run URL,
-# then one line per changed row or unit, every report-derived string inside a
-# code span with backticks replaced. It is cut at 60,000 characters with a
-# pointer to the run's job summary, written to a temp file and passed with
-# --body-file. No labels, assignees or mentions.
+# Each upstream id (`<owner>/<repo>`, or `<plugin>/<skill>` for a source with
+# no git pin) gets at most one issue titled `Upstream drift: <id>`, found with
+# an exact title match in jq over every issue, open or closed, the workflow's
+# github-actions bot opened, read once through the REST issue list: a
+# same-titled issue anyone else opens is never edited or closed. An id with a
+# drifted page gets that issue created, its body replaced in place, or, when
+# closed other than as not planned or duplicate, reopened with its body
+# replaced; an id whose pages are all clean gets an open issue closed with a
+# comment; an id with any `untracked` page and no drifted one is left alone.
+# Last, the bot's open drift issue for any id the report no longer names is
+# closed with a comment, printed as `action=close-unreported`. The body names
+# the run date and run URL, then per drifted page either its pin and head (a
+# hex pin) or, for `pin=unknown`, the skill and the check script to run, then
+# one line per changed row or unit, every report-derived string inside a code
+# span with backticks replaced. The re-audit footer is written only when a
+# hex-pin page drifted. The body is cut at 60,000 characters with a pointer to
+# the run's job summary, written to a temp file and passed with --body-file.
+# A created or reopened issue gets the `needs-human` label, added before the
+# reopen; an in-place edit adds no label. No assignees or mentions.
 #
 # The whole report is parsed before any gh call. Each line follows the fixed
 # field order of the report (docs/contracts/upstream-drift/README.md, the
@@ -27,7 +31,7 @@
 # breaks the order exits 2 with no gh call.
 #
 # --dry-run makes only the issue list read. Every run prints one
-# `action=<create|edit|reopen|close|none> repo=<owner>/<repo>` line per repository,
+# `action=<create|edit|reopen|close|none> repo=<id>` line per upstream id,
 # then one `action=close-unreported` line per swept issue.
 # The run URL comes from GITHUB_SERVER_URL, GITHUB_REPOSITORY and GITHUB_RUN_ID.
 #
@@ -90,15 +94,27 @@ span() {
   printf '`%s`' "${s//\`/\'}"
 }
 
+# skill_name <page-path> <id>: `<plugin>:<skill>` from a
+# plugins/<plugin>/skills/<skill>/ path, else the id.
+skill_name() {
+  if [[ "$1" =~ ^plugins/([^/]+)/skills/([^/]+)/ ]]; then
+    printf '%s:%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    printf '%s' "$2"
+  fi
+}
+
 # --- parse -------------------------------------------------------------------
 
-REPOS=()  # repository per index, first-seen order
-STATE=()  # none | clean | drift
-DETAIL=() # body lines for drifted pages
+REPOS=()     # upstream id per index, first-seen order
+STATE=()     # none | clean | drift
+DETAIL=()    # body lines for drifted pages
+PINNED=()    # 1 when a drifted page has a hex pin
+UNTRACKED=() # 1 when any page is untracked; blocks a close
 repo_index=-1
 page_status=""
 
-find_repo() { # <owner/repo>: sets repo_index, adding the repository if new
+find_repo() { # <id>: sets repo_index, adding the id if new
   local i
   for i in "${!REPOS[@]}"; do
     if [[ "${REPOS[i]}" == "$1" ]]; then
@@ -109,10 +125,12 @@ find_repo() { # <owner/repo>: sets repo_index, adding the repository if new
   REPOS+=("$1")
   STATE+=(none)
   DETAIL+=("")
+  PINNED+=(0)
+  UNTRACKED+=(0)
   repo_index=$((${#REPOS[@]} - 1))
 }
 
-re_page='^page repo=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+) pin=([0-9a-f]+) head=([0-9a-f]+) status=(untracked|clean|drift) path=(.+)$'
+re_page='^page repo=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+) pin=([0-9a-f]+|unknown) head=([0-9a-f]+|unknown) status=(untracked|clean|drift) path=(.+)$'
 re_row='^row line=([0-9]+) status=([A-Za-z]+) path=(.+)$'
 re_unit='^(new|removed)-unit path=(.+)$'
 
@@ -126,10 +144,15 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     case "$page_status" in
     drift)
       STATE[repo_index]=drift
-      DETAIL[repo_index]+=$'\n'"### $(span "$page")"$'\n\n'"Pin $(span "$pin"), upstream head $(span "$head")."$'\n\n'
+      if [[ "$pin" == unknown ]]; then
+        DETAIL[repo_index]+=$'\n'"### $(span "$(skill_name "$page" "$repo")")"$'\n\n'"Run $(span "$page"); restore or re-vendor what it names; its output is in the run's job summary."$'\n\n'
+      else
+        PINNED[repo_index]=1
+        DETAIL[repo_index]+=$'\n'"### $(span "$page")"$'\n\n'"Pin $(span "$pin"), upstream head $(span "$head")."$'\n\n'
+      fi
       ;;
     clean) [[ "${STATE[repo_index]}" == drift ]] || STATE[repo_index]=clean ;;
-    *) ;; # untracked: the repository is listed, nothing is written
+    *) UNTRACKED[repo_index]=1 ;; # listed, nothing written, and never closed
     esac
   elif ((repo_index >= 0)) && [[ "$line" =~ $re_row ]]; then
     n="${BASH_REMATCH[1]}" st="${BASH_REMATCH[2]}" p="${BASH_REMATCH[3]}"
@@ -187,10 +210,18 @@ bot_issue() {
 
 # write_body <index> <file>
 write_body() {
-  local body note repo="${REPOS[$1]}"
-  body="Upstream $(span "$repo") changed since the pin on its docs/upstream page."
+  local body note repo="${REPOS[$1]}" pinned="${PINNED[$1]}"
+  if ((pinned)); then
+    body="Upstream $(span "$repo") changed since the pin on its docs/upstream page."
+  else
+    body="Upstream $(span "$repo") no longer matches the copy vendored here."
+  fi
   body+=$'\n\n'"Run: $RUN_DATE, $RUN_URL"$'\n'"${DETAIL[$1]}"
-  body+=$'\n'"Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."$'\n'
+  if ((pinned)); then
+    body+=$'\n'"Re-audit the rows named above as docs/contracts/upstream-drift/README.md, \"When a trigger fires\", requires. Moving the pin makes the next run clean, which closes this issue."$'\n'
+  else
+    body+=$'\n'"A clean run closes this issue."$'\n'
+  fi
   if ((${#body} > CAP)); then
     note=$'\n'"Cut at $CAP characters. The full report is in the run's job summary: $RUN_URL"$'\n'
     body="${body:0:$((CAP - ${#note}))}"
@@ -221,7 +252,7 @@ for i in "${!REPOS[@]}"; do
       elif [[ "$reason" != not_planned && "$reason" != duplicate ]]; then
         action=reopen
       fi
-    elif [[ "$issue_state" == open ]]; then
+    elif [[ "$issue_state" == open ]] && ((!UNTRACKED[i])); then
       action=close
     fi
   fi
@@ -231,7 +262,7 @@ for i in "${!REPOS[@]}"; do
   case "$action" in
   create)
     write_body "$i" "$body_file"
-    if url="$(gh issue create --title "$title" --body-file "$body_file")"; then
+    if url="$(gh issue create --title "$title" --body-file "$body_file" --label needs-human)"; then
       [[ "$url" =~ /issues/([0-9]+)$ ]] && ! gh api -X PATCH "repos/{owner}/{repo}/issues/${BASH_REMATCH[1]}" -f type=Task >/dev/null &&
         printf '%s: could not set the Issue Type on %s\n' "$SELF" "$url" >&2
     else
@@ -248,7 +279,11 @@ for i in "${!REPOS[@]}"; do
     ;;
   reopen)
     write_body "$i" "$body_file"
-    if ! gh issue reopen "$num" >/dev/null; then
+    # The label goes on first, so no reopened issue is ever unlabeled.
+    if ! gh issue edit "$num" --add-label needs-human >/dev/null; then
+      printf '%s: label add failed for %s\n' "$SELF" "$repo" >&2
+      failed=1
+    elif ! gh issue reopen "$num" >/dev/null; then
       printf '%s: issue reopen failed for %s\n' "$SELF" "$repo" >&2
       failed=1
     elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
@@ -257,7 +292,7 @@ for i in "${!REPOS[@]}"; do
     fi
     ;;
   close)
-    gh issue close "$num" --comment "Upstream $(span "$repo") is clean against its pin as of $RUN_DATE ($RUN_URL)." >/dev/null || {
+    gh issue close "$num" --comment "Upstream $(span "$repo") is clean as of $RUN_DATE ($RUN_URL)." >/dev/null || {
       printf '%s: issue close failed for %s\n' "$SELF" "$repo" >&2
       failed=1
     }
@@ -268,8 +303,9 @@ done
 
 # Sweep: an open bot issue for an upstream the report no longer names (its
 # docs/upstream page was removed or renamed) is closed, since no later run
-# would reach it. Titles are matched exactly and the repository part must be
-# <owner>/<repo>; an upstream listed in this report in any state is left alone.
+# would reach it. Titles are matched exactly and the id part must be
+# <owner>/<repo> or <plugin>/<skill>; an id listed in this report in any state
+# is left alone.
 rows="$(jq -r '.[] | select(.state == "open" and (.title | startswith("Upstream drift: ")))
   | [.number, (.title | ltrimstr("Upstream drift: "))] | @tsv' <<<"$ISSUES")" || {
   printf '%s: unreadable issue list for the sweep\n' "$SELF" >&2
