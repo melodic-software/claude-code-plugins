@@ -25,20 +25,15 @@ export function findMarkerBlock(content, start, end) {
 // Exits 0 when the committed block already matches, exits 1 after reporting
 // drift under check, and otherwise rewrites the block and returns.
 export function syncMarkerBlock({ path, content, existing, expected, check, messages }) {
+  if (existing === expected) {
+    console.log(check ? messages.inSync : messages.unchanged);
+    process.exit(0);
+  }
   if (check) {
-    if (existing === expected) {
-      console.log(messages.inSync);
-      process.exit(0);
-    }
     console.error(messages.drift);
     console.error(messages.rerun);
     reportFirstDifference(expected, existing);
     process.exit(1);
-  }
-
-  if (existing === expected) {
-    console.log(messages.unchanged);
-    process.exit(0);
   }
   // Function replacer: a string replacement would reinterpret `$`-sequences
   // (`$&`, `$'`, ...) inside the generated block.

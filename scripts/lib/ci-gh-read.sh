@@ -41,7 +41,6 @@ ci_gh_read::install() {
 }
 
 ci_gh_read::reset() {
-  rm -rf "$1/pr-reads"
-  rm -rf "$1/api-budget"
+  rm -rf "$1/pr-reads" "$1/api-budget"
   echo "$2" >"$1/gh-read.deadline"
 }

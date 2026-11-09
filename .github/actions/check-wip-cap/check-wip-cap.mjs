@@ -96,13 +96,15 @@ export const BLOCKER_READS = 30;
 // read on first use, gives each issue's state to statusLabels, so no issue
 // past a limit is skipped. An unset models.issue-status leaves the names; a
 // failed listing makes every call throw StatusReadError. `config` and
-// `trustedActors` default to the base config's and the trusted-actor list.
+// `trustedActors` default to the base config's and the trusted-actor list;
+// `sleep` is issuesByStatus's.
 //
 // Its `queued()` is the same listing's agent-ready issues, oldest first, each
 // {number, names}: the names as statusLabels folds the field in, so a
 // field-only agent-ready counts and a stale agent-ready label under another
-// state does not. null with models.issue-status unset; a failed listing throws.
-export function listedStatusOf({ env = {}, github, repository, config, trustedActors }) {
+// state does not, and an issue the listing holds (`held`) counts as queued.
+// null with models.issue-status unset; a failed listing throws.
+export function listedStatusOf({ env = {}, github, repository, config, trustedActors, sleep }) {
   let listing;
   const load = async () => {
     const { issueStatusFromBase, issuesByStatus } = await import(new URL("../resolve-config/resolve-config.mjs", import.meta.url).href);
@@ -110,8 +112,9 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
     if (!leaf) {
       return null;
     }
-    const found = await issuesByStatus(github, repository, leaf.order, { config: leaf, trustedActors: trustedActors ?? loadTrustedActors(env) });
-    return { config: leaf, found, states: new Map(found.map((issue) => [issue.number, issue.state])) };
+    const found = await issuesByStatus(github, repository, leaf.order, { config: leaf, trustedActors: trustedActors ?? loadTrustedActors(env), sleep });
+    const held = new Map((found.held ?? []).map((issue) => [issue.number, issue]));
+    return { config: leaf, found, held, states: new Map(found.map((issue) => [issue.number, issue.state])) };
   };
   const statusOf = async (number, names) => {
     listing ??= load();
@@ -121,6 +124,12 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
     } catch (error) {
       throw new StatusReadError(number, error);
     }
+    // A held issue (Work status mid-write) reads as unreadable, never as its
+    // labels: readLaneWip counts that as queued.
+    const held = read?.held.get(Number(number));
+    if (held) {
+      throw new StatusReadError(number, held.reason);
+    }
     return read ? statusLabels(read.states.get(Number(number)) ?? null, names, read.config) : names;
   };
   statusOf.queued = async () => {
@@ -129,9 +138,14 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
     if (!read) {
       return null;
     }
+    // A held issue (Work status mid-write, left out of the listing) counts as
+    // agent-ready: leaving it out would undercount the cap by one, and
+    // counting it only slows admissions.
+    const held = [...read.held.values()].map((issue) => ({ number: issue.number, createdAt: String(issue.created_at ?? ""), names: ["agent-ready"] }));
     return read.found
       .map((issue) => ({ number: issue.number, createdAt: String(issue.created_at ?? ""), names: statusLabels(issue.state, issue.labels, read.config) }))
       .filter((issue) => lowered(issue.names).includes("agent-ready"))
+      .concat(held)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.number - b.number))
       .map(({ number, names }) => ({ number, names }));
   };

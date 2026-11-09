@@ -31,21 +31,23 @@ MID = 16
 TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']   # what decoding a video needs
 
 
+def _ffprobe(video, entries):
+    """ffprobe's csv output of one -show_entries selection over the first video stream."""
+    return subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', entries,
+                           '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
+
+
 def probe(video):
     prereq.require(TOOLS)
-    out = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
-                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
-    w, h = map(int, out.strip().split(',')[:2])
-    pts = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time',
-                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
+    w, h = map(int, _ffprobe(video, 'stream=width,height').strip().split(',')[:2])
+    pts = _ffprobe(video, 'frame=pts_time')
     return w, h, [float(t) for t in pts.replace(',', ' ').split()]
 
 
 def end(video):
     """When the first video stream ends: its last frame's pts plus that frame's duration."""
     pts = probe(video)[2]
-    dur = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=duration_time',
-                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout.split()
+    dur = _ffprobe(video, 'frame=duration_time').split()
     return pts[-1] + float(dur[-1].strip(','))
 
 

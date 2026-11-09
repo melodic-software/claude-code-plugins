@@ -107,19 +107,18 @@ WEAK_PEAK = 0.005         # judgment: a mode gray level holding under 0.5% of th
 
 def film_end(film, last_t, fps):
     """When the last drawing's hold ends: a video's stream end, a work dir's last t1, else one frame after last_t."""
-    if not isinstance(film, (str, Path)):
-        return last_t + 1 / fps
-    film = Path(film)
-    if film.is_file():
-        return decode.end(film)
-    ix_path = workdir.index(film)
-    if ix_path.is_file():
-        ix = json.load(open(ix_path, encoding='utf-8'))
-        ds = ix.get('drawings') or []
-        if ds and len(ds[-1]) > 2:
-            return ds[-1][2]
-        if 'duration' in ix:
-            return ix['duration']
+    if isinstance(film, (str, Path)):
+        film = Path(film)
+        if film.is_file():
+            return decode.end(film)
+        ix_path = workdir.index(film)
+        if ix_path.is_file():
+            ix = json.load(open(ix_path, encoding='utf-8'))
+            ds = ix.get('drawings') or []
+            if ds and len(ds[-1]) > 2:
+                return ds[-1][2]
+            if 'duration' in ix:
+                return ix['duration']
     return last_t + 1 / fps
 
 
@@ -155,8 +154,7 @@ def ridge_widths(mask):
 
 
 def islands(mask, conn):
-    n, _, st, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=conn)
-    a = st[1:, 4]
+    a = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=conn)[2][1:, 4]
     return int(((a >= 2) & (a <= 200)).sum()) * 1e6 / mask.size
 
 

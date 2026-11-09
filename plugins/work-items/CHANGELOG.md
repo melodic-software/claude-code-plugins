@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.7.3] - 2026-11-09
+
+### Changed
+
+- Simplified the generated session_bridge.py copy: the two transports share one listener view, the token checks share one compare, and the session-file readers reuse read_json. Behavior is unchanged.
+
 ## [12.7.2] - 2026-11-09
 
 ### Changed

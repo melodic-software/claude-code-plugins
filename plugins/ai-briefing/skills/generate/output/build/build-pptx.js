@@ -29,6 +29,19 @@ const H = 7.5;
 const FONT_HEAD = theme.pptFontHead;
 const FONT_BODY = theme.pptFontBody;
 
+function addLogo(slide, x, y, w, h) {
+  if (!logoWhiteData) return;
+  slide.addImage({ data: logoWhiteData, x, y, w, h, sizing: { type: "contain", w, h } });
+}
+
+function addHeading(slide, text, fontSize = 44) {
+  slide.addText(text, {
+    x: 0.5, y: 0.7, w: 12, h: 1,
+    fontFace: FONT_HEAD, fontSize, bold: true,
+    color: theme.text,
+  });
+}
+
 // Helper: solid bg + accent strip + footer
 function decorate(slide, { eyebrow = null } = {}) {
   slide.background = { color: theme.bg };
@@ -54,13 +67,7 @@ function decorate(slide, { eyebrow = null } = {}) {
   }
 
   // Top-right logo (white)
-  if (logoWhiteData) {
-    slide.addImage({
-      data: logoWhiteData,
-      x: W - 1.65, y: 0.2, w: 1.3, h: 0.36,
-      sizing: { type: "contain", w: 1.3, h: 0.36 },
-    });
-  }
+  addLogo(slide, W - 1.65, 0.2, 1.3, 0.36);
 
   slide.addText([
     { text: meta.org, options: { color: theme.textMuted, fontSize: 9 } },
@@ -121,13 +128,7 @@ function buildTitle(s, slide) {
   });
 
   // Org logo (large, top-left)
-  if (logoWhiteData) {
-    slide.addImage({
-      data: logoWhiteData,
-      x: 0.8, y: 0.7, w: 3.5, h: 0.95,
-      sizing: { type: "contain", w: 3.5, h: 0.95 },
-    });
-  }
+  addLogo(slide, 0.8, 0.7, 3.5, 0.95);
 
   slide.addText(s.eyebrow.toUpperCase(), {
     x: 0.8, y: 2.05, w: 11, h: 0.45,
@@ -162,12 +163,7 @@ function buildTitle(s, slide) {
 
 function buildAgenda(s, slide) {
   decorate(slide, { eyebrow: "MEETING ROADMAP" });
-
-  slide.addText(s.title, {
-    x: 0.5, y: 0.7, w: 12, h: 1,
-    fontFace: FONT_HEAD, fontSize: 48, bold: true,
-    color: theme.text,
-  });
+  addHeading(slide, s.title, 48);
 
   // 2-column agenda grid
   const colW = 5.6;
@@ -202,12 +198,7 @@ function buildAgenda(s, slide) {
 
 function buildSection(s, slide) {
   decorate(slide, { eyebrow: "WELCOME" });
-
-  slide.addText(s.title, {
-    x: 0.5, y: 0.7, w: 12, h: 1,
-    fontFace: FONT_HEAD, fontSize: 44, bold: true,
-    color: theme.text,
-  });
+  addHeading(slide, s.title);
 
   // Big lead quote
   slide.addText(`"${s.lead}"`, {
@@ -237,12 +228,7 @@ function buildSection(s, slide) {
 
 function buildLevels(s, slide) {
   decorate(slide, { eyebrow: "REFERENCE" });
-
-  slide.addText(s.title, {
-    x: 0.5, y: 0.7, w: 12, h: 1,
-    fontFace: FONT_HEAD, fontSize: 44, bold: true,
-    color: theme.text,
-  });
+  addHeading(slide, s.title);
 
   const startX = 0.7;
   const startY = 2.1;
@@ -338,8 +324,7 @@ function buildNews(s, slide) {
 }
 
 function buildCondensed(s, slide) {
-  const eyebrow = `AI LATEST NEWS · ${s.tier} signal`;
-  decorate(slide, { eyebrow });
+  decorate(slide, { eyebrow: `AI LATEST NEWS · ${s.tier} signal` });
 
   slide.addText(s.title, {
     x: 0.5, y: 0.65, w: 9.5, h: 0.6,
@@ -449,13 +434,7 @@ function buildOpen(s, slide) {
     fill: { color: theme.accent2, transparency: 80 }, line: { type: "none" },
   });
 
-  if (logoWhiteData) {
-    slide.addImage({
-      data: logoWhiteData,
-      x: W / 2 - 1.4, y: 0.9, w: 2.8, h: 0.75,
-      sizing: { type: "contain", w: 2.8, h: 0.75 },
-    });
-  }
+  addLogo(slide, W / 2 - 1.4, 0.9, 2.8, 0.75);
 
   slide.addText("SHARE THE FLOOR", {
     x: 0, y: 2.2, w: W, h: 0.5,
@@ -486,12 +465,7 @@ function buildOpen(s, slide) {
 
 function buildPrompt(s, slide) {
   decorate(slide, { eyebrow: "DISCUSSION" });
-
-  slide.addText(s.title, {
-    x: 0.5, y: 0.7, w: 12, h: 1,
-    fontFace: FONT_HEAD, fontSize: 44, bold: true,
-    color: theme.text,
-  });
+  addHeading(slide, s.title);
 
   // Centered question — brand-red border for energy
   slide.addShape(pres.ShapeType.roundRect, {
@@ -517,12 +491,7 @@ function buildPrompt(s, slide) {
 
 function buildBlank(s, slide) {
   decorate(slide, { eyebrow: "TASK FORCE" });
-
-  slide.addText(s.title, {
-    x: 0.5, y: 0.7, w: 12, h: 1,
-    fontFace: FONT_HEAD, fontSize: 44, bold: true,
-    color: theme.text,
-  });
+  addHeading(slide, s.title);
 
   // Open canvas — placeholder hint only
   slide.addShape(pres.ShapeType.roundRect, {
@@ -556,13 +525,7 @@ function buildQA(s, slide) {
   });
 
   // Logo top-center
-  if (logoWhiteData) {
-    slide.addImage({
-      data: logoWhiteData,
-      x: W / 2 - 1.4, y: 0.7, w: 2.8, h: 0.75,
-      sizing: { type: "contain", w: 2.8, h: 0.75 },
-    });
-  }
+  addLogo(slide, W / 2 - 1.4, 0.7, 2.8, 0.75);
 
   slide.addText("Q & A", {
     x: 0, y: 2.5, w: W, h: 2,

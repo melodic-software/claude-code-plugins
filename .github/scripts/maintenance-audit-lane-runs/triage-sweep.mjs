@@ -105,9 +105,11 @@ const bornReady = (i, labels) =>
 
 // `statusLabels` (statusListing) maps an issue number to its label names as
 // its Work status field decides them; an issue it leaves out is judged by its
-// own labels.
+// own labels, except one in its `held` set (Work status mid-write), which is
+// not dispatched this pass (conservative: no dispatch on a state not read).
 export function selectCandidates({ issues, now, authorIds, statusLabels = new Map() }) {
   const untriagedOrReady = (i) => {
+    if (statusLabels.held?.has(i.number)) return false;
     const labels = names(i, statusLabels.get(i.number));
     return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
   };
@@ -486,11 +488,16 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
 // Each open issue the Work status field or a status label places, mapped to
 // its label names as the field decides them (read-status.mjs statusLabels),
 // from one issuesByStatus (resolve-config.mjs) listing of every state, so the
-// field can add a candidate as well as drop one. No config, no map.
+// field can add a candidate as well as drop one. No config, no map. The map's
+// `held` is the set of issues the listing left out mid-write (issuesByStatus
+// `held`): selectCandidates skips them this pass rather than judge them by
+// labels that could miss a field hold; the next pass lists them again.
 export async function statusListing({ github, repository, config, trustedActors, issuesByStatus }) {
   if (!config) return new Map();
   const listed = await issuesByStatus(github, repository, config.order, { config, trustedActors });
-  return new Map(listed.map((i) => [i.number, labelsByField(i.state, i.labels, config)]));
+  const map = new Map(listed.map((i) => [i.number, labelsByField(i.state, i.labels, config)]));
+  map.held = new Set((listed.held ?? []).map((i) => i.number));
+  return map;
 }
 
 async function writeState(call, repo, number, state, next) {
