@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-09
+
+### Added
+
+- `touch.both_axes_activation` (default `tap-to-activate`, or `always-active`): how a touch element that needs both axes, such as a map or a canvas, takes gestures. By default it starts inactive so the page scrolls across it, one tap activates it, and a tap outside, a visible control or Esc leaves it, with the way out shown to the user. The touch rules in `reference/types/touch-web.md` follow the key, and the project's own pattern beats it. The default follows Emil Kowalski's tap-to-interact approach for touch ([post](https://x.com/emilkowalski/status/2117955432438469085)).
+
 ## [0.21.0] - 2026-11-09
 
 ### Added
