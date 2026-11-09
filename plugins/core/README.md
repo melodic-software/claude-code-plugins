@@ -35,6 +35,9 @@ default-on plugins are not members. `scripts/validate-plugin-contracts.mjs` fail
 missing from the catalog or set `"defaultEnabled": false`, or when the `core` entry is not
 `"defaultEnabled": false`.
 
+`core` installs no guard hooks: [`guardrails`](../guardrails/README.md) is default-on in the
+catalog but not a member, so enable it alongside `core` when you install `core` on its own.
+
 No member declares a dependency on another member, so each member also installs and loads on its
 own.
 
