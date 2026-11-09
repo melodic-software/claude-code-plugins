@@ -1,8 +1,8 @@
 # Spacing and shape
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. Fill each
+`{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
+examples illustrate the technique.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -23,7 +23,7 @@ Use it on any page built from reorderable sections, above all in a CMS where an 
 order.
 
 ```css
-section { padding-block: var(--space-section, 6rem); }
+section { padding-block: var(--space-section, {{spacing.section[1]}}); }
 
 .logos:has(+ .features) { padding-block-end: 2rem; }
 .features:has(+ .cta) { padding-block-end: 0; }
@@ -64,14 +64,14 @@ article.
 .fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-s, 1rem);
+  gap: var(--space-s, {{spacing.s}});
 }
 
 .prose > * { margin-block: 0; }
-.prose > * + * { margin-block-start: var(--flow-space, 1em); }
+.prose > * + * { margin-block-start: var(--flow-space, {{spacing.flow[0]}}); }
 
-.prose > :is(h2, h3) { --flow-space: 2em; }
-.prose > :is(h2, h3) + * { --flow-space: 0.5em; }
+.prose > :is(h2, h3) { --flow-space: {{spacing.flow[1]}}; }
+.prose > :is(h2, h3) + * { --flow-space: {{spacing.flow[2]}}; }
 ```
 
 Rules:
@@ -104,14 +104,14 @@ and a footer.
 .card {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: {{spacing.xs}};
 }
 
 .card > .actions { margin-block-start: auto; }
 
 .toolbar {
   display: flex;
-  gap: 1rem;
+  gap: {{spacing.s}};
 }
 
 .toolbar > .account { margin-inline-start: auto; }
@@ -119,7 +119,7 @@ and a footer.
 .hero {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: {{spacing.s}};
   min-block-size: 100svh;
 }
 
@@ -150,10 +150,10 @@ button in an input.
 
 ```css
 .card {
-  --radius: var(--radius-l, 1.25rem);
+  --radius: var(--radius-l, {{radius.l}});
   --border: 1px;
   --pad: 0.5rem;
-  border: var(--border) solid var(--border-subtle, oklch(0 0 none / 0.08));
+  border: var(--border) solid var(--border-subtle, oklch(0 0 none / {{color.border.light_alpha}}));
   padding: var(--pad);
   border-radius: var(--radius);
 }

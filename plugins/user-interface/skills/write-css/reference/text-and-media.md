@@ -1,8 +1,8 @@
 # Text and media
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. Fill each
+`{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
+examples illustrate the technique.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -77,19 +77,19 @@ avatars.
 .thumb {
   inline-size: 100%;
   block-size: auto;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: {{layout.media_aspect_ratio}};
   object-fit: cover;
   background-color: var(--surface-muted);
 }
 
 .avatar {
   flex: none;
-  inline-size: 3.5rem;
-  block-size: 3.5rem;
+  inline-size: {{layout.media_small}};
+  block-size: {{layout.media_small}};
   border-radius: 50%;
   object-fit: cover;
-  outline: 1px solid var(--border-subtle);
-  outline-offset: -1px;
+  outline: {{css.border_px.standard}}px solid var(--border-subtle);
+  outline-offset: -{{css.border_px.standard}}px;
 }
 ```
 
@@ -144,7 +144,7 @@ Why: trimming the line box to cap height and baseline makes equal padding look e
 Baseline: [`text-box`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-box#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
-Use it on single-line labels in buttons, badges and chips. Fill each `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says.
+Use it on single-line labels in buttons, badges and chips.
 
 ```css
 .button {
@@ -157,7 +157,7 @@ Use it on single-line labels in buttons, badges and chips. Fill each `{{key}}` p
 .button-with-icon {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: {{spacing.xs}};
   padding-block: {{spacing.control_padding[0]}};
   padding-inline: {{spacing.control_padding[1]}};
 }
@@ -207,7 +207,7 @@ Use it on every icon next to a label: buttons, links, list rows, notices.
 
 .notice > svg {
   flex: none;
-  inline-size: 1em;
+  inline-size: {{icon.size_em}}em;
   block-size: 1lh;
 }
 ```
