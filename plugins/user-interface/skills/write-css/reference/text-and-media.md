@@ -157,7 +157,7 @@ Use it on single-line labels in buttons, badges and chips.
 .button-with-icon {
   display: inline-flex;
   align-items: center;
-  gap: {{icon.label_gap_em}}em;
+  gap: {{spacing.xs}};
   padding-block: {{spacing.control_padding[0]}};
   padding-inline: {{spacing.control_padding[1]}};
 }
