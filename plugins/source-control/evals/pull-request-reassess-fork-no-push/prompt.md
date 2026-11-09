@@ -1,12 +1,12 @@
 ---
-description: Acting on a close for a fork head adds the label and comment and pushes nothing
+description: Acting on a continue verdict for a fork head behind its base updates nothing
 tags: [pull-request, source-control]
 plugins: ["../..", "gh-forge-path"]
 runs: 1
 max_turns: 45
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
-expected_outcome: The call record holds the do-not-merge label edit before one PR comment, and no push and no update-branch attempt
+expected_outcome: The verdict is continue, and the call record shows the limits read with no push, update-branch attempt, label or comment
 ---
 
 /source-control:pull-request reassess 512 --act

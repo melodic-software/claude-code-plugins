@@ -58,7 +58,7 @@ in_case fork-no-push git fetch -q origin "+refs/pull/512/head:refs/reassess/512-
 assert_exit "fork: the pull ref fetches" 0 "$?"
 assert_eq "fork: the fetched ref is the forge's head" \
   "$(in_case fork-no-push gh pr view 512 --json headRefOid --jq .headRefOid)" "$(in_case fork-no-push git rev-parse refs/reassess/512-1)"
-git -C "$ORIGIN" rev-parse -q --verify refs/heads/fix/retry-on-503 >/dev/null
+git -C "$ORIGIN" rev-parse -q --verify refs/heads/fix/retry-limit >/dev/null
 assert_exit "fork: the head branch is not on the origin" 1 "$?"
 assert_eq "fork: a cross-repository head" "true contributor/app" \
   "$(in_case fork-no-push gh api repos/eval-fixture/app/pulls/512 --jq '"true \(.head.repo.full_name)"')"

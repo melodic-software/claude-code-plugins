@@ -21,4 +21,4 @@ bash "$here/../fixtures/gh-forge/install.sh" 512 fix/retry-limit main "fix: retr
 bash "$here/../fixtures/gh-forge/reassess-state.sh" 512 \
   --merged 620 "chore: log warnings and above" "Quietens the logger." "$landed" \
   --issue 81 "Retry failed requests three times" "A failed request is retried only once. It should retry three times." \
-  --closes 81 --body $'Closes #81\n\nRaises the retry limit to three.'
+  --closes 81 --body $'Closes #81\n\nRaises the retry limit to three.' "$@"
