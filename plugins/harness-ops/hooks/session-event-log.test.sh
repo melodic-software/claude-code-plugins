@@ -195,6 +195,76 @@ printf '{"session_id":"s8","cwd":"%s","hook_event_name":"PostToolUse"}' "$P" |
   env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK "$ON" bash "$HOOK" >/dev/null 2>&1
 assert_eq "payload cwd resolves the project" 1 "$(wc -l <"$P/.observability/claude/sessions/s8.jsonl" 2>/dev/null | tr -d ' ')"
 
+# --- a linked worktree writes under the main checkout's root ---------------------
+# A real git worktree, so the .git file and commondir are the layout git writes.
+# The rows land under the main checkout, the observability probe run there counts
+# them, and removing the worktree leaves them in place.
+if command -v git >/dev/null 2>&1; then
+  MAIN="$TEST_TMPDIR/wt-main"
+  WT="$TEST_TMPDIR/wt-linked"
+  PROBE="$HOOK_DIR/../skills/observability/scripts/probe-observability-state.sh"
+  # No global or system config: a machine's commit.gpgsign or hooks path must
+  # not fail the fixture commit.
+  FIXTURE_GIT=(env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git)
+  "${FIXTURE_GIT[@]}" init -q "$MAIN" 2>/dev/null
+  "${FIXTURE_GIT[@]}" -C "$MAIN" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init 2>/dev/null
+  "${FIXTURE_GIT[@]}" -C "$MAIN" worktree add -q "$WT" 2>/dev/null
+  if [[ -f "$WT/.git" ]]; then
+    run "$WT" "$(payload swt PostToolUse)" "$ON" >/dev/null
+    assert_eq "worktree session → row under the main checkout's root" 1 \
+      "$(wc -l <"$MAIN/.observability/claude/sessions/swt.jsonl" 2>/dev/null | tr -d ' ')"
+    assert_file_absent "worktree session → no root inside the worktree" "$WT/.observability"
+    assert_eq "the main checkout's root carries the guard" "*" "$(head -1 "$MAIN/.observability/claude/.gitignore" 2>/dev/null)"
+    assert_eq "the probe run from the main checkout counts the worktree's row" "1 events" \
+      "$(cd "$MAIN" && bash "$PROBE" --hook-events 2>/dev/null)"
+    assert_eq "the probe run from the worktree reads the same root" "1 events" \
+      "$(cd "$WT" && bash "$PROBE" --hook-events 2>/dev/null)"
+    # A .git file git did not write cannot move the anchor into another checkout,
+    # where retention would delete: neither a gitdir outside <common>/worktrees...
+    P=$(project forged-commondir --no-git)
+    mkdir -p "$P/g"
+    printf 'gitdir: g\n' >"$P/.git"
+    printf '%s\n' "$MAIN/.git" >"$P/g/commondir"
+    printf '%s\n' "$P/.git" >"$P/g/gitdir"
+    run "$P" "$(payload sfc PostToolUse)" "$ON" >/dev/null
+    assert_eq "a forged commondir → the project's own root" 1 \
+      "$(wc -l <"$P/.observability/claude/sessions/sfc.jsonl" 2>/dev/null | tr -d ' ')"
+    assert_file_absent "a forged commondir → nothing under the other checkout" \
+      "$MAIN/.observability/claude/sessions/sfc.jsonl"
+    # ...nor a real worktree's gitdir, whose back-pointer names that worktree.
+    P=$(project borrowed-gitdir --no-git)
+    printf 'gitdir: %s\n' "$MAIN/.git/worktrees/${WT##*/}" >"$P/.git"
+    run "$P" "$(payload sbg PostToolUse)" "$ON" >/dev/null
+    assert_eq "another worktree's gitdir → the project's own root" 1 \
+      "$(wc -l <"$P/.observability/claude/sessions/sbg.jsonl" 2>/dev/null | tr -d ' ')"
+    assert_file_absent "another worktree's gitdir → nothing under the other checkout" \
+      "$MAIN/.observability/claude/sessions/sbg.jsonl"
+    # git writes a relative back-pointer under --relative-paths (git 2.48 and later).
+    WT_REL="$TEST_TMPDIR/wt-relative"
+    if "${FIXTURE_GIT[@]}" -C "$MAIN" worktree add -q --relative-paths "$WT_REL" 2>/dev/null; then
+      run "$WT_REL" "$(payload srl PostToolUse)" "$ON" >/dev/null
+      assert_eq "a relative-path worktree → row under the main checkout's root" 1 \
+        "$(wc -l <"$MAIN/.observability/claude/sessions/srl.jsonl" 2>/dev/null | tr -d ' ')"
+      "${FIXTURE_GIT[@]}" -C "$MAIN" worktree remove --force "$WT_REL" 2>/dev/null
+    fi
+    "${FIXTURE_GIT[@]}" -C "$MAIN" worktree remove --force "$WT" 2>/dev/null
+    assert_file_absent "the worktree is gone" "$WT"
+    assert_eq "removing the worktree leaves its rows in place" 1 \
+      "$(wc -l <"$MAIN/.observability/claude/sessions/swt.jsonl" 2>/dev/null | tr -d ' ')"
+  else
+    bad "git worktree add produced no linked worktree at $WT"
+  fi
+  # A .git file with no commondir (a submodule's shape) keeps the project as the anchor.
+  P=$(project gitfile --no-git)
+  mkdir -p "$TEST_TMPDIR/gitfile-modules/x"
+  printf 'gitdir: %s\n' "$TEST_TMPDIR/gitfile-modules/x" >"$P/.git"
+  run "$P" "$(payload sgf PostToolUse)" "$ON" >/dev/null
+  assert_eq "a .git file without commondir → the project's own root" 1 \
+    "$(wc -l <"$P/.observability/claude/sessions/sgf.jsonl" 2>/dev/null | tr -d ' ')"
+else
+  bad "git not on PATH: worktree anchoring is untested"
+fi
+
 # --- file paths outside the project are reduced to their last segment ------------
 P=$(project outside)
 run "$P" "$(payload s9 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"/opt/elsewhere/private/notes.md"}')" "$ON" >/dev/null

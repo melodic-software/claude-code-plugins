@@ -75,7 +75,9 @@
 #
 # Store resolution:
 #   --hook-events  <git toplevel, or the working directory when not inside a
-#                  repo>/<root> — no env override.
+#                  repo>/<root> — no env override. In a linked worktree the
+#                  toplevel is the main checkout's, the anchor the hooks write
+#                  under (session-log-lib.sh, slog_anchor_to).
 #   --otel-store   CC_OTEL_STORE when set and non-empty, used verbatim; otherwise
 #                  <git toplevel, or the working directory>/.claude/observability/otel.
 #
@@ -162,6 +164,15 @@ repo_root() {
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   printf '%s\n' "${root:-$PWD}"
+}
+
+# The directory the hook log root is joined onto, by the rule the hooks write
+# by (slog_anchor_to): the main checkout when the repo root is a linked
+# worktree, else the repo root.
+hook_anchor() {
+  local anchor
+  slog_anchor_to anchor "$(repo_root)"
+  printf '%s\n' "$anchor"
 }
 
 # The configured root, its origin, and whether the hooks would accept it.
@@ -252,7 +263,7 @@ case "$MODE" in
     printf 'INVALID root (%s): the hooks write nothing\n' "$ROOT_ARG"
     exit 0
   fi
-  hook_files "$(repo_root)/$ROOT_REL"
+  hook_files "$(hook_anchor)/$ROOT_REL"
   if ((${#HOOK_FILES[@]})); then
     printf '%s events\n' "$(cat "${HOOK_FILES[@]}" | wc -l)"
   else
@@ -301,7 +312,7 @@ case "$MODE" in
   printf 'prune-task:%s\n' "$(prune_task_state)"
   ;;
 --pipeline)
-  PROJECT="$(repo_root)"
+  PROJECT="$(hook_anchor)"
   ABS_ROOT="$PROJECT/$ROOT_REL"
   if ((ROOT_VALID)); then
     printf 'root: %s (%s)\n' "$ROOT_REL" "$ROOT_ORIGIN"
