@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.4] - 2026-11-09
+
+### Fixed
+
+- `implement-dispatch` no longer says each `/batch` unit ends in its own PR
+
+  The skill's `/batch` boundary and the `native-batch.md` reference now point at the `/batch` row for how a unit ends, since the row says a unit opens a PR or reports what happened.
+
 ## [0.37.3] - 2026-11-09
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.10.3] - 2026-11-09
+
+### Changed
+
+- The post-merge check and the demotion reads make fewer GitHub calls with the same answers: `--stop-uncovered` ends a check whose verdict would need a dispatch once its runs are listed, and ancestry, the default branch and permissions are answered from a local clone or a read already made.
+
 ## [8.10.2] - 2026-11-09
 
 ### Fixed

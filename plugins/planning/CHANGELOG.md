@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.14.0] - 2026-11-09
+
+### Added
+
+- The `/planning:draft-goal-condition` run contract adds a stop limit line (the turn or spend cap that ends the run) and an output-and-approval line (where the result lands and who approves anything irreversible).
+- `/planning:prd` success metrics add a `Stop condition:` line: the result that would end or kill the feature.
+
 ## [2.13.7] - 2026-11-09
 
 ### Changed
