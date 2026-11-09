@@ -148,24 +148,21 @@ function Invoke-TrendAnalysis {
         $adjustedFrom = $null
         $kevProp = $r.detail ? $r.detail.PSObject.Properties['kev_match_count'] : $null
         $nameOnlyKev = $r.id -eq 'winget-upgrades' -and $kevProp -and $kevProp.Value -gt 0
-        if ($r.severity -eq 'WARN' -and $null -ne $deltaText -and -not $nameOnlyKev) {
-            $upgrade = Test-WorseningTrend -CheckId $r.id -CurrentValue $currentValue -PriorValue $lastMetric
-            if ($upgrade) {
-                $adjustedFrom = $r.severity
-                $r.severity = 'CRIT'
-                $note = "trend upgrade: $deltaText"
-                $r.notes = $r.notes ? "$($r.notes); $note" : $note
+        $reason = $null
+        if ($r.severity -eq 'WARN') {
+            if ($null -ne $deltaText -and -not $nameOnlyKev -and
+                (Test-WorseningTrend -CheckId $r.id -CurrentValue $currentValue -PriorValue $lastMetric)) {
+                $reason = $deltaText
+            } elseif ($r.id -eq 'drivers') {
+                $repeatText = Get-CodeIntegrityRepeat -Result $r -HistoryTail $HistoryTail
+                if ($repeatText) { $reason = "repeat: $repeatText" }
             }
         }
-
-        if ($r.severity -eq 'WARN' -and $r.id -eq 'drivers') {
-            $repeatText = Get-CodeIntegrityRepeat -Result $r -HistoryTail $HistoryTail
-            if ($repeatText) {
-                $adjustedFrom = $r.severity
-                $r.severity = 'CRIT'
-                $note = "trend upgrade: repeat: $repeatText"
-                $r.notes = $r.notes ? "$($r.notes); $note" : $note
-            }
+        if ($reason) {
+            $adjustedFrom = $r.severity
+            $r.severity = 'CRIT'
+            $note = "trend upgrade: $reason"
+            $r.notes = $r.notes ? "$($r.notes); $note" : $note
         }
 
         $trend = [ordered]@{
