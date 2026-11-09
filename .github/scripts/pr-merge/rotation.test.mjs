@@ -16,6 +16,7 @@ import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads } from "./rotation.mjs";
+import { readAnswers } from "./verify-answers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -371,9 +372,66 @@ test("ghDownloadArtifact fetches an artifact by id with one counted API request 
     const lib = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
     const calls = execFileSync("bash", ["-c", '. "$0"; api_budget_emit_calls github-token', lib], { encoding: "utf8", env });
     assert.match(calls, /github-token=1 /, "the download host is off GitHub's API, so only the archive request counts");
-    assert.throws(() => ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "x", file: "other.json", env })(10), /Command failed/, "a file the archive lacks fails");
+    assert.throws(
+      () => ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "x", file: "other.json", env })(10),
+      (error) => error.code === "ENOENT" && error.syscall === "open",
+      "a file the archive lacks fails as a missing file would",
+    );
   } finally {
     rmSync(run, { recursive: true, force: true });
+  }
+});
+
+// A reader's artifact listing saved in the shared reads (artifactsNamed) names
+// the artifact, so ghDownload fetches it by id, one request where gh run
+// download sends two (the listing and the archive), with the same text.
+test("ghDownload fetches by the id the shared artifact listing names, and lists again only without one", () => {
+  const run = tempDir("rotation-shared-download-");
+  try {
+    const archive = join(run, "fixture.zip");
+    writeFileSync(archive, storedZip("cursor.json", '{"last":7}'));
+    const bin = fakeGhArchive(run, archive);
+    const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: run, TMPDIR: run, API_BUDGET_TOKEN: "github-token" };
+    const shared = join(run, "reads.json");
+    const listing = (artifacts) => ({ total_count: artifacts.length, artifacts });
+    writeFileSync(
+      shared,
+      JSON.stringify({
+        "/repos/o/r/actions/runs/41/artifacts?per_page=100": listing([
+          { id: 8, name: "pr-merge-gate-cursor", expired: false },
+          { id: 9, name: "pr-merge-gate-cursor", expired: false },
+          { id: 12, name: "pr-merge-gate-cursor", expired: true },
+          { id: 13, name: "other", expired: false },
+        ]),
+      }),
+    );
+    const download = ghDownload({ repo: "o/r", token: "t", dir: run, env, shared });
+    assert.equal(download(41), '{"last":7}');
+    assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean), ["api -i repos/o/r/actions/artifacts/9/zip"]);
+    // An artifact missing the file (verify-answers' artifact holding only
+    // eam-skip.json) reads as gh run download's missing file does: ENOENT on
+    // open, which readAnswers takes as "no answers".
+    assert.throws(() => download(41, "other.json"), (error) => error.code === "ENOENT" && error.syscall === "open");
+    assert.equal(readAnswers({ repo: "o/r", id: 41, download: (id) => download(id, "verify-answers.json") }), undefined);
+  } finally {
+    rmSync(run, { recursive: true, force: true });
+  }
+  for (const [why, saved] of [
+    ["no listing for the run", {}],
+    ["only an expired one", { "/repos/o/r/actions/runs/41/artifacts?per_page=100": { total_count: 1, artifacts: [{ id: 9, name: "pr-merge-gate-cursor", expired: true }] } }],
+    ["a listing short of its count", { "/repos/o/r/actions/runs/41/artifacts?per_page=100": { total_count: 101, artifacts: [{ id: 9, name: "pr-merge-gate-cursor", expired: false }] } }],
+  ]) {
+    const dir = tempDir("rotation-shared-download-");
+    try {
+      const bin = fakeGhDownload(dir, "cursor.json", '{"last":7}');
+      const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_TOKEN: "github-token" };
+      const shared = join(dir, "reads.json");
+      writeFileSync(shared, JSON.stringify(saved));
+      assert.equal(ghDownload({ repo: "o/r", token: "t", dir, env, shared })(41), '{"last":7}', why);
+      assert.match(readFileSync(join(dir, "gh-calls"), "utf8"), /^run download 41 /, why);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 });
 
