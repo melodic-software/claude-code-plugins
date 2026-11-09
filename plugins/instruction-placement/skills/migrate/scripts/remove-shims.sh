@@ -144,6 +144,18 @@ refuse() {
   exit 1
 }
 
+# The repository-relative directory "." or "a/b" as an absolute path.
+dir_path() {
+  if [[ "$1" == "." ]]; then printf '%s' "$REPO"; else printf '%s/%s' "$REPO" "$1"; fi
+}
+
+# Every AGENTS.md on disk under the repository, tracked or not, symlinks
+# included, pruning .git and node_modules. Returns find's own exit code.
+agents_walk() {
+  find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
+    -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null
+}
+
 # shellcheck source=../../../scripts/lib/version.sh
 . "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
@@ -174,8 +186,7 @@ echo
 # as the line index below, and a failed walk refuses: an undercount would
 # leave the loss out of the price and skip the probe.
 nested_rc=0
-nested_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
-  -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || nested_rc=$?
+nested_out="$(agents_walk)" || nested_rc=$?
 ((nested_rc == 0)) || refuse "the AGENTS.md walk failed (find exited $nested_rc) while counting nested files; an undercount would leave the nested write-trigger loss unpriced."
 # Only a nested AGENTS.md beside a CLAUDE.md has a shim this run can remove;
 # one already without a shim loses nothing here.
@@ -303,17 +314,16 @@ bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
   refuse "plan-migration.sh could not plan $REPO"
 
 SHIM_DIRS=()
-DIR_ROWS=""
+DIR_ROWS=0
 while IFS=$'\t' read -r kind dir state cb ab; do
   [[ "$kind" == "DIR" ]] || continue
-  DIR_ROWS="${DIR_ROWS}."
+  DIR_ROWS=1
   case "$state" in
   shim) SHIM_DIRS+=("$dir") ;;
   agents-only) echo "  $dir: already unshimmed ($ab bytes of AGENTS.md)" ;;
   *)
-    if [[ "$ab" == "0" ]]; then
+    [[ "$ab" != "0" ]] ||
       refuse "$dir is '$state' with an AGENTS.md of 0 bytes. A zero-byte AGENTS.md cannot be canaried, so it is never de-shimmed."
-    fi
     refuse "$dir is '$state' ($cb bytes of CLAUDE.md, $ab of AGENTS.md), not the target shape. Finish the migration there first."
     ;;
   esac
@@ -322,7 +332,7 @@ done <"$PLAN"
 # A plan with no DIR row at all is a plan that did not run: a repository always
 # has at least the row for its own root. Reading that as "nothing to remove"
 # turned a broken discovery into a clean exit 0.
-[[ ${#DIR_ROWS} -gt 0 ]] || refuse "the plan carries no DIR row; discovery did not report and this repository was never described."
+((DIR_ROWS)) || refuse "the plan carries no DIR row; discovery did not report and this repository was never described."
 
 [[ ${#SHIM_DIRS[@]} -gt 0 ]] || {
   echo "Nothing to remove: no directory in $REPO carries a shim."
@@ -349,8 +359,14 @@ AGENTS_LINES="$(mktemp)"
 # `node_modules` is a vendored tree nobody edits instructions into.
 INDEX_PRUNED=".git node_modules"
 
+# One "<file>\t<line>" row per non-blank line of an AGENTS.md, trimmed.
+index_file() { # <AGENTS.md path>
+  F="$1" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
+    "$1" >>"$AGENTS_LINES"
+}
+
 build_line_index() {
-  local file up find_rc=0
+  local file up find_out find_rc=0
   : >"$AGENTS_LINES"
   # Every AGENTS.md ON DISK inside the repository, not the plan's DIR rows.
   # The plan lists tracked files, and Claude Code loads by filesystem: a
@@ -363,9 +379,7 @@ build_line_index() {
   # walk tests with `-f`, which follows symlinks, and an in-repo file the
   # walk could not see is a line that scores unique. Directory symlinks are
   # not followed (no `-L`), so the walk cannot loop.
-  local find_out
-  find_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
-    -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || find_rc=$?
+  find_out="$(agents_walk)" || find_rc=$?
   # A walk that failed and a repository with one AGENTS.md are the same empty
   # output, and on the empty reading every line scores unique. `find` shadowed
   # by Windows' own `find.exe`, a partly unreadable tree, or no `find` at all
@@ -374,10 +388,7 @@ build_line_index() {
     refuse "the AGENTS.md walk failed (find exited $find_rc); without it every canary line scores unique and the check is worthless."
   }
   while IFS= read -r file; do
-    [[ -n "$file" ]] || continue
-    [[ -f "$file" ]] || continue
-    F="$file" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
-      "$file" >>"$AGENTS_LINES"
+    [[ -f "$file" ]] && index_file "$file"
   done <<<"$find_out"
   # An AGENTS.md ABOVE the repository root loads in every session inside it and
   # is in no DIR row, so a line it shares would go unseen by an index built
@@ -387,10 +398,7 @@ build_line_index() {
   # left the one ancestor nobody would think to look in.
   up="$(dirname "$REPO")"
   while :; do
-    if [[ -f "$up/AGENTS.md" ]]; then
-      F="$up/AGENTS.md" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
-        "$up/AGENTS.md" >>"$AGENTS_LINES"
-    fi
+    [[ -f "$up/AGENTS.md" ]] && index_file "$up/AGENTS.md"
     [[ "$up" == "$(dirname "$up")" ]] && break
     up="$(dirname "$up")"
   done
@@ -407,7 +415,7 @@ build_line_index() {
 # the identical case and left that one open.
 canary_line() { # <dir>
   local file self line best="" seen
-  if [[ "$1" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$1/AGENTS.md"; fi
+  file="$(dir_path "$1")/AGENTS.md"
   [[ -f "$file" ]] || return 1
   # The index key for THIS file, so a line only ever competes with other files.
   self="$file"
@@ -444,8 +452,7 @@ echo "  canary index: every AGENTS.md under $REPO and above it, pruning ${INDEX_
 # its own lines would compete against an empty set and every one would score
 # unique.
 for dir in "${SHIM_DIRS[@]}"; do
-  if [[ "$dir" == "." ]]; then indexed="$REPO/AGENTS.md"; else indexed="$REPO/$dir/AGENTS.md"; fi
-  KEY="$indexed" awk -F'\t' '$1 == ENVIRON["KEY"] { found = 1 }
+  KEY="$(dir_path "$dir")/AGENTS.md" awk -F'\t' '$1 == ENVIRON["KEY"] { found = 1 }
     END { exit found ? 0 : 1 }' "$AGENTS_LINES" || {
     refuse "$dir/AGENTS.md is not in the canary index the check would judge it against; the walk did not see it, so nothing can be shown to be unique."
   }
@@ -520,10 +527,8 @@ MISS=0
 for dir in "${SHIM_DIRS[@]}"; do
   line="${CANARY_LINE[$dir]}"
   probe="${line:0:30}"
-  cwd="$REPO"
-  [[ "$dir" == "." ]] || cwd="$REPO/$dir"
   rc=0
-  reply="$(cd "$cwd" && "$CLAUDE_BIN" -p \
+  reply="$(cd "$(dir_path "$dir")" && "$CLAUDE_BIN" -p \
     "Quote back, verbatim, every line of your project instructions that contains \"$probe\". If there are none, say NONE." \
     --model sonnet --tools "" </dev/null 2>/dev/null)" || rc=$?
   if ((rc != 0)); then
@@ -557,7 +562,6 @@ if ((MISS > 0)); then
 fi
 
 CANARY_PASSED=1
-REMOVED_COUNT=${#REMOVED[@]}
-echo "=== Removed $REMOVED_COUNT shim(s) from $REPO; every canary returned its AGENTS.md line. ==="
+echo "=== Removed ${#REMOVED[@]} shim(s) from $REPO; every canary returned its AGENTS.md line. ==="
 echo "Commit the deletions, and re-run the canaries after the merge."
 exit 0
