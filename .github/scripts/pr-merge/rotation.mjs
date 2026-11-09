@@ -141,7 +141,16 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout 
       }
       archives.set(key, archive);
     }
-    return execFileSync("unzip", ["-p", archives.get(key), other], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
+    try {
+      return execFileSync("unzip", ["-p", archives.get(key), other], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
+    } catch (error) {
+      // unzip's exit 11 is "no matching files": the artifact lacks the file,
+      // raised as reading an extracted copy (ghDownload's other path) would.
+      if (error?.status === 11) {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, open '${other}' (artifact ${key})`), { code: "ENOENT", syscall: "open", path: other });
+      }
+      throw error;
+    }
   };
 }
 

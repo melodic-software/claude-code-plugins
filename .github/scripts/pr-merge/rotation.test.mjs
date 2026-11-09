@@ -16,6 +16,7 @@ import { forgetMainTip, main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { ghDownload, ghDownloadArtifact, main, newestTrustedArtifact, newestTrustedRun, rotate, sharedReads } from "./rotation.mjs";
+import { readAnswers } from "./verify-answers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -371,7 +372,11 @@ test("ghDownloadArtifact fetches an artifact by id with one counted API request 
     const lib = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
     const calls = execFileSync("bash", ["-c", '. "$0"; api_budget_emit_calls github-token', lib], { encoding: "utf8", env });
     assert.match(calls, /github-token=1 /, "the download host is off GitHub's API, so only the archive request counts");
-    assert.throws(() => ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "x", file: "other.json", env })(10), /Command failed/, "a file the archive lacks fails");
+    assert.throws(
+      () => ghDownloadArtifact({ repo: "o/r", token: "t", dir: run, name: "x", file: "other.json", env })(10),
+      (error) => error.code === "ENOENT" && error.syscall === "open",
+      "a file the archive lacks fails as a missing file would",
+    );
   } finally {
     rmSync(run, { recursive: true, force: true });
   }
@@ -403,7 +408,11 @@ test("ghDownload fetches by the id the shared artifact listing names, and lists 
     const download = ghDownload({ repo: "o/r", token: "t", dir: run, env, shared });
     assert.equal(download(41), '{"last":7}');
     assert.deepEqual(readFileSync(join(run, "gh-calls"), "utf8").split("\n").filter(Boolean), ["api -i repos/o/r/actions/artifacts/9/zip"]);
-    assert.throws(() => download(41, "other.json"), /Command failed/, "a file the archive lacks fails, as a missing file of gh run download does");
+    // An artifact missing the file (verify-answers' artifact holding only
+    // eam-skip.json) reads as gh run download's missing file does: ENOENT on
+    // open, which readAnswers takes as "no answers".
+    assert.throws(() => download(41, "other.json"), (error) => error.code === "ENOENT" && error.syscall === "open");
+    assert.equal(readAnswers({ repo: "o/r", id: 41, download: (id) => download(id, "verify-answers.json") }), undefined);
   } finally {
     rmSync(run, { recursive: true, force: true });
   }
