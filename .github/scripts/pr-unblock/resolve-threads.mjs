@@ -97,11 +97,10 @@ export function judgeThread({ thread, rows, review, security, reviewerId, review
   if (tagged.some((comment) => comment.author === "reviewer" && isCritical(comment.body)) || !adjudicable(tagged)) {
     return "person-decides";
   }
-  const lane = comments.filter((comment) => comment.authorId === appId);
   if (comments.at(-1).authorId === appId && isResolvingAnswer(comments.at(-1).body)) {
     return "answered";
   }
-  if (lane.some((comment) => !isResolvingAnswer(comment.body))) {
+  if (comments.some((comment) => comment.authorId === appId && !isResolvingAnswer(comment.body))) {
     return "left-open";
   }
   return thread.isOutdated === true ? "outdated" : "current";
