@@ -49,7 +49,6 @@ gate_entry::fatal() {
   if [[ "${BASH_SUBSHELL:-0}" -gt 0 ]]; then
     kill -USR2 "$$" 2>/dev/null || true
     sleep 5
-    exit 2
   fi
   exit 2
 }
@@ -58,16 +57,8 @@ gate_entry::fatal() {
 # 0 when <ref> is a commit. Otherwise print <message> (or the shared
 # diagnostic) and exit 2, including when the caller is a subshell.
 gate_entry::require_base() {
-  local _ge_ref="$1"
-  local _ge_msg="${2-}"
-  if changed_files::verify_base "$_ge_ref"; then
-    return 0
-  fi
-  if [[ -n "$_ge_msg" ]]; then
-    printf '%s\n' "$_ge_msg" >&2
-  else
-    printf 'Error: base ref %s is not a valid commit\n' "$_ge_ref" >&2
-  fi
+  changed_files::verify_base "$1" && return 0
+  printf '%s\n' "${2:-Error: base ref $1 is not a valid commit}" >&2
   gate_entry::fatal
 }
 
@@ -108,17 +99,12 @@ gate_entry::classify() {
   fi
   case "$1" in
   --all)
-    shift
-    if (($# != 0)); then
-      return 2
-    fi
+    (($# == 1)) || return 2
     GE_MODE=all
     ;;
   --paths)
     shift
-    if (($# == 0)); then
-      return 2
-    fi
+    (($# > 0)) || return 2
     GE_MODE=paths
     GE_PATHS=("$@")
     ;;
@@ -127,10 +113,7 @@ gate_entry::classify() {
     ;;
   *)
     GE_REF="$1"
-    shift
-    if (($# != 0)); then
-      return 2
-    fi
+    (($# == 1)) || return 2
     GE_MODE=base
     gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
     ;;
@@ -150,10 +133,7 @@ gate_entry::collect_changed() {
   # Pass the caller's array name straight through. A nameref in this frame
   # would sit between changed_files::into and that array, and a nameref that
   # points at a nameref comes back empty.
-  if ! changed_files::into "$_ge_out_name" "$_ge_base" "$@"; then
-    gate_entry::fatal
-  fi
-  return 0
+  changed_files::into "$_ge_out_name" "$_ge_base" "$@" || gate_entry::fatal
 }
 
 # gate_entry::finish <status>
@@ -161,8 +141,7 @@ gate_entry::collect_changed() {
 # omitted one, is a fail-closed 2.
 gate_entry::finish() {
   case "${1-}" in
-  0) exit 0 ;;
-  1) exit 1 ;;
+  0 | 1) exit "$1" ;;
   *) exit 2 ;;
   esac
 }

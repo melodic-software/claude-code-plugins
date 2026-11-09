@@ -159,17 +159,57 @@ test("an issue whose listed event lags its value is read again alone, and that r
   assert.deepEqual(counts.sleeps, []);
 });
 
-test("an issue whose own read still disagrees throws as before", async () => {
-  const { github, sleep, counts } = rereading([stale(22)], { 22: { state: "ready", named: "needs-triage" } });
-  await assert.rejects(() => list(github, ["ready"], { sleep }), (error) => error.name === "StatusDisagreement");
-  assert.equal(counts.values, 2, "the own read waits once and reads again before it throws");
+// Runs `body` with console.log captured, returning what it printed.
+async function logged(body) {
+  const lines = [];
+  const original = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    return { result: await body(), lines };
+  } finally {
+    console.log = original;
+  }
+}
+
+test("an issue whose own read still disagrees is left out, named in held and a notice, and the others still list", async () => {
+  const { github, sleep, counts } = rereading([stale(22), issue(23, { value: "ready" })], { 22: { state: "ready", named: "needs-triage" } });
+  const { result: found, lines } = await logged(() => list(github, ["ready"], { sleep }));
+  assert.deepEqual(numbers(found), ["23 ready"]);
+  assert.deepEqual(
+    found.held.map(({ number, created_at }) => [number, created_at]),
+    [[22, "2026-11-04T00:00:00Z"]],
+  );
+  assert.match(found.held[0].reason, /newest field event/);
+  assert.equal(Object.keys(found).includes("held"), false, "held is not enumerable, so a caller that ignores it is unchanged");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::notice title=issuesByStatus::#22 is left out of this listing: /);
+  assert.equal(counts.values, 2, "the own read waits once and reads again before the issue is left out");
   assert.equal(counts.sleeps.length, 1);
 });
 
-test("a listing with more disagreeing issues than the re-read cap throws", async () => {
-  const disagreeing = Array.from({ length: MAX_STATUS_REREADS + 1 }, (_, i) => 30 + i);
+test("a re-read that fails with anything but a disagreement still throws", async () => {
+  const { github, sleep } = rereading([stale(24), issue(25, { value: "ready" })], { 24: new Error("HTTP 500") });
+  await assert.rejects(() => list(github, ["ready"], { sleep }), /HTTP 500/);
+});
+
+test("past the re-read cap, further disagreeing issues are left out with no more reads", async () => {
+  const disagreeing = Array.from({ length: MAX_STATUS_REREADS + 2 }, (_, i) => 30 + i);
   const fields = Object.fromEntries(disagreeing.map((number) => [number, { state: "ready" }]));
   const { github, sleep, counts } = rereading(disagreeing.map(stale), fields);
-  await assert.rejects(() => list(github, ["ready"], { sleep }), (error) => error.name === "StatusDisagreement");
+  const { result: found, lines } = await logged(() => list(github, ["ready"], { sleep }));
+  assert.deepEqual(
+    found.map(({ number }) => number),
+    disagreeing.slice(0, MAX_STATUS_REREADS),
+  );
+  assert.deepEqual(
+    found.held.map(({ number }) => number),
+    disagreeing.slice(MAX_STATUS_REREADS),
+  );
+  assert.equal(lines.length, 2);
   assert.equal(counts.values, MAX_STATUS_REREADS);
+});
+
+test("a listing that holds no issue still carries an empty held", async () => {
+  const found = await list(pages([issue(26, { value: "ready" })]).github, ["ready"]);
+  assert.deepEqual(found.held, []);
 });

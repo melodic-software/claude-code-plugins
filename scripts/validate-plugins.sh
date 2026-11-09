@@ -41,15 +41,17 @@ runs_checked_code() {
   return 1
 }
 
+usage() {
+  echo "usage: validate-plugins.sh [--only \"<plugin> ...\"]" >&2
+  exit 2
+}
+
 limited=0
 only=()
 case "${1:-}" in
 '') ;;
 --only)
-  [[ $# -eq 2 ]] || {
-    echo "usage: validate-plugins.sh [--only \"<plugin> ...\"]" >&2
-    exit 2
-  }
+  [[ $# -eq 2 ]] || usage
   limited=1
   for name in $2; do
     if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ || ! -d "plugins/$name" ]]; then
@@ -59,10 +61,7 @@ case "${1:-}" in
     only+=("plugins/$name/")
   done
   ;;
-*)
-  echo "usage: validate-plugins.sh [--only \"<plugin> ...\"]" >&2
-  exit 2
-  ;;
+*) usage ;;
 esac
 
 if ! command -v node >/dev/null 2>&1; then

@@ -47,10 +47,9 @@ def pins():
 @functools.cache
 def _run(*cmd):
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        return subprocess.run(cmd, capture_output=True, text=True)
     except OSError:
         return None
-    return r
 
 
 def _tool(name, remedy):
@@ -75,13 +74,14 @@ def _row(name, playwright_core):
         if not r:
             return name, 'FAIL', 'ffmpeg missing', f'install ffmpeg ({FFMPEG_URL})'
         first = r.stdout.splitlines()[0] if r.stdout else ''
+        need = f'{FFMPEG_MIN[0]}.{FFMPEG_MIN[1]}'
         m = re.match(r'ffmpeg version n?(\d+)\.(\d+)', first)
         if not m:
-            return name, 'INFO', f'{first!r}: version not parsed; -fps_mode needs {FFMPEG_MIN[0]}.{FFMPEG_MIN[1]}', ''
+            return name, 'INFO', f'{first!r}: version not parsed; -fps_mode needs {need}', ''
         v = (int(m[1]), int(m[2]))
-        return (name, 'PASS', f'{v[0]}.{v[1]}', '') if v >= FFMPEG_MIN else \
-            (name, 'FAIL', f'{v[0]}.{v[1]} is older than {FFMPEG_MIN[0]}.{FFMPEG_MIN[1]} (-fps_mode)',
-             f'install ffmpeg {FFMPEG_MIN[0]}.{FFMPEG_MIN[1]} or later ({FFMPEG_URL})')
+        have = f'{v[0]}.{v[1]}'
+        return (name, 'PASS', have, '') if v >= FFMPEG_MIN else \
+            (name, 'FAIL', f'{have} is older than {need} (-fps_mode)', f'install ffmpeg {need} or later ({FFMPEG_URL})')
     if name == 'playwright_core':   # the userConfig option, when set, must name playwright-core itself
         d = Path(playwright_core)
         pkgs = [d / 'package.json', d / 'node_modules/playwright-core/package.json']
