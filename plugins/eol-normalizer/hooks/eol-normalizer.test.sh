@@ -296,6 +296,33 @@ chmod 755 "$REPO/exec.sh"
 expect "fallback: CRLF stripped without perl" "0" "$(cr_count "$REPO/exec.sh")"
 if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else fail "fallback: exec bit lost"; fi
 
+# The LF->CRLF twin: the awk arm reads the file on stdin through
+# normalize_eol_rewrite_with. A mixed file proves every bare LF gains a CR, an
+# existing CRLF does not become CRCRLF, and the 755 mode survives the move.
+printf '#!/bin/sh\necho hi\r\necho bye\n' >"$REPO/exec-crlf.txt"
+printf '#!/bin/sh\r\necho hi\r\necho bye\r\n' >"$WORK/exec-crlf.want"
+chmod 755 "$REPO/exec-crlf.txt"
+(
+  # shellcheck disable=SC2329  # invoked indirectly: the sourced lib's `command -v perl` probe hits this shadow
+  command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "perl" ]]; then return 1; fi
+    builtin command "$@"
+  }
+  if command -v perl >/dev/null 2>&1; then
+    echo "FAIL: test shim: perl shadow ineffective" >&2
+    exit 1
+  fi
+  # shellcheck source=normalize-eol.sh
+  source "$HOOK_DIR/normalize-eol.sh"
+  normalize_eol_to_crlf "$REPO/exec-crlf.txt"
+) || fail "fallback crlf: subshell failed"
+if cmp -s "$WORK/exec-crlf.want" "$REPO/exec-crlf.txt"; then
+  ok "fallback crlf: every line CRLF, no CRCRLF, without perl"
+else
+  fail "fallback crlf: bytes differ from the expected CRLF file"
+fi
+if [[ -x "$REPO/exec-crlf.txt" ]]; then ok "fallback crlf: executable mode preserved"; else fail "fallback crlf: exec bit lost"; fi
+
 # --- The batch -----------------------------------------------------------------
 # One batch, several tools: Write, Edit and MultiEdit files are rewritten, once
 # each even when named twice; a Read and a Bash command are not.
