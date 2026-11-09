@@ -32,8 +32,8 @@ reauthored derivative: [`user-interface`](../../plugins/user-interface/LICENSE),
 
 - **Pointer**: when re-auditing a row, fetch the compare view of upstream against the pin live:
   <https://github.com/emilkowalski/skills/compare/5206a950b715e0cabe7043ea0b2304332b91494e...main>.
-- **As of**: the 40-hex pin above stands in for the as-of date: the commit fixes exactly what was
-  read, and this page's git history records when.
+- **As of**: the 40-hex pin above stands in for the as-of date. The commit fixes exactly what
+  was read, and this page's git history records when.
 - **Recheck trigger**: a change, between the pinned commit and upstream HEAD, to a path a row we
   took or rejected something from links, a unit removed or added under the scope: re-audit the
   affected rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for
