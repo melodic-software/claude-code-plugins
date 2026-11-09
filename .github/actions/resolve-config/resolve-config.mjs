@@ -181,7 +181,7 @@ const LISTED_FIELD_EVENTS = 100;
 // Issues per listing whose Work status disagrees in the listing and is read
 // again alone (read-status.mjs fieldStatusSetter): 10. Each re-read costs two
 // calls, or four and a 3 s wait when it disagrees once more; an eleventh
-// disagreeing issue throws.
+// disagreeing issue is left out unread.
 export const MAX_STATUS_REREADS = 10;
 const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
   repository(owner: $owner, name: $name) {
@@ -213,14 +213,20 @@ ${FIELD_FRAGMENTS}`;
 // setter falls outside LISTED_FIELD_EVENTS throws. An issue whose listed value
 // and events disagree (StatusDisagreement), since the listing's events can
 // lag, is read again alone (fieldStatusSetter, which waits with `sleep`) and
-// that read decides; a re-read that fails or still disagrees, or one past
-// MAX_STATUS_REREADS, throws.
+// that read decides; a re-read that fails otherwise throws. One that still
+// disagrees, a write still landing, or any past MAX_STATUS_REREADS (not read
+// again) is left out of the result, logged as a ::notice::, and named in the
+// result's non-enumerable `held`, each {number, created_at, reason}, so one
+// issue mid-write fails only itself; a caller that must not undercount reads
+// `held`.
 export async function issuesByStatus(github, repository, states, { since, config, trustedActors, sleep = wait } = {}) {
   const [owner, name] = repository.split("/");
   const option = Object.fromEntries(Object.entries(config.options).map(([id, state]) => [state, Number(id)]));
   const wanted = new Set(states.flatMap((state) => config.labels[state] ?? []).map((label) => label.toLowerCase()));
   const statusField = String(config["field-id"]);
   const found = [];
+  const held = [];
+  Object.defineProperty(found, "held", { value: held });
   let rereads = 0;
   let cursor = null;
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -263,11 +269,27 @@ export async function issuesByStatus(github, repository, states, { since, config
         if (!couldMatch()) {
           continue;
         }
-        if (error?.name !== "StatusDisagreement" || rereads >= MAX_STATUS_REREADS) {
+        if (error?.name !== "StatusDisagreement") {
           throw error;
         }
-        rereads += 1;
-        ({ state } = await fieldStatusSetter({ github, repository, number: node.number, config, trustedActors, issueStatusSetter, fieldEvents, sleep }));
+        let disagreement = error;
+        if (rereads < MAX_STATUS_REREADS) {
+          rereads += 1;
+          try {
+            ({ state } = await fieldStatusSetter({ github, repository, number: node.number, config, trustedActors, issueStatusSetter, fieldEvents, sleep }));
+            disagreement = null;
+          } catch (again) {
+            if (again?.name !== "StatusDisagreement") {
+              throw again;
+            }
+            disagreement = again;
+          }
+        }
+        if (disagreement) {
+          held.push({ number: node.number, created_at: node.createdAt, reason: disagreement.message });
+          console.log(`::notice title=issuesByStatus::#${node.number} is left out of this listing: ${String(disagreement.message).replaceAll(/[\r\n%]/g, " ")}`);
+          continue;
+        }
       }
       if (state === null ? labeled : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });

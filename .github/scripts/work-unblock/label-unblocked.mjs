@@ -967,7 +967,9 @@ async function unpark({ github, repo, parked, humans, appId, admission, writer =
 
 // The open deferred issues (Work status deferred, or a legacy
 // admission-deferred label), oldest opened first: `byStatus` (main's
-// issuesByStatus), or the label listing when it gives none.
+// issuesByStatus), or the label listing when it gives none. An issue the
+// field listing holds (`held`, mid-write) is not admitted this sweep: safe,
+// the next sweep retries.
 async function deferredIssues(github, repo, byStatus) {
   const listed = byStatus ? await byStatus(["deferred"]) : null;
   if (listed) {
@@ -2178,7 +2180,8 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, appI
   const inFlight = () => (flight ??= actions ? runsInFlight(actions, repo) : Promise.resolve(null));
   // The agent-ready issues: the field listing's (issuesByStatus) among the
   // sweep's open-issue listing (`openIssues`), or the label listing with no field
-  // listing given.
+  // listing given. An issue the field listing holds (`held`, mid-write) is not
+  // among them, so it is not restarted this sweep: safe, the next sweep retries.
   let open;
   try {
     const found = byStatus ? await byStatus([LABEL]) : null;
@@ -2514,7 +2517,12 @@ const fieldListing = (env, github, repo) => {
     }
     const { config, trustedActors, issuesByStatus } = setup;
     const found = await issuesByStatus(github, repo, states ?? Object.keys(config.labels), { config, trustedActors });
-    return found.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) }));
+    // `held` (issues whose Work status is mid-write) rides along for listedNames.
+    return Object.defineProperty(
+      found.map((item) => ({ ...item, labels: statusLabels(item.state, item.labels, config) })),
+      "held",
+      { value: found.held ?? [] },
+    );
   };
 };
 
@@ -2536,13 +2544,19 @@ async function workStatusField(env, github, repo) {
 // The sweep's open-issue listing's names as the Work status field decides
 // them: one field listing of every state laid over `listed` (an issue it
 // leaves out has no status), or each issue's own labels with no `byStatus`.
-// Throws when the field listing fails.
+// An issue the listing holds (`held`, its Work status mid-write) gets no names,
+// so readmitReady skips it this sweep rather than trust labels that could miss
+// a field hold; the next sweep lists it again. Throws when the field listing
+// fails.
 async function listedNames(byStatus) {
   const found = byStatus ? await byStatus() : null;
   if (!found) {
     return labelNames;
   }
   const names = new Map(found.map((item) => [Number(item.number), item.labels]));
+  for (const { number } of found.held ?? []) {
+    names.set(Number(number), []);
+  }
   return (item) => names.get(Number(item.number)) ?? labelNames(item);
 }
 

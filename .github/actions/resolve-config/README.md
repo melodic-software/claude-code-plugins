@@ -153,7 +153,8 @@ the queue labels, hold labels and agent-ready stay. An unset field leaves the la
 an unset `models.issue-status`; a failed read, a read past the reader's limit, or a config that
 cannot be loaded throws `StatusReadError`. Its `statusEvents` adds the field's changes to the REST events as label events,
 and `resolve-config.mjs`'s `issuesByStatus` lists open issues by trusted field state, or by label
-where the field is unset. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
+where the field is unset; an issue whose field value and newest event still disagree is left out,
+named in the result's `held` and a `::notice::`. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` resolves
 to the config's own list, with nothing added.
 
 The lane's slots are its leaves: each composite is replaced by its children, depth first in list

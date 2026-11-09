@@ -6002,6 +6002,19 @@ test("a status: ready only in the Work status puts an issue in no queue through 
   assert.deepEqual(writes(bare.calls), []);
 });
 
+// issuesByStatus leaves an issue whose Work status is mid-write out and names
+// it in `held`; its labels could miss a field hold, so readmitReady skips it.
+test("an issue the field listing holds mid-write is not decided this sweep, though its labels read status: ready", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const listingOf = (held) => async (states) => (states ? [] : Object.defineProperty([], "held", { value: held }));
+  const holding = readyWorld();
+  assert.equal(await sweep({ github: holding.github, byStatus: listingOf([{ number: 26, created_at: "2026-10-10T00:00:00Z", reason: "mid-write" }]), admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(holding.calls), []);
+  const free = readyWorld();
+  assert.equal(await sweep({ github: free.github, byStatus: listingOf([]), admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(free.calls), [labeled(26)], "left out without being held, its labels decide");
+});
+
 test("an admissible status: ready issue in no queue with no room gets admission-deferred", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls, writer } = readyWorld({ queuedIssues: queuedN(24) });
