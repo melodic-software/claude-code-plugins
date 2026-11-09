@@ -1,9 +1,10 @@
 # core
 
-One install for the marketplace's default-on plugins. `core` has no skills, agents or hooks of its
-own: its manifest lists those plugins in `dependencies`, so installing it installs and enables each
-of them. `core` itself is off by default (`"defaultEnabled": false`), so taking the default-on set
-never installs it; installing it is an explicit choice.
+One install for the vital lifecycle plugins, from planning a change through its pull request and
+the session handoff, for a setup that does not already enable them. `core` has no skills, agents or
+hooks of its own: its manifest lists those plugins in `dependencies`, so installing it installs and
+enables each of them. `core` itself is off by default (`"defaultEnabled": false`), so taking the
+default-on set never installs it; installing it is an explicit choice.
 
 ## Install
 
@@ -14,14 +15,25 @@ never installs it; installing it is an explicit choice.
 
 ## Members
 
-The members are the catalog's default-on set: each `.claude-plugin/marketplace.json` entry other
-than `core` whose `defaultEnabled` is absent or `true`. The list is in
-[`.claude-plugin/plugin.json`](.claude-plugin/plugin.json). The dependencies carry no version
-constraint, so each member tracks the version the marketplace publishes.
+| Member | Lifecycle step |
+|---|---|
+| `planning` | brief, plan and design |
+| `discovery` | explore the code and research outside it |
+| `verification` | prove a change achieved its outcome |
+| `toolchain` | build, test and lint the changed files |
+| `review` | quality gate and review agents |
+| `source-control` | commits and pull requests |
+| `session-flow` | handoff and resume |
+| `work-items` | track, claim and work tracker items |
 
-When a plugin turns default-on or default-off, update the list in the same change:
-`scripts/validate-plugin-contracts.mjs` fails when the list differs from the catalog's default-on
-set, or when the `core` entry is not `"defaultEnabled": false`.
+The list is in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json). The dependencies carry
+no version constraint, so each member tracks the version the marketplace publishes.
+
+Every member is also in the catalog's default-on set, the
+`.claude-plugin/marketplace.json` entries whose `defaultEnabled` is absent or `true`; most
+default-on plugins are not members. `scripts/validate-plugin-contracts.mjs` fails when a member is
+missing from the catalog or set `"defaultEnabled": false`, or when the `core` entry is not
+`"defaultEnabled": false`.
 
 No member declares a dependency on another member, so each member also installs and loads on its
 own.
