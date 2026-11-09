@@ -1,8 +1,8 @@
 # Motion
 
-The project's design system, tokens and conventions override everything in this file. Literal
-values in the examples are this skill's defaults: use one only where the project has no token for
-it, and name each default you used.
+The project's design system, tokens and conventions override everything in this file. A
+configurable value in an example is a `{{key}}` placeholder; fill each as
+[`values.md`](../../../reference/values.md) says.
 
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
@@ -27,11 +27,11 @@ Use it for every transition or animation that moves or scales something.
 
 ```css
 @media (hover: hover) and (pointer: fine) {
-  .button:hover .icon { transform: translateX(2px); }
+  .button:hover .icon { transform: translateX({{animation.travel_px.small}}px); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .button .icon { transition: transform 200ms var(--ease-out, ease-out); }
+  .button .icon { transition: transform {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -55,8 +55,8 @@ once (the `motion` concern's `reduced-motion` rule).
 
 ```css
 /* Existing shared rules, written before reduced motion was handled */
-.modal  { transition: opacity 200ms var(--ease-out, ease-out), scale 200ms var(--ease-out, ease-out); }
-.drawer { transition: opacity 300ms var(--ease-out, ease-out), transform 300ms var(--ease-out, ease-out); }
+.modal  { transition: opacity {{animation.duration_ms.large}}ms var(--ease-out, ease-out), scale {{animation.duration_ms.large}}ms var(--ease-out, ease-out); }
+.drawer { transition: opacity {{animation.duration_ms.large}}ms var(--ease-out, ease-out), transform {{animation.duration_ms.large}}ms var(--ease-out, ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
   .modal  { transition-property: opacity; } /* was opacity, scale */
@@ -90,10 +90,10 @@ for each role. The project's own easing and duration tokens beat both.
 
 ```css
 :root {
-  --ease-out: cubic-bezier(<animation.easing.out>);
-  --ease-in: cubic-bezier(<animation.easing.in>);
-  --ease-in-out: cubic-bezier(<animation.easing.in_out>);
-  --duration-medium: <animation.duration_ms.medium>ms;
+  --ease-out: cubic-bezier({{animation.easing.out}});
+  --ease-in: cubic-bezier({{animation.easing.in}});
+  --ease-in-out: cubic-bezier({{animation.easing.in_out}});
+  --duration-medium: {{animation.duration_ms.medium}}ms;
 }
 
 .dropdown { transition: opacity var(--duration-medium) var(--ease-out); }
@@ -109,8 +109,9 @@ Rules:
   too, with a warning that its slow start can read as lag.
 - `out` is for anything entering or leaving, `in` for a permanent exit, `in_out` for something
   already on screen that moves or morphs, and `drawer` for a drawer or sheet on the way in and out.
-- Keep each transition within its role: `press` for press feedback, `small` for tooltips and small
-  popovers, `medium` for dropdowns, menus and any other UI transition, `large` for modals, dialogs,
+- Keep each transition within its role: `press` for press feedback, `hover` for hover feedback,
+  `small` for tooltips and small popovers, `medium` for dropdowns, menus and any other UI
+  transition, `large` for modals, dialogs,
   drawers, sheets and toasts, `page` for page-level and full-screen transitions.
   Small, frequent UI sits near the short end of its role, and an exit runs at most
   `animation.duration_ms.exit_factor` of its entrance.
@@ -159,7 +160,7 @@ pointer position or progress into CSS.
 .card .more { opacity: var(--progress); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .card { transition: --progress 0.25s var(--ease-out, ease-out); }
+  .card { transition: --progress {{animation.duration_ms.medium}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -214,7 +215,7 @@ Use it on cards that lift on hover, most of all in a grid of many cards or with 
 
 @media (prefers-reduced-motion: no-preference) {
   .card::before,
-  .card::after { transition: opacity 0.25s var(--ease-out, ease-out); }
+  .card::after { transition: opacity {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -244,11 +245,11 @@ Use it on any card or button that lifts, slides or scales on hover.
 .card { display: block; }
 
 @media (hover: hover) and (pointer: fine) {
-  .card:hover .card-inner { transform: translateY(-4px); } /* parent hover area never moves */
+  .card:hover .card-inner { transform: translateY(-{{animation.travel_px.small}}px); } /* parent hover area never moves */
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .card-inner { transition: transform 200ms var(--ease-out, ease-out); }
+  .card-inner { transition: transform {{animation.duration_ms.hover}}ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -315,15 +316,15 @@ Use it for the underline on a tab row or the bar beside a side nav.
   inset-block-end: 0;
   inset-inline-start: anchor(start);
   inline-size: anchor-size(inline);
-  block-size: 2px;
+  block-size: {{css.border_px.strong}}px;
   background: currentColor;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .tabs ul::after {
     transition:
-      inset-inline-start 0.25s var(--ease-out, ease-out),
-      inline-size 0.25s var(--ease-out, ease-out);
+      inset-inline-start {{animation.duration_ms.medium}}ms var(--ease-out, ease-out),
+      inline-size {{animation.duration_ms.medium}}ms var(--ease-out, ease-out);
   }
 }
 ```

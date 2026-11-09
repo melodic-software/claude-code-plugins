@@ -215,11 +215,10 @@ Animated blur gets expensive fast, and its cost grows with the radius and the bl
 engines are slower than others. A small radius is enough to soften a crossfade. Measure a large or
 full-screen blur on the slowest target device before shipping it.
 
-`filter: blur()` cost explodes past ~20px, in some engines more than others. 2-5px masks a
-crossfade; anything larger on an animating or full-screen element is a frame-rate problem. Keep
-blurs subtle and off frequently-animating elements. The 20px line is a heuristic, not a measured
-limit: no engine documents a radius limit, so the resolved `animation.blur_max_px` holds it as a
-default and a project may move it.
+`filter: blur()` cost explodes past `animation.blur_max_px`, in some engines more than others.
+`animation.blur_px.soften` masks a crossfade; anything larger on an animating or full-screen
+element is a frame-rate problem. Keep blurs subtle and off frequently-animating elements. No
+engine documents a radius limit, so `animation.blur_max_px` is a default a project may move.
 
 **Audit: Important.** `blur(` over `animation.blur_max_px` on an animated element;
 `backdrop-filter: blur()` on a full-viewport overlay or on a sticky header over a long scrolling
