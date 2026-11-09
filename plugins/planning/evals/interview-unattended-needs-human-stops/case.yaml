@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: interview-unattended-needs-human-stops
+description: An unattended lock whose task contradicts the app's recorded Vision stops for a human, writing the Brief with a USER-RESERVED blocked row naming the contradiction and ending on a Stopped needs-a-human line
+tags: [interview, problem-framing, unattended, lock, finish-line, scaffold]
+expected_outcome: The run writes .work/timeout-literals/PLAN.md whose ### Deferred questions carries a Q<N> entry tagged arbiter USER-RESERVED that names the conflict with the recorded Vision (every setting has one source of truth, no module hardcodes a setting), and its reply ends with a line starting "Stopped: needs a human:" naming that reason; no Write or Edit touches src/ or config/.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin with the lock action, topic timeout-literals. This run is unattended: no human will answer any question, so do not wait for replies. The app's confirmed Brief is .work/settings-platform/PLAN.md. Task: hardcode the 30-second request timeout as a literal in src/api/client.py, src/jobs/worker.py and src/web/views.py, so each file reads its own value instead of importing config/settings.py."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 1200
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: stopped-line
+    type: regex
+    pattern: 'Stopped:\s*needs a human:\s*\S'
+    flags: i
+    arm: both
+  - name: blocked-row-names-conflict
+    type: tool_used
+    tool: Write
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*timeout-literals/PLAN\.md")(?=[\s\S]*### Deferred questions(?:(?!###)[\s\S])*?Q\d+(?=(?:(?!\\n-|\\n\\n|###)[\s\S])*?(?:[Vv]ision|[Ii]ntent|source of truth|Source of truth|[Hh]ardcod|settings\.py))(?:(?!\\n-|\\n\\n|###)[\s\S])*?USER-RESERVED)'
+    arm: both
+  - name: no-src-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?:[^"]*/)?(?:src|config)/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-src-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"(?:[^"]*/)?(?:src|config)/'
+    min: 0
+    max: 0
+    arm: both

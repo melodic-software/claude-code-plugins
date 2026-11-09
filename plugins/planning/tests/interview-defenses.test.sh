@@ -440,11 +440,12 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
 # #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
 # #12660: the Gates twin of the Brief cross-check says to re-read the lane spoke after a compaction, so the twin still reaches the spoke's flag; it adds a read and changes no halt
+# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "d963f560704a067489aba48d793b99fbf8a6fcbe983f7797b544f1703be782b9"
+  "e3b54ad5d0a762a3dc627f69c0b7c39f0b5eb68187d16cbc8bced50d8417a9d4"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
@@ -511,11 +512,14 @@ done
 # #12502 replacement: answer_audit_rounds drops its userConfig layer (a manifest key outside the inert set), so the audit-offer paragraph names no user_config token; the pointer still asks nothing, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 # #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), the share row passes share as its argument, and the Stance surface sentence names the resolution; each changes how the surface is picked, resolves no row, and the lock row, STOP-on-gap and no-silent-resolve defenses are byte-identical
 # emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
+# Phase 3 of #14733: Unattended path gains one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line), and Stance gains one intake line pointing at problem-framing.md's instance question and unknown-field candidates; rungs 1-5, the rung-3 blocker, the auto-guard and no-silent-resolve lines are byte-identical, and the stop writes a blocked USER-RESERVED row rather than resolving one
+# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "1c50a4686a8b3b8f59a30a454cac4a1530d730eead82c846c26a02700e85982b"
+  "6a70b9bfdec35c373fa50a7260001ccdf656b4bef77f7ce56148cd73d41a0671"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -557,11 +561,15 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Merge of main with #12103: both edits to the register section kept (main's stale=<n> halt and Re-check, this branch's read-back closing sentence); re-pinned over the merged text, no halt removed or qualified
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 # #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
+# Phase 3 of #14733: the register section encloses Unattended path, whose only change is one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line); it adds a blocked USER-RESERVED row and resolves none, and the gap, blocker and gate lines are byte-identical
+# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "442b025a9d2ffa366b2900ddd9e205f74b9a7465162aa236b6ec6943f35b9db4"
+  "d074f63452cfb3fbd1b2da1ac96db8203a7a63670cd9322bed8a56e7cf246959"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -635,11 +643,15 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
 # `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
+# Phase 3 of #14733: Unattended path gains one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line), and Stance gains one intake line pointing at problem-framing.md's instance question and unknown-field candidates; rungs 1-5, the rung-3 blocker, the auto-guard and no-silent-resolve lines are byte-identical, and the stop writes a blocked USER-RESERVED row rather than resolving one
+# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
+# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "d7a0d8d34be44e18b2340057117fed01cec095aa119e457e117626d2ce0ea072"
+  "6a1fba5865d08c7787a7b4d08e7e3f21c9a53882e5975a6022b7750e86da5112"
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.

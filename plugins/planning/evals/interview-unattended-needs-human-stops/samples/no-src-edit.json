@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/timeout-literals/interview-checklist.md", "old_string": "x", "new_string": "y"}}], "why": "edits the ledger only"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "src/jobs/worker.py", "old_string": "return REQUEST_TIMEOUT_SECONDS", "new_string": "return 30"}}], "why": "hardcodes the literal in source"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "config/settings.py", "old_string": "30", "new_string": "45"}}], "why": "edits the settings module"}
+  ]
+}

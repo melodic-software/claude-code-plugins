@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/timeout-literals/PLAN.md", "content": "## Brief\n\n### Problem\n- Status: unconfirmed\n\n### Goal\nNot settled.\n- Finish line: not settled yet\n\n### Deferred questions\n- Q1: The task hardcodes the timeout in three files, which contradicts the confirmed Vision (one source of truth for settings); proceed or drop? **arbiter: USER-RESERVED**\n\n## Plan\n"}}],
+      "why": "USER-RESERVED row naming the Vision conflict"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "case-root/.work/timeout-literals/PLAN.md", "content": "## Brief\n\n### Deferred questions\n- Q2 (blocked, arbiter: USER-RESERVED): needs a human, three literals would replace config/settings.py as the setting's home\n\n## Plan\n"}}],
+      "why": "prefixed path, conflict named after the tag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/timeout-literals/PLAN.md", "content": "## Brief\n\n### Deferred questions\n- Q1: Confirm the problem; **arbiter: USER-RESERVED**\n- Q2: The literals contradict the Vision; **arbiter: /planning:plan**\n\n## Plan\n"}}],
+      "why": "the conflict row is not USER-RESERVED"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/settings-platform/PLAN.md", "content": "## Brief\n\n### Deferred questions\n- Q1: The literals contradict the Vision; **arbiter: USER-RESERVED**\n"}}],
+      "why": "rewrote the confirmed app Brief instead of writing this topic's Brief"
+    },
+    {"answer": [], "why": "no Brief written"}
+  ]
+}
