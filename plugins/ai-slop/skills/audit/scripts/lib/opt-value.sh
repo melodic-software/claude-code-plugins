@@ -7,9 +7,8 @@
 # each caller names itself in its own diagnostics; exit 2 is the usage code both
 # callers document in their own `Exit:` line.
 require_opt_value() {
-  local script="$1" opt="$2"
-  if [[ $# -lt 3 || -z "${3:-}" || "$3" == -* ]]; then
-    echo "$script: $opt requires a value" >&2
+  if [[ -z "${3:-}" || "$3" == -* ]]; then
+    echo "$1: $2 requires a value" >&2
     exit 2
   fi
 }
