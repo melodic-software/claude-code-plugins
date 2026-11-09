@@ -161,23 +161,20 @@ parse_table() {
 
 # build_registry <rows-tsv> <as-of> -> registry JSON on stdout
 build_registry() {
-  local rows="$1" as_of="$2" name when cat prod tmp
-  tmp=$(mktemp)
+  local rows="$1" as_of="$2" name when cat prod
   while IFS=$'\t' read -r name when; do
     [[ -n "$name" ]] || continue
     classify_to cat prod "$name"
     [[ "$prod" == "exclude: unclassified"* ]] &&
       echo "gen-hook-event-registry: WARN unknown event '$name' excluded; classify it in classify_to" >&2
-    printf '%s\t%s\t%s\t%s\n' "$name" "$when" "$cat" "$prod" >>"$tmp"
-  done <"$rows"
-  jq -Rn --arg as_of "$as_of" --arg basis "$BASIS" --arg recheck "$RECHECK" '
+    printf '%s\t%s\t%s\t%s\n' "$name" "$when" "$cat" "$prod"
+  done <"$rows" | jq -Rn --arg as_of "$as_of" --arg basis "$BASIS" --arg recheck "$RECHECK" '
     [inputs | split("\t") | {
       name: .[0], when: .[1], category: .[2], producer: .[3],
       claim: ("hook event " + .[0] + " is documented in the Hooks reference lifecycle table"),
       basis: ($basis + " (raw markdown of hooks.md, fetched with curl -sS -L)"),
       as_of: $as_of, recheck: $recheck }]
-    | sort_by(.name)' <"$tmp" | tr -d '\r'
-  rm -f "$tmp"
+    | sort_by(.name)' | tr -d '\r'
 }
 
 # strip_rows <hooks-json-file> -> hooks.json on stdout with every row that runs
@@ -218,21 +215,26 @@ require_markers() {
   fi
 }
 
+# drift <message> <expected> <actual>: report the drift and its diff, exit 1.
+drift() {
+  echo "gen-hook-event-registry: $1" >&2
+  diff <(printf '%s\n' "$2") <(printf '%s\n' "$3") >&2 || true
+  exit 1
+}
+
 case "$MODE" in
 fetch | from)
   rows=$(mktemp)
   trap 'rm -f "$rows"' EXIT
   if [[ "$MODE" == fetch ]]; then
-    page=$(mktemp)
-    trap 'rm -f "$rows" "$page"' EXIT
-    if ! curl -sS -L --max-time 30 "$URL" >"$page"; then
+    FROM=$(mktemp)
+    trap 'rm -f "$rows" "$FROM"' EXIT
+    if ! curl -sS -L --max-time 30 "$URL" >"$FROM"; then
       echo "gen-hook-event-registry: fetch of $URL failed" >&2
       exit 2
     fi
-    parse_table <"$page" >"$rows"
-  else
-    parse_table <"$FROM" >"$rows"
   fi
+  parse_table <"$FROM" >"$rows"
   [[ -n "$AS_OF" ]] || AS_OF=$(date -u +%Y-%m-%d)
   n=$(wc -l <"$rows" | tr -d ' ')
   if ((n < MIN_ROWS)); then
@@ -262,18 +264,14 @@ check)
   require_markers
   generated=$(mod_ts "$REGISTRY" "$MOD_TS")
   committed=$(tr -d '\r' <"$MOD_TS")
-  if [[ "$generated" != "$committed" ]]; then
-    echo "gen-hook-event-registry: the observed-event hooks in $MOD_TS drift from the registry; re-run --fetch (or --from) to regenerate:" >&2
-    diff <(printf '%s\n' "$generated") <(printf '%s\n' "$committed") >&2 || true
-    exit 1
-  fi
+  [[ "$generated" == "$committed" ]] ||
+    drift "the observed-event hooks in $MOD_TS drift from the registry; re-run --fetch (or --from) to regenerate:" \
+      "$generated" "$committed"
   expected=$(strip_rows "$HOOKS_JSON" | jq -S .)
   actual=$(jq -S . "$HOOKS_JSON")
-  if [[ "$expected" != "$actual" ]]; then
-    echo "gen-hook-event-registry: hooks.json carries an event-log or retention row; the mod records the log, so re-run --fetch (or --from) to strip it:" >&2
-    diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
-    exit 1
-  fi
+  [[ "$expected" == "$actual" ]] ||
+    drift "hooks.json carries an event-log or retention row; the mod records the log, so re-run --fetch (or --from) to strip it:" \
+      "$expected" "$actual"
   echo "gen-hook-event-registry: the observed-event hooks match the registry ($(jq length "$REGISTRY") events) and hooks.json carries no event-log row"
   ;;
 *)
