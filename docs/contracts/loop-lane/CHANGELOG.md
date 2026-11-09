@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [19.5.0] - 2026-11-09
+
+Minor: additive guidance.
+
+- **The Worker and Merge lane prompts now carry the recovery clause.** Each states, in the lane's
+  voice, that retrying after an error and finding missing information are part of the work, that a
+  protected path, refused permission or safety control is a boundary to stop at and record rather
+  than route around, and that session length is no reason to stop. The reminder paragraph says so
+  (owner decision, 2026-11-09).
+
 ## [19.4.0] - 2026-11-09
 
 Minor: additive guidance.

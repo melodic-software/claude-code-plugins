@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.3.1] - 2026-11-09
+
+### Changed
+
+- The model and effort pin records of six reviewer agents are rechecked against the Claude Fable 5.2 release; no pin changes.
+
 ## [8.3.0] - 2026-11-09
 
 ### Added
