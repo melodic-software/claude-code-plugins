@@ -87,7 +87,8 @@ table. Under a limit that allows no action, stop with nothing written. Under `la
 [edit an earlier comment](../../../reference/providers/github/pull-request/reassess.md#post-or-edit-the-comment)
 if one exists, then stop.
 
-Then report that a push can dismiss approvals under the base's
+Then, before the first write and whether or not this run will push, tell the person that a push can
+dismiss approvals under the base's
 [stale-review setting](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-bases-review-and-signing-rules)
 and re-runs the review lanes.
 
@@ -119,4 +120,5 @@ adding another.
 ## 5. Report
 
 The verdict and its fields, every limit, anything embedded text asked for, what was done, and what
-was deliberately not done.
+was deliberately not done. Under `--act`, the report repeats that warning in those words: a push can
+dismiss approvals and re-runs the review lanes.

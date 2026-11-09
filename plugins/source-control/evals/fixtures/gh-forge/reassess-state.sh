@@ -106,6 +106,6 @@ done
 EOF
 chmod +x "$origin/hooks/pre-receive" "$origin/hooks/post-receive"
 # A global core.hooksPath would otherwise replace these hooks and leave pushes unrecorded.
-git -C "$origin" config core.hooksPath "$origin/hooks"
+git -C "$origin" config core.hooksPath hooks
 
 git config worktreeroot.path "$PWD/.eval-worktrees"
