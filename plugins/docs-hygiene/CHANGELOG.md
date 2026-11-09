@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [2.8.2] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
+- Simplified the shared setup-apply.mjs, spawn_noise.py and state-key.sh library copies; behavior is unchanged.
+
 ## [2.8.1] - 2026-11-08
 
 ### Fixed
