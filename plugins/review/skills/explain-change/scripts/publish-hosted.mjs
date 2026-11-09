@@ -21,7 +21,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { publishGate } from "../../../lib/publish-gate.mjs";
@@ -63,7 +63,7 @@ const readSidecar = (path) => {
 
 /** Written through a rename, so a stop mid-write never leaves the sidecar half-written. */
 function writeSidecar(path, current, stale) {
-  mkdirSync(join(path, ".."), { recursive: true, mode: 0o700 });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temp = `${path}.tmp`;
   writeFileSync(temp, `${JSON.stringify(stale.length ? { ...current, stale } : current)}\n`, { mode: 0o600 });
   renameSync(temp, path);
@@ -142,13 +142,7 @@ function main(argv) {
     process.stdout.write(`${JSON.stringify({ medium: "file", reason: "the facts file names no pull request URL this script can read; nothing was published" }, null, 2)}\n`);
     return 2;
   }
-  const { exit, result } = publishHosted({
-    page: resolve(page),
-    host: target.host,
-    repo: target.repo,
-    pr: target.pr,
-    dataDir: flags["--data-dir"],
-  });
+  const { exit, result } = publishHosted({ ...target, page: resolve(page), dataDir: flags["--data-dir"] });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   return exit;
 }
