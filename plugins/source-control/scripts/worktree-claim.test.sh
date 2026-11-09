@@ -659,19 +659,24 @@ else
 fi
 
 # Only the tools the script runs are on this PATH, so jq is absent even where it is installed.
-NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
-mkdir -p "$NOJQ_BIN"
-for tool in bash git find uname hostname cat sed awk grep date id tr cut sort head tail mkdir rm mktemp readlink realpath dirname basename env; do
-  tool_path="$(command -v "$tool")" && ln -s "$tool_path" "$NOJQ_BIN/$tool"
-done
-registry_entry "$MALFORMED_CFG" 1 1 s 1
-PATH_SAVED_NOJQ="$PATH"
-PATH="$NOJQ_BIN"
-CLAUDE_CONFIG_DIR="$MALFORMED_CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
-nojq_rc=$?
-PATH="$PATH_SAVED_NOJQ"
-assert_exit "stale: a registry with no jq to read it is not provable (exit 1)" 1 "$nojq_rc"
-assert_contains "stale: the no-jq refusal names jq, not the registry's shape" "$OUT" "jq is not on PATH"
+# Git Bash copies a symlink's target, and a copied bash.exe cannot find its DLLs.
+if [[ "$(uname -s)" == Linux ]]; then
+  NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
+  mkdir -p "$NOJQ_BIN"
+  for tool in bash git find uname hostname cat sed awk grep date id tr cut sort head tail mkdir rm mktemp readlink realpath dirname basename env; do
+    tool_path="$(command -v "$tool")" && ln -s "$tool_path" "$NOJQ_BIN/$tool"
+  done
+  registry_entry "$MALFORMED_CFG" 1 1 s 1
+  PATH_SAVED_NOJQ="$PATH"
+  PATH="$NOJQ_BIN"
+  CLAUDE_CONFIG_DIR="$MALFORMED_CFG" HOSTNAME="$STALE_HOST" run_claim stale "$EXT/wt-st-old" --repo-dir "$REPO"
+  nojq_rc=$?
+  PATH="$PATH_SAVED_NOJQ"
+  assert_exit "stale: a registry with no jq to read it is not provable (exit 1)" 1 "$nojq_rc"
+  assert_contains "stale: the no-jq refusal names jq, not the registry's shape" "$OUT" "jq is not on PATH"
+else
+  skip_case "no-jq case: symlinked tools do not run on this host"
+fi
 
 if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/null 2>&1; then
   OWN_STAT="$(<"/proc/$$/stat")"
