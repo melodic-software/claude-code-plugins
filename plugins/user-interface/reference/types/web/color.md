@@ -91,10 +91,8 @@ text. No luminance formula needed for the first pass.
 
 **Contrast lives in the L gap.** Chroma and hue barely move contrast; the distance in L between a
 foreground and the background it renders on is what counts. To repair a failing pair, move only L.
-WCAG 2.2 AA is the bar: 4.5:1 for body text, 3:1 for large text and for UI components and
-graphics (success criteria 1.4.3 and 1.4.11). APCA is an advisory second check, not a standard;
-the WCAG 3 draft has not chosen its contrast algorithm. Full guidance, and the pointer to these
-standards, in `color/contrast.md`.
+WCAG 2.2 AA is the bar. The contrast floors, their sources and the AAA levels are in
+`color/contrast.md` "The bar"; APCA is an advisory second check there, not a standard.
 
 Low-contrast text "fixed" by pumping saturation → does nothing; widen the L gap instead. The
 severity of that finding is in `color/contrast.md`.
@@ -130,8 +128,7 @@ perceptually. Use OKLCH when lightness must actually match.
   value of `color.triage.near_black_l`), text needs L at or over its text value: heuristics,
   confirm with a real check
 - Visible hue drift across a ramp: spread over `color.ramp.hue_spread_max_deg` degrees
-- WCAG 2.2 AA: **4.5:1** body text; **3:1** large text (18pt, or 14pt bold) and UI components and
-  graphics. AAA: **7:1** body text, **4.5:1** large text
+- Contrast floors, AA and AAA: `color/contrast.md` "The bar"
 - Contrast repairs touch **L only**: C and H stay
 
 ## 5. Derived and semantic colors
@@ -175,19 +172,26 @@ distinguish "primary action" from "it worked". Pick a distinct confirmation colo
 
 ## 7. The focus ring color
 
-The focus ring's color is one token, `--focus-ring`: a theme-aware neutral that keeps 3:1 against
-adjacent colors in both themes, or a two-color ring where backgrounds vary. The default example is
-the project's highest-contrast gray step (`--gray-12`). The bar is the 3:1 of success criterion
-1.4.11, not a hue: a neutral that meets it in both themes holds on most surfaces, and a ring drawn
-in two colors at least 9:1 apart keeps one of them at 3:1 whatever sits behind it (WCAG technique
-C40). Where the project already has a focus token, use it and check it against this bar.
+The focus ring's color is one token, `--focus-ring`: a theme-aware neutral that meets the non-text contrast floor
+(`color/contrast.md` "The bar") against adjacent colors in both themes, or a two-color ring where backgrounds vary. The default example is
+the project's highest-contrast gray step (`--gray-12`). The bar is that floor, not a hue: a neutral
+that meets it in both themes holds on most surfaces. A ring drawn in two colors at least 9:1 apart
+keeps one of them at the floor whatever sits behind it; that 9:1 is guidance, not a WCAG floor.
+Where the project already has a focus token, use it and check it against this bar.
+
+- **Pointer**: when drawing a two-color ring, fetch WCAG technique C40, "Description",
+  <https://www.w3.org/WAI/WCAG22/Techniques/css/C40#description>
+- **As of**: 2026-11-09
+- **Recheck trigger**: C40 changes its ratio, or is withdrawn.
 
 Form controls resolve their focus color to this token. Drawing the ring (`:focus-visible`, offset,
 width, forced-colors) is the `one-focus-ring-with-focus-visible` recipe; whether focus is visible
 at all is the `accessibility` concern.
 
-**Audit: Important.** A focus ring color under 3:1 against an adjacent color in either theme, or a
-brand-colored ring that disappears on a brand-colored surface.
+**Audit: Blocking.** A focus ring color under the non-text floor against an adjacent color in
+either theme, such as a brand-colored ring that disappears on a brand-colored surface.
+
+**Audit: Important.** A two-color ring whose colors sit under 9:1 apart.
 
 ## 8. Dark mode colors
 

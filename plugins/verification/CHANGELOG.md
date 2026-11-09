@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-09
+
+### Added
+
+- `/verification:confirm` reads the Brief Goal's `Finish line:` line and reports it as its own row of the intent report: met, not met, or not checkable yet for a release or in-use line.
+
 ## [0.21.1] - 2026-11-09
 
 ### Changed

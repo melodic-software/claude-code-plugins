@@ -53,7 +53,8 @@ role and an exit's length ("Duration"), a keyframe animation that restarts on a 
 trigger ("Interruption and exit"), movement with no reduced-motion handling ("Reduced motion"), and
 every ease-in finding, an exit that is not a permanent one included ("Easing"; its **permanent
 exit** paragraph, before the numbered list, says which exits are). In performance.md: an animated
-layout property ("Swap down a tier").
+layout property ("Swap down a tier"). In behaviors.md: a press scale below its lower limit
+("Button press").
 
 ## Sub-modes
 
