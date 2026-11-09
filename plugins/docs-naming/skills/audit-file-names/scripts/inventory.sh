@@ -247,19 +247,14 @@ while IFS= read -r path; do
     printf 'EXEMPT\t%s\tno-legal-proposal\n' "$path"
     continue
   fi
-  offenders="$offenders$path	${path%/*}/$proposed_base
+  # A root-level file has no directory part to keep.
+  proposed="$proposed_base"
+  [[ "$path" == */* ]] && proposed="${path%/*}/$proposed_base"
+  offenders="$offenders$path	$proposed
 "
 done <<EOF
 $ALL_PATHS
 EOF
-
-# A root-level file has no directory part, so `${path%/*}` returned the path
-# itself; repair those rows.
-offenders="$(printf '%s' "$offenders" | awk -F'\t' 'NF==2 {
-  old = $1; new = $2
-  if (index(old, "/") == 0) { sub(/^.*\//, "", new); }
-  print old "\t" new
-}')"
 
 # --- the case-collision pass -------------------------------------------------
 

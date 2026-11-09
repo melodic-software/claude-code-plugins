@@ -176,13 +176,16 @@ while IFS="$(printf '\t')" read -r nsites old new; do
   [[ -n "$old" ]] || continue
   id="FN-$(printf '%s' "$old" | git hash-object --stdin | cut -c1-8)"
   status="$(status_of "$id")"
-  files="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o {print $3}' "$SWEEP" | sort -u | grep -c . || true)"
-  by_tier="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o {print $6 " " $7}' "$SWEEP" |
+  # This offender's sites, read from the sweep once. Printed without a trailing
+  # newline, an offender with no site feeds each count below no line at all.
+  refs="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o' "$SWEEP")"
+  files="$(printf '%s' "$refs" | awk -F'\t' '{print $3}' | sort -u | grep -c . || true)"
+  by_tier="$(printf '%s' "$refs" | awk -F'\t' '{print $6 " " $7}' |
     sort | uniq -c | awk '{printf "%s %s (%s), ", $1, $2, $3}' | sed 's/, $//')"
   [[ -n "$by_tier" ]] || by_tier="no site found"
-  gen="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o && $7=="regenerate" {print $3}' "$SWEEP" | sort -u | tr '\n' ' ')"
+  gen="$(printf '%s' "$refs" | awk -F'\t' '$7=="regenerate" {print $3}' | sort -u | tr '\n' ' ')"
   [[ -n "${gen// /}" ]] || gen="none"
-  review="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o && $7=="review"' "$SWEEP" | grep -c . || true)"
+  review="$(printf '%s' "$refs" | awk -F'\t' '$7=="review"' | grep -c . || true)"
 
   body="$body### $id \`$old\` to \`$new\`
 
@@ -196,10 +199,10 @@ while IFS="$(printf '\t')" read -r nsites old new; do
 
 | file | line | form | tier | action | excerpt |
 |---|---|---|---|---|---|
-$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o {
+$(printf '%s' "$refs" | awk -F'\t' '{
     gsub(/\|/, "\\|", $8)
     print "| `" $3 "` | " $4 " | " $5 " | " $6 " | " $7 " | " $8 " |"
-  }' "$SWEEP")
+  }')
 
 "
 done <<EOF
@@ -211,26 +214,23 @@ EOF
 mkdir -p "$(dirname "$OUT")" || die "cannot create $(dirname "$OUT")"
 tmp="$OUT.tmp.$$"
 {
-  printf -- '---\n'
-  printf 'type: docs-naming-file-name-findings\n'
-  printf 'schema: 1\n'
-  printf 'date: %s\n' "$NOW"
-  printf 'branch: %s\n' "$BRANCH"
-  printf 'head: %s\n' "$HEAD_SHA"
-  printf 'config: %s\n' "$CONFIG_PATH"
-  printf 'roots: %s\n' "${ROOTS:-unknown}"
-  printf 'files_scanned: %s\n' "${SCANNED:-0}"
-  printf 'findings: %s\n' "${finding_count:-0}"
-  printf 'collisions: 0\n'
-  printf -- '---\n\n'
-  printf '# File-name rename plan\n\n'
-  printf 'One record per file this tree would rename. `head` is recorded for the\n'
-  printf 'evidence trail and is never checked: a consumer commits between accepted\n'
-  printf 'renames. What a realign checks per record is that the old path is still in\n'
-  printf 'the index and that each site still carries the old name.\n\n'
-  printf 'Statuses move `pending` to `accepted`, `applying`, `applied`, `declined`, or\n'
-  printf '`blocked`. Only the realign writes a forward move. A re-audit merges into\n'
-  printf 'this file by id and never resurrects a decision.\n\n'
+  printf -- '---\ntype: docs-naming-file-name-findings\nschema: 1\n'
+  printf 'date: %s\nbranch: %s\nhead: %s\nconfig: %s\nroots: %s\nfiles_scanned: %s\nfindings: %s\n' \
+    "$NOW" "$BRANCH" "$HEAD_SHA" "$CONFIG_PATH" "${ROOTS:-unknown}" "${SCANNED:-0}" "${finding_count:-0}"
+  printf -- 'collisions: 0\n---\n\n'
+  cat <<'EOF'
+# File-name rename plan
+
+One record per file this tree would rename. `head` is recorded for the
+evidence trail and is never checked: a consumer commits between accepted
+renames. What a realign checks per record is that the old path is still in
+the index and that each site still carries the old name.
+
+Statuses move `pending` to `accepted`, `applying`, `applied`, `declined`, or
+`blocked`. Only the realign writes a forward move. A re-audit merges into
+this file by id and never resurrects a decision.
+
+EOF
   printf '%s' "$body"
 } >"$tmp" || {
   rm -f "$tmp"

@@ -348,7 +348,10 @@ parsed="$(
   exit 2
 }
 
-shape_errors="$(printf '%s\n' "$parsed" | grep '^ERR ' || true)"
+# records <kind>: every parsed record of that kind, one per line, or nothing.
+records() { grep "^$1 " <<<"$parsed" || true; }
+
+shape_errors="$(records ERR)"
 if [[ -n "$shape_errors" ]]; then
   echo "check-lane-coverage: unrecognized workflow shape in $WORKFLOW" >&2
   printf '%s\n' "$shape_errors" | sed 's/^ERR /  /' >&2
@@ -356,8 +359,8 @@ if [[ -n "$shape_errors" ]]; then
   exit 2
 fi
 
-jobs_all="$(printf '%s\n' "$parsed" | grep '^JOB ' | cut -d' ' -f2 || true)"
-needs_all="$(printf '%s\n' "$parsed" | grep '^NEED ' | cut -d' ' -f2 || true)"
+jobs_all="$(records JOB | cut -d' ' -f2)"
+needs_all="$(records NEED | cut -d' ' -f2)"
 
 if [[ -z "$jobs_all" ]]; then
   echo "check-lane-coverage: no jobs parsed from $WORKFLOW" >&2
@@ -435,7 +438,7 @@ while read -r _ job flag reason; do
   if [[ "$in_needs" -eq 0 ]]; then
     report "UNGATED LANE: job '$job' is defined in $WORKFLOW but absent from ${AGGREGATE}.needs, so it cannot gate a merge. Add it to needs, or annotate the job with '# lane-coverage-ok: <reason>'."
   fi
-done <<<"$(printf '%s\n' "$parsed" | grep '^JOB ')"
+done <<<"$(records JOB)"
 
 while IFS= read -r need; do
   [[ -n "$need" ]] || continue
@@ -445,10 +448,10 @@ done <<<"$needs_all"
 
 # --- step level -------------------------------------------------------------
 
-rec_stepid="$(printf '%s\n' "$parsed" | grep '^STEPID ' || true)"
-rec_coe="$(printf '%s\n' "$parsed" | grep '^COE ' || true)"
-rec_feed="$(printf '%s\n' "$parsed" | grep '^FEED ' || true)"
-rec_stepname="$(printf '%s\n' "$parsed" | grep '^STEPNAME ' || true)"
+rec_stepid="$(records STEPID)"
+rec_coe="$(records COE)"
+rec_feed="$(records FEED)"
+rec_stepname="$(records STEPNAME)"
 
 # step_field_of <records> <job> <ordinal>: the trailing field of the matching
 # record, or empty. STEPID records carry the id a step declares; STEPNAME

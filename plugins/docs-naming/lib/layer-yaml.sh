@@ -50,7 +50,7 @@ layer_yaml_home() {
 # layer_yaml_to_json <file>: print the layer as JSON on one line. Returns 1 with
 # the parser's line and message on stderr when the file does not parse.
 layer_yaml_to_json() {
-  local file="$1" records empties
+  local file="$1" records empties declared blank
   [[ -f "$LAYER_YAML_AWK" ]] || {
     printf 'yaml parser missing at %s\n' "$LAYER_YAML_AWK" >&2
     return 1
@@ -65,7 +65,6 @@ layer_yaml_to_json() {
   # The parser prints nothing for an empty value (`regex:`), which would read as
   # an undeclared key and silently inherit a lower layer: a top-level key the
   # file declares that yields no record and is not `[]` is an error.
-  local declared blank
   declared="$(LC_ALL=C tr -d '\r' <"$file" | sed -n 's/^\([A-Za-z0-9_-][A-Za-z0-9_-]*\)[[:space:]]*:.*$/\1/p')"
   for blank in $declared; do
     grep -q "^${blank}[.	]" <<<"$records" && continue

@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.12] - 2026-11-09
+
+### Changed
+
+Internal simplification, no behavior change.
+
+## [2.0.11] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper and Mermaid gate without changing their output.
+
+- Internal simplification, no behavior change.
+
 ## [2.0.10] - 2026-11-09
 
 ### Changed
