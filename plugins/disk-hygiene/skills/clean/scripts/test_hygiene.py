@@ -12067,6 +12067,31 @@ class GuardTests(unittest.TestCase):
         engine_call = self._engine_words('scan --target "t (x)" --output s')
         self.assertIn("('(')", self._gated_reason(engine_call))
 
+    def test_engine_gate_gates_an_engine_path_inside_a_larger_word(self) -> None:
+        """A program handed the engine inside an operand or payload runs it."""
+        engine = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                f'awk -v c={engine} "BEGIN {{system (c)}}"',
+                f'gawk -v c={engine} -v a=scan "BEGIN {{system (c FS a)}}"',
+                f'awk -v c={engine} -v a=apply -v p=--plan'
+                ' "BEGIN {system (c FS a FS p)}"',
+                f'perl -e "system (substr shift,2)" c={engine}',
+                'node -e "require (String.fromCharCode (99,104,105,108,100,95,112,'
+                "114,111,99,101,115,115)).execFileSync (process.argv.at (1).slice"
+                f' (2),{{stdio:0}})" c={engine}',
+                f'zsh -c "repeat 1 ({engine} scan)"',
+                f'zsh -c "repeat 1 (exec {engine} scan)"',
+                f'fish -c "echo ({engine} scan)"',
+                f"tool c={engine}",
+                f"tool --x={engine}",
+                f'bash -c "exec {engine} scan"',
+                f'perl -e "exec substr shift,2" c={engine}',
+                f'zsh -c "repeat 1 {engine} scan"',
+            ):
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+
     def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
         cases = (
             'echo "run python3 hygiene.py"',

@@ -85,7 +85,7 @@ def _without_quoted_braces(
 
 _BASH_RESERVED_WORDS = frozenset(
     "! [[ ]] { } case coproc do done elif else esac fi for function if in select "
-    "then time until while".split()
+    "then time until while always end foreach nocorrect noglob repeat".split()
 )
 
 
@@ -96,12 +96,15 @@ def _quoted_parens_are_text(command: str) -> bool:
     at a ``(`` that opens the string, is glued to the character before it,
     follows another paren or brace, or follows a reserved word (``time (``,
     ``coproc NAME (``, ``eval if "(...)"``), so a reserved word anywhere in the
-    command keeps every paren live. After a space and an ordinary word a ``(``
-    is text or a syntax error. A backslash can move a quote boundary, so it
-    keeps every paren live too.
+    command keeps every paren live. The reserved words include zsh's
+    (``repeat 1 (...)``). After a space and an ordinary word a ``(`` is text or
+    a syntax error in bash and zsh, but fish runs ``echo (cmd)`` as command
+    substitution, so naming fish keeps every paren live. A backslash can move
+    a quote boundary, so it keeps every paren live too.
     """
+    words = [word.strip("'\"") for word in command.split()]
     if "\\" in command or any(
-        word.strip("'\"") in _BASH_RESERVED_WORDS for word in command.split()
+        word in _BASH_RESERVED_WORDS or Path(word).name == "fish" for word in words
     ):
         return False
     for match in _WHOLE_WORD_QUOTED.finditer(command):
@@ -1389,6 +1392,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             _provably_other_file(token, word) for token, word in marker_pairs
         ):
             return False
+        return True
+    # Identity on every path-legal token and the word holding it, as the
+    # PowerShell branch reads it: `awk -v c=<engine>` and `perl -e ... c=<engine>`
+    # hand the engine path to a program inside a larger word.
+    if any(
+        _samefile(candidate)
+        or (_carries_marker(token) and _within_plugin_cache_family(candidate))
+        for token, word in _marker_tokens_with_words(command)
+        for candidate in (token, word)
+    ):
         return True
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
