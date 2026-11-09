@@ -88,7 +88,8 @@ if ((${#carriers[@]} == 0)); then
 fi
 for copy in "${carriers[@]}"; do
   rest="${copy#plugins/}"
-  manifest="plugins/${rest%%/*}/.claude-plugin/plugin.json"
+  plugin="${rest%%/*}"
+  manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
   # release already carries the new contract.
   base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
@@ -96,12 +97,12 @@ for copy in "${carriers[@]}"; do
   head_version=$(jq -r '.version // empty' "$manifest")
   rc=0
   # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
-  changelog_fragments::bump_delivered "$mb" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+  changelog_fragments::bump_delivered "$mb" "$plugin" "$base_version" "$head_version" || rc=$?
   ((rc < 2)) || exit 2
   # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
-  if ((rc == 1)) && changelog_fragments::in_mode "${rest%%/*}"; then
-    echo "STALE VERSION: $src changed vs $base but ${rest%%/*}, in fragment mode, has no fragment for it" >&2
-    echo "  Run scripts/new-changelog-fragment.sh ${rest%%/*} patch." >&2
+  if ((rc == 1)) && changelog_fragments::in_mode "$plugin"; then
+    echo "STALE VERSION: $src changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+    echo "  Run scripts/new-changelog-fragment.sh $plugin patch." >&2
     stale=1
     stale_fragment=1
   elif ((rc == 1)); then
