@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.11] - 2026-11-09
+
+### Changed
+
+- The routing rubric's model-change pointer is rechecked against the selection matrix that now lists Claude Fable 5.2; no routing changes.
+
 ## [2.0.10] - 2026-11-09
 
 ### Changed
