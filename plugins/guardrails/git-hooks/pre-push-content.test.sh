@@ -203,6 +203,18 @@ expect "the master decline key declines it too" "0|" "$(new_push)"
 git -C "$REPO" config checks.guardrails.pre-push-content.declined false
 expect "the entry's own key beats the master key" 1 "$(new_push | head -c 1)"
 
+# A working-tree file named exactly like a pushed SHA made git read the bare
+# revision as ambiguous and exit 128, refusing the push.
+new_repo
+base_sha="$(git -C "$REPO" rev-parse HEAD)"
+commit_text notes.md $'line one\nline two\ntoken='"$FAKE_GHP"$'\n' "plant"
+tip_sha="$(git -C "$REPO" rev-parse HEAD)"
+: >"$REPO/$base_sha"
+: >"$REPO/$tip_sha"
+got="$(push_check "$tip_sha" "$base_sha")"
+expect "files named like the pushed base and tip SHAs do not stop the commit listing" no \
+  "$([[ "$got" == *'listing the commits pushed'* ]] && echo yes || echo no)"
+
 new_repo
 printf 'token=%s\n' "$FAKE_GHP" >"$REPO/draft.md"
 got="$(cd "$REPO" && bash "$CHECK" --worktree 2>&1 >/dev/null)"
