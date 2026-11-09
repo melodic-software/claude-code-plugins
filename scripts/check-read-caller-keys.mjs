@@ -110,7 +110,7 @@ try {
     /\.ya?ml$/.test(name),
   );
 } catch {
-  names = [];
+  // No workflows directory: the missing read workflow is reported below.
 }
 const byLowerName = new Map(names.map((name) => [name.toLowerCase(), name]));
 
@@ -259,6 +259,18 @@ function checkJobOf(file, doc) {
   return yaml.isMap(node) ? node : null;
 }
 
+const pairsOf = (node) => (yaml.isMap(node) ? node.items : []);
+
+// The pairs of a map node whose key and value are exactly these scalars.
+const exactPairs = (map, key, value) =>
+  pairsOf(map).filter(
+    (pair) =>
+      yaml.isScalar(pair.key) &&
+      pair.key.value === key &&
+      yaml.isScalar(pair.value) &&
+      pair.value.value === value,
+  );
+
 // The read workflow's scan-job open step's private-key pair, when there is
 // exactly one such step and its value is exactly the carrier secret.
 function carrierPairOf(file, doc) {
@@ -266,51 +278,33 @@ function carrierPairOf(file, doc) {
     return null;
   }
   const steps = doc.getIn(["jobs", CARRIER_JOB, "steps"], true);
-  const pairs = [];
-  for (const step of yaml.isSeq(steps) ? steps.items : []) {
-    if (
-      !yaml.isMap(step) ||
-      String(step.get("uses") ?? "").trim() !== CARRIER_ACTION
-    ) {
-      continue;
-    }
-    const inputs = step.get("with", true);
-    for (const pair of yaml.isMap(inputs) ? inputs.items : []) {
-      if (
-        yaml.isScalar(pair.key) &&
-        pair.key.value === "private-key" &&
-        yaml.isScalar(pair.value) &&
-        pair.value.value === CARRIER_VALUE
-      ) {
-        pairs.push(pair);
-      }
-    }
-  }
+  const pairs = (yaml.isSeq(steps) ? steps.items : [])
+    .filter(
+      (step) =>
+        yaml.isMap(step) &&
+        String(step.get("uses") ?? "").trim() === CARRIER_ACTION,
+    )
+    .flatMap((step) =>
+      exactPairs(step.get("with", true), "private-key", CARRIER_VALUE),
+    );
   return pairs.length === 1 ? pairs[0] : null;
 }
 
-// In any file, the scan-carrier-private-key pairs of the secrets map of a job
+// In any file, the scan-carrier-private-key values of the secrets map of a job
 // that calls the read workflow, valued exactly CARRIER_PASS.
 function carrierPassesOf(doc) {
-  const passes = new Set();
-  const jobs = doc.get("jobs", true);
-  for (const job of yaml.isMap(jobs) ? jobs.items : []) {
-    if (!yaml.isMap(job.value) || callee(job.value.get("uses")) !== READ_WORKFLOW) {
-      continue;
-    }
-    const secrets = job.value.get("secrets", true);
-    for (const pair of yaml.isMap(secrets) ? secrets.items : []) {
-      if (
-        yaml.isScalar(pair.key) &&
-        pair.key.value === CARRIER_INPUT &&
-        yaml.isScalar(pair.value) &&
-        pair.value.value === CARRIER_PASS
-      ) {
-        passes.add(pair.value);
-      }
-    }
-  }
-  return passes;
+  return new Set(
+    pairsOf(doc.get("jobs", true))
+      .filter(
+        (job) =>
+          yaml.isMap(job.value) &&
+          callee(job.value.get("uses")) === READ_WORKFLOW,
+      )
+      .flatMap((job) =>
+        exactPairs(job.value.get("secrets", true), CARRIER_INPUT, CARRIER_PASS),
+      )
+      .map((pair) => pair.value),
+  );
 }
 
 const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
@@ -320,12 +314,13 @@ const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
 // checkout is conditional or may fail soft: an empty ref checks out the event's.
 function isTipCheckout(values, index) {
   const checkout = values[index];
-  const tip = values.find((value) => value?.id === "tip");
+  const tipIndex = values.findIndex((value) => value?.id === "tip");
+  const tip = values[tipIndex];
   const env = tip?.env ?? {};
   return (
     checkout.with?.ref === TIP_STEP_REF &&
-    values.indexOf(tip) !== -1 &&
-    values.indexOf(tip) < index &&
+    tipIndex !== -1 &&
+    tipIndex < index &&
     tip.uses === undefined &&
     tip.run === TIP_RUN &&
     Object.keys(env).sort().join() === "GIT_TERMINAL_PROMPT,TIP_BRANCH" &&
@@ -349,8 +344,7 @@ function checkReadShape(file, doc, lineCounter) {
       `${file}:${lineOf(top)}: the read workflow's top-level permissions is not {}`,
     );
   }
-  const jobs = doc.get("jobs", true);
-  for (const pair of yaml.isMap(jobs) ? jobs.items : []) {
+  for (const pair of pairsOf(doc.get("jobs", true))) {
     if (
       !yaml.isMap(pair.value) ||
       !yaml.isMap(pair.value.get("permissions", true))
@@ -433,12 +427,17 @@ function check(file) {
     offenders.push(
       `${file}:${line}: ${what} in a run that reaches ${READ_WORKFLOW}`,
     );
+  // A pair whose value is a scalar reading `word`, any case, outer space trimmed.
+  const valueIs = (pair, word) =>
+    yaml.isScalar(pair.value) &&
+    String(pair.value.value).trim().toLowerCase() === word;
   yaml.visit(doc, {
     Pair(_, pair) {
       const key = yaml.isScalar(pair.key) ? String(pair.key.value).trim() : "";
       const keyLine = pair.key?.range
         ? lineCounter.linePos(pair.key.range[0]).line
         : 0;
+      const valueLine = () => lineCounter.linePos(pair.value.range[0]).line;
       if (APP_KEY_INPUTS.has(key.toLowerCase()) && pair !== carrierPair) {
         report(keyLine, KEY);
       }
@@ -455,25 +454,11 @@ function check(file) {
           `names an environment other than ${CARRIER_ENVIRONMENT} on the read workflow's ${CARRIER_JOB} job`,
         );
       }
-      if (
-        key === "secrets" &&
-        yaml.isScalar(pair.value) &&
-        String(pair.value.value).trim().toLowerCase() === "inherit"
-      ) {
-        report(
-          lineCounter.linePos(pair.value.range[0]).line,
-          "passes secrets: inherit",
-        );
+      if (key === "secrets" && valueIs(pair, "inherit")) {
+        report(valueLine(), "passes secrets: inherit");
       }
-      if (
-        key === "permissions" &&
-        yaml.isScalar(pair.value) &&
-        String(pair.value.value).trim().toLowerCase() === "write-all"
-      ) {
-        report(
-          lineCounter.linePos(pair.value.range[0]).line,
-          "grants permissions: write-all",
-        );
+      if (key === "permissions" && valueIs(pair, "write-all")) {
+        report(valueLine(), "grants permissions: write-all");
       }
       if (
         file === READ_WORKFLOW &&
@@ -492,10 +477,10 @@ function check(file) {
       if (keyHit) {
         report(lineAt(node, text, keyHit.index), KEY);
       }
+      const carrier =
+        (node === carrierPair?.value && text === CARRIER_VALUE) ||
+        carrierPasses.has(node);
       for (const [at, expression] of expressions(text)) {
-        const carrier =
-          (node === carrierPair?.value && text === CARRIER_VALUE) ||
-          carrierPasses.has(node);
         for (const what of secretFindings(expression, scope, carrier)) {
           report(lineAt(node, text, at), what);
         }
