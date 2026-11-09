@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.6.4] - 2026-11-09
+
+### Changed
+
+- Repaired a stale data-shape pointer in build-view.mjs and dropped an always-true guard from the coverage-ledger gate and its Python twin; behavior is unchanged.
+
 ## [1.6.3] - 2026-11-08
 
 ### Changed

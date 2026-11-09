@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.7.1] - 2026-11-09
+
+### Fixed
+
+- The self-observation filing contract says the org floor workflow skips an issue that has a value in the Priority field, not only one carrying a `priority:` label.
+
 ## [12.7.0] - 2026-11-09
 
 ### Changed
