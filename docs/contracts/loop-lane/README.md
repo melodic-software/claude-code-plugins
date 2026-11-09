@@ -340,9 +340,9 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 
 | Reason | Label | Lane that decides |
 |---|---|---|
-| Original intent or vision changes, or the item cannot answer an intent question | `status: needs-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
+| Original intent or vision changes, or the item cannot answer an intent question | `needs-owner-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
-| A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
+| A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `needs-owner-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
 A choice of means or a design detail is none of these reasons: the lane doing the work decides it
@@ -437,7 +437,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 On an issue, the holds live on its Work status field: `needs-human`, `needs-owner-decision`,
 `needs-reporter-info` and `needs-spec` are field states (`models.issue-status` in
 [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml)). A hold label such as `needs-human` or
-`status: needs-decision` still holds on top of the field, so a listed human lifts a hold by
+`needs-owner-decision` still holds on top of the field, so a listed human lifts a hold by
 changing the field and removing any hold label.
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
@@ -460,7 +460,7 @@ such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../../conventions/pr-pipeline/README.md#attended-work)). An issue that mixes
 such items with items the lane can do also parks at `status: confirmed`, with no `host-run`, for
 refine.mjs to split: no person answers a split. Every intake hold for a person
-(`status: needs-decision`) names its owner reason in a `stop-reason lane=intake-triage` marker.
+(`needs-owner-decision`) names its owner reason in a `stop-reason lane=intake-triage` marker.
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
 review lane's verdict), or ask the owner about it, on its own concern. It routes the concern to that lane's owner as an issue,

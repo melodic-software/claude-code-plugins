@@ -1,10 +1,10 @@
 ---
-description: 'Legacy triage 8. A follow-up scoping question in the same interactive pass carries its own restatement (item, the decision it resolves, and for an open-ended question what the answer will determine instead of a manufactured option list), is posted as an item comment, and the item is marked status:needs-info. restates-item and needs-info read the reply. Read-only tools, graded on the reply.'
+description: 'Legacy triage 8. A follow-up scoping question in the same interactive pass carries its own restatement (item, the decision it resolves, and for an open-ended question what the answer will determine instead of a manufactured option list), is posted as an item comment, and the item is marked needs-reporter-info. restates-item and needs-info read the reply. Read-only tools, graded on the reply.'
 tags: [triage, restatement, interview, needs-info]
 max_turns: 15
 timeout_seconds: 420
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: 'Before posting the scoping question the reply restates #64 and its title and the decision the question resolves, says what the open-ended answer will determine rather than inventing options, posts the question as an item comment and marks #64 status:needs-info.'
+expected_outcome: 'Before posting the scoping question the reply restates #64 and its title and the decision the question resolves, says what the open-ended answer will determine rather than inventing options, posts the question as an item comment and marks #64 needs-reporter-info.'
 ---
 
 /work-items:triage 64

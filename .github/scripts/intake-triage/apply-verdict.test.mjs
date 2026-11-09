@@ -19,6 +19,7 @@ import {
   flagsAfterDecision,
   FORBIDDEN_EDGE,
   isFault,
+  LANES_APP_LOGIN,
   MARKER,
   missedAnnotation,
   NEEDS_DECISION,
@@ -36,7 +37,7 @@ const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.j
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
 // The labels a repository may still hold from before work classes retired.
-const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "work-class: untrusted-provenance"];
+const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "provenance: untrusted"];
 // The reusable's wording around a proposed class.
 const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
@@ -68,6 +69,7 @@ const DIMS = {
 
 const laneBody = ({ cls = "work-class: scoped", lines = ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none"] } = {}) =>
   [`${MARKER}\nProposed work class: ${cls}\n${OLD_BASIS}`, ["Priority medium: a docs fix.", ...lines].join("\n"), OLD_FOOTER].join("\n\n");
+const UNTRUSTED_BODY = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] });
 const ESCALATED_BODY = `${MARKER}\nProposed work class: none\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n\n${OLD_FOOTER}`;
 
 describe("parseVerdict", () => {
@@ -187,13 +189,6 @@ describe("parseVerdict", () => {
     });
   }
 
-  test("reads the legacy untrusted proposal only from the second line, and a missing class line is no problem", () => {
-    const body = `${MARKER}\nThanks.\nProposed work class: work-class: untrusted-provenance\nSize: Small`;
-    const verdict = parseVerdict(body, DIMS);
-    assert.equal(verdict.untrusted, false);
-    assert.doesNotMatch(verdict.problems.join(), /class/);
-  });
-
   test("an escalated run reads as escalated", () => {
     const verdict = parseVerdict(ESCALATED_BODY, DIMS);
     assert.equal(verdict.escalated, true);
@@ -260,7 +255,7 @@ describe("planWrites", () => {
     assert.deepEqual(planWrites(verdict, { ...base, labels: shown }).remove, ["needs-triage"], "without its own labels only the shown floor label goes");
   });
 
-  for (const hold of ["needs-human", "status: needs-info", "status: needs-decision", NEEDS_DECISION]) {
+  for (const hold of ["needs-human", "needs-reporter-info", "needs-owner-decision", NEEDS_DECISION]) {
     test(`${hold} on the issue keeps it from ready`, () => {
       const result = plan(laneBody(), { labels: [hold] });
       assert.equal(result.ready, false);
@@ -305,7 +300,7 @@ describe("planWrites", () => {
 
   // Owner decision on #9799's review, fail-closed: with no readable earlier
   // verdict, the earlier run may have flagged, so the hold stays and says so.
-  for (const hold of ["status: needs-info", NEEDS_DECISION]) {
+  for (const hold of ["needs-reporter-info", NEEDS_DECISION]) {
     test(`${hold} the lanes App set with no readable earlier verdict stays on a clean verdict`, () => {
       const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: null });
       assert.equal(result.ready, false);
@@ -381,14 +376,14 @@ describe("planWrites", () => {
   // Only an otherwise ready plan reaches admission, which routes the capability
   // limit; a plan held for another reason keeps needs-human and says so.
   test("needs-human this run's triage applied with no flag holds when another hold keeps the plan from ready", () => {
-    const result = plan(laneBody(), { labels: ["needs-human", "status: needs-info"], triageLabels: ["needs-human"] });
+    const result = plan(laneBody(), { labels: ["needs-human", "needs-reporter-info"], triageLabels: ["needs-human"] });
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
     assert.deepEqual(result.refused, []);
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  for (const label of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
+  for (const label of ["security: outside-actor", "provenance: untrusted"]) {
     test(`needs-human this run's triage applied with no flag holds beside ${label}`, () => {
       const result = plan(laneBody(), { labels: ["needs-human", label], triageLabels: ["needs-human"] });
       assert.equal(result.ready, false);
@@ -454,19 +449,12 @@ describe("planWrites", () => {
     assert.deepEqual(result.remove, ["needs-human", NEEDS_DECISION]);
   });
 
-  test("the old name status: needs-decision this run's triage applied with no flag is refused too", () => {
-    const result = plan(laneBody(), { labels: ["status: needs-decision"], triageLabels: ["status: needs-decision"] });
-    assert.equal(result.ready, true);
-    assert.deepEqual(result.remove, ["status: needs-decision"]);
-    assert.deepEqual(result.refused, ["status: needs-decision"]);
-  });
-
   for (const [name, options] of [
     ["beside an intent flag", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent"] }) }],
     ["with an unreadable Flags line", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known"] }) }],
     ["beside security: outside-actor", { labels: ["security: outside-actor"] }],
-    ["beside work-class: untrusted-provenance", { labels: ["work-class: untrusted-provenance"] }],
-    ["beside status: needs-info", { labels: ["status: needs-info"] }],
+    ["beside provenance: untrusted", { labels: ["provenance: untrusted"] }],
+    ["beside needs-reporter-info", { labels: ["needs-reporter-info"] }],
   ]) {
     test(`needs-owner-decision this run's triage applied holds ${name}`, () => {
       const result = plan(options.body ?? laneBody(), { labels: [NEEDS_DECISION, ...(options.labels ?? [])], triageLabels: [NEEDS_DECISION] });
@@ -632,8 +620,8 @@ describe("planWrites", () => {
     });
   }
 
-  test("work-class: untrusted-provenance is never taken off and holds the issue, even when the lanes App added it", () => {
-    const hold = "work-class: untrusted-provenance";
+  test("provenance: untrusted is never taken off and holds the issue, even when the lanes App added it", () => {
+    const hold = "provenance: untrusted";
     const result = plan(laneBody(), {
       labels: [hold],
       holdSetters: { [hold]: LANES_APP },
@@ -644,7 +632,7 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
 
-  for (const hold of ["work-class: untrusted-provenance", "provenance: untrusted"]) {
+  for (const hold of ["provenance: untrusted"]) {
     test(`${hold} on the issue holds it whatever class the verdict proposes`, () => {
       const result = plan(laneBody(), { labels: [hold] });
       assert.equal(result.ready, false);
@@ -653,27 +641,8 @@ describe("planWrites", () => {
     });
   }
 
-  test("a verdict proposing the legacy work-class: untrusted-provenance writes provenance: untrusted and holds the issue", () => {
-    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS);
-    assert.equal(verdict.untrusted, true);
-    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
-    assert.equal(result.ready, false);
-    assert.equal(result.reason, "security");
-    assert.ok(result.reasons.includes("provenance: untrusted work needs a person"), result.reasons.join("; "));
-    assert.deepEqual(result.add, ["provenance: untrusted", NEEDS_DECISION]);
-  });
-
-  test("an escalated run's legacy untrusted proposal is not read, and the escalation holds it", () => {
-    const verdict = parseVerdict(ESCALATED_BODY.replace("Proposed work class: none", "Proposed work class: work-class: untrusted-provenance"), DIMS);
-    assert.equal(verdict.escalated, true);
-    assert.equal(verdict.untrusted, false);
-    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
-    assert.equal(result.ready, false);
-    assert.equal(result.reason, "security");
-  });
-
   test("an untrusted-provenance verdict adds provenance: untrusted beside an old class label", () => {
-    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), {
+    const result = plan(UNTRUSTED_BODY, {
       labels: ["work-class: mechanical"],
       holdSetters: { "work-class: mechanical": HUMAN },
     });
@@ -731,7 +700,7 @@ describe("planWrites", () => {
   });
 
   test("an untrusted verdict does not add provenance: untrusted again when the issue carries it", () => {
-    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), { labels: ["provenance: untrusted"] });
+    const result = plan(UNTRUSTED_BODY, { labels: ["provenance: untrusted"] });
     assert.equal(result.ready, false);
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
@@ -925,10 +894,14 @@ describe("checkRun", () => {
     };
     return { calls, github };
   };
+  const byHuman = { user: { id: HUMAN } };
   const cases = [
-    ["the issue is open", { state: "open" }, true],
-    ["the issue closed while triage ran", { state: "closed" }, false],
-    ["the number is a pull request", { state: "open", pull_request: {} }, false],
+    ["the issue is open", { state: "open", ...byHuman }, true],
+    ["the issue closed while triage ran", { state: "closed", ...byHuman }, false],
+    ["the number is a pull request", { state: "open", pull_request: {}, ...byHuman }, false],
+    ["the author is github-actions[bot]", { state: "open", user: { id: ACTIONS_BOT } }, false],
+    ["the author is an outsider", { state: "open", user: { id: OUTSIDER } }, false],
+    ["the issue names no author", { state: "open" }, false],
     ["the read fails, so the write step's own read decides", new GitHubError(502, "GET"), true],
   ];
   for (const [name, answer, expected] of cases) {
@@ -938,6 +911,11 @@ describe("checkRun", () => {
       assert.deepEqual(calls, ["GET /repos/o/r/issues/7"]);
     });
   }
+  test("proceeds when the lanes App filed the issue", async () => {
+    const { github } = answering({ state: "open", user: { id: 77 } });
+    const withApp = new Map([...logins, [LANES_APP_LOGIN, 77]]);
+    assert.equal(await checkRun({ env, humans, logins: withApp, github, log: () => {} }), true);
+  });
   test("stops on the actors without reading the issue", async () => {
     const { calls, github } = answering({ state: "open" });
     assert.equal(await checkRun({ env: { ...env, EVENT_NAME: "issues" }, humans, logins, github, log: () => {} }), false);
@@ -1775,7 +1753,7 @@ describe("run", () => {
 
   // flag.mjs can add the outside-actor label and needs-human after the first
   // read; admission never reads outside-actor, so needs-human must stay.
-  for (const late of ["security: outside-actor", "work-class: untrusted-provenance", "provenance: untrusted"]) {
+  for (const late of ["security: outside-actor", "provenance: untrusted"]) {
     test(`${late} landing after the first read keeps a refused needs-human`, async () => {
       const fake = fakeGitHub({
         issue: { labels: [{ name: "needs-human" }] },
@@ -1883,7 +1861,7 @@ describe("run", () => {
   // that says whether it was flagged.
   for (const [name, comments, failing] of [
     ["no earlier verdict comment and a failed post", [], "POST /repos/o/r/issues/7/comments"],
-    ["an earlier unflagged verdict comment and a failed edit", [unflagged("The triage verdict left this issue at `status: needs-decision`:\n\n- no `Size:` line")], "PATCH /repos/o/r/issues/comments/51"],
+    ["an earlier unflagged verdict comment and a failed edit", [unflagged("The triage verdict left this issue at `needs-owner-decision`:\n\n- no `Size:` line")], "PATCH /repos/o/r/issues/comments/51"],
   ]) {
     test(`a flagged verdict with ${name} writes no label, reports the failure, and fails the run`, async () => {
       const fake = fakeGitHub({ comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments] });
@@ -1980,7 +1958,7 @@ describe("run", () => {
   });
 
   test("a mechanical admission refusal to status: confirmed still settles an earlier verdict comment, naming the label admission wrote", async () => {
-    const fake = fakeGitHub({ comments: [laneComment(), unflagged("The triage verdict left this issue at `status: needs-decision`:\n\n- flagged: intent")] });
+    const fake = fakeGitHub({ comments: [laneComment(), unflagged("The triage verdict left this issue at `needs-owner-decision`:\n\n- flagged: intent")] });
     await run({
       env: ENV,
       github: fake.github,
@@ -2006,9 +1984,8 @@ describe("run", () => {
   // reach the field as their state, the strongest first (models.issue-status order).
   for (const [labels, state] of [
     [["needs-human"], "needs-human"],
-    [["status: needs-info"], "needs-reporter-info"],
-    [["needs-human", "status: needs-info"], "needs-human"],
-    [["status: needs-decision"], "needs-owner-decision"],
+    [["needs-reporter-info"], "needs-reporter-info"],
+    [["needs-human", "needs-reporter-info"], "needs-human"],
     [["needs-owner-decision"], "needs-owner-decision"],
   ]) {
     test(`a held verdict writes the triage run's ${labels.join(" and ")} as ${state}, keeping the labels`, async () => {
@@ -2033,7 +2010,7 @@ describe("run", () => {
     const fields = async () => ({ [String(STATUS_CONFIG["field-id"])]: HUMAN });
     const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: fields, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} });
     assert.equal(result.outcome, "needs-decision");
-    assert.ok(result.plan.reasons.includes(`held by status: needs-decision`), JSON.stringify(result.plan.reasons));
+    assert.ok(result.plan.reasons.includes(`held by needs-owner-decision`), JSON.stringify(result.plan.reasons));
     const [written] = fake.calls.filter(({ method }) => method === "STATUS");
     assert.equal(written.body, "needs-owner-decision");
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
@@ -2199,7 +2176,7 @@ describe("run", () => {
     test("get no edge on an untrusted-provenance verdict", async () => {
       const fake = fakeGitHub({
         issue: { body },
-        comments: [laneComment(laneBody({ cls: "work-class: untrusted-provenance" }))],
+        comments: [laneComment(UNTRUSTED_BODY)],
         blockers,
       });
       await go(fake);
@@ -2492,7 +2469,7 @@ describe("held verdict reason codes", () => {
       ["a cost flag", flags("cost"), {}, "cost"],
       ["a Cost line beside no flag", flags("none", ["Cost: a new paid plan; no owner decision"]), { labels: ["needs-human"] }, "cost"],
       ["an escalated run", ESCALATED_BODY, {}, "security"],
-      ["untrusted provenance", laneBody({ cls: "work-class: untrusted-provenance" }), {}, "security"],
+      ["untrusted provenance", UNTRUSTED_BODY, {}, "security"],
       ["an unreadable Flags line", flags("maybe"), {}, "intent"],
       ["an outside-actor hold", laneBody(), { labels: [OUTSIDE_ACTOR_LABEL] }, "security"],
       ["a carried security flag", laneBody(), { labels: [NEEDS_DECISION], earlierFlags: ["security"] }, "security"],

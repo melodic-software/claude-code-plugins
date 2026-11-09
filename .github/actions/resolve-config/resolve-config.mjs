@@ -15,7 +15,7 @@ import {
 import { issueStatus } from "./issue-status.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
-import { statusLabels } from "./read-status.mjs";
+import { DISAGREEMENT_WAIT_MS, statusLabels } from "./read-status.mjs";
 import {
   checkAppliedBySupported,
   checkConfigPath,
@@ -225,7 +225,7 @@ export async function issuesByStatus(github, repository, states, { since, config
     }
     for (const node of issues.nodes) {
       const labels = (node?.labels?.nodes ?? []).map((label) => label?.name).filter((label) => typeof label === "string");
-      const labelled = labels.some((label) => wanted.has(label.toLowerCase()));
+      const labeled = labels.some((label) => wanted.has(label.toLowerCase()));
       const fieldValues = (node?.issueFieldValues?.nodes ?? [])
         .filter((value) => typeof value?.name === "string" && typeof value.field?.fullDatabaseId === "string")
         .map((value) => ({ field: Number(value.field.fullDatabaseId), option: option[value.name] ?? value.name }));
@@ -240,7 +240,7 @@ export async function issuesByStatus(github, repository, states, { since, config
       // event naming one of them. Any other is skipped, so one issue's
       // unreadable field cannot stop a listing it has no part in.
       const couldMatch = () =>
-        labelled ||
+        labeled ||
         (node?.issueFieldValues?.nodes ?? []).some((value) => value?.field?.fullDatabaseId === statusField && states.includes(value?.name)) ||
         events.some((event) => event.field === statusField && states.includes(event.to));
       let state;
@@ -255,7 +255,7 @@ export async function issuesByStatus(github, repository, states, { since, config
         }
         continue;
       }
-      if (state === null ? labelled : states.includes(state)) {
+      if (state === null ? labeled : states.includes(state)) {
         found.push({ number: node.number, created_at: node.createdAt, labels, state });
       }
     }
@@ -313,7 +313,8 @@ async function gatherFacts(
   if (issue !== undefined) {
     // The issue's org field values: REST answers the integer field and
     // option ids the config maps (GraphQL answers only node ids). Each read
-    // once, shared by the dimensions and the Work status.
+    // once, shared by the dimensions and the Work status; a Work status
+    // disagreement reads both again for both.
     let values;
     let events;
     const readValues = async () => {
@@ -358,12 +359,35 @@ async function gatherFacts(
       // matches `labels`, and a field hold matches `labels-absent`. A failed
       // read throws rather than fall back to the labels, which could miss a hold.
       if (status?.config) {
-        const fieldEventsRead = await readEvents();
-        const state = issueStatus(
-          { fieldValues: await readValues(), fieldEvents: fieldEventsRead, fieldEventsFull: fieldEventsRead.full === true },
-          status.config,
-          status.trustedActors,
-        );
+        const readState = async () => {
+          const fieldEventsRead = await readEvents();
+          return issueStatus(
+            { fieldValues: await readValues(), fieldEvents: fieldEventsRead, fieldEventsFull: fieldEventsRead.full === true },
+            status.config,
+            status.trustedActors,
+          );
+        };
+        let state;
+        try {
+          state = await readState();
+        } catch (error) {
+          if (error?.name !== "StatusDisagreement") {
+            throw error;
+          }
+          // A read racing a write, as read-status.mjs fieldStatusSetter
+          // treats it: both reads once more, and a second disagreement throws.
+          await sleep(DISAGREEMENT_WAIT_MS);
+          values = undefined;
+          events = undefined;
+          state = await readState();
+          // The dimensions come from the read the status agreed on.
+          if (needed.includes("fieldValues")) {
+            facts.fieldValues = await readValues();
+          }
+          if (needed.includes("fieldSetters")) {
+            facts.fieldSetters = settersOf(await readEvents());
+          }
+        }
         facts.labels = statusLabels(state, facts.labels, status.config);
       }
     }

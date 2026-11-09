@@ -127,7 +127,7 @@ another. It reads no class; it needs its effective rung's promotion cells (rung 
 `C2-auto-merge` cell, rung `merge-reviewed` (`C3`) every C3 cell), read by rung, never by class. The one class
 label it reads is a trust hold: it refuses a change request whose linked item carries
 `provenance: untrusted`, or had that label removed by a non-human (it matches any label naming
-untrusted work, so it reads the legacy name too; it does not read `provenance: signal`, so it
+untrusted work; it does not read `provenance: signal`, so it
 holds a signal item only when that item also carries `provenance: untrusted`), and it needs the
 linked item vouched for by a human (written by one with write access, or given the admission
 label by one in person with no body edit after). That skill's safety reference defines it, section

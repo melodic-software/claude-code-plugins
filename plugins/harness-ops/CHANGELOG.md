@@ -3,6 +3,31 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.0] - 2026-11-09
+
+### Changed
+
+- In a linked git worktree, the hook log root (`session_event_log_dir`) now sits under the main checkout instead of the worktree. The session event log, the telemetry sink and SessionEnd retention write there, and `/harness-ops:observability` reads there, so a worktree session's rows survive the worktree's removal and a report from the main checkout counts them. SessionEnd retention's `session_log_keep_sessions` now counts the sessions of every worktree together. A directory outside git, a submodule, a worktree of a bare repository whose directory is not named `.git`, and a `.git` file that is not a registered worktree of its common directory keep their own directory.
+
+### Fixed
+
+- Retirement records `harness-ops-r004` and `harness-ops-r005` name 8.10.2, the release that shipped them, as their `plugin_version`; they said 8.10.1.
+
+## [8.11.0] - 2026-11-09
+
+### Added
+
+- A repository routes its hook telemetry through this plugin's reference sink with no copy and no per-machine path: `"HOOK_TELEMETRY_SINK": "@harness-ops"` in its `settings.json` (#14227). A new SessionStart hook, `hooks/refresh-sink-launcher.sh`, keeps a launcher at `${CLAUDE_PLUGIN_DATA}/hook-telemetry-sink.sh`, rewritten only when the install's sink path or its `session_event_log_dir` or `hook_events_max_bytes` changes and touched otherwise, and every producer resolves the reserved value to the most recently refreshed launcher, so two installs (a `--plugin-dir` one and a marketplace one) never split rows across two roots. The launcher deletes itself when its install is gone.
+
+### Changed
+
+- The README documents `@harness-ops` as the default wiring, and the copy route now lists every file the sink needs: `hook-telemetry-sink.sh`, `hook-utils.sh` and `session-log-lib.sh`.
+- Shared `hook-utils.sh` synced: `hook::emit_telemetry` resolves `@harness-ops` and skips any other value starting with `@`.
+
+### Fixed
+
+- The reference sink maps `subject` from `data.file` when the envelope has no `data.subject`, so rows from producers that build their data with `hook::data_json_to` (guardrails, the formatters) no longer land with an empty `subject`.
+
 ## [8.10.2] - 2026-11-09
 
 ### Fixed

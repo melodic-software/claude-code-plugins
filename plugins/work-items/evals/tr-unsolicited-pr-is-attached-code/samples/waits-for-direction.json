@@ -15,7 +15,7 @@
   ],
   "fail": [
     {
-      "answer": "Applied status:needs-info and posted the comment.",
+      "answer": "Applied needs-reporter-info and posted the comment.",
       "why": "mutated without asking"
     },
     {

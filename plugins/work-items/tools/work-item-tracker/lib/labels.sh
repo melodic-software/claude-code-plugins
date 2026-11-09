@@ -29,20 +29,8 @@ readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
 # shellcheck disable=SC2034
 readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
 
-# Human-floor work class: human-gated even beside the autonomous-eligible label
-# (reference/work-class-labels.md). Fixed string; the work-class axis has no binding key.
-# No work class floors an item now; the one entry is the legacy name of the
-# untrusted-provenance marker, held until the label source drops it. Skills name
-# it as WIT_LEGACY_UNTRUSTED_LABEL rather than restating the string.
-# shellcheck disable=SC2034
-readonly WIT_LEGACY_UNTRUSTED_LABEL="work-class: untrusted-provenance" # legacy name of provenance: untrusted
-# shellcheck disable=SC2034
-readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
-  "$WIT_LEGACY_UNTRUSTED_LABEL"
-)
-
-# The human floor holds provenance labels as well as work classes: an item marked
-# untrusted, or filed from a signal, is C5 whatever its work-class label says.
+# The human floor holds provenance labels (reference/work-class-labels.md): an item
+# marked untrusted, or filed from a signal, is C5 whatever its work-class label says.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=(
   "provenance: untrusted"
@@ -51,13 +39,10 @@ readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=(
 
 # An item waiting on an owner decision, on information or on a spec is not
 # workable by an autonomous lane, whatever else it carries. Defaults of binding
-# config.hold_labels. needs-spec is a bare Meta label, not a status: value. The
-# two holds are read under both names until the old ones are dropped.
+# config.hold_labels. needs-spec is a bare Meta label, not a status: value.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
-  "status: needs-decision"
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
-  "status: needs-info"
   "needs-reporter-info"
   "needs-spec"
 )
@@ -79,9 +64,7 @@ readonly WIT_HUMAN_FLOOR_STATUS_STATES=(
 # shellcheck disable=SC2034
 readonly WIT_HOLD_STATE_LABELS=(
   "needs-human"
-  "status: needs-decision"
   "$WIT_DEFAULT_OWNER_DECISION_LABEL"
-  "status: needs-info"
   "needs-reporter-info"
   "needs-spec"
 )

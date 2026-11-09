@@ -1036,7 +1036,7 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, headers });
     if (path === "/repos/o/r/issues/7/issue-field-values") {
-      return fieldValues;
+      return typeof fieldValues === "function" ? fieldValues() : fieldValues;
     }
     if (path === "/graphql") {
       assert.deepEqual(body.variables, { owner: "o", name: "r", number: 7 });
@@ -1046,7 +1046,7 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
     return { labels: labels.map((name) => ({ name })) };
   };
   writeFileSync(join(env.BASE_PATH, "event.json"), JSON.stringify({ action: "field_added", issue }));
-  const code = await main({ env: { ...env, SPLIT_CHILD: splitChild, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
+  const code = await main({ env: { ...env, SPLIT_CHILD: splitChild, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github, sleep: async () => {} });
   return { code, outputs: readOutputs(env.GITHUB_OUTPUT), calls };
 }
 
@@ -1091,6 +1091,29 @@ test("main on an issue reads its trusted Work status as its status label", async
   const held = await mainOnIssue([...DIMS_SET, status("needs-human", LISTED)], "false", rows(86380005), ["agent-ready"]);
   assert.equal(held.outputs.applies, "false");
   assert.equal(held.outputs["skip-reason"], "awaiting-human");
+});
+
+// The field's REST value and its newest event disagreeing is usually a read
+// racing a write, so both are read once more; a second disagreement fails.
+test("main on an issue reads a disagreeing Work status once more", async () => {
+  const events = [
+    fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),
+    fieldEvent("IssueFieldAddedEvent", 48625720, LISTED),
+    fieldEvent("IssueFieldAddedEvent", 48625721, LISTED),
+    { ...fieldEvent("IssueFieldAddedEvent", 48484079, LISTED), value: "agent-ready" },
+  ];
+  const valueReads = (calls) => calls.filter((call) => call.path.endsWith("/issue-field-values")).length;
+  let reads = 0;
+  const firstRead = [fieldRow(15462270, 27053568), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
+  const settles = await mainOnIssue(events, "false", () => (reads++ === 0 ? firstRead : [...FIELD_ROWS, fieldRow(48484079, 84879220)]), []);
+  assert.equal(settles.code, 0);
+  assert.equal(settles.outputs.applies, "true");
+  // The dimensions come from the read the status agreed on, not the first.
+  assert.equal(settles.outputs["issue-dimensions"], "medium/high/known");
+  assert.equal(valueReads(settles.calls), 2);
+  const stays = await mainOnIssue(events, "false", FIELD_ROWS, []);
+  assert.equal(stays.code, 1);
+  assert.equal(valueReads(stays.calls), 2);
 });
 
 test("main reads a Size an unlisted account set last as small", async () => {

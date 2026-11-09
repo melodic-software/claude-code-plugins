@@ -3,8 +3,7 @@
 The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
 reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and
 an item may carry one or none. CI intake no longer applies one; a shared intake reusable may still
-print a proposed class in its triage comment. Nothing applies or reads it, except that a proposed
-legacy `work-class: untrusted-provenance` still holds the item as untrusted. C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and
+print a proposed class in its triage comment, and nothing applies or reads it. C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and
 provenance labels, only `provenance: untrusted` and `provenance: signal` hold an item for a
 person, as a provenance hold.
 Classification criteria (the risk-property bundles behind C1–C5) live in the `autonomy`
@@ -23,22 +22,6 @@ plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/
 `provenance: untrusted` is the one canonical member: triage applies it and `/work-items:setup`
 provisions it.
 
-## The legacy name
-
-| Label | Class | Description |
-|-------|-------|-------------|
-| `work-class: untrusted-provenance` | C5 | The legacy name of `provenance: untrusted`, with the same meaning. Skills name it as `WIT_LEGACY_UNTRUSTED_LABEL` ([`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)). |
-
-Writers apply only `provenance: untrusted`. While the frontier floor below still holds the legacy
-name, the work-items rules that keep a floored item routable read it too: the provenance-removal
-hold ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate"), the
-attended queue's flip and floor rules
-([`../skills/attend-queue/SKILL.md`](../skills/attend-queue/SKILL.md)), and triage's human-gated
-sweep skip list and pairing ban. These readers
-still hold an item that carries it: the autonomous frontier's human floor
-(`WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
-[`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)) and the
-CI admission and merge holds (`UNTRUSTED_LABELS` in `.github/scripts/pr-merge/merge-holds.mjs`).
 The frontier floor reads labels only, never a `Work-class: C<n>` body trailer.
 
 ## Who applied the role label
@@ -77,7 +60,7 @@ Enforcement, so the rule is not merely written down:
 
 - **`list-frontier --autonomous` drops human-floor items** even when the autonomous-eligible
   role label is present ([`../tools/work-item-tracker/lib/frontier.sh`](../tools/work-item-tracker/lib/frontier.sh);
-  the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` and
+  the floor strings are
   `WIT_HUMAN_FLOOR_PROVENANCE_LABELS` in
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
   `provenance: untrusted` or `provenance: signal` item is dropped whatever its other labels).

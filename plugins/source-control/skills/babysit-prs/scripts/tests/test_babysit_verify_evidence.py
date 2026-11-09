@@ -6135,10 +6135,10 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.assertEqual(call.kwargs.get("max_fails"), 5)
 
     def test_the_label_is_the_trackers_human_gated_role(self) -> None:
-        self.human_gated = "status: needs-decision"
+        self.human_gated = "needs-owner-decision"
         self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
         self.lane()
-        self.assertIn("labels[]=status: needs-decision", self.escalation_writes()[-1])
+        self.assertIn("labels[]=needs-owner-decision", self.escalation_writes()[-1])
 
     def test_another_label_does_not_stand_in_for_the_role_label(self) -> None:
         self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")

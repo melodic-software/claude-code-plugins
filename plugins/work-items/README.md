@@ -35,7 +35,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:triage` | Evaluate raw intake, issues and unsolicited PRs (a PR is an item with attached code), through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
 | `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
-| `/work-items:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), placing each issue by its Work status value when the repo's `pr-pipeline.yaml` models one, the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`, with a clean PR whose head is behind its base marked `UNVERIFIED`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
+| `/work-items:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `needs-owner-decision`, `needs-human`), placing each issue by its Work status value when the repo's `pr-pipeline.yaml` models one, the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`, with a clean PR whose head is behind its base marked `UNVERIFIED`), parked `needs-owner-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:measure-delivery` | Read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, deployment rework rate) as a team trend from the default branch's git history, never per person. |
 | `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters and seeds cover the majors. |
@@ -146,10 +146,13 @@ enough that one skill no longer predicts its contents.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`
   CLI**, authenticated against the repository's host; the adapter is the only
   thing that leaves the machine.
-- **Labels** (optional but recommended): the universal `type:` / `priority:` /
-  `status:` / meta groups, plus any project-specific `area:` / `category:` /
-  `ecosystem:` groups the repo defines. The taxonomy and discovery command are
-  documented in the plugin's `reference/label-taxonomy.md`.
+- **Labels** (optional but recommended): the universal `type:` / `status:` / meta
+  groups, plus any project-specific `area:` / `category:` / `ecosystem:` groups the
+  repo defines. The taxonomy and discovery command are documented in the plugin's
+  `reference/label-taxonomy.md`.
+- **Priority** (optional): an organization `Priority` single-select issue field,
+  which triage and `/work-items:track add --priority` write. Where there is no such
+  field or the adapter cannot write one, they use the repo's `priority:` labels.
 - **Recurring schedule** (optional): a `.github/recurring-schedule.json` in the
   consuming repo enables the `due` / `recheck` actions and the recurring
   selection tiers of `/work-items:work`. Inspect it with `/work-items:setup check`;

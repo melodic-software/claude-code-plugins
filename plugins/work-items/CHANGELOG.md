@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.7.0] - 2026-11-09
+
+### Changed
+
+- `/work-items:triage` and `/work-items:track add --priority` set the organization `Priority` issue field, and use the repository's `priority:` labels where there is no such field or the adapter cannot write one.
+
+## [12.6.2] - 2026-11-09
+
+### Changed
+
+- Hold labels default to `needs-owner-decision` and `needs-reporter-info` only, the morning brief's default decision label is `needs-owner-decision`, and the triage skill applies the two labels by those names.
+
+### Removed
+
+- `status: needs-decision`, `status: needs-info` and `work-class: untrusted-provenance` no longer hold an item, along with `WIT_LEGACY_UNTRUSTED_LABEL` and `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS`. A repository still using those labels sets `config.hold_labels` in its tracker binding or renames them.
+
+## [12.6.1] - 2026-11-09
+
+### Changed
+
+- The `ship` and `work` skills describe `ready` as updating the branch from its base, since it now takes its method from a shared decision.
+
 ## [12.6.0] - 2026-11-09
 
 ### Changed

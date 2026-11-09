@@ -43,7 +43,7 @@ graders:
     arm: both
   - name: no-needs-decision
     type: regex
-    pattern: '"labels"\s*:\s*\[[^\]]*"(status: needs-decision|needs-owner-decision)"'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
     match: not_contains
     target: last_message
     arm: both
