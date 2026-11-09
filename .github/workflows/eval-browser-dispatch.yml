@@ -550,7 +550,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
+          ref: a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -1381,7 +1381,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
+          ref: a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
@@ -2165,7 +2165,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: melodic-software/ci-workflows
-          ref: 8f2240359aff2febf49ff1ff838d1ffb27d6b14f # 8f22403 2026-11-08
+          ref: a5af46547856939969bee3c44d32d8ea6bc5dca4 # a5af465 2026-11-08
           path: .ci-workflows
           persist-credentials: false
           sparse-checkout: |
