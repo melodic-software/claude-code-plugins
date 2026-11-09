@@ -71,6 +71,10 @@ assert_eq "close: an empty diff against main, as a merged-base head has" "0" \
   "$(in_case close gh pr view 512 --json files --jq '.files | length')"
 LANDED=$(git -C "$TEST_TMPDIR/close" log main --format=%H --grep='(#501)')
 assert_eq "close: the landed commit is the SHA the replaced-by grader names" 8ebb875 "${LANDED:0:7}"
+assert_eq "close: the seed commit is the range start the base-range grader names" c02d2f9 \
+  "$(git -C "$TEST_TMPDIR/close" log main --format=%h --abbrev=7 --grep='chore: seed')"
+assert_eq "close: the base tip is the range end the base-range grader names" d0f728e \
+  "$(git -C "$TEST_TMPDIR/close" rev-parse --short=7 main)"
 assert_eq "close: the commit maps to PR 501, merged into main" "501 main" \
   "$(in_case close gh api "repos/eval-fixture/app/commits/$LANDED/pulls" --jq '.[] | select(.merged_at != null) | "\(.number) \(.base.ref)"')"
 assert_eq "close: another commit maps to no PR" "0" \

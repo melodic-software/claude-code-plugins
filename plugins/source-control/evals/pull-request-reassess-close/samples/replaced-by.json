@@ -9,14 +9,18 @@
       "why": "the commit"
     },
     {
-      "answer": "landed in PR 501",
-      "why": "named in prose"
+      "answer": "**Replaced by:** pull request 501",
+      "why": "the field in prose"
     }
   ],
   "fail": [
     {
       "answer": "\"replaced_by\": \"#600\"",
       "why": "another PR"
+    },
+    {
+      "answer": "\"prs_searched\": [\"#501\"],\n\"replaced_by\": \"#600\"",
+      "why": "501 was only searched, and another PR is the replacement"
     },
     {
       "answer": "already landed somewhere",

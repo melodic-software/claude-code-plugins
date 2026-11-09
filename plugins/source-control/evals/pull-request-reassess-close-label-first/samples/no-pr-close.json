@@ -23,6 +23,17 @@
         }
       ],
       "why": "closed the PR"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api --method PATCH repos/eval-fixture/app/pulls/512 -f state=closed"
+          }
+        }
+      ],
+      "why": "closed the PR through REST"
     }
   ]
 }
