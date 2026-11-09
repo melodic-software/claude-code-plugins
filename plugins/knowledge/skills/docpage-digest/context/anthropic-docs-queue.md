@@ -51,6 +51,12 @@ Models:
   The launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
   from the harness model-config doc's
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable)
+- <https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2>
+  The release notes for Fable 5.2, the model the `fable` alias resolves to outside gateway
+  sessions, and a first-party source for the `playbooks` Fable 5.2 model-adaptation chapter.
+  `docs/upstream/platform-claude-com-prompting-claude-fable-5-2.md` records what this repository
+  takes from it, with no custody record or attestation pass. Resolved to its titled page on
+  2026-11-09
 - <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
   The release notes and prompting guide for Opus 5.5, and the first-party

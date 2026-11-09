@@ -140,7 +140,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 ## Abbreviated Template (for trivial/small tasks)
 
-The Brief above it still carries the Goal and the finish line (its Acceptance criteria), or the `No Brief` line's `Goal:` line does (SKILL.md Step 1); the abbreviated plan restates neither.
+The Brief above it still carries the Goal with its Finish line, and its Acceptance criteria, or the `No Brief` line's `Goal:` line does (SKILL.md Step 1); the abbreviated plan restates neither.
 
 ```markdown
 ## Plan: <title>

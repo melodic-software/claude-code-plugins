@@ -64,7 +64,10 @@ def event(seq, qid, kind, alt=None, text=""):
 
 # A confirmed restatement's goal and criteria: what a page export needs to pass the --brief
 # gate once a question is answered, for a test that grades the Brief for something else.
-RESTATED = {"goal": "Ship the build cache.", "acceptance": "- builds reuse the cache"}
+RESTATED = {
+    "goal": "Ship the build cache.\n- Finish line: merged — checked by ci-status via the pull request's checks",
+    "acceptance": "- builds reuse the cache",
+}
 
 
 def confirmed(events, **sections):
@@ -893,7 +896,9 @@ class TestBriefRestatements(SessionCase):
             "- Restatement: UNCONFIRMED (latest rev 3); the sections below are from confirmed rev 1",
             text,
         )
-        self.assertEqual(self.section(text, "Goal"), ["Cut p75 load time."])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Cut p75 load time.", "", "- Finish line: not settled yet"]
+        )
         self.assertEqual(
             self.section(text, "Acceptance criteria"),
             ["- p75 is 2.0 s or less", "- no new dependency"],
@@ -910,7 +915,9 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertIn("- Restatement: confirmed at rev 2, 2026-09-24T11:02:00Z", text)
         self.assertNotIn("UNCONFIRMED", text)
-        self.assertEqual(self.section(text, "Goal"), ["Two."])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Two.", "", "- Finish line: not settled yet"]
+        )
 
     def test_no_rev_confirmed_is_stamped_unconfirmed_and_keeps_the_title_goal(self):
         text = self.brief(
@@ -919,7 +926,9 @@ class TestBriefRestatements(SessionCase):
         self.assertIn(
             "- Restatement: UNCONFIRMED (latest rev 1); no rev was confirmed", text
         )
-        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Export test", "", "- Finish line: not settled yet"]
+        )
         self.assertIn("- none recorded in the interview surface", text)
 
     def test_a_withdrawn_confirm_does_not_count(self):
@@ -937,7 +946,9 @@ class TestBriefRestatements(SessionCase):
         )
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("- Restatement: confirmed at rev 1,", text)
-        self.assertEqual(self.section(text, "Goal"), ["Legacy goal."])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Legacy goal.", "", "- Finish line: not settled yet"]
+        )
 
     def test_restated_problem_and_work_size_fill_their_sections(self):
         text = self.brief(
@@ -1032,17 +1043,29 @@ class TestBriefRestatements(SessionCase):
             "Cut p75 load time\nto 2 s.\n"
             "- Intent (why, in the user's words): pages feel slow\n"
             "- Vision (where this heads): every page under 1 s\n"
-            "- When goals conflict, prefer: speed"
+            "- When goals conflict, prefer: speed\n"
+            "- Finish line: in use — checked by the ward lead via the weekly report"
         )
         text = self.brief([self.rev(1, goal=goal)], [self.confirm(2, 1)])
         self.assertEqual(
             self.section(text, "Goal"),
             [
                 "Cut p75 load time to 2 s.",
+                "",
                 "- Intent (why, in the user's words): pages feel slow",
                 "- Vision (where this heads): every page under 1 s",
                 "- When goals conflict, prefer: speed",
+                "- Finish line: in use — checked by the ward lead via the weekly report",
             ],
+        )
+
+    def test_a_goal_with_no_finish_line_exports_not_settled_yet(self):
+        text = self.brief(
+            [self.rev(1, goal="Cut p75 load time to 2 s.")], [self.confirm(2, 1)]
+        )
+        self.assertEqual(
+            self.section(text, "Goal"),
+            ["Cut p75 load time to 2 s.", "", "- Finish line: not settled yet"],
         )
 
     def test_a_restated_deferral_of_a_user_reserved_row_keeps_its_arbiter(self):
@@ -1080,7 +1103,9 @@ class TestBriefRestatements(SessionCase):
         self.session([question("Q1")], [event(1, "Q1", "accept")])
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("- Restatement: UNCONFIRMED (no restatement posted)", text)
-        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Export test", "", "- Finish line: not settled yet"]
+        )
         rc, out = self.check(
             "--ledger", self.export("ledger"), "--brief", self.export("brief")
         )
@@ -1102,7 +1127,9 @@ class TestBriefRestatements(SessionCase):
     def test_a_confirmed_rev_without_a_goal_fails_the_gate_on_the_title_goal(self):
         text = self.brief([self.rev(1, acceptance="- a")], [self.confirm(2, 1)])
         self.assertIn("- Restatement: confirmed at rev 1,", text)
-        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        self.assertEqual(
+            self.section(text, "Goal"), ["Export test", "", "- Finish line: not settled yet"]
+        )
         rc, out = self.gate()
         self.assertEqual(rc, 1, out)
         self.assertIn("brief=placeholder status=incomplete", out)

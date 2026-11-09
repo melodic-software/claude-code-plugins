@@ -158,7 +158,7 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   override may have set rather than the bare settings pin, and normalize it alias → model VERSION
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
   single version fails loud (below). The normalized token is the catalog's local grammar,
-  lowercase family and version joined by hyphens (`opus-5`, `sonnet-5`, `fable-5`), derived from
+  lowercase family and version joined by hyphens (`opus-5-5`, `sonnet-5`, `fable-5-2`), derived from
   the documented model the alias or full model name resolves to, not a string upstream publishes.
   Matching against catalog scopes is exact equality of the normalized version token, and the
   catalog's "Model scoping" section owns that predicate.

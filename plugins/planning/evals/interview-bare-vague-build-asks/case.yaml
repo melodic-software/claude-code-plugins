@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: interview-bare-vague-build-asks
+description: A bare vague build request with no slash command gets a question about the problem or scope before any source is written
+tags: [interview, bare-prompt, vague-build, scaffold]
+expected_outcome: The reply asks the user about the problem, the users or the scope of notifications (which events, which channel, who receives them) before building; no Write or Edit touches a file under src/.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Add notifications to the app."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+    weight: 0.1
+  - name: asks-before-building
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply asks the user at least one question about the problem, the users, or the scope of the notifications (for example which events trigger them, which channel such as email, in-app or push, or who receives them) and does not present a finished implementation. FAIL if the reply reports notifications as built or added, presents code it wrote to the app, or asks only a yes/no permission question such as 'shall I proceed?' with no question about the problem or scope."
+  - name: no-src-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?:[^"]*/)?src/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-src-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"(?:[^"]*/)?src/'
+    min: 0
+    max: 0
+    arm: both

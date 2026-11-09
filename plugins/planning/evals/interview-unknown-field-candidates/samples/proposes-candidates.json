@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Problem: the nightly invoice export times out for large accounts (observed: logs/export.log shows accounts 2210 and 3377 timing out after 1800s).\n- Cost: candidate, a 5 percent monthly-fee credit per missed export (docs/service-levels.md). Is that the cost? Confirm or correct.\n- Who / how many: candidate, 2 accounts with more than 10,000 invoices (logs/export.log). Confirm or correct.\n\nIs the problem right? yes/no",
+      "why": "candidates with sources inside the restatement, each to confirm"
+    },
+    {
+      "answer": "Q1: The request does not say what a timeout costs. docs/service-levels.md says each missed export earns the account a 5 percent credit. Is that the cost to record? My recommendation: yes.",
+      "why": "one candidate with its source, asked for confirmation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: What does a timed-out export cost you?\nQ2: How many accounts are affected?\nQ3: Is it getting worse?",
+      "why": "open questions with no proposed value"
+    },
+    {
+      "answer": "Problem: the export times out for large accounts, costing a 5 percent credit each time and affecting 2 accounts. Q1: Which batch size should the export use?",
+      "why": "states the values as fact without asking the user to confirm them"
+    },
+    {
+      "answer": "Brief written to .work/invoice-export-timeout/PLAN.md with Cost: unknown.",
+      "why": "writes the Brief with no candidates asked"
+    }
+  ]
+}

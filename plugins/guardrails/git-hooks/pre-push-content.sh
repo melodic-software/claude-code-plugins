@@ -69,7 +69,7 @@ fi
 commit_ranges() {
   local c=$1 p first="" k=0
   local -a ids=() parents=()
-  read -r -a ids < <(git rev-list --parents -n 1 "$c" 2>/dev/null)
+  read -r -a ids < <(git rev-list --parents -n 1 "$c" -- 2>/dev/null)
   ((${#ids[@]} > 1)) && parents=("${ids[@]:1}")
   ((${#parents[@]})) || parents=("$CHECKS_EMPTY_TREE")
   for p in "${parents[@]}"; do
@@ -99,7 +99,7 @@ remote="${CHECKS_ARGS%% *}"
 mv "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/all-ranges"
 seen=" "
 while read -r base tip <&3; do
-  git rev-list --reverse "$tip" --not "$base" --remotes="$remote" >"$CHECKS_TMP/commits" 2>/dev/null
+  git rev-list --reverse "$tip" --not "$base" --remotes="$remote" -- >"$CHECKS_TMP/commits" 2>/dev/null
   rc=$?
   if ((rc != 0)); then
     checks_tool_failed git "$rc" "listing the commits pushed to $tip"

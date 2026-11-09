@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../../plugins/planning/schemas/planning.schema.json
+# Team layer for the planning plugin's settings: plugins/planning/reference/config.md.
+
+# The check an unattended interview names in the Goal's default Finish line.
+unattended_finish_check: ci-status

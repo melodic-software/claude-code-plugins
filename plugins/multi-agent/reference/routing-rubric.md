@@ -73,7 +73,7 @@ ran it at `high`, so the eval did not measure the guide's starting point.
   model, fetch
   [choosing a model: decide whether to upgrade or change models](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#decide-whether-to-upgrade-or-change-models)
   live.
-- **As of**: 2026-10-10
+- **As of**: 2026-11-09
 - **Recheck trigger**: a new model row in that page's selection matrix.
 
 - **Pointer**: when an advisor pairing is proposed for a Haiku role, read

@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: interview-unattended-default-finish-line
+description: An unattended lock on an ordinary item with only reported evidence skips the instance question, writes the Brief, and fills the Goal's Finish line with the merged default marked as filled automatically, with no stop for a human
+tags: [interview, problem-framing, unattended, lock, finish-line, scaffold]
+expected_outcome: The run writes .work/csv-export-speed/PLAN.md whose ### Goal carries "- Finish line: merged" naming a check and marked "(filled automatically: unattended)"; the reply waits on no instance question and does not end on a "Stopped: needs a human:" line; naming the problem confirmation as a USER-RESERVED blocker is expected.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin with the lock action, topic csv-export-speed. This run is unattended: no human will answer any question, so do not wait for replies. Problem: support tells me customers say the CSV export of their order history is too slow. Fix: stream the export instead of building it in memory in src/export/orders.py."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 1200
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: default-finish-line
+    type: tool_used
+    tool: Write
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*csv-export-speed/PLAN\.md")(?=[\s\S]*### Goal(?:(?!###)[\s\S])*?Finish line[*_]{0,2}:[*_]{0,2}\s*[*_]{0,2}merged\b(?:(?!\\n)[\s\S])*?filled automatically)'
+    arm: both
+  - name: proceeds-without-stop
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply reports a Brief written for csv-export-speed and does not end with or contain a line starting 'Stopped: needs a human'. Naming the problem confirmation, or other user decisions, as blockers is expected and passes. FAIL if the reply contains 'Stopped: needs a human', if it asks the user for the last instance of the slow export (when it happened, what it cost, who hit it) and waits for the answer instead of writing the Brief, or if it reports no Brief written."

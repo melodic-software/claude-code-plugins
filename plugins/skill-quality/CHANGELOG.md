@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-11-09
+
+### Fixed
+
+- **A prompt.md-only eval case now counts for `--require-evals`.** A plugin suite case with no `case.yaml`, whose `prompt.md` front matter tags the skill, satisfies the evals requirement, as the check's own rule says.
+
 ## [1.1.2] - 2026-11-09
 
 ### Changed

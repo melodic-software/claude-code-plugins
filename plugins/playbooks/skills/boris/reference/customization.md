@@ -46,7 +46,7 @@ Boris uses High for everything.
 >
 > - **Pointer**: before picking a level for a given model, fetch
 >   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live.
-> - **As of**: 2026-11-01
+> - **As of**: 2026-11-09
 > - **Recheck trigger**: a new model release, or that section's levels table changes.
 
 ---

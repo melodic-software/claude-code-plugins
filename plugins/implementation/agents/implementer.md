@@ -165,7 +165,7 @@ the phase verifier that checks it runs at `high`.
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
   and that plus the Agent tool's per-call `effort` and its rank over this pin, in
   [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
-- **As of:** 2026-10-31.
+- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, the aliases section changes how an alias resolves, or
   the subagents `effort` row or effort section changes what a subagent's effort follows, the
   precedence, or which spawns honor a per-call `effort`.

@@ -122,6 +122,11 @@
       "type": "string",
       "minLength": 1
     },
+    "unattended_finish_check": {
+      "description": "The check an unattended interview names in the Goal's default Finish line (merged, checked by this check). Unset: the pull request's required checks.",
+      "type": "string",
+      "minLength": 1
+    },
     "wayfind_research_start": {
       "description": "When /planning:wayfind starts a research item in an interactive session. auto: without asking when the frontier holds no item other than research items, otherwise after the user confirms. confirm: always after the user confirms. An unattended session starts only research items without needs-human, whatever this says.",
       "enum": ["auto", "confirm"],
