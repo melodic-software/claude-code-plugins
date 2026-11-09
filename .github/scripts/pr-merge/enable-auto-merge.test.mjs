@@ -3750,32 +3750,31 @@ test("review rounds stopped as not converging at the head close the pull request
 });
 
 // feedback-stood-open: the finding stood at adjudication and the lane left it
-// open again, so no lane run clears it. The refusal goes to a person, with the
-// human-gated label, and never says the lanes clear it (#14539, 11:50:40Z).
-test("review rounds stopped as stood-open at the head refuse for a person, with the label, and close nothing", async () => {
+// open again, so no lane run clears it. It is code work, not a person's stop:
+// the refusal names the reason and the owning session, with no label (#14539,
+// 11:50:40Z).
+test("review rounds stopped as stood-open at the head refuse for the owning session, with no label, and close nothing", async () => {
   const stopped = [unblock("pr-unblock/address-feedback", "failure")];
   // The fence wraps the reason at 100 columns.
   const reason = [
     "a pr-unblock lane stopped its head (pr-unblock/address-feedback is failure): a review finding stood",
-    "  at adjudication and the lane left it open again (feedback-stood-open), so a person resolves that",
-    "  thread",
+    "  at adjudication and the lane left it open again (feedback-stood-open), so the pull request's",
+    "  owning session settles that thread: fix it, or answer it with evidence",
   ].join("\n");
   const { closed, writes, notes } = await run([pull(1, { verdict: PASSED, statuses: stopped, discussion: { comments: [lanesSaid(stoppedNote("feedback-stood-open"))] } })]);
   assert.deepEqual(closed, []);
   assert.deepEqual(writes, []);
-  assert.deepEqual(notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(reason) } },
-    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-  ]);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(reason) } }]);
   assert.equal(stoodOpen({ unblockStops: stopped, comments: { nodes: [lanesSaid(stoppedNote("feedback-stood-open"))] } }, LANES.login, HEAD), true);
 
   const lane = {
     "an earlier head": [lanesSaid(stoppedNote("feedback-stood-open", "e".repeat(40)))],
     "another reason": [lanesSaid(stoppedNote("feedback-verifier-open"))],
   };
+  const plain = "a pr-unblock lane stopped its head (pr-unblock/address-feedback is failure), which clears when the\n  lane runs again";
   for (const [why, comments] of Object.entries(lane)) {
     const result = await run([pull(1, { verdict: PASSED, statuses: stopped, discussion: { comments } })]);
-    assert.ok(!result.notes.some(({ path }) => path.endsWith("/labels")), why);
+    assert.deepEqual(result.notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(plain) } }], why);
     assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), why);
   }
 });

@@ -1483,8 +1483,8 @@ export function rotated(pulls, runNumber) {
 
 // The address-feedback lane-stopped comment report-escalation.sh posts, one
 // per activity, edited in place, the reason that closes the pull request, and
-// the one a person clears: the finding stood at adjudication and the lane
-// left it open again, so no further round runs on it.
+// the one no further round clears: the finding stood at adjudication and the
+// lane left it open again, so the pull request's owning session settles it.
 export const LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->";
 export const NOT_CONVERGING = "feedback-not-converging";
 export const STOOD_OPEN = "feedback-stood-open";
@@ -1515,17 +1515,17 @@ function feedbackStopped(detail, bot, head, reason) {
 }
 
 // Why a head's pr-unblock statuses hold it (merge-holds.unblockStops), or
-// null: anything but a read list of stops holds it. `person`: the stop is
+// null: anything but a read list of stops holds it. `stood`: the stop is
 // STOOD_OPEN, which no further lane run clears.
-export function unblockHold(stops, person = false) {
+export function unblockHold(stops, stood = false) {
   if (!Array.isArray(stops)) {
     return "its head's pr-unblock statuses could not be read";
   }
   const named = `a pr-unblock lane stopped its head (${stops.map(({ context, state }) => `${context} is ${state}`).join(", ")})`;
   return stops.length === 0
     ? null
-    : person
-      ? `${named}: a review finding stood at adjudication and the lane left it open again (${STOOD_OPEN}), so a person resolves that thread`
+    : stood
+      ? `${named}: a review finding stood at adjudication and the lane left it open again (${STOOD_OPEN}), so the pull request's owning session settles that thread: fix it, or answer it with evidence`
       : `${named}, which clears when the lane runs again`;
 }
 
@@ -1578,13 +1578,10 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   // stop. A status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
   // Review rounds the lane stopped as not converging at this head close below,
-  // after the path, cost and discussion holds, as the verify cap does. A
-  // finding the lane left open after it stood is a person's to resolve.
+  // after the path, cost and discussion holds, as the verify cap does.
   const unconverged = stopped !== null && notConverging(detail, bot, pull.headRefOid);
   if (stopped !== null && !unconverged) {
-    return stoodOpen(detail, bot, pull.headRefOid)
-      ? { action: armed ? "disarm" : "none", reason: unblockHold(detail.unblockStops, true), clears: "person" }
-      : { action: armed ? "disarm" : "none", reason: stopped, clears: "lane" };
+    return { action: armed ? "disarm" : "none", reason: unblockHold(detail.unblockStops, stoodOpen(detail, bot, pull.headRefOid)), clears: "lane" };
   }
   // A hold path a person clears, lifted by a trusted person's approval of the
   // head or of an earlier head carried over base merges (`lifters`) as
