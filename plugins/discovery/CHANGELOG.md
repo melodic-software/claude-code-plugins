@@ -1,5 +1,43 @@
 # Changelog: discovery plugin
 
+## [1.6.9] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper and the slice index regeneration script without changing their output.
+
+## [1.6.8] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
+## [1.6.7] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.6.6] - 2026-11-09
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [1.6.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
+- Simplified the shared setup-apply.mjs, spawn_noise.py and state-key.sh library copies; behavior is unchanged.
+
+- Simplified `docs-cache.sh`: one routine now warns on a bad summary or note file, and the UTC formatter picks its format once. Outputs, exit codes and messages are unchanged.
+
 ## [1.6.4] - 2026-11-09
 
 ### Changed

@@ -65,8 +65,6 @@ if (($# == 0)); then
     exit 2
   fi
   while IFS= read -r -d '' f; do
-    # awk reads an operand shaped like name=value as an assignment, not a file.
-    [[ "$f" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && f="./$f"
     [[ -f "$f" ]] && files+=("$f")
   done < <(git ls-files -z --cached --others --exclude-standard -- '*.sh' | LC_ALL=C sort -z)
   if ((${#files[@]} == 0)); then
@@ -86,11 +84,14 @@ else
       echo "check-pipefail-grep-q: not a readable file: $f" >&2
       exit 2
     fi
-    # awk reads an operand shaped like name=value as an assignment, not a file.
-    [[ "$f" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && f="./$f"
     files+=("$f")
   done
 fi
+
+# awk reads an operand shaped like name=value as an assignment, not a file.
+for i in "${!files[@]}"; do
+  [[ "${files[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && files[i]="./${files[i]}"
+done
 
 # shellcheck disable=SC2016  # awk program text; the shell must not expand it
 LEXER='
@@ -352,7 +353,7 @@ for pid in "${pids[@]}"; do
 done
 findings=""
 for ((b = 0; b < ${#pids[@]}; b++)); do
-  findings+="$(cat "$out_dir/$b")"$'\n'
+  findings+="$(<"$out_dir/$b")"$'\n'
 done
 findings="$(grep -v '^$' <<<"$findings")" || true
 if ((scan_failed)); then

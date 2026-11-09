@@ -59,8 +59,9 @@ export function mediaIn(text, mediums) {
 // evals.json, naming two or more medium ids.
 export function listings(rel, text, mediums) {
   const found = [];
+  const isEvals = path.basename(rel) === "evals.json";
   text.split(/\r?\n/).forEach((raw, i) => {
-    const units = path.basename(rel) === "evals.json" ? (raw.match(/"(?:[^"\\]|\\.)*"/g) ?? []).map(decoded) : [raw];
+    const units = isEvals ? (raw.match(/"(?:[^"\\]|\\.)*"/g) ?? []).map(decoded) : [raw];
     for (const unit of units) {
       const ids = mediaIn(unit, mediums);
       if (ids.length >= 2) found.push({ line: i + 1, ids });
@@ -115,7 +116,8 @@ export function collect(root) {
     if (!existsSync(path.join(root, dir))) continue;
     for (const rel of walk(root, dir, skip).sort()) {
       for (const { line, ids: hit } of listings(rel, readFileSync(path.join(root, rel), "utf8"), ids)) {
-        flagged.set(laneId, [...(flagged.get(laneId) ?? []), `${rel}:${line}: ${hit.map((id) => `\`${id}\``).join(", ")}`]);
+        if (!flagged.has(laneId)) flagged.set(laneId, []);
+        flagged.get(laneId).push(`${rel}:${line}: ${hit.map((id) => `\`${id}\``).join(", ")}`);
       }
     }
   }

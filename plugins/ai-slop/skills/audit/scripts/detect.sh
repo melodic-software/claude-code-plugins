@@ -167,41 +167,14 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --paths-file)
-    require_opt_value "detect.sh" "$@"
-    PATHS_FILE="$2"
-    shift 2
-    ;;
-  --offset)
-    require_opt_value "detect.sh" "$@"
-    OFFSET="$2"
-    shift 2
-    ;;
-  --limit)
-    require_opt_value "detect.sh" "$@"
-    LIMIT="$2"
-    shift 2
-    ;;
-  --show-config)
-    SHOW_CONFIG=1
-    shift
-    ;;
-  --list-targets)
-    LIST_TARGETS=1
-    shift
-    ;;
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  -*)
-    echo "detect.sh: unknown option: $1" >&2
-    exit 2
-    ;;
-  *)
-    TARGETS+=("$1")
-    shift
-    ;;
+  --paths-file) require_opt_value "detect.sh" "$@"; PATHS_FILE="$2"; shift 2 ;;
+  --offset) require_opt_value "detect.sh" "$@"; OFFSET="$2"; shift 2 ;;
+  --limit) require_opt_value "detect.sh" "$@"; LIMIT="$2"; shift 2 ;;
+  --show-config) SHOW_CONFIG=1; shift ;;
+  --list-targets) LIST_TARGETS=1; shift ;;
+  --help | -h) usage; exit 0 ;;
+  -*) echo "detect.sh: unknown option: $1" >&2; exit 2 ;;
+  *) TARGETS+=("$1"); shift ;;
   esac
 done
 
@@ -307,16 +280,14 @@ VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
 # row indistinguishable from a clean corpus. Invalid fragments are skipped with
 # a note; the rule keeps running on the fragments that survive.
 phrase_fragment_ok() {
-  LC_ALL=C grep -E -- "($1)" /dev/null >/dev/null 2>&1
+  grep -E -- "($1)" /dev/null >/dev/null 2>&1
   [[ $? -ne 2 ]]
 }
 EFFECTIVE_PHRASES=()
 for frag in "${MODEL_PHRASES[@]}"; do
-  removed=0
   for r in ${PHRASE_REMOVE[@]+"${PHRASE_REMOVE[@]}"}; do
-    [[ "$frag" == "$r" ]] && removed=1 && break
+    [[ "$frag" == "$r" ]] && continue 2
   done
-  [[ "$removed" -eq 1 ]] && continue
   EFFECTIVE_PHRASES+=("$frag")
 done
 for frag in ${PHRASE_ADD[@]+"${PHRASE_ADD[@]}"}; do
@@ -805,8 +776,7 @@ trap 'rm -rf "$SCAN_DIR"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
-mkdir -p "$SCAN_DIR/P" "$SCAN_DIR/W" "$SCAN_DIR/TP" "$SCAN_DIR/TW" \
-  "$SCAN_DIR/DP" "$SCAN_DIR/DW" "$SCAN_DIR/TDW" || {
+mkdir -p "$SCAN_DIR"/{P,W,TP,TW,DP,DW,TDW} || {
   echo "detect.sh: cannot create the scan's stream directories; nothing was scanned" >&2
   exit 2
 }
@@ -815,7 +785,7 @@ mkdir -p "$SCAN_DIR/P" "$SCAN_DIR/W" "$SCAN_DIR/TP" "$SCAN_DIR/TW" \
 scan_grep() {
   local stream="$1"
   shift
-  (cd "$SCAN_DIR" && LC_ALL=C grep -r "$@" "$stream")
+  (cd "$SCAN_DIR" && grep -r "$@" "$stream")
 }
 
 # file_counts c|o: reads `grep -r` output and prints "k<TAB>n" for each file with
@@ -867,7 +837,7 @@ N_TARGETS=$k
 # it truncates and rewrites each stream file the first run wrote, and the
 # status file.
 extract_prose() {
-  LC_ALL=C awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"
+  awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"
 }
 extract_prose
 extract_status=$?
@@ -973,7 +943,7 @@ for entry in "${PATTERN_RULES[@]}"; do
     row="${row#*$'\t'}"
     [[ -n "${ALLOWED[$kk]:-}" ]] && continue
     emit_finding "$kk" "$slug" "${row%%$'\t'*}" "$label" "${row#*$'\t'}"
-  done < <(scan_grep "$stream" "${flags[@]}" -- "$ere" | LC_ALL=C awk "$FINDING_AWK")
+  done < <(scan_grep "$stream" "${flags[@]}" -- "$ere" | awk "$FINDING_AWK")
 done
 
 # Density rules: one finding per file when density reaches the threshold. All

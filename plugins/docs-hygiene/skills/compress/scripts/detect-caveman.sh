@@ -46,9 +46,8 @@ fi
 # Prefer the pinned marketplace identity; require enabled=true across scopes.
 # Disabled installs must not report available (skills of disabled plugins are
 # not loaded). Empirically `claude plugin list --json` carries id + enabled.
-json="$(claude plugin list --json 2>/dev/null || true)"
 plugin_id="$(
-  printf '%s' "$json" | jq -r '
+  claude plugin list --json 2>/dev/null | jq -r '
     [.[] | select(.enabled == true) | select(.id | startswith("caveman@"))]
     | (map(select(.id == "caveman@caveman")) + .)
     | .[0].id // empty

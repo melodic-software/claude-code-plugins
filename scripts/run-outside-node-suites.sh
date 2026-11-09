@@ -147,9 +147,7 @@ else
       echo "PESER: $path is run by the test-windows Pester lane"
       continue
       ;;
-    *.test.js) sh_wrapper="${path%.test.js}.test.sh" ;;
-    *.test.mjs) sh_wrapper="${path%.test.mjs}.test.sh" ;;
-    *.test.cjs) sh_wrapper="${path%.test.cjs}.test.sh" ;;
+    *.test.js | *.test.mjs | *.test.cjs) sh_wrapper="${path%.test.*}.test.sh" ;;
     *) sh_wrapper="" ;;
     esac
     if under_prefix "$path" ${subproject_owners[@]+"${subproject_owners[@]}"}; then
@@ -170,7 +168,5 @@ for pkg in "${packages[@]}"; do
   run_package "$pkg" || failed=1
 done
 
-if [[ "$failed" -ne 0 ]]; then
-  exit 1
-fi
+((failed == 0)) || exit 1
 echo "outside-node: done"

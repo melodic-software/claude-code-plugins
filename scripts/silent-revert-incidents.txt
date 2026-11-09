@@ -147,7 +147,17 @@ fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce9
 # each is absent at 9239f1541 and present at its parent, so a partial re-land in
 # either direction leaves one of the two red.
 marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py _FIND_SIDE_EFFECT_PRIMARIES = frozenset(
-marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES
+# DECISION (updated marker, #14546): the use row read
+# `name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES` until #14546
+# (55a2f6d69) rewrote the predicate from a casefolded set comprehension to a
+# direct membership test, `token.casefold() in _FIND_SIDE_EFFECT_PRIMARIES for
+# token in tokens[1:]`. Same behavior: every frozenset entry is lowercase ASCII,
+# so casefolding the table was a no-op. The guard is still wired; only its
+# spelling moved. The row now pins `in _FIND_SIDE_EFFECT_PRIMARIES`, the part
+# both spellings share: it occurs exactly once on main, once at 9239f1541's
+# parent, and not at 9239f1541, and it never matches the definition line.
+# --verify-known-incidents skips marker rows; only --verify-restoration reads it.
+marker 9239f1541b1b15a2a183ad6b4067e577f931e3f1 plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py in _FIND_SIDE_EFFECT_PRIMARIES
 
 # The third merge from the same night, surfaced by this canary's own
 # calibration run rather than by the #2691 audit. #2633's squash dropped work

@@ -54,6 +54,10 @@ FLOOR = 1 / 3
 MAX_SUBSETS = 4096
 
 
+def mode(xs):
+    return Counter(xs).most_common(1)[0][0]
+
+
 def traces(work):
     # the index's drawings, not a glob: an earlier extract into this dir can leave higher-numbered stale traces
     fs = [workdir.trace(work, k) for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']] \
@@ -61,7 +65,7 @@ def traces(work):
     if not fs or not all(f.exists() for f in fs):
         sys.exit(f'learn: missing traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
     ds = [json.load(open(f, encoding='utf-8')) for f in fs]
-    tones, common = {}, Counter(tuple(d['levels']) for d in ds).most_common(1)[0][0]   # skip per-shot level overrides
+    tones, common = {}, mode(tuple(d['levels']) for d in ds)   # skip per-shot level overrides
     for d in (d for d in ds if tuple(d['levels']) == common):
         for t in d['tones']:
             if 'tint' not in t:
@@ -69,8 +73,8 @@ def traces(work):
     brush = Counter(json.dumps(d.get('brush') or {}, sort_keys=True) for d in ds)
     return dict(
         size=[ds[0]['w'], ds[0]['h']], T=float(np.median([d['T'] for d in ds])),
-        ink=Counter(d['ink'] for d in ds).most_common(1)[0][0], paper=Counter(d['paper'] for d in ds).most_common(1)[0][0],
-        tones=[dict(lv=lv, color=Counter(c).most_common(1)[0][0]) for lv, c in sorted(tones.items())],
+        ink=mode(d['ink'] for d in ds), paper=mode(d['paper'] for d in ds),
+        tones=[dict(lv=lv, color=mode(c)) for lv, c in sorted(tones.items())],
         fits={k: round(n / len(ds), 3) for k, n in brush.most_common(5)})
 
 
@@ -99,11 +103,9 @@ def pairs(parts):
     else:
         rng = np.random.default_rng(0)
         combos = {(0, *sorted(i for i in rest if rng.random() < 0.5)) for _ in range(MAX_SUBSETS)}
-    out = []
-    for c in sorted(combos):
-        if FLOOR <= sum(d[i] for i in c) / sum(d) <= 1 - FLOOR:
-            out.append((c, tuple(i for i in range(n) if i not in c)))
-    return out
+    total = sum(d)
+    return [(c, tuple(i for i in range(n) if i not in c)) for c in sorted(combos)
+            if FLOOR <= sum(d[i] for i in c) / total <= 1 - FLOOR]
 
 
 def outside(v, lo, hi):
@@ -177,6 +179,8 @@ def main(argv=None):
         ok = sum(all(v is None or bands[s][0] <= v <= bands[s][1]
                      for s in check for v in [value([parts[j] for j in side], s, a.base_fps)]) for side in sides)
         return f'{ok}/{len(sides)}'
+    calib_pass, evals_pass = whole(calib), whole(evals)
+
     def color(rs, k):
         return np.median([r[k] for r in rs if r[k]], 0)
     # palette tolerance = what encoding does to the colors + how far a source excerpt's colors stray from the clip's
@@ -209,15 +213,15 @@ def main(argv=None):
         knobs=knobs, stats=st, timing=dict(per_second=m['per_second'], holds=m['holds'], offstep=m['offstep'],
                                            held=m['held']),
         heldout=dict(excerpt_share=[round(FLOOR, 3), round(1 - FLOOR, 3)], splits=len(ps), calibration=len(calib),
-                     evaluation=len(evals), clear=CLEAR, negatives=sorted(negs), calibration_pass=whole(calib),
-                     evaluation_pass=whole(evals), rule=rule),
+                     evaluation=len(evals), clear=CLEAR, negatives=sorted(negs), calibration_pass=calib_pass,
+                     evaluation_pass=evals_pass, rule=rule),
         ref={s: ref[s] for s in bands}, bands=bands, check=check,
         measured_only=[s for s in MEASURED_ONLY if s in bands], brush=old.get('brush', {}), rotoscope_fits=tr['fits'])
     a.pack.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(pack, indent=1) + '\n', encoding='utf-8')
     print(f'{f}: {m["drawings"]} drawings, {len(parts)} parts, {len(ps)} splits ({len(calib)} calibration, '
           f'{len(evals)} evaluation), palette tolerance {tol}; excerpts passing every row: calibration '
-          f'{whole(calib)}, evaluation {whole(evals)}')
+          f'{calib_pass}, evaluation {evals_pass}')
     for s in check:
         r = rule[s]
         print(f"  {s}: band {bands[s][0]:.4g}-{bands[s][1]:.4g} (source {ref[s]:.4g}); widening {r['widening']:.4g} "

@@ -164,14 +164,12 @@ fi
 # `plugins/a/b/README.md`. An allowlist whose entries claim more surface than
 # they name is a declaration nobody can audit by reading it.
 #
-# One `git ls-files -z -- "${pathspecs[@]}"` expands the union. The previous
-# loop paid one `git ls-files` plus `tr`/`sed`/`wc` per allowlist entry (~94
-# git execs on this tree). Attribution of the union back onto each glob (stale
-# detection and `--list` counts) is in-process and component-wise so `*` cannot
-# include `/` — the same `:(glob)` contract (Command Substitution, Bash
-# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's
-# fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide,
-# Process Creation). Live allowlist entries do not use `**`.
+# One `git ls-files -z -- "${pathspecs[@]}"` expands the union, rather than a
+# process per allowlist entry: Cygwin's fork is a non-copy-on-write Win32
+# CreateProcess (Cygwin User's Guide, Process Creation). Attribution of the
+# union back onto each glob (stale detection and `--list` counts) is in-process
+# and component-wise, so `*` cannot include `/`, the same `:(glob)` contract.
+# Live allowlist entries do not use `**`.
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -434,7 +432,7 @@ if [[ -z "$findings" ]]; then
   exit "$verdict"
 fi
 
-count="$(printf '%s\n' "$findings" | wc -l | tr -d ' ')"
+count="$(grep -c '' <<<"$findings")"
 echo "check-purged-em-dashes: $count em-dash line(s) on surfaces declared purged in $ALLOWLIST" >&2
 printf '%s\n' "$findings" |
   sed -n 's|^Finding: rule=ai-slop/audit/rule-em-dash file=\([^ ]*\) line=\([0-9]*\) .*excerpt=\(.*\)$|  \1:\2: \3|p' >&2

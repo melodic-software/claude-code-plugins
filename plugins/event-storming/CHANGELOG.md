@@ -3,6 +3,24 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper without changing its output.
+
+## [0.7.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+## [0.7.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
 ## [0.7.3] - 2026-11-08
 
 ### Changed

@@ -75,35 +75,26 @@ const TIER_TITLE_SUFFIX = {
 /** Build news/condensed slides for a tier of items, splitting past the tier's cap. */
 function tierSlides({ items, tier, providerKey, label }) {
   if (!items || items.length === 0) return [];
-  const slides = [];
   const slideType = tier === "high" ? "news" : "condensed";
   const baseTitle = `${label} — ${TIER_TITLE_SUFFIX[tier]}`;
 
   const MAX_HIGH = 5;
   const MAX_MED = 14;
   const cap = tier === "high" ? MAX_HIGH : MAX_MED;
-  if (items.length > cap) {
-    for (let i = 0; i < items.length; i += cap) {
-      const chunk = items.slice(i, i + cap);
-      const part = Math.floor(i / cap) + 1;
-      slides.push({
-        type: slideType,
-        provider: providerKey,
-        tier,
-        title: tier === "high" ? `${label} — part ${part}` : `${baseTitle} (${part})`,
-        bullets: chunk.map(toBullet),
-      });
-    }
-  } else {
-    slides.push({
-      type: slideType,
-      provider: providerKey,
-      tier,
-      title: baseTitle,
-      bullets: items.map(toBullet),
-    });
-  }
-  return slides;
+  const chunks = [];
+  for (let i = 0; i < items.length; i += cap) chunks.push(items.slice(i, i + cap));
+
+  const partTitle = (part) => {
+    if (chunks.length === 1) return baseTitle;
+    return tier === "high" ? `${label} — part ${part}` : `${baseTitle} (${part})`;
+  };
+  return chunks.map((chunk, idx) => ({
+    type: slideType,
+    provider: providerKey,
+    tier,
+    title: partTitle(idx + 1),
+    bullets: chunk.map(toBullet),
+  }));
 }
 
 // Non-provider buckets, excluded from the active-bucket heuristic below. Deliberately
@@ -213,37 +204,23 @@ function buildDevToolSlides(buckets) {
   return slides;
 }
 
-/** Sort items newest first; undated items stay on top in source order. Index
- *  tracking keeps the sort stable across V8 versions. */
+/** Sort items newest first; undated items stay on top. The sort is stable, so
+ *  undated items and same-date ties keep source order. */
 function sortItemsByDate(items) {
-  if (!items || items.length === 0) return items;
-  return items
-    .map((it, idx) => ({ it, idx }))
-    .sort((a, b) => {
-      const ad = a.it.date;
-      const bd = b.it.date;
-      if (ad == null && bd == null) return a.idx - b.idx;
-      if (ad == null) return -1; // undated first
-      if (bd == null) return 1;
-      if (ad !== bd) return bd - ad; // newer first
-      return a.idx - b.idx;          // tie → source order
-    })
-    .map((x) => x.it);
+  return items.toSorted((a, b) => {
+    if (a.date == null || b.date == null) return (b.date == null) - (a.date == null);
+    return b.date - a.date;
+  });
 }
+
+const SORTED_TIERS = ["high", "med", "low", "_items"];
 
 function sortTiersByDate(normalized) {
   for (const [bucket, data] of Object.entries(normalized)) {
-    if (!data) continue;
-    if (data.high) data.high = sortItemsByDate(data.high);
-    if (data.med)  data.med  = sortItemsByDate(data.med);
-    if (data.low)  data.low  = sortItemsByDate(data.low);
-    if (data._items) data._items = sortItemsByDate(data._items);
-    // Per-tool dev-tools tiers (raw H3 keys) — sort each
-    if (bucket === "dev-tools") {
-      for (const k of Object.keys(data)) {
-        if (k === "_items" || k === "high" || k === "med" || k === "low") continue;
-        data[k] = sortItemsByDate(data[k]);
-      }
+    // dev-tools also keeps per-tool tiers under raw H3 keys; sort every one.
+    const keys = bucket === "dev-tools" ? Object.keys(data) : SORTED_TIERS;
+    for (const k of keys) {
+      if (data[k]) data[k] = sortItemsByDate(data[k]);
     }
   }
 }
@@ -274,22 +251,19 @@ export function emitSlides(briefing, ctx) {
   for (const [heading, tiers] of Object.entries(buckets)) {
     const key = bucketKey(heading);
     if (!key) continue;
-    normalized[key] = normalized[key] || {};
+    const bucket = (normalized[key] ??= {});
     for (const [tier, items] of Object.entries(tiers)) {
+      const append = (k) => { bucket[k] = (bucket[k] || []).concat(items); };
       const t = tier.toLowerCase();
-      if (t === "_items") {
-        // No-H3 bullets (Patterns / Breaking / Pace authored under H2 directly)
-        normalized[key]._items = (normalized[key]._items || []).concat(items);
-      } else if (t.startsWith("high")) normalized[key].high = (normalized[key].high || []).concat(items);
-      else if (t.startsWith("med")) normalized[key].med = (normalized[key].med || []).concat(items);
-      else if (t.startsWith("low")) normalized[key].low = (normalized[key].low || []).concat(items);
-      else if (key === "dev-tools") {
-        // Per-tool H3 tiers (Claude Code, Cursor, Codex, etc.) — preserve raw heading text
-        normalized[key][tier] = (normalized[key][tier] || []).concat(items);
-      } else if (t.startsWith("rob") || t.startsWith("pattern")) {
-        // EXTRAS sub-tiers
-        normalized[key][t] = (normalized[key][t] || []).concat(items);
-      }
+      // No-H3 bullets (Patterns / Breaking / Pace authored under H2 directly)
+      if (t === "_items") append("_items");
+      else if (t.startsWith("high")) append("high");
+      else if (t.startsWith("med")) append("med");
+      else if (t.startsWith("low")) append("low");
+      // Per-tool H3 tiers (Claude Code, Cursor, Codex, etc.) — preserve raw heading text
+      else if (key === "dev-tools") append(tier);
+      // EXTRAS sub-tiers
+      else if (t.startsWith("rob") || t.startsWith("pattern")) append(t);
     }
   }
 
@@ -356,47 +330,28 @@ export function emitSlides(briefing, ctx) {
     note: "Headlines, links, breaking AI news — anything we should add to today's coverage.",
   });
 
-  // Per-bucket news in canonical order. Each tier slide tagged with section = bucket key + parentSection: news.
+  // Stamp section key + parent on every news slide so HTML render groups them.
+  const pushNews = (section, ...newsSlides) => {
+    for (const s of newsSlides) {
+      if (!s) continue;
+      s.section = section;
+      s.parentSection = "news";
+      slides.push(s);
+    }
+  };
+
+  // Per-bucket news in canonical order, one section per bucket key.
   for (const b of BUCKET_ORDER) {
     const data = normalized[b.key];
     if (!data) continue;
-
-    const sectionSlides = [];
-    sectionSlides.push(...tierSlides({ items: data.high, tier: "high", providerKey: b.provider, label: b.label }));
-    sectionSlides.push(...tierSlides({ items: data.med,  tier: "med",  providerKey: b.provider, label: b.label }));
-    sectionSlides.push(...tierSlides({ items: data.low,  tier: "low",  providerKey: b.provider, label: b.label }));
-    // Stamp section key + parent on every slide in this bucket so HTML render groups them.
-    sectionSlides.forEach(s => { s.section = b.key; s.parentSection = "news"; });
-    slides.push(...sectionSlides);
+    pushNews(b.key, ...["high", "med", "low"].flatMap((tier) =>
+      tierSlides({ items: data[tier], tier, providerKey: b.provider, label: b.label })));
   }
 
-  const devToolSlides = buildDevToolSlides(normalized);
-  for (const s of devToolSlides) {
-    s.section = "devtools";
-    s.parentSection = "news";
-    slides.push(s);
-  }
-
-  const patterns = buildPatternsSlide(normalized);
-  if (patterns) {
-    patterns.section = "patterns";
-    patterns.parentSection = "news";
-    slides.push(patterns);
-  }
-
-  const pace = buildPaceSlide(normalized);
-  if (pace) {
-    pace.section = "pace";
-    pace.parentSection = "news";
-    slides.push(pace);
-  }
-
-  const breaking = buildBreakingSlide(normalized);
-  if (breaking) {
-    breaking.section = "breaking";
-    breaking.parentSection = "news";
-    slides.push(breaking);
-  }
+  pushNews("devtools", ...buildDevToolSlides(normalized));
+  pushNews("patterns", buildPatternsSlide(normalized));
+  pushNews("pace", buildPaceSlide(normalized));
+  pushNews("breaking", buildBreakingSlide(normalized));
 
   slides.push({
     type: "prompt",

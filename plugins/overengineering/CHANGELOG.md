@@ -3,6 +3,20 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.7] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+## [0.10.6] - 2026-11-09
+
+### Changed
+
+- Simplified the shared setup-apply.mjs, spawn_noise.py and state-key.sh library copies; behavior is unchanged.
+
 ## [0.10.5] - 2026-11-04
 
 ### Changed

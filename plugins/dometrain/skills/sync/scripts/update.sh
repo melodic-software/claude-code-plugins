@@ -39,6 +39,20 @@ strip_attribution() {
   sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/{N;d}' "$1"
 }
 
+# $1 names the action in the failure message: seed or refresh.
+save_baseline() {
+  if ! cp "$tmpfile" "$BASELINE"; then
+    echo "  ✖ Failed to $1 baseline (check permissions/disk)" >&2
+    exit 2
+  fi
+}
+
+summary() {
+  echo ""
+  echo "=== Summary ==="
+  printf '%s\n' "$@"
+}
+
 for cmd in curl diff; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✖ Required command not found: $cmd" >&2
@@ -64,10 +78,7 @@ curl_err=$(curl -fsSL "$UPSTREAM_URL" -o "$tmpfile" 2>&1 >/dev/null) || {
 if [[ ! -f "$BASELINE" ]]; then
   echo "  ↳ No baseline at $BASELINE"
   if [[ "$MODE" == "--refresh-baseline" ]]; then
-    if ! cp "$tmpfile" "$BASELINE"; then
-      echo "  ✖ Failed to seed baseline (check permissions/disk)" >&2
-      exit 2
-    fi
+    save_baseline seed
     echo "  ✓ Baseline seeded ($(wc -c <"$BASELINE") bytes)"
     exit 0
   fi
@@ -80,15 +91,12 @@ fi
 strip_attribution "$BASELINE" | tr -d '\r' >"$baseline_lf"
 tr -d '\r' <"$tmpfile" >"$tmpfile_lf"
 
-if diff -q "$baseline_lf" "$tmpfile_lf" >/dev/null 2>&1; then
+if diff_output=$(diff -u "$baseline_lf" "$tmpfile_lf"); then
   echo "  ✓ Upstream unchanged since last baseline"
-  echo ""
-  echo "=== Summary ==="
-  echo "✓ No drift detected. dometrain grounding content is in sync with upstream."
+  summary "✓ No drift detected. dometrain grounding content is in sync with upstream."
   exit 0
 fi
 
-diff_output=$(diff -u "$baseline_lf" "$tmpfile_lf")
 diff_lines=$(printf '%s\n' "$diff_output" | wc -l | tr -d ' ')
 echo "  ↳ Drift detected ($diff_lines diff lines)"
 echo ""
@@ -100,10 +108,7 @@ fi
 echo ""
 
 if [[ "$MODE" == "--refresh-baseline" ]]; then
-  if ! cp "$tmpfile" "$BASELINE"; then
-    echo "  ✖ Failed to refresh baseline (check permissions/disk)" >&2
-    exit 2
-  fi
+  save_baseline refresh
   echo "  ✓ Baseline refreshed to match current upstream"
   echo "  ↳ Re-add the attribution comment (see context/update.md) — --refresh-baseline"
   echo "    overwrites with raw upstream content, which never carries it."
@@ -115,11 +120,9 @@ fi
 
 echo "  ↳ To integrate (plugin maintainers, in a working clone):"
 echo "      1. Review the diff above and decide what to port into:"
-echo "           $SKILL_DIR/../grounding/SKILL.md"
+echo "           $GROUNDING_SKILL_MD"
 echo "      2. Preserve this plugin's customizations (see context/update.md)"
 echo "      3. After integration, re-run this script with --refresh-baseline"
-echo ""
-echo "=== Summary ==="
-echo "↳ Drift detected. See sections above."
-echo "Next: review the diff, port relevant changes, then --refresh-baseline."
+summary "↳ Drift detected. See sections above." \
+  "Next: review the diff, port relevant changes, then --refresh-baseline."
 exit 1

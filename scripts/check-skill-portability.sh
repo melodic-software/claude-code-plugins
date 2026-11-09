@@ -136,13 +136,12 @@ paths)
   files=("${GE_PATHS[@]}")
   ;;
 base)
-  base="$GE_REF"
   # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
   # git pathspec does not match under git's default (non-pathname) globbing.
   # A failed diff exits 2 from the shared entry rather than arriving here as
   # an empty scope.
   changed=()
-  gate_entry::collect_changed changed "$base" -- 'plugins/'
+  gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     case "$f" in
     plugins/*/skills/*) ;;

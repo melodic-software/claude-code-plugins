@@ -234,11 +234,9 @@ ensure_convention_patterns() {
     # dependency set the answer was resolved against.
     conv_dep_lines=""
     for conv_dep in "${CONV_DEPS[@]}"; do
-      if [[ -e "$conv_dep" ]]; then
-        conv_dep_lines+="DEP 1 $conv_dep"$'\n'
-      else
-        conv_dep_lines+="DEP 0 $conv_dep"$'\n'
-      fi
+      conv_exists=0
+      [[ -e "$conv_dep" ]] && conv_exists=1
+      conv_dep_lines+="DEP $conv_exists $conv_dep"$'\n'
     done
     # The resolver's stderr is read, not discarded: its exit code and stderr
     # tell an unresolved key from a broken convention (see the header). Without
@@ -254,6 +252,7 @@ ensure_convention_patterns() {
       # `strace -f -e trace=clone,clone3,execve`). The group's second command
       # reads the status the first left, which is the resolver's.
       { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); conv_rc=$?; } 2>"$conv_errf"
+      conv_diag=""
       if ((conv_rc != 0)); then
         conv_val=""
         conv_err=""
@@ -267,15 +266,17 @@ ensure_convention_patterns() {
         if [[ -n "$conv_err" || $conv_rc -ne 1 ]]; then
           conv_diag="${conv_err:0:300}"
           [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
-          case "$conv_key" in
-          subject_pattern) SUBJECT_DIAG="$conv_diag" ;;
-          *) TITLE_DIAG="$conv_diag" ;;
-          esac
         fi
       fi
       case "$conv_key" in
-      subject_pattern) SUBJECT_ERE="$conv_val" ;;
-      *) TITLE_ERE="$conv_val" ;;
+      subject_pattern)
+        SUBJECT_ERE="$conv_val"
+        SUBJECT_DIAG="$conv_diag"
+        ;;
+      *)
+        TITLE_ERE="$conv_val"
+        TITLE_DIAG="$conv_diag"
+        ;;
       esac
     done
     [[ "$conv_errf" == /dev/null ]] || rm -f "$conv_errf" 2>/dev/null
@@ -491,14 +492,11 @@ check_segment() {
       local t="" ti
       for ((ti = gs + 3; ti < gn; ti++)); do
         case "${gw[ti]}" in
-        --title)
+        --title | -t)
           ((ti + 1 < gn)) && t="${gw[ti + 1]}"
           ;;
         --title=*)
           t="${gw[ti]#--title=}"
-          ;;
-        -t)
-          ((ti + 1 < gn)) && t="${gw[ti + 1]}"
           ;;
         *) ;;
         esac

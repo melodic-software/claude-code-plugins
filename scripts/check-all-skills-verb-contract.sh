@@ -86,13 +86,11 @@ if ((env_error == 0 && passed + failed != expected)); then
 fi
 ((env_error == 0)) || exit 2
 
-bad=0
-for h in ${hits[@]+"${hits[@]}"}; do
-  printf 'FAIL: %s: %s\n' "$h" "$MISMATCH" >&2
-  bad=$((bad + 1))
-done
-if ((bad > 0)); then
-  printf 'check-all-skills-verb-contract: %d problem(s) across %d skills\n' "$bad" "$expected" >&2
+if ((${#hits[@]} > 0)); then
+  for h in "${hits[@]}"; do
+    printf 'FAIL: %s: %s\n' "$h" "$MISMATCH" >&2
+  done
+  printf 'check-all-skills-verb-contract: %d problem(s) across %d skills\n' "${#hits[@]}" "$expected" >&2
   exit 1
 fi
 printf 'check-all-skills-verb-contract: PASS (%d skills)\n' "$expected"

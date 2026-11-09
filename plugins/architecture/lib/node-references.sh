@@ -165,7 +165,7 @@ node_glob_regex() {
       i = 1
       while (i <= n) {
         c = substr(g, i, 1)
-        if (c == "*" && substr(g, i, 2) == "**") {
+        if (substr(g, i, 2) == "**") {
           if (substr(g, i + 2, 1) == "/") { out = out "(.*/)?"; i += 3 } else { out = out ".*"; i += 2 }
         } else if (c == "*") { out = out "[^/]*"; i++ }
         else if (c == "?") { out = out "[^/]"; i++ }

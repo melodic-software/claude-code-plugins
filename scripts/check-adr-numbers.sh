@@ -81,9 +81,8 @@ for number in $dup_numbers; do
     in_baseline "$r" || exempt=""
   done
   if [[ -z "$exempt" ]]; then
-    joined="${files[0]}"
-    for f in "${files[@]:1}"; do joined="$joined, $f"; done
-    offenders+=("$number: $joined")
+    printf -v joined '%s, ' "${files[@]}"
+    offenders+=("$number: ${joined%, }")
   fi
 done
 

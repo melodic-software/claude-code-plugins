@@ -12,10 +12,7 @@ const PDF_PATH = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`
 const url = pathToFileURL(HTML_PATH).href + "?print=1";
 
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({
-  viewport: { width: 1280, height: 720 },
-});
-const page = await context.newPage();
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const externalRequests = [];
 await page.route(/^https?:\/\//, (route) => {
   externalRequests.push(route.request().url());

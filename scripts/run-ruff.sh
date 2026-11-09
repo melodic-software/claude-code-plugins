@@ -48,19 +48,14 @@ if [[ -z "$pin" ]]; then
   exit 2
 fi
 
-# `ruff --version` prints "ruff X.Y.Z"; anything else (including a failed probe)
-# is reported as the caller's fallback rather than treated as a version.
-ruff_reported_version() {
-  local out
-  out="$(ruff --version 2>/dev/null)" || return 1
-  printf '%s\n' "${out##* }"
-}
-
 ruff_on_path=0
 if command -v ruff >/dev/null 2>&1; then
   ruff_on_path=1
-  # shellcheck disable=SC2310  # the probe's only failure is "no version", reported but never trusted
-  got="$(ruff_reported_version)" || got="unknown"
+  # `ruff --version` prints "ruff X.Y.Z"; a failed probe reports as "unknown".
+  got="unknown"
+  if out="$(ruff --version 2>/dev/null)"; then
+    got="${out##* }"
+  fi
   if [[ "$got" == "$pin" ]]; then
     exec ruff "$@"
   fi

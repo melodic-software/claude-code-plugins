@@ -65,29 +65,26 @@ precompute_block() {
   ' "$1"
 }
 
-# line_has_git <line> — git appears as a command (word-boundary), not prose.
-line_has_git() {
-  grep -qE '(^|[[:space:]|`])git([[:space:]]|$|[|;&])' <<<"$1"
-}
+# An inline `!`command`` injection, and git appearing in a line as a command
+# (word-boundary), not prose.
+# shellcheck disable=SC2016  # ERE matches literal backticks around precompute injections
+INJECTION_RE='!`[^`]+`'
+GIT_RE='(^|[[:space:]|`])git([[:space:]]|$|[|;&])'
 
 # scan_skill <skill_md> — print violation message on stdout when found.
 scan_skill() {
   local skill_md="$1"
-  local block line_count=0 git_count=0
+  local block line_count=0 has_git=0
   block="$(precompute_block "$skill_md")"
   if [[ -z "${block//[[:space:]]/}" ]]; then
     return 0
   fi
   while IFS= read -r line || [[ -n "$line" ]]; do
-    # shellcheck disable=SC2016  # ERE matches literal backticks around precompute injections
-    if grep -qE '!`[^`]+`' <<<"$line"; then
-      line_count=$((line_count + 1))
-      if line_has_git "$line"; then
-        git_count=1
-      fi
-    fi
+    [[ "$line" =~ $INJECTION_RE ]] || continue
+    line_count=$((line_count + 1))
+    [[ "$line" =~ $GIT_RE ]] && has_git=1
   done <<<"$block"
-  if ((line_count > 1 && git_count == 1)); then
+  if ((line_count > 1 && has_git == 1)); then
     printf 'VIOLATION: %s — %d precompute lines with a git command (#1619 composition rule)\n' \
       "$skill_md" "$line_count"
     return 1

@@ -85,8 +85,8 @@ assert_output_contains() {
 test_harness::run_guard() {
   local expected="$1" name="$2" script="$3" program="$4"
   shift 4
-  local output status
-  output="$(
+  local status
+  LAST_OUTPUT="$(
     env -i \
       PATH="$PATH" \
       HOME="${HOME:-/tmp}" \
@@ -94,12 +94,11 @@ test_harness::run_guard() {
       bash -c "$program" harness "$script" 2>&1
   )"
   status=$?
-  LAST_OUTPUT="$output"
   if [[ "$status" -eq "$expected" ]]; then
     pass "$name"
     return 0
   fi
-  bad "$name" "expected exit $expected, got $status; output: $output"
+  bad "$name" "expected exit $expected, got $status; output: $LAST_OUTPUT"
   return 1
 }
 

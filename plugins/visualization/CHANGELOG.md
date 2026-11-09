@@ -3,6 +3,26 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.19] - 2026-11-09
+
+### Changed
+
+- Simplified the shared Mermaid gate without changing its output.
+
+## [1.0.18] - 2026-11-09
+
+### Changed
+
+- Internal simplification of the shared view helpers this plugin carries, no behavior change.
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+## [1.0.17] - 2026-11-09
+
+### Changed
+
+- Simplified the shared setup-apply.mjs, spawn_noise.py and state-key.sh library copies; behavior is unchanged.
+
 ## [1.0.16] - 2026-11-07
 
 ### Fixed

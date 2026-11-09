@@ -187,8 +187,7 @@ parse_frontmatter() {
   if ((total == 0)) || [[ "${FILE_LINES[0]}" != "---" ]]; then
     shape_error "$label: no frontmatter block (file must open with ---)"
   fi
-  i=1
-  while ((i < total)); do
+  for ((i = 1; i < total; i++)); do
     raw="${FILE_LINES[$i]}"
     if [[ "$raw" == "---" ]]; then
       FM_END_INDEX=$i
@@ -198,7 +197,6 @@ parse_frontmatter() {
     content="${raw#"${raw%%[![:space:]]*}"}"
     indent=$((${#raw} - ${#content}))
     if [[ -z "$content" || "$content" == '#'* ]]; then
-      i=$((i + 1))
       continue
     fi
     if [[ "$content" =~ ^([A-Za-z_][A-Za-z0-9_-]*)[[:space:]]*:(.*)$ ]]; then
@@ -272,7 +270,6 @@ parse_frontmatter() {
         shape_error "$label: unparsable frontmatter line: $content"
       fi
     fi
-    i=$((i + 1))
   done
   if ((FM_END_INDEX < 0)); then
     shape_error "$label: frontmatter block never closes (no terminating ---)"
@@ -302,8 +299,7 @@ begin_count=0
 end_count=0
 begin_index=-1
 end_index=-1
-i=$((fm_end_index + 1))
-while ((i < slice_line_count)); do
+for ((i = fm_end_index + 1; i < slice_line_count; i++)); do
   case "${slice_lines[$i]}" in
   "$BEGIN_MARKER")
     begin_count=$((begin_count + 1))
@@ -315,7 +311,6 @@ while ((i < slice_line_count)); do
     ;;
   *) ;;
   esac
-  i=$((i + 1))
 done
 if ((begin_count != 1 || end_count != 1)); then
   echo "SHAPE: $index_file must contain exactly one BEGIN and one END slice-index marker (found $begin_count BEGIN, $end_count END)." >&2
@@ -417,20 +412,7 @@ if ((${#generated_lines[@]} == 0)); then
 fi
 
 # --- Assemble the regenerated file ------------------------------------------
-new_content=""
-i=0
-while ((i <= begin_index)); do
-  new_content+="${slice_lines[$i]}"$'\n'
-  i=$((i + 1))
-done
-for line in "${generated_lines[@]}"; do
-  new_content+="$line"$'\n'
-done
-i=$end_index
-while ((i < slice_line_count)); do
-  new_content+="${slice_lines[$i]}"$'\n'
-  i=$((i + 1))
-done
+printf -v new_content '%s\n' "${slice_lines[@]:0:begin_index+1}" "${generated_lines[@]}" "${slice_lines[@]:end_index}"
 
 # --- Size cap (T4) -----------------------------------------------------------
 max_bytes="${INDEX_REGEN_MAX_BYTES:-$DEFAULT_MAX_BYTES}"
@@ -448,10 +430,7 @@ if ((new_bytes > max_bytes)); then
 fi
 
 # --- Write only on change ----------------------------------------------------
-old_content=""
-for line in "${slice_lines[@]}"; do
-  old_content+="$line"$'\n'
-done
+printf -v old_content '%s\n' "${slice_lines[@]}"
 if [[ "$new_content" == "$old_content" ]]; then
   echo "unchanged: $index_file (${#declared_children[@]} children)"
 else

@@ -15,9 +15,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const RULE = "=".repeat(70);
+
 function step(label, script, args = []) {
   const start = Date.now();
-  console.log(`\n${"=".repeat(70)}\n${label}\n${"=".repeat(70)}`);
+  console.log(`\n${RULE}\n${label}\n${RULE}`);
   const r = spawnSync(process.execPath, [path.join(__dirname, script), ...args], {
     stdio: "inherit",
     cwd: __dirname,
@@ -46,12 +48,13 @@ function parseFlags(argv) {
 
 const { flags, passthrough } = parseFlags(process.argv);
 
-const tasks = [];
-if (!flags.skipEmit)     tasks.push(["EMIT slides-data.js",      "emit-slides-data.js", passthrough]);
-tasks.push(["BUILD pptx",                                          "build-pptx.js",       []]);
-tasks.push(["BUILD html",                                          "build-html.js",       []]);
-tasks.push(["BUILD pdf",                                           "build-pdf.js",        []]);
-if (!flags.skipValidate) tasks.push(["VALIDATE deck (quality gates)","validate.js",       []]);
+const tasks = [
+  !flags.skipEmit && ["EMIT slides-data.js", "emit-slides-data.js", passthrough],
+  ["BUILD pptx", "build-pptx.js"],
+  ["BUILD html", "build-html.js"],
+  ["BUILD pdf", "build-pdf.js"],
+  !flags.skipValidate && ["VALIDATE deck (quality gates)", "validate.js"],
+].filter(Boolean);
 
 for (const [label, script, args] of tasks) {
   if (!step(label, script, args)) {
@@ -60,6 +63,6 @@ for (const [label, script, args] of tasks) {
   }
 }
 
-console.log("\n" + "=".repeat(70));
+console.log(`\n${RULE}`);
 console.log("PIPELINE GREEN — deck ready.");
-console.log("=".repeat(70));
+console.log(RULE);

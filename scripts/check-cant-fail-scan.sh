@@ -33,7 +33,7 @@ if [[ -z "${1:-}" ]]; then
   out="$(bash "$SCAN" --check 2>&1)"
   rc=$?
   if [[ $rc -eq 0 ]]; then
-    printf '%s\n' "$out" | tail -1
+    printf '%s\n' "${out##*$'\n'}"
   else
     printf '%s\n' "$out" >&2
   fi

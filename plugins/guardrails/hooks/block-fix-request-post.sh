@@ -109,17 +109,23 @@ hook::buffer_stdin_to INPUT || {
 
 hook::require_jq_blocking "guardrails-block-fix-request-post" "block_fix_request_post_enabled"
 
+# _bfr_settle_fields <hook::jq_fields rc>: refuse an unparsable payload or a
+# NUL byte, skip on any other jq failure.
+_bfr_settle_fields() {
+  if (($1 == 2)); then
+    guard::refuse_unparsable
+    exit 2
+  fi
+  (($1 == 0)) || exit 0
+  if ((HOOK_JQ_FIELDS_NUL)); then
+    guard::refuse_nul
+    exit 2
+  fi
+}
+
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+_bfr_settle_fields "$jq_rc"
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 _BFR_CWD="${HOOK_JQ_FIELDS[2]:-$PWD}"
@@ -241,15 +247,7 @@ if [[ "$TOOL_NAME" == mcp__* ]]; then
   # body to post.
   jq_rc=0
   hook::jq_fields "$INPUT" '.tool_input.body' '.tool_input.comments' || jq_rc=$?
-  if ((jq_rc == 2)); then
-    guard::refuse_unparsable
-    exit 2
-  fi
-  ((jq_rc != 0)) && exit 0
-  if ((HOOK_JQ_FIELDS_NUL)); then
-    guard::refuse_nul
-    exit 2
-  fi
+  _bfr_settle_fields "$jq_rc"
   for _bfr_t in "${HOOK_JQ_FIELDS[@]}"; do
     _bfr_carries "$_bfr_t" && block "${TOOL_NAME##*__}"
   done

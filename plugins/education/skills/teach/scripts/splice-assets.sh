@@ -76,30 +76,25 @@ on a usage error.
 EOF
 }
 
+usage_error() {
+  echo "splice-assets.sh: $1" >&2
+  usage >&2
+  exit 2
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   usage
   exit 0
 fi
 
-if [[ $# -ne 2 ]]; then
-  echo "splice-assets.sh: expected <lesson.html> <assets-dir>; got $# argument(s)" >&2
-  usage >&2
-  exit 2
-fi
+[[ $# -eq 2 ]] || usage_error "expected <lesson.html> <assets-dir>; got $# argument(s)"
 
 lesson="$1"
 assets="$2"
 
-[[ -f "$lesson" && -r "$lesson" && -w "$lesson" ]] || {
-  echo "splice-assets.sh: <lesson.html> is not a readable, writable regular file: $lesson" >&2
-  usage >&2
-  exit 2
-}
-[[ -d "$assets" ]] || {
-  echo "splice-assets.sh: <assets-dir> is not a directory: $assets" >&2
-  usage >&2
-  exit 2
-}
+[[ -f "$lesson" && -r "$lesson" && -w "$lesson" ]] ||
+  usage_error "<lesson.html> is not a readable, writable regular file: $lesson"
+[[ -d "$assets" ]] || usage_error "<assets-dir> is not a directory: $assets"
 
 # Validate every present marker and its asset BEFORE the first write, so a refusal never
 # touches the lesson. Occurrences are counted, not matching lines: `grep -c` would read two
@@ -112,8 +107,7 @@ asset_names=('lesson.css' 'quiz.js')
 
 for i in 0 1; do
   marker="${markers[$i]}"
-  count=$(grep -oF -- "$marker" "$lesson" | wc -l)
-  count=$((count + 0))
+  count=$(($(grep -oF -- "$marker" "$lesson" | wc -l)))
   if [[ "$count" -gt 1 ]]; then
     echo "splice-assets.sh: marker $marker occurs $count times in $lesson; expected at most 1" >&2
     exit 1

@@ -45,6 +45,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 # `from __future__ import annotations` needs 3.7; the .test.sh wrapper parses
@@ -78,11 +79,10 @@ def is_record(path: str) -> bool:
     return path.startswith(RECORD_PREFIXES) or Path(path).name in RECORD_NAMES
 
 
-def line_count(path: Path, cache: dict) -> int:
-    if path not in cache:
-        data = path.read_bytes()
-        cache[path] = data.count(b"\n") + (0 if not data or data.endswith(b"\n") else 1)
-    return cache[path]
+@lru_cache(maxsize=None)
+def line_count(path: Path) -> int:
+    data = path.read_bytes()
+    return data.count(b"\n") + (0 if not data or data.endswith(b"\n") else 1)
 
 
 def candidates(cited: str, citing: Path, tracked: set) -> list:
@@ -98,7 +98,7 @@ def candidates(cited: str, citing: Path, tracked: set) -> list:
     return out
 
 
-def scan(citing: Path, tracked: set, cache: dict) -> list:
+def scan(citing: Path, tracked: set) -> list:
     findings = []
     fence = ""
     text = (REPO_ROOT / citing).read_text(encoding="utf-8", errors="replace")
@@ -122,8 +122,8 @@ def scan(citing: Path, tracked: set, cache: dict) -> list:
             if not targets:
                 continue
             highest = max(int(n) for n in re.split(r"[-,]", match["spec"]))
-            best = max(targets, key=lambda t: line_count(t, cache))
-            longest = line_count(best, cache)
+            best = max(targets, key=line_count)
+            longest = line_count(best)
             if highest > longest:
                 findings.append(
                     f"{citing.as_posix()}:{lineno}: `{match[0]}` cites line {highest}, "
@@ -146,8 +146,7 @@ def main() -> int:
         return 2
     tracked = {p for p in listed.split("\0") if p and (REPO_ROOT / p).is_file()}
     files = sorted(Path(p) for p in tracked if p.endswith(".md") and not is_record(p))
-    cache: dict = {}
-    findings = [f for path in files for f in scan(path, tracked, cache)]
+    findings = [f for path in files for f in scan(path, tracked)]
     for finding in findings:
         print(finding)
     if findings:

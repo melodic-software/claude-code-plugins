@@ -45,9 +45,7 @@ cd "$SCRIPT_DIR/.." || exit 2
 
 emit() {
   printf 'docs_only=%s\n' "$1"
-  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-    printf 'docs_only=%s\n' "$1" >>"$GITHUB_OUTPUT"
-  fi
+  [[ -z "${GITHUB_OUTPUT:-}" ]] || printf 'docs_only=%s\n' "$1" >>"$GITHUB_OUTPUT"
 }
 
 # Every fail-closed path (and the normal has-code case) resolves the same way:
@@ -102,16 +100,10 @@ if [[ ${#changed[@]} -eq 0 ]]; then
 fi
 
 for path in "${changed[@]}"; do
-  matched=0
   for prefix in "${prefixes[@]}"; do
-    if [[ "$path" == "$prefix"* ]]; then
-      matched=1
-      break
-    fi
+    [[ "$path" == "$prefix"* ]] && continue 2
   done
-  if [[ $matched -eq 0 ]]; then
-    run_full "'$path' is outside the docs-only allowlist"
-  fi
+  run_full "'$path' is outside the docs-only allowlist"
 done
 
 echo "check-docs-only: all ${#changed[@]} changed path(s) within the docs-only allowlist" >&2

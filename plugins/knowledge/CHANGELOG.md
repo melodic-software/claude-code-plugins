@@ -4,6 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.3.5] - 2026-11-09
+
+### Changed
+
+- Simplified the shared HTML escape helper without changing its output.
+
+## [1.3.4] - 2026-11-09
+
+### Changed
+
+- Simplified the shared yaml-subset parser copies; behavior is unchanged.
+
+- Simplified the internals of the docs fetcher script; its behavior is unchanged.
+
+## [1.3.3] - 2026-11-09
+
+### Changed
+
+- Simplified the shared resolve-convention-home.sh, resolve-convention-pattern.sh and rewrite-guard.sh copies; behavior is unchanged.
+
+- Simplified `docs-cache.sh`: one routine now warns on a bad summary or note file, and the UTC formatter picks its format once. Outputs, exit codes and messages are unchanged.
+
 ## [1.3.2] - 2026-11-06
 
 ### Fixed

@@ -49,71 +49,41 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
+# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh): a
+# disabled guard must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
+# `dirname` without the fork a command substitution costs on every fire (a
+# process on Windows Git Bash); a bare filename falls back to `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. Same reasoning as the
-# other per-call Bash guards: visible allow on abort, never a frozen session.
+# Could-not-run posture: fail-open with a dual-channel "guard did not run"
+# notice; 0 (allow) and 2 (block) pass through, like the other per-call guards.
 guard::abort_boundary block-no-verify PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty and skip telemetry (the block
-# still fires). Referencing it bare under `set -u` would abort before exit.
+# EPOCHREALTIME is Bash 5.0+; when it is unset, telemetry is skipped and the
+# block still fires.
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
-# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that is
-# not JSON) FAILS CLOSED — the guard cannot evaluate the tool call, and a
-# silent skip would pass exactly the traffic this guard exists to stop; rc 3
-# (a JSON payload cut short by the pipe, a transport fault) is a loud skip
-# the dispatcher takes once. buffer_stdin already printed the reason. Buffering
-# does not require jq (hook::buffer_stdin's own JSON-completeness check is
-# jq-optional), so it runs before the jq gate below.
+# rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
+# short by the pipe) is a loud skip the dispatcher takes once. Buffering needs
+# no jq, so it runs before the jq gate.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload, and this guard FAILS CLOSED on its
-# absence (#2146) — the same posture the MAX_COMMAND_LEN ceiling below already
-# took toward an input it cannot parse. Before #2146 the two disagreed: an
-# over-long command was treated as obfuscation and blocked, while a machine
-# without jq skipped the guard entirely after one notice, so an author who could
-# not fit a bypass under the ceiling could simply be somewhere without jq. The
-# posture, the membership criterion for this class, and the disclosed cost are
-# argued at hook::require_jq_blocking in hook-utils.sh — this comment asserts the
-# behavior, that one explains it.
+# A missing jq FAILS CLOSED, as the MAX_COMMAND_LEN ceiling below does;
+# hook::require_jq_blocking in hook-utils.sh argues the posture.
 hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
-# ~140 ms of fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. rc 1 here means jq could not parse the payload at all —
-# it exits 0 exactly as the empty-COMMAND skip below did. A MISSING jq can no
-# longer reach this line — hook::require_jq_blocking above has already denied the
-# call (#2146) — so the rc-1 path here is now only the unparsable-payload case.
-# That remaining allow-on-unparsable path is closed by #2157 and is NOT what
-# the NUL check below covers.
+# Both fields in one jq process: a jq spawn costs ~140 ms on Windows Git Bash.
+# rc 2 (an unparsable payload) is refused; any other failure skips.
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 if ((jq_rc == 2)); then
@@ -122,20 +92,10 @@ if ((jq_rc == 2)); then
 fi
 ((jq_rc != 0)) && exit 0
 
-# A NUL byte in EITHER field read above is fail-CLOSED, and is decided BEFORE
-# the empty-COMMAND skip below: the helper strips every NUL out of a value, so a
-# command consisting only of NUL bytes arrives EMPTY and would otherwise be waved
-# through by that skip as "no command" (#2122). Verified, not assumed — a lone
-# NUL yields an empty value with the flag set, while a leading NUL followed by
-# text keeps the text.
-#
-# Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviors were measured and they
-# disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
-# child_process REFUSES a NUL-bearing string outright — and which of them, if
-# either, a hook payload reaches has not been traced. Blocking is the one verdict
-# correct under all of them, so it needs no such trace. A NUL here is malformed
-# input, not an exotic-but-valid command.
+# A NUL byte in either field FAILS CLOSED, before the empty-COMMAND skip: the
+# helper strips NULs, so an all-NUL command arrives empty. Bash discards a NUL
+# and Node's child_process refuses one, so what would run is unknown, and a
+# block is the one verdict right under both.
 if ((HOOK_JQ_FIELDS_NUL)); then
   guard::refuse_nul
   exit 2
@@ -396,6 +356,7 @@ check_segment() {
   # In a short-option bundle, `n` counts only when it precedes the first
   # argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg` blocks but `-mn`
   # (m takes value "n") does not.
+  local nv_msg="BLOCKED: --no-verify / -n skips the hooks on this git $sub. $BYPASS_FIX"
   k=$((sub_idx + 1))
   while ((k < nseg)); do
     x="${w[k]}"
@@ -410,14 +371,12 @@ check_segment() {
       ;;
     *) ;;
     esac
-    [[ "$x" == "--no-verify" ]] && block "no-verify" \
-      "BLOCKED: --no-verify / -n skips the hooks on this git $sub. $BYPASS_FIX"
+    [[ "$x" == "--no-verify" ]] && block "no-verify" "$nv_msg"
     if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
       rest="${x#-}"
       for ((ch = 0; ch < ${#rest}; ch++)); do
         case "${rest:ch:1}" in
-        n) block "no-verify" \
-          "BLOCKED: --no-verify / -n skips the hooks on this git commit. $BYPASS_FIX" ;;
+        n) block "no-verify" "$nv_msg" ;;
         m | F | c | C | t | u | S | G)
           if ((ch + 1 < ${#rest})); then
             ((k++))
@@ -458,17 +417,6 @@ sink_allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
-# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
-# For the Bash tool this is a no-op (COMMAND unchanged). The classifier is
-# loaded only on the PowerShell lane (#2663): its Bash path is `return 0` after
-# setting PS_SAFE_COMMAND, so a file-scope `source` is parse tax with no
-# behavior. This guard names it once, in hooks/guard-requires.sh, rather than
-# spelling the plugin root and the library path here.
-#
-# When a sink-shape token IS allowlisted, blank that opaque region and keep
-# checking any remaining visible text — do not fail-open a compound command
-# that still carries --no-verify beside the granted shape (same loop as
-# block-dangerous-git, narrowed to this guard's readonly-ok classifier).
 # True (0) when the PowerShell command text assigns a hook-manager variable to
 # 0/false: `$env:X=0`, `${env:X} = '0'`, `Set-Item env:X 0`,
 # `Set-Item -Path env:X -Value 0`, `si env:X 0`. The classifier reduction turns
@@ -528,6 +476,12 @@ ps_set_item_disables() {
   return 1
 }
 
+# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed;
+# the Bash tool's COMMAND is unchanged. The classifier is loaded on this lane
+# only, through hooks/guard-requires.sh. When a sink-shape token IS
+# allowlisted, blank that opaque region and keep checking the visible text, so
+# a compound command carrying --no-verify beside the granted shape still blocks
+# (block-dangerous-git's loop, with this guard's readonly-ok classifier).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # The declaration first, then the library it names. Under run-guards.sh the
   # declaration is already in this process and the library was loaded once for
